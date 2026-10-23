@@ -3876,6 +3876,93 @@ fn scan_original_variable_read_effects(
     }
 }
 
+fn scan_return_statement(
+    stmt: &crate::ir::Statement,
+    retained_tokens: Option<&crate::ir::CommandTokens>,
+    ctx: ScanCtx<'_>,
+    params: &HashSet<String>,
+    facts: &mut LocalFacts,
+) {
+    let crate::ir::Statement::Return {
+        value,
+        value_word,
+        expr,
+        expr_base,
+        braced,
+        ..
+    } = stmt
+    else {
+        return;
+    };
+    note_original_return_parameter(value_word.as_ref(), ctx, facts);
+    let config = retained_tokens.and_then(|tokens| {
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_invocation_metadata_for_module(tokens, ctx.source_module, ctx.registry)?;
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        if let Some(expression) = expr {
+            let (original_config, _) =
+                crate::registry_invocation::original_lowered_expression_syntax(
+                    expression, *expr_base, tokens,
+                )?;
+            (original_config == config).then_some(())?;
+        }
+        Some(config)
+    });
+    if let Some(expression) = expr {
+        let mut references = Vec::new();
+        let source_config = original_parameter_expression_config(expression, *expr_base, ctx);
+        if !walk_collect_param_refs(expression, params, &mut references, source_config, 0) {
+            facts.param_observations_incomplete = true;
+        }
+        facts.param_references.extend(references);
+    }
+    let kind = classify_return(
+        value.as_deref(),
+        *braced,
+        value_word.as_ref(),
+        expr.as_ref(),
+        params,
+        config,
+    );
+    facts.returns.push(kind);
+    // For a return, scan `[cmd …]` substitutions in the return
+    // value (`return [add $x $x]`) for call-graph edges.
+    if let Some(value) = value
+        && value.contains('[')
+    {
+        scan_value_substitutions(value, ctx, facts, 0);
+    }
+}
+
+fn scan_upframe_script(
+    body: &crate::ir::Script,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+    depth: u32,
+) {
+    facts.param_observations_incomplete = true;
+    // Static-body uplevel runs the inner script in the
+    // caller's frame — for interprocedural purposes it can
+    // touch any caller-scope variable, so treat it as a
+    // barrier conservatively. Any reads/writes inside
+    // ``body`` propagate up.
+    facts.has_barrier = true;
+    facts.mark_impure();
+    facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+    facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+    let outer_parameters = HashSet::new();
+    scan_script(
+        body,
+        ScanCtx {
+            params: &outer_parameters,
+            parameter_body: None,
+            ..ctx
+        },
+        facts,
+        depth + 1,
+    );
+}
+
 /// `depth` is `stmt`'s own nesting level — see
 /// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Dispatch-only (no nested `Script`
 /// entered here) keeps the same `depth`; recursing into a nested body
@@ -3937,27 +4024,7 @@ fn scan_statement(
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         }
         Statement::UpFrame { body, .. } => {
-            facts.param_observations_incomplete = true;
-            // Static-body uplevel runs the inner script in the
-            // caller's frame — for interprocedural purposes it can
-            // touch any caller-scope variable, so treat it as a
-            // barrier conservatively. Any reads/writes inside
-            // ``body`` propagate up.
-            facts.has_barrier = true;
-            facts.mark_impure();
-            facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
-            facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
-            let outer_parameters = HashSet::new();
-            scan_script(
-                body,
-                ScanCtx {
-                    params: &outer_parameters,
-                    parameter_body: None,
-                    ..ctx
-                },
-                facts,
-                depth + 1,
-            );
+            scan_upframe_script(body, ctx, facts, depth);
         }
         Statement::Block { body, .. } => {
             // ``Block`` is a transparent splice: walk through to the
@@ -3993,57 +4060,8 @@ fn scan_statement(
                 scan_value_substitutions(amount, ctx, facts, 0);
             }
         }
-        Statement::Return {
-            value,
-            value_word,
-            expr,
-            expr_base,
-            braced,
-            ..
-        } => {
-            note_original_return_parameter(value_word.as_ref(), ctx, facts);
-            let config = retained_tokens.and_then(|tokens| {
-                let binding = tokens.source_binding.as_ref()?;
-                binding.original_invocation_metadata_for_module(
-                    tokens,
-                    ctx.source_module,
-                    ctx.registry,
-                )?;
-                let config = binding.original_lexer_config_for_tokens(tokens)?;
-                if let Some(expression) = expr {
-                    let (original_config, _) =
-                        crate::registry_invocation::original_lowered_expression_syntax(
-                            expression, *expr_base, tokens,
-                        )?;
-                    (original_config == config).then_some(())?;
-                }
-                Some(config)
-            });
-            if let Some(expression) = expr {
-                let mut references = Vec::new();
-                let source_config =
-                    original_parameter_expression_config(expression, *expr_base, ctx);
-                if !walk_collect_param_refs(expression, params, &mut references, source_config, 0) {
-                    facts.param_observations_incomplete = true;
-                }
-                facts.param_references.extend(references);
-            }
-            let kind = classify_return(
-                value.as_deref(),
-                *braced,
-                value_word.as_ref(),
-                expr.as_ref(),
-                params,
-                config,
-            );
-            facts.returns.push(kind);
-            // For a return, scan `[cmd …]` substitutions in the return
-            // value (`return [add $x $x]`) for call-graph edges.
-            if let Some(value) = value
-                && value.contains('[')
-            {
-                scan_value_substitutions(value, ctx, facts, 0);
-            }
+        Statement::Return { .. } => {
+            scan_return_statement(stmt, retained_tokens, ctx, params, facts);
         }
         Statement::Call {
             command,

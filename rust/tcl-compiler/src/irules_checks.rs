@@ -1447,6 +1447,68 @@ struct CollectionEventSide<'a> {
 /// Follow registry-declared side transitions with each original child owner.
 /// Missing supplied child source withdraws the whole pairing query: it is not
 /// evidence that a collect or release is absent.
+fn scan_selected_collection_side_body(
+    parent: &crate::ir::CommandTokens,
+    written: usize,
+    event_side: CollectionEventSide<'_>,
+    state: &mut CollectFlowState,
+    source: &IrulesSourceQuery<'_>,
+    original_function: &FunctionUnit,
+    base_offset: i64,
+) -> Option<()> {
+    let CollectionEventSide {
+        event,
+        side: inner_side,
+    } = event_side;
+    let registry = source.registry;
+    if source.standalone {
+        let binding = parent.source_binding.as_ref()?;
+        let image = binding.invocation_site()?.source.source_image();
+        let parent_config = binding.original_lexer_config_for_tokens(parent)?;
+        let words = crate::registry_invocation::original_native_compiler_words(
+            image,
+            parent.words(),
+            parent.argv.first()?.start(),
+            parent_config,
+        )?;
+        let word = words.get(written.checked_add(1)?)?;
+        let content = word.content_span().ok()?;
+        let body = std::str::from_utf8(image.bytes().get(content.as_range())?).ok()?;
+        scan_standalone_side_switch_body(
+            body,
+            CollectionEventSide {
+                event,
+                side: inner_side,
+            },
+            state,
+            source,
+            original_function,
+            word.config(),
+            base_offset + i64::from(content.start()),
+        )?;
+    } else {
+        let body_unit = source.unit.conditional_original_body_unit(
+            registry,
+            original_function,
+            parent,
+            written,
+        )?;
+        scan_secondary_collection_body(
+            &body_unit,
+            CollectionEventSide {
+                event,
+                side: inner_side,
+            },
+            state,
+            source,
+            original_function,
+            body_unit.source_lexer_config(),
+            0,
+        )?;
+    }
+    Some(())
+}
+
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
     event_side: CollectionEventSide<'_>,
@@ -1527,51 +1589,18 @@ fn classify_stmt_for_collect_flow(
                 return None;
             }
             let inner_side = target.execution_side(side);
-            if source.standalone {
-                let binding = parent.source_binding.as_ref()?;
-                let image = binding.invocation_site()?.source.source_image();
-                let parent_config = binding.original_lexer_config_for_tokens(parent)?;
-                let words = crate::registry_invocation::original_native_compiler_words(
-                    image,
-                    parent.words(),
-                    parent.argv.first()?.start(),
-                    parent_config,
-                )?;
-                let word = words.get(written.checked_add(1)?)?;
-                let content = word.content_span().ok()?;
-                let body = std::str::from_utf8(image.bytes().get(content.as_range())?).ok()?;
-                scan_standalone_side_switch_body(
-                    body,
-                    CollectionEventSide {
-                        event,
-                        side: inner_side,
-                    },
-                    state,
-                    source,
-                    original_function,
-                    word.config(),
-                    base_offset + i64::from(content.start()),
-                )?;
-            } else {
-                let body_unit = source.unit.conditional_original_body_unit(
-                    registry,
-                    original_function,
-                    parent,
-                    written,
-                )?;
-                scan_secondary_collection_body(
-                    &body_unit,
-                    CollectionEventSide {
-                        event,
-                        side: inner_side,
-                    },
-                    state,
-                    source,
-                    original_function,
-                    body_unit.source_lexer_config(),
-                    0,
-                )?;
-            }
+            scan_selected_collection_side_body(
+                parent,
+                written,
+                CollectionEventSide {
+                    event,
+                    side: inner_side,
+                },
+                state,
+                source,
+                original_function,
+                base_offset,
+            )?;
         } else if let Some(operation) = shape.data_collection {
             let Some(arguments) = collection_source_arguments(parent, shape, operation, source)
             else {

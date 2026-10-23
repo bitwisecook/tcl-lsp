@@ -5302,6 +5302,37 @@ fn taint_warning_report_impl<
     TaintWarningReport { warnings, replays }
 }
 
+fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    source: crate::ssa::SsaSourceView<'_>,
+    context: &SinkWarningContext<'_, H>,
+) {
+    let stmt = &ssa_stmt.statement;
+    let Some(parent) = source
+        .source_tokens()
+        .filter(|parent| stmt.tokens() == Some(*parent))
+    else {
+        return;
+    };
+    let Some(metadata) = context.source.metadata else {
+        return;
+    };
+    let Some(children) = crate::word_subst::checked_original_argument_lifted_calls(
+        parent,
+        context.registry,
+        metadata,
+    ) else {
+        return;
+    };
+    for child in children {
+        if let Some(tokens) = child.tokens {
+            emit_retained_invocation_warnings(&tokens, ssa_stmt, taints, warnings, source, context);
+        }
+    }
+}
+
 /// Emit taint warnings for a single SSA statement.
 ///
 /// Handles three cases:
@@ -5333,29 +5364,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     let stmt = &ssa_stmt.statement;
 
     if !context.source.allows_nominal_metadata() && matches!(stmt, Statement::AssignValue { .. }) {
-        let Some(parent) = source
-            .source_tokens()
-            .filter(|parent| stmt.tokens() == Some(*parent))
-        else {
-            return;
-        };
-        let Some(metadata) = context.source.metadata else {
-            return;
-        };
-        let Some(children) = crate::word_subst::checked_original_argument_lifted_calls(
-            parent,
-            context.registry,
-            metadata,
-        ) else {
-            return;
-        };
-        for child in children {
-            if let Some(tokens) = child.tokens {
-                emit_retained_invocation_warnings(
-                    &tokens, ssa_stmt, taints, warnings, source, context,
-                );
-            }
-        }
+        emit_original_assign_value_warnings(ssa_stmt, taints, warnings, source, context);
         return;
     }
 
@@ -5553,24 +5562,16 @@ fn emit_sink_candidates<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     }
 }
 
-/// Diagnostics may inspect a known possible sink without upgrading its shape
-/// into an implementation or store proof. Exact runtime/native facts take
-/// precedence; explicit unknown or absent lookup never falls back to spelling.
-fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+type RetainedSinkCandidate = (
+    String,
+    crate::registry_invocation::EffectiveCommandWords,
+    Option<SourceWarningMetadata>,
+);
+
+fn retained_sink_candidates<H>(
     tokens: &CommandTokens,
-    statement: &SsaStatement,
-    taints: &HashMap<ValueKey, TaintLattice, S>,
-    warnings: &mut Vec<TaintWarning>,
-    source: crate::ssa::SsaSourceView<'_>,
     context: &SinkWarningContext<'_, H>,
-) {
-    if !context.source.allows_nominal_metadata() && context.source.metadata.is_none() {
-        return;
-    }
-    let ssa = source.function();
-    let Some(args) = tokens.argv_texts.get(1..) else {
-        return;
-    };
+) -> (Vec<RetainedSinkCandidate>, bool) {
     let mut candidates = Vec::new();
     if let Some(invocation) =
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
@@ -5642,6 +5643,28 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
             Some(SourceWarningMetadata::Hosted(Box::new(hosted.metadata))),
         ));
     }
+    (candidates, native_source)
+}
+
+/// Diagnostics may inspect a known possible sink without upgrading its shape
+/// into an implementation or store proof. Exact runtime/native facts take
+/// precedence; explicit unknown or absent lookup never falls back to spelling.
+fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    tokens: &CommandTokens,
+    statement: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    source: crate::ssa::SsaSourceView<'_>,
+    context: &SinkWarningContext<'_, H>,
+) {
+    if !context.source.allows_nominal_metadata() && context.source.metadata.is_none() {
+        return;
+    }
+    let ssa = source.function();
+    let Some(args) = tokens.argv_texts.get(1..) else {
+        return;
+    };
+    let (candidates, native_source) = retained_sink_candidates(tokens, context);
     if std::env::var_os("ZZ_SOL49_ANY").is_some() {
         eprintln!(
             "ZZ_COMPILER_TAINT {:?} native={} candidates={}",
@@ -5933,6 +5956,41 @@ fn emit_command_head_substitution_warnings<S: std::hash::BuildHasher, H: std::ha
     }
 }
 
+fn build_isolated_taint_unit<H>(
+    source: &str,
+    context: &SinkWarningContext<'_, H>,
+) -> Option<crate::compilation_unit::CompilationUnit> {
+    if context.source.allows_nominal_metadata() {
+        return Some(context.dialect.map_or_else(
+            || crate::compilation_unit::CompilationUnit::build_for(source, context.registry, true),
+            |profile| {
+                crate::compilation_unit::CompilationUnit::build_for_profile(
+                    source,
+                    context.registry,
+                    true,
+                    profile,
+                )
+            },
+        ));
+    }
+    let input = context.source.metadata?.source_analysis_input()?;
+    Some(
+        crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.registry,
+                defer_top_level: true,
+                config: context.source.config,
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        ),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     script: &str,
@@ -5951,44 +6009,7 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
     if let Some(head_context) = command_head_ctx {
         expand_constant_outer_uses(&mut outer_uses, ssa_stmt, ssa, head_context);
     }
-    let build_nested = |source: &str| {
-        if context.source.allows_nominal_metadata() {
-            return Some(context.dialect.map_or_else(
-                || {
-                    crate::compilation_unit::CompilationUnit::build_for(
-                        source,
-                        context.registry,
-                        true,
-                    )
-                },
-                |profile| {
-                    crate::compilation_unit::CompilationUnit::build_for_profile(
-                        source,
-                        context.registry,
-                        true,
-                        profile,
-                    )
-                },
-            ));
-        }
-        let input = context.source.metadata?.source_analysis_input()?;
-        Some(
-            crate::compilation_unit::CompilationUnit::build_with_analysis_input(
-                source,
-                crate::compilation_unit::UnitBuildOptions {
-                    registry: context.registry,
-                    defer_top_level: true,
-                    config: context.source.config,
-                    dialect: Some(input.unit_profile()),
-                    external_call_sites: None,
-                    declared_commands: None,
-                },
-                None,
-                input,
-            ),
-        )
-    };
-    let Some(preliminary_cu) = build_nested(script) else {
+    let Some(preliminary_cu) = build_isolated_taint_unit(script, context) else {
         context.unavailable_replay(
             source_span,
             UnavailableTaintReplayReason::SourceMetadata,
@@ -6028,7 +6049,7 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         taints,
         ssa,
     );
-    let Some(nested_cu) = build_nested(&replay) else {
+    let Some(nested_cu) = build_isolated_taint_unit(&replay, context) else {
         context.unavailable_replay(
             source_span,
             UnavailableTaintReplayReason::SourceMetadata,
