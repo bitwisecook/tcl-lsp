@@ -1,0 +1,28 @@
+{
+  "baseline_ci_job": 120561858029,
+  "baseline_ci_run": 39996625386,
+  "baseline_ci_sha": "9c33cd4979862c62ef75d8407c96a60288c2adf6",
+  "catch": [
+    "a_catch_body_write_is_visible_after_the_catch"
+  ],
+  "scope": "Original exact current pack_source_e2e ALL10 plus separate original catch1, no invented seven selectors; original9c7PASS/3FAIL retained.",
+  "source_head_at_preparation": "ae5965adfa43e222f04f985c9e9633d2836f97cd",
+  "source_pins": {
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "e3ab2ab0c6f6559a5e4d40d19abbf20425101ab8d8ea4b368115f7ab052de002",
+    "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
+    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1"
+  },
+  "spectcl": [
+    "a_pack_timing_hook_controls_a_live_command_prefix_position",
+    "a_pack_file_folds_a_call_site_in_the_optimiser",
+    "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+    "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+    "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+    "the_loader_carries_the_declared_inputs",
+    "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+    "without_a_host_the_installed_pack_simply_does_not_fold",
+    "a_reference_body_answers_through_the_host_as_the_procedure_does",
+    "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
+  ]
+}
