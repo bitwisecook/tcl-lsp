@@ -725,17 +725,9 @@ pub(in crate::analyser) fn is_empty_method_body(source: &str, body_span: tcl_lex
 /// Resolve a possibly-bare superclass / mixin name written in the body of
 /// class `owner` to a qualified name keyed in `classes`.
 ///
-/// A superclass declared bare (`superclass Device`) is resolved the way
-/// Tcl would resolve the command: in the **defining class's namespace**,
-/// then walking outward to the global namespace, and finally — when the
-/// simple name is *globally unique* — to that single class (covering the
-/// common `namespace import` idiom without needing per-file import data).
-/// An ambiguous simple name (several classes share the tail) stays bare,
-/// so no wrong link is ever manufactured.  This is what links cross-file
-/// inheritance where a subclass in one file names a base class defined,
-/// under a namespace, in another (the `SpiceGenTcl` `superclass Device`
-/// shape), which would otherwise stay unlinked, silently dropping the
-/// inherited methods.
+/// Explicitly constructed graph keys resolve in the enclosing namespace,
+/// then globally. A unique tail supplies no import or caller ownership.
+/// Source declarations use their retained relation lookup instead.
 fn resolve_super_name(
     name: &str,
     owner_qname: &str,
@@ -1730,19 +1722,34 @@ mod tests {
 
     #[test]
     fn bare_superclass_links_via_unique_tail_across_namespaces() {
-        // The SpiceGenTcl shape: a global class (`::Core`, from an
-        // `namespace import`) names a base defined under a namespace
-        // (`::SpiceGenTcl::Device`). The simple name is globally unique, so
-        // the tail match links them and the inherited method resolves.
+        // C Tcl 8.6/9.0/9.1 requires the actual import; a unique tail is not
+        // a lookup owner. Analyse the exported/imported original source.
+        let source = r#"namespace eval ::SpiceGenTcl {
+    namespace export Device
+    oo::class create Device {
+        method genSPICEString {} {return OK}
+    }
+}
+rename auto_import savedPrelude
+namespace import ::SpiceGenTcl::Device
+oo::class create ::Core {superclass Device}
+"#;
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let h = build_class_hierarchy(analysis.all_classes);
+        assert_eq!(
+            h.method_target("::Core", "genSPICEString"),
+            Some("::SpiceGenTcl::Device")
+        );
+    }
+
+    #[test]
+    fn bare_superclass_unique_tail_without_import_remains_unresolved() {
         let classes = map(vec![
             cls("::SpiceGenTcl::Device", &[], &[], &["genSPICEString"]),
             cls("::Core", &["Device"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert_eq!(
-            h.method_target("::Core", "genSPICEString"),
-            Some("::SpiceGenTcl::Device")
-        );
+        assert_eq!(h.method_target("::Core", "genSPICEString"), None);
     }
 
     #[test]

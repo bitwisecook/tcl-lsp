@@ -344,6 +344,8 @@ fn same_boolean_comparison_inversion(
         return false;
     };
     let opposite = match op {
+        BinOp::Eq => BinOp::Ne,
+        BinOp::Ne => BinOp::Eq,
         BinOp::StrEq => BinOp::StrNe,
         BinOp::StrNe => BinOp::StrEq,
         BinOp::In => BinOp::Ni,
@@ -583,7 +585,7 @@ impl SourceInvocationBinding {
         whitespace_gap_spans(bytes, candidate.as_bytes(), content.start())
     }
 
-    /// Independently prove only boolean string/membership complementation.
+    /// Independently prove only boolean equality/membership complementation.
     /// Source-role admission remains with the authentic caller; arbitrary AST
     /// shrinking, changed operands, child commands and ordered numeric rows fail.
     pub(crate) fn original_expression_boolean_inversion(
@@ -1053,6 +1055,10 @@ mod tests {
         for (source, candidate) in [
             ("if {!($a eq \"x\")} {}", "$a ne\"x\""),
             ("if {!($a ne \"x\")} {}", "$a eq\"x\""),
+            ("if {!($a == $b)} {}", "$a!=$b"),
+            ("if {!($a != $b)} {}", "$a==$b"),
+            ("set a 1; set b 2; expr {!($a == $b)}", "$a!=$b"),
+            ("set a 1; set b 2; expr {!($a != $b)}", "$a==$b"),
             ("if {!($a in $b)} {}", "$a ni$b"),
             ("if {!($a ni $b)} {}", "$a in$b"),
         ] {
@@ -1070,6 +1076,14 @@ mod tests {
         for (source, candidate) in [
             ("if {!($a eq \"x\")} {}", "$a ne\"y\""),
             ("if {!($a eq $b)} {}", "$b ne$a"),
+            ("if {!($a == $b)} {}", "$b!=$a"),
+            ("if {!($a == 1)} {}", "$a!=2"),
+            ("proc expr args {}; expr {!($a == $b)}", "$a!=$b"),
+            ("unknown_mutation; expr {!($a == $b)}", "$a!=$b"),
+            (
+                "trace add execution expr enter callback; expr {!($a == $b)}",
+                "$a!=$b",
+            ),
             ("if {!($a < $b)} {}", "$a >= $b"),
             ("if {!($a && $b)} {}", "!$a||!$b"),
             ("proc if args {}; if {!($a eq $b)} {}", "$a ne$b"),

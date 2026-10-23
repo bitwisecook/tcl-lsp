@@ -330,6 +330,8 @@ fn shift_span(span: Span, delta: u32) -> Span {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
+    pub(super) authenticated_report_request:
+        Option<std::sync::Weak<super::authenticated_report::ReportCaptureRequest>>,
     pub(super) resolved_input: Option<super::input::ResolvedAnalysisInput>,
     /// Public accumulator returned by [`Analyser::analyse`].
     pub result: AnalysisResult,
@@ -1549,6 +1551,7 @@ impl Analyser {
     #[must_use]
     pub fn with_disabled_diagnostics(disabled: HashSet<String>) -> Self {
         Self {
+            authenticated_report_request: None,
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
             source: String::new(),

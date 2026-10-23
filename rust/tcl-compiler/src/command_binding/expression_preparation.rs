@@ -1063,6 +1063,9 @@ impl super::SourceInvocationBinding {
         registry: &tcl_registry::CommandRegistry,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<SourceConditionalExpressionEvaluation> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
         let target = if self.runtime_reachability == super::SourceRuntimeReachability::Conditional {
             self.scoped_unobserved_target(tokens)?
         } else {
@@ -2072,6 +2075,22 @@ mod tests {
                 if allowed {
                     let mut wrong_frame = binding.clone();
                     wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+                    eprintln!(
+                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
+                        binding.variable_frame,
+                        wrong_frame.variable_frame,
+                        binding == &wrong_frame,
+                        tokens.source_binding.as_ref() == Some(binding),
+                        tokens.source_binding.as_ref() == Some(&wrong_frame),
+                        binding
+                            .normalisation_expression(registry, &tokens)
+                            .map(|proof| proof.frame),
+                        wrong_frame
+                            .normalisation_expression(registry, &tokens)
+                            .map(|proof| proof.frame),
+                    );
+                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
+                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
                     assert!(
                         !wrong_frame
                             .nested_expression_normalisation(registry, &tokens, &parser, None)
@@ -2166,6 +2185,22 @@ mod tests {
                     );
                     let mut wrong_frame = binding.clone();
                     wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+                    eprintln!(
+                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
+                        binding.variable_frame,
+                        wrong_frame.variable_frame,
+                        binding == &wrong_frame,
+                        tokens.source_binding.as_ref() == Some(binding),
+                        tokens.source_binding.as_ref() == Some(&wrong_frame),
+                        binding
+                            .normalisation_expression(registry, &tokens)
+                            .map(|proof| proof.frame),
+                        wrong_frame
+                            .normalisation_expression(registry, &tokens)
+                            .map(|proof| proof.frame),
+                    );
+                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
+                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
                     assert!(
                         !wrong_frame
                             .nested_expression_normalisation(registry, &tokens, &parser, None)

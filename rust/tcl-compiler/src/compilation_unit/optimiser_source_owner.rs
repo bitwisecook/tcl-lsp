@@ -213,6 +213,23 @@ impl CompilationUnit {
             .filter(|owner| owner.matches_worker(self, registry, dialect))
             .cloned()
     }
+    /// Retain this exact whole production snapshot for report-only owners.
+    /// This neither rebuilds a unit nor changes runtime or host eligibility.
+    pub(crate) fn original_full_report_prepared_unit(
+        &self,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalOptimiserPreparedUnit> {
+        self.optimiser_source_owner
+            .as_ref()
+            .filter(|owner| {
+                owner.is_whole_source_unit()
+                    && owner.matches_unit(self)
+                    && owner.0.origin.0.registry == registry.snapshot()
+                    && owner.origin().is_current_analysis_context()
+            })
+            .cloned()
+    }
+
     pub(crate) fn original_optimiser_source_origin(
         &self,
     ) -> Option<&OriginalOptimiserSourceOrigin> {

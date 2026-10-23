@@ -61,6 +61,25 @@ pub(super) struct LogicalCandidateReport<'a> {
 }
 
 impl LogicalSourceCandidateOwner {
+    pub(super) fn authenticated_report_parts<'a>(
+        &'a self,
+        facts: &ObjectHandleFacts,
+        analysis: &AnalysisResult,
+        image: &SourceImage,
+        input: &ResolvedAnalysisInput,
+        registry: &RegistrySemanticKey,
+    ) -> Option<LogicalCandidateReport<'a>> {
+        let realm = analysis.retained_command_realm_arc()?;
+        if !Arc::ptr_eq(&self.realm, realm)
+            || !realm.matches_resolved_analysis_input(input)
+            || analysis.resolved_input.as_ref() != Some(input)
+            || !analysis.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        self.report_parts(facts, image, input, registry)
+    }
+
     pub(super) fn report_parts<'a>(
         &'a self,
         facts: &ObjectHandleFacts,
@@ -379,6 +398,54 @@ mod tests {
         .unwrap()
         .words
         .remove(0)
+    }
+
+    #[test]
+    fn full_report_candidates_require_the_actual_diagnostic_output_realm() {
+        let source = "oo::class create C {method m {} {}}\nset object [C new]\n$object m";
+        let left = Analyser::new().analyse(source, "tcl");
+        let right = Analyser::new().analyse(source, "tcl");
+        let owner = left
+            .object_handle_facts
+            .logical_source_candidates
+            .as_ref()
+            .expect("genuine logical candidate producer");
+        let input = left.resolved_input.as_ref().unwrap();
+        let image = left
+            .retained_command_realm()
+            .unwrap()
+            .original_source_image()
+            .unwrap();
+        let registry = left.resolved_registry().unwrap().snapshot().semantic_key();
+        assert!(
+            owner
+                .authenticated_report_parts(
+                    &left.object_handle_facts,
+                    &left,
+                    image,
+                    input,
+                    &registry
+                )
+                .is_some()
+        );
+        assert!(
+            !Arc::ptr_eq(
+                left.retained_command_realm_arc().unwrap(),
+                right.retained_command_realm_arc().unwrap()
+            ),
+            "independent actual output realms required"
+        );
+        assert!(
+            owner
+                .authenticated_report_parts(
+                    &left.object_handle_facts,
+                    &right,
+                    image,
+                    input,
+                    &registry
+                )
+                .is_none()
+        );
     }
 
     #[test]

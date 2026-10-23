@@ -348,6 +348,15 @@ impl OriginalSourceConditionalContinuation {
         let mut regions = Vec::<OriginalSourceConditionalRegion>::new();
         for index in (0..self.0.plan.frames.len()).rev() {
             let frame = &self.0.plan.frames[index];
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+                eprintln!(
+                    "N13_REGION_INCOMING frame={index} normal={} completion={} abrupt={}",
+                    incoming.normal.is_some(),
+                    incoming.normal_completion.is_some(),
+                    incoming.abrupt.len(),
+                );
+            }
             if incoming.normal_completion.is_none() || !incoming.abrupt.is_empty() {
                 return Some(RegionSetPayload {
                     continuation: Arc::clone(&self.0),
@@ -378,6 +387,16 @@ impl OriginalSourceConditionalContinuation {
             regions.push(region);
             // Completion remains conditional. Restore only this captured,
             // positively selected namespace's real parent activation, in order.
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+                eprintln!(
+                    "N13_REGION_SUFFIX frame={index} normal={} completion={} abrupt={} graph={}",
+                    outcomes.normal.is_some(),
+                    outcomes.normal_completion.is_some(),
+                    outcomes.abrupt.len(),
+                    normal_graph.is_some(),
+                );
+            }
             if outcomes.normal_completion.is_none()
                 || outcomes.normal.is_none()
                 || !outcomes.abrupt.is_empty()

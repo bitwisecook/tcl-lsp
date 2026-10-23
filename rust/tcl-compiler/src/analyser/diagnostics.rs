@@ -506,6 +506,13 @@ impl Analyser {
         facts.retain_logical_source_candidates(&self.result, cu, registry);
         facts.retain_report_source(&self.result, cu, registry);
         self.result.object_handle_facts = facts;
+        if let Some(request) = self
+            .authenticated_report_request
+            .as_ref()
+            .and_then(std::sync::Weak::upgrade)
+        {
+            request.capture(&self.result, cu, registry);
+        }
     }
 
     /// Emit the CFG/SSA-derived diagnostics from an already-built

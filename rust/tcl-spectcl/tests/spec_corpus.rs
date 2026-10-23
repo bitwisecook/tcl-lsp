@@ -16,6 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// Retained diagnostic owners require deeper Send/Sync evaluation for pack workers.
+#![recursion_limit = "256"]
+
 //! **The `SpecTcl` corpus-validation harness** — every `.tclspec` the repo
 //! ships, loaded, installed, analysed, and run through the sandboxed hook
 //! host, plus the hostile pack that proves containment.

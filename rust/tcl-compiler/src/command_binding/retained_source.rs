@@ -151,6 +151,29 @@ impl OriginalMethodSource {
 }
 
 impl RetainedSourceModuleBindings {
+    /// Reborrow the actual immutable CU-side attachment for full-report
+    /// capture only. This grants no module, body, lookup or runtime authority.
+    pub(crate) fn matches_full_report_capture_owner(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+        owner: &Arc<super::OriginalSourceAnalysisOwner>,
+    ) -> bool {
+        self.source == *image
+            && self.grammar == input.lexer_config()
+            && self.entry.metadata_context.source_analysis_input() == Some(input)
+            && self.registry == registry.snapshot().semantic_key()
+            && self
+                .positioned
+                .original_analysis_owner()
+                .is_some_and(|actual| Arc::ptr_eq(actual, owner))
+            && owner.matches(&self.positioned, input)
+            && self
+                .positioned
+                .matches_original_source_image(image, input.lexer_config())
+    }
+
     pub(crate) fn retain(
         bindings: &SourceCommandBindings,
         module: &Module,

@@ -200,6 +200,25 @@ struct RemoteBodyScan<'a> {
 
 type SourceBindings = Vec<(String, Arc<OriginalSourceRemoteResultAssociation>)>;
 
+macro_rules! remote_source_trace {
+    ($($argument:tt)*) => {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+            eprintln!($($argument)*);
+        }
+    };
+}
+
+macro_rules! remote_source_guard {
+    ($value:expr, $stage:literal, $offset:expr) => {{
+        let value = $value;
+        if value.is_none() {
+            remote_source_trace!("REMOTE_FIRST_OPERAND stage={} offset={:?}", $stage, $offset);
+        }
+        value
+    }};
+}
+
 /// Current supplied hosted analysis only. Standalone source capture is not a
 /// substitute for this issuer. Unknown body coverage refuses the whole body;
 /// unknown intervening operations withdraw its reaching source association.
@@ -230,6 +249,10 @@ pub fn source_remote_first_operand_associations(
             bodies.push(body);
         }
     }
+    remote_source_trace!(
+        "REMOTE_FIRST_OPERAND stage=body-inventory count={}",
+        bodies.len()
+    );
     let mut calls = Vec::new();
     for body in bodies {
         let scan = RemoteBodyScan {
@@ -286,12 +309,15 @@ impl RemoteBodyScan<'_> {
                 offset,
             ) != Some(self.body)
             {
+                remote_source_trace!("REMOTE_FIRST_OPERAND stage=body-owner offset={offset}");
                 break;
             }
             let Some(words) = self.words_at(offset, &command.words) else {
+                remote_source_trace!("REMOTE_FIRST_OPERAND stage=command-words offset={offset}");
                 break;
             };
             let Some(summary) = self.summary(&words) else {
+                remote_source_trace!("REMOTE_FIRST_OPERAND stage=command-summary offset={offset}");
                 break;
             };
             // The query is at this exact handle operand, before later operands
@@ -319,6 +345,11 @@ impl RemoteBodyScan<'_> {
                         body_path: body_path.to_vec(),
                     });
                 }
+                remote_source_trace!(
+                    "REMOTE_FIRST_OPERAND stage=remote-barrier offset={offset} calls={} bindings={}",
+                    calls.len(),
+                    bindings.len()
+                );
                 bindings.clear();
                 break;
             }
@@ -341,6 +372,12 @@ impl RemoteBodyScan<'_> {
                                 .all(|part| matches!(part.part, ExecutablePart::Text(_)))
                     })
                 {
+                    remote_source_trace!(
+                        "REMOTE_FIRST_OPERAND stage=setter-eligibility offset={offset} admits={} opaque={} writes={}",
+                        summary.admits_source_setter,
+                        summary.writes.opaque_variable_frame,
+                        summary.writes.literal_names.len()
+                    );
                     break;
                 }
                 // This store may invoke observers: no prior association is
@@ -361,6 +398,12 @@ impl RemoteBodyScan<'_> {
                 || summary.writes.opaque_variable_frame
                 || !self.operands_preserve_source_associations(&command.words, 0)
             {
+                remote_source_trace!(
+                    "REMOTE_FIRST_OPERAND stage=continuity offset={offset} preserves={} opaque={} writes={}",
+                    summary.preserves_source_associations,
+                    summary.writes.opaque_variable_frame,
+                    summary.writes.literal_names.len()
+                );
                 break;
             }
             for name in summary.writes.literal_names {
@@ -440,9 +483,13 @@ impl RemoteBodyScan<'_> {
     }
 
     fn words_at(&self, offset: u32, original: &[NativeWord]) -> Option<OriginalRegistryWords> {
-        let words =
-            super::source_structure::source_registry_words_at(self.source, self.analysis, offset)?;
+        let words = remote_source_guard!(
+            super::source_structure::source_registry_words_at(self.source, self.analysis, offset),
+            "registry-words",
+            Some(offset)
+        )?;
         let OriginalRegistrySource::Vendor(metadata) = words.source() else {
+            remote_source_trace!("REMOTE_FIRST_OPERAND stage=vendor-source-kind offset={offset}");
             return None;
         };
         let shape = metadata.shape();
@@ -464,6 +511,9 @@ impl RemoteBodyScan<'_> {
                         && owned.try_text().ok() == lexical.try_text().ok()
                 })
         {
+            remote_source_trace!(
+                "REMOTE_FIRST_OPERAND stage=vendor-word-currentness offset={offset}"
+            );
             return None;
         }
         Some(words)
@@ -533,11 +583,23 @@ impl RemoteBodyScan<'_> {
                     && advice.metadata().registry()
                         == &self.context.commands().snapshot().semantic_key()
             });
-        let variable = advice.next()?;
+        let variable = remote_source_guard!(
+            advice.next(),
+            "setter-variable-owner",
+            Some(variable_word.span().start())
+        )?;
         if advice.next().is_some() {
+            remote_source_trace!(
+                "REMOTE_FIRST_OPERAND stage=ambiguous-setter-variable offset={}",
+                variable_word.span().start()
+            );
             return None;
         }
-        let key = vendor_variable_source_reference(variable)?;
+        let key = remote_source_guard!(
+            vendor_variable_source_reference(variable),
+            "setter-variable-key",
+            Some(variable_word.span().start())
+        )?;
         let operand = setter.original_argument_word(usize::from(value_at))?;
         let arena = operand.executable_parts();
         let [part] = arena.list(arena.root()) else {
@@ -557,9 +619,23 @@ impl RemoteBodyScan<'_> {
             return None;
         }
         let original = &plan.commands.first()?.words;
-        let constructor = self.words_at(original.first()?.span().start(), original)?;
-        let selected = self.summary(&constructor)?;
-        let RemoteMethodRole::OpensHandle(constructor_layout) = selected.remote? else {
+        let constructor = remote_source_guard!(
+            self.words_at(original.first()?.span().start(), original),
+            "constructor-words",
+            Some(body.start())
+        )?;
+        let selected = remote_source_guard!(
+            self.summary(&constructor),
+            "constructor-summary",
+            Some(body.start())
+        )?;
+        let RemoteMethodRole::OpensHandle(constructor_layout) =
+            remote_source_guard!(selected.remote, "constructor-role", Some(body.start()))?
+        else {
+            remote_source_trace!(
+                "REMOTE_FIRST_OPERAND stage=constructor-not-opener offset={}",
+                body.start()
+            );
             return None;
         };
         if original.len().checked_sub(1)? != usize::from(constructor_layout.exact_argc)

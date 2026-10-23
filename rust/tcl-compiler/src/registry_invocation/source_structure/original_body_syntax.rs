@@ -56,6 +56,16 @@ impl OriginalBodySyntaxInventory {
             .original_source_procedure_bodies()
             .chain(module.body_lowerings())
         {
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+                eprintln!(
+                    "ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate={} original_summary={} installed_summary={} statements={}",
+                    bodies.contains(id),
+                    retained.matches_original_procedure_summary(*id, procedure),
+                    retained.matches_installed_procedure_summary(*id, procedure),
+                    procedure.body.statements.len(),
+                );
+            }
             if !bodies.insert(*id)
                 || !(retained.matches_original_procedure_summary(*id, procedure)
                     || retained.matches_installed_procedure_summary(*id, procedure))
@@ -94,6 +104,13 @@ impl OriginalBodySyntaxInventory {
             let Some(binding) = tokens.source_binding.as_ref() else {
                 continue;
             };
+            #[cfg(debug_assertions)]
+            binding.trace_original_body_syntax(
+                tokens,
+                &self.input,
+                registry,
+                retained.owns_original_analysis_attachment(tokens),
+            );
             let Some(syntax) =
                 binding.original_compiler_argument_syntax(tokens, &self.input, registry)
             else {

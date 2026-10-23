@@ -7156,20 +7156,12 @@ mod tests {
         Span::new(start, end)
     }
 
+    // Decision 2026-10-22T13:17Z models the original loaded source. The
+    // normal analysis route installs its actual input and command owners.
     #[test]
     fn process_set_defines_variable() {
         let mut a = Analyser::new();
-        a.process_command(
-            &["set".to_string(), "x".to_string(), "1".to_string()],
-            &[
-                esc_tok(span(0, 3)),
-                esc_tok(span(4, 5)),
-                esc_tok(span(6, 7)),
-            ],
-            &[true, true, true],
-            &[],
-            &[],
-        );
+        a.result = a.analyse("set x 1\n", "tcl8.6");
         assert!(a.result.global_scope.variables.contains_key("x"));
     }
 
@@ -7223,40 +7215,14 @@ mod tests {
     #[test]
     fn process_foreach_defines_loop_var() {
         let mut a = Analyser::new();
-        a.process_command(
-            &[
-                "foreach".to_string(),
-                "i".to_string(),
-                "{1 2 3}".to_string(),
-                "puts $i".to_string(),
-            ],
-            &[
-                esc_tok(span(0, 7)),
-                esc_tok(span(8, 9)),
-                str_tok(span(10, 17)),
-                str_tok(span(18, 28)),
-            ],
-            &[true, true, true, true],
-            &[],
-            &[],
-        );
+        a.result = a.analyse("foreach i {1 2 3} {puts $i}\n", "tcl8.6");
         assert!(a.result.global_scope.variables.contains_key("i"));
     }
 
     #[test]
     fn process_global_defines_each_name() {
         let mut a = Analyser::new();
-        a.process_command(
-            &["global".to_string(), "x".to_string(), "y".to_string()],
-            &[
-                esc_tok(span(0, 6)),
-                esc_tok(span(7, 8)),
-                esc_tok(span(9, 10)),
-            ],
-            &[true, true, true],
-            &[],
-            &[],
-        );
+        a.result = a.analyse("global x y\n", "tcl8.6");
         assert!(a.result.global_scope.variables.contains_key("x"));
         assert!(a.result.global_scope.variables.contains_key("y"));
     }

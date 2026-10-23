@@ -277,6 +277,7 @@ pub struct ObjectHandleFacts {
     pub global_object_cells: HashMap<String, HashSet<String>>,
 }
 
+mod authenticated_report;
 mod logical_source_candidates;
 mod report_comparison;
 pub use logical_source_candidates::LogicalSourceReceiverClassCandidates;

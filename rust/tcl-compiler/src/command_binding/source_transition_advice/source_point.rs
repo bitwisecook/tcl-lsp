@@ -256,6 +256,20 @@ impl AdviceInvocationContext<'_> {
         {
             query.refused.set(true);
         }
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_NORMAL_OPERATION pending={} refused={} falls_through={} arity={:?} roles={} no_callback={}",
+                query.pending.get(),
+                query.refused.get(),
+                schema.authored_source_invocation_completion()
+                    == tcl_registry::registry::InvocationCompletion::FallsThrough,
+                facts.arity_accepts_frozen_arguments(),
+                facts.arg_roles_complete,
+                facts.source_callback_retention()
+                    == tcl_registry::resolved_invocation::SourceCallbackRetention::Absent,
+            );
+        }
     }
 
     pub(super) fn finish_normal_source_graph(&self, graph: &AdviceGraph) {
@@ -263,6 +277,17 @@ impl AdviceInvocationContext<'_> {
             return;
         };
         query.sealed.set(true);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_NORMAL_FINISH pending={} refused={} native={} uncertain={} arity_debts={}",
+                query.pending.get(),
+                query.refused.get(),
+                graph.native_baseline,
+                graph.uncertain_operations.len(),
+                graph.arity_debts.len(),
+            );
+        }
         if query.refused.get()
             || query.pending.get() != 0
             || graph.native_baseline
@@ -299,11 +324,25 @@ impl OriginalSourceTransitionSeed {
         } else {
             OriginalSourceCataloguePurpose::CompleteProgram
         };
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!("N13_NORMAL_BEGIN purpose={purpose:?}");
+        }
         self.prepare_for_query(
             context,
             purpose,
             Some(SourceAdviceQuery::NormalSourceOutcome(&query)),
         )?;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_NORMAL_PREPARED pending={} sealed={} refused={} graph={}",
+                query.pending.get(),
+                query.sealed.get(),
+                query.refused.get(),
+                query.graph.borrow().is_some(),
+            );
+        }
         (!query.refused.get() && query.sealed.get()).then_some(())?;
         query.graph.into_inner().map(Arc::new)
     }

@@ -15150,6 +15150,31 @@ impl Interp {
         info.extend_from_slice(tail);
         self.error_line.set(failure.line);
         let code = failure.error_code.as_deref().unwrap_or("NONE");
+        if self.uses_c84_global_error_info() && failure.error_code.is_none() {
+            let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+                return Code::Error;
+            };
+            self.set_result_bytes(failure.message.as_bytes());
+            if scope.currency().ensure_current_or_refuse().is_err() {
+                return Code::Error;
+            }
+            // LogCompilationInfo reaches AddObjErrorInfo before the outer
+            // catch. Reuse its initial global setters and counted append;
+            // setting legacy_copy alone would skip those reached operations.
+            let suffix = &info[failure.message.len()..];
+            return match self.publish_c84_error_command_info(suffix, code.as_bytes()) {
+                Ok(true) => Code::Error,
+                Ok(false) => {
+                    self.refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "entered C8.4 compilation error publication",
+                        ),
+                    );
+                    Code::Error
+                }
+                Err(first) => self.refuse_native_execution(first),
+            };
+        }
         self.raise_with_info(failure.message.as_bytes(), &info, code.as_bytes())
     }
 

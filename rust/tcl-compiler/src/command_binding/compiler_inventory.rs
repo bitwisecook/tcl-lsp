@@ -63,6 +63,81 @@ impl<'a> OriginalCompilerArgumentSyntax<'a> {
 }
 
 impl SourceInvocationBinding {
+    /// Trace existing compiler/source/runtime syntax refusals without changing them.
+    #[cfg(debug_assertions)]
+    pub(crate) fn trace_original_body_syntax(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        attachment: bool,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
+            return;
+        }
+        let syntax = self.original_compiler_argument_syntax(tokens, input, registry);
+        let metadata = syntax
+            .as_ref()
+            .map(OriginalCompilerArgumentSyntax::metadata);
+        let compiler = self.original_compilation_lookup_advice(tokens);
+        let source_purpose = metadata
+            .and_then(|metadata| self.original_source_advice_purpose(tokens, metadata, registry));
+        let compiler_purpose = compiler
+            .as_ref()
+            .zip(metadata)
+            .and_then(|(advice, metadata)| advice.original_source_purpose(metadata, registry));
+        let compiler_closed = compiler
+            .as_ref()
+            .zip(metadata)
+            .is_some_and(|(advice, metadata)| {
+                advice.closed_authored_simulation_source_lookup(tokens, metadata, registry)
+            });
+        eprintln!(
+            "ORIGINAL_BODY_SYNTAX offset={:?} head={:?} words={} attachment={} syntax={} compiler_words={} compiler_state={} owner={} dialect={} protocol={} source_purpose={source_purpose:?} compiler_purpose={compiler_purpose:?} compiler_source_closed={compiler_closed}",
+            tokens
+                .words()
+                .first()
+                .map(|word| word.source().span.start()),
+            tokens.argv_texts.first(),
+            tokens.words().len(),
+            attachment,
+            syntax.is_some(),
+            self.original_compiler_words.is_some(),
+            self.compiler_lookup_state.is_some(),
+            self.original_analysis_owner.is_some(),
+            self.native_compiler_dialect().is_some(),
+            self.compiler_source_protocol().is_some(),
+        );
+        eprintln!(
+            "ORIGINAL_BODY_SYNTAX_RUNTIME offset={:?} lookup={} target={} handler={} unobserved={} names={} closed={} evaluated_body={}",
+            tokens
+                .words()
+                .first()
+                .map(|word| word.source().span.start()),
+            self.lookup_state.is_some(),
+            self.proved_target().is_some(),
+            self.proved_handler_target().is_some(),
+            self.unobserved_native_dispatch(),
+            self.original_compiler_names_preserved_for_tokens(tokens),
+            self.original_registry_syntax_is_closed(tokens, registry),
+            tokens.evaluated_body.is_some(),
+        );
+        if let Some(advice) = compiler {
+            let state = &advice.snapshot.state;
+            eprintln!(
+                "ORIGINAL_BODY_SYNTAX_COMPILER offset={} opaque={} unclosed={} step={} observers_quiet={} targets={} unknown={} may_absent={}",
+                advice.site.offset,
+                state.has_opaque_domain(),
+                state.unclosed_command_world,
+                state.source_step_observed(),
+                state.command_observers.is_quiet(),
+                advice.targets.len(),
+                advice.unknown,
+                advice.may_be_absent,
+            );
+        }
+    }
+
     /// Syntax from the compiler's own full-input snapshot. This is a distinct
     /// purpose from `original_argument_metadata_for_input`: an abrupt argv read
     /// can prevent a runtime point while the compiler still visited the words.

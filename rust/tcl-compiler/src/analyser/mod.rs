@@ -38,6 +38,11 @@
 //! This pure analyser is consumed directly by the native
 //! `tcl-lsp-server`.
 
+pub(crate) mod authenticated_report;
+pub use authenticated_report::{
+    AnalysisReportComparison, AnalysisReportUnavailable, AuthenticatedAnalysisReport,
+};
+
 pub mod bounds_checks;
 pub mod class_hierarchy;
 /// Object→class binding lattice and dispatch resolver. Experimental: not

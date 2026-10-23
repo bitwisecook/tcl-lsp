@@ -3057,7 +3057,7 @@ impl PublishedOriginalSourceView {
 impl Backend {
     /// Obtain ownership for pure worker computation. This returns no durable
     /// currentness: every result must rejoin this exact inventory at rendering.
-    async fn compute_original_source_views<T: Send + 'static>(
+    async fn compute_original_source_views<T: Send + Unpin + 'static>(
         &self,
         projection: &OriginalSourceScopeProjection,
         calculate: impl FnOnce(&[Arc<PublishedOriginalSourceView>]) -> Option<T> + Send + 'static,

@@ -351,6 +351,28 @@ pub struct SourceUserCallAritySubject {
 }
 
 impl SourceUserCallAritySubject {
+    pub(crate) fn authenticated_report_eq(
+        &self,
+        other: &Self,
+        output: &super::authenticated_report::ReportOutputCorrespondence<'_>,
+    ) -> Option<bool> {
+        let Self {
+            original: _,
+            arity: _,
+            obligations: _,
+        } = self;
+        let originals = match (&self.original, &other.original) {
+            (OriginalUserCallOwner::NativeSource(a), OriginalUserCallOwner::NativeSource(b)) => {
+                a.authenticated_report_eq(b, output)?
+            }
+            (OriginalUserCallOwner::Logical(a), OriginalUserCallOwner::Logical(b)) if a == b => {
+                true
+            }
+            _ => return None,
+        };
+        Some(originals && self.arity == other.arity && self.obligations == other.obligations)
+    }
+
     pub(crate) fn capture(
         source: &str,
         analysis: &super::AnalysisResult,

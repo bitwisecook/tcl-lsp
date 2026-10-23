@@ -1,0 +1,657 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Complete report-only body owners from the actual diagnostic source unit.
+
+use std::sync::Arc;
+
+use crate::command_binding::{
+    CommandAllocationSite, ExecutedScriptSource, SourceNamespaceKey, SourceOriginId,
+    SourceOriginKind,
+};
+use crate::compilation_unit::OriginalOptimiserPreparedUnit;
+use crate::ir::{MethodKind, Procedure, ProcedureBodyKind, ProcedureId};
+use tcl_core_types::ProcedureModuleId;
+use tcl_lexer::{NativeWord, Span};
+use tcl_registry::CommandRegistry;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReportBodyRole {
+    Named(ProcedureBodyKind),
+    Unit(ProcedureBodyKind),
+    Carried(ProcedureBodyKind),
+    Method(MethodKind),
+    Definition(tcl_registry::definer::DefinerFamily),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReportDeclarationPurpose {
+    AllocatedSource,
+    NativeSource,
+    LogicalSource,
+    AuthoredSource,
+    HostedSource,
+}
+
+struct ReportBodyOwner {
+    id: ProcedureId,
+    role: ReportBodyRole,
+    declaration_purpose: Option<ReportDeclarationPurpose>,
+    declaration: Span,
+    site: Option<CommandAllocationSite>,
+    body_offset: Option<u32>,
+    source: Option<Arc<ExecutedScriptSource>>,
+    namespace: Option<Box<SourceNamespaceKey>>,
+    original_word: Option<NativeWord>,
+    definition_parent: Option<ProcedureId>,
+}
+
+/// The prepared owner keeps the private complete production snapshot alive.
+/// Coordinates select candidates only after that actual issuer is authenticated.
+pub(super) struct ReportBodyInventory {
+    prepared: OriginalOptimiserPreparedUnit,
+    entry: crate::command_binding::SourceAnalysisEntry,
+    hosted_entry: Option<crate::command_binding::SourceAnalysisEntry>,
+    root: Arc<SourceOriginId>,
+    module: ProcedureModuleId,
+    bodies: Vec<ReportBodyOwner>,
+}
+
+impl ReportBodyInventory {
+    pub(super) fn capture(
+        prepared: OriginalOptimiserPreparedUnit,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        if !prepared.is_whole_source_unit() || !prepared.origin().is_current_analysis_context() {
+            return None;
+        }
+        let module = &prepared.unit().ir_module;
+        let retained = module.retained_source_bindings.as_ref()?;
+        let bindings = retained.positioned_for_module(module, registry)?;
+        let root = Arc::clone(bindings.source_origin()?);
+        let input = module.source_metadata_input.as_ref()?;
+        // Hosted source is a separate actual-entry domain, never inferred from
+        // a dialect label and never promoted to Native execution eligibility.
+        let hosted_entry = if input.has_hosted_source_name_context() {
+            if module.source_entry.vendor_source_input.as_ref() != Some(input)
+                || module.source_entry.native_entry.is_some()
+            {
+                return None;
+            }
+            Some(module.source_entry.clone())
+        } else {
+            if module.source_entry.vendor_source_input.is_some() {
+                return None;
+            }
+            None
+        };
+        for (id, card) in &module.original_hosted_declaration_body_units {
+            let body = module.body_units.get(id)?;
+            if hosted_entry.is_none() || !card.matches_procedure(module, body, registry) {
+                return None;
+            }
+        }
+        let mut bodies = Vec::new();
+        for (id, body) in &module.procedures {
+            Self::push(
+                &mut bodies,
+                module,
+                *id,
+                Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
+            )?;
+        }
+        for (id, body) in module.body_lowerings() {
+            let role = if module.body_units.contains_key(id) {
+                ReportBodyRole::Unit(body.body_kind)
+            } else {
+                ReportBodyRole::Carried(body.body_kind)
+            };
+            Self::push(
+                &mut bodies,
+                module,
+                *id,
+                Self::procedure(module, *id, body, role)?,
+            )?;
+        }
+        for (id, body) in &module.methods {
+            Self::push(
+                &mut bodies,
+                module,
+                *id,
+                ReportBodyOwner {
+                    id: *id,
+                    role: ReportBodyRole::Method(body.kind),
+                    declaration_purpose: None,
+                    declaration: body.span?,
+                    site: None,
+                    body_offset: None,
+                    source: body.body.executed_source.clone(),
+                    namespace: body.body.namespace_context.clone(),
+                    original_word: None,
+                    definition_parent: body.definition_scope,
+                },
+            )?;
+        }
+        for id in module.original_definition_scripts.keys() {
+            let body = module.original_definition_script_source(*id, registry)?;
+            Self::push(
+                &mut bodies,
+                module,
+                *id,
+                ReportBodyOwner {
+                    id: *id,
+                    role: ReportBodyRole::Definition(body.family()),
+                    declaration_purpose: None,
+                    declaration: body.declaration_span(),
+                    site: None,
+                    body_offset: Some(body.content_span().start()),
+                    source: None,
+                    namespace: None,
+                    original_word: Some(body.body_word().clone()),
+                    definition_parent: None,
+                },
+            )?;
+        }
+        for (purpose, ids) in [
+            (
+                ReportDeclarationPurpose::AllocatedSource,
+                module
+                    .original_declaration_body_units
+                    .keys()
+                    .copied()
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                ReportDeclarationPurpose::NativeSource,
+                module
+                    .original_native_declaration_body_units
+                    .keys()
+                    .copied()
+                    .collect(),
+            ),
+            (
+                ReportDeclarationPurpose::LogicalSource,
+                module
+                    .original_logical_declaration_body_units
+                    .keys()
+                    .copied()
+                    .collect(),
+            ),
+            (
+                ReportDeclarationPurpose::AuthoredSource,
+                module
+                    .original_authored_declaration_body_units
+                    .keys()
+                    .copied()
+                    .collect(),
+            ),
+            (
+                ReportDeclarationPurpose::HostedSource,
+                module
+                    .original_hosted_declaration_body_units
+                    .keys()
+                    .copied()
+                    .collect(),
+            ),
+        ] {
+            if ids.iter().any(|id| {
+                !bodies
+                    .iter()
+                    .any(|body| body.id == *id && body.declaration_purpose == Some(purpose))
+            }) {
+                return None;
+            }
+        }
+        // Every additional event card must join an actual retained body, and
+        // each original event word belongs to this complete source generation.
+        for (id, card) in &module.irules_event_bodies {
+            let body = module
+                .procedures
+                .get(id)
+                .or_else(|| module.body_lowering(id))?;
+            if !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry) {
+                return None;
+            }
+            let row = bodies.iter_mut().find(|row| row.id == *id)?;
+            if row.original_word.is_some() {
+                return None;
+            }
+            row.original_word = Some(
+                card.event_word(&module.source, module.native_lexer_config(), registry)?
+                    .clone(),
+            );
+        }
+        // A reference into a definition scope must join this same complete
+        // inventory; a foreign ID or omitted parent never becomes a free label.
+        if bodies.iter().any(|body| {
+            body.definition_parent.is_some_and(|parent| {
+                !bodies.iter().any(|candidate| {
+                    candidate.id == parent
+                        && matches!(candidate.role, ReportBodyRole::Definition(_))
+                })
+            })
+        }) {
+            return None;
+        }
+        let module_id = module.procedure_ids.module_id();
+        let entry = module.source_entry.clone();
+        Some(Self {
+            prepared,
+            entry,
+            hosted_entry,
+            root,
+            module: module_id,
+            bodies,
+        })
+    }
+
+    fn procedure(
+        module: &crate::ir::Module,
+        id: ProcedureId,
+        body: &Procedure,
+        role: ReportBodyRole,
+    ) -> Option<ReportBodyOwner> {
+        if body.body_kind == ProcedureBodyKind::Event
+            && !module.irules_event_bodies.contains_key(&id)
+        {
+            return None;
+        }
+        let purposes = [
+            (
+                ReportDeclarationPurpose::AllocatedSource,
+                module.original_declaration_body_units.contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::NativeSource,
+                module
+                    .original_native_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::LogicalSource,
+                module
+                    .original_logical_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::AuthoredSource,
+                module
+                    .original_authored_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::HostedSource,
+                module
+                    .original_hosted_declaration_body_units
+                    .contains_key(&id),
+            ),
+        ];
+        let mut present = purposes
+            .into_iter()
+            .filter_map(|(purpose, present)| present.then_some(purpose));
+        let declaration_purpose = if body.body_kind == ProcedureBodyKind::OriginalDeclaration {
+            let purpose = present.next()?;
+            if present.next().is_some()
+                || !module
+                    .body_units
+                    .get(&id)
+                    .is_some_and(|held| std::ptr::eq(held, body))
+                || !module
+                    .original_source_procedure_bodies()
+                    .any(|(candidate, held)| *candidate == id && std::ptr::eq(held, body))
+                || (module
+                    .source_metadata_input
+                    .as_ref()?
+                    .has_hosted_source_name_context()
+                    && purpose != ReportDeclarationPurpose::HostedSource)
+            {
+                return None;
+            }
+            Some(purpose)
+        } else {
+            if present.next().is_some() {
+                return None;
+            }
+            None
+        };
+        Some(ReportBodyOwner {
+            id,
+            role,
+            declaration_purpose,
+            declaration: body.span,
+            site: body.declaration_site.clone(),
+            body_offset: Some(body.body_offset),
+            source: body.body.executed_source.clone(),
+            namespace: body.body.namespace_context.clone(),
+            original_word: None,
+            definition_parent: None,
+        })
+    }
+
+    fn push(
+        bodies: &mut Vec<ReportBodyOwner>,
+        module: &crate::ir::Module,
+        id: ProcedureId,
+        body: ReportBodyOwner,
+    ) -> Option<()> {
+        if !module.procedure_ids.owns(id)
+            || bodies.iter().any(|held| held.id == id)
+            || module
+                .source
+                .bytes()
+                .get(body.declaration.as_range())
+                .is_none_or(|source| source.is_empty())
+        {
+            return None;
+        }
+        bodies.push(body);
+        Some(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn hosted_domain_for_test(&self) -> bool {
+        self.hosted_entry.is_some()
+    }
+
+    pub(super) fn same_request(
+        &self,
+        origin: &crate::compilation_unit::OriginalOptimiserSourceOrigin,
+    ) -> bool {
+        self.prepared.origin().same_request_allocation(origin)
+            && self.prepared.origin().is_current_analysis_context()
+            && self.entry == self.prepared.unit().ir_module.source_entry
+    }
+}
+
+/// A total bijection between actual issued bodies, never a replacement ID or
+/// runtime equality. Every role at a shared declaration remains represented.
+pub(crate) struct ReportBodyCorrespondence<'a> {
+    left: &'a ReportBodyInventory,
+    right: &'a ReportBodyInventory,
+    pairs: Vec<(ProcedureId, ProcedureId)>,
+}
+
+impl<'a> ReportBodyCorrespondence<'a> {
+    pub(super) fn capture(
+        left: &'a ReportBodyInventory,
+        right: &'a ReportBodyInventory,
+    ) -> Option<Self> {
+        if left.bodies.len() != right.bodies.len()
+            || left.root.kind() != right.root.kind()
+            || left.entry != right.entry
+            || left.hosted_entry != right.hosted_entry
+        {
+            return None;
+        }
+        let mut pairs = Vec::new();
+        for body in &left.bodies {
+            let mut matching = right
+                .bodies
+                .iter()
+                .filter(|candidate| Self::same_source(left, body, right, candidate));
+            let matched = matching.next()?;
+            if matching.next().is_some() || pairs.iter().any(|(_, held)| *held == matched.id) {
+                return None;
+            }
+            pairs.push((body.id, matched.id));
+        }
+        if pairs.len() != left.bodies.len() || pairs.len() != right.bodies.len() {
+            return None;
+        }
+        for (a, b) in &pairs {
+            let a = left.bodies.iter().find(|body| body.id == *a)?;
+            let b = right.bodies.iter().find(|body| body.id == *b)?;
+            match (a.definition_parent, b.definition_parent) {
+                (None, None) => {}
+                (Some(a), Some(b)) if pairs.contains(&(a, b)) => {}
+                _ => return None,
+            }
+        }
+        Some(Self { left, right, pairs })
+    }
+
+    fn same_source(
+        left: &ReportBodyInventory,
+        a: &ReportBodyOwner,
+        right: &ReportBodyInventory,
+        b: &ReportBodyOwner,
+    ) -> bool {
+        if a.role != b.role
+            || a.declaration_purpose != b.declaration_purpose
+            || a.declaration != b.declaration
+            || a.body_offset != b.body_offset
+            || a.namespace != b.namespace
+            || a.original_word != b.original_word
+        {
+            return false;
+        }
+        match (&a.site, &b.site) {
+            (None, None) => {}
+            (Some(a), Some(b))
+                if a.offset == b.offset
+                    && Self::origins(&a.source, &left.root, &b.source, &right.root) => {}
+            _ => return false,
+        }
+        match (&a.source, &b.source) {
+            (None, None) => true,
+            (Some(a), Some(b)) => {
+                a.text == b.text
+                    && a.mapping == b.mapping
+                    && Self::origins(&a.origin, &left.root, &b.origin, &right.root)
+            }
+            _ => false,
+        }
+    }
+
+    fn origins(
+        mut a: &Arc<SourceOriginId>,
+        left: &Arc<SourceOriginId>,
+        mut b: &Arc<SourceOriginId>,
+        right: &Arc<SourceOriginId>,
+    ) -> bool {
+        loop {
+            match (Arc::ptr_eq(a, left), Arc::ptr_eq(b, right)) {
+                (true, true) => return true,
+                (true, false) | (false, true) => return false,
+                (false, false) => {}
+            }
+            match (a.kind(), b.kind()) {
+                (
+                    SourceOriginKind::Derived {
+                        parent: x,
+                        arguments: xa,
+                        source: xs,
+                        kind: xk,
+                    },
+                    SourceOriginKind::Derived {
+                        parent: y,
+                        arguments: ya,
+                        source: ys,
+                        kind: yk,
+                    },
+                ) if x.offset == y.offset && xa == ya && xs == ys && xk == yk => {
+                    a = &x.source;
+                    b = &y.source;
+                }
+                (
+                    SourceOriginKind::ConditionalField {
+                        parent: x,
+                        argument: xa,
+                        field: xf,
+                        source: xs,
+                    },
+                    SourceOriginKind::ConditionalField {
+                        parent: y,
+                        argument: ya,
+                        field: yf,
+                        source: ys,
+                    },
+                ) if x.offset == y.offset && xa == ya && xf == yf && xs == ys => {
+                    a = &x.source;
+                    b = &y.source;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    pub(crate) fn contains_definition(&self, id: ProcedureId, left: bool) -> bool {
+        let inventory = if left { self.left } else { self.right };
+        inventory
+            .bodies
+            .iter()
+            .any(|body| body.id == id && matches!(body.role, ReportBodyRole::Definition(_)))
+    }
+    pub(crate) fn contains_body(&self, id: ProcedureId, left: bool) -> bool {
+        let inventory = if left { self.left } else { self.right };
+        inventory.bodies.iter().any(|body| body.id == id)
+    }
+    pub(crate) fn contains_module(&self, id: ProcedureModuleId, left: bool) -> bool {
+        (if left { self.left } else { self.right }).module == id
+    }
+    pub(crate) fn bodies(&self, left: ProcedureId, right: ProcedureId) -> bool {
+        self.pairs.contains(&(left, right))
+    }
+    pub(crate) fn modules(&self, left: ProcedureModuleId, right: ProcedureModuleId) -> bool {
+        self.left.module == left && self.right.module == right
+    }
+}
+
+#[cfg(test)]
+mod owner_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    fn actual() -> super::super::AuthenticatedAnalysisReport {
+        let report = Analyser::new().analyse_for_report(
+            "namespace eval ::owned { proc retained {} { return VALUE } }",
+            "tcl8.6",
+        );
+        assert!(report.current_capture().is_ok());
+        assert!(!report.current_capture().unwrap().bodies.bodies.is_empty());
+        report
+    }
+
+    #[test]
+    fn actual_complete_body_inventory_is_total_and_role_sensitive() {
+        let left = actual();
+        let right = actual();
+        let a = &left.current_capture().unwrap().bodies;
+        let b = &right.current_capture().unwrap().bodies;
+        let joined = ReportBodyCorrespondence::capture(a, b).expect("actual complete owners");
+        assert_eq!(joined.pairs.len(), a.bodies.len());
+        assert_eq!(joined.pairs.len(), b.bodies.len());
+        assert!(joined.modules(a.module, b.module));
+        for (a, b) in &joined.pairs {
+            assert!(joined.bodies(*a, *b));
+        }
+    }
+
+    #[test]
+    fn original_aliases_keep_both_actual_roles_at_the_shared_declaration() {
+        let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
+        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let a = &left
+            .current_capture()
+            .expect("actual original alias diagnostics CU")
+            .bodies;
+        let b = &right
+            .current_capture()
+            .expect("independent original alias diagnostics CU")
+            .bodies;
+        let named = a
+            .bodies
+            .iter()
+            .find(|body| {
+                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
+                    && a.bodies.iter().any(|other| {
+                        matches!(
+                            other.role,
+                            ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
+                        ) && body.site.is_some()
+                            && body.site == other.site
+                            && body.declaration == other.declaration
+                    })
+            })
+            .expect("actual Named and NamespaceScript owners at one original declaration");
+        let joined = a
+            .bodies
+            .iter()
+            .filter(|body| body.site == named.site && body.declaration == named.declaration)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            joined.len(),
+            2,
+            "both original actual roles remain present, never deduplicated"
+        );
+        assert_ne!(joined[0].id, joined[1].id);
+        let correspondence = ReportBodyCorrespondence::capture(a, b)
+            .expect("complete unique actual owner correspondence");
+        for row in joined {
+            assert_eq!(
+                correspondence
+                    .pairs
+                    .iter()
+                    .filter(|(left, _)| *left == row.id)
+                    .count(),
+                1
+            );
+        }
+        assert_eq!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Equal
+        );
+    }
+
+    #[test]
+    fn actual_body_census_retains_the_complete_source_entry_domain() {
+        let left = actual();
+        let mut right = actual();
+        let capture = right.capture.as_mut().unwrap();
+        capture.bodies.entry.unknown_entry = !capture.bodies.entry.unknown_entry;
+        assert!(!capture.bodies.same_request(&capture.origin));
+        assert!(
+            ReportBodyCorrespondence::capture(
+                &left.current_capture().unwrap().bodies,
+                &capture.bodies,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn omitted_or_duplicate_actual_body_role_is_unavailable() {
+        let left = actual();
+        let mut right = actual();
+        right.capture.as_mut().unwrap().bodies.bodies.pop().unwrap();
+        assert!(
+            ReportBodyCorrespondence::capture(
+                &left.current_capture().unwrap().bodies,
+                &right.capture.as_ref().unwrap().bodies,
+            )
+            .is_none()
+        );
+        let mut right = actual();
+        let bodies = &mut right.capture.as_mut().unwrap().bodies.bodies;
+        assert!(
+            bodies.len() >= 2,
+            "the genuine namespace and procedure roles are retained"
+        );
+        bodies[1].role = bodies[0].role;
+        bodies[1].declaration = bodies[0].declaration;
+        bodies[1].body_offset = bodies[0].body_offset;
+        bodies[1].site = bodies[0].site.clone();
+        bodies[1].source = bodies[0].source.clone();
+        bodies[1].namespace = bodies[0].namespace.clone();
+        bodies[1].original_word = bodies[0].original_word.clone();
+        assert!(
+            ReportBodyCorrespondence::capture(
+                &left.current_capture().unwrap().bodies,
+                &right.capture.as_ref().unwrap().bodies,
+            )
+            .is_none()
+        );
+    }
+}

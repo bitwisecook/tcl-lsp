@@ -33,6 +33,49 @@ pub struct OriginalSourceProcedureCall {
     inherited_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
 }
 impl OriginalSourceProcedureCall {
+    /// Separate diagnostic-report purpose: replace only the actual analysis
+    /// owner pair after the sealed complete current output attests both sides.
+    /// Runtime Eq and source-call applicability are unchanged.
+    pub(crate) fn authenticated_report_eq(
+        &self,
+        other: &Self,
+        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
+    ) -> Option<bool> {
+        let (left, right) = output.analyses();
+        let Self {
+            original: _,
+            procedure: _,
+            prefix: _,
+            caller: _,
+            uncertain_operations: _,
+            future_body: _,
+            input: _,
+            analysis_owner: _,
+            inherited_entry: _,
+        } = self;
+        if !self.matches_analysis(left)
+            || !other.matches_analysis(right)
+            || !output.analysis_owners(
+                self.analysis_owner.as_ref()?,
+                other.analysis_owner.as_ref()?,
+            )
+            || self.input != other.input
+            || self.inherited_entry != other.inherited_entry
+        {
+            return None;
+        }
+        // These retained typed structures have no replacement projection here.
+        // A distinct nested issuer cannot be relabelled as semantic Difference.
+        if self.procedure != other.procedure || self.caller != other.caller {
+            return None;
+        }
+        Some(
+            self.original == other.original
+                && self.prefix == other.prefix
+                && self.uncertain_operations == other.uncertain_operations
+                && self.future_body == other.future_body,
+        )
+    }
     /// Actual complete written vector; reporting invocation labels do not issue it.
     #[must_use]
     pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
