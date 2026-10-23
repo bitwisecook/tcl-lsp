@@ -26,10 +26,15 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 /// Reading this data grants no command, compiler or current-registration proof.
 #[derive(Debug, Clone, Copy)]
 pub struct BuiltinCoreProcedureDescriptor {
+    /// Exact builtin command spelling selected by the trusted compiled loader.
     pub name: &'static str,
+    /// Required builtin family provider of the canonical source row.
     pub provider: tcl_dialect::model::SpecProvider,
+    /// Required analyser hook identity of the trusted source row.
     pub analyser_hook: crate::hooks::AnalyserHookId,
+    /// Required complete trait set of the trusted source row.
     pub traits: crate::Traits,
+    /// Descriptor attached to the matching trusted row without changing authority.
     pub definition: NativeProcedureDefinitionSpec,
 }
 
