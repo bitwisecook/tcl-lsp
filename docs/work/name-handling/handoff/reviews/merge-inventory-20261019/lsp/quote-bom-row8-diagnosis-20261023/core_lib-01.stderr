@@ -1,0 +1,13 @@
+ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate=false original_summary=true installed_summary=false statements=1
+ORIGINAL_BODY_SYNTAX offset=Some(11) head=Some("return") words=1 attachment=true syntax=false compiler_words=true compiler_state=false owner=true dialect=true protocol=true source_purpose=None compiler_purpose=None compiler_source_closed=false
+ORIGINAL_BODY_SYNTAX_RUNTIME offset=Some(11) lookup=true target=true handler=true unobserved=true names=true closed=true evaluated_body=false
+ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate=false original_summary=false installed_summary=true statements=1
+ORIGINAL_BODY_SYNTAX offset=Some(11) head=Some("return") words=1 attachment=true syntax=false compiler_words=true compiler_state=false owner=true dialect=true protocol=true source_purpose=None compiler_purpose=None compiler_source_closed=false
+ORIGINAL_BODY_SYNTAX_RUNTIME offset=Some(11) lookup=true target=true handler=true unobserved=true names=true closed=true evaluated_body=false
+ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate=true original_summary=true installed_summary=false statements=1
+
+thread 'minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries' (311975) panicked at rust/tcl-lsp-core/src/minify/original.rs:904:13:
+assertion `left == right` failed: puts "﻿42"
+  left: "puts \u{feff}42"
+ right: "puts \"\u{feff}42\""
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

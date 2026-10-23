@@ -1,0 +1,86 @@
+{
+  "actual_failed": 1,
+  "actual_passed": 0,
+  "actual_selected": 1,
+  "diagnostic_env": {
+    "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+  },
+  "expected_tests": 1,
+  "package": "tcl-lsp-core",
+  "passed": false,
+  "printed_names": [
+    "minify_strips_comments_and_collapses_whitespace_factorial"
+  ],
+  "process": {
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060",
+      "minify_strips_comments_and_collapses_whitespace_factorial",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060",
+    "artifact_sha256_after": "5afe804cf394e65bc98e9b027afac70fc805fe11e06bb438ec11599ca63cf9f7",
+    "artifact_sha256_before": "5afe804cf394e65bc98e9b027afac70fc805fe11e06bb438ec11599ca63cf9f7",
+    "artifact_unchanged": true,
+    "cap_bytes": 20000000,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/workspace/naming-migration-active/tcl-lsp",
+    "deadline_seconds": 180,
+    "disk_floor_bytes": 2300000000,
+    "disk_paths": [
+      "/workspace/naming-migration-active/tcl-lsp",
+      "/tmp",
+      "/workspace/naming-migration-active/tcl-lsp/target",
+      "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060",
+      "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+      "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+      "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z"
+    ],
+    "elapsed_seconds": 24.42127302,
+    "ended_utc": "2026-10-23T07:08:25.256133+00:00",
+    "exit_code": 101,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 3675852800,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 63962712571572,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 308941,
+      "si_status": 101
+    },
+    "pid": 308941,
+    "pid_start_ticks": 6394061,
+    "process_group": 308941,
+    "retained_bytes": 1718,
+    "spawn_return_monotonic_ns": 63940656779819,
+    "spawn_return_utc": "2026-10-23T07:08:00.875712+00:00",
+    "stderr": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.stderr",
+    "stderr_bytes": 1442,
+    "stdout": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.stdout",
+    "stdout_bytes": 276,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 63940616260599,
+    "timer_armed_utc": "2026-10-23T07:08:00.835318+00:00"
+  },
+  "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+  "server_artifact_sha256": null,
+  "started_counts": [
+    1
+  ],
+  "stderr_sha256": "b7d735d2e9ddab213c158bb9f9d340185bdb579fa60de7f16f9fe5457f31dc35",
+  "stdout_sha256": "95167190d58509907c6255adff12718e86658dd8a344279e90c172eac4628c03",
+  "target": "--test lsp_edit_workspace",
+  "test_artifact_sha256": "5afe804cf394e65bc98e9b027afac70fc805fe11e06bb438ec11599ca63cf9f7",
+  "test_warnings": false
+}

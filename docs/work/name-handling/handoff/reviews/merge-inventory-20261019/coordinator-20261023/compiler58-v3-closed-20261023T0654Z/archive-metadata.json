@@ -1,0 +1,24 @@
+{
+  "created_utc": "2026-10-23T06:56:16.283986+00:00",
+  "scope": "compiler58 v3 protocol and completed run evidence only; no full release acceptance",
+  "product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46_map_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "original_filters": 35,
+  "original_selected_tests": 58,
+  "observed_unique_test_identities": 58,
+  "completed_result_rows": 35,
+  "selected_total": 58,
+  "outcome_counts": {
+    "passed": 40,
+    "failed": 18,
+    "ignored": 0
+  },
+  "run_status": "failed-valid; test failures with source/provider/artifact/timer/docs-HEAD guards closed",
+  "full_release_acceptance": false,
+  "run_path": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+  "launcher_path": "/tmp/compiler-source46-focused58-v3/launcher-runs/20261023T054332.919422Z",
+  "parent_session": "77511",
+  "parent_lock_release": "confirmed by explicit root invocation token",
+  "final_receipt": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/final.json"
+}

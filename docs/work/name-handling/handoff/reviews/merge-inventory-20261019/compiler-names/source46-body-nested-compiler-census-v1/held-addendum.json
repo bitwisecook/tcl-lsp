@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T07:25:50.875727+00:00",
+  "status": "V1 HELD static census incompleteness; never integrated or run",
+  "patch_sha256": "f00c80da9b5f66e9ed993100ae5cc95e81307b71553ae4db23760b0f4de0fc3a",
+  "reason": "Outer-body numeric span filter can omit materialised child scripts at base0 and does not prove child source membership. No proof behavior changed, but raw-every-child claim invalid.",
+  "successor": "/tmp/compiler-names-body-nested-compiler-census-v2",
+  "successor_patch_sha256": "9374cdaefa7202f5d9291cab14eb919227d2d9e51358bf51dd75ef0a0b37f347"
+}

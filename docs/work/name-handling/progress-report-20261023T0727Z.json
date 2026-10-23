@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T07:27:11.098242+00:00",
+  "scheduled_report_utc": "2026-10-23T07:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T07:55:37+00:00",
+  "change_since_previous_report": [
+    "06:55:37reporton time, activee1548731c normalpublished fefa1e468 at06:56:56 after freshdepth1fetch/rebase/productdiff0. Currentproduct897b/tree0b11/mapf756 unchanged.",
+    "Compiler58 actualCLOSED06:54:45:35filters58tests40PASS18FAIL/0W, allrawbuild/input/source/provider/artifact/timer/process/launcher guards rootindependentlyverified. Complete322payloadarchive23fc259d rootverified, finala2543f18/launcherae69b4eb; failed-valid runtime, allF/audit0. RootnextLSP23allocation; remainingJim7/CCG3/hook2/Native15GOsabsent.",
+    "Originaldiagnostic11=10PASS1FAIL versus historical1PASS10FAIL exactselectorjoin9FAIL\u2192PASS (G4documentedpolicy/oraclecorrectionscaveat). Additionalowner4=3/1; actualforeignanalysismemoownerfailure6ae79v2 staticCLEARbothpeers, seedEq/cachepreserved; typing/runtimeunrun. E003Installedede9+Jimcanonicaleca8+alias86eb+escapehelper3a10+BPFfixture d1a3 off-tree/staticCLEAR only; puretracesawaitactualmeasurement. No sourceintegration since897b.",
+    "SupportedNode26.12.1 off-tree twoJSONlayout tscPASS451actualinputs/12803canonical/dependencyentriesunchanged. Canonical exacttwo copy-only prerequisitesremainqueued; noshippinghostacceptance. ExternalBIGIP/perfheadersstale, reviewtriageCOMPLETE; no duplicates/takeover.",
+    "CI5206OLD5a418completedfailure06:58:42. Fresh07:03full47jobs7success22failure2cancelled16skip rawb49250b5; newlyvisibleaggregation/release-skippedjobsmeanroster grewfrom31. Directcheckannotations prove main2/nativee2e1maximum6h0m0stimeouts; native1also3panic-regexmatchertimeouts, main2missingresultartifact. No rootcancellationaction, no reason/outcomesinferredfromcancelstatusalone. MCPlogTransportclosed/threeboundedGHjoblogsForbidden; rawsignederrorURLskeptprivate, exactremainingnamedresultsunknown. Read-onlyCIcaptureaudit underway beforefuturerun; no timeout/testbudgetincrease/duplicateCI.",
+    "Actual LSP23 running: 16 completed, 12 PASS/4 FAIL; whole23 open. Factorial/default/nested body output fail, source-only if proof positive passes; original quote BOM loop fails but independent Content control passes. Two identical Content fixtures demand contradictory output; LSP preparing genuine Skip refusal fixture off-tree retaining assertions. Other completed quote, recursive syntax, currentness/config/refusal controls pass. Five target builds exit0/0W; no source changes.",
+    "CI capture audit complete: current raw nextest path lacks20MB filter and incremental terminals; Rust preselection occurs after execution and is skipped on cancellation. Pinned reporter feasibility proposed off-tree only; no budget/test/assertion changes or CI rerun."
+  ],
+  "committed": [
+    "e1548731c3c3984bdcca4599fc0ba8eb4c650e78"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Close actual LSP23 with original assertions and all source/provider/process/artifact guards; archive every raw payload and distinguish first assertion failures from unreached controls.",
+    "After actual parent closes and releases lock, allocate Jim7, CCGdirect3, separate livehook2, Native15 sequentially on unchanged product. All four future GOs remain absent.",
+    "Integrate reviewed narrow repairs only after frozen measurements, new source identity and actual type/runtime revalidation. Complete full authenticated perf proof, whole shipping gates and exact origin/rust zero pass-to-fail. All F/audit0; PR requires explicit request."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Compiler58 fully closed40PASS18FAIL/58,35filters0W, all guards and322payload archive independently root verified. Actual LSP23 running: 16 completed, 12 PASS/4 FAIL; whole23 open. Factorial/default/nested body output fail, source-only if proof positive passes; original quote BOM loop fails but independent Content control passes. Two identical Content fixtures demand contradictory output; LSP preparing genuine Skip refusal fixture off-tree retaining assertions. Other completed quote, recursive syntax, currentness/config/refusal controls pass. Five target builds exit0/0W; no source changes. Eight-package alltarget v9 PASS0E0W remains typing-only, release gates open.",
+  "disk_free_bytes": 9037877248,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

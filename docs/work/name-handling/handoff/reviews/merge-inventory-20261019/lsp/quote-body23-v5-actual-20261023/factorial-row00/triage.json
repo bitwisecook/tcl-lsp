@@ -1,0 +1,25 @@
+{
+  "actual_utc": "2026-10-23T07:11:40.221577+00:00",
+  "scope": "Actual completed original factorial row0 only; full23 final guards PENDING, no whole-suite admission",
+  "run": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+  "outcome": "FAIL exact original expected whitespace assertion retained",
+  "observed_output": "if condition compacted; outer expr62 and inner expr80 retain spaces",
+  "current_consumer_calls": [
+    "source_structure.rs1516 source script_bodies before readonly returns",
+    "original.rs733 independent source expression_operands/source_expression_gaps for each captured command",
+    "source_structure.rs1244 lexical bracket commands queued"
+  ],
+  "trace_limit": "Existing retained inventory trace contains only if28/return54. No trace identifies whether expr62/80 query lacks tokens, source alternatives, advice, or unanimous descriptor.",
+  "producer_route": "Names/compiler owns genuine retained CU nested command discovery and allactual provenance; no fallback or guard relaxation",
+  "source_pins": {
+    "rust/tcl-lsp-core/src/minify/original.rs": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+    "rust/tcl-lsp-core/src/source_structure.rs": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a"
+  },
+  "files": {
+    "lsp_edit_workspace-00.stdout": "95167190d58509907c6255adff12718e86658dd8a344279e90c172eac4628c03",
+    "lsp_edit_workspace-00.result.json": "9a3ae700fc9bad11b03c33a446af0cea798a4226721f34d4d16ed6e72bb4c56d",
+    "lsp_edit_workspace-00.stderr": "b7d735d2e9ddab213c158bb9f9d340185bdb579fa60de7f16f9fe5457f31dc35"
+  }
+}

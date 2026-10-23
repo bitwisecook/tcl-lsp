@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T06:53:07Z: supported pinned Node26.12.1 OFFTREE unchanged two-JSON layout TypeScript PASS0/no diagnostics06:52:48; same451 exact compiler inputs and log as preserved Node24 run. All12803 canonical editor/dependency/rootfile entries and shadow source/config unchanged; prior12800 entries independently rejoined. No canonical generation/copy/Cargo/Git/GO. Actual repaired897b source46 eight-package v9 PASS0E/0W/allguards remains compilation only; root owns compiler58 closure/next LSP23 allocation. Full canonical/editor/browser/runtime/shipping evidence remains open.
+Current status 2026-10-23T07:23:53Z: actual LSP23v5 root10730 remains open. Original factorial row0 FAIL: if gaps compact but nested expr62/80 spaces remain; genuine nested compiler-token inventory query diagnostic owned Names, no fallback. Quote row8 FAIL at leadingFEFF fourth loop case; separate explicitContent BOM row9 PASS. Current configs appear identicalContent, so no legitimate config-only product fix yet; Names independent contract review requested, assertions unchanged. Later row8 loop cases unreached; no whole23 final guard/admission. Root owns source/Cargo/Git/GO; source/provider HOLD. SupportedNode26 off-tree TS PASS remains separately scoped.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T06:53:07Z
+Last updated: 2026-10-23T07:23:53Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T06:53:07Z: read `lsp/editor-ts-offtree-json-20261023/node26/receipt.json` and scope-addendum for supported Node26.12.1 OFFTREE TypeScript PASS0,451 identical actual inputs,12803 unchanged canonical entries and unchanged shadow. Prior Node24.19.0 evidence remains historical unsupported scope. No canonical two-JSON copies executed; exact future copy-only plan remains available. Root owns LSP23 allocation after compiler58 closure; preserve all assertions/source-purpose/user2231 stop, no full host green claim.
+Latest resume pointer 2026-10-23T07:23:53Z: read actual `lsp/quote-body23-v5-actual-20261023/factorial-row00/triage.json` and `lsp/quote-bom-row8-diagnosis-20261023/diagnosis.json`. Current actual LSP23 run `/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z` still open; Names owns pure nested-body census proposal, LSP owns quote/BOM contract diagnosis awaiting peer. Preserve failed and passing original assertions, no Native/source-purpose grant or fake explicit-config marker. No whole23/host claim; no Cargo/source/Git/GO byLSP.
 
 
 

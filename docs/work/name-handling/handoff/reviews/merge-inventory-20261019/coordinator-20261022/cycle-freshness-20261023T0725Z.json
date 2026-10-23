@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-23T07:27:11.136989+00:00",
+  "scheduled": "2026-10-23T07:25:37+00:00",
+  "publisher_external_docs_source": "fefa1e468c87885a4ca1d0267c2f08fce9a82e86",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "raw": "2026-10-22T18:08Z",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/bigip-lsp.md",
+      "age_minutes": 799.1856164833333,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler-codegen",
+      "raw": "2026-10-23T07:09:43+00:00 (ACTIVE; supplemental G4 fixture-purpose static peer)",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md",
+      "age_minutes": 17.46894981666667,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler-names",
+      "raw": "2026-10-23T07:25:50.890348Z",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md",
+      "age_minutes": 1.3374440166666666,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "compiler",
+      "raw": "2026-10-23T06:51:51.347715+00:00 (RBS1c6a puretraceNamesCLEAR8ef561cb; SH26f151 CCGCLEAR; integrationevalsink currentcauseunmeasured; full58 ACTIVE)",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md",
+      "age_minutes": 35.329821233333334,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "coordinator",
+      "raw": "2026-10-23T07:27:11.005118+00:00",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md",
+      "age_minutes": 0.00219785,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "lsp",
+      "raw": "2026-10-23T07:23:53Z",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md",
+      "age_minutes": 3.30228315,
+      "stale_over60": false,
+      "future_invalid": false
+    },
+    {
+      "role": "perf",
+      "raw": "2026-10-22 21:00 UTC",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/perf.md",
+      "age_minutes": 627.1856164833333,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "review-triage",
+      "raw": "2026-10-22T19:57:30Z",
+      "source_checkout": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md",
+      "age_minutes": 689.6856164833333,
+      "stale_over60": true,
+      "future_invalid": false
+    },
+    {
+      "role": "vm-runtime",
+      "raw": "2026-10-23T06:25:46Z (UPF17 exact2/97-call static audit; original3 scope clarified; current guarded UPF2 remains unrun)",
+      "source_checkout": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md",
+      "age_minutes": 61.41894981666667,
+      "stale_over60": true,
+      "future_invalid": false
+    }
+  ],
+  "disk_free_bytes": 9037869056,
+  "no_takeover": true,
+  "next_due": "2026-10-23T07:55:37+00:00"
+}

@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T06:55:22+00:00 (ACTIVE; source46 row24 diagnostic and row30 test peer clear)
+Last updated: 2026-10-23T07:09:43+00:00 (ACTIVE; supplemental G4 fixture-purpose static peer)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Supplemental G4 source46 fixture-purpose v2, 07:09Z:** names-owned test-only `/tmp/compiler-names-g4-supplement-fixture-purpose-v2/proposal.patch` SHA `874d5f49` has bounded independent static CLEAR. It keeps measured Reached/noNative refusals in the original controls and moves scoped lifecycle/body namespace positives to independent actual-source Conditional fixtures with explicit owner, config and observation premises; original tails and negatives remain. The five C profiles' 25/25 oracle outcomes are semantic evidence, not Rust issuer proof. Both original Rust selectors and Conditional/provider/namespace positive premises are **UNRUN**; no runtime green claim or product API change. Owned receipt `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/g4-supplement-fixture-purpose-v2-static-peer.txt` SHA `9e2c5ea7`. No source/Cargo/Git/GO by this role.
 
 **Current focused58 row24/row30, 06:52Z:** row24 original constfold control fails its first `puts 2` assertion with unchanged text, but the captured output has no inner producer trace; its first refusal is **UNPROVED**. V5 diagnostic SHA `9c598149` is **HELD**: Names found release env/logging scope. Immutable v6 SHA `e72aec52` adds `cfg(debug_assertions)` and pass/function/walk/call entry markers for the original O101 route; Names bounded static peer **CLEAR** receipt SHA `c7e89236`; no typing/runtime. Row30 actually reaches SocketFilter baseline with selected map and `pass`, then refuses `pass` as `OutOfSubset` before the lost-selection check. Existing BPF design/backend contract says SocketFilter uses `accept`/`drop`. Test-only off-tree correction SHA `d1a3b85c` uses `accept` for the positive baseline and retains original `pass` as an explicit invalid negative; all lost-selection/map inventory controls remain. Names bounded static peer **CLEAR** receipt SHA `a4d35007`; Rust test execution pending. Bounded receipt `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/source46-row24-row30-bounded-triage.txt`. No source/Cargo/Git/GO.
 

@@ -1,0 +1,14 @@
+{
+  "actual_utc": "2026-10-23T07:23:35.624010+00:00",
+  "scope": "Actual quote row8 FAIL and separate actual BOM row9 PASS; whole23 final guards PENDING. No assertions changed.",
+  "actual_first_refusal": "Row8 fourth loop case expects retained quotes around leading FEFF; helper emits bare FEFF. Later row8 cases unreached.",
+  "static_obligation": "Both fixtures use LexerConfig::for_profile(tcl8.6); explicit LeadingBom::Content in row9 equals inherited Default Content in row8. static_quoted_source_edits receives only original NativeWord/config and byte-identical operand. No source-syntax rule presently distinguishes these expected outputs. Registry construction differs but cannot legitimately grant BOM lexical policy.",
+  "no_fix_reason": "Blanket FEFF refusal would violate passing row9; artificial explicit-config marker or registry identity would not be a genuine lexical proof. Need independently review intended original full-config guard/control before any patch.",
+  "manual_tcl": "All5 pinned Tcl8.4\u20139.1 return equal quoted/bare FEFF42 values, length3, firstchar65279; scalar evidence only, no policy donation.",
+  "peer": "Names focused constructor/config review requested",
+  "source_pins": {
+    "rust/tcl-lsp-core/src/minify/original.rs": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+    "rust/tcl-lexer/src/lexer.rs": "3b05eb94f9e4afff67af1d7828cfb5fe8668f063d8b4e8050f338199e02c537b",
+    "rust/tcl-syntax/src/word_rules.rs": "a25b8dcefb350d688447d93ce0fc744b54c832ef7b17144ddc9254d945bc1730"
+  }
+}

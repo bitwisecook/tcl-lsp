@@ -1,0 +1,11 @@
+
+running 1 test
+test minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries ... FAILED
+
+failures:
+
+failures:
+    minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3503 filtered out; finished in 6.45s
+

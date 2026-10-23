@@ -1,0 +1,177 @@
+{
+  "utc": "2026-10-23T06:57:37.114701+00:00",
+  "status": "FAIL assertions; all guards valid",
+  "source_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "source_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46_map_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "run": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+  "finished_utc": "2026-10-23T06:54:44.994989+00:00",
+  "selected": 58,
+  "filters": 35,
+  "passed": 40,
+  "failed": 18,
+  "ignored": 0,
+  "warnings": 0,
+  "groups": {
+    "report14": {
+      "selected": 14,
+      "passed": 10,
+      "failed": 4
+    },
+    "diagnostic11-original": {
+      "selected": 11,
+      "passed": 10,
+      "failed": 1
+    },
+    "new-owner-controls4": {
+      "selected": 4,
+      "passed": 3,
+      "failed": 1
+    },
+    "c6-sh21-tnt03-original": {
+      "selected": 13,
+      "passed": 11,
+      "failed": 2
+    },
+    "rbs3-original-with-existing-traces": {
+      "selected": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "integration3-original": {
+      "selected": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "bpf6-selected-phase-controls": {
+      "selected": 6,
+      "passed": 5,
+      "failed": 1
+    },
+    "g4-original4-supplement": {
+      "selected": 4,
+      "passed": 1,
+      "failed": 3
+    }
+  },
+  "actual_unique_failed_identities": [
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+      "filter_index": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+      "filter_index": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+      "filter_index": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+      "filter_index": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "filter_index": 12
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+      "filter_index": 16
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "filter_index": 18
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "filter_index": 18
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "filter_index": 20
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "filter_index": 21
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "filter_index": 22
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "taint",
+      "selector": "dangerous_sinks::eval_sink",
+      "filter_index": 23
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "optimiser",
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "filter_index": 24
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "var_escape_residual2",
+      "selector": "cu_catch_literal_body_threads_its_upvar",
+      "filter_index": 25
+    },
+    {
+      "package": "bpf-tcl-ir",
+      "target": "bpf_tcl_ir",
+      "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "filter_index": 30
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "filter_index": 33
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "filter_index": 34
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "filter_index": 35
+    }
+  ],
+  "source_entries_compared": 100405,
+  "final_sha256": "a2543f18f0a19d8f501607f54b083487046b653ff4fa1d729ad445e6688cf293",
+  "launcher_sha256": "ae69b4eba849073c4431d88f0bf6f84718ed3452542a0f08166d247cafff80ff",
+  "launcher_transcript_sha256": "ed0eaea5a597bd7246a1a62b383ec4548e2ce6203cc9195dc52f4507aa420f55",
+  "archive_sha256": "23fc259d60cbc9ef4e4c64b59c794ac3a924636f626769cd5193ed42f5be2060",
+  "archive_payloads_independently_verified": 322,
+  "all_raw_runtime_build_input_source_provider_artifact_timer_process_launcher_checks_valid": true,
+  "parent77511_completed_exit": 1,
+  "parent_LOCK_RELEASED": "2026-10-23T06:54:44.997025+00:00",
+  "release_admissions": []
+}

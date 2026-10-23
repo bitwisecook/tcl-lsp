@@ -1,0 +1,62 @@
+{
+  "utc": "2026-10-23T07:22:45.533993+00:00",
+  "status": "Pure diagnostic frozen, static peer PENDING; no source application or Rust execution",
+  "patch_sha256": "f00c80da9b5f66e9ed993100ae5cc95e81307b71553ae4db23760b0f4de0fc3a",
+  "archive_sha256": "5caa1bb19c017a4be3780cdb62b2ae07557a796aa5d24edab6f37697955a72f9",
+  "archive_files": {
+    "actual/core_lib-00.process.json": "4965522c63ce1478a36e74143f38811b224a78effb813f6cc3e0fe8f16c84284",
+    "actual/core_lib-00.result.json": "9e98fd4e8cf6c66589124053cb645afc9df718502c3e6b56fc1abffb6df45e93",
+    "actual/core_lib-00.stderr": "315026450324e720cf73076684ee10dfdf40c841b4bca0b3fed1d14c629dd950",
+    "actual/core_lib-00.stdout": "dba493335b0e6d83de82abcbb822ae84cc46333209ed57f983b95f1395a7fbb5",
+    "actual/lsp_edit_workspace-00.process.json": "83fe4db1fe28aed51b9e5af52f37e0774d610c10e77eff20f18269eaddd61689",
+    "actual/lsp_edit_workspace-00.result.json": "9a3ae700fc9bad11b03c33a446af0cea798a4226721f34d4d16ed6e72bb4c56d",
+    "actual/lsp_edit_workspace-00.stderr": "b7d735d2e9ddab213c158bb9f9d340185bdb579fa60de7f16f9fe5457f31dc35",
+    "actual/lsp_edit_workspace-00.stdout": "95167190d58509907c6255adff12718e86658dd8a344279e90c172eac4628c03",
+    "actual/minify_residual-00.process.json": "529afb59c52e00decebd1af22b12c2910bb6bb49599f84cae178068f3a51a8eb",
+    "actual/minify_residual-00.result.json": "43d9e5a6799ee8d7a6cb5bd44938c3ea27415832c6ac79fba670da6645676237",
+    "actual/minify_residual-00.stderr": "335341a6faa51c3ca037b0291b841097e4407c7dbfb058753dcd441c40fa38a5",
+    "actual/minify_residual-00.stdout": "4a59d0e7383327d9f79249620bd1c11a23ceeb1fc8d71c9ef716d3c177dde817",
+    "candidate/independent-check.json": "b585680f6473f76c5daecc3d1407b2500be2c5241dc6a700bf83f0e68266caf3",
+    "candidate/manifest.json": "7cbb16fedb5454c3128dd7a15b5eb8f5948257117a3a698ff85cc4fe4ccddf94",
+    "candidate/prepare.py": "51f2b1d472b38e86faeb35bcd41d840c9c33b6efa1ddcdee53dd8df230335e36",
+    "candidate/proposal.patch": "f00c80da9b5f66e9ed993100ae5cc95e81307b71553ae4db23760b0f4de0fc3a",
+    "current/rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+    "current/rust/tcl-compiler/src/command_binding/retained_source.rs": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+    "current/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+    "current/rust/tcl-lsp-core/src/minify/original.rs": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+    "proposed/rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "ecabc95df9fad04c5dc0f10149027f53225ec512e9273c5e69d85b4319756458",
+    "proposed/rust/tcl-compiler/src/command_binding/retained_source.rs": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+    "proposed/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "789067695c68ce14ffbd94065263864b727fdbc4d49853c5f745dbf8b5a60afe"
+  },
+  "actual_rows": [
+    {
+      "prefix": "lsp_edit_workspace-00",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "passed": false,
+      "actual_selected": 1,
+      "process_complete": true,
+      "artifact_sha256": "5afe804cf394e65bc98e9b027afac70fc805fe11e06bb438ec11599ca63cf9f7",
+      "warnings": false
+    },
+    {
+      "prefix": "minify_residual-00",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "passed": false,
+      "actual_selected": 1,
+      "process_complete": true,
+      "artifact_sha256": "41e29967778af3320692cef858eb77bd04c33a5be9b2443363ef3965c72caed7",
+      "warnings": false
+    },
+    {
+      "prefix": "core_lib-00",
+      "selector": "minify::original::tests::native_minifier_uses_separate_authentic_body_syntax_without_native_word_admission",
+      "passed": false,
+      "actual_selected": 1,
+      "process_complete": true,
+      "artifact_sha256": "646b3e45584a4d46af18a8ad4f33d4d07abf70803fe0068fa3e1158500d5b4d5",
+      "warnings": false
+    }
+  ],
+  "facts": "Actual if independent Expr/script proof positive and Native words None assertions passed before fulloutput failed; nested outer/inner Expr whitespace remains. Root-level nested Expr compacts in separate default fixture. Existing retained inventory trace only emits body statements. Raw compiler nested records/query refusal unmeasured; no cause/fix closure. Foreign/stale/config refusal tail after fulloutput remains UNREACHED. Whole23/group source-provider final guards still pending.",
+  "limits": "No candidate token discovery, source parser authority, firstonly/dedup, missing-alternative reduction, Native/runtime/body/completion grant, assertion/Eq/cache/policy change. Exact current3files zero-fuzz/nooffset/finalhash/pinnedfmt PASS; Rust typing/unmeasured runtime."
+}

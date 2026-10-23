@@ -1,0 +1,63 @@
+{
+  "utc": "2026-10-23T07:05:10.856549+00:00",
+  "scope": "CI5206 closed oldsource log retrieval only; no named outcomes inferred",
+  "connector_log_attempt": "Transport closed",
+  "jobs": [
+    {
+      "job_id": 120175508624,
+      "receipt": {
+        "job": 120175508624,
+        "started_utc": "2026-10-23T07:04:21.791036+00:00",
+        "ended_utc": "2026-10-23T07:04:22.983622+00:00",
+        "exit": 1,
+        "timed_out": false,
+        "total_bytes": 523,
+        "retained_bytes": 523,
+        "truncated": false,
+        "log": "/tmp/ci5206-job-120175508624.log",
+        "sha256": "dd35e4dd06c9470946c5b60948e05bdc83ab8fc91af9713811ac022255c46263"
+      },
+      "error_category": "temporary redirected blob Forbidden",
+      "contains_signed_url": true,
+      "raw_error_log_not_archived": true
+    },
+    {
+      "job_id": 120175508527,
+      "receipt": {
+        "job": 120175508527,
+        "started_utc": "2026-10-23T07:04:22.172857+00:00",
+        "ended_utc": "2026-10-23T07:04:23.502717+00:00",
+        "exit": 1,
+        "timed_out": false,
+        "total_bytes": 523,
+        "retained_bytes": 523,
+        "truncated": false,
+        "log": "/tmp/ci5206-job-120175508527.log",
+        "sha256": "56d04da0c9b441daf2a0d5a71e3b9ee4d3f731cd14e664aa6e8aef0da8fd2eba"
+      },
+      "error_category": "temporary redirected blob Forbidden",
+      "contains_signed_url": true,
+      "raw_error_log_not_archived": true
+    },
+    {
+      "job_id": 120178740998,
+      "receipt": {
+        "job": 120178740998,
+        "started_utc": "2026-10-23T07:04:23.750466+00:00",
+        "ended_utc": "2026-10-23T07:04:24.412411+00:00",
+        "exit": 1,
+        "timed_out": false,
+        "total_bytes": 521,
+        "retained_bytes": 521,
+        "truncated": false,
+        "log": "/tmp/ci5206-job-120178740998.log",
+        "sha256": "711eadfefa31b4541f8bb05a2aa1d7c2e563dbbb312b87f2609cdd88f31fed47"
+      },
+      "error_category": "temporary redirected blob Forbidden",
+      "contains_signed_url": true,
+      "raw_error_log_not_archived": true
+    }
+  ],
+  "reason_for_job_cancellation": "Unestablished; no root cancellation action",
+  "keep_cancelled_and_unexecuted_unknown": true
+}
