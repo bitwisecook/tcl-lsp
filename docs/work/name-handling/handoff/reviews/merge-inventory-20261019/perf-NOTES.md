@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 20:27 UTC
+Last updated: 2026-10-23 20:52 UTC
 
 **Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
 All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
@@ -17,7 +17,13 @@ also refuse;11 fixed component/initial-declaration variants self-compare Equal.
 Exact first16 declarations self-compare Equal; adding puts [fib 20] causes
 immediate refusal. Main original all-old Tcl process was OOM-killed after77
 reports; exact-ELF tail recovery covers original25 missing inputs. First7 Equal.
-All15 all-old iRules pass; remaining main cases continue, with no fixture skipped.
+All15 all-old iRules and all7 old-only synthetic sizes pass; mixed cases
+continue with the same native35 refusal. No fixture is skipped. The refusal
+requires additional declarations: fib/call alone succeeds, first12 declarations
+plus call succeed, first14 refuse. Isolated existing cfg(test) capture tracing
+is compiling on separate opt0/assertions-on target; full/clean6 source remains
+frozen. Compiler build continues but its Python runtime driver is held until
+the corpus/diagnostic jobs finish naturally, with no runtime test paused.
 Selected compiler NEW completed228/229 (142 pass/86 failures), then the1000-level
 nested scan exceeded15GiB and the cgroup recorded an OOM kill. OLD recovery uses
 the exact preserved ELF and also exits-9, same228 outcomes and same nested

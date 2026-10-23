@@ -1,0 +1,7 @@
+{
+  "observed_unix": 1792787913.1116428,
+  "old_guard": 50198,
+  "new_guard_source": "/tmp/perf-b6-quiet-tests-all-workers.py",
+  "policy": "Quiet predicate also waits for owned capture/native35-unit/tail-recovery helper lifetimes, including their runtime after rustc finishes. Server and SpecTcl retain original budgets. Compiler-driver hold does not signal its Cargo/rustc children or any test executable.",
+  "readiness_flags_absent": true
+}

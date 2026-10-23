@@ -1,0 +1,19 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use crate::analyser::{Analyser, AnalysisReportComparison};
+#[test]
+fn native35_actual_report_capture() {
+    crate::realm::ZZ_NO_MEMO.store(true, std::sync::atomic::Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, std::sync::atomic::Ordering::Relaxed);
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../samples/wasm/t3-procs/35_native_dispatch_matrix.tcl"
+    ));
+    let report = Analyser::new().analyse_for_report(source, "tcl8.6");
+    eprintln!(
+        "NATIVE35_ACTUAL_CAPTURE {report:?} self={:?}",
+        report.compare(&report)
+    );
+    assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
+}

@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792788514.3982546,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: fixed canonical original declaration prefixes followed by original fib call, forced-old self comparisons. Original full corpus fixture unchanged.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792788605.730962,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

@@ -1,0 +1,7 @@
+EMPTY_VARIANT label=empty-other-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=return-other-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=empty-set state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=empty-puts state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=empty-called state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=return-puts state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_VARIANT label=first13-fib-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal

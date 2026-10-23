@@ -1,0 +1,11 @@
+{
+  "started_unix": 1792787622.470791,
+  "root": "/workspace/tcl-lsp-diagnostic",
+  "base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "full_batch_matches_frozen_before_probe": true,
+  "frozen_batch_diff_sha256": "e7e55e134f34379c834e7c1a809af459c36381e97c778c300041f792a56902a1",
+  "scope": "Diagnostic-only separate tree, existing cfg(test) capture tracing, original complete native35 fixture, genuine self-Equal assertion expected to expose refusal. No frozen proof source change.",
+  "profile": "dev/test opt-level0 debug0 assertions/overflow on; independent target, no target copying",
+  "probe_path": "/workspace/tcl-lsp-diagnostic/rust/tcl-compiler/src/analyser/authenticated_report/zz_native35_traceprobe.rs",
+  "preparation_transport": "Shared partial clone could not serve a missing promisor object. Used sparse checkout from exact frozen object store via read-only alternate and normal promisor fallback; scoped formatter applied before exact frozen-batch diff check."
+}

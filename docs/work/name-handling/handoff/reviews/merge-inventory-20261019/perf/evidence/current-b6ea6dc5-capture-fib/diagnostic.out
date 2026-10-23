@@ -1,0 +1,7 @@
+FIB_VARIANT label=fib-definition state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=fib-called20 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=fib-called0 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=fib-variable state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=simple-parameter-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=branch-parameter-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+FIB_VARIANT label=recursive-countdown state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal

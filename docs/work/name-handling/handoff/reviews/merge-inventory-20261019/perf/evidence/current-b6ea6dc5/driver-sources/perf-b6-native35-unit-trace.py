@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import hashlib,json,os,subprocess,time
+root=Path('/workspace/tcl-lsp-diagnostic');out=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-native35-unit-trace');probe=root/'rust/tcl-compiler/src/analyser/authenticated_report/zz_native35_traceprobe.rs';api=root/'rust/tcl-compiler/src/analyser/authenticated_report.rs';relative=str(api.relative_to(root));original_api=subprocess.check_output(['git','show','HEAD:'+relative],cwd=root);suffix='\n#[cfg(test)]\n#[path = "authenticated_report/zz_native35_traceprobe.rs"]\nmod zz_native35_traceprobe;\n';assert api.read_text().endswith(suffix)
+env=dict(os.environ,CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_DEV_OPT_LEVEL='0',CARGO_PROFILE_TEST_OPT_LEVEL='0',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true',CARGO_PROFILE_TEST_DEBUG_ASSERTIONS='true',CARGO_PROFILE_TEST_OVERFLOW_CHECKS='true',ZZ_OLD_ENV='1');record={'started_unix':time.time(),'pid':os.getpid(),'scope':'Isolated existing cfg(test) traces with the exact complete original native35 fixture and genuine self-Equal assertion; diagnostic only, never a passing equivalence proof.','target_dir':env['CARGO_TARGET_DIR'],'rust_diff_sha256':hashlib.sha256(subprocess.check_output(['git','diff','--','rust'],cwd=root)).hexdigest()};executables=[];(out/'inputs.json').write_text(json.dumps(record,indent=2)+'\n')
+try:
+ with (out/'build.jsonl').open('w') as stdout,(out/'build.stderr').open('w') as stderr:code=subprocess.run(['cargo','test','--locked','-j2','-p','tcl-compiler','--lib','--no-run','--message-format=json'],cwd=root,env=env,stdout=stdout,stderr=stderr).returncode
+ rows=[json.loads(line) for line in (out/'build.jsonl').read_text().splitlines()];warnings=[row for row in rows if row.get('reason')=='compiler-message' and row['message']['level']=='warning'];executables=[Path(row['executable']) for row in rows if row.get('reason')=='compiler-artifact' and row.get('executable')];record.update(build_exit=code,warnings=len(warnings));(out/'progress.json').write_text(json.dumps(record,indent=2)+'\n');print('Unit diagnostic build',code,'warnings',len(warnings),flush=True);assert code==0 and not warnings and len(executables)==1
+ argv=[str(executables[0]),'analyser::authenticated_report::zz_native35_traceprobe::native35_actual_report_capture','--exact','--nocapture','--test-threads=1'];env.update(TCL_LSP_TRACE_AUTHENTICATED_REPORT='1',CARGO_MANIFEST_DIR=str(root/'rust/tcl-compiler'))
+ with (out/'trace.out').open('w') as log:record['run_exit']=subprocess.run(argv,cwd=root/'rust/tcl-compiler',env=env,stdout=log,stderr=subprocess.STDOUT).returncode
+ print('Unit trace diagnostic completed',record['run_exit'],flush=True)
+finally:
+ for exe in executables:exe.unlink(missing_ok=True)
+ assert api.read_text().endswith(suffix),'unexpected diagnostic source edit';api.write_bytes(original_api);probe.unlink(missing_ok=True);record.update(finished_unix=time.time(),executables_removed=all(not p.exists() for p in executables),probe_removed=not probe.exists(),api_original_restored=api.read_bytes()==original_api);(out/'final.json').write_text(json.dumps(record,indent=2)+'\n')

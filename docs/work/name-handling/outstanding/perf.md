@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 20:27 UTC
+Last updated: 2026-10-23 20:52 UTC
 
 ## Resume
 
@@ -50,14 +50,37 @@ clean6 unit rustc40734 SIGINT at19:57, then server normal-library rustc44343
 SIGINT at20:02 as the one runtime kept growing. Both builders were cancelled
 to preserve runtime; no runtime was signalled/paused. Completed clean6 normal
 library remains cached. Cold-cache advisory eviction changed no file content.
-Clean6 retry47490 was held ONLY as an idle script until OLD recovery ended.
-The guard finally RESUMED it at20:21; it is now rebuilding the unit executable
-from the cached clean normal library, then runs original compiler BOTH modes.
-No process remains deliberately held. retry-recovery-ordering.json is complete.
-Server retry waits for47490 naturally, then rebuilds/runs/deletes original server
-cases with180s limits. Quiet guard is perf-b6-quiet-tests-serialized.py, session42932:
-it waits server actual build readiness before releasing server, then SpecTcl.
-Neither quiet readiness flag is released. No other process is deliberately held.
+Clean6 retry47490 is building its unit executable from the cached normal
+library. Its Python test driver55613 is now HELD by guard56754 while Cargo /
+rustc children continue normally. This defers ONLY test startup until main
+corpus35120, tail55696 and isolated diagnostic56173 finish naturally. Guard
+finally resumes the same driver. No runtime is paused; build wall time is not
+latency evidence. Receipt: compiler-runtime-window.json; source/log
+/tmp/perf-b6-hold-compiler-driver.py/.log (session57407).
+Server retry50172 waits for47490 naturally, then rebuilds/runs/deletes original
+server cases (180s each). Quiet guard source/log is now
+/tmp/perf-b6-quiet-tests-all-workers.py/.log, session50068. Besides original
+workers and rustc, it waits owned capture/native35/tail helper lifetimes through
+runtime cleanup, then server ACTUAL build readiness, then original server4
+runs/cleanup, then SpecTcl4 runs/cleanup. Neither readiness flag is released.
+
+Isolated diagnostic /workspace/tcl-lsp-diagnostic contains the exact frozen b6
+full batch plus ONE temporary cfg(test) native35 probe and module declaration.
+Its separate opt0/assertions-on target is building without Rust diagnostics;
+no target was shared/copied. Helper56173, session34343,
+/tmp/perf-b6-native35-unit-trace.py/.log. It uses existing test-only private
+capture traces and the original COMPLETE native35 input, with genuine self-Equal
+assertion. Source/executable are removed and original API file restored in
+finally, one command. Evidence: current-b6ea6dc5-native35-unit-trace/.
+Full and clean6 proof source trees remain frozen/unchanged.
+
+Further small all-old diagnostics: fib alone with literal/variable calls,
+simple parameter/branch and recursive countdown ALL self-compare Equal. Original
+first2/4/6/8/10/12 declarations plus puts [fib 20] also Equal; first14/16 refuse.
+Declarations13/14 are nothing {return} and empty {}. Fixed empty/return-only
+interaction cases are now running. These are diagnostic inputs, never substitute
+corpus proof. Evidence: current-b6ea6dc5-capture-fib/, -capture-declarations/,
+-capture-empty/. No private guard is inferred until the unit trace executes.
 
 The main all-old Tcl process was also OOM-killed (exit-9) after77/102 reports
 during the same memory pressure. Preserve that failed one-process run. Exact
@@ -89,7 +112,7 @@ Active roots/logs (terminal handles lost at18:41; use PIDs/files):
 - Combined lexer36947 COMPLETE: /tmp/perf-b6-lexer.log.
 - Remaining-suite builder: /tmp/perf-b6-remaining-suites.log. Waits for the
   control executable, then builds server(default0) and SpecTcl(opt1).
-- Quiet guard serialized: /tmp/perf-b6-quiet-tests-serialized.log. Waits for
+- Quiet guard all-workers: /tmp/perf-b6-quiet-tests-all-workers.log. Waits for
   all other workers and
   rustc processes to finish naturally, then releases server and SpecTcl in
   order with original assertions/timeouts/budgets. No readiness flag released.

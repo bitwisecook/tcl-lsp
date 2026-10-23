@@ -1,0 +1,21 @@
+{
+  "started_unix": 1792787841.4690378,
+  "pid": 56754,
+  "held_python_driver": 55613,
+  "workers": [
+    {
+      "pid": 35120,
+      "start": "7102709"
+    },
+    {
+      "pid": 56173,
+      "start": "8198145"
+    },
+    {
+      "pid": 55696,
+      "start": "8137219"
+    }
+  ],
+  "policy": "Hold only Python compiler-test driver while its Cargo/rustc children continue building. Resume after full corpus, tail recovery and isolated diagnostic finish naturally, so no runtime test competes with those jobs for memory. Never signal a test executable. Build wall time is not latency evidence.",
+  "held_unix": 1792787841.4697309
+}

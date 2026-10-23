@@ -1,10 +1,10 @@
 {
-  "started_unix": 1792786009.4186854,
+  "started_unix": 1792787914.6282954,
   "policy": "Wait for other owned compiler/corpus/lexer jobs to finish naturally. Never pause runtime tests; retain all original budgets.",
   "workers": [
     {
       "pid": 47490,
-      "state": "T",
+      "state": "S",
       "start": "7979316",
       "argv": "python3 /tmp/perf-b6-clean6-after-memory.py "
     },

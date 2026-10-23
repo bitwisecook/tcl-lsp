@@ -1,0 +1,1231 @@
+diff --git a/rust/tcl-compiler/src/analyser/authenticated_report.rs b/rust/tcl-compiler/src/analyser/authenticated_report.rs
+index 59a0825a..df9faa51 100644
+--- a/rust/tcl-compiler/src/analyser/authenticated_report.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report.rs
+@@ -575,3 +575,7 @@ mod capture_controls {
+         assert!(!ordinary.all_variables.is_empty());
+     }
+ }
++
++#[cfg(test)]
++#[path = "authenticated_report/zz_native35_traceprobe.rs"]
++mod zz_native35_traceprobe;
+diff --git a/rust/tcl-compiler/src/command_binding/formal_call_advice.rs b/rust/tcl-compiler/src/command_binding/formal_call_advice.rs
+index a160bef7..f699d921 100644
+--- a/rust/tcl-compiler/src/command_binding/formal_call_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/formal_call_advice.rs
+@@ -33,6 +33,65 @@ impl DeclarationFormalCallValue {
+     }
+ }
+ 
++/// One callee's invocation-independent caller-alias survey.
++#[derive(Debug)]
++pub(crate) struct DeclarationCallerAliasSurvey {
++    callee: std::sync::Arc<SourceConditionalBodyEntry>,
++    parameters: Vec<usize>,
++}
++
++type DeclarationCallerAliasKey = (
++    super::CommandAllocation,
++    tcl_registry::RegistrySemanticKey,
++    crate::registry_invocation::OwnedInvocationMetadataContext,
++);
++
++/// Realm-owned memo of [`DeclarationCallerAliasSurvey`] per callee allocation,
++/// registry semantics and metadata owner. Clones of one immutable realm share
++/// it; a new realm starts empty. A missing callee is retained as `None`.
++#[derive(Debug, Clone, Default)]
++pub(crate) struct DeclarationCallerAliasMemo {
++    entries: std::sync::Arc<
++        std::sync::Mutex<
++            std::collections::HashMap<
++                DeclarationCallerAliasKey,
++                Option<std::sync::Arc<DeclarationCallerAliasSurvey>>,
++            >,
++        >,
++    >,
++}
++
++impl DeclarationCallerAliasMemo {
++    fn get_or_survey(
++        &self,
++        allocation: &super::CommandAllocation,
++        registry: &tcl_registry::CommandRegistry,
++        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
++        survey: impl FnOnce() -> Option<DeclarationCallerAliasSurvey>,
++    ) -> Option<std::sync::Arc<DeclarationCallerAliasSurvey>> {
++        let key = (
++            allocation.clone(),
++            registry.snapshot().semantic_key(),
++            owner.clone(),
++        );
++        if let Some(retained) = self
++            .entries
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .get(&key)
++        {
++            return retained.clone();
++        }
++        let surveyed = survey().map(std::sync::Arc::new);
++        self.entries
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .entry(key)
++            .or_insert(surveyed)
++            .clone()
++    }
++}
++
+ impl SourceCommandBindings {
+     /// Original callee formal operands used by registry-owned caller links.
+     /// The returned names suppress caller diagnostics only. Unknown dispatch,
+@@ -43,6 +102,20 @@ impl SourceCommandBindings {
+         registry: &tcl_registry::CommandRegistry,
+         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+     ) -> Option<Vec<String>> {
++        self.declaration_caller_alias_arguments_with(invocation, registry, owner, None)
++    }
++
++    /// As [`Self::declaration_caller_alias_arguments`], sharing the
++    /// invocation-independent callee survey through `memo`. The memo belongs
++    /// to one immutable realm, so its inventories cannot change underneath it.
++    pub(crate) fn declaration_caller_alias_arguments_with(
++        &self,
++        invocation: &crate::ir::CommandTokens,
++        registry: &tcl_registry::CommandRegistry,
++        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
++        memo: Option<&super::original_name_value::OriginalRealmQueryMemo>,
++    ) -> Option<Vec<String>> {
++        let memo = memo.map(|memo| &memo.caller_alias);
+         invocation
+             .source_binding
+             .as_ref()?
+@@ -55,83 +128,105 @@ impl SourceCommandBindings {
+                 return None;
+             }
+             let allocation = target.implementation_allocation.as_ref()?;
+-            let callee = self
+-                .declaration_layouts
+-                .values()
+-                .filter_map(|observations| {
+-                    super::declaration_layout::original_declaration_layouts(observations)
+-                })
+-                .flatten()
+-                .find_map(|observation| {
+-                    let super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) =
+-                        observation.entry.as_ref()
+-                    else {
+-                        return None;
+-                    };
+-                    (body.allocation() == allocation).then(|| body.clone())
+-                })?;
+-            let names = callee
+-                .parameters()
+-                .iter()
+-                .map(|parameter| parameter.name.as_str())
+-                .collect::<Vec<_>>();
++            let survey = match memo {
++                Some(memo) => memo.get_or_survey(allocation, registry, owner, || {
++                    self.declaration_caller_alias_survey(allocation, registry, owner)
++                })?,
++                None => std::sync::Arc::new(
++                    self.declaration_caller_alias_survey(allocation, registry, owner)?,
++                ),
++            };
+             let mut values = Vec::new();
+-            for (site, observations) in &self.declaration_layouts {
+-                let Some(observations) =
+-                    super::declaration_layout::original_declaration_layouts(observations)
++            for &parameter in &survey.parameters {
++                if let Some((_, value)) =
++                    original_formal_argument(self, invocation, &survey.callee, parameter)
++                    && !values.contains(&value)
++                {
++                    values.push(value);
++                }
++            }
++            values.sort();
++            if agreed.as_ref().is_some_and(|previous| previous != &values) {
++                return None;
++            }
++            agreed = Some(values);
++        }
++        agreed
++    }
++
++    /// The callee and, in declaration-site order, every formal its original
++    /// body passes to a caller-alias operand. Independent of the invocation.
++    fn declaration_caller_alias_survey(
++        &self,
++        allocation: &super::CommandAllocation,
++        registry: &tcl_registry::CommandRegistry,
++        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
++    ) -> Option<DeclarationCallerAliasSurvey> {
++        let callee = self
++            .declaration_layouts
++            .values()
++            .filter_map(|observations| {
++                super::declaration_layout::original_declaration_layouts(observations)
++            })
++            .flatten()
++            .find_map(|observation| {
++                let super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) =
++                    observation.entry.as_ref()
+                 else {
+-                    continue;
+-                };
+-                if !callee.owns_source(&site.source, site.offset)
+-                    || observations.clone().any(|observation|
+-                        !matches!(observation.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) if body == &callee))
+-                { continue; }
+-                let Some(tokens) = self.declaration_original_tokens_at(&callee, site.offset) else {
+-                    continue;
++                    return None;
+                 };
+-                let Some(layout) = self.declaration_operand_layout_advice(&tokens) else {
++                (body.allocation() == allocation).then(|| body.clone())
++            })?;
++        let names = callee
++            .parameters()
++            .iter()
++            .map(|parameter| parameter.name.as_str())
++            .collect::<Vec<_>>();
++        let mut parameters = Vec::new();
++        for (site, observations) in &self.declaration_layouts {
++            let Some(observations) =
++                super::declaration_layout::original_declaration_layouts(observations)
++            else {
++                continue;
++            };
++            if !callee.owns_source(&site.source, site.offset)
++                || observations.clone().any(|observation|
++                    !matches!(observation.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) if body == &callee))
++            { continue; }
++            let Some(tokens) = self.declaration_original_tokens_at(&callee, site.offset) else {
++                continue;
++            };
++            let Some(layout) = self.declaration_operand_layout_advice(&tokens) else {
++                continue;
++            };
++            let Some(flow) =
++                crate::registry_invocation::declaration_invocation_flow(registry, &tokens, &layout)
++            else {
++                continue;
++            };
++            for operand in flow.caller_alias_operands {
++                let crate::ir::WordExpr::Variable { spelling, source } = operand else {
+                     continue;
+                 };
+-                let Some(flow) = crate::registry_invocation::declaration_invocation_flow(
+-                    registry, &tokens, &layout,
++                let Some(formal) = self.symbolic_declaration_formal_value_at(
++                    &site.source,
++                    &source,
++                    &spelling,
++                    &names,
++                    (registry, owner),
+                 ) else {
+                     continue;
+                 };
+-                for operand in flow.caller_alias_operands {
+-                    let crate::ir::WordExpr::Variable { spelling, source } = operand else {
+-                        continue;
+-                    };
+-                    let Some(formal) = self.symbolic_declaration_formal_value_at(
+-                        &site.source,
+-                        &source,
+-                        &spelling,
+-                        &names,
+-                        (registry, owner),
+-                    ) else {
+-                        continue;
+-                    };
+-                    let Some(parameter) = callee
+-                        .parameters()
+-                        .iter()
+-                        .position(|parameter| parameter.name == formal)
+-                    else {
+-                        continue;
+-                    };
+-                    if let Some((_, value)) =
+-                        original_formal_argument(self, invocation, &callee, parameter)
+-                        && !values.contains(&value)
+-                    {
+-                        values.push(value);
+-                    }
++                if let Some(parameter) = callee
++                    .parameters()
++                    .iter()
++                    .position(|parameter| parameter.name == formal)
++                {
++                    parameters.push(parameter);
+                 }
+             }
+-            values.sort();
+-            if agreed.as_ref().is_some_and(|previous| previous != &values) {
+-                return None;
+-            }
+-            agreed = Some(values);
+         }
+-        agreed
++        Some(DeclarationCallerAliasSurvey { callee, parameters })
+     }
+ 
+     /// Query a command-head formal through its original incoming/copy receipt,
+diff --git a/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs b/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
+index ac92e794..391b237e 100644
+--- a/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
++++ b/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
+@@ -24,8 +24,62 @@ struct IncompleteHeader {
+     content: Span,
+ }
+ 
++/// [`header_uncached`], memoised per region of the most recent source image
++/// and configuration. Each command's query walks every earlier declaration
++/// site and asks for that site's header over the rest of the document, so
++/// without the memo one analysis re-parses the document tail once per
++/// (command, earlier site) pair. The result is a pure function of the image
++/// bytes/channel, the region and the configuration. The key compares the
++/// image by `SourceImage` equality (shared-allocation fast path, complete
++/// byte comparison otherwise) and the memo retains the image clone, so its
++/// bytes stay alive and no other image can alias them.
++fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<Arc<IncompleteHeader>> {
++    type Memo = Option<(
++        SourceImage,
++        LexerConfig,
++        std::collections::HashMap<(u32, u32), Option<Arc<IncompleteHeader>>>,
++    )>;
++    thread_local! {
++        static MEMO: std::cell::RefCell<Memo> = const { std::cell::RefCell::new(None) };
++    }
++    if tcl_lexer::zz_old() {
++        return header_uncached(image, region, config).map(Arc::new);
++    }
++    let key = (region.start(), region.end());
++    let current = |memo: &Memo| {
++        memo.as_ref().is_some_and(|(retained, retained_config, _)| {
++            retained == image && *retained_config == config
++        })
++    };
++    let retained = MEMO.with_borrow(|memo| {
++        current(memo)
++            .then(|| {
++                memo.as_ref()
++                    .and_then(|(_, _, entries)| entries.get(&key).cloned())
++            })
++            .flatten()
++    });
++    if let Some(retained) = retained {
++        return retained;
++    }
++    let prepared = header_uncached(image, region, config).map(Arc::new);
++    MEMO.with_borrow_mut(|memo| {
++        if !current(memo) {
++            *memo = Some((image.clone(), config, std::collections::HashMap::new()));
++        }
++        if let Some((_, _, entries)) = memo.as_mut() {
++            entries.insert(key, prepared.clone());
++        }
++    });
++    prepared
++}
++
+ /// The real parse cut and independently complete header words; no invented closer.
+-fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<IncompleteHeader> {
++fn header_uncached(
++    image: &SourceImage,
++    region: Span,
++    config: LexerConfig,
++) -> Option<IncompleteHeader> {
+     if region.end().checked_sub(region.start())? > 64 * 1024 {
+         return None;
+     }
+diff --git a/rust/tcl-compiler/src/command_binding/original_name_value.rs b/rust/tcl-compiler/src/command_binding/original_name_value.rs
+index eacdaa1e..beac84d0 100644
+--- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -1140,50 +1140,8 @@ impl super::SourceInvocationBinding {
+                 && original.words.as_ref() == tokens.words())
+             .then_some(original.config);
+         }
+-        if let Some(original) = &self.original_compiler_words {
+-            // A compiler visit can own this vector after an abrupt runtime
+-            // prefix. Its exact snapshot supplies syntax, never invocation.
+-            #[cfg(test)]
+-            trace_original_word_config(
+-                "compiler_snapshot",
+-                tokens,
+-                self.compiler_lookup_state.is_some(),
+-            );
+-            let snapshot = self.compiler_lookup_state.as_ref()?;
+-            #[cfg(test)]
+-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+-                trace_original_word_config(
+-                    "compiler_origin",
+-                    tokens,
+-                    snapshot.state.current_source_origin.as_ref() == Some(&original.site.source),
+-                );
+-                trace_original_word_config(
+-                    "compiler_site",
+-                    tokens,
+-                    self.invocation_site()
+-                        .is_none_or(|site| site == &original.site),
+-                );
+-                trace_original_word_config(
+-                    "compiler_head",
+-                    tokens,
+-                    tokens
+-                        .words()
+-                        .first()
+-                        .is_some_and(|word| word.source().span.start() == original.site.offset),
+-                );
+-                trace_original_word_config(
+-                    "compiler_vector",
+-                    tokens,
+-                    original.words.as_ref() == tokens.words(),
+-                );
+-            }
+-            return (snapshot.state.current_source_origin.as_ref() == Some(&original.site.source)
+-                && self
+-                    .invocation_site()
+-                    .is_none_or(|site| site == &original.site)
+-                && tokens.words().first()?.source().span.start() == original.site.offset
+-                && original.words.as_ref() == tokens.words())
+-            .then_some(original.config);
++        if self.original_compiler_words.is_some() {
++            return self.original_compiler_word_vector_config(tokens);
+         }
+         #[cfg(test)]
+         trace_original_word_config("declaration_site", tokens, self.invocation_site().is_some());
+@@ -1222,6 +1180,56 @@ impl super::SourceInvocationBinding {
+                 .all(|row| row.words == first.words && row.config == first.config))
+         .then_some(first.config)
+     }
++    fn original_compiler_word_vector_config(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Option<tcl_lexer::LexerConfig> {
++        let original = self.original_compiler_words.as_ref()?;
++        // A compiler visit can own this vector after an abrupt runtime
++        // prefix. Its exact snapshot supplies syntax, never invocation.
++        #[cfg(test)]
++        trace_original_word_config(
++            "compiler_snapshot",
++            tokens,
++            self.compiler_lookup_state.is_some(),
++        );
++        let snapshot = self.compiler_lookup_state.as_ref()?;
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            trace_original_word_config(
++                "compiler_origin",
++                tokens,
++                snapshot.state.current_source_origin.as_ref() == Some(&original.site.source),
++            );
++            trace_original_word_config(
++                "compiler_site",
++                tokens,
++                self.invocation_site()
++                    .is_none_or(|site| site == &original.site),
++            );
++            trace_original_word_config(
++                "compiler_head",
++                tokens,
++                tokens
++                    .words()
++                    .first()
++                    .is_some_and(|word| word.source().span.start() == original.site.offset),
++            );
++            trace_original_word_config(
++                "compiler_vector",
++                tokens,
++                original.words.as_ref() == tokens.words(),
++            );
++        }
++        (snapshot.state.current_source_origin.as_ref() == Some(&original.site.source)
++            && self
++                .invocation_site()
++                .is_none_or(|site| site == &original.site)
++            && tokens.words().first()?.source().span.start() == original.site.offset
++            && original.words.as_ref() == tokens.words())
++        .then_some(original.config)
++    }
++
+     /// Same-vector source grammar from its original dispatch, compiler or
+     /// declaration owner. This does not select a physical compiler engine.
+     pub(crate) fn original_source_word_dialect_for_tokens(
+@@ -1885,11 +1893,25 @@ impl super::SourceCommandBindings {
+         image: &tcl_lexer::SourceImage,
+         span: tcl_lexer::Span,
+         config: tcl_lexer::LexerConfig,
++    ) -> Option<(tcl_lexer::NativeWord, u32)> {
++        self.original_written_word_at_span_in_source_with(image, span, config, None)
++    }
++
++    /// As [`Self::original_written_word_at_span_in_source`], sharing the
++    /// per-site geometry of one immutable realm through `memo`.
++    pub(crate) fn original_written_word_at_span_in_source_with(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        span: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++        memo: Option<&OriginalRealmQueryMemo>,
+     ) -> Option<(tcl_lexer::NativeWord, u32)> {
+         self.matches_original_source_image(image, config)
+             .then_some(())?;
+         let mut selected = None;
+-        for (word, _, _, site) in self.original_written_word_observations_at_span(span, config)? {
++        for (word, _, _, site) in
++            self.original_written_word_observations_at_span_with(span, config, memo)?
++        {
+             (site.source.source_image() == image).then_some(())?;
+             let current = (word, site.offset);
+             if selected
+@@ -1912,12 +1934,24 @@ impl super::SourceCommandBindings {
+         image: &tcl_lexer::SourceImage,
+         span: tcl_lexer::Span,
+         config: tcl_lexer::LexerConfig,
++    ) -> Option<(tcl_lexer::NativeWord, super::CommandAllocationSite)> {
++        self.original_written_head_at_span_in_source_with(image, span, config, None)
++    }
++
++    /// As [`Self::original_written_head_at_span_in_source`], sharing the
++    /// per-site geometry of one immutable realm through `memo`.
++    pub(crate) fn original_written_head_at_span_in_source_with(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        span: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++        memo: Option<&OriginalRealmQueryMemo>,
+     ) -> Option<(tcl_lexer::NativeWord, super::CommandAllocationSite)> {
+         self.matches_original_source_image(image, config)
+             .then_some(())?;
+         let mut selected = None;
+         for (word, ordinal, _, site) in
+-            self.original_written_word_observations_at_span(span, config)?
++            self.original_written_word_observations_at_span_with(span, config, memo)?
+         {
+             if ordinal != 0 {
+                 continue;
+@@ -1939,78 +1973,65 @@ impl super::SourceCommandBindings {
+         &self,
+         span: tcl_lexer::Span,
+         config: tcl_lexer::LexerConfig,
+-    ) -> Option<
+-        Vec<(
+-            tcl_lexer::NativeWord,
+-            usize,
+-            super::SourceInvocationBinding,
+-            super::CommandAllocationSite,
+-        )>,
+-    > {
++    ) -> Option<Vec<OriginalWrittenWordObservation>> {
++        self.original_written_word_observations_at_span_with(span, config, None)
++    }
++
++    /// Every root-origin site at or before `span`, latest first. Only a site
++    /// whose retained geometry covers `span` can contribute or refuse; the
++    /// memo pre-computes each site's binding and covering extents once.
++    fn original_written_word_observations_at_span_with(
++        &self,
++        span: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++        memo: Option<&OriginalRealmQueryMemo>,
++    ) -> Option<Vec<OriginalWrittenWordObservation>> {
+         let origin = self.root_origin.as_ref()?;
+         let mut found = Vec::new();
+-        let mut offsets = self
+-            .dispatch_points
+-            .range(..=span.start())
+-            .map(|(offset, _)| *offset)
+-            .collect::<std::collections::BTreeSet<_>>();
+-        if self.original_logical_source_name_advice_input().is_some() {
+-            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
+-                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
+-            }));
+-        }
+-        for offset in offsets.iter().rev() {
+-            let binding = self.attach_invocation_reads(
+-                Self::query_dispatch_points(
+-                    self.dispatch_points_at(*offset)
+-                        .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
+-                ),
+-                Some(origin),
+-                *offset,
+-            );
+-            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
+-                binding.original_logical_source_geometry_words(input)
+-            } else {
+-                binding.original_recorded_name_words()
+-            };
+-            let Some((words, retained_config)) = geometry else {
+-                continue;
+-            };
+-            if retained_config != config
+-                || !words.iter().any(|word| {
+-                    word.original_written_span(origin.source_image().bytes())
+-                        .is_some_and(|written| {
+-                            written.start() <= span.start() && span.end() <= written.end()
+-                        })
+-                })
+-            {
+-                continue;
++        if let Some(memo) = memo {
++            let sites = memo
++                .written_word_sites
++                .get_or_init(|| self.original_written_word_sites())
++                .as_ref()?;
++            let upper = sites.partition_point(|site| site.offset <= span.start());
++            for site in sites[..upper].iter().rev() {
++                if site.config != config
++                    || !site.written.iter().any(|written| {
++                        written.start() <= span.start() && span.end() <= written.end()
++                    })
++                {
++                    continue;
++                }
++                match self.original_written_word_site_step(
++                    origin,
++                    site.offset,
++                    &site.binding,
++                    span,
++                    config,
++                ) {
++                    OriginalWrittenWordSiteStep::Skip => {}
++                    OriginalWrittenWordSiteStep::Refuse => return None,
++                    OriginalWrittenWordSiteStep::Found(word, written, call) => {
++                        found.push((*word, written, site.binding.clone(), call));
++                    }
++                }
+             }
+-            let original = origin.original_lexical_command(words, *offset, config)?;
+-            let native = original.native_words();
+-            let mut ordinals =
+-                words
+-                    .iter()
+-                    .zip(native)
+-                    .enumerate()
+-                    .filter_map(|(index, (word, native))| {
+-                        (word.source().span == span
+-                            || native.span() == span
+-                            || native.content_span().ok() == Some(span)
+-                            || native
+-                                .tokens()
+-                                .first()
+-                                .is_some_and(|token| token.span == span))
+-                        .then_some(index)
+-                    });
+-            let Some(written) = ordinals.next() else {
+-                continue;
+-            };
+-            if ordinals.next().is_some() {
+-                return None;
++        } else {
++            for offset in self
++                .original_written_word_site_offsets(origin, Some(span.start()))
++                .iter()
++                .rev()
++            {
++                let binding = self.original_written_word_site_binding(origin, *offset);
++                match self.original_written_word_site_step(origin, *offset, &binding, span, config)
++                {
++                    OriginalWrittenWordSiteStep::Skip => {}
++                    OriginalWrittenWordSiteStep::Refuse => return None,
++                    OriginalWrittenWordSiteStep::Found(word, written, call) => {
++                        found.push((*word, written, binding, call));
++                    }
++                }
+             }
+-            let site = binding.invocation_site()?.clone();
+-            found.push((native[written].clone(), written, binding, site));
+         }
+         if found.is_empty()
+             && let Some(input) = self.original_logical_source_name_advice_input()
+@@ -2039,6 +2060,168 @@ impl super::SourceCommandBindings {
+         }
+         (!found.is_empty()).then_some(found)
+     }
++
++    /// Root-origin dispatch offsets, plus Logical declaration-layout sites,
++    /// at or before `limit` (every one when `None`), ascending.
++    fn original_written_word_site_offsets(
++        &self,
++        origin: &Arc<super::SourceOriginId>,
++        limit: Option<u32>,
++    ) -> std::collections::BTreeSet<u32> {
++        let limit = limit.unwrap_or(u32::MAX);
++        let mut offsets = self
++            .dispatch_points
++            .range(..=limit)
++            .map(|(offset, _)| *offset)
++            .collect::<std::collections::BTreeSet<_>>();
++        if self.original_logical_source_name_advice_input().is_some() {
++            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
++                (site.source == *origin && site.offset <= limit).then_some(site.offset)
++            }));
++        }
++        offsets
++    }
++
++    fn original_written_word_site_binding(
++        &self,
++        origin: &Arc<super::SourceOriginId>,
++        offset: u32,
++    ) -> super::SourceInvocationBinding {
++        self.attach_invocation_reads(
++            Self::query_dispatch_points(
++                self.dispatch_points_at(offset)
++                    .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
++            ),
++            Some(origin),
++            offset,
++        )
++    }
++
++    fn original_written_word_site_geometry<'b>(
++        &self,
++        binding: &'b super::SourceInvocationBinding,
++    ) -> Option<(&'b [crate::ir::WordExpr], tcl_lexer::LexerConfig)> {
++        if let Some(input) = self.original_logical_source_name_advice_input() {
++            binding.original_logical_source_geometry_words(input)
++        } else {
++            binding.original_recorded_name_words()
++        }
++    }
++
++    /// Every site's binding and covering written extents, independent of any
++    /// queried span. A site without retained geometry never contributes.
++    fn original_written_word_sites(&self) -> Option<Vec<OriginalWrittenWordSite>> {
++        let origin = self.root_origin.as_ref()?;
++        let bytes = origin.source_image().bytes();
++        let mut sites = Vec::new();
++        for offset in self.original_written_word_site_offsets(origin, None) {
++            let binding = self.original_written_word_site_binding(origin, offset);
++            let Some((words, config)) = self.original_written_word_site_geometry(&binding) else {
++                continue;
++            };
++            let written = words
++                .iter()
++                .filter_map(|word| word.original_written_span(bytes))
++                .collect::<Vec<_>>();
++            sites.push(OriginalWrittenWordSite {
++                offset,
++                config,
++                written,
++                binding,
++            });
++        }
++        Some(sites)
++    }
++
++    /// One site's contribution to a span query, exactly as the unmemoised
++    /// reverse scan interprets it.
++    fn original_written_word_site_step(
++        &self,
++        origin: &Arc<super::SourceOriginId>,
++        offset: u32,
++        binding: &super::SourceInvocationBinding,
++        span: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++    ) -> OriginalWrittenWordSiteStep {
++        let Some((words, retained_config)) = self.original_written_word_site_geometry(binding)
++        else {
++            return OriginalWrittenWordSiteStep::Skip;
++        };
++        if retained_config != config
++            || !words.iter().any(|word| {
++                word.original_written_span(origin.source_image().bytes())
++                    .is_some_and(|written| {
++                        written.start() <= span.start() && span.end() <= written.end()
++                    })
++            })
++        {
++            return OriginalWrittenWordSiteStep::Skip;
++        }
++        let Some(original) = origin.original_lexical_command(words, offset, config) else {
++            return OriginalWrittenWordSiteStep::Refuse;
++        };
++        let native = original.native_words();
++        let mut ordinals =
++            words
++                .iter()
++                .zip(native)
++                .enumerate()
++                .filter_map(|(index, (word, native))| {
++                    (word.source().span == span
++                        || native.span() == span
++                        || native.content_span().ok() == Some(span)
++                        || native
++                            .tokens()
++                            .first()
++                            .is_some_and(|token| token.span == span))
++                    .then_some(index)
++                });
++        let Some(written) = ordinals.next() else {
++            return OriginalWrittenWordSiteStep::Skip;
++        };
++        if ordinals.next().is_some() {
++            return OriginalWrittenWordSiteStep::Refuse;
++        }
++        let Some(site) = binding.invocation_site() else {
++            return OriginalWrittenWordSiteStep::Refuse;
++        };
++        OriginalWrittenWordSiteStep::Found(Box::new(native[written].clone()), written, site.clone())
++    }
++}
++
++type OriginalWrittenWordObservation = (
++    tcl_lexer::NativeWord,
++    usize,
++    super::SourceInvocationBinding,
++    super::CommandAllocationSite,
++);
++
++enum OriginalWrittenWordSiteStep {
++    Skip,
++    Refuse,
++    Found(
++        Box<tcl_lexer::NativeWord>,
++        usize,
++        super::CommandAllocationSite,
++    ),
++}
++
++/// One root-origin site's span-independent written geometry.
++#[derive(Debug)]
++struct OriginalWrittenWordSite {
++    offset: u32,
++    config: tcl_lexer::LexerConfig,
++    written: Vec<tcl_lexer::Span>,
++    binding: super::SourceInvocationBinding,
++}
++
++/// Span-independent query products of one immutable realm's bindings. Clones
++/// of that realm share them; a replacement realm starts empty. Equality and
++/// every answer stay independent of cache warmth.
++#[derive(Debug, Clone, Default)]
++pub(crate) struct OriginalRealmQueryMemo {
++    written_word_sites: Arc<std::sync::OnceLock<Option<Vec<OriginalWrittenWordSite>>>>,
++    pub(super) caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
+ }
+ 
+ #[cfg(test)]
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 9cb81166..8ac6750f 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -360,12 +360,8 @@ pub(crate) fn collect_positioned_call_by_name_reads(
+             continue;
+         };
+         output.extend(
+-            bindings
+-                .declaration_caller_alias_arguments(
+-                    tokens,
+-                    registry,
+-                    bindings.source_metadata_owner(),
+-                )
++            identities
++                .declaration_caller_alias_arguments(tokens, registry)
+                 .unwrap_or_default(),
+         );
+         let Some(binding) = tokens.source_binding.as_ref() else {
+@@ -390,12 +386,8 @@ pub(crate) fn collect_positioned_call_by_name_reads(
+         for call in calls {
+             if let Some(tokens) = call.tokens {
+                 output.extend(
+-                    bindings
+-                        .declaration_caller_alias_arguments(
+-                            &tokens,
+-                            registry,
+-                            bindings.source_metadata_owner(),
+-                        )
++                    identities
++                        .declaration_caller_alias_arguments(&tokens, registry)
+                         .unwrap_or_default(),
+                 );
+             }
+diff --git a/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs b/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs
+index b5da310d..d308c703 100644
+--- a/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs
++++ b/rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs
+@@ -64,14 +64,19 @@ impl LocalPackSourceWord {
+     /// Bind a whole document selected by the caller, without DSL/notice authority.
+     #[must_use]
+     pub fn in_document(&self) -> OriginalPackSourceWord {
+-        OriginalPackSourceWord {
++        let word = OriginalPackSourceWord {
+             local: self.clone(),
+             root: self.statement.image.clone(),
+             root_config: self.statement.config,
+             base: 0,
+             parent: None,
+             depth: 0,
+-        }
++        };
++        debug_assert!(
++            word.matches_source(&word.root, word.root_config),
++            "a document word is its own complete original root"
++        );
++        word
+     }
+     /// Bind only through the actual original braced parent word. Cooked, changed,
+     /// detached or differently configured buffers cannot recover a full source.
+@@ -103,9 +108,21 @@ impl LocalPackSourceWord {
+             parent: Some(Arc::new(parent.clone())),
+             depth: parent.depth.checked_add(1)?,
+         };
+-        candidate
+-            .matches_source(&candidate.root, candidate.root_config)
+-            .then_some(candidate)
++        if tcl_lexer::zz_old() {
++            return candidate
++                .matches_source(&candidate.root, candidate.root_config)
++                .then_some(candidate);
++        }
++        // `parent` was bound by `in_document` or `in_body`, which establish
++        // `parent.matches_source(&parent.root, parent.root_config)`, and the
++        // candidate shares that root and config: only the new parent link
++        // needs checking. Re-proving the ancestor chain (or even one ancestor
++        // link) per word compares that ancestor's whole body again; with debug
++        // assertions load_embedded measured 6.9-7.0 s with such an assert vs
++        // 1.9 s without. The root is debug-asserted in `in_document`, and
++        // `every_bound_body_word_satisfies_the_full_chain_proof` asserts the
++        // full chain on every bound word of nested packs.
++        candidate.matches_parent_link().then_some(candidate)
+     }
+ }
+ 
+@@ -249,20 +266,28 @@ impl OriginalPackSourceWord {
+             return false;
+         }
+         if let Some(parent) = &self.parent {
+-            parent.matches_source(image, config)
+-                && parent.local.is_braced()
+-                && self.local.statement.config == parent.local.statement.config.nested()
+-                && parent.content_span().is_some_and(|span| {
+-                    span.start() == self.base
+-                        && image.bytes().get(span.as_range())
+-                            == Some(self.local.statement.image.bytes())
+-                })
++            parent.matches_source(image, config) && self.matches_parent_link()
+         } else {
+             self.base == 0
+                 && self.local.statement.image == self.root
+                 && self.local.statement.config == config
+         }
+     }
++
++    /// The link to the immediate parent, against this word's own root image.
++    /// A root word has no link and never satisfies it.
++    fn matches_parent_link(&self) -> bool {
++        let Some(parent) = &self.parent else {
++            return false;
++        };
++        parent.local.is_braced()
++            && self.local.statement.config == parent.local.statement.config.nested()
++            && parent.content_span().is_some_and(|span| {
++                span.start() == self.base
++                    && self.root.bytes().get(span.as_range())
++                        == Some(self.local.statement.image.bytes())
++            })
++    }
+     /// Reparse only this exact selected original container path under another
+     /// independently supplied full config. No recursive brace search or line/name
+     /// match is used, and every selected word must retain the same source extent.
+@@ -393,6 +418,101 @@ mod tests {
+     use super::*;
+     use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
+ 
++    #[test]
++    fn pack_line_numbers_keep_lf_coordinates_and_checked_bounds() {
++        for channel in [
++            tcl_lexer::SourceChannel::Document,
++            tcl_lexer::SourceChannel::NativeValue,
++        ] {
++            let image = SourceImage::from_bytes(&b"a\r\nb\rc\n"[..], channel);
++            assert_eq!(
++                (0..=7)
++                    .map(|offset| line_at(&image, offset))
++                    .collect::<Vec<_>>(),
++                vec![
++                    Some(1),
++                    Some(1),
++                    Some(1),
++                    Some(2),
++                    Some(2),
++                    Some(2),
++                    Some(2),
++                    Some(3)
++                ]
++            );
++            assert_eq!(line_at(&image, 8), None);
++            let opaque = SourceImage::from_bytes(&b"\xff\nx"[..], channel);
++            assert_eq!(line_at(&opaque, 2), Some(2));
++            assert_eq!(line_at(&opaque, 3), Some(2));
++            assert_eq!(line_at(&opaque, 4), None);
++            assert_eq!(
++                line_at(&SourceImage::from_bytes(&b""[..], channel), 0),
++                Some(1)
++            );
++        }
++    }
++
++    /// Every word bound through `in_body` satisfies the full-chain proof that
++    /// `in_body` itself checks only inductively (one parent link per word).
++    #[test]
++    fn every_bound_body_word_satisfies_the_full_chain_proof() {
++        fn walk(
++            word: &OriginalPackSourceWord,
++            image: &SourceImage,
++            config: LexerConfig,
++            depth: usize,
++            seen: &mut usize,
++            deepest: &mut usize,
++        ) {
++            assert!(
++                word.matches_source(image, config),
++                "{}",
++                word.captured_text()
++            );
++            *seen += 1;
++            *deepest = (*deepest).max(depth);
++            if !word.is_braced() {
++                return;
++            }
++            let rows = original_pack_source_statements(
++                word.captured_text(),
++                word.local.statement.config.nested(),
++            );
++            for (row, statement) in rows.iter().enumerate() {
++                for ordinal in 0..statement.row().argv.len() {
++                    if let Some(child) = word.body_word(row, ordinal) {
++                        walk(&child, image, config, depth + 1, seen, deepest);
++                    }
++                }
++            }
++        }
++        for source in [
++            "speclib demo 1 {\n  command a {\n    option -x {\n      hover {x}\n      arty {1 {2 {3}}}\n    }\n  }\n  command b {arty 1; arty 2}\n}\n",
++            "speclib demo 1 {\r\n  command a {\r\n    option -x {\r\n      hover {x\r\ny}\r\n    }\r\n  }\r\n}\r\n",
++        ] {
++            let config =
++                super::super::pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
++            let image = SourceImage::document(source);
++            let (mut seen, mut deepest) = (0, 0);
++            for statement in original_pack_source_statements(source, config) {
++                for ordinal in 0..statement.row().argv.len() {
++                    if let Some(local) = statement.local_word(ordinal) {
++                        walk(
++                            &local.in_document(),
++                            &image,
++                            config,
++                            0,
++                            &mut seen,
++                            &mut deepest,
++                        );
++                    }
++                }
++            }
++            assert!(deepest >= 3, "{source:?} reached depth {deepest}");
++            assert!(seen > 10, "{source:?} bound {seen} words");
++        }
++    }
++
+     #[test]
+     fn original_pack_word_geometry_keeps_selected_rows_parents_and_full_configuration() {
+         let source = "\u{feff}speclib demo 1 {command demo {arty 1; arty 2}}";
+diff --git a/rust/tcl-compiler/src/realm.rs b/rust/tcl-compiler/src/realm.rs
+index 42a13193..65180f01 100644
+--- a/rust/tcl-compiler/src/realm.rs
++++ b/rust/tcl-compiler/src/realm.rs
+@@ -130,6 +130,7 @@ pub struct CommandBindingRealm {
+     original_tokens: original_tokens::OriginalCommandTokenCache,
+     original_bindings: original_bindings::OriginalInvocationBindingCache,
+     source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
++    query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo,
+ }
+ 
+ // Derived preparation does not change the immutable retained interpretation.
+@@ -191,6 +192,35 @@ impl CommandBindingRealm {
+ 
+     /// Borrow the retained inventory for syntax navigation in the same source
+     /// root. Reconstructed/entered sources must select their own origin first.
++    /// Original callee caller-alias arguments for one invocation, sharing the
++    /// invocation-independent callee survey across this realm's queries.
++    pub(crate) fn declaration_caller_alias_arguments(
++        &self,
++        invocation: &crate::ir::CommandTokens,
++        registry: &CommandRegistry,
++    ) -> Option<Vec<String>> {
++        let Some(memo) = self.zz_memo() else {
++            return self.bindings.declaration_caller_alias_arguments(
++                invocation,
++                registry,
++                self.bindings.source_metadata_owner(),
++            );
++        };
++        self.bindings.declaration_caller_alias_arguments_with(
++            invocation,
++            registry,
++            self.bindings.source_metadata_owner(),
++            Some(memo),
++        )
++    }
++
++    fn zz_memo(
++        &self,
++    ) -> Option<&crate::command_binding::original_name_value::OriginalRealmQueryMemo> {
++        (!ZZ_NO_MEMO.load(std::sync::atomic::Ordering::Relaxed) && !tcl_lexer::zz_old())
++            .then_some(&self.query_memo)
++    }
++
+     pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {
+         &self.bindings
+     }
+@@ -290,7 +320,15 @@ impl CommandBindingRealm {
+     /// Exact dispatch proof from the shared source interpreter.
+     #[must_use]
+     pub fn invocation_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
+-        self.bindings.invocation_at_source(head, offset)
++        if self.zz_memo().is_none() {
++            return self.bindings.invocation_at_source(head, offset);
++        }
++        // The source query selects every dispatch point at `offset` whatever
++        // the presentation head, so the realm's per-offset memo is the same
++        // binding. Joining every activation's point is linear in the number
++        // of activations; repeated queries must not repeat it.
++        let _ = head;
++        self.retained_original_invocation(offset).as_ref().clone()
+     }
+ 
+     /// Original static naming producer from this realm's existing original
+@@ -343,8 +381,12 @@ impl CommandBindingRealm {
+         tcl_lexer::NativeWord,
+         crate::command_binding::CommandAllocationSite,
+     )> {
+-        self.bindings
+-            .original_written_head_at_span_in_source(image, span, config)
++        self.bindings.original_written_head_at_span_in_source_with(
++            image,
++            span,
++            config,
++            self.zz_memo(),
++        )
+     }
+ 
+     /// Genuine whole original word and parent head under exact source currency.
+@@ -356,9 +398,12 @@ impl CommandBindingRealm {
+         span: tcl_lexer::Span,
+         config: tcl_lexer::LexerConfig,
+     ) -> Option<(tcl_lexer::NativeWord, u32)> {
+-        let written = self
+-            .bindings
+-            .original_written_word_at_span_in_source(image, span, config);
++        let written = self.bindings.original_written_word_at_span_in_source_with(
++            image,
++            span,
++            config,
++            self.zz_memo(),
++        );
+         if !self
+             .source_input
+             .as_ref()
+@@ -640,6 +685,7 @@ impl CommandBindingRealm {
+             original_tokens: original_tokens::OriginalCommandTokenCache::default(),
+             original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
+             source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
++            query_memo: Default::default(),
+         };
+         Some((script, realm))
+     }
+@@ -1072,6 +1118,7 @@ fn realm_from_source_bindings(
+         original_tokens: original_tokens::OriginalCommandTokenCache::default(),
+         original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
+         source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
++        query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
+     }
+ }
+ 
+@@ -2021,3 +2068,6 @@ mod descriptor_index_tests {
+         }
+     }
+ }
++
++/// ZZ perf probe toggle (experiment copy only).
++pub static ZZ_NO_MEMO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+diff --git a/rust/tcl-lexer/src/lib.rs b/rust/tcl-lexer/src/lib.rs
+index 627c2960..86aeb891 100644
+--- a/rust/tcl-lexer/src/lib.rs
++++ b/rust/tcl-lexer/src/lib.rs
+@@ -187,3 +187,12 @@ pub fn comment_line_starts(source: &str, config: LexerConfig) -> Vec<u32> {
+ /// assert!(!tcl_lexer::VERSION.is_empty());
+ /// ```
+ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
++
++/// ZZ perf probe toggle (experiment copy only): restore the old behaviour.
++pub static ZZ_OLD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++/// ZZ: toggle or env `ZZ_OLD_ENV`.
++pub fn zz_old() -> bool {
++    static ENV: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    ZZ_OLD.load(std::sync::atomic::Ordering::Relaxed)
++        || *ENV.get_or_init(|| std::env::var_os("ZZ_OLD_ENV").is_some())
++}
+diff --git a/rust/tcl-lexer/src/parse_cut.rs b/rust/tcl-lexer/src/parse_cut.rs
+index b7c26d10..4243490c 100644
+--- a/rust/tcl-lexer/src/parse_cut.rs
++++ b/rust/tcl-lexer/src/parse_cut.rs
+@@ -476,9 +476,16 @@ fn first_parse_cut_channel_in_anchored(
+     descent: ParseCutDescent,
+     anchor: Option<MemoAnchor<'_>>,
+ ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
++    // One image of the whole script serves every command: building it hashes
++    // and line-indexes all of `src`, so a per-command image is quadratic.
++    let mut image = None;
+     for (index, command) in commands.iter().enumerate() {
++        if crate::zz_old() {
++            image = None;
++        }
++        let image = image.get_or_insert_with(|| SourceImage::from_bytes(src, channel));
+         if let Some((offset, term, kind)) =
+-            command_cut(command, tokens, src, config, channel, descent, anchor)?
++            command_cut(command, tokens, image, config, channel, descent, anchor)?
+         {
+             return Ok(Some(ParseCut {
+                 command: index,
+@@ -567,15 +574,16 @@ enum WordJob {
+ fn command_cut(
+     command: &CommandSpan,
+     tokens: &[Token],
+-    src: &[u8],
++    image: &SourceImage,
+     config: LexerConfig,
+     channel: SourceChannel,
+     descent: ParseCutDescent,
+     anchor: Option<MemoAnchor<'_>>,
+ ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
++    let src = image.bytes();
+     let jobs = word_jobs(&command.words, tokens, src, 0, config);
+     let mut stack = vec![Frame::Words {
+-        image: SourceImage::from_bytes(src, channel),
++        image: image.clone(),
+         jobs,
+         base: 0,
+         next: 0,
+diff --git a/rust/tcl-lexer/src/source_map.rs b/rust/tcl-lexer/src/source_map.rs
+index 8bd9c911..ecaae07d 100644
+--- a/rust/tcl-lexer/src/source_map.rs
++++ b/rust/tcl-lexer/src/source_map.rs
+@@ -113,7 +113,11 @@ struct SourceImageGeometry {
+ 
+ impl PartialEq for SourceImage {
+     fn eq(&self, other: &Self) -> bool {
+-        self.channel == other.channel && self.bytes == other.bytes
++        // One shared allocation is trivially the same bytes; only distinct
++        // allocations need the complete comparison.
++        self.channel == other.channel
++            && ((!crate::zz_old() && std::sync::Arc::ptr_eq(&self.bytes, &other.bytes))
++                || self.bytes == other.bytes)
+     }
+ }
+ impl Eq for SourceImage {}

@@ -1,0 +1,8 @@
+DECLARATIONS count=2 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=4 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=6 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=8 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=10 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=12 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+DECLARATIONS count=14 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+DECLARATIONS count=16 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)

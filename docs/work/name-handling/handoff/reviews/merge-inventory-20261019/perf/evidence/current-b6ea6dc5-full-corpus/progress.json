@@ -22,5 +22,21 @@
     "valid": true,
     "expected": 4,
     "wall_s": 172.1935654659901
+  },
+  {
+    "mode": "old-only",
+    "case": "procs",
+    "exit": 0,
+    "valid": true,
+    "expected": 1,
+    "wall_s": 8.15487104699423
+  },
+  {
+    "mode": "old-only",
+    "case": "upvar",
+    "exit": 0,
+    "valid": true,
+    "expected": 2,
+    "wall_s": 292.53926216901164
   }
 ]
