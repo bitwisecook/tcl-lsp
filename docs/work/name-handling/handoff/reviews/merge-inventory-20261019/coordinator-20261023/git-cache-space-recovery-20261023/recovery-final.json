@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T16:30:51.804764+00:00",
+  "verdict": "LOSSLESS DUPLICATE GITPACK REMOVAL COMPLETE",
+  "publisher_head": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
+  "all55050_objects_present_before_via_remaining_local_or_original_active_alternate": true,
+  "all55050_objects_present_after_without_lazy_fetch": true,
+  "refs_HEAD_shallow_boundaries_and_alternates_byte_exact": true,
+  "no_active_pack_readers": true,
+  "removed_pack_bytes": 3815984772,
+  "free_before": 21987328,
+  "free_after": 3839807488,
+  "object_set_sha256": "002688b84045213b945dbe1a4d07ac98cd66c9b6a026608593b91be14600c25f",
+  "no_source_history_targets_or_executables_removed": true
+}

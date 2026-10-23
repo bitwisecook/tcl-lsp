@@ -1,0 +1,6 @@
+{
+  "utc": "2026-10-23T16:32:47.888990+00:00",
+  "ordinary_origin_fetch": "depth1 single work branch, no partial filter or promisorpacks",
+  "prior_partial_objects": "preserved separate read-through object-cache promisor at same repository; no remote fetch refspec or branch fetch performed",
+  "refs_HEAD_shallow_unchanged": true
+}

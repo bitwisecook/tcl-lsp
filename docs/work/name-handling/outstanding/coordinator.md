@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T15:59:27.638816+00:00
+Last updated: 2026-10-23T16:30:15.808062+00:00
 
 ## In progress
 
@@ -47,15 +47,17 @@ Last updated: 2026-10-23T15:59:27.638816+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (15:55 UTC)
+### Current cycle and routing (16:25 UTC)
 
-- Fresh f62 strict Clippy measured127 findings (compiler123+VM4), down from323; no Rust type errors observed in that job. Additional reviewed fixes are applied or integrating; fresh postpatch result unknown.
-- Actuald1 selected server compiled with zero warnings and passed the original cold-token request in2692.7ms, then failed the unchanged30s workspace-scan barrier. All final source/provider/binary/GO seals passed; later client scenarios remain unreached.
-- The exact original multi-folder diagnostic Context reproduction is running with that authenticated binary, original terminal refusal and fresh final seals. No Cargo or editor acceptance claim.
-- Actual shipping Linux release build f62 succeeded. Artifact12513920874 ZIP and extracted native binary are preserved and hash-verified; unchanged shipping-client binding/run remains pending.
-- Two narrow runtime test corrections preserve original semantics/assertion strength: prevent recursive reentry into the currently executing free callback, and match explicit Tcl8.6 current host environment oracle. Both are pushed to work and release; fresh runtime tests still pending.
-- External role freshness is checked against authenticated remote headers. BIGIP completed handoff remains over60minutes and is reported without takeover; perf last15:13 remains within60minutes. No optimization proof accepted.
+- Normal push a3a4b181f preserves concurrent external19936eb90 and publishes reviewed compiler representation fixes, WORK-only startupphaseobserver, complete shipping/Context failure receipts and first full heavy shard classification.
+- Actual native shipping pair: baseline completed alloriginal checks; candidatecoldtokens550.1ms thenunchanged30s workspace scan barrier failed. Candidate latersemantic/edit/cancel/churn checks unreached. Onepair is diagnostic, not accepted latencyratio.
+- Actual twofolderContext reproduction timedoutinitialize30s with noresponse; allContext assertions unreached. Owned worker/group andfinalsource/provider/artifact/GOsealsclosedstable.
+- Fresh complete heavy f62 shard355/355 closed:318PASS37FAIL; heavy-only exactbaseline16PASS-to-FAIL,21newFAIL and1absentbaselineidentity. All37 F5CLI/iRuleharness cases routed to separateBIGIP owner and proven sharedcompiler/VM owners, not waivedbyperformanceexemption.
+- Nativefutureallocationtrace-absence proof and genuine Nativefive-table regression fixture arepublishedonwork andcarried tocleanrelease4c9d, retaining original assertions andphysicalNativeguards; actualpositive/runtime unrun.
+- Additionalcompiler privateargument/variant7 andfunctionlength groups areindependentlyreviewed off-tree;61oldcompilerlintsites intendedrepaired, noobservedpostpatchClippy result.
+- A partialcloneGitfetchrepack ingested borrowed objects into3.8GBpublisherpack, exhaustingworkspace. No Cargo/testbuild running. Root holdsallbuilds andlargecopies, reconstructingGitcacheonly after proving complete object coverage; no targets or executables removed.
+- External15:58perf remainsactive/unproven; BIGIP13:17completedhandoff isstale andusernotifiedwithnewheavyblockers. No duplicate externalroles.
 
-### Newly measured external BIG-IP blocker (2026-10-23T16:21Z)
+Recovery closed16:30: full55,050object coverage verified before/after removing duplicatepublisherGitpack, refs/HEAD/shallow/alternates unchanged.3.6GiBfree, no target/exe changes; build HOLD lifted. Active product synchronized exactly to canonicala3a4 as source3707923f8/tree5af9bd10 for shared13 diagnostics.
 
-Fresh f62 heavy job `120500263098` has a complete lifecycle:355selected/355closed,318PASS/37FAIL. Heavy-only fcb baseline comparison finds16PASS-to-FAIL and21new failures; baseline `tcl-irule-test / embedded::tests::itest_core_when_loader_contract` is absent and remains unknown. Every failed row belongs to F5 CLI(7) or tcl-irule-test(30). BIG-IP separate session owns first-cause triage; compiler/VM own any proven shared producer/runtime root cause. Do not duplicate the external role or waive correctness under the iRules performance exemption. Exact keys and original log: `../handoff/reviews/merge-inventory-20261019/coordinator-20261023/f62-heavy-first-complete-shard/classification.json`; artifact12515082018 retains full captured payload where console samples truncate. BIG-IP last owner header13:17 is over60minutes; user notified.
+External BIG-IP priority: fresh complete355row heavy shard has16baselinePASS-to-FAIL,21new failures and1missingbaselineidentity. Exact keys and retained rawlog: [heavy classification](../handoff/reviews/merge-inventory-20261019/coordinator-20261023/f62-heavy-first-complete-shard/classification.json). Separate owner must triage its F5CLI7+iRuleharness30 rows and route proven sharedcompiler/VM causes; performancewaiver does not waivecorrectness. Last13:17completehandoff isstale/usernotified; no takeover.

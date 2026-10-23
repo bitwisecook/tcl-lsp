@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T16:29:40.817790+00:00",
+  "big_pack": "/workspace/naming-migration-publish/tcl-lsp/.git/objects/pack/pack-7010d8de7204f99a6912d787eadfab9fe21965d3.pack",
+  "bytes": 3815984772,
+  "all_objects": 55050,
+  "covered_by_existing_alternate_and_remaining_objects": 55050,
+  "missing_objects": 0,
+  "existing_active_alternate_preserved": true,
+  "heads_unchanged": true,
+  "root_no_target_or_executable_operations": true
+}
