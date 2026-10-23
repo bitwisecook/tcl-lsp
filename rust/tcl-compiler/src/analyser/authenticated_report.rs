@@ -574,4 +574,49 @@ mod capture_controls {
         assert!(report.analysis().resolved_input.is_some());
         assert!(!ordinary.all_variables.is_empty());
     }
+
+    fn native_dispatch_original_prefix(command_count: Option<usize>) -> &'static str {
+        let source =
+            include_str!("../../../../samples/wasm/t3-procs/35_native_dispatch_matrix.tcl");
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                .lexer_grammar,
+        );
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        assert!(
+            commands.len() > 17,
+            "complete original native dispatch fixture"
+        );
+        let first_call = usize::try_from(commands[16].span.start()).unwrap();
+        let following = usize::try_from(commands[17].span.start()).unwrap();
+        assert_eq!(&source[first_call..following], "puts [fib 20]\n\n");
+        let end = command_count.map_or(source.len(), |count| {
+            usize::try_from(commands[count].span.start()).unwrap()
+        });
+        &source[..end]
+    }
+
+    fn assert_native_dispatch_report_owner(source: &str) {
+        let report = Analyser::new().analyse_for_report(source, "tcl8.6");
+        assert!(
+            report.current_capture().is_ok(),
+            "complete original native dispatch source needs its actual report owner: {report:?}"
+        );
+        assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
+    }
+
+    #[test]
+    fn native_dispatch_first_16_declarations_keep_actual_report_owners() {
+        assert_native_dispatch_report_owner(native_dispatch_original_prefix(Some(16)));
+    }
+
+    #[test]
+    fn native_dispatch_first_call_keeps_actual_report_owners() {
+        assert_native_dispatch_report_owner(native_dispatch_original_prefix(Some(17)));
+    }
+
+    #[test]
+    fn native_dispatch_complete_fixture_keeps_actual_report_owners() {
+        assert_native_dispatch_report_owner(native_dispatch_original_prefix(None));
+    }
 }
