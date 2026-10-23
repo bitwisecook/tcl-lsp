@@ -1,5 +1,6 @@
 {
   "pid": 69585,
   "started_unix": 1792792272.1157815,
-  "policy": "Wait isolated unchanged compiler test recovery and private ELF cleanup before candidate rebuild. Preserve earlier type-error and resource-failed builds. No source/assertion/budget changes."
+  "policy": "Wait isolated unchanged compiler test recovery and private ELF cleanup before candidate rebuild. Preserve earlier type-error and resource-failed builds. No source/assertion/budget changes.",
+  "build_started_unix": 1792793128.1988595
 }

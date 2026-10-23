@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 22:00 UTC
+Last updated: 2026-10-23 22:24 UTC
 
 ## Resume
 
@@ -48,49 +48,46 @@ production commit yet. Scope/fmt candidate files are recorded under
 current-b6ea6dc5-empty-allocated-fix/. First/retry controls are
 -empty-allocated-controls/ and -empty-allocated-controls-retry/.
 
-Active memory ordering (no runtime ever paused):
+Active memory ordering (no runtime paused):
 1. Original clean6 both compiler modes are COMPLETE/FAILED, both exit-9.
    NEW208/228 (126pass82fail),20missing; OLD227/228 (141pass86fail),1missing.
-   Strict runner records15 positive-OLD/missing-NEW resource P2Fs; not semantic
-   assertion differences, but original gate FAILED and must not be erased.
-   Source unchanged, exact executable backed up before cleanup.
-2. Isolation recovery65638, session29856,
-   /tmp/perf-b6-compiler-isolated-recovery.py/.log:
-   original227 NONDEEP cases COMPLETE BOTH, EXACT identical outcomes, zeroP2F,
-   peak351180/352356KiB. Now unchanged1000-depth case runs alone BOTH modes,
-   same exact ELF/input/assertion/stack/thread limits; missing stays failed.
-   Evidence: current-b6ea6dc5-clean6-isolated-recovery/.
-3. Server waiting script50172 is held ONLY by guard65955/session1702 until
-   isolation recovery finishes. Guard finally resumes it. No test is held.
-   /tmp/perf-b6-hold-server-for-recovery.py/.log, receipt
-   server-isolated-recovery-ordering.json. Then original server2 cases/BOTH,
-   180s each, target full-root/target; evidence crate-tests-default-after-memory.
-4. Candidate controls QUIET retry is queued AFTER isolation final receipt:
-   /tmp/perf-b6-retry-controls-after-isolation.py/.log (session2366).
-   It builds/runs/deletes original+new19 report/realm controls BOTH modes,
-   target diagnostic/target opt0/assertions-on, evidence
-   current-b6ea6dc5-empty-allocated-controls-quiet/ (not started yet).
-5. Mini acceptance probe attempted to use cached normal library but needed a
-   rebuild; ONLY its rustc70094 was SIGINT to reserve deep-test memory.
-   Its finally removes probe; -allocated-mini-acceptance/ is failed preparation,
-   not acceptance. Retry it only after the quiet controls have built the library.
-6. Both SpecTcl executables built0warnings, still held for server thenSpec quiet
+   Original strict comparison retains15 positive-OLD/missing-NEW resource P2Fs.
+2. Exact-ELF isolation recovery is FINISHED. Original227 NONDEEP cases COMPLETE
+   BOTH, exact141pass86fail, zero P2F, peak351180/352356KiB. Unchanged1000-depth
+   case ALONE was OOM-killed BOTH, peak16423836/16368268KiB. Zero completed
+   assertions for that case; full inventory gate remains incomplete. Private
+   executable removed. current-b6ea6dc5-clean6-isolated-recovery/final.json.
+3. Server build has finished0Rust warnings and waits for quiet resources:
+   /tmp/perf-b6-server-after-memory.log, current-b6ea6dc5/
+   crate-tests-default-after-memory. Original2 tests/BOTH,180s unchanged.
+4. Candidate19 report/realm controls QUIET retry BUILT0warnings; runtime active:
+   /tmp/perf-b6-retry-controls-after-isolation.py/.log; evidence
+   current-b6ea6dc5-empty-allocated-controls-quiet/. No runtime verdict yet.
+5. /tmp/perf-b6-capture-allocated-acceptance.py waits for successful controls,
+   then builds/runs/deletes the real triple probe for exact original Native35
+   AND the compact reproduction, forced-old and mixed. Failed initial mini
+   preparation remains recorded separately. No source mutation during controls.
+6. Both SpecTcl executables built0warnings, queued for server thenSpec quiet
    window. Original28 eval_loader +3 golden_packs each mode; budgets unchanged.
-7. Quiet guard /tmp/perf-b6-quiet-tests-all-workers.py/.log, session50068 waits
-   original workers, rustc and owned diagnostic helper lifetimes, then server
-   ACTUAL build readiness and4 runs/cleanup, thenSpec4 runs/cleanup. Both flags
-   /tmp/perf-b6-{server,spec}-quiet-ready are ABSENT. Server held until isolation
-   ends prevents its build competing with the standalone1000-depth case.
+7. Waiting-only guard was restarted to include the ENTIRE report-control helper
+   and acceptance-probe lifetime before releasing server. Original guard56929
+   replaced; receipt current-b6ea6dc5/quiet-guard-control-ordering.json.
+   Current guard /tmp/perf-b6-quiet-tests-all-workers.py, session89176;
+   /tmp/perf-b6-quiet-tests-all-workers-retry.log. Both flags remain absent.
 
-Other old guards finished/resumed; original clean6 wrapper47490 exited, its
-compiler-driver hold55613/guard56754 ended. No Rust compiler deliberately paused.
-Record every OOM/resource outcome; memory.events last oom7/oom_kill6. Do not
-restart healthy jobs. Build/run/delete each driver stays one command. Normal
-and diagnostic targets never copied/shared across worktrees. Tcl9.0.4/8.6.18,
-Jim0.84 pinned; diagnostic/tmp points to same oracle tree. /tmp/perf-env.sh plus
-scripts/dev/agent-build-env.sh; assertions/overflow remain enabled.
+memory.events: oom9/oom_kill8. No Rust compiler is deliberately held. Normal
+and diagnostic targets never copied/shared. Tcl9.0.4/8.6.18/Jim0.84 remain
+pinned via tmp symlinks. Preserve all failed/resource outcomes.
 
-Next: finish isolatedDeep BOTH and candidate19 controls. If candidate succeeds,
+The corpus runner now supports --isolate-inputs: each original file gets a
+process containing ALL three analyses/comparisons, with complete child receipts.
+Every original input/hash, assertion and Equal-only requirement is retained;
+this prevents cross-input memory accumulation. Python syntax/diff checks pass;
+the new mode has not yet run. The latest fetched work0a8b8da6 contains the same
+six owned files and realm; interprocedural has a separate helper refactor.
+The report repair applies cleanly to latest work, but is NOT yet published.
+
+Next: finish candidate19 controls and the original Native35 triple. If candidate succeeds,
 check full original native35 old/new/old and all strict negatives, scoped fmt /
 Clippy(no new diagnostics), land necessary report repair separately on latest
 work. Then rerun genuine full batch corpus on repaired source: Equal only;

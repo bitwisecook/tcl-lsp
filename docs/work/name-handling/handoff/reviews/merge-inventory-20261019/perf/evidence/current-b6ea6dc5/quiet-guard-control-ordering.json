@@ -1,0 +1,6 @@
+{
+  "time_unix": 1792793572.4256864,
+  "replaced_idle_guard": 56929,
+  "flags_absent": true,
+  "reason": "Wait for entire candidate report-control helper, including runtime and cleanup, before original-budget server window. No compiler or test paused."
+}

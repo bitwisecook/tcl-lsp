@@ -1,0 +1,37 @@
+{
+  "results": [
+    {
+      "label": "build-controls",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "wall_s": 989.9041090011597,
+      "warnings": 0,
+      "executables": {
+        "tcl_compiler": "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f"
+      }
+    },
+    {
+      "label": "controls-list",
+      "argv": [
+        "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--list"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 0.06479930877685547
+    }
+  ],
+  "updated_unix": 1792794133.7940063
+}

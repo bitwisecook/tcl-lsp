@@ -19,6 +19,8 @@ parser.add_argument('--controls', type=Path, required=True)
 parser.add_argument('--realm-controls', type=Path)
 parser.add_argument('--target-dir', type=Path)
 parser.add_argument('--opt-level', choices=('0', '1', '2', '3'), default='0')
+parser.add_argument('--isolate-inputs', action='store_true',
+                    help='Run each file in its own process, keeping all three analyses together')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 root = args.root.resolve()
@@ -86,6 +88,7 @@ try:
     receipt = {'head': head, 'rust_diff_sha256': hashlib.sha256(diff).hexdigest(),
                'profile': f'dev opt-level={args.opt_level} debug=0 incremental=0; debug/overflow assertions enabled',
                'controls_final_sha256': hashlib.sha256((controls / 'final.json').read_bytes()).hexdigest(),
+               'isolate_inputs': args.isolate_inputs,
                'rosters': rosters,
                'fixture_sha256': {p: hashlib.sha256((root / p).read_bytes()).hexdigest()
                                   for paths in rosters.values() for p in paths},
@@ -120,15 +123,43 @@ try:
         for label, arguments, extra, count in cases:
             log = evidence / f'{mode}-{label}.out'
             start = time.monotonic()
+            invocations = ([['files', path] for path in arguments[1:]]
+                           if args.isolate_inputs and arguments[0] == 'files'
+                           else [arguments])
+            children = []
             with log.open('w') as out:
-                code = subprocess.run([str(exes['zz_authenticated_perfprobe']), *arguments],
-                                      cwd=root, env=mode_env | extra, stdout=out,
-                                      stderr=subprocess.STDOUT).returncode
+                for invocation in invocations:
+                    child_start = time.monotonic()
+                    child_log = evidence / f'{mode}-{label}-{len(children):03}.out'
+                    with child_log.open('w') as child_out:
+                        code = subprocess.run(
+                            [str(exes['zz_authenticated_perfprobe']), *invocation],
+                            cwd=root, env=mode_env | extra, stdout=child_out,
+                            stderr=subprocess.STDOUT).returncode
+                    child_output = child_log.read_text()
+                    child_count = 1 if len(invocations) > 1 else count
+                    child_valid = (code == 0
+                                   and child_output.count('REPORT label=') == child_count
+                                   and child_output.count(' pass=true') == child_count
+                                   and f'REPORT_SUMMARY inputs={child_count} failed=0'
+                                   in child_output)
+                    children.append({'arguments': invocation, 'exit': code,
+                                     'valid': child_valid,
+                                     'wall_s': time.monotonic() - child_start,
+                                     'log': child_log.name})
+                    out.write(child_output)
+                    out.flush()
+                    (evidence / f'{mode}-{label}-children.json').write_text(
+                        json.dumps(children, indent=2) + '\n')
             output = log.read_text()
-            valid = (code == 0 and output.count('REPORT label=') == count
+            valid = (all(child['valid'] for child in children)
+                     and output.count('REPORT label=') == count
                      and output.count(' pass=true') == count
-                     and f'REPORT_SUMMARY inputs={count} failed=0' in output)
-            results.append({'mode': mode, 'case': label, 'exit': code, 'valid': valid,
+                     and len(children) == len(invocations))
+            results.append({'mode': mode, 'case': label,
+                            'exit': next((child['exit'] for child in children
+                                          if child['exit'] != 0), 0),
+                            'exits': [child['exit'] for child in children], 'valid': valid,
                             'expected': count, 'wall_s': time.monotonic() - start})
             (evidence / 'progress.json').write_text(json.dumps(results, indent=2) + '\n')
             print(mode, label, results[-1], flush=True)

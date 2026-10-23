@@ -4,5 +4,7 @@
   "held_waiting_server_script": 50172,
   "recovery_driver": 65638,
   "policy": "Hold only waiting server build script until isolated original compiler recovery finishes naturally. Never signal tests or Cargo/rustc; finally always resumes the same waiting script.",
-  "held_unix": 1792791871.180951
+  "held_unix": 1792791871.180951,
+  "resumed_unix": 1792793128.9779048,
+  "finished_unix": 1792793128.9780905
 }

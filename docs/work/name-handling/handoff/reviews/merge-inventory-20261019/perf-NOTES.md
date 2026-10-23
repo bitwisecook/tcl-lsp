@@ -1,39 +1,35 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 22:00 UTC
+Last updated: 2026-10-23 22:24 UTC
 
-**Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
-All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
-67.329s old, with unchanged complete source seal and zero Rust warnings.
-The genuine hosted-event control now passes for both source head spellings.
-Both normal compiler libraries and the combined unit executable built cleanly;
-the build-only guard resumed the six-file compiler and exited.
-Switched lexer586/586 passes BOTH (4.427/2.879s); clean6 lexer586/586 passes
-BOTH (2.993/4.237s), zero warnings and executables removed. The old variable
-is ignored in the clean6 no-switch build. These are contended test durations,
-not latency benchmarks. Full corpus examples built cleanly; native_dispatch_matrix currently returns
-Unavailable in all3 forced-old comparisons. Three separate immediate captures
-also refuse;11 fixed component/initial-declaration variants self-compare Equal.
-Exact first16 declarations self-compare Equal; adding puts [fib 20] causes
-immediate refusal. Main original all-old Tcl process was OOM-killed after77
-reports; exact-ELF tail recovery covers original25 missing inputs. First7 Equal.
-All15 all-old iRules and all7 old-only synthetic sizes pass; mixed cases
-continue with the same native35 refusal. No fixture is skipped. The refusal
-requires additional declarations: fib/call alone succeeds, first12 declarations
-plus call succeed, first14 refuse. Isolated existing cfg(test) capture tracing
-is compiling on separate opt0/assertions-on target; full/clean6 source remains
-frozen. Compiler build continues but its Python runtime driver is held until
-the corpus/diagnostic jobs finish naturally, with no runtime test paused.
-Selected compiler NEW completed228/229 (142 pass/86 failures), then the1000-level
-nested scan exceeded15GiB and the cgroup recorded an OOM kill. OLD recovery uses
-the exact preserved ELF and also exits-9, same228 outcomes and same nested
-case incomplete. No complete comparison/acceptance. Original native-byte control passes
-NEW. Clean6 and server compilations were resource-deferred, no runtime paused;
-strict original inventory assertions now run after both modes/suite cleanup.
-SpecTcl executables are built, budgets unchanged and readiness held. Six-file
-perf source remains unlanded; routed patch remains unproven/withheld.
-See outstanding/perf.md for exact workers and evidence. Historical failures
-and timings below keep their original source/profile scope.
+**Frozen b6 proof progressed; perf code remains unlanded.** Switched and clean6
+lexer586/586 pass BOTH with0Rust warnings. Full selected compiler228 completed
+outcomes match BOTH (142pass86fail); the remaining original1000-depth case
+is resource-killed. Clean6 isolated227 outcomes match BOTH (141pass86fail);
+the unchanged1000-depth case OOMs even alone BOTH at roughly15.7/15.6GiB RSS.
+This is not a complete passing compiler inventory; original incomplete runs
+and their15 resource P2Fs remain recorded alongside the recovery.
+
+Full-batch b6 mixed Tcl is101Equal/1Unavailable; old main run was interrupted,
+then its exact-ELF remaining25 inputs all pass. The sole refusal is original
+Native35, caused by a current empty ALLOCATED declaration being admitted only
+for Installed bodies. A report-only candidate preserves strict current cards,
+source/namespace/geometry/role/purpose checks and adds positive/negative controls.
+Its quiet19-control build finished0warnings; runtime is active; no repair acceptance or publication yet.
+Both15 iRules and all7 synthetic sizes give all3 Equal pairs; complete ordered
+PackSet Debug is deterministic/equal (484936 lines,8packs,0notices/errors).
+
+Current contended opt1 b6 wall timings (report capture included; comparison
+excluded): calls80 old26815/new2721/old15968ms; upvar30 old73450/new15071/
+old46401ms. Ordinary load_embedded old14514/new2964/old16003ms with full
+PackSet equality. Origin same load API4665ms is a separate observation. Full
+provenance and limits: perf/evidence/timings.md. No latest-source/release claim.
+
+Server and SpecTcl binaries built0warnings and await original-budget quiet
+runtime. Shared residual drafts remain Blocked/routed and unproven. The next
+steps and exact active commands are in outstanding/perf.md. Six-file perf
+commit and compiler-owned patch readiness remain withheld. The following
+historical results retain their original source/profile scope.
 
 ## Current0322 progress
 
