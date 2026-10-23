@@ -1,0 +1,15 @@
+{
+  "status": "off-tree static candidate; genuine Logical dual-role premise UNRUN",
+  "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+  "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+  "after_sha256": "4c5a0b20b7e58ecc0028999dd2543c2529403a6d3704b67cdf91e3cb8548db3d",
+  "patch_sha256": "86ebb8c496789a558438ba671bc023e00836d3843842b88f23c6c906e483e217",
+  "unchanged_assertion_tail": true,
+  "policy": [
+    "user-decisions-20261022T1317Z analysis_models_running_code",
+    "user-decisions-20261022T2256Z complete actual roles; preserve count/totality"
+  ],
+  "actual_native_inventory": "Current source46 trace has three Unit roles, no Named/NamespaceScript; no collector loss established. Source-only Native structured whitelist excludes Proc/NamespaceEval. Original aliases.tcl bytes and tcl8.6 domain retained in new complete-inventory/full-Equal control.",
+  "scope": "test fixtures only; production roles/issuer policy/equality/guards unchanged; one added test requires explicit future selector count successor",
+  "limits": "Logical declaration lowering exists, but exact namespace/proc same-site pair and full current capture require actual measurement; do not integrate solely on static premise."
+}

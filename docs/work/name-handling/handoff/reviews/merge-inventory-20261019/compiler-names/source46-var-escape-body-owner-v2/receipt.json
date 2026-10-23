@@ -1,0 +1,220 @@
+{
+  "utc": "2026-10-23T06:50:21.866287+00:00",
+  "status": "Actual row25 helper-first-refusal FAIL0/1; full production body census/summary/tag still unmeasured; off-tree candidate untyped/unrun/peer pending",
+  "archive_sha256": "58263d2cf00255e79e061f607c8f2f73c2aeeb6e9526aa0210a3b4c5d74639b1",
+  "patch_sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150",
+  "files": [
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.command",
+      "sha256": "8e0309184a1f3482390375e840cb504e664ed25de7232e921a88eb97a575216c",
+      "bytes": 176
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.process.json",
+      "sha256": "86fc111260d68a90fa24911afbd05146a4586c6b77753461ce2de6c31c3ffb69",
+      "bytes": 2384
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.result.json",
+      "sha256": "354928d2eddbc5101643019a7c2090887a5e6e8c956098f1ae4a99357b8b010e",
+      "bytes": 5483
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.sha256.json",
+      "sha256": "25877a92983b9918ddb8443779563185374aa4f5e53397c708e9f879489feeb6",
+      "bytes": 1295
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.stderr",
+      "sha256": "3901335365d55331d6bf1a9a4bff701206d433d13b20a03ccbb3ee86b151a9eb",
+      "bytes": 236
+    },
+    {
+      "path": "actual-row25/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.stdout",
+      "sha256": "aad6e89859809196881d38d1193bedcad853743225b06696aeaa30d8ec2b5c15",
+      "bytes": 239
+    },
+    {
+      "path": "candidate/manifest.json",
+      "sha256": "31c618fcfc5d0ace02e859989972889f57cf68dd05b6ac9376e47523ebaccd59",
+      "bytes": 2196
+    },
+    {
+      "path": "candidate/proposal.patch",
+      "sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150",
+      "bytes": 4263
+    },
+    {
+      "path": "candidate/shadow/rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+      "bytes": 48626
+    },
+    {
+      "path": "current-before/rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "sha256": "e28c072c20f632f279a19a37c968a487d8f5c29488f086a38c231b36a0f0acd0",
+      "bytes": 46742
+    },
+    {
+      "path": "preparer-v1.py",
+      "sha256": "66772cf8a6c9756fcd94fb47a2daee421681459f7b2e635cf9bb836218011538",
+      "bytes": 5752
+    }
+  ],
+  "row": {
+    "actual_selected": 1,
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+      "cu_catch_literal_body_threads_its_upvar",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "var_escape_residual2",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/tests/var_escape_residual2.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "mtime_ns": 1792735732794752280,
+      "package": "tcl-compiler",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "85dff317cb701acfaaa26333bf51f69b9b286d6b1a1fa0d20ee25d1f779a0f60",
+      "size": 101447368,
+      "stderr_sha256": "f2df3e4534b306a57945096f885dfb1ab356015558bee79608ef78d42e6217a6",
+      "stdout_sha256": "782563a7b7cf4d4af608faa77ea9fcd45c7d200bdb63370729af7fc6b0b4bf7d",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "var_escape_residual2"
+    },
+    "artifact_stable": true,
+    "exit_code": 101,
+    "expected_selected": 1,
+    "index": 25,
+    "label": "25-integration3-original-cu_catch_literal_body_threads_its_upvar",
+    "log_at_cap": false,
+    "package": "tcl-compiler",
+    "process": {
+      "argv": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+        "cu_catch_literal_body_threads_its_upvar",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+      "artifact_sha256_after": "85dff317cb701acfaaa26333bf51f69b9b286d6b1a1fa0d20ee25d1f779a0f60",
+      "artifact_sha256_before": "85dff317cb701acfaaa26333bf51f69b9b286d6b1a1fa0d20ee25d1f779a0f60",
+      "artifact_unchanged": true,
+      "cap_bytes": 20971520,
+      "cleanup_signals": [],
+      "complete": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "disk_floor_bytes": 2147483648,
+      "disk_paths": [
+        "/workspace",
+        "/tmp",
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/var_escape_residual2-437b15b19ffc41b4",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z"
+      ],
+      "elapsed_seconds": 1.118048351,
+      "ended_utc": "2026-10-23T06:44:26.994782+00:00",
+      "exit_code": 101,
+      "group_empty_before_parent_reap": true,
+      "group_scan_attempts": 2,
+      "last_group_scan": {
+        "complete": true,
+        "members": [],
+        "vanished_pids": []
+      },
+      "minimum_free_bytes": 3728252928,
+      "owned_live_group_members": [],
+      "parent_exit_observed_monotonic_ns": 62526220268200,
+      "parent_waitid_wnowait": {
+        "si_code": 1,
+        "si_pid": 299942,
+        "si_status": 101
+      },
+      "pid": 299942,
+      "pid_start_ticks": 6252565,
+      "process_group": 299942,
+      "retained_bytes": 475,
+      "spawn_return_monotonic_ns": 62525661142113,
+      "spawn_return_utc": "2026-10-23T06:44:25.880072+00:00",
+      "stderr": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.stderr",
+      "stderr_bytes": 236,
+      "stdout": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.stdout",
+      "stdout_bytes": 239,
+      "stop_reason": null,
+      "timer_armed_before_spawn": true,
+      "timer_armed_monotonic_ns": 62525658012476,
+      "timer_armed_utc": "2026-10-23T06:44:25.877000+00:00"
+    },
+    "providers_stable": true,
+    "selector": "cu_catch_literal_body_threads_its_upvar",
+    "source_stable": true,
+    "started_counts": [
+      1
+    ],
+    "stderr_sha256": "3901335365d55331d6bf1a9a4bff701206d433d13b20a03ccbb3ee86b151a9eb",
+    "stdout_sha256": "aad6e89859809196881d38d1193bedcad853743225b06696aeaa30d8ec2b5c15",
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": false
+  },
+  "diagnosis": "CompilationUnit::build_body_units builds all actual body_units. analyse_var_escape_cu(_with_registry) iterates procedures+methods+body_lowering_functions; EscapeCallGraph includes body_lowerings. No static production coverage omission found.",
+  "scope": "Keep actual full CompilationUnit for CU fixtures, never clone/reconstruct Module. Resolve across actual named/body-lowering stores only after existing public unit.original_procedure_for_body validates exact current owner/card, then exact label + unique match + module-issued ID + Named/OriginalDeclaration role. IR-only helper preserves named-only domain. No first/Installed-role fallback, map-key reconstruction or source-role relabel. All original test source/assertions unchanged.",
+  "checks": "Independentcurrentbefore/final/zero-fuzz/no-offset/pinnedfmtPASS; complete actualtestsection source/assertions byte-identical. No canonical source/Cargo/Git/GO."
+}

@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T06:55:37.432743+00:00",
+  "scheduled_report_utc": "2026-10-23T06:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T07:25:37+00:00",
+  "change_since_previous_report": [
+    "06:25:37 report on time, source1774cd2e9 normal-published as59e36f3c5 at06:26:15 after fresh depth1 fetch/rebase; product equality confirmed. Repaired current product897b/tree0b11/mapf756 unchanged.",
+    "Actual compiler58 G4original4/4 and N13original3/3 nowPASS with allobserved guards/zero warnings; first ILX sourceowner/opaque-callstopcontrolPASS, remainingILX andC6/RBS/BPF pending. Report13 remains9PASS4FAIL, Installedrepairede9ac69 off-tree/staticCLEAR, aliascontract/hostedjoin unresolved.",
+    "Codegen reused existing precise observerinverse cleanup96756156; check-only currentpinsPASS, noapplication until actualdirect3 and separate livehook2 measurements. Historicaluntoggle remainsstale/unrun.",
+    "VM UPF audit identified two existing selectors execute97 actualhostinvocations acrossall17 productionprograms, notmetadataonly. Current66 andOriginalSpec3 omitUPF2; currentguardedmeasurement remainsreleasegap. OriginalSpec3 coversmanifest/cache/portparity, notliveserverreload/workercontext. No duplicate runner.",
+    "Actual compiler58 originaldiagnostic11 group closed10PASS1FAIL/11, zero warnings/allobserved guards; fourG4+threeN13+intrinsic+firstILX/opaque-negative pass. RemainingILXsameframe test fails only thirdproc fixture registrywords16 (firsttwoeventfixturespass), producer routedcompiler. Overall58 stillrunning; report14 aggregate remains10PASS4FAIL across13+realm1. Isolatededitor TS proposedtwoJSONlayoutPASS451actualinputs/12800canonicalunchanged; canonicalhostgateopen.",
+    "Completed originaldiagnostic11 evidence/root80-payload verification published as c88cccc92 at06:33:48, fresh depth1 fetch/rebase/productdiff0; active912f051ba. Exactsource30selectortransition9FAIL\u2192PASS,1PASS\u2192PASS,1FAIL\u2192FAIL retains G4testcorrectioncaveat, no zeroP2Fclaim. CORRECTION verified14\u201317 newownercontrols=3PASS1FAIL: row16 foreignbody accepted incorrectly, namesownscritical identityrepair. C6SH7closed5PASS2FAIL, compilerowns. Earlier assumptionall4PASS was corrected beforepublication. Existing06:55timer99344unchanged.",
+    "Read-onlyindependentaudit caught rootdraft inferred4PASS fromlastrow; rawrow16 actuallyFAIL. Rootconfirmedandcorrected beforepublication. ExactAdditionalowner4=3PASS1FAIL, originaldiagnostic11=10PASS1FAIL distinct; no originalN13threePASS revoked. Newforeignnegative ispriority failclosed repair withNames; C6SH7=5/2 separatelycompilerowned.",
+    "C6TNT03 currentoriginalfamily6PASS/6 withobservedguards/0W. C6SH21 currentfamily5PASS2FAIL; historicaloriginal18 had7PASS/7, so currentlossesneedactualproducerdiagnosis, not expectationcorrections/assumedcausality. Names criticalN13actualowner candidate31d44ad9 off-tree/peerpending: memofacts shareorigin/baseline but refreshattachmentowner, requireactualownerptr inNormalSourceOutcomeonly. Othergraph/Eq/cachepolicy retained.",
+    "CCGpeerHELD N13owner31d44v1: newfield underderivedseedEq wouldchangewhole-seed reuse/declarationflow semantics. NamespreparesimmutableNormal-only successor retainingexactoldseedEqfields and strictactualownerptr atquery; v1notintegrated. Rootpreservesno global/runtime/cache Eq policychange. CurrentRBSfirstoriginalmissingW210 stillFAIL; full3groupclosing.",
+    "OriginalcurrentC6SH7=5/2, TNT6=6/0, RBS3=0/3; integration3=0/3. CompilerownsactualRBSunknownbinding/originalreadissuance+SHmissingS100/evalsink, CCGownsO101expressionfoldfirstrefusal, Namesownsescape testhelperNamed-onlyselection versus actualcompletebodycensus. Alloriginalassertionsretained; purediagnosticsoff-tree/unrun. NewBPFfirst4actualPASS/4; full6/whole58closurepending.",
+    "All35compilerfilters/58tests actuallyexecuted:40PASS18FAIL, source/provider/artifact/process per-rowguards valid/zeroW; finalseals/launcher/parentLOCK_RELEASED stillpending at06:54:42, so nofullclosureclaim yet. BPF6=5/1, failingrow30 positivebaselinepassinvalidSocketFilter; narrowd1a3testfix uses existingaccept contract and retainsinvalidpassnegative, NamesstaticCLEARa4d35007, unrun. SupplementG4four=1PASS3FAIL; originalG4total5/8pass, Namesinvestigates3actualowner/policyseams withoutdonatingNative.",
+    "SupportedNode26.12.1 exact off-tree twoJSONlayout tscPASS/no diagnostics with451actualinputsidenticaltopriorrun,12803canonical/dependency/rootentriesunchanged. PriorNode24 evidence preservedandexplicitunsupported; no canonicalwrites orshippinghostadmission."
+  ],
+  "committed": [
+    "912f051ba999cf4db591ebeddb1cd63ee76b40cd"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Close actual compiler58 with original assertions/counts/180-second budgets and full guards; route report-owner/alias/G4/N13/ILX/C6/RBS/BPF first refusals from actual evidence.",
+    "After the occupied slot closes, allocate LSP23, Jim7, CCGdirect3, separate live-hook2 and Native15 sequentially on the same repaired product. Keep source/provider HOLD; no source mutation before closed measurements.",
+    "Integrate reviewed functional fixes only with new actual product identity/revalidation. Complete full authenticated all-old/mixed perf proof, current strict Clippy/repository/generated/owner gates, SpecTcl/UPF17/N17/shipped hosts and exact zero-P2F. AllF/audit0; explicit PR request still required."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Compiler58all58 executed40PASS18FAIL/35filters on897b/mapf756; per-rowguardsvalid0W, finalclosurestillpending until actualreceipts/parentexit. Actualv9eightpackagetypecheckPASS0E/0W/allguards retained. Finite scopedresults do notclose strictlint/host/perf/C1C2/exactzeroP2F/sectionF.",
+  "disk_free_bytes": 9047531520,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

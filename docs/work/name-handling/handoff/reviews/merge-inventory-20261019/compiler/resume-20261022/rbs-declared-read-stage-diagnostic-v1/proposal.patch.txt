@@ -1,0 +1,241 @@
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -28,6 +28,16 @@
+ //! invalid IP-address literal at its def site (W124), the racy `static::`
+ //! cross-event flow (IRULE4005), and the flow-sensitive renamed-command
+ //! check (W128).
++
++fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++        eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// Bounded normal stores with literal values are diagnostic candidates.
+ /// This does not establish that their possible compiler failure can be erased.
+@@ -1686,16 +1696,37 @@
+         ir_proc: Option<&crate::ir::Procedure>,
+         ctx: &ReadBeforeSetCtx<'_>,
+     ) -> HashSet<String> {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++            eprintln!(
++                "RBS_READ_OWNER stage=entry procedure={} dynamic_writes={} body_kind={:?}",
++                ir_proc.is_some(),
++                fu.dynamic_names.writes,
++                ir_proc.map(|procedure| procedure.body_kind)
++            );
++        }
+         let exists_guards = collect_existence_guards(
+             fu,
+             self.analysis_context().commands(),
+             fu.source_lexer_config(),
+         );
+         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++            eprintln!(
++                "RBS_READ_OWNER stage=physical_missing count={}",
++                w210_min.len()
++            );
++        }
+         let original_image = tcl_lexer::SourceImage::document(&self.source);
+         let declared_flow = ir_proc.and_then(|procedure| {
+-            function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
+-                .or_else(|| {
++            rbs_read_option(
++                "function_flow",
++                function_declaration_flow(fu, procedure, &original_image, &self.profile_registry()),
++            )
++            .or_else(|| {
++                rbs_read_option(
++                    "fallback_read_flow",
+                     self.head_identities
+                         .source_bindings()
+                         .original_procedure_read_flow(
+@@ -1703,8 +1734,9 @@
+                             &original_image,
+                             &self.profile_registry(),
+                             self.result.resolved_input.as_ref()?,
+-                        )
+-                })
++                        ),
++                )
++            })
+         });
+ 
+         // Unknown writers retire physical absence proofs. Declaration advice
+@@ -1712,22 +1744,28 @@
+         // body does not close an unknown option grammar or caller frame.
+         if fu.dynamic_names.writes {
+             let potential = ir_proc.and_then(|procedure| {
+-                let declaration = crate::script_binds::authored_procedure_read_advice(
+-                    &original_image,
+-                    procedure,
+-                    &self.result,
+-                    &self.analysis_context(),
++                let declaration = rbs_read_option(
++                    "read_recipe",
++                    crate::script_binds::authored_procedure_read_advice(
++                        &original_image,
++                        procedure,
++                        &self.result,
++                        &self.analysis_context(),
++                    ),
+                 )?;
+-                self.declaration_potential_read_spans(
+-                    fu,
+-                    procedure,
+-                    &declaration,
+-                    declared_flow.as_ref()?,
+-                    ctx,
+-                    DeclaredReadProofs {
+-                        exists_guards: &exists_guards,
+-                        proved: &w210_min,
+-                    },
++                rbs_read_option(
++                    "potential_reads",
++                    self.declaration_potential_read_spans(
++                        fu,
++                        procedure,
++                        &declaration,
++                        rbs_read_option("required_flow", declared_flow.as_ref())?,
++                        ctx,
++                        DeclaredReadProofs {
++                            exists_guards: &exists_guards,
++                            proved: &w210_min,
++                        },
++                    ),
+                 )
+             });
+             suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+@@ -1740,14 +1778,17 @@
+         // An authored declaration can delimit a diagnostic read without
+         // overriding unknown writes, accepted operand layouts or SSA origins.
+         let declaration_advice = ir_proc.and_then(|procedure| {
+-            crate::script_binds::authored_procedure_read_advice(
+-                &procedure.body.executed_source.as_ref().map_or_else(
+-                    || tcl_lexer::SourceImage::document(&self.source),
+-                    |source| source.origin.source_image().clone(),
++            rbs_read_option(
++                "read_recipe",
++                crate::script_binds::authored_procedure_read_advice(
++                    &procedure.body.executed_source.as_ref().map_or_else(
++                        || tcl_lexer::SourceImage::document(&self.source),
++                        |source| source.origin.source_image().clone(),
++                    ),
++                    procedure,
++                    &self.result,
++                    &self.analysis_context(),
+                 ),
+-                procedure,
+-                &self.result,
+-                &self.analysis_context(),
+             )
+         });
+ 
+@@ -1769,16 +1810,19 @@
+         );
+ 
+         let potential = declaration_advice.as_ref().and_then(|declaration| {
+-            self.declaration_potential_read_spans(
+-                fu,
+-                ir_proc?,
+-                declaration,
+-                declared_flow.as_ref()?,
+-                ctx,
+-                DeclaredReadProofs {
+-                    exists_guards: &exists_guards,
+-                    proved: &w210_min,
+-                },
++            rbs_read_option(
++                "potential_reads",
++                self.declaration_potential_read_spans(
++                    fu,
++                    ir_proc?,
++                    declaration,
++                    rbs_read_option("required_flow", declared_flow.as_ref())?,
++                    ctx,
++                    DeclaredReadProofs {
++                        exists_guards: &exists_guards,
++                        proved: &w210_min,
++                    },
++                ),
+             )
+         });
+         suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+@@ -1977,6 +2021,12 @@
+         }
+         let mut reads = std::collections::HashMap::new();
+         for (name, &span) in report.declared_absence_warning_occurrences() {
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++                eprintln!(
++                    "RBS_READ_OWNER stage=declared_absence_candidate name={name} span={span:?}"
++                );
++            }
+             if !declaration.owns(span)
+                 || !report.allows_declared_absence_warning(name, span)
+                 || proved.contains_key(name)
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -26,6 +26,16 @@
+ //! A depth limit returns no ownership advice; it never invents a binding.
+ 
+ use tcl_registry::{ArgRole, CommandRegistry};
++
++fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++        eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// How deep to follow nested script words.
+ ///
+@@ -404,9 +414,9 @@
+     analysis: &crate::analyser::AnalysisResult,
+     context: &tcl_registry::model::ContextRegistry,
+ ) -> Option<AuthoredProcedureReadAdvice> {
+-    let config = analysis.body_lexer_config?;
+-    let input = analysis.resolved_input.as_ref()?;
+-    let realm = analysis.retained_command_realm()?;
++    let config = rbs_read_option("recipe.config", analysis.body_lexer_config)?;
++    let input = rbs_read_option("recipe.input", analysis.resolved_input.as_ref())?;
++    let realm = rbs_read_option("recipe.realm", analysis.retained_command_realm())?;
+     if !realm.matches_resolved_analysis_input(input)
+         || !realm.matches_original_source_image(image, config)
+         || input.lexer_config() != config
+@@ -414,13 +424,19 @@
+         return None;
+     }
+     let binding = realm.invocation_at_source("", procedure.span.start());
+-    let (_, mut tokens) = binding.original_recorded_command()?;
++    let (_, mut tokens) = rbs_read_option(
++        "recipe.recorded_command",
++        binding.original_recorded_command(),
++    )?;
+     tokens.source_binding = Some(binding);
+-    let recipe = realm
+-        .source_bindings_ref()
+-        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
+-    let body_span = recipe.original_body_span()?;
+-    let body = procedure.body_source.as_ref()?;
++    let recipe = rbs_read_option(
++        "recipe.declaration",
++        realm
++            .source_bindings_ref()
++            .original_procedure_read_declaration(&tokens, context.commands(), input),
++    )?;
++    let body_span = rbs_read_option("recipe.body_span", recipe.original_body_span())?;
++    let body = rbs_read_option("recipe.body_source", procedure.body_source.as_ref())?;
+     if recipe.original_image() != image
+         || body_span.start() != procedure.body_offset
+         || recipe.original_body_text()? != body

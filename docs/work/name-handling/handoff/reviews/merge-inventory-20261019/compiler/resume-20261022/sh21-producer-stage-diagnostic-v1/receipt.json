@@ -1,0 +1,24 @@
+{
+  "status": "OFFTREE pure producer diagnostic; syntax/apply PASS; typing/runtime UNRUN",
+  "patch_sha256": "26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/shimmer/use_site.rs",
+      "before_sha256": "921633cfbc1e1e51a2a432cb611fc9055a87d2d313a4860f096ffb29bfe260a8",
+      "after_sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "before_sha256": "c68659b159c7109b51c9a07f7536b69d2551c03638c8036947b4eb8bf3b6a873",
+      "after_sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f"
+    }
+  ],
+  "env": "TCL_LSP_TRACE_SH21_PRODUCER; library trace cfg(test), test fixture already cfg(test)",
+  "observations": [
+    "Which exact original scalar-as-list loop member is executing, with original three fixture strings and all assertion expressions byte-identical.",
+    "Actual statement discriminant/span, generic command vs native Incr, actual generic representation invocation availability.",
+    "Existing SSA read/version/known lattice/captured physical cost and commitment, existing free-first-conversion predicate result."
+  ],
+  "authority": "No guard/return/assertion/representation update changes; original Option and boolean values pass identity wrappers once, short-circuit order retained. No new semantic queries; printed fields already materialized or immutable discriminants/getters.",
+  "limits": "No source or runtime hypothesis accepted. Raw current SH failure lacks earlier producer measurement; this candidate only identifies existing first refusal/emit branch."
+}

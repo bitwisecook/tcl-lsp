@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T06:43:37.281656+00:00",
+  "status": "Second independent compiler authority/type/access/lifetime staticCLEAR; untyped/unrun",
+  "patch_sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+  "compiler_peer_sha256": "206310ee72295e967b027837a23d4cbb42c777d9077fc023ff7108191b2fd766",
+  "ccg_peer_sha256": "08e8abd5f7a400177657d4446ae98b637c7fe71a99e388b687bebe3f24ed5fcf",
+  "immutable_full_preparation_archive_sha256": "582520bbe6e07ed0ce0492b99beb3054594c090d624063001c5099cf623b4a7a",
+  "scope": "Peer addendum to immutable19file archive; no source/Git/Cargo/GO or runtime acceptance; v1 held"
+}

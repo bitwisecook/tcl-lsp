@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T06:41:57.679635+00:00",
+  "verdict": "CLEAR bounded puretrace Option/bool/order/access static review; untyped/unrun",
+  "patch_sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "after_sha256": "ba6f4583192b96329dc8f58c9cdb1d64a615b428a694ef363e82d5f4a335eb5a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "before_sha256": "16d15d0055e127742034a7e2e47e7581f6f6d5581e042684e536a7ea3c1b2972",
+      "after_sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed"
+    }
+  ],
+  "checks": [
+    "Independent exact2currentbefore/final, zero-fuzz/no-offset shadow apply and pinned1.99.1 fmt2024 skip_children checks PASS.",
+    "Identity helpers consume/return same Option<T> and bool unchanged; cfgtest+existing REMOTE_FIRST_OPERAND env is sole logging gate, cfgnotest unused stage/offset consumed.",
+    "Original source/input/config/barrier/stamp/vendor selection and metadata queries remain once in original order, ? boundaries preserved.",
+    "Present lookup classifier branch remains terminal: no fallback to body catalogue after refusal. Existing child/current-body, canonical shape, prefix and script-body barriers retained.",
+    "New offsets/is_some diagnostics read immutable fields only, no registry/observer/effect query or authority introduced. Sibling conditional_vendor_metadata import uses pubsuper helpers with crate types already available.",
+    "No assertions/test source, closure/count/native/normal/opaque/source authority or Eq changes."
+  ],
+  "limits": [
+    "Current thirdproc row12 firstword-refusal measured but exact inner producer cause remains unknown pending this trace.",
+    "No Cargo, canonical source, Git, GO, composition or integration."
+  ]
+}

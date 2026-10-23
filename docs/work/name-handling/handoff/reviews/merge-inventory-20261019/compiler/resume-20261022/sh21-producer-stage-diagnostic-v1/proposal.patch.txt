@@ -1,0 +1,234 @@
+--- a/rust/tcl-compiler/src/shimmer/use_site.rs
++++ b/rust/tcl-compiler/src/shimmer/use_site.rs
+@@ -53,6 +53,29 @@
+ };
+ use super::span::def_range_map;
+ use super::{ShimmerWarning, type_name};
++
++macro_rules! sh21_trace {
++    ($($argument:tt)*) => {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
++            eprintln!($($argument)*);
++        }
++    };
++}
++
++fn sh21_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    sh21_trace!("SH21 stage={stage} present={}", value.is_some());
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
++
++fn sh21_flag(stage: &str, value: bool) -> bool {
++    sh21_trace!("SH21 stage={stage} value={value}");
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// Find use-site shimmer warnings for a function.
+ ///
+@@ -389,14 +412,14 @@
+     word: &crate::ir::WordExpr,
+     expected: TclType,
+ ) -> Option<(String, Symbol, u32, super::commit::RepresentationCost)> {
+-    let (spelling, _) = word.sole_variable_substitution()?;
++    let (spelling, _) = sh21_option("tracked.sole_variable", word.sole_variable_substitution())?;
+     let var = element_var_name(spelling).to_owned();
+-    let read = ctx.source.read_word(word)?;
++    let read = sh21_option("tracked.ssa_read", ctx.source.read_word(word))?;
+     let sym = read.symbol;
+     if ctx.array_syms.contains(&sym) {
+         return None;
+     }
+-    let ver = read.version?;
++    let ver = sh21_option("tracked.version", read.version)?;
+     if ver == 0 {
+         return None;
+     }
+@@ -405,18 +428,33 @@
+         .get((sym, ver))
+         .cloned()
+         .unwrap_or_else(TypeLattice::unknown);
++    sh21_trace!(
++        "SH21 stage=tracked.lattice kind={:?} expected={expected:?}",
++        lattice.kind()
++    );
+     if lattice.kind() != TypeKind::Known {
+         return None;
+     }
+     let current = lattice.tcl_type()?;
+-    let cost = ctx
+-        .commit
+-        .cost_for_word(ctx.source, word, read, current, expected)?;
++    let cost = sh21_option(
++        "tracked.captured_cost",
++        ctx.commit
++            .cost_for_word(ctx.source, word, read, current, expected),
++    )?;
++    sh21_trace!(
++        "SH21 stage=tracked.cost current={:?} expected={expected:?} commitment={:?}",
++        cost.current,
++        cost.commitment
++    );
+     Some((var, sym, ver, cost))
+ }
+ 
+ fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize) {
+-    let expectation = invocation_shimmer_expectation(site.invocation, i);
++    sh21_trace!("SH21 stage=argument command={} index={i}", site.command);
++    let expectation = sh21_option(
++        "argument.expectation",
++        invocation_shimmer_expectation(site.invocation, i),
++    );
+     let Some(expectation) = expectation else {
+         return;
+     };
+@@ -512,13 +550,16 @@
+             .get(&sym)
+             .is_some_and(|targets| targets.len() >= 2);
+     if !multi_target_in_loop
+-        && is_free_first_conversion(
+-            current,
+-            expected,
+-            ctx.values.get(&(sym, ver)),
+-            ctx.representation(sym, ver),
+-            ctx.commit.numbers(),
+-            ctx.commit.word_rules(),
++        && sh21_flag(
++            "free_first_conversion",
++            is_free_first_conversion(
++                current,
++                expected,
++                ctx.values.get(&(sym, ver)),
++                ctx.representation(sym, ver),
++                ctx.commit.numbers(),
++                ctx.commit.word_rules(),
++            ),
+         )
+     {
+         return;
+@@ -678,6 +719,12 @@
+ }
+ 
+ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
++    sh21_trace!(
++        "SH21 stage=statement span={:?} kind={:?} uses={}",
++        stmt.span(),
++        std::mem::discriminant(stmt),
++        uses.len()
++    );
+     match stmt {
+         Statement::Call {
+             command, tokens, ..
+@@ -686,8 +733,13 @@
+             // exactly as the same command on its own line would — Tcl runs it
+             // before the outer command either way — so check it as the
+             // invocation it is.
++            sh21_trace!(
++                "SH21 stage=generic-call command={command} span={:?}",
++                stmt.span()
++            );
+             check_lifted_calls(ctx, tokens.as_ref(), stmt.span());
+-            let Some(invocation) = ctx.context.statement(stmt) else {
++            let Some(invocation) = sh21_option("generic.invocation", ctx.context.statement(stmt))
++            else {
+                 return;
+             };
+             let inert = super::hints::inert_effective_args(&invocation);
+@@ -723,6 +775,7 @@
+         }
+ 
+         Statement::Incr { name, amount, .. } => {
++            sh21_trace!("SH21 stage=native-incr name={name} span={:?}", stmt.span());
+             // `incr` reads both its target variable and (when present) its
+             // increment argument as Int.  The two checks are independent —
+             // an Int target with a String `$amount` still shimmers on the
+@@ -757,10 +810,12 @@
+ /// non-int, non-numeric type that is not a clean hex/octal/binary integer
+ /// literal string (that spelling promotes cleanly to int).
+ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMap<Symbol, u32>) {
+-    let Some(sym) = ctx.source.symbol(var) else {
++    let Some(sym) = sh21_option("incr.symbol", ctx.source.symbol(var)) else {
+         return;
+     };
+-    let Some(&ver) = uses.get(&sym) else { return };
++    let Some(&ver) = sh21_option("incr.version", uses.get(&sym)) else {
++        return;
++    };
+     check_incr_read(
+         ctx,
+         var,
+@@ -784,6 +839,7 @@
+     if ctx.array_syms.contains(&sym) {
+         return;
+     }
++    sh21_trace!("SH21 stage=incr.read var={var} version={:?}", read.version);
+     let Some(ver) = read.version else {
+         return;
+     };
+@@ -795,6 +851,10 @@
+         .get((sym, ver))
+         .cloned()
+         .unwrap_or_else(TypeLattice::unknown);
++    sh21_trace!(
++        "SH21 stage=incr.lattice var={var} kind={:?}",
++        lattice.kind()
++    );
+     if lattice.kind() != TypeKind::Known {
+         return;
+     }
+@@ -812,7 +872,14 @@
+             .commit
+             .cost_for_native_read(ctx.source, read, current, TclType::Int),
+     };
+-    let Some(cost) = cost else { return };
++    let Some(cost) = sh21_option("incr.captured_cost", cost) else {
++        return;
++    };
++    sh21_trace!(
++        "SH21 stage=incr.cost var={var} current={:?} commitment={:?}",
++        cost.current,
++        cost.commitment
++    );
+     let current = cost.current;
+     let commit_state = cost.commitment;
+     let must_pay_committed = commit_state.must_pay(TclType::Int);
+@@ -824,13 +891,16 @@
+         // incr n`, `set n 5; incr n`) promotes to `Int` for free — no shimmer.
+         // A non-integer pure string (`set n hello; incr n`) is *not* a valid
+         // instance, so it still fires: that conversion fails at runtime.
+-        if is_free_first_conversion(
+-            current,
+-            TclType::Int,
+-            ctx.values.get(&(sym, ver)),
+-            ctx.representation(sym, ver),
+-            ctx.commit.numbers(),
+-            ctx.commit.word_rules(),
++        if sh21_flag(
++            "free_first_conversion",
++            is_free_first_conversion(
++                current,
++                TclType::Int,
++                ctx.values.get(&(sym, ver)),
++                ctx.representation(sym, ver),
++                ctx.commit.numbers(),
++                ctx.commit.word_rules(),
++            ),
+         ) {
+             return;
+         }
+--- a/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
+@@ -1409,6 +1409,9 @@
+         "set x 5\nlindex $x 0\n",
+         "set l hello\nforeach y $l { puts $y }\n",
+     ] {
++        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
++            eprintln!("SH21 stage=original-scalar-fixture source={src:?}");
++        }
+         assert!(
+             !fires(src, D, "S100") && !fires(src, D, "S101"),
+             "FP-SH-21: scalar literal used as a list must not shimmer; got {:?}",

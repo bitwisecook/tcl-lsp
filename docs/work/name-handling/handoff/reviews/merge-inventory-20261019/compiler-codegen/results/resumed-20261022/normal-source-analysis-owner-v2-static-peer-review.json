@@ -1,0 +1,16 @@
+{
+  "checks": [
+    "exact current before pins for all three paths; off-tree zero-fuzz apply reaches all three declared final hashes",
+    "all three explicit OriginalSourceTransitionSeed constructors carry existing actual optional/Arc owner; struct-update test clones inherited field",
+    "seed manual PartialEq/Eq compares origin/config/baseline/logical_input in exactly prior derived order and semantics; source_read_scope cache and declaration_flow inventory comparisons remain unchanged",
+    "NormalSourceOutcome alone requires present ptr-identical owner before all existing origin/baseline/source-image/config guards",
+    "real equal-source foreign analysis has distinct owner by production memo clone; new test asserts seed equality remains while foreign Normal graph refuses, and missing/foreign owner negatives refuse",
+    "no Native grant, report/global Eq edits, new owner creation, fallback or altered other-purpose branch detected"
+  ],
+  "limits": "Rust typing, original row16, source-read memo and broader runtime unrun; no canonical source/Git/Cargo/GO",
+  "manifest_sha256": "ffb774423a533229da464be231f7e88b2b9377789aca6402bf11654d480d1bc6",
+  "patch_sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+  "predecessor_v1_blocked_receipt_sha256": "473a4512eb77e2885213b0ade8a53c6ba7c5f70f09632f3fabe2e62117374415",
+  "status": "BOUNDED_STATIC_CLEAR_UNTYPED_UNRUN",
+  "utc": "2026-10-23T06:41:29.343616+00:00"
+}

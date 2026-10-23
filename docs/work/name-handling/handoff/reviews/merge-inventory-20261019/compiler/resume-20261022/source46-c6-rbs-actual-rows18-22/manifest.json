@@ -1,0 +1,202 @@
+{
+  "status": "five completed individual rows only; full58 ACTIVE",
+  "archive_sha256": "b714e5aaddd6466a30f1ed853e9a097cae0cb8845e400994c625f47ee96a714b",
+  "files": [
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.command",
+      "bytes": 129,
+      "sha256": "7ecb5c145fbcd6c09bab699c6114aac492697d7d0af1844b9dc8eea37babcedc"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.env.json",
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.process.json",
+      "bytes": 2256,
+      "sha256": "d4ad5967857e45a9ef32b24f77a0d07da021a7a21e11faa59bce12334fd51e26"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.result.json",
+      "bytes": 5175,
+      "sha256": "adb853aa9c71119c76f964f0c2a0a6d3d246c6f47b6458f3cff2e63fdc18aec8"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.sha256.json",
+      "bytes": 1115,
+      "sha256": "bd168aa3c654feeb93ea2b6fd68583a19a8db45f80300d99318498addc5fcc26"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.stderr",
+      "bytes": 548,
+      "sha256": "9b38836730b1c3a7db2bca310a5710856210ad19df36ad0e52e15d8f4c63f17c"
+    },
+    {
+      "name": "18-18-c6-sh21-tnt03-original-fp_sh_21.stdout",
+      "bytes": 920,
+      "sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.command",
+      "bytes": 130,
+      "sha256": "b7870bf67625c29d71d24df300af34fb74a1912da083adf7fb9daed99b5886c0"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.env.json",
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.process.json",
+      "bytes": 2252,
+      "sha256": "0ba5b3bcf93c4921fea02af4ff2b495033949f60e93ef7aacdfbde9a39cd0abd"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.result.json",
+      "bytes": 5168,
+      "sha256": "70114f827369bc287a8b8e85e7b7929cc8a1381d53af4a5be361da0962780848"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.sha256.json",
+      "bytes": 1121,
+      "sha256": "c676ae17b4bd75ff8cae580625977393ceeacbcd8c9522406542896b77ad11cc"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "19-19-c6-sh21-tnt03-original-fp_tnt_03.stdout",
+      "bytes": 653,
+      "sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.command",
+      "bytes": 209,
+      "sha256": "5df7672baf796e7dedd4168758da6f772510bc3ebc28af7ff29136a18bcd9ad7"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.env.json",
+      "bytes": 108,
+      "sha256": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.process.json",
+      "bytes": 2453,
+      "sha256": "3159b893fb165631e24a4c4d05632be97c804fa6e035ef1dfcd50e47f3b383d2"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.result.json",
+      "bytes": 5585,
+      "sha256": "a3f185d973d2e51684413a6e1d6c00a65b5f7c7ea47be33e43d0a04a5e042890"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.sha256.json",
+      "bytes": 1427,
+      "sha256": "edce3dbdc6b605bf794a93b72e297cc359562f0d3918c2093c6f996353e3d93a"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.stderr",
+      "bytes": 2848635,
+      "sha256": "a7dba9e6d7fbd5dae38ae3e52393cfddff1a062685e809127e23bdce630e26ca"
+    },
+    {
+      "name": "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.stdout",
+      "bytes": 324,
+      "sha256": "e8b31c81e52f7edcd5055d5f3699f1dea1d10d7ddc6ec9512e22a12a77140eb8"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.command",
+      "bytes": 211,
+      "sha256": "5b7f47bcb25c5c15bfc38f0300c975b2f1bf00fa8189d015bd1e0e0d1d3931b9"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.env.json",
+      "bytes": 108,
+      "sha256": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.process.json",
+      "bytes": 2460,
+      "sha256": "a2d1b5283112dedf8babe88fb1fe241339bb8bc249a312f338816c96f5963127"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.result.json",
+      "bytes": 5598,
+      "sha256": "fcb4db0a42fd58e17bb2401cde4089fa85098f727a737d4455aa8d0e748dca4a"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.sha256.json",
+      "bytes": 1439,
+      "sha256": "c20cb5dd5c6bdc8c0357cf3d9008f1d78d519340fdc04a921808efc2049466cc"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.stderr",
+      "bytes": 3388006,
+      "sha256": "87dec8a94a2df5533904b78ec4f31d101565dcc273623e301e972f21ee8054c1"
+    },
+    {
+      "name": "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.stdout",
+      "bytes": 329,
+      "sha256": "1e4317e7badad3220c10c335c39fdb677a7f7597d33c0142042068b0b880dc64"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.command",
+      "bytes": 210,
+      "sha256": "3443f73c0ddf3f834107ed379358820d5784a0aa067d2d2d93418ddc114d694c"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.env.json",
+      "bytes": 108,
+      "sha256": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.process.json",
+      "bytes": 2461,
+      "sha256": "17dac22ed1f5e49b2602f57493f0a8e271659a44952f9587639938bf8735694f"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.result.json",
+      "bytes": 5598,
+      "sha256": "1bef8f420af50e6eb388f653bef315cfad456ce76ce49aa3d30c7ea543709411"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.sha256.json",
+      "bytes": 1445,
+      "sha256": "f8eaf09c58ccbd967472f8409d4add19db91ec3e9b054919c30fe973eee12cd5"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.stderr",
+      "bytes": 4292476,
+      "sha256": "80ec02a2c948908620d589469e593d221e4703e4cf6fd58b63c3ca0afcec177e"
+    },
+    {
+      "name": "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.stdout",
+      "bytes": 327,
+      "sha256": "1456ae70b816321001120130fcfc191236dd0209df4698812272a7160e2146db"
+    }
+  ],
+  "counts": {
+    "SH21": {
+      "pass": 5,
+      "fail": 2
+    },
+    "TNT03": {
+      "pass": 6,
+      "fail": 0
+    },
+    "RBS3": {
+      "pass": 0,
+      "fail": 3
+    }
+  },
+  "observed_rbs": [
+    "No ZZ_W210 emitted at any of three existing-trace selectors.",
+    "row20 puts offset81 retained lookup present but binding unknown/targets empty; source tape/native vector/current source/registry/config joins pass, materialized footprint unknown/closed-domain false.",
+    "Nested switch and foreach/while are CFG source-opaque/unresolvable call barriers; final puts opaque global. Final structure.declaration_advice false is downstream.",
+    "No exact first upstream transport/refusal cause or production fix established; do not infer termination-only failure from original test labels."
+  ],
+  "SH": "Original three scalar-as-list test fixture member not identified by old assertion output; noninteger incr lacks S100. Historical7/7 does not establish current cause."
+}

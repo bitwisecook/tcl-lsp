@@ -1,0 +1,6 @@
+{
+  "actual_utc": "2026-10-23T06:53:07.203100+00:00",
+  "prior_node24_scope": "Prior receipt remains unchanged historical unsupported Node24.19.0 off-tree compilation only; superseded for supported-toolchain typing by Node26.12.1 receipt in node26/.",
+  "input_count_note": "Node26 maps include all root-level files (12803); prior12800 maps included only config-like root files. Every prior12800 entry was rejoined equal before run; no canonical addition inferred.",
+  "canonical_or_layout_writes": false
+}

@@ -1,0 +1,58 @@
+--- a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -623,9 +623,12 @@
+ 
+     #[test]
+     fn original_aliases_keep_both_actual_roles_at_the_shared_declaration() {
+-        let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
+-        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
+-        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        // Explicit Logical source analysis owns its own declaration lowering;
++        // it grants no Native entry or runtime publication. With no padding in
++        // the namespace body, its whole extent is the single proc declaration.
++        let source = "namespace eval ::owned {proc retained {} {return VALUE}}\ninterp alias {} ::pick {} ::owned::retained\npick";
++        let left = Analyser::new().analyse_for_report(source, "tcl");
++        let right = Analyser::new().analyse_for_report(source, "tcl");
+         let a = &left
+             .current_capture()
+             .expect("actual original alias diagnostics CU")
+@@ -679,6 +682,39 @@
+     }
+ 
+     #[test]
++    fn original_aliases_native_source_inventory_is_complete() {
++        let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
++        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let a = &left
++            .current_capture()
++            .expect("actual original alias diagnostics CU")
++            .bodies;
++        let b = &right
++            .current_capture()
++            .expect("independent original alias diagnostics CU")
++            .bodies;
++        let correspondence = ReportBodyCorrespondence::capture(a, b)
++            .expect("complete unique actual owner correspondence");
++        assert_eq!(correspondence.pairs.len(), a.bodies.len());
++        assert_eq!(correspondence.pairs.len(), b.bodies.len());
++        for body in &a.bodies {
++            assert_eq!(
++                correspondence
++                    .pairs
++                    .iter()
++                    .filter(|(left, _)| *left == body.id)
++                    .count(),
++                1
++            );
++        }
++        assert_eq!(
++            left.compare(&right),
++            super::super::AnalysisReportComparison::Equal
++        );
++    }
++
++    #[test]
+     fn actual_body_census_retains_the_complete_source_entry_domain() {
+         let left = actual();
+         let mut right = actual();

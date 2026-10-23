@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T06:54:07.530775+00:00",
+  "verdict": "CLEAR bounded existing-language fixture/assertion/type static review; untyped/unrun",
+  "patch_sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8",
+  "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+  "before_sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+  "final_sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125",
+  "checks": [
+    "Independent exact currentbefore, zero-fuzz/no-offset shadow apply, finalpin and pinnedfmt2024 PASS.",
+    "Entire original test tail from phase construction through all lost-selection capability/template/unroll/map-inventory assertions is byte-identical. Other original tests untouched.",
+    "SocketFilter accept/drop contract explicit docs/design/compiler/ebpf-backend.md149\u2013150, registry bpf_op::BpfProgTypeSet and lower.rs506\u2013522; no new language semantics or C Tcl claim.",
+    "Baseline now accept matches adjacent actual SocketFilter positive. Original pass source retained as separately prepared selected command, explicitly requires lower OutOfSubset with exact pass-verdict diagnostic before mutation.",
+    "lower_prepared_function crate visibility existing, Result<BpfProgram,BpfError> with BpfProgram Debug supports unwrap_err; error fields code/msg public. No production/authority/selection policy or Eq changes."
+  ],
+  "limits": [
+    "Rust typing/runtime unrun; cannot claim original row30 lost-selection assertions now pass until guarded rerun. No failed assertion inverted/deleted.",
+    "No canonical source/Cargo/Git/GO/composition."
+  ]
+}

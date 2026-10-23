@@ -1,0 +1,107 @@
+{
+  "utc": "2026-10-23T06:42:43.763224+00:00",
+  "status": "Lossless actual row16 refusal + complete off-tree v2 candidate/current before+after+CCGstaticCLEAR; untyped/unrun",
+  "patch_sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+  "archive_sha256": "582520bbe6e07ed0ce0492b99beb3054594c090d624063001c5099cf623b4a7a",
+  "file_count": 19,
+  "files": [
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.command",
+      "sha256": "bba37b6b6557296558a74fbcc164ef017cea43fea0efaaa4223b9b481620891a",
+      "bytes": 293
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "bytes": 37
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.process.json",
+      "sha256": "5da33292978066f62ac3e1206f14cee3fd5ea52ed30d93c3e0fe5ee928b4f6b2",
+      "bytes": 2543
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.result.json",
+      "sha256": "90d09c7b3fdd62f2d8ee6ccb6f0f73948dfa5ba76e3802ea01b30836d684386f",
+      "bytes": 5849
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.sha256.json",
+      "sha256": "8cdd9ed552c910ff2ba78f3e9d8f40d0da431a945ae64c14320cb3da7e758017",
+      "bytes": 1463
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.stderr",
+      "sha256": "8f18ac09465c46768fc5ba17d2d467a1a11aba7fce44745e9d04174fe646e6bd",
+      "bytes": 1067
+    },
+    {
+      "path": "actual-row16/16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.stdout",
+      "sha256": "2f7ccffcdf703908565c44610189dc5ae6b3db7ae0700f76852896873c6a28aa",
+      "bytes": 492
+    },
+    {
+      "path": "candidate/manifest.json",
+      "sha256": "ffb774423a533229da464be231f7e88b2b9377789aca6402bf11654d480d1bc6",
+      "bytes": 2881
+    },
+    {
+      "path": "candidate/proposal.patch",
+      "sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+      "bytes": 5235
+    },
+    {
+      "path": "candidate/shadow/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6",
+      "bytes": 54261
+    },
+    {
+      "path": "candidate/shadow/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b",
+      "bytes": 188214
+    },
+    {
+      "path": "candidate/shadow/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "bfd5f1a6da5888d563508ae73eeb49894ecf457e570ae235b4401a076833f974",
+      "bytes": 28851
+    },
+    {
+      "path": "ccg-static-peer-review.json",
+      "sha256": "08e8abd5f7a400177657d4446ae98b637c7fe71a99e388b687bebe3f24ed5fcf",
+      "bytes": 1458
+    },
+    {
+      "path": "current-before/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "sha256": "846b1bd533a8ee9463667b8280bb5046058cc20adf785806bae4462312b28914",
+      "bytes": 54186
+    },
+    {
+      "path": "current-before/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+      "bytes": 187568
+    },
+    {
+      "path": "current-before/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+      "bytes": 27436
+    },
+    {
+      "path": "held-v1/manifest.json",
+      "sha256": "616aa896bd89c009f89c367d724a690b0debdf0550889accc15d0e6161337b31",
+      "bytes": 2356
+    },
+    {
+      "path": "held-v1/proposal.patch",
+      "sha256": "31d44ad9ad2c8136bf979679e4794eacaf29714b427dee79e21db94c21472148",
+      "bytes": 4375
+    },
+    {
+      "path": "preparer-v2.py",
+      "sha256": "bcb5c63063f355877ac893899a0355c499719818dc540f5b9df0ef7682586dcc",
+      "bytes": 3360
+    }
+  ],
+  "ccg_peer_sha256": "08e8abd5f7a400177657d4446ae98b637c7fe71a99e388b687bebe3f24ed5fcf",
+  "predecessor": "V1 held: owner unintentionally entered derived Eq; never use for integration",
+  "scope": "V2 exact old4field seedEq preserved, Normal-only ptr-equal real analysis attachment; original positive/allnegative assertions retained. Compiler authority peer pending. No canonical source/Git/Cargo/GO."
+}

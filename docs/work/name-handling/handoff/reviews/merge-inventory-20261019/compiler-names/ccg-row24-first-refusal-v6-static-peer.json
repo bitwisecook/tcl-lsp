@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-23T06:55:10.272614+00:00",
+  "verdict": "CLEAR bounded v6 debug-scope/puretrace/order/type static peer; untyped/unrun",
+  "patch_sha256": "e72aec5239c8c8922424b5ad541960c3a8f5f230a80acf812e1be0578e35f57b",
+  "before": {
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+    "rust/tcl-compiler/src/optimiser/mod.rs": "e137aa9b3adf0b16d45ddb5476b013f8f74916014eaa69f300b7f7de7669dae5"
+  },
+  "after": {
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55",
+    "rust/tcl-compiler/src/optimiser/mod.rs": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc"
+  },
+  "checks": [
+    "Independent exact2currentbefore, zero-fuzz/no-offset shadow apply/finalpins/pinnedfmt2024 PASS.",
+    "Macro now declared before every call, expands logging only under cfgdebug_assertions plus dedicated env and exact original source. All mod.rs flag+5logging blocks individually cfgdebug, so no release env lookup/logging. V5 scope blocker resolved.",
+    "New pass/function/walk/call entries read existing fields/pure is_authored_source only; no selection/effect/observer query.",
+    "All original retained-call/registry/input/metadata/lifted expr/eval/preparation/protocol/numeric result queries once and in original order, ? and early return/shortcircuit preserved. is_expr local evaluates same original predicate once, original expr fold still conditional.",
+    "No assertions, equality, transformations, footprint, Native/source/admission/Normal/runtime/body authority or proof predicates changed."
+  ],
+  "limits": [
+    "Puretrace only; actual row24 firstrefusal must be observed on fresh guarded run; no cause/fix or runtime acceptance claim.",
+    "No canonical source/Cargo/Git/GO or silent composition. V5 stays held/immutable."
+  ],
+  "shadow": "/tmp/names-ccg-row24-v6-peer-whid3rtb"
+}

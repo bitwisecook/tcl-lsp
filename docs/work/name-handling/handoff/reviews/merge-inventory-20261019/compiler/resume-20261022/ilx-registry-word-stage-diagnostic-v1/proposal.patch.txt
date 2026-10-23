@@ -1,0 +1,366 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -1939,7 +1939,11 @@
+     }
+     let config = analysis.body_lexer_config?;
+     let realm = analysis.retained_command_realm()?;
+-    let image = retained_document_image(source, realm, config);
++    let image = trace_remote_source_option(
++        "source.image",
++        segment.argv.first().map(|word| word.span.start()),
++        retained_document_image(source, realm, config),
++    );
+     #[cfg(test)]
+     trace_original_child_guard(
+         "source.image",
+@@ -1947,7 +1951,11 @@
+         image.is_some(),
+     );
+     let image = image?;
+-    let matches_image = analysis.matches_original_source_image(&image, config);
++    let matches_image = trace_remote_source_flag(
++        "source.image_config",
++        segment.argv.first().map(|word| word.span.start()),
++        analysis.matches_original_source_image(&image, config),
++    );
+     #[cfg(test)]
+     trace_original_child_guard(
+         "source.image_config",
+@@ -1963,7 +1971,16 @@
+         segment,
+     );
+     realm.stamp_original_tokens(&mut tokens);
+-    let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
++    let blocked = trace_remote_source_flag(
++        "source.blocked",
++        segment.argv.first().map(|word| word.span.start()),
++        realm.original_source_registry_barrier(&input.context_registry(), &tokens),
++    );
++    trace_remote_source_flag(
++        "source.binding",
++        segment.argv.first().map(|word| word.span.start()),
++        tokens.source_binding.is_some(),
++    );
+     #[cfg(test)]
+     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+         let offset = segment.argv.first().map(|word| word.span.start());
+@@ -1993,7 +2010,11 @@
+     }
+     let offset = segment.argv.first()?.span.start();
+     if analysis.has_original_vendor_source_names() {
+-        let (metadata, _) = selected_vendor_registry_words_at(source, analysis, offset)?;
++        let (metadata, _) = trace_remote_source_option(
++            "source.selected_vendor",
++            Some(offset),
++            selected_vendor_registry_words_at(source, analysis, offset),
++        )?;
+         let context = analysis.resolved_input.as_ref()?.context_registry();
+         let mut tokens = crate::ir::CommandTokens::from_segmented(
+             &tcl_lexer::SourceMap::from_image(&image),
+@@ -2005,7 +2026,11 @@
+             .stamp_original_tokens(&mut tokens);
+         // The shared builder authenticates the complete original native
+         // vector. Resegmentation's comment trivia is not word identity.
+-        return original_vendor_registry_words(&context, &tokens, metadata);
++        return trace_remote_source_option(
++            "source.vendor_words",
++            Some(offset),
++            original_vendor_registry_words(&context, &tokens, metadata),
++        );
+     }
+     let metadata = analysis
+         .original_conditional_registry_metadata_in_source(&image, config, offset)
+@@ -2223,16 +2248,24 @@
+     // naming.diagnostic.original-package-source-advice
+     // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+     if let Some(region) = analysis.original_source_region.as_ref()
+-        && !region.owns_original_command_at(analysis, offset)
++        && !trace_remote_source_flag(
++            "at.region_owns",
++            Some(offset),
++            region.owns_original_command_at(analysis, offset),
++        )
+     {
+         return None;
+     }
+-    let config = analysis.body_lexer_config?;
++    let config = trace_remote_source_option("at.config", Some(offset), analysis.body_lexer_config)?;
+     let image = tcl_lexer::SourceImage::document(source);
+-    analysis
+-        .matches_original_source_image(&image, config)
+-        .then_some(())?;
+-    let realm = analysis.retained_command_realm()?;
++    trace_remote_source_flag(
++        "at.image_config",
++        Some(offset),
++        analysis.matches_original_source_image(&image, config),
++    )
++    .then_some(())?;
++    let realm =
++        trace_remote_source_option("at.realm", Some(offset), analysis.retained_command_realm())?;
+     let binding = realm.invocation_at_source("", offset);
+     let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+         segment
+@@ -2249,7 +2282,42 @@
+             .next()?
+     };
+     (segment.argv.first()?.span.start() == offset).then_some(())?;
+-    source_registry_words(source, analysis, &segment)
++    trace_remote_source_option(
++        "at.source_registry_words",
++        Some(offset),
++        source_registry_words(source, analysis, &segment),
++    )
++}
++
++/// Diagnostic identity: reports only the original query result.
++#[inline]
++pub(super) fn trace_remote_source_option<T>(
++    stage: &str,
++    offset: Option<u32>,
++    value: Option<T>,
++) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
++        eprintln!(
++            "REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} present={}",
++            value.is_some()
++        );
++    }
++    #[cfg(not(test))]
++    let _ = (stage, offset);
++    value
++}
++
++/// Diagnostic identity: reports only the original predicate result.
++#[inline]
++pub(super) fn trace_remote_source_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
++        eprintln!("REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} value={value}");
++    }
++    #[cfg(not(test))]
++    let _ = (stage, offset);
++    value
+ }
+ 
+ /// Original whole words under a positively retained Logical source input.
+@@ -4694,14 +4762,15 @@
+     }
+     // Choose the actual innermost original command before querying metadata.
+     // Missing/blocked inner metadata cannot borrow an outer script's roles.
+-    let occurrence = selected?;
++    let occurrence =
++        trace_remote_source_option("vendor.selected_occurrence", Some(cursor), selected)?;
+     let words = occurrence.original_words();
+     let start = words.first()?.span().start();
+     let end = words.last()?.span().end();
+     let text = source.get(start as usize..end as usize)?;
+     let mut commands =
+         crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+-    if commands.len() != 1 {
++    if !trace_remote_source_flag("vendor.single_command", Some(cursor), commands.len() == 1) {
+         return None;
+     }
+     let command = commands.pop()?;
+@@ -4711,8 +4780,12 @@
+         &command,
+     );
+     realm.stamp_original_tokens(&mut tokens);
+-    let metadata = crate::registry_invocation::original_vendor_occurrence_registry_metadata(
+-        &context, &tokens, occurrence,
++    let metadata = trace_remote_source_option(
++        "vendor.occurrence_metadata",
++        Some(cursor),
++        crate::registry_invocation::original_vendor_occurrence_registry_metadata(
++            &context, &tokens, occurrence,
++        ),
+     )?;
+     Some((metadata, command))
+ }
+--- a/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs
++++ b/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs
+@@ -2,6 +2,7 @@
+ //! Hosted conditional source roles share the catalogue barrier owner.
+ 
+ use super::VendorRegistryInvocationShape;
++use super::source_structure::{trace_remote_source_flag, trace_remote_source_option};
+ use crate::command_binding::{VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation};
+ use crate::ir::CommandTokens;
+ use crate::signature_scan::vendor_name::VendorSourceNameInput;
+@@ -59,18 +60,38 @@
+     head: &VendorSourceNameInput,
+     original: &[NativeWord],
+ ) -> Option<OriginalConditionalVendorRegistryMetadata> {
+-    let shape = super::vendor_registry_invocation_shape(context, head, original)?;
+-    let catalogue = tokens
+-        .source_binding
+-        .as_ref()?
+-        .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands())?;
+-    if catalogue.command() != shape.command() {
++    let shape = trace_remote_source_option(
++        "metadata.shape",
++        tokens.argv.first().map(|word| word.start()),
++        super::vendor_registry_invocation_shape(context, head, original),
++    )?;
++    let catalogue = trace_remote_source_option(
++        "metadata.lookup_catalogue",
++        tokens.argv.first().map(|word| word.start()),
++        tokens
++            .source_binding
++            .as_ref()?
++            .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands()),
++    )?;
++    if !trace_remote_source_flag(
++        "metadata.catalogue_shape",
++        tokens.argv.first().map(|word| word.start()),
++        catalogue.command() == shape.command(),
++    ) {
+         return None;
+     }
+-    let authored_barriers = super::vendor_source_barriers::capture(
+-        context,
+-        head,
+-        &catalogue.selected_source_prefixes()?,
++    let authored_barriers = trace_remote_source_option(
++        "metadata.prefix_barriers",
++        tokens.argv.first().map(|word| word.start()),
++        super::vendor_source_barriers::capture(
++            context,
++            head,
++            &trace_remote_source_option(
++                "metadata.prefixes",
++                tokens.argv.first().map(|word| word.start()),
++                catalogue.selected_source_prefixes(),
++            )?,
++        ),
+     )?;
+     Some(OriginalConditionalVendorRegistryMetadata {
+         catalogue,
+@@ -86,38 +107,76 @@
+     tokens: &CommandTokens,
+     occurrence: &crate::signature_scan::vendor_name::VendorSourceNameOccurrence,
+ ) -> Option<OriginalConditionalVendorRegistryMetadata> {
+-    let binding = tokens.source_binding.as_ref()?;
+-    let body = occurrence.body_origin();
+-    if body.is_some_and(|body| !body.matches_child(context, occurrence.original_words())) {
++    let binding = trace_remote_source_option(
++        "metadata.binding",
++        tokens.argv.first().map(|word| word.start()),
++        tokens.source_binding.as_ref(),
++    )?;
++    let body = trace_remote_source_option(
++        "metadata.body_origin",
++        tokens.argv.first().map(|word| word.start()),
++        occurrence.body_origin(),
++    );
++    if body.is_some_and(|body| {
++        !trace_remote_source_flag(
++            "metadata.current_child",
++            tokens.argv.first().map(|word| word.start()),
++            body.matches_child(context, occurrence.original_words()),
++        )
++    }) {
+         return None;
+     }
+-    let mut metadata = if binding.lookup_state.is_some() {
++    let mut metadata = if trace_remote_source_flag(
++        "metadata.lookup_state_present",
++        tokens.argv.first().map(|word| word.start()),
++        binding.lookup_state.is_some(),
++    ) {
+         // A present lookup cannot fall through when its own cell classifier
+         // rejects the descriptor. The script receipt supplies no other table.
+-        original_conditional_vendor_registry_metadata(
+-            context,
+-            tokens,
+-            occurrence.name_input(),
+-            occurrence.original_words(),
++        trace_remote_source_option(
++            "metadata.lookup_classifier",
++            tokens.argv.first().map(|word| word.start()),
++            original_conditional_vendor_registry_metadata(
++                context,
++                tokens,
++                occurrence.name_input(),
++                occurrence.original_words(),
++            ),
+         )?
+     } else {
+         let body = body?;
+-        let shape = super::vendor_registry_invocation_shape(
+-            context,
+-            occurrence.name_input(),
+-            occurrence.original_words(),
+-        )?;
+-        let catalogue = binding.original_vendor_script_body_source_candidate(
+-            context,
+-            tokens,
+-            &shape,
+-            occurrence.site(),
+-            body,
+-        )?;
+-        let authored_barriers = super::vendor_source_barriers::capture(
+-            context,
+-            occurrence.name_input(),
+-            &catalogue.selected_source_prefixes()?,
++        let shape = trace_remote_source_option(
++            "metadata.shape",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_registry_invocation_shape(
++                context,
++                occurrence.name_input(),
++                occurrence.original_words(),
++            ),
++        )?;
++        let catalogue = trace_remote_source_option(
++            "metadata.body_catalogue",
++            tokens.argv.first().map(|word| word.start()),
++            binding.original_vendor_script_body_source_candidate(
++                context,
++                tokens,
++                &shape,
++                occurrence.site(),
++                body,
++            ),
++        )?;
++        let authored_barriers = trace_remote_source_option(
++            "metadata.prefix_barriers",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_source_barriers::capture(
++                context,
++                occurrence.name_input(),
++                &trace_remote_source_option(
++                    "metadata.prefixes",
++                    tokens.argv.first().map(|word| word.start()),
++                    catalogue.selected_source_prefixes(),
++                )?,
++            ),
+         )?;
+         OriginalConditionalVendorRegistryMetadata {
+             catalogue,
+@@ -127,11 +186,19 @@
+     };
+     if let Some(body) = body {
+         metadata.catalogue.retain_script_body_origin(body);
+-        metadata.authored_barriers = super::vendor_source_barriers::capture_in_script_body(
+-            context,
+-            occurrence.name_input(),
+-            &metadata.catalogue.selected_source_prefixes()?,
+-            body,
++        metadata.authored_barriers = trace_remote_source_option(
++            "metadata.body_barriers",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_source_barriers::capture_in_script_body(
++                context,
++                occurrence.name_input(),
++                &trace_remote_source_option(
++                    "metadata.retained_prefixes",
++                    tokens.argv.first().map(|word| word.start()),
++                    metadata.catalogue.selected_source_prefixes(),
++                )?,
++                body,
++            ),
+         )?;
+     }
+     Some(metadata)

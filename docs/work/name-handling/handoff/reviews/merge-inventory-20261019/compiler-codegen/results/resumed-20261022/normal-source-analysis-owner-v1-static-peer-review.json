@@ -1,0 +1,16 @@
+{
+  "exact_before_and_offtree_zero_fuzz_final_hashes": "PASS three files",
+  "manifest_sha256": "616aa896bd89c009f89c367d724a690b0debdf0550889accc15d0e6161337b31",
+  "other_static_observations": [
+    "all three explicit seed constructors get actual owner, and struct-update test carries it by clone",
+    "owner type is crate-visible and pointer Eq; Arc clone/lifetime appears valid",
+    "new NormalSourceOutcome gate requires both owners present and ptr-identical before existing origin/baseline/image/config checks",
+    "no product, Cargo, Git or GO action"
+  ],
+  "patch_sha256": "31d44ad9ad2c8136bf979679e4794eacaf29714b427dee79e21db94c21472148",
+  "potential_resolution": "immutable successor with explicit PartialEq/Eq preserving comparison of origin/config/baseline/logical_input only, while normal_source_outcome_graph retains a separate present ptr-equal analysis-owner guard; or isolated Normal-only wrapper",
+  "sole_concrete_blocker": "OriginalSourceTransitionSeed derives PartialEq/Eq; adding Option<Arc<OriginalSourceAnalysisOwner>> changes comparison from existing four fields to include analysis-owner pointer identity. source_read_scope.rs:31 uses whole-seed equality for cache reuse; declaration_flow.rs:73 includes source_seed in DeclarationFlowInventory equality. These are non-Normal purpose/cached/global comparison policies explicitly meant to remain unchanged.",
+  "status": "STATIC_BLOCKED_IMMUTABLE_SUCCESSOR_REQUIRED",
+  "typing": "UNRUN",
+  "utc": "2026-10-23T06:40:02.391817+00:00"
+}

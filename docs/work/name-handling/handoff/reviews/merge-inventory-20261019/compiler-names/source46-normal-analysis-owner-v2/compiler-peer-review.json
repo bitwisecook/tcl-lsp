@@ -1,0 +1,15 @@
+{
+  "verdict": "bounded static authority/type/access/lifetime CLEAR; typing/runtime UNRUN",
+  "proposal_sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+  "checks": [
+    "All three complete seed constructors borrow actual analysis owner from same binding, retained payload owner or already authenticated declaration owner; struct-update test inherits existing owner.",
+    "Normal query requires Some seed/binding owner pair with Arc::ptr_eq before unchanged source origin/baseline/current-image/config guards. Missing/foreign refuses; no reconstruction/fallback/authority grant.",
+    "Manual seed PartialEq/Eq retains exactly old four field comparisons in declaration order; new attachment excluded. No global equality/cache policy changes.",
+    "Retained owner contains source/metadata/config only; no seed or derived memo ownership, so new strong Arc does not form a direct cycle. Existing allocation memo weak ownership remains unchanged; runtime retention tests still required.",
+    "Three-file zero-fuzz independent shadow apply and pinned rustfmt syntax/check PASS; old assertions preserved; genuine distinct owner/equal syntax seed/missing/foreign owner controls added."
+  ],
+  "limits": [
+    "No Cargo/Rust typecheck/test execution or runtime lifetime acceptance.",
+    "V1 derived-Eq regression remains held and superseded only by explicit v2."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T06:51:07.123689+00:00",
+  "verdict": "CLEAR bounded static puretrace Option/order/access review; untyped/unrun",
+  "patch_sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "before_sha256": "75e692fbba7f452e3e1422a470bbc0c1b4bbe8214c2bcb9e7ab1841f63fc7d13",
+      "after_sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/script_binds.rs",
+      "before_sha256": "47f424ab367030b737ca70ccc6680cf4ff11cec312059506796301ad88bf90d1",
+      "after_sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee"
+    }
+  ],
+  "checks": [
+    "Independent2currentbefore/final, zero-fuzz/no-offset shadow apply and pinnedfmt2024 skipchildren PASS.",
+    "Both private generic helpers return original Option<T> unchanged; logging cfgtest plus dedicated env only, stage consumed cfgnotest.",
+    "Function-flow/or_else fallback/recipe/requiredflow/potential query evaluation and ? shortcircuit order retained; wrappers do not invoke a query on skipped paths.",
+    "Entry prints only Copy ProcedureBodyKind, immutable dynamicwrites and already-issued physical missing count; candidate logging uses only fields yielded by the existing declared_absence_warning_occurrences iterator.",
+    "Recipe source/input/config/realm/currentness/recordedcommand/bodyspan/body source checks remain unchanged; no lexical/Name/Native/currentness fallback or authority edit.",
+    "No assertions, tests, Eq, MAY/definite warning policy, source-purpose roles or predicates changed."
+  ],
+  "limits": [
+    "Actual independent declared-read firstrefusal still unmeasured. Puretrace does not repair or prove cause for current3RBSFAIL.",
+    "No canonical/source/Cargo/Git/GO/newrunner executed or silently composed."
+  ]
+}

@@ -1,0 +1,9 @@
+Bounded static peer, 2026-10-23 UTC. No canonical source edits, Cargo, Rust typing, or runtime acceptance.
+
+SH21 producer-stage diagnostic: /tmp/compiler-sh21-producer-stage-diagnostic-v1/proposal.patch
+SHA256 26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398
+Static CLEAR for diagnostic-only scope. Generic Option wrapper returns the same moved value; bool wrapper is still inside the original && short circuit. CommitState is Debug. The patch adds env-gated stage logs for already-computed inputs and the original scalar-loop fixture; no assertion, diagnostic predicate, or production effect changes. Typing and selector execution unrun.
+
+Names var-escape fixture owner: /tmp/compiler-names-var-escape-fixture-owner-v2/proposal.patch
+SHA256 3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150
+Static CLEAR for fixture ownership only. CompilationUnit::original_procedure_for_body returns a reference from Module named and retained body-unit stores. The pointer-equal check compares against the same held Module rows; it cannot accept a same-label foreign clone. Unique label, procedure ID ownership, and Named/OriginalDeclaration kind remain required. The IR-only path continues to select named rows. The optional environment trace is observational. Actual row25 Frame verdict, typing, and runtime remain unrun.

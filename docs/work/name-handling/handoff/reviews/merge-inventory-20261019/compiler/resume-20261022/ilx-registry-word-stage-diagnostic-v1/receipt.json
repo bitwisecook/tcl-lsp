@@ -1,0 +1,20 @@
+{
+  "status": "off-tree pure diagnostic; syntax only, untyped/unrun",
+  "patch_sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "after_sha256": "ba6f4583192b96329dc8f58c9cdb1d64a615b428a694ef363e82d5f4a335eb5a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "before_sha256": "16d15d0055e127742034a7e2e47e7581f6f6d5581e042684e536a7ea3c1b2972",
+      "after_sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed"
+    }
+  ],
+  "env": "cfg(test) and existing TCL_LSP_TRACE_REMOTE_FIRST_OPERAND",
+  "contract": "Option and bool identity helpers retain original return value; each original queried expression once, ? ordering, short circuit and no-fallback present lookup branch unchanged; no assertions/tests or authority edits",
+  "scope": "exact source_registry_words_at ingress, shared source image/config/barrier/binding, innermost vendor occurrence selection and metadata, present lookup classifier vs absent current body/catalogue/prefix joins",
+  "limits": "actual first declining producer not yet measured; no new runner/GO; existing ORIGINAL_CHILD_GUARDS may supplement future same-product diagnostics"
+}

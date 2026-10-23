@@ -1,0 +1,31 @@
+{
+  "actual_utc": "2026-10-23T06:52:48.284503+00:00",
+  "started_utc": "2026-10-23T06:52:36.810594+00:00",
+  "scope": "Supported Node26 OFFTREE two-JSON proposed layout TypeScript only; no shipping/host admission",
+  "node_version": "v26.12.1",
+  "node_path": "/workspace/naming-toolchains/node26/bin/node",
+  "node_resolved_path": "/workspace/naming-toolchains/node26/bin/node",
+  "node_sha256": "08f12d42fb304468e8ee86247fe686aae5b225836ea65e9d6566c11ae6ba2e8e",
+  "argv": [
+    "/workspace/naming-toolchains/node26/bin/node",
+    "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/typescript/bin/tsc",
+    "--noEmit",
+    "--incremental",
+    "false",
+    "--pretty",
+    "false",
+    "--project",
+    "tsconfig.json",
+    "--listFiles"
+  ],
+  "exit_code": 0,
+  "budget_exceeded": false,
+  "log_bytes": 44425,
+  "log_sha256": "c0dbf5460bd0ddae426a3ff1e4037133460b94e7f1c459452224dd5e1171e841",
+  "actual_input_count": 12803,
+  "actual_unchanged": true,
+  "shadow_unchanged": true,
+  "tsc_input_count": 451,
+  "tsc_inputs_equal_prior_node24": true,
+  "non_input_output": []
+}

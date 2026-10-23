@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T06:39:29.566053+00:00",
+  "verdict": "CLEAR bounded static fixture/assertion review only; authentic Logical dual-role positive UNRUN, not integration-ready solely on this review",
+  "patch_sha256": "86ebb8c496789a558438ba671bc023e00836d3843842b88f23c6c906e483e217",
+  "before": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+  "final": "4c5a0b20b7e58ecc0028999dd2543c2529403a6d3704b67cdf91e3cb8548db3d",
+  "checks": [
+    "Independent exact current before/final, zero-fuzz/no-offset shadow apply, pinnedfmt PASS.",
+    "Original dual-role test complete assertion tail byte-identical. Original aliases.tcl/tcl8.6 fixture retained in added complete-unique-inventory/full-Equal control.",
+    "No production or source-role/publication/Native/compiler/registry admission changes. New testcase requires successor selector count."
+  ],
+  "static_issuer_support": [
+    "Lowerer::try_dispatch_structured_hook routes nonbytecode target through existing logical_structured_invocation; supported Proc uses lower_proc and genuine Named registration unless suppress_proc_register.",
+    "Existing NamespaceEval walk retains literal body NamespaceScript with span at actual body source value and declaration_site at source.base. A single proc body with no padding can geometrically share the proc declaration span/site.",
+    "This is a possible existing producer route, not proof that exact Logical input reaches each guard: logical metadata selection, namespace owner, retained source, Named registration and complete current report remain actual Rust premises. No additional concrete static blocker identified in bounded path review."
+  ],
+  "limits": [
+    "Current measured source46 native aliases inventory has no requested Named/NamespaceScript pair, so prior fixture premise absent; collector loss not established.",
+    "New exactLogical fixture untyped/unrun; retain positive assertions as a genuine gate and report failure if no pair issued. No theorem that change fixes actual alias failure.",
+    "No source/Cargo/Git/GO or silent composition with Installed candidate."
+  ]
+}

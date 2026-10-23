@@ -1,0 +1,2257 @@
+[
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es5.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es5.d.ts",
+    "sha256": "6388847232654d7fcbed7fe89ea511a65ad1f5104b41e905c43f90910e1408b6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.d.ts",
+    "sha256": "3f88bedbeb09c6f5a6645cb24c7c55f1aa22d19ae96c8e6959cbd8b85a707bc6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.d.ts",
+    "sha256": "7fe93b39b810eadd916be8db880dd7f0f7012a5cc6ffb62de8f62a2117fa6f1f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.d.ts",
+    "sha256": "bb0074cc08b84a2374af33d8bf044b80851ccc9e719a5e202eacf40db2c31600"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.d.ts",
+    "sha256": "1a7daebe4f45fb03d9ec53d60008fbf9ac45a697fdc89e4ce218bc94b94f94d6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.d.ts",
+    "sha256": "f94b133a3cb14a288803be545ac2683e0d0ff6661bcd37e31aaaec54fc382aed"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.d.ts",
+    "sha256": "f59d0650799f8782fd74cf73c19223730c6d1b9198671b1c5b3a38e1188b5953"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.dom.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.dom.d.ts",
+    "sha256": "d6b1eba8496bdd0eed6fc8a685768fe01b2da4a0388b5fe7df558290bffcf32f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.core.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.core.d.ts",
+    "sha256": "770011bd32a52f929fc98fbf9976c1fa9d80b6445171c02b08627fdba9778933"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.collection.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.collection.d.ts",
+    "sha256": "f0b6b1d3624fb143656dd86a8dd3e1950b7e65f218319b47bde52f65d47e2e4b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.generator.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.generator.d.ts",
+    "sha256": "00343ca5b2e3d48fa5df1db6e32ea2a59afab09590274a6cccb1dbae82e60c7c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.iterable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.iterable.d.ts",
+    "sha256": "ebd9f816d4002697cb2864bea1f0b70a103124e18a8cd9645eeccc09bdf80ab4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.promise.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.promise.d.ts",
+    "sha256": "2c1afac30a01772cd2a9a298a7ce7706b5892e447bb46bdbeef720f7b5da77ad"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.proxy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.proxy.d.ts",
+    "sha256": "7b0225f483e4fa685625ebe43dd584bb7973bbd84e66a6ba7bbe175ee1048b4f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.reflect.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.reflect.d.ts",
+    "sha256": "c0a4b8ac6ce74679c1da2b3795296f5896e31c38e888469a8e0f99dc3305de60"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.symbol.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.symbol.d.ts",
+    "sha256": "83e3871cda2abd4421970fa923cca51a9ce8cdbece6f898285643ab030cb80f3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.symbol.wellknown.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2015.symbol.wellknown.d.ts",
+    "sha256": "c5079c53f0f141a0698faa903e76cb41cd664e3efb01cc17a5c46ec2eb0bef42"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.array.include.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.array.include.d.ts",
+    "sha256": "32cafbc484dea6b0ab62cf8473182bbcb23020d70845b406f80b7526f38ae862"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.intl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2016.intl.d.ts",
+    "sha256": "fca4cdcb6d6c5ef18a869003d02c9f0fd95df8cfaf6eb431cd3376bc034cad36"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.arraybuffer.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.arraybuffer.d.ts",
+    "sha256": "b93ec88115de9a9dc1b602291b85baf825c85666bf25985cc5f698073892b467"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.date.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.date.d.ts",
+    "sha256": "f5c06dcc3fe849fcb297c247865a161f995cc29de7aa823afdd75aaaddc1419b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.object.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.object.d.ts",
+    "sha256": "b77e16112127a4b169ef0b8c3a4d730edf459c5f25fe52d5e436a6919206c4d7"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.sharedmemory.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.sharedmemory.d.ts",
+    "sha256": "fbffd9337146eff822c7c00acbb78b01ea7ea23987f6c961eba689349e744f8c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.string.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.string.d.ts",
+    "sha256": "6aaeba1e4f228fda4e9175e34d96807e2c6dc984d0b37a772b3af9365a456681"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.intl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.intl.d.ts",
+    "sha256": "c7b3542146734342e440a84b213384bfa188835537ddbda50d30766f0593aff9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.typedarrays.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2017.typedarrays.d.ts",
+    "sha256": "ce6180fa19b1cccd07ee7f7dbb9a367ac19c0ed160573e4686425060b6df7f57"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.asyncgenerator.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.asyncgenerator.d.ts",
+    "sha256": "3f02e2476bccb9dbe21280d6090f0df17d2f66b74711489415a8aa4df73c9675"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.asynciterable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.asynciterable.d.ts",
+    "sha256": "45e3ab34c1c013c8ab2dc1ba4c80c780744b13b5676800ae2e3be27ae862c40c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.intl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.intl.d.ts",
+    "sha256": "805c86f6cca8d7702a62a844856dbaa2a3fd2abef0536e65d48732441dde5b5b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.promise.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.promise.d.ts",
+    "sha256": "e42e397f1a5a77994f0185fd1466520691456c772d06bf843e5084ceb879a0ad"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.regexp.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2018.regexp.d.ts",
+    "sha256": "f4c2b41f90c95b1c532ecc874bd3c111865793b23aebcc1c3cbbabcd5d76ffb0"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.array.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.array.d.ts",
+    "sha256": "ab26191cfad5b66afa11b8bf935ef1cd88fabfcb28d30b2dfa6fad877d050332"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.object.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.object.d.ts",
+    "sha256": "2088bc26531e38fb05eedac2951480db5309f6be3fa4a08d2221abb0f5b4200d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.string.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.string.d.ts",
+    "sha256": "cb9d366c425fea79716a8fb3af0d78e6b22ebbab3bd64d25063b42dc9f531c1e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.symbol.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.symbol.d.ts",
+    "sha256": "500934a8089c26d57ebdb688fc9757389bb6207a3c8f0674d68efa900d2abb34"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.intl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2019.intl.d.ts",
+    "sha256": "689da16f46e647cef0d64b0def88910e818a5877ca5379ede156ca3afb780ac3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.bigint.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.bigint.d.ts",
+    "sha256": "bc21cc8b6fee4f4c2440d08035b7ea3c06b3511314c8bab6bef7a92de58a2593"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.date.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.date.d.ts",
+    "sha256": "7ca53d13d2957003abb47922a71866ba7cb2068f8d154877c596d63c359fed25"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.promise.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.promise.d.ts",
+    "sha256": "54725f8c4df3d900cb4dac84b64689ce29548da0b4e9b7c2de61d41c79293611"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.sharedmemory.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.sharedmemory.d.ts",
+    "sha256": "e5594bc3076ac29e6c1ebda77939bc4c8833de72f654b6e376862c0473199323"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.string.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.string.d.ts",
+    "sha256": "2f3eb332c2d73e729f3364fcc0c2b375e72a121e8157d25a82d67a138c83a95c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.symbol.wellknown.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.symbol.wellknown.d.ts",
+    "sha256": "6f4427f9642ce8d500970e4e69d1397f64072ab73b97e476b4002a646ac743b1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.intl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.intl.d.ts",
+    "sha256": "db839fa0625981ae6e20a55e079c3613184310ca246879245b294573e7cc6926"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.number.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.es2020.number.d.ts",
+    "sha256": "b7bf9377723203b5a6a4b920164df22d56a43f593269ba6ae1fdc97774b68855"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.decorators.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.decorators.d.ts",
+    "sha256": "1ce14b81c5cc821994aa8ec1d42b220dd41b27fcc06373bce3958af7421b77d4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.decorators.legacy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@typescript/typescript-linux-x64/lib/lib.decorators.legacy.d.ts",
+    "sha256": "b3a048b3e9302ef9a34ef4ebb9aecfb28b66abb3bce577206a79fee559c230da"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/vscode/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/vscode/index.d.ts",
+    "sha256": "e3626ef3fe8a2d6a21c55f64ebc0bfb0e2429821e8296d76541bdea897c88f9c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-types/lib/umd/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-types/lib/umd/main.d.ts",
+    "sha256": "45bfcb0ae2d9b834478172ed3f1d0466e3ee602bdaa2a43d6ffbb11f3c6c606c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/typings/thenable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/typings/thenable.d.ts",
+    "sha256": "65b9243c80068ec9696b1fbdd23c9acf80d51df02f97b2d7a0514312b0a9fe7d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messages.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messages.d.ts",
+    "sha256": "b716daa9737308e83fc9d3826cac21b3a6c12ff420b5e89415d1ca396616f1b6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/linkedMap.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/linkedMap.d.ts",
+    "sha256": "10884636f0702390dbaee15bc8837d258174ce41dc4d4ce447da3e4c2fe785c1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/disposable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/disposable.d.ts",
+    "sha256": "f0745ab78e18a2befaf1d9951481973318722c4e2f33e859239f55fa999ff2b1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/events.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/events.d.ts",
+    "sha256": "886e183dd0199e7de45d6308ac3e2185dac6f83283d1b8200ea62cf5c43966a1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/cancellation.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/cancellation.d.ts",
+    "sha256": "392dd7b1117b588cba36c04909efd24b0458980506e8e8c1966114f8989058e2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/encoding.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/encoding.d.ts",
+    "sha256": "e445daedeac3005da51d0a3e3258be16096e1c0116701e8979272aaf7aba5fb4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/ral.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/ral.d.ts",
+    "sha256": "2d79ae695899e28c4dba32ba39268a1eafc556f3f183175a355424fae553585a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageReader.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageReader.d.ts",
+    "sha256": "3ca7b2e8012b9a6be09fafd62f8f3937388b9e1600a59c98887d2b11f6d01b43"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageWriter.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageWriter.d.ts",
+    "sha256": "b138b3f30708386023a7dc9981bb867808e5ff3383429ac7f69b7bfd0dcc5bd5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/connection.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/connection.d.ts",
+    "sha256": "86beb461bcefd29f17e932d32affa1dd08ab05ceb80c00befebe67bf5072f608"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/sharedArrayCancellation.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/sharedArrayCancellation.d.ts",
+    "sha256": "13ec544ab0a3a7ff96afac1016f55b264c812428e37d595dc33b688296435469"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageBuffer.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/messageBuffer.d.ts",
+    "sha256": "4962729121c2cb97a4481cdb06dfc720a79a3bc2fc9330ff2bcf604cfc541177"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/api.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/common/api.d.ts",
+    "sha256": "3d6103a9369b34873198bae0db9745986046f20eaa8e805d81886e8982f49554"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/messages.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/messages.d.ts",
+    "sha256": "314e163c01f500cd8839b7b6b63bbafc6e19ecf1db3ce173ad9974db0e849652"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.implementation.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.implementation.d.ts",
+    "sha256": "35f51f653c604789621b71ad2354a455c06866051df3fc63f5b2041c375baa1f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeDefinition.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeDefinition.d.ts",
+    "sha256": "bc63b89f8a78cf3cc92da770d5959fcd826431722c04610974774d4c72e79cc9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.workspaceFolder.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.workspaceFolder.d.ts",
+    "sha256": "4ed894cef26f187c962dc7a2a60a4f4979556f6799d57467491e55a000832ec2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.configuration.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.configuration.d.ts",
+    "sha256": "0b886abf1ff530bce42f482a93a5473b49d157f14d5acfc5ced95c656fbeb7f3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.colorProvider.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.colorProvider.d.ts",
+    "sha256": "c61b13894b2a867c8e69167b588089fd0233f066bbabf3963ac9c606587a1abc"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.foldingRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.foldingRange.d.ts",
+    "sha256": "e03c0c408a16ed2e409edbb63d3fd5659bf9bfff2721a329c5c1d495fe2513b4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.declaration.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.declaration.d.ts",
+    "sha256": "8d3017f75d33752b1b36c69a39ef08a95887f7f2928140a2052efdefe3a58985"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.selectionRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.selectionRange.d.ts",
+    "sha256": "5d010955dc6693b4ddba5205401aa5e821f0626bd5d6b5279d39c871208d4f00"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.progress.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.progress.d.ts",
+    "sha256": "0dadbdf0647b2dc26765d394ac3c7d5693ed9b36557a01595085cff812c1b825"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.callHierarchy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.callHierarchy.d.ts",
+    "sha256": "f2aaa07eb5bdc56d6dafbd2a9c735a136685695d1e4ff50000ba4334cf38da6c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.semanticTokens.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.semanticTokens.d.ts",
+    "sha256": "5d4739c690eb0346c2f430d538a7765545981b9491ff4b9f363196dbb9f188be"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.showDocument.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.showDocument.d.ts",
+    "sha256": "b3e86f924d971ee334322a69209c701172154e2fba5cc8f11f80adc409fa7c58"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.linkedEditingRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.linkedEditingRange.d.ts",
+    "sha256": "4e210d8673d0f40c58458bb2d31d88331d5cb822ffde2254495deb02c1cb2ce3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.fileOperations.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.fileOperations.d.ts",
+    "sha256": "e42bc288f2b6da726f1fe25ffeef1de1e25875b042a79f1196e346c347dc4c72"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.moniker.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.moniker.d.ts",
+    "sha256": "b50b9341ed4c8ad2be71dc9db0df0876a94b725d85d7b386081821960bb224de"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeHierarchy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.typeHierarchy.d.ts",
+    "sha256": "5a79813b0bd53357fd38ea9f9fda40ae5417e036378ef5c8411d7347c7ee3b53"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlineValue.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlineValue.d.ts",
+    "sha256": "5bbab766e28b4b5e9b34e00bbd61a430482cee970e0726f8002dd0fbcd1217d3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlayHint.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlayHint.d.ts",
+    "sha256": "cb23314fdef785bfa7edfe75f266c87d70315073650a87b1171d515a940caa18"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.diagnostic.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.diagnostic.d.ts",
+    "sha256": "35cb44d951773bce684c25056607bb2eb4b841e018764ae96eff46714db559ed"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.notebook.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.notebook.d.ts",
+    "sha256": "a9772b6d1e18d1f2025398abe3f58fd543cd2a09f73469d544e6e40e78906d92"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlineCompletion.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.inlineCompletion.d.ts",
+    "sha256": "b820c4ff02501e40952c68b67a46751d2879204c754620a15e9cd484e3e3ce48"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.textDocumentContent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.textDocumentContent.d.ts",
+    "sha256": "65e62f1fa4b31ef01d496d3742c8c8c5e1459697f2300ff860f48635a65ed9bb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/protocol.d.ts",
+    "sha256": "312aa2d9a11c3054a39154c4a427fe75c03cb155e07884088b34da9eae6f954b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/connection.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/connection.d.ts",
+    "sha256": "9522c69b0702952d70da225b68d1a7200fc471e4913400b86efd2a17888c4ec2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/api.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/common/api.d.ts",
+    "sha256": "63737e468dd56f09a5ad291cae1a69a49ce01cfe989e23698142f2741637af87"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeConverter.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeConverter.d.ts",
+    "sha256": "ee5828b74ee4850bd4ac526336f166ec4fb31225b89f624dec8c46372da6efbf"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/protocolCompletionItem.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/protocolCompletionItem.d.ts",
+    "sha256": "8479e373e70dedc75d9b1250a349e1efc4553af8a76bbd2ab4de7d9923fb6d1a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/protocolConverter.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/protocolConverter.d.ts",
+    "sha256": "b9180c9d99a005e4ef05a679bb791a6021d00e1c3bf1e25971f1223e7cfc3e3c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/semanticTokens.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/semanticTokens.d.ts",
+    "sha256": "d7a0eb5c9aff2237ec7b74a8d40e4221e5c0ef95019114e4a445eecf8f3d5946"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/textSynchronization.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/textSynchronization.d.ts",
+    "sha256": "b9462fd1050f9cd7e49f1eb1f7b04b4f78034d0636aa6be6880b299eb493f98e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeLens.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeLens.d.ts",
+    "sha256": "60b8f65e5b284d227703049631c2036b316f6817cb0a3bd852f0240c27ac4363"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlineValue.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlineValue.d.ts",
+    "sha256": "c622ad13436ffac4846b869d66f21d4bb03b63f31e47934583e74e6571fdf521"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlayHint.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlayHint.d.ts",
+    "sha256": "6c0be507367837c0449618753b1ebf00fbd45362e6ea04897976170e6a291a53"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/diagnostic.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/diagnostic.d.ts",
+    "sha256": "959fa4518a31f28b02757026756354b6aaf0cfec98ae13d64f4cc88c5156668f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/notebook.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/notebook.d.ts",
+    "sha256": "a4accde8ec7bef525e8a33a73ea231c49525ee3098720a5d05f9f6c368c1cb53"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/foldingRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/foldingRange.d.ts",
+    "sha256": "ad5d3eb976860a0f380cef464c8a01ec9beecce1f91492feeda43a4b700bb1e9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/features.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/features.d.ts",
+    "sha256": "47bc985f7f3285c97ea6e0e8ec3e17704bddb097c4d5f6642372d566a66fa67d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/callHierarchy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/callHierarchy.d.ts",
+    "sha256": "44263a5f285acc47f07cfa058edd282d7d06b026d85741b436372165337d6d2e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeAction.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/codeAction.d.ts",
+    "sha256": "45459fc16ff9221d07dbd1d661cb22fc9e98d6c4a62fd7e6889777d726ae1d4f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/colorProvider.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/colorProvider.d.ts",
+    "sha256": "542178afcf014b2eab72333f205fc2ccc41217495bcc4cc1ed6e60ad9f1bd11b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/completion.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/completion.d.ts",
+    "sha256": "3f89dd0b5281bb1bcfe8207f88ecfa4d8de5388088f54cb012696f259d0f342c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/configuration.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/configuration.d.ts",
+    "sha256": "734b1af30c0d9b9bcaff2b34d054e678c81c817bed2465881a7e8fb6123d4768"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/declaration.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/declaration.d.ts",
+    "sha256": "bd217bd008c0e8ec5332b6e905768fbadb3d925991dbf821307effd330e182d8"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/definition.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/definition.d.ts",
+    "sha256": "6a74f94c6f4282c5d0689e9b3edc08c6f744e7be8447e915c61aadd81339fe54"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentHighlight.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentHighlight.d.ts",
+    "sha256": "ecb2d23ac823bf3c5d6735a973006fff1a0a1a5b5a5290f102426ffa00adda68"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentLink.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentLink.d.ts",
+    "sha256": "eb314a7ab84c4f504444b53ec2b2d2557b0a06d79a7ce98e9bd2608cee5f946d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentSymbol.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/documentSymbol.d.ts",
+    "sha256": "536044ec95d80b94b1fc6301205a0c8fe53887851d39a61d4d3c5564a6dd51eb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/executeCommand.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/executeCommand.d.ts",
+    "sha256": "a2b1215f71201f02efd3a570e595760da442a3389c12c7d1bb62c92fea5c708c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/fileOperations.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/fileOperations.d.ts",
+    "sha256": "c1f3c03f1f5490a85e187962879ffe318532eb49ca455d02d0bf2dfa2d139803"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/formatting.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/formatting.d.ts",
+    "sha256": "1daabb5e01f77b0a2bf0c000dad976738eb98624a9206832c5f8c420df8eb4e3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/hover.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/hover.d.ts",
+    "sha256": "46a2abc591dbc99debdb61cd1d25cfd80dd2fba1b9d341abb422a6e40e43449c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/implementation.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/implementation.d.ts",
+    "sha256": "d331cdb16cfded5638a2fcce3edb40452afbc3b486c5f0286af44a1aedb7a345"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/linkedEditingRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/linkedEditingRange.d.ts",
+    "sha256": "270314b700dfa1219abce94c5d46da873bfc958129426645ceff8cf559c2fec3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/reference.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/reference.d.ts",
+    "sha256": "500ab366288ecf09ec637b0d984d41c6dd3ad8115c83da8ab9e004e3e63aa8bd"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/rename.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/rename.d.ts",
+    "sha256": "83567a9792c293d0f9d90feb9918e88b454ee8544e3d0ea06f9454477df010d1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/selectionRange.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/selectionRange.d.ts",
+    "sha256": "b355f2c3451ebc59d3b2fe47346f6a55da91dbcb9f2ad3b48b6bb5173fe77bb1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/signatureHelp.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/signatureHelp.d.ts",
+    "sha256": "404d27a1f6dffc4dfbfeffcf483931faa4efd392a8b46c7e0ed9c1cb59f7ad15"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/typeDefinition.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/typeDefinition.d.ts",
+    "sha256": "7429792de33c2c59148b2a26f29b26dda256a8d29e9f7b08d4aa5835f8b5e39f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/workspaceFolder.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/workspaceFolder.d.ts",
+    "sha256": "9bca6e3fe604dac509fba90de79ba9c62b3880395ae9a4cfe9712b4d9530a36b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/workspaceSymbol.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/workspaceSymbol.d.ts",
+    "sha256": "394ecd2838c8c55972676fe04b930bb32cd7aa0e8b7761b15527e71179bc2684"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/typeHierarchy.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/typeHierarchy.d.ts",
+    "sha256": "ad1b3bd08ca8324397bc685efca46a670d9d5bb379a7f805984da8d07e2107a1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlineCompletion.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/inlineCompletion.d.ts",
+    "sha256": "d2e6657a0090c942f11a78798accf567a99215f047b5eef63c00115a90322b5e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/textDocumentContent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/textDocumentContent.d.ts",
+    "sha256": "b22d777de15ac1cb5a08bc2e453cc8f870f05e82bf1f4a47ba7e381bdd1a9f06"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/client.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/client.d.ts",
+    "sha256": "4b554c3d8af8b7cfd44f86ee9eda921de22cbe56ef769c0811822e5073c1b9c3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/api.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/common/api.d.ts",
+    "sha256": "8ab6e4415cb4e8a57a7e2bc3731866c29d797aaa7821cb9d16b1172344bb8182"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diffAnalysis.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diffAnalysis.ts",
+    "sha256": "1a0a1e1a45c108ef0effe9e9140228554469e8f0c379e533b99da18a401cd6fe"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/languageIds.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/languageIds.ts",
+    "sha256": "7166bfd5d874fcd6a5f110bb33d1400a55fa1d781e7ac40378abc8aabe9295fb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/node/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/node/main.d.ts",
+    "sha256": "d44b4a42fb3d0bc8155d1a071ea6e9819e434d3e87f13e96d6231b2b1bd8d466"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/node/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/node/main.d.ts",
+    "sha256": "11a2d877642af78f59d863bc51ef9c0ead3ce5ff93d3f7472fe2edf1f67ae8a3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/node/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/node/main.d.ts",
+    "sha256": "52139f9b8f2e19136e07975b323a21acbf37a8bed9a428d97c6bd805d2e6962f"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/types.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/types.ts",
+    "sha256": "a7236c8295bd7593177881919bfa94a8aaafbf6434201ebfa1d8c99d5ca7ca44"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/dialectCatalog.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/dialectCatalog.ts",
+    "sha256": "e281b34d40ba004411b1f03fa21de95b2df076bca6d41c04a60276f7cc62e0fd"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical/diagnostics.json",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical/diagnostics.json",
+    "sha256": "17168a9ce3c8f9b58fc1a93db78e543e34e265d36aca8a219e90f4dd0b12121b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonicalDiagnostics.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonicalDiagnostics.ts",
+    "sha256": "97302eb4ac61ab709eb288c040722c7568afcad15f6f9292ddbd98f6e75607a5"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/documentTransform.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/documentTransform.ts",
+    "sha256": "849357813dea10e725e55323070cf2e18814f23acdedcaed31307f0ab6ee17da"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/diagnosticAccess.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/diagnosticAccess.ts",
+    "sha256": "0bfa3134e76a3f10836c3238661d5fc71a12b2481e5163ddd923412cc0264218"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/codeUtils.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/codeUtils.ts",
+    "sha256": "705e5de26c14ed45cfa6b74be18d18157e0e678f3e83c80bf0fc10f9e091dcef"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/codeActionSource.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/codeActionSource.ts",
+    "sha256": "7ed4dcc16476f19cf85c60e48e9fc4c1ba4684667704fe78da1c2f8547593973"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/clientCore.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/clientCore.ts",
+    "sha256": "722e7dba3cbb3320e05020b05ff7d35da3b76bd1eb3a8044afc742b8f5f35f87"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/bigipSourceActions.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/bigipSourceActions.ts",
+    "sha256": "da819d5195dd780c71a8bef9d0eb993cbd81b8459647f1e171962ea46feafccf"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/compilerExplorerHtml.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/compilerExplorerHtml.ts",
+    "sha256": "45a3af0492ab2041726e99e0f855ba552ed35068d3b8bcefd95f12077116962f"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/packageRequire.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/packageRequire.ts",
+    "sha256": "e8e6b83ac639a20db85bb642e6de6744961dc61540c9f878e83d076243d22029"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diagramPanelHtml.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diagramPanelHtml.ts",
+    "sha256": "05bd4f4ca1b54e403229098f4c1b7608189041d49334ab92b1e8aad7311b3ef4"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diagramPanel.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/diagramPanel.ts",
+    "sha256": "23dd1e8c14c4485b4222f5e23a8964b57fbcc74cbe25aba9355dc4c63a0a57df"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/fileUriPathPolicy.json",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/fileUriPathPolicy.json",
+    "sha256": "55206a06d3442f0726c5de1ae113bfd79e87d9294f707da967b3bb290b9f7fc9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/serverResolution.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/serverResolution.ts",
+    "sha256": "8ef46991cf72064e9c96a62b9671c73f9a322cfbcf4b834349631c53768944c6"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/selectionTransforms.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/selectionTransforms.ts",
+    "sha256": "20c42367db42e4a483b6fc96e840752db2f142a2f048fd2e3ee556ab8a6ddcfe"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical/manifest.json",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical/manifest.json",
+    "sha256": "12447e3bc7664bfe06ca9e705f29d207d48a906665e232ed1b87eddb08a465e8"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/promptLoader.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/promptLoader.ts",
+    "sha256": "644854be16f4e9c1fcfad7952e4e55d510fc136ac382eaa4cb3e2442684c96a5"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/contextPack.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/contextPack.ts",
+    "sha256": "42d4e4c3a830f23575fbefa0c81415ca77f248e4d07bc638d8aaa6fe20e3d014"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/agenticLoop.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/agenticLoop.ts",
+    "sha256": "bc7c93786c4346e5aec430b16a9b14c885a96fb6a74094815e793210a45aa368"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/create.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/create.ts",
+    "sha256": "ec4f0e8fb9b30ef726a2343e515af966797021173c40c64d11f3db6370eed7db"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/explain.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/explain.ts",
+    "sha256": "6bf5a409dfccc3f507eeae4086f236eeda8385dcac7f8b09643335e400da2afc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/fix.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/fix.ts",
+    "sha256": "7b6ccbcdbc7326bc1ac3cb0f9f8f8342f8e7ae2b613d93c41e56ad59ed214044"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/validate.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/validate.ts",
+    "sha256": "171b8f8971706cc5e5ba9a560770a25d1aca6d06cd97537271b3bda5c3e7f300"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/review.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/review.ts",
+    "sha256": "19ba8883ad2c1078bc4354273039c1d1fd62d9bc79f5b0ac12f9a75565508785"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/find-legacy.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/find-legacy.ts",
+    "sha256": "5c5a8de6474a10d983a38b21a3782ba8f203ddf8ee9e28e8807838fb62c62b04"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/optimise.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/optimise.ts",
+    "sha256": "59360a846ea194325a3b048349c07a250a007653eaed844d2cbcc8ef96852530"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/iruleEvents.json",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/iruleEvents.json",
+    "sha256": "52eff576e117628f077b517232a7593c5b0890b97c064f50f5a8379bbe89bd56"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/iruleSkeleton.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/iruleSkeleton.ts",
+    "sha256": "b4bfe583c92001b15c84ae0c940940e694a602f0acc2308dab74ec9f9e104de8"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/scaffold.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/scaffold.ts",
+    "sha256": "28142642f25d0f26b461917e0c8b7f91a69af0015328efbc7055d675149c2187"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/datagroup.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/datagroup.ts",
+    "sha256": "bdd004b094aceea2be9eefe0230ce05389ced998ebfefaee898eb76fd154bf20"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/diff.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/diff.ts",
+    "sha256": "f49dd88bcfe0fa7ea34b124c62f1160719f5f3086328565181cf88c91d4ab713"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/event.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/event.ts",
+    "sha256": "f6ce7a4b097e0c8952b73a11435d30311f9d2c4839579adf018309f74268ec6a"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/migrate.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/migrate.ts",
+    "sha256": "447d295b5389594b3c126fd1028ab3e3683c2f561752398ccb47bb85a917da6e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/diagram.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/diagram.ts",
+    "sha256": "461084824724c1461b6224352107cbacb3890270e3a2ce85194a56a81726cfe5"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/test.ts",
+    "sha256": "b3eb97e28a3ba12bbb91169ebacace4027d2f37b8d05a5dff35406a39160ed1d"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/xc.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/xc.ts",
+    "sha256": "d4b8aef424bf60ea9736de3c8065859d8d070a53bcaaea095875e5b761981b9a"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/help.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/commands/help.ts",
+    "sha256": "500a84b1be87679eda143c00e7dcce1fe4e64da632ddd23709c144411c96efdc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/iruleParticipant.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/iruleParticipant.ts",
+    "sha256": "1f251d269fc73b6e6b0904f6e2f21ec9f0a56c8f2a8e16ee800a9f52a190e741"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tclParticipant.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tclParticipant.ts",
+    "sha256": "2111b3c89f733b1e8a44663d1040daef2a44d1122e97aadc59bb643891fbabfc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tkParticipant.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tkParticipant.ts",
+    "sha256": "a6f8225656847a2292879d54788a1d7a1e31763cc50032618e7485f0bed21661"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/runtimeValidation.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/runtimeValidation.ts",
+    "sha256": "3edb10a12949d8ec657df8c139f8ded3b616a0a19adc9a3c36b3903d0b8379ff"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/showReferences.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/showReferences.ts",
+    "sha256": "35b25f2dca7705ef1dc2b1f2c0df3cd0f0ea76210aa1cf1d4a830ead33637384"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/scaffoldNamespacePolicy.json",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/scaffoldNamespacePolicy.json",
+    "sha256": "c2b3d82d343e5a341159a6f62d38fd87bfafebfcd0008e3ea9d03347d0bf7aa3"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/nameGeneration.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/nameGeneration.ts",
+    "sha256": "1ae2477fd11baebfff2a504a6c424e30c0a388a9da67fa427c4b40ecbb0fecff"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/scaffold.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/scaffold.ts",
+    "sha256": "b42c4e6c943db3070483ad56b0a6a690315df0113bb39d6ce02792f11e0bf8d0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/templateSnippetsCatalog.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/templateSnippetsCatalog.ts",
+    "sha256": "c7171cd0a1d85aec4bc5403a0f62a8162ac0bfc923f689e5098df351cf9a81b4"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/templateSnippets.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/templateSnippets.ts",
+    "sha256": "d006855b9d9a54fe5cca55e324d44d22004015c04a094a99dc2e44fb172150a5"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/tkPreviewPanelHtml.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/tkPreviewPanelHtml.ts",
+    "sha256": "dde25ed29a7991a59573ecc8d6d6f421b61973fedc11aecdac181f6abfb91b3b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/tkPreviewPanel.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/tkPreviewPanel.ts",
+    "sha256": "f60503b61da140ba600d4a92a7e3195e0a9f11f1329f0e365f89a2335c144d56"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/specStudio.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/specStudio.ts",
+    "sha256": "95c2b7ca135b5573b17fd1aa41e07ea24748dcda92f6856c9bd8fc01b9498748"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/highlightingHealth.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/highlightingHealth.ts",
+    "sha256": "9493d37090685b719a9b544baba182f331457548b82848eab776db20a34c64a1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/stickyScrollHealth.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/stickyScrollHealth.ts",
+    "sha256": "f4cc3278620fd3868ab9e01857490a78f9e6f6afc20c98345949a6b47db50cf1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/dialectChoices.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/dialectChoices.ts",
+    "sha256": "e45cc62746d404e2d9e538df9d7ab5aa625d0054981fa705cad53ab1498bc7bc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/dialectPicker.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/dialectPicker.ts",
+    "sha256": "b974353923c436d2a7dece8010a1294665ac23e04049b315483c3594eb910fbb"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/ilxReferences.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/ilxReferences.ts",
+    "sha256": "796aa987b8670c400bc8f37aa6f4af5cf856f954826ca6106b8296c518bef446"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/packAssociations.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/packAssociations.ts",
+    "sha256": "4360d2b3bee23968a5619d6874600bc7db84c749dd35e047296e1295cd8ae991"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi/typings/webAssemblyCommon.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi/typings/webAssemblyCommon.d.ts",
+    "sha256": "7c39c121e5e6a0c65af8d473348d0b084cbe1a3d9c55b806635401748228833a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi/lib/api/v1.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi/lib/api/v1.d.ts",
+    "sha256": "3717d369b1991fa7f97506f9a6b93d9abe8160ef78a92859eb02783797afe8c4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi-lsp/lib/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/wasm-wasi-lsp/lib/main.d.ts",
+    "sha256": "43c5d35d038e4f5ae908f45cc9f2814c3b109c64ae15f0ddfc4744aef236d66e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/wasiServer.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/wasiServer.ts",
+    "sha256": "10de40d7a434ef29b0d81dc0e1a67b89660042846eb3987382d208a921a7a390"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/screenshotDemo.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/screenshotDemo.ts",
+    "sha256": "9c3b77a19fb50a18bca6b87b0e60b7ac1a4c4a9f66180acf6572b87e9aa26f73"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/extension.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/extension.ts",
+    "sha256": "14a0f9ee64e45c6aa01d8830654c8a950481ba6f7ac52c108c997984ba5cfd80"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/compilerExplorer.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/compilerExplorer.ts",
+    "sha256": "caa1dda8afdee4426d4ab41b7930a7ee8eb6480bb9dc1202f673c47ede438c11"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/browser/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-jsonrpc/lib/browser/main.d.ts",
+    "sha256": "fbbdb0baaade3505088d8eeaee2e57468ccd5fb08189cb5dfc58ec9c571f3191"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/browser/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageserver-protocol/lib/browser/main.d.ts",
+    "sha256": "59ba6326cca505253577e9c34a601031793081c6e2b21b08ee73921fc1ecbeb3"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/browser/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-languageclient/lib/browser/main.d.ts",
+    "sha256": "992fec601423920f5b6262a6d2576a86182ef1e20e1f9181cd1f20afbdf7a029"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/webLspTransport.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/webLspTransport.ts",
+    "sha256": "2edae9cd12d7bf78a4bdf7cf263df63bc2071a77baecd00d5496c22144170908"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/webWorkspaceSync.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/webWorkspaceSync.ts",
+    "sha256": "a6e1838c830071a281376a4241f3906af0381415744bc86bd9fe3f1401b7aa6e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/extensionBrowser.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/extensionBrowser.ts",
+    "sha256": "a3125c6e5cb88b1f01898249abe69886ddc8d4471e955efb72faf19786a45e2e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/globals.d.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/globals.d.ts",
+    "sha256": "10529bc705de8076860aec4d3f3e4567efbc421159813a60b24cf9c9c7fccc33"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical.d.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/canonical.d.ts",
+    "sha256": "c738998215fd098bbc3dab30a9d5d1fb110b9a9ecd0ea1160a8b9b155db59208"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/systemPrompt.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/systemPrompt.ts",
+    "sha256": "8fa7f0f4e7ad19c88d6a0ce0b7f377e02dc9b4f586ff9c4f256520dc8bcab8a3"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tclSystemPrompt.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/chat/tclSystemPrompt.ts",
+    "sha256": "74d94e2eb3363aa1eb83ed3c30eb96d680af823cf927cc586b7452d556183e67"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/diagnosticCatalog.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/generated/diagnosticCatalog.ts",
+    "sha256": "8cba430fdb8d5e271b9d760d407822a34c350ace72a174eebe878e7ca9b8d060"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/signal.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/signal.ts",
+    "sha256": "1e5aa301734ac9ce3e67242b2426f9ffe14c02e219cf7240d4f43d3666a1bb7a"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/helper.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/helper.ts",
+    "sha256": "cc8b1924a098935136cba69f91eb73ff0ff2dfe8425bbe0ac0ab4bd4632d4522"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/aliasTracking.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/aliasTracking.test.ts",
+    "sha256": "898ad3060b4dd3834cb284c101b7965b0449927e27f79223aec85c857588b63b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/arityLoopPrecision.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/arityLoopPrecision.test.ts",
+    "sha256": "68aa11c14344805139a6f89e184ca4a5c7fcf3761c0d5dbf47499035127d0563"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/bigipSourceActions.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/bigipSourceActions.test.ts",
+    "sha256": "8f9dcc3570a936268bfc56d4912da3d400666625852fa3a9902f9ed85fb9a89b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/callHierarchy.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/callHierarchy.test.ts",
+    "sha256": "34d67f6110ec566a4cd9d6223a73820ba3801ffd9b582d62a0cd990865125701"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/callerFrameCluster.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/callerFrameCluster.test.ts",
+    "sha256": "9cc385fb1fc767d776f27b9f1f6091fff9b3754f1073de2a5f631b7ec83cce03"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/chatUtilities.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/chatUtilities.test.ts",
+    "sha256": "60e965b71d0bb807025c9a7c43d9e08efbeaba0ccadea7e18cef6d78a98cfa66"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/closedFileRetention.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/closedFileRetention.test.ts",
+    "sha256": "b08a363532a0ad2c4b9d759e678f7d9cef83163ae318873f71a9cf1d4dd190a2"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/codeActions.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/codeActions.test.ts",
+    "sha256": "72976ca4349ebb878aa57b67f0d67696c14f09c23dc11dab7fb8a225f37f1ce9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/codeLens.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/codeLens.test.ts",
+    "sha256": "89066bfc16a964aa707cfd80edfbc3816e6b0fc1a4e7bfdfbc8936765c419eea"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commandAliasTracking.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commandAliasTracking.test.ts",
+    "sha256": "22bbd7cd9106df8058ec9c2d0eae0e1517f08ad654d5636ea14816e602028187"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commandExecution.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commandExecution.test.ts",
+    "sha256": "a907e420eb84785c5e950d1618eaa537f26d9a2cf231c6e44cd67421dc9fc1a1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commands.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/commands.test.ts",
+    "sha256": "0bf78ad26a009fd3329a347508b046b89c716b1d73a84bfc2c7f886582bcde07"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/compilerExplorerWebview.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/compilerExplorerWebview.test.ts",
+    "sha256": "eff79acda5ef6364416b28b09a49a665f20106350ca5e84afab37ed62e31cc18"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/completion.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/completion.test.ts",
+    "sha256": "87fb250b00a6d97f1a5be4e4f5fd6c1d1f793ab83b6cca1c4a5d0e6fdacb8750"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/configSettings.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/configSettings.test.ts",
+    "sha256": "6e75cd8cd7c8660f332f9a0e4f9f4bebd68603b07b43a5897355ce517bf1e2c0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/crossFileDiagnostics.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/crossFileDiagnostics.test.ts",
+    "sha256": "c89f71e010abfc91447a8700c44d78d23ea39c55824974722a91463b7546b1e8"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/currentDiagnostics.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/currentDiagnostics.test.ts",
+    "sha256": "b16de4c3e83dad8e4d63798ddd19ad24c7a4fb546838525f6afaa14f5da75fe1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/declaration.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/declaration.test.ts",
+    "sha256": "4ddb036e56239a166220fd798776a52221bc09cd6b2329bac5627e661b95431c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/definition.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/definition.test.ts",
+    "sha256": "52108b2f995345ef716df5500f6d8c3c76db18c16b776d0d2242f02ddeff8f7c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagnosticTags.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagnosticTags.test.ts",
+    "sha256": "5681e859c0d2e18c7808180a30cbdf1ca1d51573f9806d078458504a9215a708"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagnostics.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagnostics.test.ts",
+    "sha256": "5db0be4a60f8c06e51972d69810f6b7842847b0801f4cea1dbe86e54be3810f7"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagramPrompt.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diagramPrompt.test.ts",
+    "sha256": "fd9b2b51935b1a1756f4f594863f4808c106dc12f9a60bc5f7599f2acf99c64e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/dialectChoices.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/dialectChoices.test.ts",
+    "sha256": "8c8e24cb56b19dae9c6e6d335cb1fda47836cb52e185524c11ae17aa968c02a1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/dialectDetection.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/dialectDetection.test.ts",
+    "sha256": "904c60eddd5f3a82aa4c799b79ddde4f23efc87388cd36c8e25e1ba1da9f9b0e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diffAnalysis.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/diffAnalysis.test.ts",
+    "sha256": "62de404b14657611d55ee935b7ba3ede38277fb2b913ccd06597e020bb4e8543"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentHighlight.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentHighlight.test.ts",
+    "sha256": "7ce3ce22eaed279defe245078632b3c2a596b779fc051b38d7f4af4ec345585c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentLinks.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentLinks.test.ts",
+    "sha256": "6e69948ff2e83cf79697b285e0a6fa9dd94c63b3a1ac61d142495ca56ffb51ba"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentSymbols.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/documentSymbols.test.ts",
+    "sha256": "77b39ca821a3d6f1a6eb4aa0fdc15584a57a41493045e7778d8d7591061baa7c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/errorRecovery.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/errorRecovery.test.ts",
+    "sha256": "dab0b4b2b7f19ec452eeb144da05c66edd2137b86c0bbe80b48805682a7ca902"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/exprMathFunc.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/exprMathFunc.test.ts",
+    "sha256": "954874bb9f91b6741027840c3c6f1e23813f5440bf88299ad0dff7ab184116b7"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/extensionActivation.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/extensionActivation.test.ts",
+    "sha256": "a66e84aae9ae125c4cd19eb6fce40add70129acff7bce2aa0ca3025425d21262"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/foldingRanges.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/foldingRanges.test.ts",
+    "sha256": "512aef5043b760e2353bc4273acf7b20130819e4c47f1f4df36936212900e410"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/formatting.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/formatting.test.ts",
+    "sha256": "f245488b21ffece281aa61d02bae545dd061b9a36bc6cc06f16218ed01d31d52"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-oniguruma/main.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-oniguruma/main.d.ts",
+    "sha256": "8b19df9e60a461051abc3c61b04b12bfb914fea761fe0d039f37f00669adbf0f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-textmate/types/vscode-textmate.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/vscode-textmate/types/vscode-textmate.d.ts",
+    "sha256": "368f0e098ea4bd301bee519dc20bdfb3bb52eacea8fb2b80036defa70a169779"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/grammar.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/grammar.test.ts",
+    "sha256": "1b7e4e9bf8820bd9ead10f1cd1ede1e4422bb3d99b8934dbabb05be0a3c5259c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/highlightingHealth.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/highlightingHealth.test.ts",
+    "sha256": "ee9535dceb845121213d6c891ed81f4edafa9b84cca7de8dc25365911ef57d71"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/hover.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/hover.test.ts",
+    "sha256": "499d48ea074de6f04080137f3909c3fcd163363fb3a4aa96c184a50a26601a98"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/i230WordOperator.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/i230WordOperator.test.ts",
+    "sha256": "013cf9b25a6c55a9db74cc43015b2ab5622dcb7ea605fc1cfc515bce493b6414"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/ilxReferences.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/ilxReferences.test.ts",
+    "sha256": "3ce6871267f2641a97a6e78737d756af8caa15b444cdccf1784feebb8db71948"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/implementation.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/implementation.test.ts",
+    "sha256": "677d0f808f79943083b36c3bae29250022270e89c67d6e6101ea684c3d52b54f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/mocha/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/mocha/index.d.ts",
+    "sha256": "29f72ec1289ae3aeda78bf14b38086d3d803262ac13904b400422941a26a3636"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minipass/dist/commonjs/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minipass/dist/commonjs/index.d.ts",
+    "sha256": "0206b5c2f03ca87d15ca00c2bed1a2e9ede2dcd62e6bc8ffceb72c89e0b93133"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/node_modules/lru-cache/dist/commonjs/node/perf.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/node_modules/lru-cache/dist/commonjs/node/perf.d.ts",
+    "sha256": "7d8571309d2edd1403e7e80a52a8f352115a4c9b0247da2f03d6a80b8b852c1b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/node_modules/lru-cache/dist/commonjs/node/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/node_modules/lru-cache/dist/commonjs/node/index.d.ts",
+    "sha256": "af13a1f1a9080c6ef01af4e4c63bbf6bbf93c2675a94bb8a1c20f36ad660a0d2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/dist/commonjs/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/path-scurry/dist/commonjs/index.d.ts",
+    "sha256": "de323e6e2d30c548683c4c0a44f46f06f1f38d361a4c58c0e36bf7db3caa4e30"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/ast.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/ast.d.ts",
+    "sha256": "a2db9e9a763c2249e423e2fa06fe16979684125f0ea41b04ca96c73467fcadc5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/escape.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/escape.d.ts",
+    "sha256": "a7224113134dbd16bcf5e95e31b02f2d3da83aa99756a4b3cd133031670c72fc"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/unescape.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/unescape.d.ts",
+    "sha256": "7d3795e78cdc9079f6b03c6f85145f469582795af61134bbcf0568ae2e1476fe"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/minimatch/dist/commonjs/index.d.ts",
+    "sha256": "4a3fbf9bb0ebcae246f172ba1f5df33404a4dc0fde03a5241434889b1ca595a5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/pattern.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/pattern.d.ts",
+    "sha256": "d24b4b0326495a6afe97b5c692f875ace215e93e979d2ee9ffe202092b52076f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/processor.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/processor.d.ts",
+    "sha256": "5d20853a892f76d9c0c01f7a38c428f48f8fca89c33426320826d1f0090a7dac"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/walker.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/walker.d.ts",
+    "sha256": "c3ab91e697053ab728b5621722040feb03b57d64aa91267e7fca7b2f9dd1ee55"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/ignore.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/ignore.d.ts",
+    "sha256": "d840bff80b305e555ce81588219586207da31317649256fa021ad293de9a3d1a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/glob.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/glob.d.ts",
+    "sha256": "6871f200b0b9f9540ca75d38100164de7cbeeff71cfc5797a7dd406980817a8e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/has-magic.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/has-magic.d.ts",
+    "sha256": "4dc19c0c00dc6aecbc60ccbde00e5c6302197593bb47cd481294d3f78a386b93"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/glob/dist/commonjs/index.d.ts",
+    "sha256": "b0287d4e1952363942bc3925344293dda6411afc2791c5421b20df03353751bb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/progress.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/progress.d.ts",
+    "sha256": "78dc3fdf993a5978c892c590537a52a81a9cac67328aae0627c421685ece4e7d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/runTest.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/runTest.d.ts",
+    "sha256": "b006b37ecb62c9e8134a078c9fc13175c2222a8fee29bb55d0e37c973f948942"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/util.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/util.d.ts",
+    "sha256": "11809d26478e48012b00f1650f9f2f55d2fdacaf4480103df1dda62a386ffe65"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/download.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/download.d.ts",
+    "sha256": "21d73b4bc1de032c38ac62b78a34854d7d09786ddbafc43e247503893999cfea"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@vscode/test-electron/out/index.d.ts",
+    "sha256": "f3290914f4834adc953c8199a0ad4946203887c48bb65db84347a624724ad4ba"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runnerWatchdog.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runnerWatchdog.ts",
+    "sha256": "7b0e4fef97dd655098af510e10de5bd90a60ae31b6eaf4cd9da7f5f44e6797e6"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverProbe.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverProbe.ts",
+    "sha256": "7e519d042c19bcf48d80502e1d59fe4040070f64528de5b5a09573a34351d74c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/index.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/index.ts",
+    "sha256": "0b7775baa6f430cccdbb988128517e1c6a92b5be3a39b2bd2cdbb013ba187dd0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/inlayHints.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/inlayHints.test.ts",
+    "sha256": "a2cb90d38ed396c2cbc4e7c276f4b7bdf86e055f7a8ae81630bafb47abfef961"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/iruleSkeleton.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/iruleSkeleton.test.ts",
+    "sha256": "ec8e07cebcf8b86eddf071524e87eefb53ce3d647911e2ad97af3c0dd318b0ed"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1019ProcArgs.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1019ProcArgs.test.ts",
+    "sha256": "7a5fffcef06f10bc035592db2664fb3c88f036ee36d11d98e5b4c5df49298637"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1138ListBuiltScript.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1138ListBuiltScript.test.ts",
+    "sha256": "82c5f7459bbca9dfb1bfc64961a939ba20f1a57e1dd5d101cb0ed904b04cf3f2"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1281EnsembleRename.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1281EnsembleRename.test.ts",
+    "sha256": "ed0204a4cbfde5423408074e0175e4641d6a2c608cef643b6394df0e16676235"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1296MetaclassChain.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1296MetaclassChain.test.ts",
+    "sha256": "a65da45c36423b8258c1cf2cf9179236347d296edfcb9298bb12ae70fed89aa9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1302ImportShadow.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1302ImportShadow.test.ts",
+    "sha256": "4ae9d6c8ff7ee634be18c62f9bf5bea8feca5b2f9b7523ec5a3feaeb5ee03946"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1303FactoryInference.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1303FactoryInference.test.ts",
+    "sha256": "8ea1f1cba5e766a094fb2c36fb5d3e38485947589f375446e450ebf2cc445362"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1305RenamedMetaclass.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1305RenamedMetaclass.test.ts",
+    "sha256": "ab41a097058a5f8d55f2e0963c7dafc38d9cbc3ccc2ad29c1ffe80b4f3ec8869"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1312NamedObject.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1312NamedObject.test.ts",
+    "sha256": "10941913ac4d30f827f3107f04142829c0a3d713b97b142df3bc2cc1030b9624"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1329SelfDispatch.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue1329SelfDispatch.test.ts",
+    "sha256": "02f6b5770c17948c9d38fa47adeed27981eb40c6ba6ce6c069eee36b5e1fb3b9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue923Callbacks.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue923Callbacks.test.ts",
+    "sha256": "1df33cd5a785146e1557c513431fd06ae9fb4b0b7918e92d4aecdfbb714ae836"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue923NsPkgAudit.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue923NsPkgAudit.test.ts",
+    "sha256": "82d6b6aa9cfee97f7b7c224b651928e2758ff5bc3ec829a74d5e053fc92ebcaa"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue945.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue945.test.ts",
+    "sha256": "b600f169d9fb08c4e3b7a44ed6e02095ba5d032e05daf73b9721055bb48ddadc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue954Followup.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue954Followup.test.ts",
+    "sha256": "1c4a3c0a1798498c8b44ac285ff3fb6d7207a23f77cbb57e85fba5a73d8795b9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue968.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue968.test.ts",
+    "sha256": "5d50975ba5c104cac6edd16203282487dccb882ba2837ffc32dd825e2e6610a3"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue969.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue969.test.ts",
+    "sha256": "89ea8e457997f6a17980fd444fe55413e1a5b759997f970dc7fbb35f1f7c09a1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue976.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue976.test.ts",
+    "sha256": "853795b897b32b9d5d0c9b50002cdda91b9659aeed87994b0ef298492dbabbe7"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue977.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue977.test.ts",
+    "sha256": "30b1dfea6756889b20ddb07c36eb0f5a42d83a40c5ee22447447555a70889ec2"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue996.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/issue996.test.ts",
+    "sha256": "d03407a0b87822c8470bba26fd025fd6a3671acb4028f2e37ce3eda91e28971b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/languageRegistration.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/languageRegistration.test.ts",
+    "sha256": "faf92b3c6cc577ef45fba3d13532d4e3e16789b4dde4adc3b6fae2e08ded87f1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/linkedEditingRange.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/linkedEditingRange.test.ts",
+    "sha256": "2aaa04321f54ce513755113aef560e4996df114a72ce3bfaf60f0238e2bf084f"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/nameResolution.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/nameResolution.test.ts",
+    "sha256": "efce8c43571b44b3a1686ac591286d59fcb558355279afbf802454cab35046bc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/nestedSelfRedefinition.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/nestedSelfRedefinition.test.ts",
+    "sha256": "7b36778f5776c498feffe70728ca1f144b977de6586cd539206ab8415788305d"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/packFileAssociations.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/packFileAssociations.test.ts",
+    "sha256": "065831359c86432172c430d92848833c3c67623b433562552b5e354a7a4faed7"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionFalsePositives.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionFalsePositives.test.ts",
+    "sha256": "c83761ced419469c6ea5a962582679fe380038f0fe44d48164c50fbf224970d5"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionReview.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionReview.test.ts",
+    "sha256": "37432f189d27020ae10abcb999e444044084a19336c0c2f947e4a43a041122b7"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionReview2.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/precisionReview2.test.ts",
+    "sha256": "fe054671bd91e533d42f9cd7663c0bcc50e936ba986fc35e9f90e2a0fa9c3ded"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/previewTickets.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/previewTickets.test.ts",
+    "sha256": "749743128615f22832f65e6527c330e0686c79ccfe349ce827e4fbb61544187b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/progress.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/progress.test.ts",
+    "sha256": "57fe1440c592fc199eea837332875519edc4ba51ea4373f2054e660c3c2b02ac"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/progressiveDiagnostics.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/progressiveDiagnostics.test.ts",
+    "sha256": "4830b09531fd3e4c9c7944c70b477f7439b6a0d918713881d270c4c631bb1ad3"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/pullDiagnostics.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/pullDiagnostics.test.ts",
+    "sha256": "dca317ee8caacff8320b4d3a17159825d9ea6bc0a6ca31e11ef89d67eea05ad2"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/refactorActions.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/refactorActions.test.ts",
+    "sha256": "17b27a34e81a245474e48230599dc1f9605e05c845dfe0bf9879767d3ef43146"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/references.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/references.test.ts",
+    "sha256": "a99d6f54282cc849b1da860a3afdf61dedd027cc6a08abe29f230115881aa88b"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/renameSymbol.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/renameSymbol.test.ts",
+    "sha256": "ca5c39d9e02be73ffe8f2b0c6389eed62023d97bf110cbc64ffcdca9fbcc7fac"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/reportStyle.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/reportStyle.test.ts",
+    "sha256": "4792967973901c2c9224123e375345a495fd98652493b7a24914c24c14984e27"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/testUserDataDir.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/testUserDataDir.ts",
+    "sha256": "d06c676c33fce8c330251f1ca574fbd879677483483f7ed908341d74b94d076a"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runMultiFolderTest.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runMultiFolderTest.ts",
+    "sha256": "4d99a244cbc87a797aad478d4a66ac9feba14eec073c5eb17535d3ccc885eeba"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runScreenshots.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runScreenshots.ts",
+    "sha256": "4bc2d4a06336a960c662ce217c8020394a9a51d1bf26bdc9861111b58ef18189"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runTest.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runTest.ts",
+    "sha256": "74ef9ae3d232fa1e971a1008e94a3a20f364cdd0a75b0704e5fcaae02e07b3de"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runnerWatchdog.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runnerWatchdog.test.ts",
+    "sha256": "f92c8152b88f873d387b3400faf2ae9089cc51b066c2a2597eca4a1181967442"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runtimeValidation.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/runtimeValidation.test.ts",
+    "sha256": "6cb227535da285053108bbd28ca9b0a368c8849d759782036df0f1b0c33ed274"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/scaffold.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/scaffold.test.ts",
+    "sha256": "84cef7484cbba508c643f47fa368b500808a01945a8f73b5019a34cd7b3fb623"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/screenshotIndex.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/screenshotIndex.ts",
+    "sha256": "034c050ae6cc8e15ebc9798278760dd411d359446a396733090e68ab57411bdd"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/selectionRange.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/selectionRange.test.ts",
+    "sha256": "5aece9f0140e7bcd796f9c8f3cf3384b103c7fe14895cd48bbf8dabbfd5e81b9"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/selectionTransforms.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/selectionTransforms.test.ts",
+    "sha256": "fc337a9f71fdfa062c38ae613a405c972bdd7538cdfdc35328144a75228c835a"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/semanticTokens.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/semanticTokens.test.ts",
+    "sha256": "25332e38b315a931f0a5b36580cce367cfac3a1155982c00f59033f7653048cc"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverHealth.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverHealth.test.ts",
+    "sha256": "6437ef054865a223a28334012388ebf3a0adc793e5231f842c74142a0c82c94d"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverResolution.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/serverResolution.test.ts",
+    "sha256": "d54fad56fb8c0ecc018fe345fa1c014f7fb3bf84f1334e718777003b25439779"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/shimmerPrecision.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/shimmerPrecision.test.ts",
+    "sha256": "c6d3646c8fdbe60b5253a9bf9fe8c4d6dd2037718f0f3771f2521439c7bd4455"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/showReferences.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/showReferences.test.ts",
+    "sha256": "468902d1a84a19f77620dd2069ef18205420276255013a88b3e1691db2c2fe58"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/signatureHelp.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/signatureHelp.test.ts",
+    "sha256": "de4af3c84ce987b961c5c1d79a7a49091a857dd507f458664634849a254db7ad"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/snippets.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/snippets.test.ts",
+    "sha256": "0b97195bb98bd11cf56f61a11fcefd42e29305dfa3413360ef6f44dfe217c47c"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/sourceIntegrity.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/sourceIntegrity.test.ts",
+    "sha256": "19d7ea94c77aa5d40be0396589abe21042a5e8a266d4a3f4908142ae60923682"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/specPackTorture.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/specPackTorture.test.ts",
+    "sha256": "b5683d0258c36f2512d0347c1f6f0c5e140c37d9c16c78ea48a2155b79259a65"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/specPacks.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/specPacks.test.ts",
+    "sha256": "4765ad3db7eb88005a984c9c4344239b16094afb7ebf08d221378ee66e9011d0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/sslictclAuthoring.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/sslictclAuthoring.test.ts",
+    "sha256": "d951ebfe1c954676cad154ee8d75f781012f99bf25f93e05fb2e11d8d3653f40"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/stickyScroll.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/stickyScroll.test.ts",
+    "sha256": "ecc89ec2d618eaa7fcde503813ff884f641e577cf99731805bc0db52809188f0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/stickyScrollHealth.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/stickyScrollHealth.test.ts",
+    "sha256": "16740074db021b3be7c9881a64221555a11fb8848659a9a9a18da730100a8a46"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/templateSnippets.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/templateSnippets.test.ts",
+    "sha256": "56128861300e55c17590b4642d3b1b4b450a129a77a14b1315e107bce26ff4e1"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/tkChildInterp.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/tkChildInterp.test.ts",
+    "sha256": "79a95d8386de70e76b021ba1f0a575ce851f1cb966d4e041d8688b7dfb154c52"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/tkPreviewHtml.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/tkPreviewHtml.test.ts",
+    "sha256": "9b745fb20e9450a75b509630efda78a7150c1ec511a9fd67ad57e47d3482c714"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/typeDefinition.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/typeDefinition.test.ts",
+    "sha256": "2ff75f58e6cc287c671b66fe78eb708ac5b3a6e20c54310ea1906925624cd574"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/unicodePositions.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/unicodePositions.test.ts",
+    "sha256": "1043068998db040c1a55236b34bc6dca7130ededf28fe8c1175ef9b0dc8d7645"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/unusedParamPrecision.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/unusedParamPrecision.test.ts",
+    "sha256": "6be9529a545598f2256ca19ae56593a297ad7af54e5e7f6dc1175e60292a5754"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/uplevelIndirectSet.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/uplevelIndirectSet.test.ts",
+    "sha256": "6b03db5645fcf33c56d0a529dbee262d8fb40bcfc2109d6e5163d585e2aabdab"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/variableCompletion.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/variableCompletion.test.ts",
+    "sha256": "c445e38a085bf67b6e126bc104cd8cb3182319af7e6109469bc7bfc4b3a5e3e0"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/variableContexts.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/variableContexts.test.ts",
+    "sha256": "cc2a06dc0273c8cef72191ed4fdbcc4934b9252c0ce008f9a91fd4a4eaa8e121"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/w003.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/w003.test.ts",
+    "sha256": "5b9f0eb6f99d279290b4de5a71a75aae65c9bd8b4a36aab47e2740956a924f25"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/w120WorkspaceReschedule.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/w120WorkspaceReschedule.test.ts",
+    "sha256": "7235b66613041d64659234114d6f5bca9371a15b5418e0036b70110e5b117fee"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/waitDiscipline.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/waitDiscipline.test.ts",
+    "sha256": "b8be4981cf52fe32dbc01967cf7ab22d03e4d2d6bb9ecb7893bec0b4a9c52aa8"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/webWorkspaceSync.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/webWorkspaceSync.test.ts",
+    "sha256": "fb02442cc0679dd79e61344f837050f59ce2127e86dfc432ae2692be3b32f72e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/willSaveWaitUntil.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/willSaveWaitUntil.test.ts",
+    "sha256": "75dbeee74ebee170f252a56894bd2cdbf81b37298686d1005835f0d1257f1473"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/workspaceFileOps.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/workspaceFileOps.test.ts",
+    "sha256": "55ecefd0cc9955b6bcb7537dfe8211648d49a8907aa0fa48b738e68cc77a2810"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/workspaceSymbols.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/workspaceSymbols.test.ts",
+    "sha256": "58557c9523309fddb3903225634469d16728c785a6e6f56860a22318269cf89e"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/multiFolder/index.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/multiFolder/index.ts",
+    "sha256": "ec91961021d8421a69401298fdf462ce97bf4d10e1058757af4ca1045a42d680"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/multiFolder/multiFolderConfig.test.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/multiFolder/multiFolderConfig.test.ts",
+    "sha256": "7d94172a2afc46db103ca507e681bc3937f9511293d5874c796bedf868ba51bb"
+  },
+  {
+    "tsc_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/web/index.ts",
+    "resolved_path": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode/src/test/web/index.ts",
+    "sha256": "571806249526d9eb0d471f6004a32d89e9164a7cff7fd6ea4e15235850975944"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/disposable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/disposable.d.ts",
+    "sha256": "70521b6ab0dcba37539e5303104f29b721bfb2940b2776da4cc818c07e1fefc1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/indexable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/indexable.d.ts",
+    "sha256": "ab41ef1f2cdafb8df48be20cd969d875602483859dc194e9c97c8a576892c052"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/iterators.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/iterators.d.ts",
+    "sha256": "d153a11543fd884b596587ccd97aebbeed950b26933ee000f94009f1ab142848"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/compatibility/index.d.ts",
+    "sha256": "21d819c173c0cf7cc3ce57c3276e77fd9a8a01d35a06ad87158781515c9a438a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/globals.typedarray.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/globals.typedarray.d.ts",
+    "sha256": "a79e62f1e20467e11a904399b8b18b18c0c6eea6b50c1168bf215356d5bebfaf"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/buffer.buffer.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/buffer.buffer.d.ts",
+    "sha256": "49a5a44f2e68241a1d2bd9ec894535797998841c09729e506a7cbfcaa40f2180"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/header.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/header.d.ts",
+    "sha256": "5929864ce17fba74232584d90cb721a89b7ad277220627cc97054ba15a98ea8f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/readable.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/readable.d.ts",
+    "sha256": "24bd580b5743dc56402c440dc7f9a4f5d592ad7a419f25414d37a7bfe11e342b"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/file.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/file.d.ts",
+    "sha256": "25c8056edf4314820382a5fdb4bb7816999acdcb929c8f75e3f39473b87e85bc"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/fetch.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/fetch.d.ts",
+    "sha256": "c464d66b20788266e5353b48dc4aa6bc0dc4a707276df1e7152ab0c9ae21fad8"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/formdata.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/formdata.d.ts",
+    "sha256": "78d0d27c130d35c60b5e5566c9f1e5be77caf39804636bc1a40133919a949f21"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/connector.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/connector.d.ts",
+    "sha256": "c6fd2c5a395f2432786c9cb8deb870b9b0e8ff7e22c029954fabdd692bff6195"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/client.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/client.d.ts",
+    "sha256": "1d6e127068ea8e104a912e42fc0a110e2aa5a66a356a917a163e8cf9a65e4a75"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/errors.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/errors.d.ts",
+    "sha256": "5ded6427296cdf3b9542de4471d2aa8d3983671d4cac0f4bf9c637208d1ced43"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/dispatcher.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/dispatcher.d.ts",
+    "sha256": "6bdc71028db658243775263e93a7db2fd2abfce3ca569c3cca5aee6ed5eb186d"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/global-dispatcher.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/global-dispatcher.d.ts",
+    "sha256": "cadc8aced301244057c4e7e73fbcae534b0f5b12a37b150d80e5a45aa4bebcbd"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/global-origin.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/global-origin.d.ts",
+    "sha256": "385aab901643aa54e1c36f5ef3107913b10d1b5bb8cbcd933d4263b80a0d7f20"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/pool-stats.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/pool-stats.d.ts",
+    "sha256": "9670d44354bab9d9982eca21945686b5c24a3f893db73c0dae0fd74217a4c219"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/pool.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/pool.d.ts",
+    "sha256": "0b8a9268adaf4da35e7fa830c8981cfa22adbbe5b3f6f5ab91f6658899e657a7"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/handlers.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/handlers.d.ts",
+    "sha256": "11396ed8a44c02ab9798b7dca436009f866e8dae3c9c25e8c1fbc396880bf1bb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/balanced-pool.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/balanced-pool.d.ts",
+    "sha256": "ba7bc87d01492633cb5a0e5da8a4a42a1c86270e7b3d2dea5d156828a84e4882"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/agent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/agent.d.ts",
+    "sha256": "4893a895ea92c85345017a04ed427cbd6a1710453338df26881a6019432febdd"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-interceptor.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-interceptor.d.ts",
+    "sha256": "c21dc52e277bcfc75fac0436ccb75c204f9e1b3fa5e12729670910639f27343e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-agent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-agent.d.ts",
+    "sha256": "13f6f39e12b1518c6650bbb220c8985999020fe0f21d818e28f512b7771d00f9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-client.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-client.d.ts",
+    "sha256": "9b5369969f6e7175740bf51223112ff209f94ba43ecd3bb09eefff9fd675624a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-pool.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-pool.d.ts",
+    "sha256": "4fe9e626e7164748e8769bbf74b538e09607f07ed17c2f20af8d680ee49fc1da"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-errors.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/mock-errors.d.ts",
+    "sha256": "24515859bc0b836719105bb6cc3d68255042a9f02a6022b3187948b204946bd2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/proxy-agent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/proxy-agent.d.ts",
+    "sha256": "ea0148f897b45a76544ae179784c95af1bd6721b8610af9ffa467a518a086a43"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/env-http-proxy-agent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/env-http-proxy-agent.d.ts",
+    "sha256": "24c6a117721e606c9984335f71711877293a9651e44f59f3d21c1ea0856f9cc9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/retry-handler.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/retry-handler.d.ts",
+    "sha256": "dd3273ead9fbde62a72949c97dbec2247ea08e0c6952e701a483d74ef92d6a17"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/retry-agent.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/retry-agent.d.ts",
+    "sha256": "405822be75ad3e4d162e07439bac80c6bcc6dbae1929e179cf467ec0b9ee4e2e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/api.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/api.d.ts",
+    "sha256": "0db18c6e78ea846316c012478888f33c11ffadab9efd1cc8bcc12daded7a60b6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/interceptors.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/interceptors.d.ts",
+    "sha256": "4d2b0eb911816f66abe4970898f97a2cfc902bcd743cbfa5017fad79f7ef90d8"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/util.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/util.d.ts",
+    "sha256": "bd0532fd6556073727d28da0edfd1736417a3f9f394877b6d5ef6ad88fba1d1a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/cookies.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/cookies.d.ts",
+    "sha256": "89167d696a849fce5ca508032aabfe901c0868f833a8625d5a9c6e861ef935d2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/patch.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/patch.d.ts",
+    "sha256": "e53a3c2a9f624d90f24bf4588aacd223e7bec1b9d0d479b68d2f4a9e6011147f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/websocket.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/websocket.d.ts",
+    "sha256": "24b8685c62562f5d98615c5a0c1d05f297cf5065f15246edfe99e81ec4c0e011"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/eventsource.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/eventsource.d.ts",
+    "sha256": "93507c745e8f29090efb99399c3f77bec07db17acd75634249dc92f961573387"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/filereader.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/filereader.d.ts",
+    "sha256": "339dc5265ee5ed92e536a93a04c4ebbc2128f45eeec6ed29f379e0085283542c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/diagnostics-channel.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/diagnostics-channel.d.ts",
+    "sha256": "4732aec92b20fb28c5fe9ad99521fb59974289ed1e45aecb282616202184064f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/content-type.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/content-type.d.ts",
+    "sha256": "2e85db9e6fd73cfa3d7f28e0ab6b55417ea18931423bd47b409a96e4a169e8e6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/cache.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/cache.d.ts",
+    "sha256": "c46e079fe54c76f95c67fb89081b3e399da2c7d109e7dca8e4b58d83e332e605"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/undici-types/index.d.ts",
+    "sha256": "bf67d53d168abc1298888693338cb82854bdb2e69ef83f8a0092093c2d562107"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/globals.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/globals.d.ts",
+    "sha256": "b8582f8bf95b9b901bf6cf47b9ee3560c7f340be0bd39cb432f21e9e136c36a7"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/assert.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/assert.d.ts",
+    "sha256": "6b042aa5d277ad6963e2837179fd2f8fbb01968ac67115b0833c0244e93d1d50"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/assert/strict.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/assert/strict.d.ts",
+    "sha256": "7394959e5a741b185456e1ef5d64599c36c60a323207450991e7a42e08911419"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/async_hooks.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/async_hooks.d.ts",
+    "sha256": "8c0bcd6c6b67b4b503c11e91a1fb91522ed585900eab2ab1f61bba7d7caa9d6f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/buffer.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/buffer.d.ts",
+    "sha256": "9e025aa38cad40827cc30aca974fe33fe2c4652fe8c88f48dadbbbd6300c8b07"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/child_process.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/child_process.d.ts",
+    "sha256": "f3e58c4c18a031cbb17abec7a4ad0bd5ae9fc70c1f4ba1e7fb921ad87c504aca"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/cluster.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/cluster.d.ts",
+    "sha256": "84c1930e33d1bb12ad01bcbe11d656f9646bd21b2fb2afd96e8e10615a021aef"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/console.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/console.d.ts",
+    "sha256": "35ec8b6760fd7138bbf5809b84551e31028fb2ba7b6dc91d95d098bf212ca8b4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/constants.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/constants.d.ts",
+    "sha256": "5524481e56c48ff486f42926778c0a3cce1cc85dc46683b92b1271865bcf015a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/crypto.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/crypto.d.ts",
+    "sha256": "4b87f767c7bc841511113c876a6b8bf1fd0cb0b718c888ad84478b372ec486b1"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dgram.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dgram.d.ts",
+    "sha256": "8d04e3640dd9eb67f7f1e5bd3d0bf96c784666f7aefc8ac1537af6f2d38d4c29"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/diagnostics_channel.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/diagnostics_channel.d.ts",
+    "sha256": "9d19808c8c291a9010a6c788e8532a2da70f811adb431c97520803e0ec649991"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dns.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dns.d.ts",
+    "sha256": "5a369483ac4cfbdf0331c248deeb36140e6907db5e1daed241546b4a2055f82c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dns/promises.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dns/promises.d.ts",
+    "sha256": "e8f5b5cc36615c17d330eaf8eebbc0d6bdd942c25991f96ef122f246f4ff722f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/domain.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/domain.d.ts",
+    "sha256": "f0bd7e6d931657b59605c44112eaf8b980ba7f957a5051ed21cb93d978cf2f45"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dom-events.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/dom-events.d.ts",
+    "sha256": "71450bbc2d82821d24ca05699a533e72758964e9852062c53b30f31c36978ab8"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/events.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/events.d.ts",
+    "sha256": "0ada07543808f3b967624645a8e1ccd446f8b01ade47842acf1328aec899fed0"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/fs.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/fs.d.ts",
+    "sha256": "4c21aaa8257d7950a5b75a251d9075b6a371208fc948c9c8402f6690ef3b5b55"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/fs/promises.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/fs/promises.d.ts",
+    "sha256": "b5895e6353a5d708f55d8685c38a235c3a6d8138e374dee8ceb8ffde5aa8002a"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/http.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/http.d.ts",
+    "sha256": "5b75ca915164e4a7ad94a60729fe45b8a62e7750ab232d0122f8ccdd768f5314"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/http2.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/http2.d.ts",
+    "sha256": "de735eca2c51dd8b860254e9fdb6d9ec19fe402dfe597c23090841ce3937cfc5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/https.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/https.d.ts",
+    "sha256": "4ff41188773cbf465807dd2f7059c7494cbee5115608efc297383832a1150c43"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/inspector.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/inspector.d.ts",
+    "sha256": "dccdf1677e531e33f8ac961a68bc537418c9a414797c1ea7e91307501cdc3f5e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/module.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/module.d.ts",
+    "sha256": "1354ca5c38bd3fd3836a68e0f7c9f91f172582ba30ab15bb8c075891b91502b7"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/net.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/net.d.ts",
+    "sha256": "5155da3047ef977944d791a2188ff6e6c225f6975cc1910ab7bb6838ab84cede"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/os.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/os.d.ts",
+    "sha256": "93f437e1398a4f06a984f441f7fa7a9f0535c04399619b5c22e0b87bdee182cb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/path.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/path.d.ts",
+    "sha256": "afbe24ab0d74694372baa632ecb28bb375be53f3be53f9b07ecd7fc994907de5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/perf_hooks.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/perf_hooks.d.ts",
+    "sha256": "3e5b3163e34f3dc24cba59db4bb90bcc33555cccac06b707501439bdcf3d4df4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/process.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/process.d.ts",
+    "sha256": "6b19db3600a17af69d4f33d08cc7076a7d19fb65bb36e442cac58929ec7c9482"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/punycode.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/punycode.d.ts",
+    "sha256": "9e043a1bc8fbf2a255bccf9bf27e0f1caf916c3b0518ea34aa72357c0afd42ec"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/querystring.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/querystring.d.ts",
+    "sha256": "b4f70ec656a11d570e1a9edce07d118cd58d9760239e2ece99306ee9dfe61d02"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/readline.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/readline.d.ts",
+    "sha256": "3bc2f1e2c95c04048212c569ed38e338873f6a8593930cf5a7ef24ffb38fc3b6"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/readline/promises.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/readline/promises.d.ts",
+    "sha256": "8145e07aad6da5f23f2fcd8c8e4c5c13fb26ee986a79d03b0829b8fce152d8b2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/repl.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/repl.d.ts",
+    "sha256": "f9d9d753d430ed050dc1bf2667a1bab711ccbb1c1507183d794cc195a5b085cc"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/sea.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/sea.d.ts",
+    "sha256": "9eece5e586312581ccd106d4853e861aaaa1a39f8e3ea672b8c3847eedd12f6e"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream.d.ts",
+    "sha256": "5b6844ad931dcc1d3aca53268f4bd671428421464b1286746027aede398094f2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/promises.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/promises.d.ts",
+    "sha256": "37ba7b45141a45ce6e80e66f2a96c8a5ab1bcef0fc2d0f56bb58df96ec67e972"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/consumers.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/consumers.d.ts",
+    "sha256": "125d792ec6c0c0f657d758055c494301cc5fdb327d9d9d5960b3f129aff76093"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/web.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/stream/web.d.ts",
+    "sha256": "0dbcebe2126d03936c70545e96a6e41007cf065be38a1ce4d32a39fcedefead4"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/string_decoder.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/string_decoder.d.ts",
+    "sha256": "1851a3b4db78664f83901bb9cac9e45e03a37bb5933cc5bf37e10bb7e91ab4eb"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/test.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/test.d.ts",
+    "sha256": "09d479208911ac3ac6a7c2fe86217fc1abe6c4f04e2d52e4890e500699eeab32"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/timers.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/timers.d.ts",
+    "sha256": "12ed4559eba17cd977aa0db658d25c4047067444b51acfdcbf38470630642b23"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/timers/promises.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/timers/promises.d.ts",
+    "sha256": "f3ffabc95802521e1e4bcba4c88d8615176dc6e09111d920c7a213bdda6e1d65"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/tls.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/tls.d.ts",
+    "sha256": "c40b3d3cfbb1227c8935f681c2480a32b560e387dd771d329cdbd1641f2d6da5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/trace_events.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/trace_events.d.ts",
+    "sha256": "ae56f65caf3be91108707bd8dfbccc2a57a91feb5daabf7165a06a945545ed26"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/tty.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/tty.d.ts",
+    "sha256": "a136d5de521da20f31631a0a96bf712370779d1c05b7015d7019a9b2a0446ca9"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/url.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/url.d.ts",
+    "sha256": "5b566927cad2ed2139655d55d690ffa87df378b956e7fe1c96024c4d9f75c4cf"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/util.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/util.d.ts",
+    "sha256": "d250e6b9d609e02985b1001b8bd7a7c73b26c50cc9e618061174775ec92c345f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/v8.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/v8.d.ts",
+    "sha256": "d3dffd70e6375b872f0b4e152de4ae682d762c61a24881ecc5eb9f04c5caf76f"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/vm.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/vm.d.ts",
+    "sha256": "f008d63ce0077f533e39df44b82d660707b15b0f8e31fbc153a62bb00b99bfe5"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/wasi.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/wasi.d.ts",
+    "sha256": "d91a7d8b5655c42986f1bdfe2105c4408f472831c8f20cf11a8c3345b6b56c8c"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/worker_threads.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/worker_threads.d.ts",
+    "sha256": "6bdb3144f8bf020f513651a6ea1cb8a378a612c0791042e0436fd9adf7372a17"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/zlib.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/zlib.d.ts",
+    "sha256": "e8a979b8af001c9fc2e774e7809d233c8ca955a28756f52ee5dee88ccb0611d2"
+  },
+  {
+    "tsc_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/index.d.ts",
+    "resolved_path": "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/@types/node/index.d.ts",
+    "sha256": "cac793cc47c29e26e4ac3601dcb00b4435ebed26203485790e44f2ad8b6ad847"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T06:54:07.532334+00:00",
+  "verdict": "HOLD exactv5: missing requested debug_assertions logging gate",
+  "patch_sha256": "9c598149eab66166dee1f1169ca7e4af7873ff12be8dd865db9e29d4bec0923f",
+  "before": {
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+    "rust/tcl-compiler/src/optimiser/mod.rs": "e137aa9b3adf0b16d45ddb5476b013f8f74916014eaa69f300b7f7de7669dae5"
+  },
+  "after": {
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "06609cf03ad9d62232bdd4c16216dfb15227e6da77b5a2b869be146897629ab3",
+    "rust/tcl-compiler/src/optimiser/mod.rs": "ca48ab64ba159a912fb534010b66916deefc0c33532354295fd7f2a7034d2ee8"
+  },
+  "passed": "Exactbefore/final, independent zero-fuzz/no-offset shadow apply and pinnedfmt2024 PASS; original queries/predicates/shortcircuit appear preserved in bounded read",
+  "blocker": "Exact fixture+explicit env are checked, but all env/logging runs in release as well because no cfgdebug gate present. Root requested cfgdebug_assertions trace for integration library. CCG requested immutable successor; do not integrate v5.",
+  "limits": "No Cargo/source/Git/GO; no productcause/fix/runtime claim"
+}

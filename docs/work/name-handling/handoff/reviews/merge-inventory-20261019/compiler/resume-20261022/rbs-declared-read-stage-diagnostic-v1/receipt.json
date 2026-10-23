@@ -1,0 +1,21 @@
+{
+  "status": "OFFTREE pure diagnostic; syntax/zero-fuzz PASS; typing/runtime UNRUN",
+  "patch_sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "before_sha256": "75e692fbba7f452e3e1422a470bbc0c1b4bbe8214c2bcb9e7ab1841f63fc7d13",
+      "after_sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/script_binds.rs",
+      "before_sha256": "47f424ab367030b737ca70ccc6680cf4ff11cec312059506796301ad88bf90d1",
+      "after_sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee"
+    }
+  ],
+  "env": "cfg(test)+TCL_LSP_TRACE_RBS_SOURCE_OWNER",
+  "scope": "actual diagnostic function frame/procedure kind/dynamicwrites; original physical absence count; existing function/declaration-flow fallback/read recipe/requiredflow/potentialreads and actual declared absence candidates. Recipe original input/realm/recorded declaration/body source gates exposed.",
+  "contract": "No extra semantic queries; Option values pass identity wrapper once, original or_else/?/shortcircuit/predicate/assertions remain unchanged. Candidate output only names/spans already yielded by actual declared absence iterator; no name-based authority.",
+  "reason": "Current three RBS failures lack ZZ_W210 reads and have opaque nested calls, but separate authentic declared-read path may still supply May warnings; its first refusal is not measured by old traces.",
+  "limits": "No repair/cause/Native/currentness/definiteness proof; no new selectors/protocol/GO."
+}
