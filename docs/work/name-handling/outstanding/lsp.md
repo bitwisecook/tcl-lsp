@@ -1,6 +1,18 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-23T22:24:42Z
+Last updated: 2026-10-23T22:42:53Z
+
+Activefunctionalmonitor 2026-10-23T22:42:53Z: newstartup40034876814/job120691780096 exactpushedWORK2d8d5e8f22cdf25339a2d8f19888c24705b1f301 (release9891aaa57), includesminimumE0609spanfix/Core4/NativeV5. At22:41:47 stillcheckout, noartifact/runtimeverdict. Parentownsnewscoped40034891169; do notduplicatecensus. Prior2aa blockedcompilerlib only; oldf8stillsoleactualserverruntime. Observerstages/fulloriginal30sbarrier/Context2/16roundwarning alwaysinterruptlintwork.
+
+Core4 0fca316f independentlyNamesb762422f STATIC+CARRY CLEAR, rootintegratedWORKc223665b2/CLEANaed404071. No validated-countclaim untilfreshstrict. RootassignsALLServer78large-future ownership; compilerreservationsreleased. Highestconnectedactual696family37/78 configurationrows frozen /tmp/lsp-server-config-future-boundary-current-v2: WORKdf669d52/man211c42b0 CLEAN1dda1270/man681f0a63, authoraudit22e9f30a/family25a3bf25. Exactprivatepull_and_apply_config_values PinBoxconcretefuturewrapper+renamedinner; completeoriginalbody994e4347 andallcurrentoutsidebytes/cleanup/tests unchanged, reverseprefixfullfiles/copyboth0/fmt2PASS. IndependentNames /workspace/naming-proof-storage/names-peer-config-future-boundary-v2/receipt.json SHAa33a88cd STATIC+CARRY CLEAR; rootreadyintegration, notpartof2d startup/census. Onecoldallocationinvocationinclunpolled/OOM/storage/dealloc +outerUnpin difference explicit; sameinnerSendSync/poll/cancel/guard/query/owner; no dyntrait. Originalstartup/Context/configburst/perf budgets unchanged. No37or78discharge/type/runtime/perfclaim.
+
+NamesrequesteddisjointServerlengthduringJimwait: proposedonlyreadonly_reference_reports.rs original_closed_source_mapping_cannot_borrow_equal_bytes_from_a_new_alias_allocation129 (696:3781), pendingrootreservationconfirmation. OwnfutureauthorsholdentirefileuntilNamesfreeze/integration; currentfutureeditonlylib.rsconfigprefix. No othercleanupscope or source/APIlogic taken.
+
+Actualstartup2aa CLOSED 2026-10-23T22:31:09Z: run40032445657/job120683736385/API12535862876 ZIP6348a01f size10062460 authentichead2aa; /tmp/lsp-hosted-startup40032445657-actual-v1/assessment.json SHA1c362d1c. Strictci fetch0/build101156.133s, completeownedemptygroups/no stop/cap/floor, NO selectedserver/cases/workers/scan/Context. Single primaryRustE0609 generated_procedures.rs407 command.words on SegmentedCommand (CargoJSONdiag0; rawstderrprimary). Fullbefore→finalmaps source125327/provider2256/deps21500/tools7 EXACT, exactGittree+culprit/observer/ownerbytes. AfterbuilddepsnapshotUNREACHEDbuildfail; fullallfileGitbyte reconstructionnotrepeated (explicitlimit). Alloriginal30s/Context2/factory16outcomes UNRUN; nofunctionalhotstage/causeclaim.
+
+Minimumcompilerrepair e2457c51 WORK44ce2990/CLEANd747460a independentlyLSP28c61cb2 CLEAR /tmp/lsp-peer-generated-procedure-word-span-repair-v1/review.json: original.words().first()?.source().span.start usesactualretainedCommandTokensfirstWordExprSourceSiteSpan; immediatewholewords/source/site/frame/input/read/partial/nativeguardsunchanged. Exactsingleexpressioninverse/current+basepins/copyboth0/fmt2/assertallows andWORK/CLEANwholebefore+afterbyteidenticalPASS. No newquery/clone/owner/drop endpoint. Rootaloneapply/freshbuild; compilerownsminimumrepair. CCGrequestedindependentactualstartuppeerwhenfunctionalcapacitypermits.
+
+Core4 remainsfrozen0fca316f/99fe7174+ba14e673. Namesreadalltypes/owners/query/dropwithnofindingsofar, FULLinline/current/copy/fmt/carrypeerPAUSEDactualJimartifact; noimpliedclear. No additionalcleanupscope.
 
 Current priority 2026-10-23T22:24:42Z: authenticnewstartup40032445657/job120683736385 exactpushedWORK2aa5346904f477e09bdc4b05a03adcd3e8b549ae, includesWORKscanobserverb14f/JimV2/metadata1/currentfunctionalfixes. ReadonlyAPI22:23 step5active aftercheckout/Rust/providerPASS; noartifact/runtimeverdict yet. Ownmonitor/ZIP-onlyauthactualstages+original30sbarrier+Context2+factory16warning alwaysinterruptsCore4peer. Originalbudgets/caps/assertions unchanged. Rootownsscope40032463145.
 
@@ -167,7 +179,7 @@ Maintained by the lsp agent. It lists what this agent considers it must still co
 
 ## Resume
 
-Read current status at top. Priority sole Compiler six-error minimum repair peer, then actual fresh startup/Context artifacts with unchanged original guards/budgets. Preserve failed artifacts and keep download/extraction in/tmp. No own Cargo/sourceoverlay/Git. Finish cold and metadata clean peers; eligible semantic2v2/formatting4v4 and own method/signature+Graph3 all independently clear; parent controls integration. Then remaining distinct actual Core lengths. Static preparations never discharge strict/runtime gates.
+Read current status at top. Functional priority: own exact next root-dispatched startup monitor/ZIP-only authenticated scanstage diagnosis with original30s barrier, Context2 assertions and16round warning scope. Latest2aa run was compilerE0609 build101, all workers UNRUN; minimum e2457c51 independently28c61cb2 clear, rootcontrolsapply/retry. Earlierf8 is strict0W/cold83ms+typicalscanFAIL/ContextoriginalPASSscopedonly, unresolvedfactorywarning; no hotfunction inferred. WORK-only scanobserverb14f integrated2aa but neverran duebuildfail. Keepallfailedartifacts/pins/caps/budgets, no localbuilds below2GiB, no targets/exe/inputdeletion. RemainingCore4 off-treepairs0fca316f frozenNamespeerpausedforJimactual; rootalonecanonical/Git/dispatch/GO. No new cleanup outside exactassignedscope.
 
 ## In progress
 

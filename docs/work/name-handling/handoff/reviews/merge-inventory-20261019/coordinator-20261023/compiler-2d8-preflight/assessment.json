@@ -1,0 +1,50 @@
+{
+  "utc": "2026-10-23T22:50:06.208284+00:00",
+  "status": "ACTUAL_PREFLIGHT_INPUT_PIN_REFUSAL_BEFORE_ANY_CARGO_OR_TEST",
+  "run_id": 40034885359,
+  "job_id": 120691807361,
+  "commit": "2d8d5e8f22cdf25339a2d8f19888c24705b1f301",
+  "artifact_id": 12536587555,
+  "zip_sha256": "37c9e10fe5626ba30f4f9e5fede11520e70447605b508ade68a3e1e0ac7bdb82",
+  "bytes": 8930082,
+  "first_error": "RuntimeError('original test/observer input changed')",
+  "input_mismatches": [
+    {
+      "roster": "compiler-native35-supplemental3.json",
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "expected_sha256": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe",
+      "actual_sha256": "a6376ba49f26d519bdd5ec9cd9e55bdb7230f944dd110fee8d5f8c0653364597"
+    }
+  ],
+  "seals": {
+    "source_before_after_independently_equal": true,
+    "source_files": 125367,
+    "providers_before_after_independently_equal": true,
+    "provider_entries": 10202,
+    "tools_after_entries": 19,
+    "tools_equal_reported_only": "No separate before tools manifest/job.json was reached; final.seals.tools=true is driver report, not independently recomputed equality.",
+    "dependencies": "No initial capture was reached; false seal and actual cleanup NameError retained.",
+    "artifacts": "No build/process/ELF; false seal."
+  },
+  "final_errors": [
+    "dependencies: NameError(\"name 'dependency_roots' is not defined\")"
+  ],
+  "processes": [],
+  "outcomes": {
+    "original58": {
+      "UNRUN": 58
+    },
+    "separateNative3": {
+      "UNRUN": 3
+    },
+    "separateSH2": {
+      "UNRUN": 2
+    }
+  },
+  "cause": "Report-only semantic repair ce6facfb1 added controls to authenticated_report.rs, changing its full-file hash; Native35 supplemental3 roster still pins pre-repair source. Exact original58 source pins and SH2 source pins all match actual commit.",
+  "limits": [
+    "No shared compiler build status, runtime outcome, SH first-refusal stage, Native35 capture or C6 verdict.",
+    "All assertions/selectors/environments remained unchanged; the pin guard correctly refused an unrefreshed required file.",
+    "Required next repair is exact approved-source supplemental pin refresh plus early-failure dependency capture initialization; do not remove or bypass source guard."
+  ]
+}

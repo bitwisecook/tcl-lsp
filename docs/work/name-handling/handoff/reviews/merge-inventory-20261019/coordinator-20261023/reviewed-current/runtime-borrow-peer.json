@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T22:36:54.351903+00:00",
+  "status": "STATIC CLEAR",
+  "checks": {
+    "work_manifest": true,
+    "work_Git_before": true,
+    "work_final": true,
+    "work_patch": true,
+    "work_owner_type_and_getter_pins": true,
+    "work_whole_file_inverse": true,
+    "work_roundtrip_[]": true,
+    "work_roundtrip_['-R']": true,
+    "work_copied_final": true,
+    "work_fmt": true,
+    "clean_manifest": true,
+    "clean_Git_before": true,
+    "clean_final": true,
+    "clean_patch": true,
+    "clean_owner_type_and_getter_pins": true,
+    "clean_whole_file_inverse": true,
+    "clean_roundtrip_[]": true,
+    "clean_roundtrip_['-R']": true,
+    "clean_copied_final": true,
+    "clean_fmt": true
+  },
+  "patch_sha256": "f5794662da23f854f0b53d924e224a9e3b5349e3337495a4772e08ee2f7b9e7c",
+  "semantics": [
+    "runtime_context() previously borrowed the same pin solely to clone context; new comparison borrows that actual value without cloning. RuntimeContext derived Eq fields are String/String/BuildProfileId/Vec<(String,String)>/u64; BuildProfileId derived Eq+Copy, no native/custom Drop or comparison callbacks.",
+    "Explicit block drops Ref immediately after pure equality and before dialect query. Host Weak identity remains first short-circuit operand; first refusal, epoch acquisition/order and remaining dialect/epoch guards unchanged. Issued independent owned context snapshot remains unchanged. No mutable/native/value/query/cache work added.",
+    "Removing allocation/deallocation of the temporary plain Rust clone is the only intended cost change. No Cargo/native/original execution or speedup/performance acceptance asserted."
+  ]
+}

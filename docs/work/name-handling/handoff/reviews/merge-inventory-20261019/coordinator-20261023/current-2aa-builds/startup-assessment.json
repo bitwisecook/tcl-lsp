@@ -1,0 +1,114 @@
+{
+  "updated_utc": "2026-10-23T22:29:00.127040+00:00",
+  "status": "ACTUAL_FRESH_HOSTED_BUILD_FAILED_BEFORE_SERVER_RUNTIME",
+  "run_id": 40032445657,
+  "job_id": 120683736385,
+  "artifact_id": 12535862876,
+  "head_sha": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "tree": "84f56f660f927b97e5fcf621cc84d2bafe658ef0",
+  "zip_bytes": 10062460,
+  "zip_sha256": "6348a01f6e4eafc57070682c8d7e3ebf08295446eb5308cc64a576aa07ff7e60",
+  "zip_metadata_size_digest_crc_safe_paths_all_members_verified": true,
+  "large_JSON_inspection": "ZIP-only; extracted files all <=1MB",
+  "raw_build_stderr_sha256": "bd08bfcd593fe84ebdd776d86c8c4ff325d44b0fb109551813dfee62add8fcca",
+  "first_observed_build_cause": {
+    "file": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+    "line": 407,
+    "column": 24,
+    "diagnostic": "no field words on type SegmentedCommand",
+    "expression": "command.words.first()?.span().start()",
+    "compiler_E_codes": [
+      "E0609"
+    ],
+    "owner": "Compiler minimum type repair; no LSP duplicate patch"
+  },
+  "cargo_json_compiler_message_records": 0,
+  "server_binary_events": 0,
+  "processes": [
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 3.083043429,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 76063064064,
+      "retained_bytes": 14757,
+      "cap_bytes": 20971520
+    },
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 101,
+      "seconds": 156.132834604,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 75521966080,
+      "retained_bytes": 98329,
+      "cap_bytes": 20956763
+    }
+  ],
+  "recompared_full_before_after_maps": {
+    "source": {
+      "entire_before_after_map_equal": true,
+      "files": 125327,
+      "before_json_sha256": "08cefad02f3347c4ec7ecadae618927a0eb55ef8bc9afb475419a64c02284a6a",
+      "after_json_sha256": "08cefad02f3347c4ec7ecadae618927a0eb55ef8bc9afb475419a64c02284a6a"
+    },
+    "providers": {
+      "entire_before_after_map_equal": true,
+      "files": 2256,
+      "before_json_sha256": "cf70840d4b67b8b755a66542980eb70b61c218e9d1b218ae5e1e04db7183766f",
+      "after_json_sha256": "cf70840d4b67b8b755a66542980eb70b61c218e9d1b218ae5e1e04db7183766f"
+    },
+    "dependencies": {
+      "entire_before_after_map_equal": true,
+      "files": 21500,
+      "before_json_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "after_json_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698"
+    },
+    "tools": {
+      "entire_before_after_map_equal": true,
+      "files": 7
+    }
+  },
+  "exact_git_tree_and_critical_source_protocol_pins": {
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "37ac7228720673bfbf3fbae7255af07776c240f75eba1648e98b6d55b3012c69",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "56dbeddd0e34774d745c812c54c1ebac26d95267e3adcdb5c2a403ea32cbdc5d",
+    "rust/tcl-lsp-server/src/lib.rs": "35a5eae6493ac17f163055a76e0869c57bddce2b40badebaa2d46e3d036b6392",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py": "bf5f87efbc38afd3be3fb71676a176f487d61f9db9c36fe0b222223934de3a02",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "cases": [],
+  "runtime_reached": false,
+  "selected_server_compilation_0w": false,
+  "scan_observer_stage_status": "UNREACHED_COMPILER_BUILD_FAILED",
+  "original_typical_30s_barrier": "UNRUN",
+  "original_Context_two_assertions": "UNRUN",
+  "factory_16round_warning": "NOT_OBSERVED_WORKERS_UNRUN",
+  "scope_limits": "Full source inventory map stability and exact tree/critical Git byte pins checked; full all-file Git-byte reconstruction not independently repeated here. No runtime source/scan/factory/Context/ILX cause, no timeout/floor/logcap cause, and no typing/Clippy/performance/shipping gate admission. Failed evidence retained; no rerun by LSP."
+}

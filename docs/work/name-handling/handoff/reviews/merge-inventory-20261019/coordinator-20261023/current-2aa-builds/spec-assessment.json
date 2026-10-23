@@ -1,0 +1,118 @@
+{
+  "CRC_safe_member_inventory": true,
+  "ZIP_bytes": 10086441,
+  "ZIP_sha256": "45e4fafd77a895a139dd0bcbf7d332816b94100534a90082a2ce6dbb06707b08",
+  "all_final_source_provider_tool_dependency_seals": true,
+  "artifact_id": 12536341148,
+  "authenticated_current_input_pins": {
+    ".github/workflows/perf.yml": "4220c905f293347811c2405847532ba46e36a5772c363ec247b6ffc78e82a22e",
+    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "docs/work/name-handling/validation-tools/spectcl-fold-diagnostics.py": "6df238c84828950e4f66954000c2217f55b1bff4e1c9aa7bbe26b238931b23ae",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json": "d1e9d62615ea5895b42981cf981d46b9457b903fb01604479546782c2ace5600",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/compilation_unit.rs": "6dc0590c3dfe0d6a6ead54c16d955f4c64f61671f189cd867a9728b15bbf167a",
+    "rust/tcl-compiler/src/const_subst.rs": "d7ffe07d80a6bcaca96c0083dbeb95fc4d59b3d2459d8c2d7ed764651dc15c2f",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "509ccdf0f93da16f1dfdef1a42d3a324471c7406ebd010c45400239db336d07b",
+    "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
+    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "scripts/dev/ensure-test-deps.sh": "d0ebdb903e5746957616deabc24b9b44e294700abb8f2c6a652b27c3b5f53b49",
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+  },
+  "final_errors": [],
+  "full_seal_counts": {
+    "dependencies": 21500,
+    "providers": 2466,
+    "source": 125327,
+    "tools": 8
+  },
+  "infrastructure_error": "RuntimeError('selected target build failed or unclosed: pack_source_e2e')",
+  "job_id": 120683781541,
+  "largeJSON_ZIP_only_no_extraction": true,
+  "outcomes": [
+    {
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "the_loader_carries_the_declared_inputs",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "state": "UNRUN",
+      "target": "pack_source_e2e"
+    },
+    {
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "state": "UNRUN",
+      "target": "cmd_control_e2e"
+    }
+  ],
+  "overall_exit": 2,
+  "processes": [
+    {
+      "deadline_seconds": 600,
+      "elapsed_seconds": 2.816744005,
+      "exit_code": 0,
+      "minimum_free_bytes": 75677204480,
+      "prefix": "fetch"
+    },
+    {
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 72.287191215,
+      "exit_code": 101,
+      "minimum_free_bytes": 75035045888,
+      "prefix": "build-pack_source_e2e"
+    }
+  ],
+  "run_id": 40032459416,
+  "selected_artifact_seal": false,
+  "semantic_acceptance_or_shipping_or_eightpackage_gate": false,
+  "source_sha": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "source_tree": "84f56f660f927b97e5fcf621cc84d2bafe658ef0",
+  "strict_fresh_selected_target_artifacts": [],
+  "tracked_source_paths": 125327,
+  "utc": "2026-10-23T22:35:08.523242+00:00",
+  "verdict": "AUTHENTICATED_CURRENT_ORIGINAL_TEST_DIAGNOSTIC"
+}

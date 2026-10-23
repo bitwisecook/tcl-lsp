@@ -1,0 +1,430 @@
+{
+  "created_utc": "2026-10-23T22:29:09.635695+00:00",
+  "run": 40032449490,
+  "job": 120683752715,
+  "source": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "artifact": 12535414242,
+  "archive_bytes": 27070529,
+  "archive_sha256": "2e00beb4a34ec9abe1b48cdb022c372ae8ce1392970e05a817d942017a247b11",
+  "diagnostic": "COMPLETE guarded3selected3closed1PASS2FAIL0unknown; full shared-process semantic gate separate and red/incomplete",
+  "source_report": {
+    "status": "PASS",
+    "manifest_sha256": "325ad617730e96caf8117759e5395e0d4d7f77856d361e428581839955f6b94d",
+    "source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "expected_source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "expected_file_count": 125327,
+    "current_tracked_file_count": 125327,
+    "checked_file_count": 125327,
+    "matched_file_count": 125327,
+    "stable_membership_during_verification": true,
+    "missing_tracked_paths": [],
+    "extra_tracked_paths": [],
+    "checksum_mismatches": [],
+    "read_errors": []
+  },
+  "source_git_join": {
+    "source": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "all_snapshot_membership_matches_git_tree": true,
+    "path_count": 125327,
+    "snapshot_sha256": "325ad617730e96caf8117759e5395e0d4d7f77856d361e428581839955f6b94d",
+    "key_git_blob_sha256": {
+      ".github/workflows/perf.yml": "4220c905f293347811c2405847532ba46e36a5772c363ec247b6ffc78e82a22e",
+      "scripts/dev/tracked-source-snapshot.py": "e6613bbd7cef5f002fceafa950a516905ece370e9242139ad3ad3eae3d8ed300",
+      "scripts/dev/nextest-terminal-capture.py": "9fd34cbb8cbef7bf46ea967ced82ea9ae090e53eea1e85582b63c5a66e860c00",
+      "runtime/rust/src/interp.rs": "f8f930c6d317f340242e0adc71605ced8b9bb81c51583fd873c8100d9a472a14",
+      "runtime/rust/src/interp/constructor_diagnostics.rs": "0b41ec2cb624a6194e4c0e6e1cc2fd31945dd0ad682f1ee8c88e208da5698350",
+      "runtime/rust/src/native_append_tests.rs": "29858c82dd52fc30ec6ed6a913f6a0400e2c9057209e41075c2d4e12f639f4e2",
+      "runtime/rust/src/builtins.rs": "2134006a2c59d9ab69038b0ae6554d93236bef01a8f6c0dd70b50246f23e498e",
+      "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+      "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1"
+    },
+    "scope": "Full reversible path/count membership authenticated against exact Git tree. Hosted strict e661 source helper reports all content matches; listed key contents independently joined to Git. No local full-source file rehash."
+  },
+  "outcomes": {
+    "public_c": "PASS3.756713867s allsix original checks including corrected native activecount1",
+    "numeric": "FAIL10111.013079528s exact incrLLMAX Jim overflow; actual pre/post errno34ERANGEtrue; user policy unanswered/unchanged",
+    "append": "TIMEOUT180.009690506s825completed0..824,last825tcl9.1pin,210remainingincludingstarted;Jimunreached"
+  },
+  "append_progress": {
+    "marker_count": 3302,
+    "completed_rows": 825,
+    "completed_indexes": "0..824",
+    "completed_by_profile": {
+      "tcl8.4": 189,
+      "tcl8.5": 189,
+      "tcl8.6": 189,
+      "tcl9.0": 189,
+      "tcl9.1": 69
+    },
+    "last_marker": {
+      "row": 825,
+      "profile": "tcl9.1",
+      "phase": "pin"
+    },
+    "remaining_including_started": 210,
+    "scope": "825 completed, row825 constructor returned and pin entered; Jim not reached. Instrumented original1035/180 still times out; stage samples do not justify cross-run performance or causal optimisation acceptance."
+  },
+  "constructor_timings": {
+    "timing_markers": 462,
+    "sample_count": 132,
+    "complete_samples": 132,
+    "partial_samples": 0,
+    "truncation_markers": [],
+    "parse_errors": [],
+    "sampled_stage_intervals": [
+      {
+        "kind": "bootstrap",
+        "stage": "builtins_ready",
+        "sample_count": 33,
+        "minimum_us": 107405,
+        "median_us": 114600,
+        "maximum_us": 259081
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "compiler_sealed",
+        "sample_count": 33,
+        "minimum_us": 1555,
+        "median_us": 1624,
+        "maximum_us": 1543146
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "globals_ready",
+        "sample_count": 33,
+        "minimum_us": 6553,
+        "median_us": 6997,
+        "maximum_us": 10905
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "locals_ready",
+        "sample_count": 33,
+        "minimum_us": 8,
+        "median_us": 10,
+        "maximum_us": 20
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "policies_ready",
+        "sample_count": 33,
+        "minimum_us": 54,
+        "median_us": 65,
+        "maximum_us": 917
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "profile_selected",
+        "sample_count": 33,
+        "minimum_us": 12,
+        "median_us": 17,
+        "maximum_us": 707
+      },
+      {
+        "kind": "bootstrap",
+        "stage": "state_allocated",
+        "sample_count": 33,
+        "minimum_us": 101,
+        "median_us": 122,
+        "maximum_us": 75279
+      },
+      {
+        "kind": "host",
+        "stage": "host_ready",
+        "sample_count": 33,
+        "minimum_us": 7,
+        "median_us": 12,
+        "maximum_us": 53
+      },
+      {
+        "kind": "identities",
+        "stage": "identities_ready",
+        "sample_count": 33,
+        "minimum_us": 5124,
+        "median_us": 5399,
+        "maximum_us": 7874
+      },
+      {
+        "kind": "pin",
+        "stage": "profile_installed",
+        "sample_count": 33,
+        "minimum_us": 36282,
+        "median_us": 57870,
+        "maximum_us": 2299876
+      }
+    ],
+    "details_sha256": "cb4d927ac464c68ca1f35f9a8f3ae19b6aabff33aaa34784aa1b923e6505a8cd",
+    "interpretation": "Measured builtin installation before nested identity sweep and profile installation dominate warm sampled constructor stages; no internal registration hotspot yet proved. Identity median5.399ms is contained within builtins median114.600ms. No sum or full-row/cross-host extrapolation."
+  },
+  "inventory": {
+    "scope": "Isolated diagnostic evidence only; original full shared-process semantic gate remains separate",
+    "source": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "listing_sha256": "f3c3e613a8c5f204323128a5355ad1fe4fc736b8101b339cc37e0f9d9991dc2d",
+    "selected": 3,
+    "closed": 3,
+    "counts": {
+      "ok": 1,
+      "failed": 2
+    },
+    "unknown": 0,
+    "full_failure_payloads": 2,
+    "raw_terminal_events": 3,
+    "nextest_exit": 100,
+    "capture_errors": [],
+    "source_manifest_files": 125327,
+    "source_files_checked": 125327,
+    "source_check_ok": true,
+    "git_after_empty": true,
+    "tommath_unchanged": true,
+    "have_tommath": true,
+    "lifecycle": {
+      "child_spawned": true,
+      "parent_pid": 4332,
+      "parent_start_ticks": 52623,
+      "owned_pgid": 4332,
+      "group_scan_attempts": 2,
+      "group_empty_before_parent_reap": true,
+      "cleanup_signals": [],
+      "external_signals": [],
+      "last_disk_free_bytes": 73971331072,
+      "last_live_members": [],
+      "last_scan_complete": true
+    },
+    "validation_errors": [],
+    "diagnostic_complete": true,
+    "evidence_hashes": {
+      "selected.json": "f3c3e613a8c5f204323128a5355ad1fe4fc736b8101b339cc37e0f9d9991dc2d",
+      "terminal/summary.json": "a13cb7dc5bcd183e3df987cf7e6ed21e36b1de05be10cc16c48559adf2147495",
+      "terminal/terminal.jsonl": "1388de42e077f0a2e524676170c0e1dab4b5e8d15c78b06de4f80e663308e0cc",
+      "terminal/reporter.raw.jsonl": "68eb8d846df65b207479351ec4e136af7185b5eab09f4cf95cbe85e77111f727",
+      "process-outcomes.json": "4822d7a5292e6401b23dff7ff1db9128188558dc08816872fcdc25f4164aad3a",
+      "process-outcomes.xml": "604ff87202fb0657881e1c0ef16cb28f9b4b298656180f25f99be02c8263971c"
+    },
+    "zip_sha256": "2e00beb4a34ec9abe1b48cdb022c372ae8ce1392970e05a817d942017a247b11",
+    "zip_all_members_crc_checked": true
+  },
+  "all_member_hashes": {
+    "backend-output.txt": {
+      "bytes": 1161,
+      "sha256": "056eed025c405abbc7a32c3140a81ac48d04ffde44e801a36b23b36a68efdce0"
+    },
+    "build-capture-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "capture-deadline-epoch.txt": {
+      "bytes": 11,
+      "sha256": "7fff4a5073291a0eb4d2da5628ac05d0cea64b8a0496d312c2c8ceaf4be55e7e"
+    },
+    "build.stderr": {
+      "bytes": 3392,
+      "sha256": "7409e04d54faf943f2aa79fda1caa309c7faf75b5ddb258b63761ef1315ee622"
+    },
+    "capture-deadline-seconds.txt": {
+      "bytes": 5,
+      "sha256": "4f5e055e2bfdbe0c3fb22e7a3e58911e2c53adb5d2561a7d428705d8142ce5ea"
+    },
+    "capture-exit.txt": {
+      "bytes": 4,
+      "sha256": "eea8254c7500ba3de996aa8ad6af399183f04e17d4a8102fde539dbc93a90012"
+    },
+    "cargo-version.txt": {
+      "bytes": 36,
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    "coverage.txt": {
+      "bytes": 169,
+      "sha256": "8f058102e985b7b6fd20bb3e5a0f32626974b31833d7a663ad4dbd75341464ac"
+    },
+    "diagnostic-completeness.json": {
+      "bytes": 42,
+      "sha256": "c2065f30943127d08f6e1e345ee7b92ab8cff69213efddf59d5e764e30ea14ac"
+    },
+    "focus-selected-verified.json": {
+      "bytes": 530,
+      "sha256": "f01c02e0e19a96c0277c4d036ada63e80aaa8ec46073cd2bf6160a9a65e37cfa"
+    },
+    "git-after.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "git-before.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "job.txt": {
+      "bytes": 24,
+      "sha256": "14f89d50cbeb32e6bf97dbfd51c444349638bbf4f5c58c0b977cfd30def04de9"
+    },
+    "nextest-filter.txt": {
+      "bytes": 346,
+      "sha256": "c3f0f923c62e7ca9fe5fb948daf9a8ea2319f586595fdc83393632846f788a6d"
+    },
+    "nextest-version.txt": {
+      "bytes": 171,
+      "sha256": "86790eada5534e2c6ac244cc3712ba21b7fcbb07b734511d47813532c7e246e5"
+    },
+    "nextest.toml": {
+      "bytes": 232,
+      "sha256": "ce5c4b5057b5f366560c91d82d128642557b3e2f167285dec553a0de337c8c03"
+    },
+    "process-outcomes.json": {
+      "bytes": 2908,
+      "sha256": "4822d7a5292e6401b23dff7ff1db9128188558dc08816872fcdc25f4164aad3a"
+    },
+    "process-outcomes.xml": {
+      "bytes": 3209,
+      "sha256": "604ff87202fb0657881e1c0ef16cb28f9b4b298656180f25f99be02c8263971c"
+    },
+    "python-version.txt": {
+      "bytes": 14,
+      "sha256": "63990b3ee50c49ab28d70e29c0f967f0c71330e39243ffeb4d3a8d5878c8a978"
+    },
+    "raw-capture-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "rustc-version.txt": {
+      "bytes": 196,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    "selected.json": {
+      "bytes": 451206,
+      "sha256": "f3c3e613a8c5f204323128a5355ad1fe4fc736b8101b339cc37e0f9d9991dc2d"
+    },
+    "source-after.json": {
+      "bytes": 543,
+      "sha256": "bb301bcaaa4be789a5cdd4d3e64c61dd386dfa6b89bbea34e2300ffb921e1bd5"
+    },
+    "source-commit.txt": {
+      "bytes": 41,
+      "sha256": "10b3ec492434faeea0f1fdcc19c8cc4e206d4a12d44bcaa5b070575fd5558b56"
+    },
+    "terminal/nextest-stderr.txt": {
+      "bytes": 237504,
+      "sha256": "a9254e01fef28389a8ba381677fac13a07d01bbb01a1af322c03c1395228853c"
+    },
+    "terminal/reporter.raw.jsonl": {
+      "bytes": 3046,
+      "sha256": "68eb8d846df65b207479351ec4e136af7185b5eab09f4cf95cbe85e77111f727"
+    },
+    "terminal/terminal.jsonl": {
+      "bytes": 1122,
+      "sha256": "1388de42e077f0a2e524676170c0e1dab4b5e8d15c78b06de4f80e663308e0cc"
+    },
+    "terminal/summary.json": {
+      "bytes": 777,
+      "sha256": "a13cb7dc5bcd183e3df987cf7e6ed21e36b1de05be10cc16c48559adf2147495"
+    },
+    "tommath-after.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tommath-before.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tracked-source-before.json": {
+      "bytes": 26307174,
+      "sha256": "325ad617730e96caf8117759e5395e0d4d7f77856d361e428581839955f6b94d"
+    }
+  },
+  "api_final_job": {
+    "id": 120683752715,
+    "name": "runtime-fulltom-diagnostics",
+    "status": "completed",
+    "conclusion": "failure",
+    "run_id": 40032449490,
+    "logs_url": null,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Record diagnostic deadline",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Install cargo-nextest",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Validate revision and record original source",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Fetch the Tcl 9.0.4 source (libtommath)",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 7
+      },
+      {
+        "name": "Capture complete isolated original runtime inventory",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 8
+      },
+      {
+        "name": "Upload full diagnostic evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9
+      },
+      {
+        "name": "Post Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 17
+      },
+      {
+        "name": "Post Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 18
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 19
+      }
+    ]
+  },
+  "limits": [
+    "Instrumented append run still fails original1035/180; timings include observer overhead and overlap, not performance or optimisation acceptance.",
+    "Source/header/path metadata and new empty-target build are retained; no uploaded ELF or independent executable SHA256. Deps suffix is not a digest.",
+    "No provider tarball/ELF independent rehash; provider recorded manifests/live backend checks are diagnostic evidence.",
+    "Original shared-process fullTom semantic gate and separate actualNoTom capability gate remain distinct.",
+    "No numeric fixture/kernel/assertion change or new C callback/oracle executed."
+  ],
+  "next": "Source investigation actual builtin registration/publication before identity sweep and actual install_pin, with smallest owner-preserving correction only after proof."
+}

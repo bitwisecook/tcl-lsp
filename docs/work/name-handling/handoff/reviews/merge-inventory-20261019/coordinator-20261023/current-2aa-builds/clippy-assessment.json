@@ -1,0 +1,349 @@
+{
+  "utc": "2026-10-23T22:32:24.175377+00:00",
+  "source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "run_id": 40032463145,
+  "job_id": 120683793959,
+  "artifact": {
+    "id": 12536051736,
+    "name": "scoped-lsp-clippy-2aa5346904f477e09bdc4b05a03adcd3e8b549ae-1",
+    "size_in_bytes": 3975336,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12536051736",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12536051736/zip",
+    "expired": false,
+    "created_at": "2026-10-23T22:25:08Z",
+    "expires_at": "2026-11-22T22:25:06Z",
+    "updated_at": "2026-10-23T22:25:08Z",
+    "digest": "sha256:be9f85ae5d377a38541e88e36dffb58f36a8ade669cdd9c7c78b852744f71b17",
+    "workflow_run": {
+      "id": 40032463145,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "work",
+      "head_sha": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae"
+    }
+  },
+  "zip_sha256": "be9f85ae5d377a38541e88e36dffb58f36a8ade669cdd9c7c78b852744f71b17",
+  "zip_bytes": 3975336,
+  "ZIP_API_source_identity": "PASS",
+  "ZIP_members": [
+    {
+      "path": "capture-exit.txt",
+      "bytes": 2
+    },
+    {
+      "path": "capture-incomplete.txt",
+      "bytes": 2
+    },
+    {
+      "path": "cargo-version.txt",
+      "bytes": 36
+    },
+    {
+      "path": "clippy-version.txt",
+      "bytes": 38
+    },
+    {
+      "path": "coverage.txt",
+      "bytes": 203
+    },
+    {
+      "path": "git-after.txt",
+      "bytes": 0
+    },
+    {
+      "path": "git-before.txt",
+      "bytes": 0
+    },
+    {
+      "path": "job.txt",
+      "bytes": 24
+    },
+    {
+      "path": "outcomes.json",
+      "bytes": 1967
+    },
+    {
+      "path": "rustc-version.txt",
+      "bytes": 196
+    },
+    {
+      "path": "source-after.json",
+      "bytes": 543
+    },
+    {
+      "path": "source-commit.txt",
+      "bytes": 41
+    },
+    {
+      "path": "tcl-lsp-core.log.txt",
+      "bytes": 10918
+    },
+    {
+      "path": "tcl-lsp-db.log.txt",
+      "bytes": 3592
+    },
+    {
+      "path": "tcl-lsp-server.log.txt",
+      "bytes": 1573
+    },
+    {
+      "path": "tools-after.txt",
+      "bytes": 242
+    },
+    {
+      "path": "tools.sha256",
+      "bytes": 428
+    },
+    {
+      "path": "tracked-source-before.json",
+      "bytes": 26307174
+    }
+  ],
+  "complete_source_JSON_schema_unique_membership": "PASS",
+  "manifest_sha256": "325ad617730e96caf8117759e5395e0d4d7f77856d361e428581839955f6b94d",
+  "tracked_file_count": 125327,
+  "exact_cached_Git_tree_membership": "PASS",
+  "source_after": {
+    "status": "PASS",
+    "manifest_sha256": "325ad617730e96caf8117759e5395e0d4d7f77856d361e428581839955f6b94d",
+    "source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "expected_source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+    "expected_file_count": 125327,
+    "current_tracked_file_count": 125327,
+    "checked_file_count": 125327,
+    "matched_file_count": 125327,
+    "stable_membership_during_verification": true,
+    "missing_tracked_paths": [],
+    "extra_tracked_paths": [],
+    "checksum_mismatches": [],
+    "read_errors": []
+  },
+  "source_producer_and_diagnostic_file_hash_joins": {
+    "scripts/dev/tracked-source-snapshot.py": "e6613bbd7cef5f002fceafa950a516905ece370e9242139ad3ad3eae3d8ed300",
+    ".github/workflows/perf.yml": "4220c905f293347811c2405847532ba46e36a5772c363ec247b6ffc78e82a22e",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "37ac7228720673bfbf3fbae7255af07776c240f75eba1648e98b6d55b3012c69"
+  },
+  "git_before_after_empty": true,
+  "tool_provider_sha256": {
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver": "89b6cc8d0d988b00a3f65bc90c76fedbaedb6bcb442b34563aefe3621f26544b"
+  },
+  "tool_after_status": [
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver: OK"
+  ],
+  "tool_versions": {
+    "cargo-version.txt": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "clippy-version.txt": "clippy 0.1.99 (58cf8f9c35 2026-10-13)\n",
+    "rustc-version.txt": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+  },
+  "capture_exit": 1,
+  "capture_incomplete": 0,
+  "all_three_direct_processes_waited_and_EOF": true,
+  "process_group_empty": "NOT_RECORDED; direct process wait and stdout EOF only",
+  "minimum_observed_disk_bytes": 75924090880,
+  "scopes": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "process": {
+        "package": "tcl-lsp-core",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76537237504,
+          "/home/runner/work/_temp": 76537237504
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-core",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792794119.1904435,
+        "pid": 3090,
+        "exit_code": 101,
+        "ended": 1792794183.3675327,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76137897984,
+          "/home/runner/work/_temp": 76137897984
+        }
+      },
+      "log_bytes": 10918,
+      "log_sha256": "c95a4b01f220135932daf9856ca3261c6b805aa382791153ef1d8de5d6f6a2ee",
+      "coverage": "LINT_UNREACHED_DEPENDENCY_COMPILE_FAILURE",
+      "located_compiler_error_emissions": 1,
+      "located_primary_requested_package_findings": 0,
+      "observed_warning_headers": 0,
+      "observed_clippy_lint_headers": 0,
+      "warning_or_lint_closure": false,
+      "unlocated_headers": [
+        {
+          "package": "tcl-lsp-core",
+          "severity": "error",
+          "rust_error": null,
+          "message": "could not compile `tcl-compiler` (lib) due to 1 previous error",
+          "log_line": 316,
+          "block_sha256": "6132c2973a9c27f34349cfa14f8cb76b42e05db66bb1564923f4e666aacbb403"
+        }
+      ]
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "process": {
+        "package": "tcl-lsp-db",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76137889792,
+          "/home/runner/work/_temp": 76137889792
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-db",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792794183.3679798,
+        "pid": 4485,
+        "exit_code": 101,
+        "ended": 1792794238.883051,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75963596800,
+          "/home/runner/work/_temp": 75963596800
+        }
+      },
+      "log_bytes": 3592,
+      "log_sha256": "2244104d14e1baf2acda5b4a7edb7a0dbd663cfb79f172bd161a1197a8c445dd",
+      "coverage": "LINT_UNREACHED_DEPENDENCY_COMPILE_FAILURE",
+      "located_compiler_error_emissions": 1,
+      "located_primary_requested_package_findings": 0,
+      "observed_warning_headers": 0,
+      "observed_clippy_lint_headers": 0,
+      "warning_or_lint_closure": false,
+      "unlocated_headers": [
+        {
+          "package": "tcl-lsp-db",
+          "severity": "error",
+          "rust_error": null,
+          "message": "could not compile `tcl-compiler` (lib) due to 1 previous error",
+          "log_line": 87,
+          "block_sha256": "6132c2973a9c27f34349cfa14f8cb76b42e05db66bb1564923f4e666aacbb403"
+        }
+      ]
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "process": {
+        "package": "tcl-lsp-server",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75963584512,
+          "/home/runner/work/_temp": 75963580416
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-server",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792794238.8834817,
+        "pid": 4976,
+        "exit_code": 101,
+        "ended": 1792794270.3530006,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75924090880,
+          "/home/runner/work/_temp": 75924090880
+        }
+      },
+      "log_bytes": 1573,
+      "log_sha256": "99b0db530be4dded19766033fea89b82d8fe4dd4f62c854dda00ebe9211f0651",
+      "coverage": "LINT_UNREACHED_DEPENDENCY_COMPILE_FAILURE",
+      "located_compiler_error_emissions": 1,
+      "located_primary_requested_package_findings": 0,
+      "observed_warning_headers": 0,
+      "observed_clippy_lint_headers": 0,
+      "warning_or_lint_closure": false,
+      "unlocated_headers": [
+        {
+          "package": "tcl-lsp-server",
+          "severity": "error",
+          "rust_error": null,
+          "message": "could not compile `tcl-compiler` (lib) due to 1 previous error",
+          "log_line": 38,
+          "block_sha256": "6132c2973a9c27f34349cfa14f8cb76b42e05db66bb1564923f4e666aacbb403"
+        }
+      ]
+    }
+  ],
+  "actual_census": {
+    "distinct_located_compiler_E_errors": 1,
+    "compiler_E0609_emissions": 3,
+    "nonlocated_could_not_compile_summaries": 3,
+    "observed_warning_headers": 0,
+    "observed_Clippy_lint_headers": 0,
+    "LSP_lint_status": "UNREACHED_ALL_THREE; zero observed lint headers are not a zero-lint result",
+    "primary_findings": [
+      {
+        "package": "tcl-lsp-core",
+        "severity": "error[E0609]",
+        "rust_error": "E0609",
+        "message": "no field `words` on type `segmenter::SegmentedCommand`",
+        "log_line": 282,
+        "block_sha256": "60ab976e0d6b6d32b8a352129e4de12110ef292052510e25e2d3a28d8aa112df",
+        "file": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+        "line": 407,
+        "column": 24
+      },
+      {
+        "package": "tcl-lsp-db",
+        "severity": "error[E0609]",
+        "rust_error": "E0609",
+        "message": "no field `words` on type `segmenter::SegmentedCommand`",
+        "log_line": 78,
+        "block_sha256": "57da56ceeb5039ed0cabaac8dd895171d4e376f4033b20938f5f6be1a6025760",
+        "file": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+        "line": 407,
+        "column": 24
+      },
+      {
+        "package": "tcl-lsp-server",
+        "severity": "error[E0609]",
+        "rust_error": "E0609",
+        "message": "no field `words` on type `segmenter::SegmentedCommand`",
+        "log_line": 21,
+        "block_sha256": "a82d033743a959101a7ef6640849a9f97a0b2d0a07be94497ef0d7855eee622b",
+        "file": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+        "line": 407,
+        "column": 24
+      }
+    ]
+  },
+  "limits": [
+    "No local build/test/native execution.",
+    "Source manifest parsed in ZIP; large manifest not extracted.",
+    "Full-source checksum validation is the authenticated hosted helper report; local review independently checks complete manifest schema/membership and exact producer/diagnostic source hashes.",
+    "No strict compiler Clippy/all-target claim: compiler was a dependency under --no-deps.",
+    "Prior lint counts are not subtracted or closed by this blocked run."
+  ]
+}

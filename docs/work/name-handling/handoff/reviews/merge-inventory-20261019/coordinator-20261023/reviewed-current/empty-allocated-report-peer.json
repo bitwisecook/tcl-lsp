@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-23T22:42:26.385795+00:00",
+  "result": "INDEPENDENT BOUNDED STATIC SEMANTIC AND CLEAN CARRY CLEAR",
+  "base_commit": "9891aaa57a716fc5275575c3d61692e948f6b001",
+  "external_commit": "ce6facfb1ce00ab325924cb567c1ffdd4cff1168",
+  "patch_sha256": "9e23ced042e0990b04214d6a68cb89b1135cd9e34a11d5d93e3fef70d62ff954",
+  "manifest_sha256": "937ef6a23c7cb50fee3b3005c742feac133595b1644a81116c17411889b1fca0",
+  "external_patch_sha256": "2790698707dad8a9c79ee18d1cbdbc31faa04a5a01c32cb48fbd499535e4491e",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": "882bd9662432c89a24bf01e539c088d67f8dc63ad2ba40f9d89dbb8fb02abbda",
+      "after_sha256": "516087ba25d7b04240ca9a3ecb1f127b6f2c288eed5bc02b6506729199e1eadc",
+      "external_before_sha256": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe",
+      "external_after_sha256": "a6376ba49f26d519bdd5ec9cd9e55bdb7230f944dd110fee8d5f8c0653364597",
+      "independently_replayed_hunks": 1
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "before_sha256": "e2089b76216da9c8f57cdf13ec48daa9e67ef8265ed4f63493af8125929d01b7",
+      "after_sha256": "552f1ad08b9749743d7f070da0bf148b9a833b1e829e23a46151d44227071169",
+      "external_before_sha256": "60d5a5a3f31e9ef29c45605bf0cdc3ce9f45c7bba05f4f31d499a570bf76565f",
+      "external_after_sha256": "6c00dd167c0f28a1edfb2c89c86875241ba537b3c9030405a71e62d231df09ae",
+      "independently_replayed_hunks": 3
+    }
+  ],
+  "checks": {
+    "exact_current_release_before": true,
+    "independent_raw_external_hunks_unique_replay_work_and_clean": true,
+    "entire_clean_finals_match": true,
+    "copy_check_forward_reverse_check_forward_zero_output": true,
+    "pinned_rustfmt_2024_two_files": true
+  },
+  "semantic_review": [
+    "Only empty Unit(OriginalDeclaration), exact id, Allocated purpose enters new path; nonempty and out-of-range checks, duplicate refusal and Installed helper unchanged.",
+    "positioned_for_module authenticates current retained source/module/registry; source_origin and actual allocation plus procedure-id allocator must exist.",
+    "Held body kind/span/site/offset, actual executed_source Arc pointer and namespace join the report row; allocation matches current exact source image with non-repeated incarnation; allocation/root and source/root Arc identities join.",
+    "Source is actually empty with Contiguous base equal declaration start; current original declaration inventory must supply equal complete allocation, source and namespace card. Original producer returns all original declaration bodies independently of callable/final state, without execution admission.",
+    "procedure() still authenticates exactly one purpose, held body pointer, original-source membership, and hosted-purpose restriction. No Native/Logical/Hosted/Installed-to-Allocated substitution.",
+    "No runtime cache/equality change, executable source grant, byte fallback, Debug equality, guard removal, or old assertion change. Additive controls retain positive two-owner capture/self/cross equality and wrong-role/purpose/geometry/missing owner/card/foreign/duplicate refusals.",
+    "New current-card query allocates temporary inventory Vec and clones cards on exceptional empty-body capture path, then drops it on helper return. Report rows retain original body/source ownership; no compiler/execution owner lifetime changed."
+  ],
+  "limits": [
+    "No local Cargo, typecheck, Clippy, runtime controls or full corpus rerun; external test results not independently re-executed by this peer.",
+    "This receipt clears the report-only repair source/carry; it does not establish realm correspondence, full corpus/performance acceptance, or any of the six C6 failure closures."
+  ]
+}

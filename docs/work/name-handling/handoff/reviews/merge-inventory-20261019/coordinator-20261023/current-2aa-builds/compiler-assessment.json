@@ -1,0 +1,129 @@
+{
+  "utc": "2026-10-23T22:29:32.694532+00:00",
+  "status": "ACTUAL_2AA_STRICT_BUILD_E0609_BLOCKED_ORIGINAL58_AND_NATIVE3_SH2_ALL_UNRUN",
+  "run_id": 40032455876,
+  "job_id": 120683770629,
+  "source_commit": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "artifact_id": 12536166259,
+  "artifact_zip_sha256": "dd11677642041423c05e88c7be81eefa451c275a99b9b8a6911a4e34a8f404ac",
+  "artifact_zip_bytes": 10807881,
+  "independently_recomputed_seals": {
+    "source_equal": true,
+    "source_files": 125327,
+    "providers_equal": true,
+    "provider_entries": 10202,
+    "dependencies_equal": true,
+    "dependency_entries": 21500,
+    "tools_equal": true,
+    "tool_entries": 19,
+    "selected_test_artifacts": false,
+    "reason": "No selected compilerlib executable; strict build fails E0609."
+  },
+  "source_attribution": {
+    "path": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+    "actual_sha256": "37ac7228720673bfbf3fbae7255af07776c240f75eba1648e98b6d55b3012c69",
+    "raw_cargo_message": {
+      "rendered": "error[E0609]: no field `words` on type `SegmentedCommand`\n   --> rust/tcl-compiler/src/command_binding/generated_procedures.rs:407:24\n    |\n407 |             && command.words.first()?.span().start() == site.offset\n    |                        ^^^^^ unknown field\n    |\n    = note: available fields are: `span`, `argv`, `texts`, `word_fragments`, `single_token_word` ... and 5 others\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "available fields are: `span`, `argv`, `texts`, `word_fragments`, `single_token_word` ... and 5 others",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "error",
+      "message": "no field `words` on type `SegmentedCommand`",
+      "spans": [
+        {
+          "byte_end": 17776,
+          "byte_start": 17771,
+          "column_end": 29,
+          "column_start": 24,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+          "is_primary": true,
+          "label": "unknown field",
+          "line_end": 407,
+          "line_start": 407,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 29,
+              "highlight_start": 24,
+              "text": "            && command.words.first()?.span().start() == site.offset"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0609",
+        "explanation": "Attempted to access a nonexistent field in a struct.\n\nErroneous code example:\n\n```compile_fail,E0609\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.foo); // error: no field `foo` on type `StructWithFields`\n```\n\nTo fix this error, check that you didn't misspell the field's name or that the\nfield actually exists. Example:\n\n```\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.x); // ok!\n```\n"
+      }
+    },
+    "minimum_repair": "/workspace/naming-proof-storage/compiler-clippy/actual-generated-procedure-word-span-repair-v1"
+  },
+  "outcomes": {
+    "original58": {
+      "UNRUN": 58
+    },
+    "separate_native35": {
+      "UNRUN": 3
+    },
+    "separate_sh21_diagnostic_duplicates": {
+      "UNRUN": 2
+    }
+  },
+  "original58_exact_frozen_roster_verified": true,
+  "process_lifecycles": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 10.223598104,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 75457490944
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 54.585945933,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74814873600
+    }
+  ],
+  "limits": [
+    "No actual tests, Native35 capture or SH21 producer stage ran. Neither a functional verdict nor original58/current63 acceptance.",
+    "Source/provider/tools/dependencies and complete build cleanup authenticate this blocked actual only; missing test artifact is explicit.",
+    "Prior69650closed44PASS6FAIL and eightoriginal incomplete rows remain prior-source evidence; no transfer of those outcomes to2aa.",
+    "ILX/SH/RBS guards, original assertions, all35envrecords,20MiBcap/depth/floor unchanged."
+  ]
+}

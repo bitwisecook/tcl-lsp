@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-23T22:41:52.668789+00:00",
+  "decision": "INDEPENDENT_SUBSTANTIVE_STATIC_AND_CARRY_CLEAR",
+  "components": [
+    {
+      "lane": "work",
+      "manifest_sha256": "211c42b009e269e5742f4c59681c9800f6d237457174203b6fa25b8740e2252c",
+      "patch_sha256": "df669d5294a0e13f55812257c42751d8c8612911c3c797f069543dbb81a5927d",
+      "before_sha256": "35a5eae6493ac17f163055a76e0869c57bddce2b40badebaa2d46e3d036b6392",
+      "after_sha256": "6bc237967badf046103e18711563419dc35e86b2f7ce93adc6287d1683e2988c",
+      "whole_file_exact_prefix_transform": true,
+      "copied_forward_reverse_forward_zero_output": true,
+      "rustfmt2024_check": true
+    },
+    {
+      "lane": "clean",
+      "manifest_sha256": "681f0a63de182066be300d2fb50448bcb907fdd737814b5f9d2d7aa8a29a3f15",
+      "patch_sha256": "1dda127053721d76f57e0f4b4e47f819872a5fa78bbf6ce77ca4bf8de3115eef",
+      "before_sha256": "178fceecc6db9db342e60758c11d87038fe41b1f787a7d676cda8f63e97948f5",
+      "after_sha256": "1cc577ad0de71fb01db2fe02e7f63abe8cc4f76381038c2175d2af0cb86f37d6",
+      "whole_file_exact_prefix_transform": true,
+      "copied_forward_reverse_forward_zero_output": true,
+      "rustfmt2024_check": true
+    }
+  ],
+  "semantic_review": [
+    "Original complete body is byte-identical, including request timeout, all configuration layers, filesystem reads, awaited guards, fallback, and early returns. Whole-file inverse proves every other observer/comment/test/cleanup byte preserved.",
+    "Private direct-await caller remains unchanged; exact source search found one executable caller and no method-pointer or stored-future contract. Return keeps concrete inner Future, with self borrow lifetime captured by +'_ and original Result output.",
+    "One Box allocation occurs on method invocation, including unpolled future; OOM timing, heap storage, and Box deallocation are admitted changes. Inner body still starts only on polling; its suspension/cancellation fields and order remain the same, with Pin forwarding. No dynamic trait object or Send/Sync erasure.",
+    "Outer Pin<Box<_>> is Unpin and cannot move the pinned inner future. Existing captured configuration, folder, layer, source/store owners remain within the original concrete inner future and at their original poll/drop endpoints.",
+    "No source guard, configuration policy, deadline, test assertion, budget or Native grant changes."
+  ],
+  "limits": [
+    "No Cargo, rustc, future size, Clippy, actual cancellation, startup, Context, config burst or performance execution. No claim that all 37 configuration-family warnings are discharged."
+  ]
+}

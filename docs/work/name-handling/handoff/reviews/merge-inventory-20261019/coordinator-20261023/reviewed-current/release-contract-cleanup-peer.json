@@ -1,0 +1,30 @@
+{
+  "reviewer": "compiler-proof",
+  "status": "STATIC_DOCS_CLEAR",
+  "scope": "Bounded release-only one-document 19-replacement review, not a full repository audit.",
+  "base_commit": "d47449230527fa584f5e26acbfd31e81a856573a",
+  "patch_sha256": "fe3eb33b2a54539c4ea8a1e95ee9bdf0c976e7447bee7a0eac2c874def0792d4",
+  "manifest_sha256": "1545d4f59c09b9a57bbeeef2437390c888af317f0042317aee0cb527d50d8d3c",
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "50f1e7a020c5b1815bf85fcab588e21c8af481737c6963cb5d1afee363667511",
+      "after_sha256": "55b02eaaf9bd2f06addb23952d6df45c540a0d72104474f93ba6f6f9a227a9b8"
+    }
+  ],
+  "replacement_count": 19,
+  "exact_declared_replacements_match_after": true,
+  "copied_forward_reverse_forward_exact_no_fuzz_or_offset": true,
+  "assessment": [
+    "Removed row IDs, tranche/adoption narration and chronological qualifiers; explicit missing-owner/refusal distinctions and independent proof requirements remain.",
+    "Runtime alias obligations remain explicitly unresolved. Package traversal/realm/history/entry prerequisites remain separate, with the builtin-only package field restriction preserved.",
+    "Statement source geometry still grants no dispatch/erasure/equivalence/result/observer/storage authority. Source proposal, physical equivalence, census/motion/target construction and erasure requirements remain independent.",
+    "The potentially changed current-state statement about the delimiter scanner is supported at exact base: full_rewrite_span is cfg(test).",
+    "HookPlan selected-declaration/option-slot, class/member/method summary, receiver, private/public handler equivalence and custom execution obligations remain explicit.",
+    "Removing the numerical Native proof-HOLD status does not assert closure: the same paragraph still states incomplete condition footprint and requires independent object-conversion/effect/read-write-observer/result-allocation-equivalence proof.",
+    "No product/test/permission behavior change, runtime result, passed-test or performance claim is introduced."
+  ],
+  "no_unresolved_semantic_obligation_removed": true,
+  "canonical_mutations": false,
+  "tests": "Not run; docs-only static review."
+}

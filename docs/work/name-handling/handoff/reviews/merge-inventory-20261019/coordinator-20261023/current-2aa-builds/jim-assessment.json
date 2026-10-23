@@ -1,0 +1,215 @@
+{
+  "observed_utc": "2026-10-23T22:29:21.476654+00:00",
+  "archive_sha256": "50f261ff5fe0d4821bc02e542d80834757d00a2eb8cdaea0d964cfa306cd0245",
+  "archive_bytes": 10797300,
+  "run_id": 40032452785,
+  "expected_sha": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "actual_error": "RuntimeError('selected target build failed or unclosed: jim_document')",
+  "source_count": 125327,
+  "source_selected_pins": {
+    "docs/work/name-handling/validation-tools/jim-source-diagnostics.py": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "sha256": "92b2f145bfac9c1a12fa991385588fa662bb47fc0551c58a714b023228359e7b"
+    },
+    "rust/tcl-dialect/data/reference-toolchains.tsv": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/data/reference-toolchains.tsv",
+      "sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+    },
+    "rust/tcl-spectcl/tests/jim_document.rs": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+      "sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015"
+    },
+    "rust/tcl-spectcl/tests/jim_own_surface.rs": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e"
+    },
+    "rust/tcl-test-support/jim-reference.txt": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/jim-reference.txt",
+      "sha256": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba"
+    },
+    "scripts/dev/ensure-jim-oracle.sh": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/ensure-jim-oracle.sh",
+      "sha256": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07"
+    },
+    "scripts/dev/tcl-reference-toolchains.sh": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/tcl-reference-toolchains.sh",
+      "sha256": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+    }
+  },
+  "large_map_byte_seals": {
+    "source": {
+      "before_sha256": "08cefad02f3347c4ec7ecadae618927a0eb55ef8bc9afb475419a64c02284a6a",
+      "after_sha256": "08cefad02f3347c4ec7ecadae618927a0eb55ef8bc9afb475419a64c02284a6a",
+      "equal": true
+    },
+    "providers": {
+      "before_sha256": "67aa3b85d5e796d246c5a939cb4f0f1a9819ecbebbf8c152435aa49ab59e9eea",
+      "after_sha256": "67aa3b85d5e796d246c5a939cb4f0f1a9819ecbebbf8c152435aa49ab59e9eea",
+      "equal": true
+    },
+    "dependencies": {
+      "before_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "after_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "equal": true
+    }
+  },
+  "assertions": {
+    "requested_sha": true,
+    "job_run": true,
+    "job_head": true,
+    "work_ref": true,
+    "full_source_identity": true,
+    "full_source_count": true,
+    "original_and_driver_pins": true,
+    "original_roster": true,
+    "byte_seals": true,
+    "final_seals": false,
+    "tool_seal": true,
+    "original_required": true,
+    "original_row_identity": true,
+    "source_parent": true,
+    "required_tcl": true,
+    "jim_version": true,
+    "limits": true,
+    "strict_environment": true,
+    "diagnostic_scope": true,
+    "four_nonartifact_final_seals": true,
+    "build_failed_without_test_artifact": true,
+    "all_seven_unrun": true,
+    "fetch_and_failed_build_closed": true
+  },
+  "compiler_diagnostics": [
+    {
+      "rendered": "error[E0609]: no field `words` on type `SegmentedCommand`\n   --> rust/tcl-compiler/src/command_binding/generated_procedures.rs:407:24\n    |\n407 |             && command.words.first()?.span().start() == site.offset\n    |                        ^^^^^ unknown field\n    |\n    = note: available fields are: `span`, `argv`, `texts`, `word_fragments`, `single_token_word` ... and 5 others\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "available fields are: `span`, `argv`, `texts`, `word_fragments`, `single_token_word` ... and 5 others",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "error",
+      "message": "no field `words` on type `SegmentedCommand`",
+      "spans": [
+        {
+          "byte_end": 17776,
+          "byte_start": 17771,
+          "column_end": 29,
+          "column_start": 24,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+          "is_primary": true,
+          "label": "unknown field",
+          "line_end": 407,
+          "line_start": 407,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 29,
+              "highlight_start": 24,
+              "text": "            && command.words.first()?.span().start() == site.offset"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0609",
+        "explanation": "Attempted to access a nonexistent field in a struct.\n\nErroneous code example:\n\n```compile_fail,E0609\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.foo); // error: no field `foo` on type `StructWithFields`\n```\n\nTo fix this error, check that you didn't misspell the field's name or that the\nfield actually exists. Example:\n\n```\nstruct StructWithFields {\n    x: u32,\n}\n\nlet s = StructWithFields { x: 0 };\nprintln!(\"{}\", s.x); // ok!\n```\n"
+      }
+    }
+  ],
+  "process_rows": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "closed": true,
+      "budget": 600,
+      "floor": 2147483648
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "jim_document",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "exit_code": 101,
+      "closed": true,
+      "budget": 2400,
+      "floor": 2147483648
+    }
+  ],
+  "outcomes": [
+    {
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "state": "UNRUN",
+      "target": "jim_document"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "state": "UNRUN",
+      "target": "jim_document"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "state": "UNRUN",
+      "target": "jim_document"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "state": "UNRUN",
+      "target": "jim_document"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "state": "UNRUN",
+      "target": "jim_document"
+    },
+    {
+      "env": {},
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "state": "UNRUN",
+      "target": "jim_own_surface"
+    },
+    {
+      "env": {},
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "state": "UNRUN",
+      "target": "jim_own_surface"
+    }
+  ],
+  "limits": "Actual strict build failure, all7UNRUN, artifact seal false. Other complete source/provider/tool/dependency seals support diagnostic provenance only. No class/Logical-fix/body/uncertainty result or runtime/gate acceptance."
+}

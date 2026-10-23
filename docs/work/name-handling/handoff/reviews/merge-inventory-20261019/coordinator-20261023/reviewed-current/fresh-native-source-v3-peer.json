@@ -1,0 +1,126 @@
+{
+  "status": "STATIC_API_SOURCE_OWNER_AND_AUTHORITY_CLEAR",
+  "scope": "Independent read-only API/producer/source-owner/authority review; no Cargo/tests/native execution",
+  "lanes": [
+    {
+      "lane": "work",
+      "base": "dbe0ddc3f1dcf3acde06a6315fbf2984a13f7919",
+      "patch_sha256": "0210d7cb488ee023e367a790a88c8384e5494d25c79e04ee8a92f4628360d030",
+      "manifest_sha256": "dbbade1c3d9f66ed4cba8b58f0d08d4fae0ff150b74d5c17eb5e2e054d2e1e24",
+      "files": {
+        "rust/tcl-compiler/src/command_binding.rs": {
+          "before_sha256": "29fc592b8b3bcdd1d04c7e8b96575ec5144059f2a6b82171e68cf8cd2b0b1caa",
+          "final_sha256": "adc87e0953554f60fa430375c8d7cd45e490896570cb61d64c8ca2a70f127ad1"
+        },
+        "rust/tcl-compiler/src/command_binding/retained_source.rs": {
+          "before_sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+          "final_sha256": "8a4b4ff18e51915f4e8fbac69d6992c2b13f8503797664c64db1a8ec07a63ee0"
+        },
+        "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": {
+          "before_sha256": "83318f10015048e358406c8243871b5694b67bb9e86f08013576bf3e22691666",
+          "final_sha256": "7a1436436f4b8b028b72af73bfb2bd1db562ce5a467187ff316087f8fcdeb6c0"
+        },
+        "docs/design/compiler/value-transfers.md": {
+          "before_sha256": "58c4774f0e625c14cdabf488eaf861ce7a833c476e77b42764151bdebefffaec",
+          "final_sha256": "7eeda8c46263b2cd220e2cf2e23af7597d28dc837cf8e9847402a78a78a39187"
+        }
+      },
+      "copied_roundtrip": [
+        {
+          "reverse": false,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        },
+        {
+          "reverse": true,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        },
+        {
+          "reverse": false,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "lane": "clean",
+      "base": "f4b4909dccfdf643649a9ecc75f7048fc2b0530f",
+      "patch_sha256": "c465800d4b2b480b4aa184a26adff414beee39ab903a915d5245b8b7bf8cd8f5",
+      "manifest_sha256": "d90e1f94037b7427ddd28c85f01ac263c760790d75762a7454c764ca9a4915ba",
+      "files": {
+        "rust/tcl-compiler/src/command_binding.rs": {
+          "before_sha256": "b7637d4379045d5da2dc1f75d64c03e964c6b3f5405dee1e5f4a2dc45c348607",
+          "final_sha256": "ec5ebdae3a1f36ee4f6a68da6af56f40abb09e29603bde9e20aec51254803e9d"
+        },
+        "rust/tcl-compiler/src/command_binding/retained_source.rs": {
+          "before_sha256": "e5d39cca13b2bdf6ca0319320614f768037c05ea66e9f7ed02a76a14163f1c8f",
+          "final_sha256": "429a27b957ec8e007533f21be52d50c2ee145984a871d17530add04b1af4ef0b"
+        },
+        "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": {
+          "before_sha256": "83318f10015048e358406c8243871b5694b67bb9e86f08013576bf3e22691666",
+          "final_sha256": "7a1436436f4b8b028b72af73bfb2bd1db562ce5a467187ff316087f8fcdeb6c0"
+        },
+        "docs/design/compiler/value-transfers.md": {
+          "before_sha256": "ad8dfb52d36f3ed3a34067b789f4b85dbc8dad87049bf1d3fd4fa34860042c29",
+          "final_sha256": "6bfd8b432c9863dd4f7449e6d545f2041a83f6a445a589b16d9dea1283ec6db9"
+        }
+      },
+      "copied_roundtrip": [
+        {
+          "reverse": false,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        },
+        {
+          "reverse": true,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        },
+        {
+          "reverse": false,
+          "returncode": 0,
+          "stdout": "patching file rust/tcl-compiler/src/command_binding.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs\npatching file docs/design/compiler/value-transfers.md\n",
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "exact_original_fixture_chain": [
+    "pack_source_e2e.rs266\u2013280 installs actual pack host and registry then CompilationUnit::build_for_dialect",
+    "compilation_unit.rs4525\u20134534 calls fresh_document_input and build_with_retained_entry(inputSome)",
+    "fresh_document_input4544\u20134566 retains exact caller registry store and whole profile/config availability",
+    "lower_and_build_cfg2873\u20132885 issues SourceAnalysisEntry::for_supplied_source",
+    "for_supplied_source480\u2013511 metadata-valid Native branch carries dialect/native_compilation and leaves native_entry/execution_name_policy None, unknown_entry false",
+    "origin_inventory.rs1735\u20131771 returns purposeNone because explicit execution_name_policy isNone",
+    "new retained facade validates exact positioned module/input/registry, actual originalanalysis Arc, complete equality with existing fresh supplied contract, separately from Execution branch"
+  ],
+  "authority_review": [
+    "FreshNativeSourceAnalysis is privately constructed with borrowed retained owner/input/registry; no entry, policy, modulepurpose, completion or Normal bits modified",
+    "ModulepurposeSome(Logical/Standalone/AuthoredSimulation) refuses; None alone is insufficient without fresh issuer",
+    "Unknownhistory/sourcepoint/nativeentry/logical/hosted/explicitpolicy refuse; complete entry equality additionally rejects altered incomingformals/trustedloaders/compilation/other fields",
+    "Token metadata retains originalanalysis Arc, exact words, sourceoriginArc, currentmodule registry/input and actual point; nested input projection preserves availability identity",
+    "Parent retains strict invocation plus Normal, actual bodycard and unique current SSApoint, bounded unobserved afterarguments scalarwrite and canonicalreceiver cellkey equality",
+    "Child retains genuine original lifted inventory/origin and literal argv/no variable roles/argsnormal; actual target/handler/closed effects and actual normal evaluation remain required",
+    "Conditional source result is a lattice fact if the source operation runs; source owner does not certify that execution or completion happened",
+    "No module dropping, standalone fallback, Native-to-Logical conversion, read-only admission mutation, assertion weakening or new allow"
+  ],
+  "functional_limits": [
+    "Static factory admission for exact Tcl8.6 pack producer is established; end-to-end runtime/test results are unrun.",
+    "Original actual696 parent and child strict/Normal evidence does not replace fresh post-change runtime validation.",
+    "Existing source_token baseline/config guard is unchanged; deferred body branches preserve baseline and use separate compilation context.",
+    "Per-store SSA scan performance caveat remains; no performance claim."
+  ],
+  "lane_difference": "Native file identical across lanes. retained_source whole files differ in preexisting debug census method and proof-link comments; proposed added implementation identical.",
+  "v3_delta_review": "Explicit Script-only guard matches whole-document for_supplied_source contract. Test changes both private retained.kind and Modulekind, proves existing positioned join remainsSome, then verifies fresh issuerNone; no public setter or authority change.",
+  "copied_roundtrip_receipt": {
+    "path": "/tmp/compiler-proof-fresh-native-source-v3/roundtrip.json",
+    "sha256": "b4265a5ee460b009c0ee6d4568e164c33596f84b7d2e0db07b1f8c9700e85cf7"
+  },
+  "validation_boundary": "Both exact lane copied patch roundtrips PASS. Rust/hosted tests UNRUN by reviewer. No runtime result, all3 fixture closure or performance claim."
+}

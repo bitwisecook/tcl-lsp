@@ -2,9 +2,31 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T22:18:40.721623+00:00
+Last updated: 2026-10-23T22:52:40.638435+00:00
 
 ## Resume
+
+LATEST actual2d8 focused40034879796/job120691788852 CLOSEDFAIL/uploadSUCCESS,
+artifact12536843298 ZIP27000201 SHA8efcc8488c2835773a21e777cdc06c986486c4eea9523b8090c65f2bf0aed2af,
+/tmp/vm-fulltom-focused3-40034879796/receipt.json SHA906b1e331ce244ebdb33d5d439bcaa06a913aa677beb9cfef5dde1b4e76b1c8d.
+Complete guarded3closed1PASS2FAIL0unknown;125367fullGitmembership+key10SHAsincl
+actualborrowfile28ec,source125367/125367PASS,33memberCRC/SHA,gitclean,
+TomMathliveunchanged,2emptyPGscans. PublicC5.793227161PASS,numericJim10117.202245374
+sameerrno34pre/post(USERPENDING),append180.008703657TIMEOUT530complete0..529,
+last5308.6pin;505remain/Jimunreached.336Rustmarkers96samplesALLcomplete,no cap/errors;
+medianbuiltins193810us inclidentity9073.5us,pin98429.5us,host11.5us. Differenthost/
+source/case timings give NO causal speedup/regression or1035/180 acceptance.
+Borrowed-context puremetadata equality f5794662 independently CCGclearfc13b612,
+WORK649ebe769/CLEAN9891aaa57 integrated; savedownedcurrency+allguards unchanged.
+Source prune-scheduling-reviewe12279d5 HELD anyduplicate-prune removal: cleanup
+prunes BEFORE native owner/callback release, so later scan notprovedredundant.
+No cache/schedule/guard deletion authored. Rootprioritynewdraft separate14exact
+baseline regressions+isolated stack1 after original3 on same sealedELF; fresh
+/workflow source unchanged until immutablepeer. /tmp/vm-runtime-baseline-supplement-v1
+currentlyDRAFTNOTFROZEN (Ruff/ty/Pyright firstpassclear, controls/finalpinspending).
+C84 original812 existingprobe SHA2c1e656d has actual archive+dlopenimage branches;
+route makeTCL_LSP_TCL_RELEASES=8.4ensure-tcl-deps selects existingGNU17bootstrap.
+No newChelper/admission edit/execution; futureboundedmode afterbaseline14freeze.
 
 APPEND constructor-stage diagnostics V2 root independent STATICCLEAR4d7c250d,
 WORK-integrated/pushed2aa5346904f477e09bdc4b05a03adcd3e8b549ae: /tmp/vm-runtime-constructor-stage-diagnostics-v2/, patch
@@ -22,15 +44,29 @@ perkind,1024lines+one truncationmarker. Timings include observeroverhead/nested
 overlap and are NOT performanceacceptance. AlloriginalInterp nonemptylines stay
 inorder; append body singleactivationinverseexact;1035fresh/default/filters/
 assertions180s unchanged. Copyboth0/nooffset/exact,fmt2021/YAMLotherjobs/bash/
-whitespacePASS. Successor-review2785d9d2. UNCOMPILED/UNRUN; no localbuild/Ccallback/
+whitespacePASS. Successor-review2785d9d2. Hosted compiled/executed as below; no localbuild/Ccallback/
 oracle/cache/provider/guard/assertion changes; no clean carry. Root alone builds/
-dispatches. NEW actual runtime focused run40032449490/job120683752715 on exact2aa,
-created22:15:43, API22:18:21 inprogress checkout, no outcome/artifact yet. Parent
-confirms focused input despite shared jobname runtime-fulltom-diagnostics. Own
-read-only monitor and ZIP-only fullguard/3outcome/appendstage classification.
-Timing parser /tmp/vm-analyse-constructor-stage-timings-v1.py SHA11b1cd964db7c4697ced029a0edae2d5d50600c41d07903b284b8d7e8daa46a9;
-post-hoc Rustmarker analysis only, no native process/build. All previous actual
-failures retained until this new run closes; numeric policy USERPENDING unchanged.
+dispatches. NEW2aa runtime focused40032449490/job120683752715 CLOSEDFAIL,
+artifact12535414242 uploadedSUCCESS22:26:32. ZIP27070529 SHA
+2e00beb4a34ec9abe1b48cdb022c372ae8ce1392970e05a817d942017a247b11 at
+/tmp/vm-fulltom-focused3-40032449490/archive.zip; all33 CRC+streamSHA checked,
+largeJSON ZIP-only,247154smallbytes extracted. Receipt.json
+SHA9ec9750d7fda36fae5be298a7e6a00d8bc0894494d2630cd3377d0d75fc8a314.
+Complete guarded3selected/closed1PASS2FAIL0unknown,nextest100,captureerrors[],
+allsource125327/125327PASS+fullpath membership Gitjoin/key9blobSHAs,gitclean,
+TomMathliveunchanged,2emptyownedPGscans,no external/cleanup signals. PublicC
+PASS3.756713867s; numeric sameJim10111.013079528s pre/posterrno34ERANGEtrue,
+policyUSERPENDING; appendTIMEOUT180.009690506s,825rows0..824complete
+(189each8.4/8.5/8.6/9.0+699.1),lastrow8259.1pin;210remain,Jimunreached.
+462Rusttimingmarkers/132samplesALLcomplete/no truncation/parseerrors. Sampled
+medianstage deltas:builtins114600us includes identities5399us;profilepin57870us;
+host12us,state122us,globals6997us. Coldcompilersealmax1543146us and pinmax2299876us.
+Nested/observed timings notadditive; no full1035/180 or optimisation acceptance.
+Next source investigation actualbuiltinregistration/publication before identity
+sweep and install_pin. No dominant innerregistration owner/cost proved yet.
+Timing parser /tmp/vm-analyse-constructor-stage-timings-v1.py SHA11b1cd96;
+analysis/constructor-stages.json/append-progress.json/source-git-join.json retained.
+No ELF/executableSHA supplied or inferred; fullsharedgate remains separate.
 
 Root alone owns Git, Cargo, GO, product integration, release carry and dispatch.
 This role prepares exact-blob off-tree proposals and read-only evidence. No local
@@ -39,7 +75,7 @@ allowed. No target/executable deletion; workspace remains below2GiB buildfloor.
 Inspect future artifacts ZIP-only, stream large maps and extract smalllogs only.
 Original NoTom17 typed-capability+1refusal split is user-decided/PASS and unchanged.
 
-LATEST actual5177 focused run40024823970/job120658259828 CLOSED FAIL; artifact
+PREVIOUS actual5177 focused run40024823970/job120658259828 CLOSED FAIL; artifact
 12532328040, ZIP26924584bytes SHA85163344112aad791bc4981b5162bf6e3871fa812088493464a7c119b2597fcb,
 /tmp/vm-fulltom-focused3-40024823970/archive.zip. Complete guarded3selected/closed,
 1PASS2FAIL0unknown,nextest100,captureerrors[],sourceJSON125188/125188PASS,gitclean,

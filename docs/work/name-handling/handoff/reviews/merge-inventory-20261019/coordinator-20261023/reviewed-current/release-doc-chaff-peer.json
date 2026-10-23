@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-23T22:52:00.250555+00:00",
+  "decision": "INDEPENDENT_SUBSTANTIVE_STATIC_AND_CARRY_CLEAR",
+  "requested_manifest_sha256": "543164c1e2c797e525a6cff9932b8a7a583efb84a10c3a2cdc47198061e65500",
+  "actual_manifest_sha256": "af2bed64f739760fa616f7cb463c7af6379291c2bb48aa89c778cf6c5d229db2",
+  "source_commit": "124101b30c0bb812e07cc707c6bb5cce173593c1",
+  "current_release_commit": "124101b30c0bb812e07cc707c6bb5cce173593c1",
+  "files": [
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "source_commit": "124101b30c0bb812e07cc707c6bb5cce173593c1",
+      "before_sha256": "55b02eaaf9bd2f06addb23952d6df45c540a0d72104474f93ba6f6f9a227a9b8",
+      "proposed_sha256": "2795f4d205fbc564ab879bec11737afd46583ebfcf06227a8a3fd58cf2d95bcc",
+      "patch_sha256": "f1a6564c1324d8a2fe3f2336ee19fdbb4ed5a9451ea3f56098edbd764d475ea8",
+      "before_bytes": 257314,
+      "proposed_bytes": 257322,
+      "changed_context_count": 1,
+      "forward_context": "PASS",
+      "reverse_context": "PASS",
+      "repository_edited": false,
+      "current_before_exact": true,
+      "copied_forward_reverse_forward_zero_output": true
+    },
+    {
+      "path": "docs/design/contracts/naming-consumer-matrix.md",
+      "source_commit": "124101b30c0bb812e07cc707c6bb5cce173593c1",
+      "before_sha256": "8127976ee1f32064c117a311530435f03234abdee3c6ee67375405805c808d7b",
+      "proposed_sha256": "7421aea243e77c868c284ca59577af70e5e9611ccf55730c5eb95d6c999a0be7",
+      "patch_sha256": "30112ff71d2ce7eae9aa759dbdd07fc2458ee9c927b8895e816e5d07adbe9661",
+      "before_bytes": 200693,
+      "proposed_bytes": 200798,
+      "changed_context_count": 1,
+      "forward_context": "PASS",
+      "reverse_context": "PASS",
+      "repository_edited": false,
+      "current_before_exact": true,
+      "copied_forward_reverse_forward_zero_output": true
+    }
+  ],
+  "reviewed_source_pins": {
+    "rust/tcl-spec-studio/src/render_spectcl.rs": "46577e888adfaeb083ad99eef375e9aef2fcda9ae7dd74da5ebd4a30df223a64",
+    "rust/tcl-spec-studio/src/draft.rs": "53276ac662b530170ca44c78f5e25295fe29312bafc4bfa1be9978960a787d53",
+    "rust/tcl-lsp-core/src/semantic_tokens/receiver_source.rs": "4c34742bf180bb0cbe6c0b37923e0ca273aef88b0472ce0e22b4b98ea9bd6f28",
+    "rust/tcl-compiler/src/object_types/original_collection_sources.rs": "0e13b54e5cce37871d6a415e8850f81f249a7646ce6d979d3e43be6d2c960a7c",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs": "4b06ebb3e8bfa6c75a787763a26f633d17c32239a01726f8562432ef89f59f93"
+  },
+  "findings": [
+    "Studio renderer GAPS explicitly excludes source_package_query subcommand/refine spelling; draft subcommand_body notes a populated field unrecoverable, and form_rest explicitly records the native descriptor field unrecoverable. New wording describes these owners without claiming DSL/custom-pack authority or a closed gap.",
+    "Receiver presentation reborrows original_project_receiver_class_with_sources at the exact original command, retains full vector/static argument/source joins, hierarchy/class match, and provides_method guards. Collection branch requires retained sources.for_receiver and unanimous actual constructor source candidates; no class-name-only retagging.",
+    "OriginalCollectionElementSource retains original writer/schema/variable/value/constructor syntax. Extraction candidates retain the original extraction and occurrence/path; has_unknown_residual remains true. Revised text retains missing executed collection-map/receiver-frame proof and Native/Normal/edit exclusions; no execution or complete contents claim.",
+    "Only two reviewed paragraph intervals change. Every other whole-file byte and current cleanup stays exact."
+  ],
+  "limits": [
+    "Documentation-only static source correspondence; no Cargo/test/native/semantic execution or prior gap closure claim."
+  ],
+  "aggregate_hash_list_sha256": "543164c1e2c797e525a6cff9932b8a7a583efb84a10c3a2cdc47198061e65500",
+  "manifest_provenance_resolution": "Requested543164c1 is the SHA256 of manifest.sha256 aggregate hash-list, which pins JSONaf2bed64 and every reviewed before/proposed/patch/context/report file. Root initially labelled the aggregate as the JSON; no artifact changed. Independently rehashed every listed member and aggregate."
+}

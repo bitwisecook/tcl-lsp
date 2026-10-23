@@ -1,0 +1,219 @@
+{
+  "source_commit": "2d8d5e8f22cdf25339a2d8f19888c24705b1f301",
+  "rows": [
+    {
+      "severity": "error",
+      "message": "unnecessary `Debug` formatting in `eprintln!` args",
+      "rust_error": null,
+      "lint": "unnecessary_debug_formatting",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "line": 627,
+      "column": 60,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "42e1a191c026f9040fe1592a7adfa9e9f035ea11550d3cf7f0700142634efcde",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "unnecessary `Debug` formatting in `eprintln!` args",
+          "rust_error": null,
+          "lint": "unnecessary_debug_formatting",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 313,
+          "block_sha256": "dfd707481c56f1b00006633e3a29b5983f740218d8c2e48cf6cf9d38b1aaabf5",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 627,
+          "column": 60,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "56dbeddd0e34774d745c812c54c1ebac26d95267e3adcdb5c2a403ea32cbdc5d",
+      "source_excerpt": [
+        {
+          "line": 626,
+          "text": "        eprintln!("
+        },
+        {
+          "line": 627,
+          "text": "            \"[workspace_scan] package.analysis.begin path={path:?} bytes={} profile={} native_commands={native_commands:?}\","
+        },
+        {
+          "line": 628,
+          "text": "            content.len(),"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "unnecessary `Debug` formatting in `eprintln!` args",
+      "rust_error": null,
+      "lint": "unnecessary_debug_formatting",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "line": 635,
+      "column": 58,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "fea0913126abe696abbb9312460f0bfa5cbbd5a8c5201437d9a58409788febd9",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "unnecessary `Debug` formatting in `eprintln!` args",
+          "rust_error": null,
+          "lint": "unnecessary_debug_formatting",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 325,
+          "block_sha256": "b147b184540d019382d1db085f406fdb63b739d00c092e8cb08ccc52450f458d",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 635,
+          "column": 58,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "56dbeddd0e34774d745c812c54c1ebac26d95267e3adcdb5c2a403ea32cbdc5d",
+      "source_excerpt": [
+        {
+          "line": 634,
+          "text": "        eprintln!("
+        },
+        {
+          "line": 635,
+          "text": "            \"[workspace_scan] package.analysis.end path={path:?} elapsed_ms={} commands={} procedures={} classes={}\","
+        },
+        {
+          "line": 636,
+          "text": "            started.elapsed().as_millis(),"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "rust_error": null,
+      "lint": "type_complexity",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "line": 1001,
+      "column": 13,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "e795b46562905a25aece8c8afc9bad35dc9405370ae2e43e68549056272e4d49",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "very complex type used. Consider factoring parts into `type` definitions",
+          "rust_error": null,
+          "lint": "type_complexity",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 335,
+          "block_sha256": "dd59a067c1613220bdf547476881dc614fdfcfeda77f686262a8d7296c914c99",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 1001,
+          "column": 13,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "05cf8ed2c54933663fc0927c1780d9594684e055e8793fbf73ec5684879d6644",
+      "source_excerpt": [
+        {
+          "line": 1000,
+          "text": "    ),"
+        },
+        {
+          "line": 1001,
+          "text": "    values: ("
+        },
+        {
+          "line": 1002,
+          "text": "        &tcl_lexer::SourceImage,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "rust_error": null,
+      "lint": "type_complexity",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "line": 1007,
+      "column": 13,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "471924e8b6f7a231ca3cf603ea646f59899c4b199bcdecc76b7a796640eed6d8",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "very complex type used. Consider factoring parts into `type` definitions",
+          "rust_error": null,
+          "lint": "type_complexity",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 351,
+          "block_sha256": "84a468b20956b3f1a0fcb14523bca0b527d8dde5edcf58d8cd971e978420a32e",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 1007,
+          "column": 13,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "05cf8ed2c54933663fc0927c1780d9594684e055e8793fbf73ec5684879d6644",
+      "source_excerpt": [
+        {
+          "line": 1006,
+          "text": "    ),"
+        },
+        {
+          "line": 1007,
+          "text": "    output: ("
+        },
+        {
+          "line": 1008,
+          "text": "        &mut std::collections::BTreeMap<(u32, u32), Vec<u8>>,"
+        }
+      ]
+    }
+  ],
+  "scope_status": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 4,
+      "located_errors": 4,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "coverage": "COMPLETE_REQUESTED_ALL_TARGETS_ALL_FEATURES_ZERO_EXIT",
+      "zero_warning_closure": true,
+      "located_primary_findings": 0,
+      "located_errors": 0,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 132,
+      "located_errors": 132,
+      "located_warnings": 0
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-23T22:30:01.209337+00:00",
+  "verdict": "BOUNDED_INDEPENDENT_STATIC_MINIMUM_TYPE_GUARD_OWNER_AND_CLEAN_CARRY_CLEAR",
+  "rows": [
+    {
+      "role": "work",
+      "current_head": "1d658763422aaf6ead0e9db665d40bccbc332fec",
+      "manifest_sha256": "44ce29900f76e07c03bd5351f76018d1935a8300b95b0ea37e8760932c2e02a4",
+      "patch_sha256": "e2457c5135fcb7a17ccb1c25be81e01e1a6e3ea244e697b2a47ce9986d5672bf",
+      "before_sha256": "37ac7228720673bfbf3fbae7255af07776c240f75eba1648e98b6d55b3012c69",
+      "after_sha256": "e3fc7afcb96322c4a7d1e249d1f5d53baaec6132f75be92d843b549772eb6e3c",
+      "checks": "Entire inverse single-expression equality, current/base Git pins, copied forward/reverse0 no offset/fuzz/output, pinnedfmt2024two-pass, original asserts/allows/expect PASS"
+    },
+    {
+      "role": "clean",
+      "current_head": "c67c04c9c8a094cb87d563216a0a9f40bc1b9e76",
+      "manifest_sha256": "d747460a35357e71a9ee36378fdc99bf97b49014be0e7ffc69ebcaedad066739",
+      "patch_sha256": "e2457c5135fcb7a17ccb1c25be81e01e1a6e3ea244e697b2a47ce9986d5672bf",
+      "before_sha256": "37ac7228720673bfbf3fbae7255af07776c240f75eba1648e98b6d55b3012c69",
+      "after_sha256": "e3fc7afcb96322c4a7d1e249d1f5d53baaec6132f75be92d843b549772eb6e3c",
+      "checks": "Entire inverse single-expression equality, current/base Git pins, copied forward/reverse0 no offset/fuzz/output, pinnedfmt2024two-pass, original asserts/allows/expect PASS"
+    }
+  ],
+  "actual_failure_receipt": "/tmp/lsp-hosted-startup40032445657-actual-v1/assessment.json 1c362d1ca06f2df11ee40441311cf2cafd2f8113cbc16e6405b453c40dbedcaa",
+  "semantic_review": [
+    "Actual original_recorded_command() returns Option<(SegmentedCommand, CommandTokens)> and reconstructs a lexical command from retained site.source/offset/config, retaining both owners in caller bindings. It requires constructed tokens.words()==recorded words before returning. SegmentedCommand has no words field, consistent with authentic E0609.",
+    "Actual CommandTokens::words returns &[WordExpr]; WordExpr::source returns &SourceSite with Span. New projection uses the complete retained original first word, not a representative single token. Existing source_argument_syntax and original vector guards already use this exact source span start pattern.",
+    "The immediately preceding original.words()==tokens.words() remains. Missing first word still propagates None through the same short-circuit guard; site offset comparison, command span start, partial refusal, Arc owner equality, read.owns_original_read, snapshot source origin, variable frame and exact or nested input comparisons are untouched.",
+    "Only a borrowed projection changes: no query, parser, evaluator, lowering, clone, new allocation, Native authority, fallback or shortened owner/drop scope. Original command/original/snapshot/input/site bindings retain original endpoints.",
+    "WORK and CLEAN entire before files are byte-identical and entire after files byte-identical. No cleanup, observers, guards, assertions, fixtures or tests changed."
+  ],
+  "limits": [
+    "No Cargo/typecheck/test/build/native run performed.",
+    "Actual build closure and private ReadFlow behaviour require fresh hosted successor evidence; no native completion or rewrite acceptance follows from this static repair."
+  ]
+}

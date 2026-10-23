@@ -1,0 +1,120 @@
+{
+  "utc": "2026-10-23T22:46:54.971242+00:00",
+  "records": [
+    {
+      "path": "current-2aa-builds/startup-assessment.json",
+      "original_path": "/tmp/lsp-hosted-startup40032445657-actual-v1/assessment.json",
+      "sha256": "1c362d1ca06f2df11ee40441311cf2cafd2f8113cbc16e6405b453c40dbedcaa",
+      "bytes": 4706
+    },
+    {
+      "path": "current-2aa-builds/compiler-assessment.json",
+      "original_path": "/tmp/compiler-original63-40032455876/assessment.json",
+      "sha256": "fb1caf58ccca8c495c63b8f2e01d18ff270fbb382c66f6fdc9f79fbee690b3bd",
+      "bytes": 5178
+    },
+    {
+      "path": "current-2aa-builds/jim-assessment.json",
+      "original_path": "/workspace/naming-proof-storage/names-jim-hosted-40032452785-actual-v1/independent-failed-build-verification.json",
+      "sha256": "4193aba11465e4f8a5642566ca40a8a3de8f9b1bac5586d47b43825c503085a1",
+      "bytes": 8097
+    },
+    {
+      "path": "current-2aa-builds/spec-assessment.json",
+      "original_path": "/tmp/ccg-hosted-spectcl40032459416-actual-v1/assessment/identity-seals-processes.json",
+      "sha256": "53763d6ad3e0ef09552fcb12763252e52e3fc9ef4e4da1ea7d78acb5e2be249e",
+      "bytes": 5061
+    },
+    {
+      "path": "current-2aa-builds/clippy-assessment.json",
+      "original_path": "/tmp/compiler-proof-clippy40032463145/identity-seals-processes-census.json",
+      "sha256": "a79f2d67ac7cf29c81ba3ed43cd09d79cad78fd01ce14f01896c8868e3d0b9e4",
+      "bytes": 11959
+    },
+    {
+      "path": "focused-fulltom-2aa/receipt.json",
+      "original_path": "/tmp/vm-fulltom-focused3-40032449490/receipt.json",
+      "sha256": "9ec9750d7fda36fae5be298a7e6a00d8bc0894494d2630cd3377d0d75fc8a314",
+      "bytes": 15396
+    },
+    {
+      "path": "ci-cleanccf-current/runtime-assessment.json",
+      "original_path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/assessment.json",
+      "sha256": "40ab8757585a26ac88c2033d0072e081c130597c6a7b92228bcbd65226069a59",
+      "bytes": 6522
+    },
+    {
+      "path": "ci-cleanccf-current/runtime-failures-and-missing.json",
+      "original_path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/failures-and-missing.json",
+      "sha256": "05364100d5ffbfbc11baacf378447b1034e77e998cd393e36c3c70d3cfbba4b4",
+      "bytes": 538794
+    },
+    {
+      "path": "ci-cleanccf-current/job-statuses.json",
+      "original_path": "/tmp/ci-40027192497-status-2245.json",
+      "sha256": "cd769efcefa1f57f00103f9a884b0406a53042b75834778b87c5b6d0a204afe3",
+      "bytes": 9289
+    },
+    {
+      "path": "ci-cleanccf-current/old9c-job-statuses.json",
+      "original_path": "/tmp/ci-39996625386-status-2245.json",
+      "sha256": "28d48b1afda7eb0c3d62766c33a312ecd05f27e5821021cc2db1d033c16207f3",
+      "bytes": 4224
+    },
+    {
+      "path": "release-format-9891/receipt.json",
+      "original_path": "/tmp/clean-release-format-check-2239-v3.json",
+      "sha256": "8587cc6442ad86b6fe7e634089ea95f2606c90a5f19801590ec339d53593fa98",
+      "bytes": 522
+    },
+    {
+      "path": "hosted-wave-2238/dispatch.json",
+      "original_path": "/tmp/naming-hosted-dispatch-2238.json",
+      "sha256": "83c8d5067d1075f2fa33752018a7cc19cd04154c7a6865b07895180d1b1648d7",
+      "bytes": 919
+    },
+    {
+      "path": "reviewed-current/native-v5-peer.json",
+      "original_path": "/tmp/compiler-proof-native-normal-v5/review.json",
+      "sha256": "6f4a6f840334e240ed50a8e0ac7fa4080bd86ee63786d94dc4ba38e31be970f8",
+      "bytes": 5449
+    },
+    {
+      "path": "reviewed-current/span-fix-peer.json",
+      "original_path": "/tmp/lsp-peer-generated-procedure-word-span-repair-v1/review.json",
+      "sha256": "28c61cb21f3346419ba9ca37e96783e027d33f6935c4bf1a5a9e0e07b00f743d",
+      "bytes": 3333
+    },
+    {
+      "path": "reviewed-current/core4-peer.json",
+      "original_path": "/workspace/naming-proof-storage/names-peer-core-remaining4-v1/receipt.json",
+      "sha256": "b762422fda1de5a714390bfcc78d1c2368f11dfd7f2c8d92e261e3b9983c7440",
+      "bytes": 3707
+    },
+    {
+      "path": "reviewed-current/config-future-peer.json",
+      "original_path": "/workspace/naming-proof-storage/names-peer-config-future-boundary-v2/receipt.json",
+      "sha256": "a33a88cdb651653b95f29aba06fc67e2c4ff8b8e9eaa3ed8cdba1164027acca6",
+      "bytes": 2612
+    },
+    {
+      "path": "reviewed-current/empty-allocated-report-peer.json",
+      "original_path": "/workspace/naming-proof-storage/compiler-peer/report-empty-allocated-clean-v1/receipt.json",
+      "sha256": "56d4d71c82a869e37826f520c072ee0967545a6721a8d387e4c54b581a562108",
+      "bytes": 3842
+    },
+    {
+      "path": "reviewed-current/runtime-borrow-peer.json",
+      "original_path": "/tmp/ccg-peer-vm-currency-context-borrow-v1/review.json",
+      "sha256": "fc13b61213310f90afc31bda3e2260e3281b0f652081fbec01208ad33acc579b",
+      "bytes": 1660
+    },
+    {
+      "path": "reviewed-current/release-contract-cleanup-peer.json",
+      "original_path": "/tmp/compiler-proof-release-contract-cleanup-v1/review.json",
+      "sha256": "4bc5900cfa53ff786f778a56bdfff7961fb860d99b512ea5c6aa812014bd7162",
+      "bytes": 2241
+    }
+  ],
+  "admissions": []
+}

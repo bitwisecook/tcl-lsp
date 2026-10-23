@@ -1,0 +1,89 @@
+[
+  {
+    "package": "tcl-lsp-core",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76549509120,
+      "/home/runner/work/_temp": 76549509120
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-core",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792795442.324931,
+    "pid": 2930,
+    "exit_code": 101,
+    "ended": 1792795527.1387658,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76109910016,
+      "/home/runner/work/_temp": 76109910016
+    }
+  },
+  {
+    "package": "tcl-lsp-db",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76109901824,
+      "/home/runner/work/_temp": 76109901824
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-db",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792795527.1392024,
+    "pid": 4338,
+    "exit_code": 0,
+    "ended": 1792795608.4435933,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75880337408,
+      "/home/runner/work/_temp": 75880337408
+    }
+  },
+  {
+    "package": "tcl-lsp-server",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75880329216,
+      "/home/runner/work/_temp": 75880329216
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-server",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792795608.4439616,
+    "pid": 4905,
+    "exit_code": 101,
+    "ended": 1792795689.3292613,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75782897664,
+      "/home/runner/work/_temp": 75782897664
+    }
+  }
+]

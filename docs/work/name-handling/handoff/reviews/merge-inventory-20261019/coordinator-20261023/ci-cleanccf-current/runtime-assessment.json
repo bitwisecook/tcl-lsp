@@ -1,0 +1,158 @@
+{
+  "scope": "Read-only actual recorded runtime CI comparison; no builds or test execution",
+  "seals": [
+    {
+      "path": "/tmp/work-ci5204/runtime-baseline-119956196088.log",
+      "bytes": 258991,
+      "sha256": "5aa462b23077b24cbe852e856f611546c88b46b017656663d83cca38905c066d"
+    },
+    {
+      "path": "/tmp/cleanccf-job-120666930540.json",
+      "bytes": 331381,
+      "sha256": "1547bb56cd805caf735109dd0bc4b2fb61089fc26e11fa4ea89b3e515c17484a"
+    },
+    {
+      "path": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+      "bytes": 8060480,
+      "sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58"
+    },
+    {
+      "path": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/baseline-exact-comparator-20261022/ci5203_exact_selector_compare.py",
+      "bytes": 14358,
+      "sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2"
+    },
+    {
+      "path": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-final-jobs-20261022.json",
+      "bytes": 6785,
+      "sha256": "45405fe4aec635d1491088a0ea67f467e6a04aa7be1882907cfbf21c82dc0118"
+    },
+    {
+      "path": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-outcomes-20261022.json",
+      "bytes": 6484,
+      "sha256": "e481a695912b73493afff3238318c2d77d042bbb5d4dfd2e75d754ca7f97e7df"
+    }
+  ],
+  "workspace_nextest_baseline": {
+    "records": 24312,
+    "runtime_binary_rows": 0,
+    "runtime_api_rows": 49,
+    "exact_comparator_counts": {
+      "matched_passes": 0,
+      "regressions": 0,
+      "unknown": 24312,
+      "extra_current_passes": 1865,
+      "unmatched_current_nonpass": 118
+    },
+    "interpretation": "All 24312 outside this runtime job coverage; not failed or run. tcl-runtime-api is a different binary."
+  },
+  "separate_same_run_runtime_baseline": {
+    "full_tom_lib_pass": 753,
+    "full_tom_integration_pass": 245,
+    "total_named_pass": 998,
+    "current_exact_comparison_counts": {
+      "matched_passes": 602,
+      "regressions": 14,
+      "unknown": 382,
+      "extra_current_passes": 1263,
+      "unmatched_current_nonpass": 104
+    }
+  },
+  "current_full_tom": {
+    "announced_lib_tests": 2343,
+    "outer_named_pass": 1865,
+    "outer_named_fail": 117,
+    "named_stack_abort": 1,
+    "no_terminal_outcome_count_by_subtraction": 360,
+    "note": "360 has no actual current listing, so exact current missing identities cannot be reconstructed from the log. Do not replace with baseline missing137.",
+    "suite_terminal": null,
+    "additional_child_pass_retained_separately": 1,
+    "no_tom_capability_terminals": [
+      17,
+      1
+    ]
+  },
+  "baseline_pass_to_current_fail_groups": {
+    "environment_trace_contracts": 10,
+    "lappend_read_trace_contract": 1,
+    "regsub_character_iteration_contract": 1,
+    "interpreter_guard_currency_contracts": 2
+  },
+  "all_named_failures_by_namespace": {
+    "builtins": 2,
+    "capi": 1,
+    "cmd_alias": 2,
+    "cmd_array": 1,
+    "cmd_binary": 1,
+    "cmd_control": 1,
+    "cmd_dict": 1,
+    "cmd_error": 1,
+    "cmd_list": 8,
+    "cmd_lseq": 1,
+    "cmd_oo": 11,
+    "cmd_regex": 4,
+    "cmd_trace": 1,
+    "cmd_var": 3,
+    "codegen_abi": 1,
+    "codegen_native": 1,
+    "dict": 1,
+    "engine": 1,
+    "engine_abi": 1,
+    "env_trace": 10,
+    "expr": 2,
+    "frame": 5,
+    "interp": 57
+  },
+  "missing": {
+    "baseline_lib_missing_unknown": 137,
+    "baseline_integration_not_reached": 245,
+    "rule": "No rename/basename mapping. Missing lib rows may be absent/renamed or censored by abort; no failure classification."
+  },
+  "stack_abort": {
+    "selector": "interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit",
+    "timestamp": "2026-10-23T21:43:50.7665353Z",
+    "full_lib_start": "2026-10-23T21:34:58.8892397Z",
+    "elapsed_since_lib_announcement_seconds": 531.8772956,
+    "process_terminal": "2026-10-23T21:43:52.2943113Z",
+    "signal": "SIGABRT (6)",
+    "test_source": "runtime/rust/src/interp.rs23954",
+    "source_nesting": 300,
+    "host_eval_guard": 128,
+    "tcl_visible_recursion_limit": 1000,
+    "actual_thread_stack_bytes": "unmeasured; no RUST_MIN_STACK override in captured log",
+    "baseline_old_selector": "interp::tests::deeply_nested_foreach_errors_instead_of_crashing",
+    "identity_join": "different exact selector; old PASS remains missing and new ABORT remains unmatched, not promoted into regression"
+  },
+  "causal_limits": [
+    "Named FAIL outputs are authoritative; libtest aborted before detailed panic diagnostics, so namespace/contract groups are prioritisation, not proved common causes.",
+    "Named source tests may have changed between commits; exact identity comparison establishes outcome difference, not identical assertion contents.",
+    "Baseline Makefile source was not cached; only exact baseline make target and completed binary/control evidence used. No source fetch or build performed.",
+    "No suite pass, zero-warning, performance, all-baseline-closed, or 2343-completion claim."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/baseline-runtime-full-tom-records.json",
+      "bytes": 732149,
+      "sha256": "d63384fb36e48672edbde09ab735bbc0dfef3dee39b07c662b26cb591f0ff3c6"
+    },
+    {
+      "path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/current-runtime-full-tom-records.json",
+      "bytes": 1577731,
+      "sha256": "7293e60a91bb4179d63ba47448ba860ed284a8367b5055355c6a72ab40d84b08"
+    },
+    {
+      "path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/runtime-exact-comparison.json",
+      "bytes": 2994856,
+      "sha256": "10d753e15da91d785c15a26433e4810d89a6d60eebaf782b60c5419dcb104d1a"
+    },
+    {
+      "path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/failures-and-missing.json",
+      "bytes": 538794,
+      "sha256": "05364100d5ffbfbc11baacf378447b1034e77e998cd393e36c3c70d3cfbba4b4"
+    },
+    {
+      "path": "/tmp/compiler-proof-runtime-cleanccf-baseline-v1/source-and-process-evidence.json",
+      "bytes": 18973,
+      "sha256": "a373ca60fd783713f72633a4c0dbe179d5a4e5cbfa4173fbb289e040c75efbce"
+    }
+  ]
+}

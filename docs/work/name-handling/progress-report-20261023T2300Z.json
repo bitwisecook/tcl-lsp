@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T23:00:00.114544+00:00",
+  "scheduled_report_utc": "2026-10-23T22:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T23:25:37+00:00",
+  "change_since_previous_report": [
+    "Pushed reviewed WORK4f1c44bdf5309ee18d8f4e85428916d554866286 and clean a627ecc3cba8d7fea5371dc686bb4f2283b8a2d9 after depth1fetch/rebase preserving external83774d434. All functional fixes first WORK; release carries cleanup only. No PR, merge, tag or publication.",
+    "New strictClippy2d8 run40034891169 authenticated ZIP12536289618 SHA7348fdfe1af6559c1408be38657033e8f01462e8d63b1dd1d4ab556587e1f8ce, full125367 source snapshot matches/tools stable. DB all-target/all-feature requested command closes0/0warnings. Core4 and Server131 observed findings remain; Server88largefuture43length, no RustE. Direct wait+EOF only/noempty-owned-tree seal. No per-site closure by absence in failed scopes.",
+    "Complete cargo fmt --all --check PASS on exact clean9891,104.52s/zerooutput/sourceunchanged/empty owned group. Read-only run, no builds or deletion. Subsequent small cohorts independently pinned formatting; final shippingtip full gates remain open.",
+    "Actual cleanccf fullCI40027192497 all70jobsclosedFAIL,12/28nativeproof buildsPASS/16FAIL. Sample macOS/Windows server and Python failures match repaired unused native_source warning; no claim all uninspected platform causes equal. Original9c still oneRust shard and one e2e partition running, preserved.",
+    "Exact separate fullTom runtime baseline join: current1865outerPASS117FAIL1namedstackABORT and suiteincomplete. Same originrun runtime baseline998PASS gives602retainedPASS14PASS-to-FAIL382UNKNOWN. Ten environmenttrace/two interpreterguard/one lappend/one regsub regressions routedRuntime. These are different binaries from24312nextestbaseline; no basename join.",
+    "New compiler2d8 run40034885359 all58+3+2UNRUN before any build/process: Native3 report source hardpin stale after independently reviewed external report API repair. Required original58 and SH2 pins unchanged. Early dependency cleanup also reports undefined variable; exact assessment preserved. Minimal reviewed pin-refresh/pure pre-dispatch validator and explicit not-captured cleanup diagnostic under peer; no gate relaxation.",
+    "New Jim2d8 actual4PASS3FAIL/7 full21checks. OlderLogical class cell nowPASS after family projection fix. First falseW123 actual AuthoredSimulation/currentAuthoredROOT/inputcurrencytrue/opaquefalse/unclosedtrue/unknownentryfalse, class@19 issuer. Method body role/token true but no presencequery, and nested tape/realm receipt failure separate. Narrow conservative unclosed snapshot guard+closed controls frozen, no results inferred.",
+    "New Spec2d8 ALL10=8PASS2FAIL plus originalcatchPASS; O129 originalfold passes5.272s allDSLiterations, all4ASCIIcontrolsPASS, both originaltargets fresh0WbuildsPASS. Derived42/xy stillFAIL. New separateNative1UNRUN because helper declares CommandRegistry but actual producer returns Arc; minimum type annotation/pin correction under peer, assertions unchanged.",
+    "Integrated authentic fresh Native source-analysis V3 after independent deep peer190ab737 and bounded compiler read. Actual default supplied Native entry purposeNone now selects only private Script-only retained original-analysis owner; purpose/nativeentry/policy remain unchanged. Existing execution branch and per-operation original tokens/strict+Normal/canonicalSSAreceiver/evaluator target/handler/outcome/closed-effects checks retained. Actual newsource tests UNRUN, no Native2 closure/performance claim.",
+    "New runtime2d8 focused3 remains1PASS2FAIL: publicC5.793sPASS, numeric17.202s JimERANGEFAIL, append180.009s timeout530/1035,505remain.96completeconstructor samples show registration/pin dominant; different host prevents causal before/after claim. Original rows/180/assertions unchanged. Additive isolated14baseline+stack1 sameELF protocol under review, separate counts; original3 remains intact.",
+    "Integrated shared cold configuration future storage boundary and borrowed readonly-alias test assertion helpers WORKfirst/CLEAN after independent source/drop/guard/cleanup reviews. Current measured131Server still from beforethesechanges. WORK-only scan formatting2 cause repair and Core2 private tuplealiases pending; no new allows.",
+    "Release-only documentation cleanup removed19 row/tranche/adoption/HOLD narratives with independent proof that semantic limits remain, then two source-backed package-query/semantic-receiver prose fixes. Process paths/known refs prior scan zero remains bounded; fullrepository semantic audit still open. External perf report API repair carried clean after independent review, all performance optimisations still withheld pending complete proof.",
+    "Bothfilesystems below2GiB: no local builds, target deletion or young executable deletion. BIGIP header13:17 remains >60minutes stale and user notified; owner reports owned implementation complete, dependency blockers remain routed. Reviewtriage complete, no takeover. Instructionpublicbools and numericfixture questions remain unanswered. Six-hour target missed; all remaining gates stay explicit."
+  ],
+  "committed": [
+    "6aa8390ac33138eedc6d31d8caee57ca4ffab851"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish22:55 WIP/report and rearm23:25 reminder.",
+    "Finish immediate tiny Native1 type/pin and compiler preflight protocol corrections; run all pure pre-dispatch source-pin checks before fresh hosted runs.",
+    "Validate fresh Native source owner, fix actual Jim method/nested plus ILX/SH/RBS producers, runtime14regressions/stack and startup scan.",
+    "Finish strict Core/Server lints, whole CI/native/browser/WASI/editor/sectionF, complete baseline comparison and accepted Tclcorpus performance.",
+    "Finish release documentation/comments/chaff audit and finalformat/rust-check/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 22:34 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "One complete requested DB strictClippy scope passes on2d8 with direct-process limitation recorded; no whole-lint/PR/admission/zero-regression/performance gate closes. Jim and O129 narrow gains are actual, remaining failures and unrun scopes retained.",
+  "disk_free_bytes": 1929400320,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

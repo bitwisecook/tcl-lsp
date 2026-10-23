@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T22:30:56.137836+00:00",
+  "source": "2aa5346904f477e09bdc4b05a03adcd3e8b549ae",
+  "run_id": 40032455876,
+  "artifact_id": 12536166259,
+  "zip_sha256": "dd11677642041423c05e88c7be81eefa451c275a99b9b8a6911a4e34a8f404ac",
+  "assessment": "/tmp/compiler-original63-40032455876/assessment.json",
+  "assessment_sha256": "fb1caf58ccca8c495c63b8f2e01d18ff270fbb382c66f6fdc9f79fbee690b3bd",
+  "original58_UNRUN": 58,
+  "separate_native35_UNRUN": 3,
+  "separate_sh21_diagnostic_UNRUN": 2,
+  "first_blocker": "E0609 generated_procedures.rs407 invalid SegmentedCommand.words field; no selected ELF/private stage.",
+  "minimum_repair": "actual-generated-procedure-word-span-repair-v1 e2457c51 independent peer28c61cb2 CLEAR; root owns integration/fresh closure.",
+  "no_guard_assertion_depth_cap_or_provider_relaxation": true,
+  "external_empty_allocated_report_candidate": "Still separately owned diagnostic-only pending19controls/native35genuine acceptance; not applied by compiler role.",
+  "performance": "Both original1000deep OLD/NEW OOM resource failures, no full229 gate. 227closed identical141PASS86FAIL does not accept full inventory."
+}
