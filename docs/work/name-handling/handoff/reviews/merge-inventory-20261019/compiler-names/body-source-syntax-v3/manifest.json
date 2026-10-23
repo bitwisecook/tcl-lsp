@@ -1,0 +1,73 @@
+{
+  "utc": "2026-10-23T04:12:22.157108+00:00",
+  "status": "frozen off-tree successor; bounded peer pending, untyped/unrun/not integration ready",
+  "patch_sha256": "9bdae8732b912cdf9e6c41c0db54be84ffc320ced0e549672bf9ba6a75d3687d",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "before_sha256": "27becd3cfa2f2c196a3207f7c5a3c638e12d6e3d545fb98872413a6756b68bb2",
+      "final_sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "before_sha256": "acc8dbfce9bf18dcc1165f722f6ab47d5a00b37cdaabeb5b2c2035282d6037b6",
+      "final_sha256": "5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "before_sha256": "b98a368f62e619ed4d2878843af1c6cbf742f0905af7f07d25569a8135061e74",
+      "final_sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "5530b0b8e48e2931fa6eb8f9b7ad679dd6457ed116cb2c31d66eb5674e076e89",
+      "final_sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "before_sha256": "910905255be7a3cc3d64ce19b03bb3fd60e9e95b3a75f1bfcab63be0638efe8d",
+      "final_sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6"
+    }
+  ],
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-compiler/src/command_binding/compiler_inventory.rs\nchecking file rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs\nchecking file rust/tcl-compiler/src/command_binding/retained_source.rs\nchecking file rust/tcl-compiler/src/command_binding.rs\nchecking file rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs\n",
+    "stderr": ""
+  },
+  "syntax": "pinned1.99.1 rustfmt parsed all4changed modules; root command_binding only2reexports",
+  "scope": [
+    "Same retained diagnostic CU source request/body summaries/current image/full input/realm/actual analysisowner.",
+    "Preserve every actual direct and authentically parent-owned child compiler visit with its exact immutable snapshot/namespace/policy/original words.",
+    "No mutation/restoration of compiler_lookup_state, Native admissions, runtime lookup/Normal or complete body effects.",
+    "Every compiler sourceadvice must positively close AuthoredSimulation source lookup and agree exact sourceword/argument/descriptor/role syntax.",
+    "Private advisory words retain ConditionalNativeSource+unknown/mayabsent and operands_preserve_source_lookup=false; new public API exposes only source script geometry and Expr operands plus checked lexical gaps.",
+    "Old words() API remains strict including evaluatedbody refusal; no runtime/evaluated fragment fallback.",
+    "Extract original configured expression token-gap verifier without changing old runtime envelope/current/original guards."
+  ],
+  "controls_unrun": [
+    "Exact original factorial nonempty source proof while Native compilerstate staysNone; wrongowner/sourcecurrentness; sourcehandler replacement/executiontrace/opaque prefix.",
+    "Every-alternative collection refuses an extra missing-policy observation and retains opaque second-source snapshot for unanimous closure refusal.",
+    "Original body foreign analysis/current owner negative retained unchanged."
+  ],
+  "limits": [
+    "No exact producer has executed against this candidate; it cannot yet be called sufficient, accepted or integration-ready.",
+    "Missing/rejected compiler view, snapshot, policy, namespace, owner, source input, descriptor or grammar still returnsUnavailable/None; no reconstruction/Native fallback.",
+    "No source/Cargo/test execution/GO/runner modification by this role."
+  ],
+  "v1_delta_sha256": "c52ff5c50ac27e540c115bc6f87754d9f85a4c12074ca960f85be423d56edb42",
+  "successor_changes": [
+    "Original Native inventory capture predicate retained exactly as independent Native branch; all-observation source syntax is separate membership branch.",
+    "Old words() explicitly repeats original compiler syntax/config/image, evaluated-body and current Native envelope gates; expanding private parser inventory cannot broaden Native words eligibility.",
+    "Original public expression_gaps method restored byte-identically to source30; new source_expression_gaps is a separate API requiring all independent source-purpose snapshots.",
+    "Existing original_compiler_argument_syntax adds only optional source dialect storage, no new source word-dialect predicate, preserving original Native eligibility even if only compiler dialect is available.",
+    "New per-visit source views still positively require actual word/compiler/protocol policy; no sourcepoint or absent Native input recipe can manufacture observation."
+  ],
+  "required_validation": [
+    "Typecheck all affected crates, zero warnings.",
+    "Actual original factorial nonempty independent compiler-source positive with compiler_lookup_state stillNone and old Native wordsNone.",
+    "Source owner/foreign/stale/full-input/config/registry plus all-alternative missing/opaque/currentness controls.",
+    "Actual original body5/assertions unchanged and sameguarded build; later matchedC oracles/source transformation effects and original suites."
+  ],
+  "v2_delta_sha256": "2a656d767c897604362e006959a7f1f8849492081d078343331d957c81dcb58c",
+  "native_method_comparison": "source30 original expression_gaps method byte-identical, PASS"
+}

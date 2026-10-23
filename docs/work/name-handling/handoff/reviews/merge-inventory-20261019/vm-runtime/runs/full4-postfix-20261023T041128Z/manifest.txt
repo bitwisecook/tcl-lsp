@@ -1,0 +1,41 @@
+{
+  "utc": "2026-10-23T04:11:56.954785+00:00",
+  "scope": "bounded closure/trace receipt; full original proof retained in OUT for coordinator archive",
+  "files": [
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output/summary.json",
+      "sha256": "66866f31c636056895742f9d6511884250c34414bfecd8aa3c97203d4b8866a4",
+      "blob": "blobs/66866f31c636056895742f9d6511884250c34414bfecd8aa3c97203d4b8866a4.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output/test-01.stderr",
+      "sha256": "54d78a064184c4addb46a9be53873617718a0c325eb3761b9019b906a934d8cc",
+      "blob": "blobs/54d78a064184c4addb46a9be53873617718a0c325eb3761b9019b906a934d8cc.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output/test-01.stdout",
+      "sha256": "711e00f3763bab2777c5ca8f8c63620e2865b58fab4d25ef931f8b4a6f7bdaaf",
+      "blob": "blobs/711e00f3763bab2777c5ca8f8c63620e2865b58fab4d25ef931f8b4a6f7bdaaf.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output/build-1-artifact.json",
+      "sha256": "305dadc6dd380af150d0209836c9b5074d83a66b6c6b483e100a6841f9a9d146",
+      "blob": "blobs/305dadc6dd380af150d0209836c9b5074d83a66b6c6b483e100a6841f9a9d146.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/launcher.json",
+      "sha256": "437641987faa8cfd808a741f76a94674e46229021e056ef0149689828449c355",
+      "blob": "blobs/437641987faa8cfd808a741f76a94674e46229021e056ef0149689828449c355.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/launcher.transcript",
+      "sha256": "ab2aee80176907b44b1ed1417142069a72bbcad7228db9444890870661ff6a7a",
+      "blob": "blobs/ab2aee80176907b44b1ed1417142069a72bbcad7228db9444890870661ff6a7a.gz"
+    },
+    {
+      "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output/lock-released.json",
+      "sha256": "9bdd84865be6207c60fcf355c30e5490ad29e8bfb21f7fc3803bb50bedd10956",
+      "blob": "blobs/9bdd84865be6207c60fcf355c30e5490ad29e8bfb21f7fc3803bb50bedd10956.gz"
+    }
+  ]
+}

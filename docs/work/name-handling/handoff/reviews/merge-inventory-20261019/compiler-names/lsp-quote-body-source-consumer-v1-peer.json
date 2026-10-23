@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T04:22:07.160640+00:00",
+  "reviewer": "compiler-names",
+  "verdict": "CLEAR bounded independent static preservation review; typing/runtime/sufficiency unrun",
+  "patch": "/tmp/lsp-quote-body-source-consumer-v1/proposal.patch",
+  "patch_sha256": "2834a8b696df8de875c8b598036bcd3bc22974f16e7ed8bd74682833c38b437f",
+  "required_compiler_body_issuer_sha256": "9bdae8732b912cdf9e6c41c0db54be84ffc320ced0e549672bf9ba6a75d3687d",
+  "checks": {
+    "current_before_pins": 2,
+    "zero_fuzz_off_tree_apply": "PASS",
+    "final_pins": 2,
+    "pinned_rustfmt_1_99_1_check": "PASS",
+    "quote_v4_static_word_proof_and_delimiter_helper": "byte-identical PASS",
+    "final_dedup_overlap_emission_expression_and_fullscript_checkers": "byte-identical PASS"
+  },
+  "findings": [
+    "SourceStructure queues independently issued script bodies only for SyntaxCompaction with exact original source/config/context, None definition parent and unavailable caller-context marker; visited original spans deduplicate independent queue branches.",
+    "Original Selected+lookup-preservation/body words/Native expression_gaps path remains intact; boolean inversion stays exclusively inside that existing branch.",
+    "Source Expr role enters a separate whitespace-only candidate path; original operand/source/config/registry proof is rechecked, then only proved removed gaps are appended.",
+    "Arguments accepted by independent prior boolean or Native gap proof suppress source duplicate edits; no new source role mints Native/Selected/preservation/completion authority.",
+    "Original assertions unchanged; additive exact factorial full-output/nonempty issuer/oldwordsNone plus foreign/stale/config controls remain unrun.",
+    "Case-list consumer excluded; its separate producer proof remains provisional."
+  ],
+  "limits": [
+    "No Cargo/build/typecheck/runtime/GO/canonical source/provider/Git action by reviewer.",
+    "Original body5 is source30 3PASS2FAIL, not validation of this candidate.",
+    "Root must typecheck zero warnings and run actual original factorial/default body5 plus authentic new issuer/consumer and refusal controls on the composed source."
+  ]
+}

@@ -1,0 +1,287 @@
+{
+  "observed_utc": "2026-10-23T03:56:39.215480+00:00",
+  "status": "scoped C Tcl semantic controls, no Rust proof",
+  "syntax_note": "Use trace add variable shared by all5releases; old trace variable syntax is removed in Tcl9 and not a valid observer control there. Original product assertions remain unchanged.",
+  "records": [
+    {
+      "version": "8.4",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.4": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+      },
+      "name": "quiet",
+      "source": "proc victim {} {return OLD}\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "OLD VALUE\n",
+      "stderr": "",
+      "expected": "OLD VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.4",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.4": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+      },
+      "name": "write_trace_mutates_commands",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh write rewrite\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "CHANGED VALUE\n",
+      "stderr": "",
+      "expected": "CHANGED VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.4",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.4": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+      },
+      "name": "read_trace_is_not_write_trace",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh read rewrite\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "OLD\n",
+      "stderr": "",
+      "expected": "OLD\n",
+      "passed": true
+    },
+    {
+      "version": "8.4",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.4": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+      },
+      "name": "shadowed_set",
+      "source": "proc victim {} {return OLD}\nrename set savedSet\nproc set args {rename victim {}; proc victim {} {return SHADOW}}\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "SHADOW\n",
+      "stderr": "",
+      "expected": "SHADOW\n",
+      "passed": true
+    },
+    {
+      "version": "8.5",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.5": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+      },
+      "name": "quiet",
+      "source": "proc victim {} {return OLD}\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "OLD VALUE\n",
+      "stderr": "",
+      "expected": "OLD VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.5",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.5": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+      },
+      "name": "write_trace_mutates_commands",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh write rewrite\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "CHANGED VALUE\n",
+      "stderr": "",
+      "expected": "CHANGED VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.5",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.5": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+      },
+      "name": "read_trace_is_not_write_trace",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh read rewrite\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "OLD\n",
+      "stderr": "",
+      "expected": "OLD\n",
+      "passed": true
+    },
+    {
+      "version": "8.5",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.5": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+      },
+      "name": "shadowed_set",
+      "source": "proc victim {} {return OLD}\nrename set savedSet\nproc set args {rename victim {}; proc victim {} {return SHADOW}}\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "SHADOW\n",
+      "stderr": "",
+      "expected": "SHADOW\n",
+      "passed": true
+    },
+    {
+      "version": "8.6",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.6": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+      },
+      "name": "quiet",
+      "source": "proc victim {} {return OLD}\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "OLD VALUE\n",
+      "stderr": "",
+      "expected": "OLD VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.6",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.6": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+      },
+      "name": "write_trace_mutates_commands",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh write rewrite\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "CHANGED VALUE\n",
+      "stderr": "",
+      "expected": "CHANGED VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "8.6",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.6": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+      },
+      "name": "read_trace_is_not_write_trace",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh read rewrite\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "OLD\n",
+      "stderr": "",
+      "expected": "OLD\n",
+      "passed": true
+    },
+    {
+      "version": "8.6",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh8.6": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+      },
+      "name": "shadowed_set",
+      "source": "proc victim {} {return OLD}\nrename set savedSet\nproc set args {rename victim {}; proc victim {} {return SHADOW}}\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "SHADOW\n",
+      "stderr": "",
+      "expected": "SHADOW\n",
+      "passed": true
+    },
+    {
+      "version": "9.0",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.0": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
+      },
+      "name": "quiet",
+      "source": "proc victim {} {return OLD}\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "OLD VALUE\n",
+      "stderr": "",
+      "expected": "OLD VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "9.0",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.0": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
+      },
+      "name": "write_trace_mutates_commands",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh write rewrite\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "CHANGED VALUE\n",
+      "stderr": "",
+      "expected": "CHANGED VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "9.0",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.0": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
+      },
+      "name": "read_trace_is_not_write_trace",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh read rewrite\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "OLD\n",
+      "stderr": "",
+      "expected": "OLD\n",
+      "passed": true
+    },
+    {
+      "version": "9.0",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.0": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
+      },
+      "name": "shadowed_set",
+      "source": "proc victim {} {return OLD}\nrename set savedSet\nproc set args {rename victim {}; proc victim {} {return SHADOW}}\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "SHADOW\n",
+      "stderr": "",
+      "expected": "SHADOW\n",
+      "passed": true
+    },
+    {
+      "version": "9.1",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.1": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
+      },
+      "name": "quiet",
+      "source": "proc victim {} {return OLD}\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "OLD VALUE\n",
+      "stderr": "",
+      "expected": "OLD VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "9.1",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.1": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
+      },
+      "name": "write_trace_mutates_commands",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh write rewrite\nset fresh VALUE\nputs [list [victim] $fresh]\n",
+      "exit": 0,
+      "stdout": "CHANGED VALUE\n",
+      "stderr": "",
+      "expected": "CHANGED VALUE\n",
+      "passed": true
+    },
+    {
+      "version": "9.1",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.1": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
+      },
+      "name": "read_trace_is_not_write_trace",
+      "source": "proc victim {} {return OLD}\nproc rewrite {n1 n2 op} {rename victim {}; proc victim {} {return CHANGED}}\ntrace add variable fresh read rewrite\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "OLD\n",
+      "stderr": "",
+      "expected": "OLD\n",
+      "passed": true
+    },
+    {
+      "version": "9.1",
+      "providers": {
+        "/workspace/naming-toolchains/bin/tclsh9.1": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
+      },
+      "name": "shadowed_set",
+      "source": "proc victim {} {return OLD}\nrename set savedSet\nproc set args {rename victim {}; proc victim {} {return SHADOW}}\nset fresh VALUE\nputs [victim]\n",
+      "exit": 0,
+      "stdout": "SHADOW\n",
+      "stderr": "",
+      "expected": "SHADOW\n",
+      "passed": true
+    }
+  ]
+}

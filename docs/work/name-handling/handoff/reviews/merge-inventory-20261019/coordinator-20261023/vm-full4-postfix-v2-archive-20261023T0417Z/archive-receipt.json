@@ -1,0 +1,50 @@
+{
+  "schema": "vm-full4-postfix-v2-archive-receipt-v1",
+  "created_utc": "2026-10-23T04:18:39.915415+00:00",
+  "verified_lossless": true,
+  "archive_sha256": "3cc2b19cb2d6a028cbe6d30f16b9d84660851973df1b40c56fd1b3a97862585a",
+  "manifest_sha256": "3d7112d0bc84064add1e0fe1c0f75ffca325e1a1f8b36c2dd318e6aa62fc4f5d",
+  "payload_file_count": 67,
+  "uncompressed_bytes": 119923522,
+  "suite_summary": {
+    "active_git_after": {
+      "head": "baa2e3ee244213c6d73dba883c3236331260c334",
+      "tree": "7a660d855681c28682d6690843448c278de2dfcd"
+    },
+    "active_git_before": {
+      "head": "baa2e3ee244213c6d73dba883c3236331260c334",
+      "tree": "7a660d855681c28682d6690843448c278de2dfcd"
+    },
+    "artifacts_unchanged": true,
+    "cleanup": "none; all artifacts retained",
+    "expected": 4,
+    "failure": null,
+    "log_cap_bytes": 20971520,
+    "observed": 4,
+    "passed": true,
+    "passes": 4,
+    "phase": "full_tommath4",
+    "provider_count": 7545,
+    "providers_unchanged": true,
+    "publisher_equivalence_claim": false,
+    "publisher_git_after": {
+      "head": "865284a4fe750df55b98e18d3a20f97d46e800d9",
+      "tree": "1b4ac66d483f7706c6393f084163523fe57113b4"
+    },
+    "publisher_git_before": {
+      "head": "865284a4fe750df55b98e18d3a20f97d46e800d9",
+      "tree": "1b4ac66d483f7706c6393f084163523fe57113b4"
+    },
+    "retained_stdout_stderr_bytes": 291174,
+    "source_count": 44813,
+    "source_unchanged": true,
+    "utc": "2026-10-23T04:11:28.059020+00:00"
+  },
+  "outcomes_sha256": "653aac2647d6a64ef1ed874871720ffa8b27895a452106d0f3dcd37d30ed33ab",
+  "launcher_sha256": "437641987faa8cfd808a741f76a94674e46229021e056ef0149689828449c355",
+  "launcher_transcript_sha256": "ab2aee80176907b44b1ed1417142069a72bbcad7228db9444890870661ff6a7a",
+  "root_go_sha256": "4f267bbd4af3fbd61387ce9c6bf72fe780b5de9920c321166e66c93c9a9da5f9",
+  "runner_manifest_sha256": "d82d4452a82f3f13fb93e5bc321d05fe59e54c4e3470f1776f909fada11cbf41",
+  "all_run_output_files_preserved": true,
+  "scope": "Guarded full4 postfix diagnostic only: 4/4 pass, zero warnings, all recorded source/provider/artifact/GO/launcher guards stable. This does not establish whole-VM/no-TomMath or release acceptance."
+}

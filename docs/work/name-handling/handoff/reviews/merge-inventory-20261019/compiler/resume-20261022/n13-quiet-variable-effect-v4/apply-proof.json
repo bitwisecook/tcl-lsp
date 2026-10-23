@@ -1,0 +1,7 @@
+{
+  "exact4current_beforepins": true,
+  "zero_fuzz_apply_reproduces4finals": true,
+  "proposal_sha256": "f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f",
+  "canonical_writes": false,
+  "typing_runtime": "UNRUN"
+}

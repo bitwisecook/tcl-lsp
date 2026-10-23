@@ -1,0 +1,26 @@
+{
+  "schema": "body5-source30-archive-receipt-v1",
+  "created_utc": "2026-10-23T04:05:03.301528+00:00",
+  "archive_verified_lossless": true,
+  "archive_sha256": "57b65e87fcf3a9fe6275c3b94cdef6f098775ccd76d477c8254958bbf456fd76",
+  "file_manifest_sha256": "d01ca3b401a637082c1e8caafad46924c4c167dcd88e74051880e705d0873178",
+  "payload_file_count": 113,
+  "uncompressed_bytes": 144008148,
+  "run_final_summary": {
+    "artifact_stable": true,
+    "count": 5,
+    "finished_utc": "2026-10-23T04:02:03.964415+00:00",
+    "go_sha256": "71f9950b97bf3fab345856819a0b8bc2b1fcc7c7902c2963e59560a0b97045b6",
+    "passed": false,
+    "source_provider_stable": true
+  },
+  "run_final_summary_sha256": "5a6d0e501f74326f57dd24d3bd52c820395f59ba63bd55a4634ded2b50b90b7f",
+  "launcher_sha256": "e2795b72efc85d80d6fb7ed46ccf3e78712e1af62a86d777434290c48061e64b",
+  "selector_count": 5,
+  "passed": 3,
+  "failed": 2,
+  "warnings": 0,
+  "source_provider_artifact_go_launcher_stable": true,
+  "interpretation": "Five exact body-minify diagnostics: 3 pass, 2 fail, zero warnings. Guarded diagnostic evidence only; not runtime acceptance, release acceptance, or section F completion.",
+  "scope_note": "No canonical source/Cargo/Git/provider changes. Concurrent runtime4e run was not accessed or changed."
+}

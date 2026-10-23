@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T04:20:10.900105+00:00",
+  "status": "frozen off-tree consumer; peer/typing/runtime PENDING; no canonical source/Cargo/Git",
+  "patch_sha256": "2834a8b696df8de875c8b598036bcd3bc22974f16e7ed8bd74682833c38b437f",
+  "files": {
+    "rust/tcl-lsp-core/src/minify/original.rs": {
+      "before_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+      "final_sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e"
+    },
+    "rust/tcl-lsp-core/src/source_structure.rs": {
+      "before_sha256": "fecddd8d37e949d8dd8db86694c57c1a432a8152daf3d58c55ffe4face732e16",
+      "final_sha256": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20"
+    }
+  },
+  "components": {
+    "quote_v4_patch_sha256": "68302f945525b7ff30513b0aeb0d6c704f0ce73d7d665a8c1b83136545d96482",
+    "required_body_issuer_v3_sha256": "9bdae8732b912cdf9e6c41c0db54be84ffc320ced0e549672bf9ba6a75d3687d",
+    "case_list": "EXCLUDED provisional separate"
+  },
+  "scope": [
+    "Old Native Selected/words/expression_gaps/boolean issuer paths retained",
+    "New script_bodies branch only SyntaxCompaction, same source/config/context, no caller/definition/Native authority",
+    "Separate new Expr whitespace-only branch; no boolean rewrite from source role; old accepted argument proofs take precedence to avoid overlapping edits",
+    "Final whole-script checker unchanged; authentic original factorial ingress/foreign/stale/config controls additive; all original assertions retained"
+  ]
+}

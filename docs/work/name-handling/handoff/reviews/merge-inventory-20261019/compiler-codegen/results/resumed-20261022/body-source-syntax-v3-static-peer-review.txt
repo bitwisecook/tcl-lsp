@@ -1,0 +1,16 @@
+Body source syntax v3 — bounded independent static peer review
+Reviewed UTC: 2026-10-23T04:13:21+00:00
+Verdict: CLEAR for source/Native authority separation and off-tree preparation. Typing and behavior UNRUN.
+
+Frozen owner patch: /tmp/compiler-names-body-syntax-source-v3/proposal.patch
+SHA256: 9bdae8732b912cdf9e6c41c0db54be84ffc320ced0e549672bf9ba6a75d3687d
+Manifest: /tmp/compiler-names-body-syntax-source-v3/manifest.json
+Historical v2 SHA256 4955565b3dd5e9a7a45bdf5ac713b387654b2fcdd372dad870296caf725f765f is superseded: replacing its existing expression_gaps query would withdraw authentic Native positives. V3 restores that method byte-for-byte and gives source-purpose gaps a separate source_expression_gaps API.
+
+I independently verified all five manifest before hashes against current source30, applied the exact v3 patch to an off-tree copy with fuzz 0, verified all five final hashes, and ran pinned Rust 1.99.1 rustfmt --check with edition 2024 on all five shadow paths. All passed. I separately compared the original and shadow expression_gaps method text; it is identical. These checks are parsing/formatting and source binding checks, not a typecheck.
+
+The new collector requires the same retained analysis owner, original image/full input/config, original words and authentic compiler observations. It retains direct visits and parent-authenticated child visits without selecting a first observation or structurally deduplicating them. A visit lacking original words, compiler/source/word policy, current source origin, registry snapshot or original lexical command aborts the entire collection. The source consumer iterates every observation and requires positive AuthoredSimulation source closure for its own snapshot and namespace, including quiet observers, current Registry targets and no Native, Logical, hosted or unknown entry. It then requires original static words, exact effective argument origins and selected arity, and joins command/subcommand descriptor, roles, offset and body grammar under the current source schema. All candidates must agree.
+
+The broader private body inventory does not broaden words(): v3 preserves the prior capture gate as its independent Native branch and repeats original compiler syntax/image/config, evaluated-body exclusion and Native registry closure inside words(). The original expression_gaps still calls that Native method and retains its original runtime envelope. The new script_bodies, expression_operands and source_expression_gaps use a ConditionalNativeSource carrier with unknown/may-absent and operands_preserve_source_lookup=false; they issue source syntax geometry only. The shared expression gap helper extracts only the old configured lexical signature/parser/gap test, while the old caller still performs its original Native envelope, operand image/membership and config checks.
+
+The factorial nonempty source positive with compiler_lookup_state=None, the all-alternative missing-policy/opaque controls, foreign/currentness tests, original body5 and Native positives are UNRUN. Exact C oracles, source transformation effects and downstream LSP composition remain separate validation. No canonical source, Cargo, GO, provider or Git action by this reviewer.

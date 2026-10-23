@@ -1,0 +1,12 @@
+CI5206 codegen-owned Clippy blockers vs source30 — read-only triage
+Reviewed UTC: 2026-10-23T04:21:53+00:00
+
+Actual CI5206 rust-check job 120175507991, published source 5a418, connector log /tmp/ci5206-job-120175507991-connector.log SHA256 489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e. The log's observed codegen-owned source spans are exactly:
+
+* rust/tcl-compiler/src/optimiser/chain_fold.rs:577, try_fold_chain_at, Clippy too_many_lines 104/100, log line 8641. Current source30 file SHA256 b60f7618836caa401313253df5fb63448ad7a2c44406b60f5fd09243c60880ed; earlier initial_chain_value helper already exists at line 543.
+* rust/tcl-compiler/src/optimiser/elimination.rs:981, emit_dead_stores_and_unused, too_many_lines 101/100, log line 8655. Current file SHA256 837e4a6397c085ea101f56aa965c5f6a5cf802f309c56f4ab72628601b26ed2a; earlier dead_store_alias_observed helper already exists at line 1138.
+* rust/tcl-compiler/src/optimiser/propagation.rs:316, run_load_forwarding, too_many_lines 103/100, log line 8669. Current file SHA256 186b5fab282a14f65d04f6ecd8804c125d081b11e4651964a242ca32b82978c9; earlier load_forwarding_escaping helper already exists at line 448.
+
+All three are structural function-size findings. The earlier reviewed 18-path lint patch is older than these current files and is not a drop-in successor; the CI log gives no additional codegen-owned local spelling/borrowing warning. No newly prepared pure-style codegen file is ready for the next product batch. A later isolated fix should extract one exact coherent helper per function while preserving the same barrier, source-purpose, alias and edit-order checks; source30 typecheck and actual strict Clippy must then validate it. The CI result is from older 5a418 source and cannot establish source30 strict Clippy pass or exact remaining diagnostic count.
+
+No Cargo/Clippy invocation, canonical source, Git, GO or queued build by this role.

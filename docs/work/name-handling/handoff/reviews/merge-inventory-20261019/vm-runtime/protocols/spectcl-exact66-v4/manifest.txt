@@ -1,0 +1,61 @@
+{
+  "utc": "2026-10-23T04:06:17.879399+00:00",
+  "status": "AST passed; actual launcher/direct-suite noGO exit2; no lock/provider/Cargo/test",
+  "files": [
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/launch-preflight-refusal.json",
+      "sha256": "44c46ae06a7fdd91d90c8a9fb1d12e36eb525ffedcd2abba19eb0644e1ca505e",
+      "blob": "blobs/44c46ae06a7fdd91d90c8a9fb1d12e36eb525ffedcd2abba19eb0644e1ca505e.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/preparation-receipt.txt",
+      "sha256": "d757b0cbce2f445883519c8cd9a2f26586f3d16fa0db45f97bf5e423c972cefc",
+      "blob": "blobs/d757b0cbce2f445883519c8cd9a2f26586f3d16fa0db45f97bf5e423c972cefc.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/successor.patch",
+      "sha256": "65357cfcb39e830df42ac6407fcb990d1e7ff4f3f8b6ea2dd333db9aa85a7a07",
+      "blob": "blobs/65357cfcb39e830df42ac6407fcb990d1e7ff4f3f8b6ea2dd333db9aa85a7a07.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/runner-input-manifest.json",
+      "sha256": "f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8",
+      "blob": "blobs/f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/run.sh",
+      "sha256": "ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c",
+      "blob": "blobs/ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/launch.py",
+      "sha256": "c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f",
+      "blob": "blobs/c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/suite.py",
+      "sha256": "9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d",
+      "blob": "blobs/9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-c1c2-exact66-v4/plan.json",
+      "sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6",
+      "blob": "blobs/97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6.gz"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "prepared_utc": "2026-10-23T04:00:50.516417+00:00",
+  "status": "finite5selector inventory only; not runnable/GO/queue",
+  "required_patch_sha256": "f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f",
+  "expected_filters": 5,
+  "expected_selected": 5,
+  "required_filters": [
+    {
+      "selector": "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "label": "diagnostic05-deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+      "package": "tcl-compiler"
+    },
+    {
+      "selector": "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "label": "diagnostic06-sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+      "package": "tcl-compiler"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "label": "diagnostic07-conditional_region_purpose_refuses_a_genuine_whole_child",
+      "package": "tcl-compiler"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "label": "quiet-effect-1"
+    },
+    {
+      "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "label": "quiet-effect-2"
+    }
+  ],
+  "source_policy": "Current source30 + exact reviewed N13fourfile proposal only before new rootnamed composite; frozen source30 protocols MUST refuse changedproduct, explicit successor only after rootintegrationmanifest. No silentrefresh.",
+  "execution_policy": "Root newreviewed protocol should retain currentabsoluteCargoJSON --lib no-run actualartifact capture, zeroW/source/provider/artifact/process seals, same88125parent180s/20MiB/2GiB, validfailed49auth; no unrelated greenprerequisite. No originalassertion changes.",
+  "original_controls": "Exact3 actual N13 diagnostic05-07 preserved fromsource30diagnostic11; 2new controltests cover genuine quietsource write, trace/shadow/dynamic/container refusals and foreignowner/config/staleorigin."
+}

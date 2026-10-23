@@ -1,6 +1,7 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T03:54:13Z: actual source30 body5 firstfactorial FAIL1/1; authentic originalsummary/attachment/compilerwords/owner/dialect/protocol true but compiler_state=false→syntax=false at if28/return54. Source/provider postrow seals equal initial and actual executable hash unchanged; remaining4/whole5 final guards PENDING. No runtime closure/evaluatedbody fallback: if28 runtime closed=true but evaluated_body=true is separate existing guard. Compiler-names-current owns upstream compiler snapshot loss diagnosis. Actual ILX row8 PASS, rows9–11 same command-summary19 FAIL; off-tree full input/config source-effect fixv2 `28f9cbf5` independently staticCLEAR `039334d5`, runtimeUNRUN. Quotev4 `68302f94` staticCLEAR `d02b4247` with Cmanual105/105; RustUNRUN. Case issuer v2 `d9f03c12`/coreconsumer `9c6c04ee` remain provisional with no executed producer positive. Root owns builds/source/provider HOLD; no LSP source/Cargo/GO/queue/Git.
+Current status 2026-10-23T04:21:51Z: source30 spec66v4 root run ACTIVE04:17; source/test/provider HOLD, no LSP Cargo/GO/source/Git. Original body5 closed3PASS2FAIL; earliest authentic factorial/default gate compiler_state=false/syntax=false retained separately, no fix runtime admission. Frozen conflict-free quote+bodyv3 consumer union `2834a8b6` at `/tmp/lsp-quote-body-source-consumer-v1/proposal.patch` combines quotev4 and new separate source-only script/Expr gap APIs; case-list EXCLUDED provisional. Two actual core files pinned in component-manifest; old Native Selected/words/expression_gaps/boolean issuers and final whole-script checker retained; additive authentic factorial ingress/output/foreign/stale/config controls. Pinnedfmt/applycheckPASS, Namescurrent bounded staticCLEAR `a41c7da7`, Rust typing/runtimeUNRUN. Owner LSP nextbatch finite inventory23 `22097938` frozen, pending actual integrated product HEAD/tree/full39 source pins; exact compiler31 dedup check requested. Required compiler bodyissuer v3 `9bdae873` CCG staticCLEAR; ILX fullconfigv2 `28f9cbf5` staticCLEAR and quotev4 component staticCLEAR remain off-tree, not runtime-proven.
+
 
 
 
@@ -59,13 +60,14 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T03:54:13Z
+Last updated: 2026-10-23T04:23:41Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T03:54:13Z: first read `lsp/body5-source30-first-factorial-20261023/triage.json` and row-seals.json, then ILX `lsp/ilx-source30-actual-dialect-gate-20261023/triage.json`. Current body5 live run root-only; firstactual gate missingcompiler_lookup_state, do not reconstruct compiler carrier from runtime state, parser, declaration snapshot or evaluated-body override. Compiler-names-current received exact facts and upstream unanimity/merge clear sites (cause still unmeasured). ILXv2 and quotev4 static-clear off-tree; case issuer/consumer require original undefined-$x NONEMPTY actualproducer and all source/config/foreign/shadow/observer negatives. Preserve original finite20 missing finalproviderseal, all assertions and user2231 opaque stop; no sectionF/release/zeroP2F admission.
+Latest resume pointer 2026-10-23T04:21:51Z: read `lsp/quote-body-source-consumer-v1-20261023/component-manifest.json` and staticCLEAR status and owner finite inventory `lsp/nextbatch-quote-body-finite-inventory-v1-20261023/inventory.json` first. Root source30 spec66 active; no canonical edits/Cargo. Peer consumer union2834a8b6 with Namescurrent against compiler bodyissuer9bdae873: source-only script_bodies queue has no caller/definition authority; separate source_expression_gaps accepts only whitespace proposals and never boolean/Native rewrites; old independently accepted args retain precedence. Case-list stays OUT until true producer positive/currentness controls. Original body5 failure evidence `lsp/body5-source30-first-factorial-20261023/`; original ILX rejection/fix `lsp/ilx-source30-actual-dialect-gate-20261023/`. Preserve all original assertions/user2231 opaque stop and finite20 incomplete-finalprovider status; no release/sectionF/zeroP2F claim.
+
 
 
 

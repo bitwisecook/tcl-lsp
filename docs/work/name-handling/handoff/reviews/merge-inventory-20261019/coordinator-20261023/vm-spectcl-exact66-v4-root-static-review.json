@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T04:08:55.543299+00:00",
+  "reviewer_role": "coordinator",
+  "status": "CLEAR bounded static v4 delta; no execution/GO/Cargo",
+  "protocol": "/tmp/vm-spectcl-c1c2-exact66-v4",
+  "plan_sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6",
+  "runner_manifest_sha256": "f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8",
+  "verified": [
+    "onlydirectory identities and strictcount/status/exit/rawsummary recording changed vspeer-clearedv3",
+    "sameexact7targets/66selectors/rosters, features, limits, 12producerpins/11inputs current",
+    "capture/_paths transitivepins, NHofftree, fullprovider chain and88125 executor unchanged",
+    "samefreshCargoJSON exactmanifest/name/kind/profile artifactjoin, target-containedexe/hash before-after, source/provider/fullseals",
+    "statusok requires1pass0fail0ignoredexit0; FAILED requires0pass1fail0ignoredexit101, mismatchterminal",
+    "actualapprovedHEAD/tree mayfollow3b1 and retain12pins; rootmustapproveactualnewproducttree explicitly, productworktreematch andlaterdocsdescendantsonly",
+    "durablelauncher input/GO pins, singlelock, allactualtargetgroup/timer/log/diskguards retained"
+  ],
+  "limits": "Static readiness only; no C1/C2, N17, runtime or release acceptance; current34Jim+32after8b unrun."
+}

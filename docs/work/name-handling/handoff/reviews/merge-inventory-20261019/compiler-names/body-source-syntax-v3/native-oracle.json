@@ -1,0 +1,214 @@
+{
+  "utc": "2026-10-23T04:15:16.459151+00:00",
+  "scope": "C Tcl semantics of original factorial/existing asserted output plus replacement-handler refusal obligation; no Rust output or owner/proof validation",
+  "sources": {
+    "factorial_original": "proc fact {n} {\n# base case\nif {$n <= 1} { return 1 }\nreturn [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n",
+    "factorial_original_asserted_minified": "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]\n",
+    "replacement_original": "proc f {x} {if {$x <= 1} {return 1}}; rename if saved; proc if args {return [lindex $args 0]}; puts [f 2]\n",
+    "replacement_unsafe_whitespace_example": "proc f {x} {if {$x<=1} {return 1}}; rename if saved; proc if args {return [lindex $args 0]}; puts [f 2]\n"
+  },
+  "passed": true,
+  "rows": [
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "engine_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "case": "factorial_original",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "engine_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "case": "factorial_original_asserted_minified",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "engine_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "case": "replacement_original",
+      "exit": 0,
+      "stdout": "$x <= 1\n",
+      "stderr": "",
+      "expected": "$x <= 1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "engine_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "case": "replacement_unsafe_whitespace_example",
+      "exit": 0,
+      "stdout": "$x<=1\n",
+      "stderr": "",
+      "expected": "$x<=1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "engine_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "case": "factorial_original",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "engine_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "case": "factorial_original_asserted_minified",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "engine_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "case": "replacement_original",
+      "exit": 0,
+      "stdout": "$x <= 1\n",
+      "stderr": "",
+      "expected": "$x <= 1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "engine_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "case": "replacement_unsafe_whitespace_example",
+      "exit": 0,
+      "stdout": "$x<=1\n",
+      "stderr": "",
+      "expected": "$x<=1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "engine_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "case": "factorial_original",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "engine_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "case": "factorial_original_asserted_minified",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "engine_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "case": "replacement_original",
+      "exit": 0,
+      "stdout": "$x <= 1\n",
+      "stderr": "",
+      "expected": "$x <= 1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "engine_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "case": "replacement_unsafe_whitespace_example",
+      "exit": 0,
+      "stdout": "$x<=1\n",
+      "stderr": "",
+      "expected": "$x<=1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "engine_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "case": "factorial_original",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "engine_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "case": "factorial_original_asserted_minified",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "engine_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "case": "replacement_original",
+      "exit": 0,
+      "stdout": "$x <= 1\n",
+      "stderr": "",
+      "expected": "$x <= 1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "engine_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "case": "replacement_unsafe_whitespace_example",
+      "exit": 0,
+      "stdout": "$x<=1\n",
+      "stderr": "",
+      "expected": "$x<=1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "engine_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "case": "factorial_original",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "engine_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "case": "factorial_original_asserted_minified",
+      "exit": 0,
+      "stdout": "120\n",
+      "stderr": "",
+      "expected": "120\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "engine_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "case": "replacement_original",
+      "exit": 0,
+      "stdout": "$x <= 1\n",
+      "stderr": "",
+      "expected": "$x <= 1\n",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "engine_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "case": "replacement_unsafe_whitespace_example",
+      "exit": 0,
+      "stdout": "$x<=1\n",
+      "stderr": "",
+      "expected": "$x<=1\n",
+      "matched": true
+    }
+  ],
+  "interpretation": "Original and existing expected factorial source agree on every C8.4-9.1 oracle. Counterexample manual compaction changes custom replacement-handler argument data; new issuer must preserve its changed-handler refusal."
+}

@@ -1,0 +1,124 @@
+{
+  "utc": "2026-10-23T04:11:56.954785+00:00",
+  "status": "actual full4 PASS4/4 with full final guards; standalone fullTomMath scope only",
+  "summary": {
+    "active_git_after": {
+      "head": "baa2e3ee244213c6d73dba883c3236331260c334",
+      "tree": "7a660d855681c28682d6690843448c278de2dfcd"
+    },
+    "active_git_before": {
+      "head": "baa2e3ee244213c6d73dba883c3236331260c334",
+      "tree": "7a660d855681c28682d6690843448c278de2dfcd"
+    },
+    "artifacts_unchanged": true,
+    "cleanup": "none; all artifacts retained",
+    "expected": 4,
+    "failure": null,
+    "log_cap_bytes": 20971520,
+    "observed": 4,
+    "passed": true,
+    "passes": 4,
+    "phase": "full_tommath4",
+    "provider_count": 7545,
+    "providers_unchanged": true,
+    "publisher_equivalence_claim": false,
+    "publisher_git_after": {
+      "head": "865284a4fe750df55b98e18d3a20f97d46e800d9",
+      "tree": "1b4ac66d483f7706c6393f084163523fe57113b4"
+    },
+    "publisher_git_before": {
+      "head": "865284a4fe750df55b98e18d3a20f97d46e800d9",
+      "tree": "1b4ac66d483f7706c6393f084163523fe57113b4"
+    },
+    "retained_stdout_stderr_bytes": 291174,
+    "source_count": 44813,
+    "source_unchanged": true,
+    "utc": "2026-10-23T04:11:28.059020+00:00"
+  },
+  "launcher": {
+    "started_utc": "2026-10-23T04:03:49.706817+00:00",
+    "pins_before": {
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.sh": "d63a1f93bf659c4aefdb6dae4fea47f0534fbd7b32f0b98d760d6717ac0cad54",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.py": "94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/launch.py": "f858fdec5dfc028fc6d16df3a9e89ddf64a6c54941bb4911dec260f5534b1fa2",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/observer-proposal.patch": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/semantic-fix.patch": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/full_tommath4-plan.json": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24",
+      "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    "plan_sha256": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24",
+    "root_go_sha256": "4f267bbd4af3fbd61387ce9c6bf72fe780b5de9920c321166e66c93c9a9da5f9",
+    "transcript": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/launcher.transcript",
+    "durable_file_backed_output": true,
+    "finished_utc": "2026-10-23T04:11:28.099622+00:00",
+    "exit_code": 0,
+    "pins_after": {
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.sh": "d63a1f93bf659c4aefdb6dae4fea47f0534fbd7b32f0b98d760d6717ac0cad54",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.py": "94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/launch.py": "f858fdec5dfc028fc6d16df3a9e89ddf64a6c54941bb4911dec260f5534b1fa2",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/observer-proposal.patch": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/semantic-fix.patch": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8",
+      "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/full_tommath4-plan.json": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24",
+      "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    "root_go_sha256_after": "4f267bbd4af3fbd61387ce9c6bf72fe780b5de9920c321166e66c93c9a9da5f9",
+    "inputs_stable": true,
+    "root_go_stable": true
+  },
+  "artifact_sha256": "9ef6849cc14c1f243a4e8526b6cc913ce3ec29e51443debd7528b98b4f084725",
+  "actual_have_tommath": true,
+  "zero_warning_claim": true,
+  "trace_V8_4": [
+    {
+      "stderr_LF_line": 44,
+      "text": "ZZ_C84_EPISODE stage=catch.enter owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80d77a00 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 46,
+      "text": "ZZ_C84_EPISODE stage=c84.append_enter owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 48,
+      "text": "ZZ_C84_EPISODE stage=c84.first_episode owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 50,
+      "text": "ZZ_C84_EPISODE stage=c84.store_error_info_ok owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 52,
+      "text": "ZZ_C84_EPISODE stage=c84.store_error_code_ok owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 54,
+      "text": "ZZ_C84_EPISODE stage=catch.body_return_error owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 56,
+      "text": "ZZ_C84_EPISODE stage=catch.before_publish owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 58,
+      "text": "ZZ_C84_EPISODE stage=publish.enter owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 60,
+      "text": "ZZ_C84_EPISODE stage=catch.after_publish owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c80c831e0 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 62,
+      "text": "ZZ_C84_EPISODE stage=catch.enter owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c809bd110 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 64,
+      "text": "ZZ_C84_EPISODE stage=catch.body_return_error owner=0x7f7c800c8b80 epoch=Some(1) runtime=V8_4 result=0x7f7c809d02d0 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=Some(false)"
+    }
+  ],
+  "producer_change_observed": "C84 first-episode global info/code setters both return true before outer catch body_return; prior oldfull5 FAIL lacked these stages. No getter or trace-triggering probe introduced; same original script/assertion PASS.",
+  "limits": "No noTomMath16 result, explicit-code compiler failures not selected, no wholeVM/Jim/SpecTcl/SectionF closure; exact baseline losses outside this standalone selector remain open.",
+  "paths": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z"
+}

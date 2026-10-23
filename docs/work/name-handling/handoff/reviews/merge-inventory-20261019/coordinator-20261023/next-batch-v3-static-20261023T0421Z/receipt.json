@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:22:13.293256+00:00",
+  "archive_sha256": "b950650c2a194c951fe0af30ba01e40758a54ea636cd3eb20bb7a5358bd8e86c",
+  "inventory_sha256": "37747ab9b65119fed6f6316b38308f2b9e9a2bcd60914a3f3c447943aba797bb",
+  "payload_files": 11,
+  "lossless_verified": true,
+  "path_count": 21,
+  "cumulative_vs_3b1": 39,
+  "patch_sha256": "8466f1f6a4e024fd743ae40f5444f2a582fcbb71fe5226028c37b04a1d25c0e1",
+  "scope": "Bounded static composition only. Consumer namespeer reportedCLEAR, receipt pending. No canonical integration/typing/runtime/GO. Source/provider HOLD during Spec66."
+}

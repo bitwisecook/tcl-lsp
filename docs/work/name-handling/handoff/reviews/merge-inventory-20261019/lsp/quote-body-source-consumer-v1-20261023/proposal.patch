@@ -1,0 +1,355 @@
+--- rust/tcl-lsp-core/src/minify/original.rs
++++ rust/tcl-lsp-core/src/minify/original.rs
+@@ -515,6 +515,85 @@
+         span: proof.original_operand().span(),
+         replacement: proof.replacement_source_word().to_owned(),
+     }))
++}
++
++/// Retain a complete original static source word's configured Unicode value.
++/// This syntax-only spelling edit supplies no lookup, frame or runtime grant.
++fn static_quoted_source_edits(word: &tcl_lexer::NativeWord) -> Option<[SourceGapEdit; 2]> {
++    if word.group().kind != tcl_lexer::WordKind::Quoted || word.group().expand {
++        return None;
++    }
++    let content = word.content_span().ok()?;
++    let proposal = word.image().try_text().ok()?.get(content.as_range())?;
++    // Keep comment-shaped and brace-shaped spellings conservative in all slots.
++    if proposal.starts_with(['#', '{']) {
++        return None;
++    }
++    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
++    let value = std::str::from_utf8(&value).ok()?;
++    if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(proposal, value, word.config())
++        || !tcl_syntax::word_rules::lexical_source_word_preserves_components(word, proposal)
++    {
++        return None;
++    }
++    // Separate delimiter edits keep any independently selected child region's
++    // original interior boundaries mappable through the shared emitter.
++    Some([
++        SourceGapEdit {
++            span: Span::new(word.span().start(), content.start()),
++            replacement: String::new(),
++        },
++        SourceGapEdit {
++            span: Span::new(content.end(), word.span().end()),
++            replacement: String::new(),
++        },
++    ])
++}
++
++fn source_body_expression_gap_proofs(
++    source: &str,
++    analysis: &AnalysisResult,
++    command: &tcl_compiler::segmenter::SegmentedCommand,
++    inventory: &tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory,
++    env: super::MinifyEnv<'_>,
++    native_arguments: &[usize],
++) -> Result<
++    Vec<tcl_compiler::registry_invocation::source_structure::OriginalExpressionSyntaxGapCompaction>,
++    MinifyRefusal,
++> {
++    let mut proofs = Vec::new();
++    for (argument, original) in inventory
++        .expression_operands(source, analysis, command)
++        .unwrap_or_default()
++    {
++        if native_arguments.contains(&argument)
++            || original.group().kind != tcl_lexer::WordKind::Braced
++        {
++            continue;
++        }
++        let Ok(content) = original.content_span() else {
++            continue;
++        };
++        let Some(inner) = source.get(content.as_range()) else {
++            continue;
++        };
++        // A source Expr role supplies only token-gap correspondence. It never
++        // enters boolean inversion, Native rewriting or a completion domain.
++        let candidate = super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
++        let Some(proof) =
++            inventory.source_expression_gaps(source, analysis, command, argument, &candidate)
++        else {
++            continue;
++        };
++        if proof.original_operand() != &original
++            || !proof.matches_source(&SourceImage::document(source), env.config)
++            || !proof.matches_registry(env.registry)
++        {
++            return Err(MinifyRefusal::SourceCorrespondenceChanged);
++        }
++        proofs.push(proof);
++    }
++    Ok(proofs)
+ }
+ 
+ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+@@ -567,6 +646,9 @@
+                     span: Span::new(cursor, word.span().start()),
+                     replacement: replacement.to_owned(),
+                 });
++                if let Some(delimiters) = static_quoted_source_edits(word) {
++                    edits.extend(delimiters);
++                }
+                 cursor = word.span().end();
+             }
+         }
+@@ -606,48 +688,67 @@
+                 inventory.words(source, analysis, command)
+             })
+         } else { selected };
+-        let Some(words) = selected else {
+-            continue;
+-        };
+-        for &(argument, role) in words.roles().unwrap_or_default() {
+-            if role != tcl_registry::ArgRole::Expr {
+-                continue;
+-            }
+-            let Some(word) = words
+-                .original_argument_word(argument)
+-                .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+-            else {
+-                continue;
+-            };
+-            let Ok(content) = word.content_span() else {
+-                continue;
+-            };
+-            let Some(inner) = source.get(content.as_range()) else {
+-                continue;
+-            };
+-            if let Some(edit) =
+-                boolean_inversion_edit(source, analysis, command, argument, inner, env)?
+-            {
+-                edits.push(edit);
+-                continue;
+-            }
+-            // Child scripts keep their independently authenticated script gaps.
+-            let compacted_candidate =
+-                super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
+-            let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
++        let mut native_arguments = Vec::new();
++        if let Some(words) = selected {
++            for &(argument, role) in words.roles().unwrap_or_default() {
++                if role != tcl_registry::ArgRole::Expr {
++                    continue;
++                }
++                let Some(word) = words
++                    .original_argument_word(argument)
++                    .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
++                else {
++                    continue;
++                };
++                let Ok(content) = word.content_span() else {
++                    continue;
++                };
++                let Some(inner) = source.get(content.as_range()) else {
++                    continue;
++                };
++                if let Some(edit) =
++                    boolean_inversion_edit(source, analysis, command, argument, inner, env)?
++                {
++                    native_arguments.push(argument);
++                    edits.push(edit);
++                    continue;
++                }
++                // Child scripts keep their independently authenticated script gaps.
++                let compacted_candidate =
++                    super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
++                let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
+                 source, analysis, command, argument, &compacted_candidate,
+             ).or_else(|| structure.compiler_body_syntax.as_ref().and_then(|inventory| {
+                 inventory.expression_gaps(source, analysis, command, argument, &compacted_candidate)
+             })) else { continue; };
+-            if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands())
+-            {
+-                return Err(MinifyRefusal::SourceCorrespondenceChanged);
++                if !proof.matches_source(&image, config)
++                    || !proof.matches_registry(context.commands())
++                {
++                    return Err(MinifyRefusal::SourceCorrespondenceChanged);
++                }
++                edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
++                    span,
++                    replacement: String::new(),
++                }));
++                native_arguments.push(argument);
++                expressions.push(proof);
+             }
+-            edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
+-                span,
+-                replacement: String::new(),
+-            }));
+-            expressions.push(proof);
++        }
++        if let Some(inventory) = structure.compiler_body_syntax.as_ref() {
++            for proof in source_body_expression_gap_proofs(
++                source,
++                analysis,
++                command,
++                inventory,
++                env,
++                &native_arguments,
++            )? {
++                edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
++                    span,
++                    replacement: String::new(),
++                }));
++                expressions.push(proof);
++            }
+         }
+     }
+     edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement.as_str()));
+@@ -711,6 +812,118 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn native_minifier_uses_separate_authentic_body_syntax_without_native_word_admission() {
++        let source = "proc fact {n} {\n# base case\nif {$n <= 1} { return 1 }\nreturn [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let registry = tcl_registry::CommandRegistry::build_default();
++        let analysis = super::analysis_for_profile(source, profile, &registry);
++        assert!(!analysis.allows_lexical_declaration_advice());
++        let config = analysis.body_lexer_config.unwrap();
++        let structure = crate::source_structure::SourceStructure::capture_for_syntax_compaction(
++            source, &analysis, config,
++        )
++        .unwrap();
++        let command = structure
++            .commands
++            .iter()
++            .find(|command| {
++                command
++                    .argv
++                    .first()
++                    .is_some_and(|word| word.span.start() == 28)
++            })
++            .expect("authentic factorial if command");
++        let inventory = structure.compiler_body_syntax.as_ref().unwrap();
++        assert!(
++            inventory.words(source, &analysis, command).is_none(),
++            "source syntax cannot mint a Native Selected carrier"
++        );
++        let operands = inventory
++            .expression_operands(source, &analysis, command)
++            .expect("independent compiler-source Expr proof");
++        assert!(!operands.is_empty());
++        assert!(
++            inventory
++                .script_bodies(source, &analysis, command)
++                .is_some_and(|bodies| !bodies.is_empty())
++        );
++        let result =
++            super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++        assert_eq!(
++            result.source,
++            "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]"
++        );
++        let foreign = super::analysis_for_profile(source, profile, &registry);
++        assert!(
++            inventory
++                .expression_operands(source, &foreign, command)
++                .is_none()
++        );
++        let stale = source.replace("return 1", "return 9");
++        assert!(
++            inventory
++                .expression_operands(&stale, &analysis, command)
++                .is_none()
++        );
++        let mut changed_config = analysis.clone();
++        changed_config.body_lexer_config = None;
++        assert!(
++            inventory
++                .expression_operands(source, &changed_config, command)
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn native_static_quote_edits_keep_whole_script_word_boundaries() {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let registry = tcl_registry::CommandRegistry::build_default();
++        for (source, expected) in [
++            ("proc p {} \"return\"", "proc p {} return"),
++            ("puts \"\\u0042\"", "puts \\u0042"),
++            ("puts \"café\"", "puts café"),
++            ("puts \"﻿42\"", "puts \"﻿42\""),
++            ("puts \"42\"", "puts 42"),
++            ("puts \"\"", "puts \"\""),
++            ("puts \"a;b\"", "puts \"a;b\""),
++            ("puts \"two words\"", "puts \"two words\""),
++            ("puts \"#comment\"", "puts \"#comment\""),
++            ("puts \"{data}\"", "puts \"{data}\""),
++            ("puts \"$dynamic\"", "puts \"$dynamic\""),
++            ("puts \"[list 42]\"", "puts \"[list 42]\""),
++            ("puts {*}\"42\"", "puts {*}\"42\""),
++            ("puts \"42", "puts \"42"),
++        ] {
++            let analysis = super::analysis_for_profile(source, profile, &registry);
++            assert!(!analysis.allows_lexical_declaration_advice());
++            let result =
++                super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++            assert_eq!(result.source, expected, "{source}");
++        }
++    }
++
++    #[test]
++    fn native_static_quote_edits_retain_the_actual_bom_configuration() {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let config = tcl_lexer::LexerConfig {
++            leading_bom: tcl_lexer::LeadingBom::Content,
++            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
++        };
++        let context = tcl_registry::model::ingress::context_for_profile(profile);
++        let input =
++            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
++        let source = "puts \"\u{feff}42\"";
++        let analysis = super::analysis_with_input(source, &input);
++        assert!(!analysis.allows_lexical_declaration_advice());
++        let result =
++            super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++        assert_eq!(result.source, "puts \u{feff}42");
++    }
++
+     #[test]
+     fn native_syntax_compaction_uses_selected_original_expression_gaps() {
+         // Decision 2026-10-22T13:17Z: syntax gaps need no pure-value rewrite.
+--- rust/tcl-lsp-core/src/source_structure.rs
++++ rust/tcl-lsp-core/src/source_structure.rs
+@@ -1512,6 +1512,30 @@
+         if purpose == CapturePurpose::CheckedSyntax {
+             self.census_command_bodies(source, command, script, queue);
+             return;
++        }
++        if purpose == CapturePurpose::SyntaxCompaction
++            && let Some(input) = analysis.resolved_input.as_ref()
++        {
++            let context = input.context_registry();
++            let bodies = self
++                .compiler_body_syntax
++                .as_ref()
++                .and_then(|inventory| inventory.script_bodies(source, analysis, command))
++                .unwrap_or_default();
++            for body in bodies {
++                if !body.matches_source(&SourceImage::document(source), config)
++                    || !body.matches_context(&context)
++                {
++                    continue;
++                }
++                self.bodies.push(body.container_extent_span());
++                self.bodies.push(body.extent_span());
++                // This syntax-only path never lends caller/frame or definition
++                // authority to another purpose or to descendant interpretation.
++                self.caller_context_unavailable_bodies
++                    .push(body.content_span());
++                queue.push_back((body.content_span(), depth + 1, None));
++            }
+         }
+         if self.definition_cursor_document_bodies(source, command, script, queue)
+             || self.readonly_command_bodies(source, command, script, queue)

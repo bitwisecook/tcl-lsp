@@ -1,0 +1,41 @@
+{
+  "prepared_utc": "2026-10-23T03:58:37.507346+00:00",
+  "status": "OFFTREE quiet-variable refinement v4 peerpending/untyped/unrun",
+  "patch_sha256": "f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "f8e00a4f3013e9695514c7fe7c53f00571e28a05a8faaf9d1541866530fc9f96",
+      "after_sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "before_sha256": "eb9a506e8603626f31ae9d986773f3db693db2fb232c4490cd85e1395b337038",
+      "after_sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "before_sha256": "cfd880df17b7cdc7b8ee72f438b44f03ff3aea68fc54d9621c9286bab0b56199",
+      "after_sha256": "1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "before_sha256": "8328fc25d901545b2980b2c7ee55078e82046ae1c325f0399d02bf56408a3b4b",
+      "after_sha256": "775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3"
+    }
+  ],
+  "scope": "ONLY actual normal-source-outcome query joins same immutable originalSourceBindings/baseline/image. Refines UnknownInvocation using existing bounded typed VarWrite-only worldeffects plus every genuine exact original dispatch point and actual quiet scalar OriginalNormalValueWrite owner; no tracecallback/currentness/NormalGraph weakening. Other purposes/unknown operations remain strict. No registry setEMPTY or name hardcode.",
+  "checks": [
+    "pinnedfmtparseformatPASS4"
+  ],
+  "limits": [
+    "Current availability of required exact original operands/dispatch/quietwrite proofs UNRUN",
+    "Finite original and trace/stale controls not yet added; not integrationready"
+  ],
+  "new_controls": [
+    "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+    "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config"
+  ],
+  "v3_delta": "Pure unchanged predicate helpers split to avoid long-function lint; new observernegative uses trace add variable syntax valid all5 C releases. Original controls/assertions unchanged.",
+  "v3_supersession": "V3 held/rejected extraction shadowing bug compared sourceptr with itself; v4 restores current-vs-original pointer equality and adds direct stale actual-source-generation point negative; no canonical application."
+}

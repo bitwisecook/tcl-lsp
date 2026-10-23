@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T03:55:37.089282+00:00
+Last updated: 2026-10-23T04:25:37.297984+00:00
 
 ## In progress
 
@@ -510,3 +510,19 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - Fiveclearedcomponents composedOFFTREE8pathprefix: quotev4/ILXv2/BPFsharedv5+caller5/reportpuretrace. Combined856fb4fe, manifest7c145343, zero-fuzz/nooffset andpinnedfmt8/8PASS. PrefixNOTfinal/applied: G4testdraft612f peerpending/listissuer+consumerprovisional/N13variableobserver-proofpending.
 - Body5currently2observedFAIL:factorial andDefaultbracedexpression originalassertions retained; nofinalwhole-runclaim. Firstauthenticbodygate summary/attachment/words/owner/configtrue butcompilerstateNone=>syntax/purposeNone atif28/return54; runtimeclosedenvelope/evaluatedbodyguardcannotrepairsourceproof. Namesinvestigatingall-actual-compiler-snapshot syntaxconsensus, neverarbitraryfirst/runtimefallback.
 - ILXv2fullconfig28f9cbf5 peerCLEAR039334d5; quotev4 68302f94 peerCLEARd02b4247. G4test-only612f7f75 peerCLEAR74c51229, originalNative/normalisation/refusalcoverage retained plusunmeasuredgenuineConditionalpositive. N13typedquietvariableeffectdraft7b58b7ce4files inreview/controls, no setEMPTY/namehardcode orno_callbackmisinterpretation.
+
+### Completed03:55 cycle (actualpublication03:58:53 UTC)
+
+- Officialreport `progress-report-20261023T0355Z.json` andfullfreshness/disk wrote03:55:37. FirstGitaddstopped on3sparsearchives, preservednoreset; explicit--sparsearchivesstage followedbyexactfullWIPexcludeprobes committedeced933. Ownercorrectedcompiler-codegenunparseableheaderactual03:56:37; supplementalreceiptpreservesinitialNone, followupdocscommitbaa2e3ee. Normalfreshdepth1fetch/rebasepush publishedbothas865284a4fe750df55b98e18d3a20f97d46e800d9 at03:58:53, producttreeequal. No source/Gitcheckout/reset/stash/forcepush.
+- Next04:25:37, reminderrearmrootinprogress; draft `/tmp/naming-cycle-0425-draft.json` mustrefreshactualbody5/sourcebatch/runtime/CIstatus. ExternalBIGIP18:08/perf21:00/reviewtriageCOMPLETE19:57:30 ownerheadersstale, usernotified/no duplicates or takeover. AllF/auditverified0 unchanged.
+
+### Current cycle and routing (04:25 UTC)
+
+- Current-source fullnumeric4 closes4PASS/4 at04:11:28 with zero warnings/allguards, repairing original Tcl8.4 catch regression for this backend; current-state row9 updated only for named recorded scope. GeneralVM/noTom and wholeSpecTcl gates remain open.
+- Body5 closes3PASS2FAIL with0W/allguards. Original recursive factorial/default expression assertions retained; exact earliest missing syntax/consensus gate routed to compiler-names/LSP. Bodyv3 separate source-only issuer statically cleared, existing Native API restored unchanged; consumer union off-tree.
+- SpecTcl66v4 allocated04:17:27 on unchangedsource30: exact34Jim+32after8b/seven fresh targets, fullguards and strict outcomes. No unrelated report14 green prerequisite; failed-valid14/11 preserved. Source/provider HOLD during run; docs-only WIP authorised.
+- Report14 remains10PASS4FAIL, diagnostic11 remains1PASS10FAIL. Prefixv2 combines reviewed15files (quote, ILX, BPFv5, reporttrace, G4 fixtures, N13 quieteffectv4); no canonical integration/type/runtime claim. Need final body consumer composition before next product batch.
+- All sectionF boxes and audit verified counts remain0. External BIGIP18:08/perf21:00/reviewtriage19:57:30 headers stale over60min; user notified, no takeover/duplicates. Reviewtriage reports COMPLETE; remaining release validations stay open.
+- Complete31-job hostedCI5206 roster refreshed04:18 with unchanged7success19failure3running2skip, rawresponse SHA d2ed4bcd unchanged; no new completed logs. Full4 original67payload archive independently extraction-hash verified, tar3cc2b19c.
+- Final nextbatchv3 statically composed21files/cumulative39vs3b1, combined8466f1f6/manif4e68d5b2. Bodyissuer9bdae873 peerCLEARca850ed3 +quote/bodyconsumer2834a8b6 peerCLEARa41c7da7; oldNative APIs preserved; case-list excluded. Lossless11payload composition archiveb950650c. Still OFFTREE, not typed/run/integrated; source66HOLD.
+- Actual Spec66 partial 2026-10-23T04:25:02.933550+00:00: 18 observed, 14PASS/4FAIL; finalguards pending. Original class W123 Point and method-body-not-walked assertions routed to compiler with current original sources, no shared-cause inference.

@@ -1,0 +1,17 @@
+N13 quiet variable effect v4 — bounded independent static peer review
+Reviewed UTC: 2026-10-23T04:00:16+00:00
+Verdict: CLEAR for static authority and preparation; Rust typing and behavior UNRUN.
+
+Frozen owner patch: /tmp/compiler-n13-quiet-variable-effect-v4/proposal.patch
+SHA256: f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f
+Owner receipt: /tmp/compiler-n13-quiet-variable-effect-v4/receipt.json
+Owner clarification: /tmp/compiler-n13-quiet-variable-effect-v4/receipt-clarification.json
+The clarification corrects obsolete receipt prose claiming finite controls were absent; it does not change the frozen patch or receipt.
+
+I applied the exact patch with fuzz 0 to copies of all four current source30 files, independently checked the before and after SHA256 values against the owner receipt, and ran the pinned Rust 1.99.1 rustfmt --check on those copies with the compiler crate's edition 2024. All four passed. The resulting hashes, in receipt order, are 5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca, 99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718, 1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae, and 775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3.
+
+Only SourceAdviceQuery::NormalSourceOutcome can refine an otherwise UnknownInvocation. Its binding joins the same source-origin Arc, baseline Arc, original source image and lexer config. It requires no alias lineage, a selected VarWrite-only registry invocation with complete argument roles and no frame effect, bounded VariableStore/VariableTraces/InterpreterPolicy effects, and no general interpreter callback. Every actual original dispatch point must match the current source origin, original written words, registry target and declared source offset; preview, opaque or dynamic points, trace/source-step/command-execution observers refuse. The genuine typed OriginalVariableInvocation must be scalar, with no dynamic/index/observed access, and the existing OriginalNormalValueWrite proof must establish the before-store, quiet-write result. Other advice purposes remain Unknown, and the strict Normal graph completion check remains.
+
+The v3 draft compared a shadowed origin with itself, so an unrelated actual point could pass the current-source test. V4 compares that point with the outer expected origin and adds a cloned otherwise-positive point whose source generation differs; the helper must refuse it. V3 is rejected and must not be used. V4 also includes quiet-set positive and trace, shadowed, dynamic-name, container, foreign equal-source, config and stale-source negatives. The owner's 20/20 C Tcl oracle checks scoping only. Rust typecheck, those new controls and original N13 rows 05–07 have not run, so this review does not establish proof availability or functional acceptance.
+
+No canonical source, Cargo, Git, provider, GO or protocol execution by this reviewer.

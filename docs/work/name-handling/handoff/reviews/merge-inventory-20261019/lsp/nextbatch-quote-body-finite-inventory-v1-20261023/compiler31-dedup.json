@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:23:59.051323+00:00",
+  "status": "no exact or compiler substring-filter overlap",
+  "LSP_inventory_sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+  "compiler_design_sha256": "98a46a6b7b2fd10c52fbcfdb2ea1c3276a01e46e2b1a4a2ffe8f91d87b406c7c",
+  "LSP_filters_selected": 23,
+  "compiler_filters": 31,
+  "compiler_expected_selected": 54,
+  "overlap": [],
+  "typing_runtime": "UNRUN; preparation only; actual product HEAD/full39 pins pending"
+}

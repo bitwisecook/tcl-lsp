@@ -1,0 +1,10 @@
+{
+  "apply-proof.json": "267d8f1ba8b46901591dfc7e7544b768e05bfd4d3695c5e85fe6e50614feb4a6",
+  "ccg-static-peer-review.txt": "f68bd2909ccf8efd9f5f7682e94311da87235b2e626a69c8142c43e77f3f6026",
+  "finite-handoff.json": "c0e9361a9183dbe059095949360b1298e4b1e0fc5f488543920b98df6e81d121",
+  "native-oracle-version-attestation.json": "bdb6fe0f51c1750dff716f9813c154529b9852778c382002204cfba58ac49ac4",
+  "native-oracles.json": "326cdd91a37c59678c87aa6c135f0d953797d6d2f63ae3ea571c9e49da0643a2",
+  "proposal.patch.txt": "f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f",
+  "receipt-clarification.json": "dc903a7e279cd4d9d9a5e1665cf7ca60cd39310e1cfb7fff1d78e0a7816011e1",
+  "receipt.json": "0e55fe1b482351899c1d6c77bca9ee13bbf79e6917fe9cc16d79e851ab332dda"
+}

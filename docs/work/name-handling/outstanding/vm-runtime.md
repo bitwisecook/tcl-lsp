@@ -2,11 +2,77 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T03:27Z (originalSpecTcl3v2 strict libtest status/exit protocol frozen; actual noGO refusal; no acceptance/Cargo/source)
+Last updated: 2026-10-23T04:24:36.218389+00:00 (root Spec66v4 RUNNING; actual partial 14PASS/2FAIL/16observed; firstclass W123 routed compiler, finalguards pending)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Spec66v4 checkpoint partial 2026-10-23T04:24:36.218389+00:00: 14PASS/2FAIL/16observed,
+all still Jim original selectors. First current failure is original
+`a_class_records_the_variables_its_dictionary_names`: actual W123 Point vs
+expected no diagnostics atjim_document.rs253; exact original class/new script
+and strictsummary/process receipts retained in run's jim_document-10 files.
+Root routed class producer triage to compiler; VM forwarded exactproof and
+will not duplicate fixes or infer causes for other tests. Freshbuild0W and
+roster34 admitted; final target/provider/phase guards remain pending.
+No whole C.1–C.2/Jim acceptance; source HOLD and root sole slot retained.
+
+
+Root allocated and launched Spec66v4 at04:17:27Z, session17129. Actual run
+`/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/`; durable
+launch `...-launches/20261023T041728.453936Z/`. Approved source30
+4d4ab9e6/tree9259245b with docs-only descendants, rootGO pinned97db/f258.
+Initial40940source/fullprovider seals captured; fresh Jim34 Cargo build
+completed0warnings and exact34 roster admitted. First original selectorPASS,
+remaining Jim/after8b targets in progress; no final target/phase guard closure
+or wholeSpecTcl claim. VM role monitors read-only and does not queue/launch.
+Source/provider HOLD and sole root build slot retained.
+
+
+Actual root full4postfix run closed04:11:28Z PASS4/4, original exact catch
+and three C84 controls; full44813 source/7545provider/artifact seals stable,
+Cargo0/0warnings and genuine have_tommath artifact. Actual run is
+`/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/`.
+Original catch assertion now passes; trace shows c84.first_episode followed
+by successful errorInfo/errorCode setters before catch.body_return_error,
+with original91-byte error info/NONE preserved, unlike oldfull5FAIL.
+No getter/trace-triggering probe or expectation change. Bounded receipt/raw
+trace and launcher closure: `vm-runtime/runs/full4-postfix-20261023T041128Z/`.
+This closes only selected standalone full-backend boundary, not noTom16,
+explicit-code compile failure, workspaceVM baselines or wholeSpecTcl/Jim.
+No VM role Cargo/GO/source operation; root owns handoff. Spec66v4 strict
+summary successor remains root-review pending/unrun, source pins unchanged.
+
+
+Spec66v4 strict-summary successor prepared at root request, v3 immutable:
+`/tmp/vm-spectcl-c1c2-exact66-v4/`, suite9b1346ed, launcher c8fc1baa,
+manifestf25861df, patch65357cfc; plan97db5508 byte-identical. Only directory
+identities and original3v2 rawsummary/count/status/exit consistency added;
+7rosters/66selectors/12sourcepins/11inputs/features/providers/executor88125
+and limits unchanged. AST and actual launcher/direct-suite noGO exit2
+verified, no lock/provider/Cargo/test. All11inputs/12sourcepins still match.
+Root review pending, no queue. Lossless static archive
+`vm-runtime/protocols/spectcl-exact66-v4/manifest.txt`.
+Precise source_view policy permits root-approved future reviewed integration
+that descends3b1 if all12pins unchanged and product worktree equals that
+approved HEAD/tree; each later descendant must be docs/work/name-handling
+only. RootGO/plan/input identity and full before/after seals remain mandatory.
+There is no source30 hard equality or unrelated report14green prerequisite.
+Full4root run remains actual runtime recompilation, no selector outcome yet.
+
+
+Root allocated full4postfix and launched session67600 ~04:03Z. Current
+run `/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle-runs/20261023T040349.706745Z/suite-output`
+is at mirror/initial full seal stage; no artifact/test outcome yet. VM role
+monitors read-only; root owns sole build lock and source HOLD.580semantic
+is typed only until this actual postfix run closes. Spec66 current frozen
+11input/12canonical pins and archived peerb47e00b6 match; GO absent. Before
+allocation, root was notified frozen66 shares old loose libtest status/exit
+admission corrected for original3v2; peer bytes valid but stricter check not
+present. No speculative protocol change by VM; awaiting root decision.
+No VM runner/Cargo/GO/Git/source/target operation.
+
 
 OriginalSpecTcl3v2 at `/tmp/vm-spectcl-original3-v2/` addresses root's
 concrete status/exit consistency finding; v1 immutable. Suiteb1ad8d2e,

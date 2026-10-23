@@ -1,0 +1,178 @@
+--- rust/tcl-compiler/src/command_binding/compiler_inventory.rs
++++ rust/tcl-compiler/src/command_binding/compiler_inventory.rs
+@@ -30,7 +30,7 @@
+     original: &'a super::compiled_invocation::SourceOriginalCompilerWords,
+     snapshot: &'a Arc<super::SourceLookupSnapshot>,
+     namespace: &'a super::SourceNamespaceKey,
+-    dialect: tcl_registry::InvocationDialect,
++    dialect: Option<tcl_registry::InvocationDialect>,
+     analysis_owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
+ }
+ 
+@@ -59,11 +59,11 @@
+         self.snapshot.realm
+     }
+ 
+-    pub(crate) fn source_dialect(&self) -> tcl_registry::InvocationDialect {
+-        let mut dialect = self.dialect;
++    pub(crate) fn source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
++        let mut dialect = self.dialect?;
+         dialect.lexer_grammar = self.config().grammar_over(dialect.lexer_grammar);
+         dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&self.config());
+-        dialect
++        Some(dialect)
+     }
+ 
+     pub(crate) fn source_lookup_advice(
+@@ -224,7 +224,7 @@
+             original,
+             snapshot,
+             namespace: &self.lookup_namespace_key,
+-            dialect: self.compiler_word_dialect()?,
++            dialect: self.compiler_word_dialect(),
+             analysis_owner,
+         })
+     }
+@@ -327,7 +327,7 @@
+         original,
+         snapshot,
+         namespace: &visit.namespace_key,
+-        dialect,
++        dialect: Some(dialect),
+         analysis_owner: owner,
+     })
+ }
+--- rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs
++++ rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs
+@@ -114,15 +114,25 @@
+                 registry,
+                 retained.owns_original_analysis_attachment(tokens),
+             );
+-            let Some(syntax) =
+-                retained.original_compiler_syntax_alternatives(tokens, &self.input, registry)
+-            else {
+-                continue;
+-            };
+-            if syntax.iter().all(|syntax| {
+-                syntax.image() == &self.image && syntax.config() == self.input.lexer_config()
+-            }) && !self.commands.contains(tokens)
+-            {
++            let native = binding
++                .original_compiler_argument_syntax(tokens, &self.input, registry)
++                .is_some_and(|syntax| {
++                    retained.owns_original_analysis_attachment(tokens)
++                        && syntax.image() == &self.image
++                        && syntax.config() == self.input.lexer_config()
++                        && tokens.evaluated_body.is_none()
++                        && binding.original_registry_syntax_is_closed(tokens, registry)
++                });
++            let source = !native
++                && retained
++                    .original_compiler_syntax_alternatives(tokens, &self.input, registry)
++                    .is_some_and(|syntax| {
++                        syntax.iter().all(|syntax| {
++                            syntax.image() == &self.image
++                                && syntax.config() == self.input.lexer_config()
++                        })
++                    });
++            if (native || source) && !self.commands.contains(tokens) {
+                 self.commands.push(tokens.clone());
+             }
+         }
+@@ -180,6 +190,10 @@
+         }
+         let registry = analysis.resolved_registry()?;
+         let binding = tokens.source_binding.as_ref()?;
++        let syntax = binding.original_compiler_argument_syntax(tokens, &self.input, registry)?;
++        if syntax.image() != &self.image || syntax.config() != self.input.lexer_config() {
++            return None;
++        }
+         binding
+             .original_registry_syntax_is_closed(tokens, registry)
+             .then_some(())?;
+@@ -273,11 +287,48 @@
+         unanimous
+     }
+ 
++    /// Same configured token-gap proof through the unchanged Native syntax
++    /// owner, using the actual body tokens rather than a whole-realm restamp.
++    #[must_use]
++    pub fn expression_gaps(
++        &self,
++        source: &str,
++        analysis: &AnalysisResult,
++        segment: &crate::segmenter::SegmentedCommand,
++        argument: usize,
++        candidate: &str,
++    ) -> Option<OriginalExpressionSyntaxGapCompaction> {
++        let words = self.words(source, analysis, segment)?;
++        words
++            .roles()?
++            .contains(&(argument, tcl_registry::ArgRole::Expr))
++            .then_some(())?;
++        let context = self.input.context_registry();
++        words.with_source_schema(&context, |_| ())?;
++        let original = words.original_argument_word(argument)?.clone();
++        let tokens = self.tokens(source, analysis, segment)?;
++        let gaps = tokens
++            .source_binding
++            .as_ref()?
++            .original_expression_syntax_gaps(
++                tokens,
++                context.commands(),
++                &self.input,
++                &original,
++                candidate,
++            )?;
++        Some(OriginalExpressionSyntaxGapCompaction {
++            original,
++            gaps,
++            registry: context.commands().snapshot().semantic_key(),
++        })
++    }
++
+     /// Same configured token-gap verifier after independently closed source
+     /// compiler syntax, without borrowing a Native handler envelope.
+ 
+     #[must_use]
+-    pub fn expression_gaps(
++    pub fn source_expression_gaps(
+         &self,
+         source: &str,
+         analysis: &AnalysisResult,
+@@ -332,7 +383,7 @@
+     {
+         return None;
+     }
+-    let dialect = syntax.source_dialect();
++    let dialect = syntax.source_dialect()?;
+     let native = super::super::original_native_compiler_words(
+         image,
+         tokens.words(),
+@@ -508,7 +559,7 @@
+         assert_eq!(operands.len(), 1);
+         assert_eq!(operands[0].0, 0);
+         let proof = inventory
+-            .expression_gaps(source, &analysis, &segment, 0, "$n<=1")
++            .source_expression_gaps(source, &analysis, &segment, 0, "$n<=1")
+             .unwrap();
+         assert!(!proof.removed_gaps().is_empty());
+         assert_eq!(proof.original_operand(), &operands[0].1);
+@@ -535,7 +586,7 @@
+         );
+         assert!(
+             inventory
+-                .expression_gaps(source, &foreign, &segment, 0, "$n<=1")
++                .source_expression_gaps(source, &foreign, &segment, 0, "$n<=1")
+                 .is_none()
+         );
+     }
+@@ -554,7 +605,7 @@
+                 original_segment(source, input.lexer_config(), source.find("if {").unwrap());
+             assert!(
+                 inventory
+-                    .expression_gaps(source, &analysis, &segment, 0, "$x<=1")
++                    .source_expression_gaps(source, &analysis, &segment, 0, "$x<=1")
+                     .is_none(),
+                 "{source}"
+             );
