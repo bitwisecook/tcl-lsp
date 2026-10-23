@@ -450,7 +450,10 @@ fn definition_unknown_word_yields_no_definition() {
     // A bare literal argument (`hello`) is neither proc, class, nor var.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(definition(src, 0, 6, &analysis).is_empty());
+    assert_eq!(
+        definition(src, 0, 6, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
 }
 
 #[test]
@@ -458,12 +461,21 @@ fn definition_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
     // Past EOF on the line axis.
-    assert!(definition(src, 99, 0, &analysis).is_empty());
+    assert_eq!(
+        definition(src, 99, 0, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
     // Past EOL on the column axis.
-    assert!(definition(src, 0, 999, &analysis).is_empty());
+    assert_eq!(
+        definition(src, 0, 999, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
     // Empty document.
     let empty = analyse("");
-    assert!(definition("", 0, 0, &empty).is_empty());
+    assert_eq!(
+        definition("", 0, 0, &empty),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
 }
 
 // definition — BigIP note
@@ -590,7 +602,7 @@ fn declaration_non_variable_falls_back_to_definition() {
 fn declaration_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         declaration(
             src,
             99,
@@ -598,10 +610,10 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
     );
-    assert!(
+    assert_eq!(
         declaration(
             src,
             0,
@@ -609,11 +621,11 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
     );
     let empty = analyse("");
-    assert!(
+    assert_eq!(
         declaration(
             "",
             0,
@@ -621,8 +633,8 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &empty,
             &reg()
-        )
-        .is_empty()
+        ),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
     );
 }
 
@@ -681,10 +693,19 @@ fn type_definition_unrelated_word_and_robustness() {
     // A bare literal has no typing class; out-of-range must not panic.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(type_definition(src, 0, 6, &analysis).is_empty());
-    assert!(type_definition(src, 99, 0, &analysis).is_empty());
+    assert_eq!(
+        type_definition(src, 0, 6, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
+    assert_eq!(
+        type_definition(src, 99, 0, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
     let empty = analyse("");
-    assert!(type_definition("", 0, 0, &empty).is_empty());
+    assert_eq!(
+        type_definition("", 0, 0, &empty),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
 }
 
 // implementation — TclOO subclass / method-override fan-out
@@ -783,7 +804,10 @@ fn implementation_unknown_word_and_empty_cases() {
     // A bare literal names neither class nor method — no implementations.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(implementation(src, 0, 6, &analysis).is_empty());
+    assert_eq!(
+        implementation(src, 0, 6, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
     // A lone class with no subclasses: cursor on its name yields nothing to
     // realise. tclsh: `info class subclasses Solo` -> {} (empty).
     let solo = "oo::class create Solo {}\n";
@@ -793,9 +817,15 @@ fn implementation_unknown_word_and_empty_cases() {
         "a class with no subclasses has no implementations",
     );
     // Robustness: out-of-range / empty file must not panic.
-    assert!(implementation(src, 99, 0, &analysis).is_empty());
+    assert_eq!(
+        implementation(src, 99, 0, &analysis),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
     let empty = analyse("");
-    assert!(implementation("", 0, 0, &empty).is_empty());
+    assert_eq!(
+        implementation("", 0, 0, &empty),
+        [] as [tcl_lsp_core::definition::LspRange; 0]
+    );
 }
 
 // implementation — classmethod (dialect-divergent runnable form)
@@ -895,10 +925,19 @@ fn type_hierarchy_prepare_on_non_class_is_empty() {
 fn type_hierarchy_prepare_out_of_range_and_empty_file_do_not_panic() {
     let src = "oo::class create C {}\n";
     let analysis = analyse(src);
-    assert!(prepare_type_hierarchy(src, 99, 0, &analysis).is_empty());
-    assert!(prepare_type_hierarchy(src, 0, 999, &analysis).is_empty());
+    assert_eq!(
+        prepare_type_hierarchy(src, 99, 0, &analysis),
+        [] as [tcl_lsp_core::type_hierarchy::TypeHierarchyItem; 0]
+    );
+    assert_eq!(
+        prepare_type_hierarchy(src, 0, 999, &analysis),
+        [] as [tcl_lsp_core::type_hierarchy::TypeHierarchyItem; 0]
+    );
     let empty = analyse("");
-    assert!(prepare_type_hierarchy("", 0, 0, &empty).is_empty());
+    assert_eq!(
+        prepare_type_hierarchy("", 0, 0, &empty),
+        [] as [tcl_lsp_core::type_hierarchy::TypeHierarchyItem; 0]
+    );
 }
 
 // M11 (TIP 278) — namespace-scope variable resolution is dialect-gated.
