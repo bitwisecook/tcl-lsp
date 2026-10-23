@@ -149,10 +149,9 @@ fn an_abstention_runs_again_once_the_overlay_is_installed() {
     let file = SourceFile::new(&db, SRC.to_owned(), "tcl9.0".to_owned(), None);
     let config = overlay_config(&db, LATER);
     assert!(document_compilation_unit_for(&db, file, config).is_none());
-    assert!(
-        compiler_check_diagnostics(&db, file, config)
-            .optimisations
-            .is_empty()
+    assert_eq!(
+        compiler_check_diagnostics(&db, file, config).optimisations,
+        [] as [tcl_compiler::optimiser::Optimisation; 0]
     );
 
     let _installed = install(LATER);
@@ -191,7 +190,7 @@ fn the_token_query_reads_the_plain_registry_for_a_miss() {
     let db = TclDatabase::default();
     let file = SourceFile::new(&db, SRC.to_owned(), "tcl9.0".to_owned(), None);
     let plain = semantic_tokens(&db, file, overlay_config(&db, 0));
-    assert!(!plain.data.is_empty());
+    assert_ne!(plain.data, [] as [u32; 0]);
     assert_eq!(
         semantic_tokens(&db, file, overlay_config(&db, MISSING)).data,
         plain.data,
