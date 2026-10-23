@@ -826,6 +826,16 @@ pub fn select(
     if let Some(first) = ends.next() {
         return ControlFlow::Break(ends.next().is_none().then(|| first.clone()));
     }
+    select_invocation(uri, source, analysis, offset)
+}
+
+fn select_invocation(
+    uri: &str,
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> std::ops::ControlFlow<Option<OriginalDeclarationIdentity>> {
+    use std::ops::ControlFlow;
     let Some(invocation) = analysis
         .command_invocations
         .iter()
@@ -903,43 +913,7 @@ pub fn reference_spans(
     }
     match identity.role() {
         OriginalDeclarationRole::Procedure => {
-            identity
-                .procedure_metadata(analysis)
-                .map_or_else(Vec::new, |declaration| {
-                    let mut spans: Vec<_> = analysis
-                        .command_invocations
-                        .iter()
-                        .filter(|invocation| {
-                            invocation_targets_declaration(
-                                source,
-                                analysis,
-                                invocation,
-                                declaration,
-                                follow_links,
-                            )
-                        })
-                        .map(|invocation| invocation.range)
-                        .collect();
-                    for occurrence in crate::math_function_symbol::occurrences(source, analysis)
-                        .into_iter()
-                        .flatten()
-                    {
-                        if math_function_targets_declaration_in(
-                            source,
-                            analysis,
-                            source,
-                            analysis,
-                            &occurrence,
-                            declaration,
-                            follow_links,
-                        ) {
-                            spans.push(occurrence.span());
-                        }
-                    }
-                    spans.sort_by_key(|span| (span.start(), span.end()));
-                    spans.dedup();
-                    spans
-                })
+            procedure_reference_spans(identity, source, analysis, follow_links)
         }
         OriginalDeclarationRole::Class => {
             identity
@@ -1009,6 +983,51 @@ pub fn reference_spans(
             }),
         OriginalDeclarationRole::Document => Vec::new(),
     }
+}
+
+fn procedure_reference_spans(
+    identity: &OriginalDeclarationIdentity,
+    source: &str,
+    analysis: &AnalysisResult,
+    follow_links: bool,
+) -> Vec<Span> {
+    identity
+        .procedure_metadata(analysis)
+        .map_or_else(Vec::new, |declaration| {
+            let mut spans: Vec<_> = analysis
+                .command_invocations
+                .iter()
+                .filter(|invocation| {
+                    invocation_targets_declaration(
+                        source,
+                        analysis,
+                        invocation,
+                        declaration,
+                        follow_links,
+                    )
+                })
+                .map(|invocation| invocation.range)
+                .collect();
+            for occurrence in crate::math_function_symbol::occurrences(source, analysis)
+                .into_iter()
+                .flatten()
+            {
+                if math_function_targets_declaration_in(
+                    source,
+                    analysis,
+                    source,
+                    analysis,
+                    &occurrence,
+                    declaration,
+                    follow_links,
+                ) {
+                    spans.push(occurrence.span());
+                }
+            }
+            spans.sort_by_key(|span| (span.start(), span.end()));
+            spans.dedup();
+            spans
+        })
 }
 
 /// Coverage of the independent conditional source-reference facet.

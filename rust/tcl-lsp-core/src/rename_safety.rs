@@ -1031,6 +1031,15 @@ pub fn namespace_variable_rename_hazard(
     if hazard.is_none() && coverage != crate::executable_regions::PotentialSourceVisit::Complete {
         return Some(incomplete_hazard_census(source, line_index, cell));
     }
+    namespace_variable_hazard_refusal(source, line_index, cell, hazard)
+}
+
+fn namespace_variable_hazard_refusal(
+    source: &str,
+    line_index: &LineIndex,
+    cell: &str,
+    hazard: Option<(Span, bool)>,
+) -> Option<RenameRefusal> {
     let (span, unknown) = hazard?;
     if unknown {
         return Some(RenameRefusal::new(
