@@ -2703,7 +2703,8 @@ impl ModuleCommandBindings {
                 self.source_variables.namespace_known
             );
         }
-        if !input_is_current
+        if self.unclosed_command_world
+            || !input_is_current
             || self.baseline.unknown_entry
             || (!input.bytes().starts_with(b"::")
                 && matches!(current, SourceNamespaceKey::Authored(_))
