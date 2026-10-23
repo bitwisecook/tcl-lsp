@@ -295,15 +295,17 @@ fn diagnostic_command(
     diagnostic_words(tokens, ctx).map(|(command, arguments, _, _)| (command, arguments))
 }
 
-fn diagnostic_words(
-    tokens: &crate::ir::CommandTokens,
-    ctx: TraceCtx<'_>,
-) -> Option<(
+type DiagnosticWords = (
     String,
     Vec<String>,
     Vec<crate::ir::WordExpr>,
     Option<Decomposition>,
-)> {
+);
+
+fn diagnostic_words(
+    tokens: &crate::ir::CommandTokens,
+    ctx: TraceCtx<'_>,
+) -> Option<DiagnosticWords> {
     use crate::registry_invocation::InvocationWordOrigin;
     let metadata = ctx.metadata()?.context();
     if !ctx.cfg.metadata_context.is_standalone()
@@ -351,12 +353,7 @@ fn diagnostic_words(
 fn statement_diagnostic_command(
     statement: &Statement,
     ctx: TraceCtx<'_>,
-) -> Option<(
-    String,
-    Vec<String>,
-    Vec<crate::ir::WordExpr>,
-    Option<Decomposition>,
-)> {
+) -> Option<DiagnosticWords> {
     if let Some(word) = ctx.normal_value(statement) {
         let mut commands =
             crate::value_shapes::command_substitution_tokens(&word, ctx.tokens(), ctx.config)?;

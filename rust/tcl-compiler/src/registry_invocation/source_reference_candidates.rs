@@ -123,7 +123,7 @@ fn retain_selected_expressions(
     input: &crate::analyser::ResolvedAnalysisInput,
     parser: &tcl_syntax::expr::parser::ExprParseContext,
     names: &mut BTreeSet<String>,
-    work: &mut Vec<SourceRegion>,
+    regions: &mut Vec<SourceRegion>,
 ) {
     let config = input.lexer_config();
     for &(argument, role) in selected.roles().unwrap_or_default() {
@@ -149,7 +149,7 @@ fn retain_selected_expressions(
         if let Ok(content) = word.content_span()
             && word.image().bytes().get(content.as_range()) == Some(value.as_bytes())
         {
-            work.push(SourceRegion::Expression(content));
+            regions.push(SourceRegion::Expression(content));
         }
     }
 }

@@ -1293,16 +1293,14 @@ fn collect_expr_cmd_sub_writes(
             .blocks
             .get(&block_id)
             .and_then(|block| block.terminator.as_ref())
-        {
-            if let Some(tokens) =
+            && let Some(tokens) =
                 crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, usize::MAX)
                     .source_tokens()
-            {
-                let mut names = FxHashSet::default();
-                collect_original_expression_writes(tokens, *base, semantics, metadata, &mut names);
-                for name in names {
-                    out.entry(name).or_default().push((block_id, usize::MAX));
-                }
+        {
+            let mut names = FxHashSet::default();
+            collect_original_expression_writes(tokens, *base, semantics, metadata, &mut names);
+            for name in names {
+                out.entry(name).or_default().push((block_id, usize::MAX));
             }
         }
     }
@@ -1774,6 +1772,33 @@ pub(super) struct UndefSuppressionSemantics<'a> {
     pub module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
 }
 
+fn collect_explicit_definitions(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+    s: &mut UndefSuppression,
+) {
+    if s.has_dict_with {
+        for &bn in considered {
+            let Some(sb) = fu.ssa.blocks.get(&bn) else {
+                continue;
+            };
+            for st in &sb.statements {
+                for (&n, v) in &st.defs {
+                    if *v > 0 {
+                        s.explicitly_defined.insert(fu.ssa.var_name(n).to_owned());
+                    }
+                }
+            }
+            for phi in &sb.phis {
+                if phi.version > 0 {
+                    s.explicitly_defined
+                        .insert(fu.ssa.var_name(phi.name).to_owned());
+                }
+            }
+        }
+    }
+}
+
 pub(super) fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
@@ -1875,26 +1900,7 @@ pub(super) fn build_undef_suppression(
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
-    if s.has_dict_with {
-        for &bn in considered {
-            let Some(sb) = fu.ssa.blocks.get(&bn) else {
-                continue;
-            };
-            for st in &sb.statements {
-                for (&n, v) in &st.defs {
-                    if *v > 0 {
-                        s.explicitly_defined.insert(fu.ssa.var_name(n).to_owned());
-                    }
-                }
-            }
-            for phi in &sb.phis {
-                if phi.version > 0 {
-                    s.explicitly_defined
-                        .insert(fu.ssa.var_name(phi.name).to_owned());
-                }
-            }
-        }
-    }
+    collect_explicit_definitions(fu, considered, &mut s);
 
     s.alias_tails = collect_qualified_variable_alias_tails(fu, considered, semantics.context);
     s

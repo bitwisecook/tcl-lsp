@@ -1215,10 +1215,9 @@ pub fn resolved_callees(
         if let Some(Terminator::Return {
             value: Some(value), ..
         }) = &block.terminator
+            && value.contains('[')
         {
-            if value.contains('[') {
-                out.extend(known.iter().copied());
-            }
+            out.extend(known.iter().copied());
         }
     }
     out.into_iter().collect()

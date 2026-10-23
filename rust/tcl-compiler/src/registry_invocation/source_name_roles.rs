@@ -319,9 +319,9 @@ fn source_name_roles_from_point_words(
 ) -> Option<SourceNameRoleInventory> {
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
-    let held = metadata.source_analysis_input()?;
+    let retained_input = metadata.source_analysis_input()?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
-    if held.lexer_config() != config {
+    if retained_input.lexer_config() != config {
         return None;
     }
     let realm = binding.original_source_realm_for_input(tokens, input, registry)?;
@@ -367,10 +367,10 @@ fn source_name_roles_from_point_words(
             }
         })
         .collect::<Vec<_>>();
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(held.unit_profile());
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(retained_input.unit_profile());
     dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
     dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-    let context = held.borrowed_context_registry();
+    let context = retained_input.borrowed_context_registry();
     let schema = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
         registry,
         Some(context.context()),

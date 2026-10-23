@@ -135,13 +135,12 @@ pub(crate) fn handle_call(
     if let Some(source) = &source_names {
         handle_source_introspection(source, state);
     }
-    if let Some(facts) = facts.as_deref() {
-        if facts
+    if let Some(facts) = facts.as_deref()
+        && facts
             .traits
             .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
-        {
-            handle_source_name_first(&facts.canonical_command, source_names.as_ref(), state);
-        }
+    {
+        handle_source_name_first(&facts.canonical_command, source_names.as_ref(), state);
     }
     // Record statically resolvable callees for interprocedural
     // propagation. Bare or ``::``-qualified command words are

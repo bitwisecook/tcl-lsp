@@ -89,7 +89,28 @@ pub fn class_member_def(class_def: &ClassDef, member: &SourceMemberKind) -> Opti
             side: MemberSide::ClassObject,
         } => class_def.class_methods.get(name).cloned(),
         SourceMemberKind::NativeMethod { input, side } => {
-            native_source_member_def(class_def, *side, input)?
+            native_source_member_def(class_def, *side, input)?.into_option()
+        }
+    }
+}
+
+enum SourceMethodPresence<T> {
+    Absent,
+    Present(T),
+}
+
+impl<T> SourceMethodPresence<T> {
+    fn from_option(method: Option<T>) -> Self {
+        match method {
+            Some(method) => Self::Present(method),
+            None => Self::Absent,
+        }
+    }
+
+    fn into_option(self) -> Option<T> {
+        match self {
+            Self::Absent => None,
+            Self::Present(method) => Some(method),
         }
     }
 }
@@ -98,15 +119,15 @@ fn native_source_member_def(
     class: &ClassDef,
     side: super::types::MemberSide,
     input: &crate::signature_scan::scope::SignatureSourceNameInput,
-) -> Option<Option<MethodDef>> {
+) -> Option<SourceMethodPresence<MethodDef>> {
     // Missing source inventory is not absence and cannot skip a provider.
     let _complete = class.original_members.methods(side)?;
-    Some(
+    Some(SourceMethodPresence::from_option(
         class
             .original_members
             .method_for_input(side, input)
             .map(|method| method.metadata().clone()),
-    )
+    ))
 }
 
 /// Reborrow the actual source member enclosing this current occurrence.
@@ -536,7 +557,7 @@ impl ClassHierarchy {
                     };
                     let selected = match member {
                         SourceMemberKind::NativeMethod { input, side } => {
-                            native_source_member_def(class, *side, input)?
+                            native_source_member_def(class, *side, input)?.into_option()
                         }
                         _ => class_member_def(class, member),
                     };

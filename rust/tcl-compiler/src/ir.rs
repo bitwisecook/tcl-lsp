@@ -2413,20 +2413,20 @@ impl Statement {
     /// to actual argv or changed token metadata cannot erase their inventory.
     #[must_use]
     pub fn original_argv_inventory_disposition(&self) -> OriginalArgvInventoryDisposition {
-        let (args, canonical_command, tokens) = match self {
-            Self::Call {
-                args,
-                canonical_command,
-                tokens: Some(tokens),
-                ..
-            }
-            | Self::Barrier {
-                args,
-                canonical_command,
-                tokens: Some(tokens),
-                ..
-            } => (args, canonical_command, tokens),
-            _ => return OriginalArgvInventoryDisposition::SourceRequired,
+        let (Self::Call {
+            args,
+            canonical_command,
+            tokens: Some(tokens),
+            ..
+        }
+        | Self::Barrier {
+            args,
+            canonical_command,
+            tokens: Some(tokens),
+            ..
+        }) = self
+        else {
+            return OriginalArgvInventoryDisposition::SourceRequired;
         };
         let Some(
             marker @ (SyntheticMarker::UnseenCall

@@ -525,9 +525,10 @@ impl TaintReplayAnalysis {
         let was_available =
             matches!(self, Self::Analysed { .. }) && matches!(other, Self::Analysed { .. });
         let mut retained = self.unavailable_replays().to_vec();
-        for replay in other.unavailable_replays() {
-            if !retained.contains(replay) {
-                retained.push(replay.clone());
+        let (Self::Unavailable { unavailable } | Self::Analysed { unavailable }) = other;
+        for replay in unavailable {
+            if !retained.contains(&replay) {
+                retained.push(replay);
             }
         }
         *self = if was_available {
@@ -4821,13 +4822,6 @@ pub fn shadowed_builtin_names_for_module_function(
     unit: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
-    if !unit
-        .all_body_function_units()
-        .any(|owned| std::ptr::eq(owned, function))
-    {
-        return None;
-    }
-    let module = &unit.ir_module;
     use crate::command_binding::SourceNamespaceKey;
     fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
         context.exact_native_path().cloned().or_else(|| {
@@ -4837,6 +4831,13 @@ pub fn shadowed_builtin_names_for_module_function(
             ))
         })
     }
+    if !unit
+        .all_body_function_units()
+        .any(|owned| std::ptr::eq(owned, function))
+    {
+        return None;
+    }
+    let module = &unit.ir_module;
     let namespace = if let Some(id) = function.body_id {
         module.procedure_ids.owns(id).then_some(())?;
         if let Some(procedure) = module
@@ -4845,7 +4846,8 @@ pub fn shadowed_builtin_names_for_module_function(
             .or_else(|| module.body_lowering(&id))
         {
             path(procedure.body.namespace_context.as_deref()?)?
-        } else if let Some(method) = module.methods.get(&id) {
+        } else {
+            let method = module.methods.get(&id)?;
             match &method.execution_namespace {
                 crate::ir::ExecutionNamespace::SourceContext(context) => path(context)?,
                 crate::ir::ExecutionNamespace::Exact(context) => {
@@ -4853,8 +4855,6 @@ pub fn shadowed_builtin_names_for_module_function(
                 }
                 crate::ir::ExecutionNamespace::RuntimeSelected => return None,
             }
-        } else {
-            return None;
         }
     } else {
         std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)).then_some(())?;
@@ -8674,10 +8674,9 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
     for index in 0..call.args.len() {
         if let Some((reference, _)) =
             original_sink_argument(call, index).and_then(WordExpr::sole_variable_substitution)
+            && let Some(name) = reference_root_with_config(reference, call.source.config)
         {
-            if let Some(name) = reference_root_with_config(reference, call.source.config) {
-                names.insert(name);
-            }
+            names.insert(name);
         }
     }
     for name in names {

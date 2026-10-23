@@ -189,11 +189,8 @@ impl OriginalSourceCommandProjection {
         {
             return None;
         }
-        let text = match image.try_text() {
-            Ok(text) => text,
-            Err(_) => {
-                return None;
-            }
+        let Ok(text) = image.try_text() else {
+            return None;
         };
         let spans: Vec<_> = words
             .iter()
@@ -240,15 +237,12 @@ impl OriginalSourceCommandProjection {
         // cannot borrow the compiler capabilities of the source it replaced.
         let original =
             SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-        let segments = match crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
             &original,
             offset,
             config.nested(),
-        ) {
-            Some(segments) => segments,
-            None => {
-                return None;
-            }
+        ) else {
+            return None;
         };
         let [segment] = segments.as_slice() else {
             return None;

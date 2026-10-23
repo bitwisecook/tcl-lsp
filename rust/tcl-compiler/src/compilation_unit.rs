@@ -804,7 +804,7 @@ type ParamSeeds<'a> = Option<
 /// positional arguments.
 #[derive(Clone, Copy)]
 struct FunctionBuildInputs<'a> {
-    analysis_body: Option<Option<crate::ir::ProcedureId>>,
+    analysis_body: Option<crate::sccp::AnalysisBody>,
     is_event_body: bool,
     /// Initial presence facts are separate from actual source frame ownership.
     initial_state: crate::sccp::ExistenceInitialState,
@@ -1380,7 +1380,7 @@ impl FunctionUnit {
             cfg,
             FunctionBuildInputs {
                 is_event_body: false,
-                analysis_body: Some(Some(body_id)),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(body_id)),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: Some(&entry),
@@ -1527,7 +1527,7 @@ impl FunctionUnit {
             cfg,
             FunctionBuildInputs {
                 is_event_body,
-                analysis_body: Some(Some(id)),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(id)),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
@@ -1572,7 +1572,7 @@ impl FunctionUnit {
             cfg,
             FunctionBuildInputs {
                 is_event_body: false,
-                analysis_body: Some(None),
+                analysis_body: Some(crate::sccp::AnalysisBody::TopLevel),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
@@ -1658,7 +1658,7 @@ impl FunctionUnit {
             cfg,
             FunctionBuildInputs {
                 is_event_body: false,
-                analysis_body: Some(Some(body_id)),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(body_id)),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: Some(&entry_context),
@@ -3836,7 +3836,7 @@ impl CompilationUnit {
             &ir_module,
             &extra_callers,
             body_unit_context,
-            cache.as_deref_mut(),
+            cache,
             DeclaredBodyMemoContext {
                 prepared: cfg_context.map(|prepared| &prepared.context),
                 dialect,
@@ -4198,7 +4198,7 @@ impl CompilationUnit {
                                 cfg,
                                 FunctionBuildInputs {
                                     is_event_body: false,
-                                    analysis_body: Some(Some(*id)),
+                                    analysis_body: Some(crate::sccp::AnalysisBody::Procedure(*id)),
                                     initial_state:
                                         crate::sccp::ExistenceInitialState::DeclaredFrame,
                                     source_metadata_input: module_source_metadata_input(
@@ -4390,7 +4390,7 @@ impl CompilationUnit {
 
         self.interproc = Some(interproc);
         if let Some(owner) = original_owner {
-            self.retain_enriched_original_optimiser_owner(owner);
+            self.retain_enriched_original_optimiser_owner(&owner);
         }
         self
     }
@@ -4525,7 +4525,7 @@ impl CompilationUnit {
 
         self.interproc = Some(interproc);
         if original_callbacks && let Some(owner) = original_owner {
-            self.retain_enriched_original_optimiser_owner(owner);
+            self.retain_enriched_original_optimiser_owner(&owner);
         }
         self
     }
@@ -4563,7 +4563,7 @@ impl CompilationUnit {
             unit.memory_ssa = Some(unit.memory_ssa_for_metadata(registry, context));
         }
         if let Some(owner) = original_owner {
-            self.retain_enriched_original_optimiser_owner(owner);
+            self.retain_enriched_original_optimiser_owner(&owner);
         }
         self
     }
@@ -4623,7 +4623,7 @@ impl CompilationUnit {
             );
         }
         if let Some(owner) = original_owner {
-            self.retain_enriched_original_optimiser_owner(owner);
+            self.retain_enriched_original_optimiser_owner(&owner);
         }
         self
     }

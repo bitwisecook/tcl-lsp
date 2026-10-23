@@ -1692,10 +1692,10 @@ fn source_operand_body(
 
 fn source_lambda_body(
     words: &super::source_structure::OriginalRegistryWords,
-    context: &ContextRegistry,
+    registry_context: &ContextRegistry,
 ) -> Option<ScriptBodyGeometry> {
     let selected = words.with_source_schema(
-        context,
+        registry_context,
         crate::registry_invocation::source_schema_queries::lambda_call,
     )??;
     let word = words

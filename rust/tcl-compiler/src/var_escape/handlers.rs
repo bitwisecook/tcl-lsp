@@ -368,16 +368,15 @@ pub(crate) fn handle_source_name_first(
     source: Option<&crate::registry_invocation::SourceNameRoleInventory>,
     state: &mut EscapeState,
 ) {
-    if let Some(source) = source {
-        if source
+    if let Some(source) = source
+        && source
             .original_variable_name_operand(source.facts().argument_offset)
             .is_some()
-        {
-            if source.has_unknown_residual() {
-                state.mark_pessimistic();
-            }
-            return;
+    {
+        if source.has_unknown_residual() {
+            state.mark_pessimistic();
         }
+        return;
     }
     state.record_barrier(Barrier::with_detail(
         BarrierKind::DynName,

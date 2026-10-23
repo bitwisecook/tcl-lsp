@@ -441,7 +441,9 @@ impl<'a> IrulesSourceQuery<'a> {
         }
         let standalone = module.source_entry.metadata_context.is_standalone()
             && module.source_metadata_input.is_none();
-        let metadata = if !standalone {
+        let metadata = if standalone {
+            None
+        } else {
             let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
                 registry, module,
             )?;
@@ -451,8 +453,6 @@ impl<'a> IrulesSourceQuery<'a> {
             }
             crate::realm::document_realm_bindings_for_module(module, registry)?;
             Some(metadata)
-        } else {
-            None
         };
         Some(Self {
             unit,
@@ -715,8 +715,8 @@ impl<'a> IrulesSourceQuery<'a> {
         }
         (!handlers.is_empty()).then_some(ConditionalSourcePairingAdvice {
             _source: self,
-            _handlers: handlers,
-            _schemas: schemas,
+            handlers,
+            schemas,
             completions,
             flow_commands,
             _obligations: &state.obligations,
@@ -750,11 +750,11 @@ fn leaf_handler_source_completion(
 /// Runtime lookup, observers, activation and completion remain obligations.
 struct ConditionalSourcePairingAdvice<'query, 'unit> {
     _source: &'query IrulesSourceQuery<'unit>,
-    _handlers: Vec<(
+    handlers: Vec<(
         crate::ir::ProcedureId,
         crate::registry_invocation::OriginalSourceScriptBody,
     )>,
-    _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
+    schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
     completions: Vec<tcl_registry::registry::InvocationCompletion>,
     flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
     _obligations: &'query HashSet<CollectionSourceObligationKind>,
@@ -776,8 +776,8 @@ pub struct ConditionalCollectionSourcePairingAdvice<'unit> {
 
 #[derive(Clone)]
 struct ConditionalIruleSourceOwner<'unit> {
-    _unit: &'unit CompilationUnit,
-    _registry: &'unit CommandRegistry,
+    unit: &'unit CompilationUnit,
+    registry: &'unit CommandRegistry,
     _handlers: Vec<(
         crate::ir::ProcedureId,
         crate::registry_invocation::OriginalSourceScriptBody,
@@ -802,7 +802,7 @@ impl<'unit> ConditionalCollectionSourcePairingAdvice<'unit> {
         self.pairings
             .iter()
             .any(|current| std::ptr::eq(current, pairing))
-            .then_some((self.owner._unit, self.owner._registry))
+            .then_some((self.owner.unit, self.owner.registry))
     }
 
     /// Independent premises that every conditional source pairing retains.
@@ -844,7 +844,7 @@ impl ConditionalIruleSourceFlowAdvice<'_> {
         self.findings
             .iter()
             .any(|current| std::ptr::eq(current, finding))
-            .then_some((self.owner._unit, self.owner._registry))
+            .then_some((self.owner.unit, self.owner.registry))
     }
 }
 
@@ -1371,8 +1371,7 @@ fn scan_when_body_for_collect_flow(
         for stmt in &block.statements {
             classify_stmt_for_collect_flow(
                 stmt,
-                event,
-                side,
+                CollectionEventSide { event, side },
                 state,
                 source,
                 fu,
@@ -1400,19 +1399,25 @@ fn retain_collection_source_obligations(
     }
 }
 
+#[derive(Clone, Copy)]
+struct CollectionEventSide<'a> {
+    event: &'a str,
+    side: &'a str,
+}
+
 /// Follow registry-declared side transitions with each original child owner.
 /// Missing supplied child source withdraws the whole pairing query: it is not
 /// evidence that a collect or release is absent.
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
-    event: &str,
-    side: &str,
+    event_side: CollectionEventSide<'_>,
     state: &mut CollectFlowState,
     source: &IrulesSourceQuery<'_>,
     original_function: &FunctionUnit,
     config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
+    let CollectionEventSide { event, side } = event_side;
     let registry = source.registry;
     if let crate::ir::OriginalArgvInventoryDisposition::EffectOnly(marker) =
         stmt.original_argv_inventory_disposition()
@@ -1429,8 +1434,7 @@ fn classify_stmt_for_collect_flow(
             .original_lexer_config_for_tokens(tokens)?;
         scan_nested_collection_words(
             tokens,
-            event,
-            side,
+            CollectionEventSide { event, side },
             state,
             source,
             original_function.body_id,
@@ -1499,8 +1503,10 @@ fn classify_stmt_for_collect_flow(
                 let body = std::str::from_utf8(image.bytes().get(content.as_range())?).ok()?;
                 scan_standalone_side_switch_body(
                     body,
-                    event,
-                    inner_side,
+                    CollectionEventSide {
+                        event,
+                        side: inner_side,
+                    },
                     state,
                     source,
                     original_function,
@@ -1516,8 +1522,10 @@ fn classify_stmt_for_collect_flow(
                 )?;
                 scan_secondary_collection_body(
                     &body_unit,
-                    event,
-                    inner_side,
+                    CollectionEventSide {
+                        event,
+                        side: inner_side,
+                    },
                     state,
                     source,
                     original_function,
@@ -1541,14 +1549,14 @@ fn classify_stmt_for_collect_flow(
 /// remain independent of this syntax purpose.
 fn scan_nested_collection_words(
     parent: &crate::ir::CommandTokens,
-    event: &str,
-    side: &str,
+    event_side: CollectionEventSide<'_>,
     state: &mut CollectFlowState,
     source: &IrulesSourceQuery<'_>,
     body: Option<crate::ir::ProcedureId>,
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
+    let CollectionEventSide { event, side } = event_side;
     let children = source.argument_calls(parent, parent_config)?;
     if !source.standalone {
         state
@@ -1612,14 +1620,14 @@ fn collection_source_arguments(
 /// the caller's complete config and never substitutes a profile's grammar.
 fn scan_standalone_side_switch_body(
     body_text: &str,
-    event: &str,
-    side: &str,
+    event_side: CollectionEventSide<'_>,
     state: &mut CollectFlowState,
     source: &IrulesSourceQuery<'_>,
     original_function: &FunctionUnit,
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
+    let CollectionEventSide { event, side } = event_side;
     if !source.standalone {
         return None;
     }
@@ -1635,8 +1643,7 @@ fn scan_standalone_side_switch_body(
     );
     scan_secondary_collection_body(
         &unit,
-        event,
-        side,
+        CollectionEventSide { event, side },
         state,
         source,
         original_function,
@@ -1647,14 +1654,14 @@ fn scan_standalone_side_switch_body(
 
 fn scan_secondary_collection_body(
     unit: &FunctionUnit,
-    event: &str,
-    side: &str,
+    event_side: CollectionEventSide<'_>,
     state: &mut CollectFlowState,
     source: &IrulesSourceQuery<'_>,
     original_function: &FunctionUnit,
     config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
+    let CollectionEventSide { event, side } = event_side;
     for bn in cfg_order(&unit.cfg) {
         if !unit.sccp.executable_blocks.contains(&bn) {
             continue;
@@ -1665,8 +1672,7 @@ fn scan_secondary_collection_body(
         for stmt in &block.statements {
             classify_stmt_for_collect_flow(
                 stmt,
-                event,
-                side,
+                CollectionEventSide { event, side },
                 state,
                 source,
                 original_function,
@@ -1735,10 +1741,10 @@ pub fn find_conditional_collection_source_pairing_advice<'unit>(
     obligations.insert(CollectionSourceObligationKind::SourceSchemaApplicability);
     Some(ConditionalCollectionSourcePairingAdvice {
         owner: ConditionalIruleSourceOwner {
-            _unit: cu,
-            _registry: registry,
-            _handlers: advice._handlers,
-            _schemas: advice._schemas,
+            unit: cu,
+            registry: registry,
+            _handlers: advice.handlers,
+            _schemas: advice.schemas,
             obligations,
             completions: advice.completions,
             flow_commands: advice.flow_commands,
@@ -1773,7 +1779,7 @@ fn conditional_irule_source_flow_advice<'unit>(
     {
         return None;
     }
-    let source = IrulesSourceQuery::capture(owner._unit, owner._registry)?;
+    let source = IrulesSourceQuery::capture(owner.unit, owner.registry)?;
     let events = EventRegistry::build();
     let mut owner = owner.clone();
     owner
@@ -1781,7 +1787,7 @@ fn conditional_irule_source_flow_advice<'unit>(
         .insert(CollectionSourceObligationKind::NormalContinuation);
     let mut findings = Vec::new();
     for (id, commands) in &owner.flow_commands {
-        let function = owner._unit.procedures.get(id)?;
+        let function = owner.unit.procedures.get(id)?;
         let event = source.event(function)??;
         let http = events
             .get_props(event.body.event())
@@ -1794,7 +1800,7 @@ fn conditional_irule_source_flow_advice<'unit>(
                 if responded {
                     findings.push(conditional_source_flow_finding(
                         command.span, DiagCode::Irule1202,
-                        format!("Possible response operation '{}' follows another response candidate in {}.",
+                        &format!("Possible response operation '{}' follows another response candidate in {}.",
                             command.command, event.body.event()),
                     ));
                 }
@@ -1803,7 +1809,7 @@ fn conditional_irule_source_flow_advice<'unit>(
                 findings.push(conditional_source_flow_finding(
                     command.span,
                     DiagCode::Irule1201,
-                    format!(
+                    &format!(
                         "Possible HTTP-context operation '{}' follows a response candidate in {}.",
                         command.command,
                         event.body.event()
@@ -1816,7 +1822,7 @@ fn conditional_irule_source_flow_advice<'unit>(
         {
             findings.push(conditional_source_flow_finding(
                 span, DiagCode::Irule5002,
-                format!("Possible '{}' has no independently established guard against later processing.",
+                &format!("Possible '{}' has no independently established guard against later processing.",
                     pending.drop_cmd),
             ));
         }
@@ -1825,8 +1831,7 @@ fn conditional_irule_source_flow_advice<'unit>(
         {
             findings.push(conditional_source_flow_finding(
                 span, DiagCode::Irule5004,
-                "Possible DNS packet return has no independently established guard against later processing."
-                    .to_owned(),
+                "Possible DNS packet return has no independently established guard against later processing.",
             ));
         }
     }
@@ -1836,7 +1841,7 @@ fn conditional_irule_source_flow_advice<'unit>(
 fn conditional_source_flow_finding(
     span: Span,
     code: DiagCode,
-    source_hazard: String,
+    source_hazard: &str,
 ) -> ConditionalIruleSourceFlowFinding {
     ConditionalIruleSourceFlowFinding {
         warning: IrulesCheckWarning {
@@ -2883,9 +2888,7 @@ pub fn find_generic_static_name_warnings(
                     };
                     // A single assignment's label reports that same operation. Multi-output
                     // calls join their authored labels through the actual SSA cell map.
-                    let label = if !matches!(stmt, Statement::Call { .. }) {
-                        labels.first().copied()
-                    } else {
+                    let label = if matches!(stmt, Statement::Call { .. }) {
                         fu.ssa.source_symbols_at(bn, index).and_then(|symbols| {
                             labels.iter().copied().find(|label| {
                                 symbols.get(*label).is_some_and(|symbol| {
@@ -2895,13 +2898,15 @@ pub fn find_generic_static_name_warnings(
                                 })
                             })
                         })
+                    } else {
+                        labels.first().copied()
                     };
                     let Some(label) = label else {
                         continue;
                     };
                     check_generic_static(
                         &place,
-                        key,
+                        &key,
                         label,
                         fu.abs_span(stmt.span()),
                         &compiled,
@@ -2917,7 +2922,7 @@ pub fn find_generic_static_name_warnings(
 
 fn check_generic_static(
     place: &crate::place::Place,
-    key: crate::var_resolve::VariableCellKey,
+    key: &crate::var_resolve::VariableCellKey,
     source_name: &str,
     span: Span,
     compiled: &[regex::Regex],

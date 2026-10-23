@@ -259,7 +259,7 @@ pub fn execution_value_facts(
     ssa: &SsaFunction,
     inputs: ValueFactInputs<'_>,
 ) -> SccpResult {
-    solve_value_facts(cfg, ssa, inputs, SolverPurpose::ExecutionErasure).result
+    solve_value_facts(cfg, ssa, &inputs, SolverPurpose::ExecutionErasure).result
 }
 
 /// Compute semantic values without donating obligation-bearing constants to
@@ -271,7 +271,7 @@ pub fn semantic_value_facts(
     ssa: &SsaFunction,
     inputs: ValueFactInputs<'_>,
 ) -> SemanticValueFacts {
-    let solved = solve_value_facts(cfg, ssa, inputs, SolverPurpose::SemanticAnalysis);
+    let solved = solve_value_facts(cfg, ssa, &inputs, SolverPurpose::SemanticAnalysis);
     SemanticValueFacts {
         result: solved.result,
         expressions: solved.expressions,
@@ -507,7 +507,7 @@ fn seed_value_facts(
 fn solve_value_facts(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    inputs: ValueFactInputs<'_>,
+    inputs: &ValueFactInputs<'_>,
     purpose: SolverPurpose,
 ) -> SolvedValueFacts {
     let ValueFactInputs {
@@ -516,7 +516,7 @@ fn solve_value_facts(
         extra_escaping,
         trace,
         folds,
-    } = inputs;
+    } = *inputs;
     let preds = compute_predecessors(cfg);
     let (mut values, grammar) = seed_value_facts(cfg, ssa, param_constants, policy, trace.registry);
 
@@ -1329,12 +1329,12 @@ fn retain_source_call_name_coverage(
         defined
     };
     for &(argument, role) in names.roles() {
-        if role == tcl_registry::ArgRole::VarWrite {
-            if let Some(name) = names.original_variable_name_operand(argument) {
-                destination.insert(name.as_str().to_owned());
-                if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name.as_str()) {
-                    destination.insert(root.to_owned());
-                }
+        if role == tcl_registry::ArgRole::VarWrite
+            && let Some(name) = names.original_variable_name_operand(argument)
+        {
+            destination.insert(name.as_str().to_owned());
+            if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name.as_str()) {
+                destination.insert(root.to_owned());
             }
         }
     }

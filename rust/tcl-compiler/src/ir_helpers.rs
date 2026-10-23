@@ -404,7 +404,7 @@ pub(crate) fn standalone_typed_statement_writes_are_covered(
     }
     let mut expressions = Vec::new();
     match statement {
-        Statement::AssignConst { .. } | Statement::Incr { .. } => {}
+        Statement::AssignConst { .. } | Statement::Incr { .. } | Statement::Switch { .. } => {}
         Statement::AssignExpr {
             expr,
             command_binding: None,
@@ -416,7 +416,6 @@ pub(crate) fn standalone_typed_statement_writes_are_covered(
         Statement::For { condition, .. } | Statement::While { condition, .. } => {
             expressions.push(condition);
         }
-        Statement::Switch { .. } => {}
         _ => return false,
     }
     let surfaces = evaluated_command_substitution_surfaces(statement, registry);

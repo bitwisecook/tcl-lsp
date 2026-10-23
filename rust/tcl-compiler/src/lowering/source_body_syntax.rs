@@ -23,9 +23,9 @@ use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum SourcePurpose {
-    NativeDeclaration,
-    LogicalDeclaration,
-    AuthoredDeclaration,
+    Native,
+    Logical,
+    Authored,
 }
 
 #[derive(Debug, Clone)]
@@ -46,19 +46,19 @@ impl SourceBodySyntaxOwner {
     )> {
         match self {
             Self::Native(card) => Some((
-                SourcePurpose::NativeDeclaration,
+                SourcePurpose::Native,
                 card.site().source.source_image(),
                 card.body_span()?,
                 card.namespace().display()?,
             )),
             Self::Logical(card) => Some((
-                SourcePurpose::LogicalDeclaration,
+                SourcePurpose::Logical,
                 card.site().source.source_image(),
                 card.scope().scope_body().content_span(),
                 tcl_syntax::naming::checked_namespace_path_key(card.scope().namespace_recipe())?,
             )),
             Self::Authored(card) => Some((
-                SourcePurpose::AuthoredDeclaration,
+                SourcePurpose::Authored,
                 card.site().source.source_image(),
                 card.body_span(),
                 card.namespace().advisory_key()?,
@@ -324,7 +324,7 @@ impl Lowerer<'_> {
             }
             let binding = original.source_binding.as_ref()?;
             let facts = match purpose {
-                SourcePurpose::NativeDeclaration => {
+                SourcePurpose::Native => {
                     let input = self.metadata_input.as_ref()?;
                     binding
                         .original_native_source_words(&original, input, self.registry)?
@@ -333,7 +333,7 @@ impl Lowerer<'_> {
                             generic_call_schema_facts,
                         )??
                 }
-                SourcePurpose::LogicalDeclaration => {
+                SourcePurpose::Logical => {
                     let input = self.metadata_input.as_ref()?;
                     binding
                         .original_logical_source_words(&original, input, self.registry)?
@@ -342,7 +342,7 @@ impl Lowerer<'_> {
                             generic_call_schema_facts,
                         )??
                 }
-                SourcePurpose::AuthoredDeclaration => {
+                SourcePurpose::Authored => {
                     let scope = binding
                         .original_authored_scalar_body_scope(&original, self.registry)
                         .or_else(|| {
@@ -373,15 +373,9 @@ impl Lowerer<'_> {
             self.readonly_logical_body,
             self.readonly_authored_body,
         ) {
-            (true, false, false) if self.native_source_children.is_some() => {
-                SourcePurpose::NativeDeclaration
-            }
-            (false, true, false) if self.source_bindings.is_some() => {
-                SourcePurpose::LogicalDeclaration
-            }
-            (false, false, true) if self.authored_source_scope.is_some() => {
-                SourcePurpose::AuthoredDeclaration
-            }
+            (true, false, false) if self.native_source_children.is_some() => SourcePurpose::Native,
+            (false, true, false) if self.source_bindings.is_some() => SourcePurpose::Logical,
+            (false, false, true) if self.authored_source_scope.is_some() => SourcePurpose::Authored,
             _ => return None,
         };
         let (owned_purpose, image, span, owned_namespace) = owner.geometry()?;

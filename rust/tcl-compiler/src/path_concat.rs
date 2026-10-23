@@ -274,26 +274,14 @@ where
             // to the taint lattice, not to the assignment's text, so it is
             // the *sanitiser* that is recognised rather than one spelling of
             // one call to it.
-            let mut suppressed = false;
-            for (later_idx, later) in block.statements.iter().enumerate().skip(idx + 1) {
-                if let Statement::AssignValue {
-                    name: later_name, ..
-                } = later
-                    && later_name == name
-                {
-                    suppressed = ssa_block
-                        .statements
-                        .get(later_idx)
-                        .is_some_and(|later_ssa| {
-                            later_ssa.defs.iter().any(|(&def_name, &def_ver)| {
-                                taints
-                                    .get(&(def_name, def_ver))
-                                    .is_some_and(|t| t.colours.intersects(suppress_colours))
-                            })
-                        });
-                    break;
-                }
-            }
+            let suppressed = following_assignment_normalises(
+                block,
+                ssa_block,
+                idx,
+                name,
+                taints,
+                suppress_colours,
+            );
             if suppressed {
                 continue;
             }
@@ -321,6 +309,37 @@ where
         }
     }
     out
+}
+
+fn following_assignment_normalises<S: std::hash::BuildHasher>(
+    block: &crate::cfg::Block,
+    ssa_block: &crate::ssa::SsaBlock,
+    idx: usize,
+    name: &str,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    suppress_colours: TaintColour,
+) -> bool {
+    let mut suppressed = false;
+    for (later_idx, later) in block.statements.iter().enumerate().skip(idx + 1) {
+        if let Statement::AssignValue {
+            name: later_name, ..
+        } = later
+            && later_name == name
+        {
+            suppressed = ssa_block
+                .statements
+                .get(later_idx)
+                .is_some_and(|later_ssa| {
+                    later_ssa.defs.iter().any(|(&def_name, &def_ver)| {
+                        taints
+                            .get(&(def_name, def_ver))
+                            .is_some_and(|t| t.colours.intersects(suppress_colours))
+                    })
+                });
+            break;
+        }
+    }
+    suppressed
 }
 
 #[cfg(test)]

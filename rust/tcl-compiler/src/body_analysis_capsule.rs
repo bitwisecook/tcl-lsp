@@ -808,21 +808,14 @@ impl BodyLatticeInputs {
                     request.body_id,
                     registry,
                 )?
+        } else if let Some(correspondence) = request
+            .command_bindings
+            .prepare_analytical_body_correspondence(request.body, scope, registry)
+        {
+            correspondence
         } else {
-            match request
-                .command_bindings
-                .prepare_analytical_body_correspondence(request.body, scope, registry)
-            {
-                Some(correspondence) => correspondence,
-                None => {
-                    retained.original_logical_source_slot_for_body(
-                        module,
-                        request.body_id,
-                        registry,
-                    )?;
-                    return Some(Self::from(request.body.clone()));
-                }
-            }
+            retained.original_logical_source_slot_for_body(module, request.body_id, registry)?;
+            return Some(Self::from(request.body.clone()));
         };
         Some(Self {
             original_worker_recipe: None,

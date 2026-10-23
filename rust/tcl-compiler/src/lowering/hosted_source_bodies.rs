@@ -30,7 +30,7 @@ impl Lowerer<'_> {
                 .values()
                 .any(|previous| previous.as_ref() == card.as_ref());
             if !retained {
-                self.retain_hosted_procedure_body(card);
+                self.retain_hosted_procedure_body(&card);
             }
         }
         self.suppress_proc_register = previous;
@@ -39,7 +39,7 @@ impl Lowerer<'_> {
 
     fn retain_hosted_procedure_body(
         &mut self,
-        card: std::sync::Arc<crate::command_binding::OriginalHostedProcedureBody>,
+        card: &std::sync::Arc<crate::command_binding::OriginalHostedProcedureBody>,
     ) {
         let Some(input) = self.module.source_metadata_input.as_ref() else {
             return;

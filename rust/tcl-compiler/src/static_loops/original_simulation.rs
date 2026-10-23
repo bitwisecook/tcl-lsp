@@ -522,70 +522,15 @@ fn exec_statement(
             amount,
             amount_braced,
             ..
-        } => {
-            let Some(b) = env
-                .get(name)
-                .and_then(|value| static_integer(value, simulation.policy))
-            else {
-                return false;
-            };
-            let amt = match amount.as_deref() {
-                None => 1,
-                Some(text) => {
-                    let operand = if *amount_braced {
-                        StaticValue::Str(text.to_owned())
-                    } else if let Some(argument) =
-                        crate::registry_invocation::original_source_argument_for_script(
-                            source, stmt, 1, text,
-                        )
-                    {
-                        let value = argument
-                            .literal_data()
-                            .map(StaticValue::Str)
-                            .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
-                        let Some(value) = value else {
-                            return false;
-                        };
-                        value
-                    } else {
-                        StaticValue::Str(text.to_owned())
-                    };
-                    let Some(amount) = static_integer(&operand, simulation.policy) else {
-                        return false;
-                    };
-                    amount
-                }
-            };
-            let sum = match simulation.policy.arithmetic {
-                Some(
-                    policy @ (tcl_dialect::NativeArithmetic::Tcl84Wide
-                    | tcl_dialect::NativeArithmetic::JimWide),
-                ) => {
-                    tcl_syntax::expr::wide::binary(policy, crate::expr_ast::BinOp::Add, b, amt).ok()
-                }
-                _ => b.checked_add(amt),
-            };
-            let Some(sum) = sum else {
-                return false;
-            };
-            if matches!(simulation.purpose, SimulationPurpose::Execution) {
-                return false;
-            }
-            let order = simulation.evaluation_order.get();
-            let Some(next_order) = order.checked_add(1) else {
-                return false;
-            };
-            simulation.evaluation_order.set(next_order);
-            simulation
-                .increments
-                .borrow_mut()
-                .push(StaticIncrementObligation {
-                    evaluation_order: order,
-                    statement: stmt.clone(),
-                });
-            env.insert(name.clone(), StaticValue::Int(sum));
-            true
-        }
+        } => exec_increment(
+            stmt,
+            source,
+            env,
+            simulation,
+            name,
+            amount.as_deref(),
+            *amount_braced,
+        ),
         Statement::If {
             clauses, else_body, ..
         } => exec_if(source, clauses, else_body.as_ref(), env, simulation),
@@ -609,6 +554,77 @@ fn exec_statement(
         // top-level summarised `for`) — out of supported subset.
         _ => false,
     }
+}
+
+fn exec_increment(
+    stmt: &Statement,
+    source: &Script,
+    env: &mut StaticEnv,
+    simulation: StaticSimulation<'_>,
+    name: &str,
+    amount: Option<&str>,
+    amount_braced: bool,
+) -> bool {
+    let Some(b) = env
+        .get(name)
+        .and_then(|value| static_integer(value, simulation.policy))
+    else {
+        return false;
+    };
+    let amt = match amount {
+        None => 1,
+        Some(text) => {
+            let operand = if amount_braced {
+                StaticValue::Str(text.to_owned())
+            } else if let Some(argument) =
+                crate::registry_invocation::original_source_argument_for_script(
+                    source, stmt, 1, text,
+                )
+            {
+                let value = argument
+                    .literal_data()
+                    .map(StaticValue::Str)
+                    .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
+                let Some(value) = value else {
+                    return false;
+                };
+                value
+            } else {
+                StaticValue::Str(text.to_owned())
+            };
+            let Some(amount) = static_integer(&operand, simulation.policy) else {
+                return false;
+            };
+            amount
+        }
+    };
+    let sum = match simulation.policy.arithmetic {
+        Some(
+            policy @ (tcl_dialect::NativeArithmetic::Tcl84Wide
+            | tcl_dialect::NativeArithmetic::JimWide),
+        ) => tcl_syntax::expr::wide::binary(policy, crate::expr_ast::BinOp::Add, b, amt).ok(),
+        _ => b.checked_add(amt),
+    };
+    let Some(sum) = sum else {
+        return false;
+    };
+    if matches!(simulation.purpose, SimulationPurpose::Execution) {
+        return false;
+    }
+    let order = simulation.evaluation_order.get();
+    let Some(next_order) = order.checked_add(1) else {
+        return false;
+    };
+    simulation.evaluation_order.set(next_order);
+    simulation
+        .increments
+        .borrow_mut()
+        .push(StaticIncrementObligation {
+            evaluation_order: order,
+            statement: stmt.clone(),
+        });
+    env.insert(name.to_owned(), StaticValue::Int(sum));
+    true
 }
 
 fn exec_script(script: &Script, env: &mut StaticEnv, simulation: StaticSimulation<'_>) -> bool {

@@ -577,7 +577,7 @@ impl OriginalInstanceClassMetadata {
     fn own_method(
         &self,
         selector: &crate::command_binding::SourceAdviceNameInput,
-    ) -> Option<Option<OriginalInstanceMethodDisplay>> {
+    ) -> Option<super::SourceMethodPresence<OriginalInstanceMethodDisplay>> {
         self.current().then_some(())?;
         let methods = self
             .metadata
@@ -618,8 +618,8 @@ impl OriginalInstanceClassMetadata {
             }
         }
         match matches.len() {
-            0 => Some(None),
-            1 => Some(matches.pop()),
+            0 => Some(super::SourceMethodPresence::Absent),
+            1 => Some(super::SourceMethodPresence::from_option(matches.pop())),
             _ => None,
         }
     }
@@ -718,7 +718,7 @@ pub fn original_instance_method_display(
         .map(|branch| tcl_syntax::mro::tcloo_linearise(&branch, &supers, &HashMap::new()).ok())
         .collect::<Option<Vec<_>>>()?;
     for index in order {
-        let Some(method) = owners[index].own_method(selector)? else {
+        let Some(method) = owners[index].own_method(selector)?.into_option() else {
             continue;
         };
         if method.metadata.visibility == "private" {

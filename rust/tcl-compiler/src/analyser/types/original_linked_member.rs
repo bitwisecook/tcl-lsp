@@ -349,45 +349,6 @@ pub fn original_source_linked_member_reference_spans(
     method: &super::MethodDef,
     side: MemberSide,
 ) -> Option<Vec<Span>> {
-    let Some(publication) = class.source_name.as_ref() else {
-        return Some(Vec::new());
-    };
-    if publication.publication()
-        != crate::signature_scan::scope::SourceCommandPublication::TclOoObject
-    {
-        return Some(Vec::new());
-    }
-    let mut classes = analysis.original_class_declarations().filter(|record| {
-        record.name() == publication && record.metadata().name_span == class.name_span
-    });
-    let record = classes.next()?;
-    if classes.next().is_some() {
-        return None;
-    }
-    let mut members = record
-        .metadata()
-        .original_members
-        .methods(side)?
-        .into_iter()
-        .filter(|member| {
-            member.metadata().name_span == method.name_span
-                && member.metadata().body_span == method.body_span
-        });
-    let member = members.next()?;
-    if members.next().is_some() {
-        return None;
-    }
-    let links = original_source_linked_members_for_class(analysis, source, record)?;
-    let mut spans = Vec::new();
-    for link in links.iter().filter(|link| link.target == member) {
-        spans.push(link.editable_target_span(source)?);
-        if link.coupled
-            && native_oo_link_alias_geometry(link.alias.policy().recipe(), link.alias.bytes())
-                != native_oo_link_call_geometry(link.alias.policy().recipe(), link.alias.bytes())
-        {
-            return None;
-        }
-    }
     fn visit(
         scope: &Scope,
         analysis: &AnalysisResult,
@@ -426,6 +387,45 @@ pub fn original_source_linked_member_reference_spans(
             visit(child, analysis, source, class, member, spans)?;
         }
         Some(())
+    }
+    let Some(publication) = class.source_name.as_ref() else {
+        return Some(Vec::new());
+    };
+    if publication.publication()
+        != crate::signature_scan::scope::SourceCommandPublication::TclOoObject
+    {
+        return Some(Vec::new());
+    }
+    let mut classes = analysis.original_class_declarations().filter(|record| {
+        record.name() == publication && record.metadata().name_span == class.name_span
+    });
+    let record = classes.next()?;
+    if classes.next().is_some() {
+        return None;
+    }
+    let mut members = record
+        .metadata()
+        .original_members
+        .methods(side)?
+        .into_iter()
+        .filter(|member| {
+            member.metadata().name_span == method.name_span
+                && member.metadata().body_span == method.body_span
+        });
+    let member = members.next()?;
+    if members.next().is_some() {
+        return None;
+    }
+    let links = original_source_linked_members_for_class(analysis, source, record)?;
+    let mut spans = Vec::new();
+    for link in links.iter().filter(|link| link.target == member) {
+        spans.push(link.editable_target_span(source)?);
+        if link.coupled
+            && native_oo_link_alias_geometry(link.alias.policy().recipe(), link.alias.bytes())
+                != native_oo_link_call_geometry(link.alias.policy().recipe(), link.alias.bytes())
+        {
+            return None;
+        }
     }
     visit(
         &analysis.global_scope,

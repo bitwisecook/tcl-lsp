@@ -574,7 +574,7 @@ pub(crate) struct LatticeDriver<'a> {
     /// The function the run analyses, by qualified name: where a procedure
     /// name it spells is looked up from.
     function: &'a str,
-    body_id: Option<Option<crate::ir::ProcedureId>>,
+    body_id: Option<crate::sccp::AnalysisBody>,
     /// Whether the run read the module's procedures, or would have read them
     /// had its caller held them ([`crate::sccp::SccpResult::reads_module`]).
     reads_module: Cell<bool>,
@@ -1629,7 +1629,7 @@ impl<'a> LatticeDriver<'a> {
             // With no existence rung, a procedure's entry version of a name
             // is bound for a parameter and unbound for any other.
             let entry = module
-                .params_of(&self.body_id.flatten()?)
+                .params_of(&self.body_id?.procedure_id()?)
                 .filter(|_| prior == 0)
                 .map(|params| {
                     if params.iter().any(|param| param == name) {
@@ -3435,7 +3435,8 @@ impl<'a> LatticeDriver<'a> {
         };
         let inner = std::str::from_utf8(script).ok()?;
         let original = self.module.and_then(|module| {
-            let parent = module.original_statement_tokens(self.body_id?, statement)?;
+            let parent =
+                module.original_statement_tokens(self.body_id?.procedure_id(), statement)?;
             let (_, site) = parent.words().last()?.sole_command_substitution()?;
             module.original_substitution(&parent, site, inner)
         });
@@ -3530,7 +3531,7 @@ impl<'a> LatticeDriver<'a> {
         statement: &Statement,
     ) -> Option<CommandTokens> {
         self.module?
-            .original_statement_tokens(self.body_id?, statement)
+            .original_statement_tokens(self.body_id?.procedure_id(), statement)
     }
 
     /// The inputs of an expression that has no operand words of its own:
@@ -6198,10 +6199,10 @@ impl<'t> ArgWord<'t> {
     }
 }
 
-fn effective_procedure_arguments<'a>(
-    effective: &'a crate::registry_invocation::EffectiveCommandWords,
+fn effective_procedure_arguments(
+    effective: &crate::registry_invocation::EffectiveCommandWords,
     literals: Vec<Option<String>>,
-) -> Vec<ArgWord<'a>> {
+) -> Vec<ArgWord<'_>> {
     effective
         .words
         .iter()
@@ -10743,7 +10744,10 @@ mod original_child_script_purpose_tests {
                 .unwrap()
                 .cfg,
             crate::sccp::ModuleRun {
-                analysis_body: Some(Some(fixture_id(&unit.ir_module.procedures, "::p"))),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(fixture_id(
+                    &unit.ir_module.procedures,
+                    "::p",
+                ))),
                 procedures: Some(&module),
                 owned: None,
                 level: crate::sccp::ModuleLevel::Places,

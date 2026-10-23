@@ -1779,7 +1779,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     let mut out = Vec::new();
     collect_upframes(
         &ir_module.top_level,
-        ir_module
+        &ir_module
             .top_level
             .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected),
         ir_module.resolved_registry(),
@@ -1792,7 +1792,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     {
         collect_upframes(
             &procedure.body,
-            procedure
+            &procedure
                 .body
                 .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected),
             ir_module.resolved_registry(),
@@ -1802,7 +1802,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     for method in ir_module.methods.values() {
         collect_upframes(
             &method.body,
-            method.execution_namespace.clone(),
+            &method.execution_namespace,
             ir_module.resolved_registry(),
             &mut out,
         );
@@ -1812,7 +1812,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
 
 fn collect_upframes<'a>(
     script: &'a crate::ir::Script,
-    parent_namespace: crate::ir::ExecutionNamespace,
+    parent_namespace: &crate::ir::ExecutionNamespace,
     registry: &CommandRegistry,
     out: &mut Vec<UpFrameCaller<'a>>,
 ) {
@@ -1848,10 +1848,10 @@ fn collect_upframes<'a>(
                 scope: format!("{UPFRAME_SCOPE_PREFIX}{}", span.start()),
                 body,
             });
-            collect_upframes(body, execution_namespace, registry, out);
+            collect_upframes(body, &execution_namespace, registry, out);
         } else {
             for child in statement.child_scripts() {
-                collect_upframes(child, parent_namespace.clone(), registry, out);
+                collect_upframes(child, parent_namespace, registry, out);
             }
         }
     }
@@ -4121,7 +4121,7 @@ mod tests {
         ));
         procedure.qualified_name = "unrelated reporting label".to_owned();
         let mut callers = Vec::new();
-        collect_upframes(&procedure.body, parent.clone(), &registry, &mut callers);
+        collect_upframes(&procedure.body, &parent, &registry, &mut callers);
         assert_eq!(callers.len(), 4);
         assert!(matches!(
             callers[0].execution_namespace,

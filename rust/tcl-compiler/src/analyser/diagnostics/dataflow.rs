@@ -626,6 +626,15 @@ struct W210ChainCtx<'a> {
     startup: StartupReadFacts,
 }
 
+fn return_undefined_variable_message(name: &str, defined_vars: &HashSet<String>) -> String {
+    use std::fmt::Write as _;
+    let mut message = format!("Variable '{name}' is read before it is set");
+    if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
+        let _ = write!(message, "; did you mean '{similar}'?");
+    }
+    message
+}
+
 impl Analyser {
     /// W128 describes original table absence at a slot this Module mutates.
     /// Dynamic or ambiguous source ownership suppresses the diagnostic.
@@ -2485,7 +2494,6 @@ is renamed or deleted in this file."
         ctx: &ReturnUndefCtx<'_>,
     ) {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-        use std::fmt::Write as _;
 
         // `defined_vars` / `considered` are used directly here; the remaining
         // sets are consulted by `return_read_fires_w210` through `ctx`.
@@ -2595,10 +2603,7 @@ is renamed or deleted in this file."
                     continue;
                 }
                 reported.insert(name.clone());
-                let mut message = format!("Variable '{name}' is read before it is set");
-                if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
-                    let _ = write!(message, "; did you mean '{similar}'?");
-                }
+                let message = return_undefined_variable_message(&name, defined_vars);
                 self.result
                     .diagnostics
                     .push(crate::analyser::types::Diagnostic::new(
@@ -4739,6 +4744,7 @@ impl NoMatchOutputOrigin {
         }
     }
 }
+#[derive(Clone, Copy)]
 struct NoMatchCallSite {
     producer: crate::cfg::BlockId,
     index: usize,

@@ -1778,10 +1778,10 @@ fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, 
         if condition.command_texts().is_empty() {
             return known_noncommand_expr_intents(expr);
         }
-    } else if let ExecutableExpr::Operand { text, .. } = expr {
-        if !text.contains('[') {
-            return known_noncommand_expr_intents(expr);
-        }
+    } else if let ExecutableExpr::Operand { text, .. } = expr
+        && !text.contains('[')
+    {
+        return known_noncommand_expr_intents(expr);
     }
     conservative_region_intents()
 }

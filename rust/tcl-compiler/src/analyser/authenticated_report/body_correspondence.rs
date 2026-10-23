@@ -27,11 +27,11 @@ enum ReportBodyRole {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ReportDeclarationPurpose {
-    AllocatedSource,
-    NativeSource,
-    LogicalSource,
-    AuthoredSource,
-    HostedSource,
+    Allocated,
+    Native,
+    Logical,
+    Authored,
+    Hosted,
 }
 
 struct ReportBodyOwner {
@@ -159,7 +159,7 @@ impl ReportBodyInventory {
         }
         for (purpose, ids) in [
             (
-                ReportDeclarationPurpose::AllocatedSource,
+                ReportDeclarationPurpose::Allocated,
                 module
                     .original_declaration_body_units
                     .keys()
@@ -167,7 +167,7 @@ impl ReportBodyInventory {
                     .collect::<Vec<_>>(),
             ),
             (
-                ReportDeclarationPurpose::NativeSource,
+                ReportDeclarationPurpose::Native,
                 module
                     .original_native_declaration_body_units
                     .keys()
@@ -175,7 +175,7 @@ impl ReportBodyInventory {
                     .collect(),
             ),
             (
-                ReportDeclarationPurpose::LogicalSource,
+                ReportDeclarationPurpose::Logical,
                 module
                     .original_logical_declaration_body_units
                     .keys()
@@ -183,7 +183,7 @@ impl ReportBodyInventory {
                     .collect(),
             ),
             (
-                ReportDeclarationPurpose::AuthoredSource,
+                ReportDeclarationPurpose::Authored,
                 module
                     .original_authored_declaration_body_units
                     .keys()
@@ -191,7 +191,7 @@ impl ReportBodyInventory {
                     .collect(),
             ),
             (
-                ReportDeclarationPurpose::HostedSource,
+                ReportDeclarationPurpose::Hosted,
                 module
                     .original_hosted_declaration_body_units
                     .keys()
@@ -263,29 +263,29 @@ impl ReportBodyInventory {
         }
         let purposes = [
             (
-                ReportDeclarationPurpose::AllocatedSource,
+                ReportDeclarationPurpose::Allocated,
                 module.original_declaration_body_units.contains_key(&id),
             ),
             (
-                ReportDeclarationPurpose::NativeSource,
+                ReportDeclarationPurpose::Native,
                 module
                     .original_native_declaration_body_units
                     .contains_key(&id),
             ),
             (
-                ReportDeclarationPurpose::LogicalSource,
+                ReportDeclarationPurpose::Logical,
                 module
                     .original_logical_declaration_body_units
                     .contains_key(&id),
             ),
             (
-                ReportDeclarationPurpose::AuthoredSource,
+                ReportDeclarationPurpose::Authored,
                 module
                     .original_authored_declaration_body_units
                     .contains_key(&id),
             ),
             (
-                ReportDeclarationPurpose::HostedSource,
+                ReportDeclarationPurpose::Hosted,
                 module
                     .original_hosted_declaration_body_units
                     .contains_key(&id),
@@ -308,7 +308,7 @@ impl ReportBodyInventory {
                     .source_metadata_input
                     .as_ref()?
                     .has_hosted_source_name_context()
-                    && purpose != ReportDeclarationPurpose::HostedSource)
+                    && purpose != ReportDeclarationPurpose::Hosted)
             {
                 return None;
             }
@@ -656,7 +656,7 @@ mod owner_controls {
             ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_role).is_none()
         );
         let mut wrong_purpose = make(module);
-        wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::AllocatedSource);
+        wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::Allocated);
         assert!(
             ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_purpose)
                 .is_none()
@@ -720,8 +720,8 @@ mod owner_controls {
         ));
         right.capture.as_mut().unwrap().bodies.bodies[index].role = original_role;
         let changed_purpose = match purpose {
-            ReportDeclarationPurpose::NativeSource => ReportDeclarationPurpose::LogicalSource,
-            ReportDeclarationPurpose::LogicalSource => ReportDeclarationPurpose::NativeSource,
+            ReportDeclarationPurpose::Native => ReportDeclarationPurpose::Logical,
+            ReportDeclarationPurpose::Logical => ReportDeclarationPurpose::Native,
             _ => panic!("this control requires its actual Native or Logical source purpose"),
         };
         right.capture.as_mut().unwrap().bodies.bodies[index].declaration_purpose =
@@ -766,7 +766,7 @@ mod owner_controls {
                 matches!(
                     body.role,
                     ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration)
-                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::NativeSource)
+                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::Native)
                     && a.bodies.iter().any(|other| {
                         matches!(
                             other.role,
@@ -823,7 +823,7 @@ mod owner_controls {
         assert_alias_body_field_changes_are_unavailable(
             &left,
             right,
-            ReportDeclarationPurpose::NativeSource,
+            ReportDeclarationPurpose::Native,
         );
     }
 
@@ -861,7 +861,7 @@ mod owner_controls {
                 matches!(
                     body.role,
                     ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration)
-                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::LogicalSource)
+                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::Logical)
                     && a.bodies.iter().any(|other| {
                         matches!(
                             other.role,
@@ -920,7 +920,7 @@ mod owner_controls {
         assert_alias_body_field_changes_are_unavailable(
             &left,
             right,
-            ReportDeclarationPurpose::LogicalSource,
+            ReportDeclarationPurpose::Logical,
         );
     }
 

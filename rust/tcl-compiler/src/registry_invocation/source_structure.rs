@@ -1073,7 +1073,7 @@ pub(crate) fn selected_registry_words_in_original_image(
             registry, realm, &tokens,
         )
     })?;
-    selected_registry_words_from_tokens(&image, config, &tokens, segment, registry, assistance)
+    selected_registry_words_from_tokens(&image, config, &tokens, segment, registry, &assistance)
 }
 
 fn selected_registry_words_from_tokens(
@@ -1082,7 +1082,7 @@ fn selected_registry_words_from_tokens(
     tokens: &crate::ir::CommandTokens,
     segment: &crate::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-    assistance: crate::registry_invocation::RegistryInvocationAssistance,
+    assistance: &crate::registry_invocation::RegistryInvocationAssistance,
 ) -> Option<OriginalRegistryWords> {
     let image = image.clone();
     let selected = assistance.unanimous_command_words()?;

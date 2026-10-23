@@ -82,6 +82,26 @@ struct ReportCandidates<'a> {
     definition_classes: HashSet<ReportOwner<'a>>,
 }
 
+enum ReportCandidatePresence<'a> {
+    Absent,
+    Present(ReportCandidates<'a>),
+}
+
+fn candidate_reports_match(
+    left: &Option<ReportCandidatePresence<'_>>,
+    right: &Option<ReportCandidatePresence<'_>>,
+) -> bool {
+    match (left, right) {
+        (None, None)
+        | (Some(ReportCandidatePresence::Absent), Some(ReportCandidatePresence::Absent)) => true,
+        (
+            Some(ReportCandidatePresence::Present(left)),
+            Some(ReportCandidatePresence::Present(right)),
+        ) => left == right,
+        _ => false,
+    }
+}
+
 type ReportedScope<'a> = (
     Span,
     &'a str,
@@ -154,12 +174,12 @@ impl ObjectReportSource {
     fn reported_candidates<'a>(
         &'a self,
         facts: &'a ObjectHandleFacts,
-    ) -> Option<Option<ReportCandidates<'a>>> {
+    ) -> Option<ReportCandidatePresence<'a>> {
         let Some(owner) = facts.logical_source_candidates.as_ref() else {
-            return Some(None);
+            return Some(ReportCandidatePresence::Absent);
         };
         let parts = owner.report_parts(facts, &self.image, &self.input, &self.registry)?;
-        Some(Some(ReportCandidates {
+        Some(ReportCandidatePresence::Present(ReportCandidates {
             instance_variables: parts
                 .instance_variables
                 .iter()
@@ -354,7 +374,7 @@ impl ObjectHandleFacts {
             || self.proven_reads != other.proven_reads
             || self.physical_type_reads != other.physical_type_reads
             || self.normal_procedure_results != other.normal_procedure_results
-            || a.reported_candidates(self) != b.reported_candidates(other)
+            || !candidate_reports_match(&a.reported_candidates(self), &b.reported_candidates(other))
         {
             return false;
         }

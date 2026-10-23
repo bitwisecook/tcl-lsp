@@ -749,11 +749,8 @@ fn original_declared_structured_invocation<'a>(
     if !context.matches_registry(registry) {
         return None;
     }
-    let binding = match tokens.source_binding.as_ref() {
-        Some(binding) => binding,
-        None => {
-            return None;
-        }
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return None;
     };
     let context = if logical_source {
         binding.original_invocation_metadata_for_input(
@@ -2233,7 +2230,7 @@ pub fn namespace_directive_footprint(
     context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Option<NamespaceDirectiveFootprint> {
-    namespace_directive_footprint_for_invocation(resolved_handler_invocation(
+    namespace_directive_footprint_for_invocation(&resolved_handler_invocation(
         registry, context, tokens,
     )?)
 }
@@ -2246,15 +2243,13 @@ pub(crate) fn namespace_directive_footprint_with_metadata_context(
     tokens: &CommandTokens,
 ) -> Option<NamespaceDirectiveFootprint> {
     let context = context.filter(|context| context.matches_registry(registry))?;
-    namespace_directive_footprint_for_invocation(resolved_handler_invocation_with_metadata_context(
-        registry,
-        Some(context),
-        tokens,
-    )?)
+    namespace_directive_footprint_for_invocation(
+        &resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)?,
+    )
 }
 
 fn namespace_directive_footprint_for_invocation(
-    invocation: ResolvedStatementInvocation,
+    invocation: &ResolvedStatementInvocation,
 ) -> Option<NamespaceDirectiveFootprint> {
     if invocation.facts.arity_accepts_frozen_arguments() != Some(true) {
         return None;
