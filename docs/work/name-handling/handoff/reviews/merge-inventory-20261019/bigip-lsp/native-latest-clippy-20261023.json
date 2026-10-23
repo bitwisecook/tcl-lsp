@@ -1,0 +1,13 @@
+{
+  "source": "73c43bdb76983daf92f6b889fd2e4e1ed8089e22",
+  "date_utc": "2026-10-23T13:13Z",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "exit": 0,
+  "warnings": 0,
+  "raw_sha256": {
+    "native-latest-clippy.jsonl": "233d260e1eb4f829d77679789711c2fd40e34d4deb6f65e8bd3e522acdf4857e",
+    "native-latest-clippy.stderr": "a422e3f72cb69a5a2893c1545eef7cf3cfe80354cadcf4ff22fd53e7893935bd"
+  },
+  "scope": "Selected F5 primary roots only; dependency-inclusive repository and editor-host gates remain open.",
+  "worktree": "/workspace/bigip-lsp"
+}

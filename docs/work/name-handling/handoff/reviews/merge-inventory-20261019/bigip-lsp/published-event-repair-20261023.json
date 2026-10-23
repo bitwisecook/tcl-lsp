@@ -1,0 +1,187 @@
+{
+  "source": "73c43bdb76983daf92f6b889fd2e4e1ed8089e22",
+  "date_utc": "2026-10-23T13:13Z",
+  "plan": {
+    "cargo": [
+      "test",
+      "--locked",
+      "--no-fail-fast",
+      "-p",
+      "f5-cli",
+      "-p",
+      "f5-xc",
+      "--lib",
+      "--test",
+      "cli",
+      "--test",
+      "irule",
+      "--test",
+      "explain_flow",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "runs": [
+      {
+        "target": "f5_cli",
+        "args": [
+          "archive_content_donors_retain_original_bytes_before_mutation",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "f5_cli",
+        "args": [
+          "source_event_report_separates_owned_empty_and_unavailable",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "cli",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "irule",
+        "args": [
+          "trace_keeps_data_group_from_braced_expression_command",
+          "trace_uses_the_event_closure_not_the_first_handler_body",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "f5_xc",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "explain_flow",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      }
+    ],
+    "log": "/workspace/scratch/bigip-20261023/published-event-repair.log"
+  },
+  "result": {
+    "results": [
+      {
+        "run": {
+          "target": "f5_cli",
+          "args": [
+            "archive_content_donors_retain_original_bytes_before_mutation",
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 0,
+        "seconds": 0.1649322509765625
+      },
+      {
+        "run": {
+          "target": "f5_cli",
+          "args": [
+            "source_event_report_separates_owned_empty_and_unavailable",
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 101,
+        "seconds": 1.7760584354400635
+      },
+      {
+        "run": {
+          "target": "cli",
+          "args": [
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 101,
+        "seconds": 49.818196058273315
+      },
+      {
+        "run": {
+          "target": "irule",
+          "args": [
+            "trace_keeps_data_group_from_braced_expression_command",
+            "trace_uses_the_event_closure_not_the_first_handler_body",
+            "--exact",
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 101,
+        "seconds": 0.4252588748931885
+      },
+      {
+        "run": {
+          "target": "f5_xc",
+          "args": [
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 0,
+        "seconds": 63.63653564453125
+      },
+      {
+        "run": {
+          "target": "explain_flow",
+          "args": [
+            "--nocapture",
+            "--test-threads=1"
+          ]
+        },
+        "exit": 101,
+        "seconds": 243.268146276474
+      }
+    ],
+    "seconds": 784.7631962299347,
+    "exit": 101
+  },
+  "warnings": 0,
+  "provider": {
+    "pass": 1,
+    "fail": 0
+  },
+  "source_event_unit": {
+    "pass": 0,
+    "fail": 1,
+    "seconds": 1.69
+  },
+  "cli": {
+    "pass": 15,
+    "fail": 2,
+    "seconds": 49.81,
+    "byte_fidelity_regressions": "all pass"
+  },
+  "trace": {
+    "pass": 0,
+    "fail": 2,
+    "seconds": 0.42
+  },
+  "xc": {
+    "pass": 31,
+    "fail": 0,
+    "seconds": 63.57
+  },
+  "explain_flow": {
+    "harness_pass": 3,
+    "fail": 2,
+    "seconds": 243.26,
+    "limits": "Two tshark tests early-return. Both simulations naturally report NativePreflightRequired; no interruption."
+  },
+  "all_test_executables_deleted": true,
+  "source_patch_empty": true,
+  "raw_sha256": "27d33f791faa8ca31d295d6831806c9ae02007b003c55fc0173112fd708ed595",
+  "limits": "No whole-repository/shipping acceptance claim. Initial snapshot contained the published compiler event-geometry repair; exact event/source repros still fail. Later external lint-helper changes are not covered by this executed snapshot."
+}

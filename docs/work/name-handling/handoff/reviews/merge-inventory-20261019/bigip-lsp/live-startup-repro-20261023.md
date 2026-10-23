@@ -35,3 +35,7 @@ The original current explain-flow tests subsequently finished naturally:
 reporting `native compiler preflight provider required`. Neither was externally
 interrupted. Full raw/summary: native-combined-20261023.{txt.gz,json}.
 Two tshark paths early-returned; that is not tshark coverage.
+
+On73c43bdb the two original simulations again finish naturally with the same
+native-preflight refusal (explain-flow3/5 in243.26s); published-event-repair
+receipts preserve both outputs. No VM/admission guard was bypassed.

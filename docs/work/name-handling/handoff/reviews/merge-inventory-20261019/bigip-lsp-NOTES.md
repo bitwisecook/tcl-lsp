@@ -7,9 +7,56 @@ In the original shared session this agent did not commit, push, stash, reset or 
 WIP snapshots carry the changes (2f69e5d60e and later).
 
 Totals now (35): DONE 32, ALREADY 3, PARTIAL 0, REMAINING 0 — with the
-verification gaps listed under "Not executed", plus three coordinator-assigned
+verification limits recorded below, plus three coordinator-assigned
 follow-ups below (BIG-IP/APL pull diagnostics DONE; XC `if` source owner fixed (31/31 lib; 5/5 e2e) and
-ILX variable handle blocked on the compiler source-relation contract). Continuation: `docs/work/name-handling/outstanding/bigip-lsp.md` (## Resume).
+ILX consumer wired but original16 blocked on the compiler source-card gaps). Continuation: `docs/work/name-handling/outstanding/bigip-lsp.md` (## Resume).
+
+## Final isolated continuation — 2026-10-23
+
+All unblocked owned implementation/checks are complete; remaining failures are
+routed with exact repros in the outstanding file. Tested snapshot 73c43bdb includes
+the published compiler event-word repair; it still fails the production event
+geometry repro. Subsequent external refactors and full shipping gates remain
+unvalidated by these scoped receipts. Original 35 implementation totals and audit
+verified counts are unchanged; no PR is authorised.
+
+- Authenticated ILX first-operand adapter is wired through readonly navigation,
+  preserving five obligations and exact analysis ownership. Runtime target stays
+  None. The user's opaque-call stop corrects seven later-notify expectations;
+  original first-site/JS and stale/foreign/refusal assertions remain.
+- Core ILX 19/19 PASS; irules focused 23/24 and Compiler controls 4/5 fail the
+  procedure source-card positive. Original ILX16 is 4/16: 11 content assertions
+  and 1 diagnostic timeout. Latest production probes confirm missing nested
+  setter-RHS/procedure relations and later-handler cards after a proc prefix.
+  `bigip-lsp/source-owner-blockers-20261023.md` is the current contract/repro.
+- User chose explicit file reads with lossy previews. Exact archive paths,
+  original metadata/bytes, duplicate/path-alias refusal and unchanged mutation
+  admission are implemented. IO 2, DSL 6, provider 1 and all original byte-fidelity
+  CLI cases pass. Only documented scalar/full-path and writable-slot fixture
+  inputs changed; every byte/refusal/artifact assertion is retained.
+- Latest XC library 31/31 PASS; protocol XC 5/5 and W109 1/1 PASS; F5 pull unit 1/1.
+  **current_diagnostics.rs handed back**. Exact three editor comparisons 3/3 PASS
+  without expected-file changes. The unchanged plain rewrite test still fails
+  in the actual without-F5 comparison; no F5 workaround.
+- All eight native F5 primary roots and standalone WASM strict Clippy PASS, zero warnings
+  on 73c43bdb, Rust1.99.1, no new allowance. Trait recursion 256 fixes the false
+  CompilationUnit Arc lint in owned irules/XC. Generic Core/server/non-editor
+  xtask findings and full gates remain with their owners.
+- Current affected CLI run: 15/17 (byte guards all pass), source-event 0/1,
+  trace 0/2, simulations 3/5. Source event words remain absent in all 12 genuine
+  ingress/config variants, even the new compiler test constructor. Simulations
+  naturally report NativePreflightRequired. No assertions or guards weakened.
+- Generic 500-level minifier remains incomplete: old child stopped after 634s;
+  identical latest production probe times out at 180s. Neither is a passing
+  stack-safety result. Original depth/assertion untouched; generic owner routed.
+
+Authoritative receipt indexes: `bigip-lsp/published-event-repair-20261023.json`,
+`native-combined-20261023.json`, `xc-editor-final-20261023.json`,
+`native-latest-clippy-20261023.json`, `wasm-current-clippy-20261023.json`.
+Each includes its exact scope/source and raw evidence. All issued test/probe
+executables were deleted in their wrapping command; temporary Rust sources are
+not committed. Host/repository/external-review F gates remain open. This agent
+stops after publishing the final outstanding snapshot.
 
 ## Isolated continuation — 2026-10-22
 
@@ -69,9 +116,9 @@ remain open; these development pushes do not authorise a PR.
 
 | Item | Status | Change / evidence |
 |---|---|---|
-| BIG-IP/APL pull diagnostics | DONE | `textDocument/diagnostic` refused F5 model documents (`DiagnosticUnavailable::Unsupported`). Now one report code serves push and pull: `f5_model_document_report` (lib.rs) is called by the push publisher and by the direct pull (`produce_direct_diagnostic_report`); the push completes its pass with the delivered result id (`DeliveryCtx::complete_f5_model_pass`, only for an F5 pass over exactly that source); `DiagnosticPass.f5_model` exempts F5 reports from the Tcl analysis-input reborrow check and from the abstention→`Context` refusal, since the F5 report reads no analysis input and applies the W109 abstention itself (configuration, source, version, revision and admission checks unchanged). Proposal diagnostics for F5 documents stay `Unsupported` (separate feature). Test `current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report` PASS (`.scf` and `.apl`: direct pull == push == reborrow; current-diagnostics command `complete`); results in `bigip-lsp/server-lib-current-diagnostics-bigip-20261022.txt`. e2e `w109_disabled_still_abstains_for_bigip_and_apl_documents` not yet re-run. |
-| XC `if` condition source owner | FIXED; e2e pending | Expression AST end offsets are inclusive. Use the shared `expression_span` conversion before selecting the complete original operand. New ASCII/Unicode/nested regression fails before the fix; all 31 f5-xc lib tests pass after, with existing refusal assertions unchanged. Probe and before/after receipts: `bigip-lsp/xc-*-20261022.txt`. |
-| ILX variable handle (`ILX::call $handle`) | BLOCKED | The current producer deliberately retains no target for a variable handle. Baseline literal-handle test 1/1 PASS; current refusal tests 2/2 PASS. Needs an authenticated compiler source constructor/setter/read relation, then BIG-IP integration. Repro and contract: `bigip-lsp/ilx-handle-owner-repro.md`; raw comparison receipts alongside it. No assertions weakened. |
+| BIG-IP/APL pull diagnostics | DONE | `textDocument/diagnostic` refused F5 model documents (`DiagnosticUnavailable::Unsupported`). Now one report code serves push and pull: `f5_model_document_report` (lib.rs) is called by the push publisher and by the direct pull (`produce_direct_diagnostic_report`); the push completes its pass with the delivered result id (`DeliveryCtx::complete_f5_model_pass`, only for an F5 pass over exactly that source); `DiagnosticPass.f5_model` exempts F5 reports from the Tcl analysis-input reborrow check and from the abstention→`Context` refusal, since the F5 report reads no analysis input and applies the W109 abstention itself (configuration, source, version, revision and admission checks unchanged). Proposal diagnostics for F5 documents stay `Unsupported` (separate feature). Test `current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report` PASS (`.scf` and `.apl`: direct pull == push == reborrow; current-diagnostics command `complete`); results in `bigip-lsp/server-lib-current-diagnostics-bigip-20261022.txt`. e2e `w109_disabled_still_abstains_for_bigip_and_apl_documents` PASS1/1; current_diagnostics.rs handed back. |
+| XC `if` condition source owner | FIXED; lib31/31 and e2e5/5 PASS | Expression AST end offsets are inclusive. Use the shared `expression_span` conversion before selecting the complete original operand. New ASCII/Unicode/nested regression fails before the fix; all 31 f5-xc lib tests pass after, with existing refusal assertions unchanged. Probe and before/after receipts: `bigip-lsp/xc-*-20261022.txt`. |
+| ILX variable handle (`ILX::call $handle`) | Consumer implemented; source gaps BLOCKED | Genuine compiler association adapter and readonly server projection are integrated. Runtime target remains unavailable. Latest nested setter-RHS/procedure source relations are missing; original16 is4/16. Exact current repro/contracts: `bigip-lsp/source-owner-blockers-20261023.md`. Positive/refusal assertions retained. |
 
 ## Verification of Luna-42's unverified items
 

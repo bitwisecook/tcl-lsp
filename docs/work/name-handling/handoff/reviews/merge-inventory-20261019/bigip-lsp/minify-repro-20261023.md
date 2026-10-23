@@ -21,3 +21,8 @@ is no F5 wrapper inference to repair here. The original contract remains a
 clean exit0 or an honest reported refusal2 at depth500; the generic
 minifier/compiler/performance owners must restore bounded work while retaining
 source/identity guards. Do not reduce depth, ignore the test or bypass owners.
+
+A fresh73c43bdb production-binary recheck on the identical depth500 source
+remains incomplete after180s: latest-minify-probe-20261023.json. This finite
+probe is not a changed accepted test budget or passing original test. The
+original assertion/depth remain unchanged.

@@ -1,7 +1,8 @@
 # Current compiler source-owner blockers
 
-Observed on `cbfb4771`, Rust1.99.1, default compiler library graph. Exact raw
-receipts are beside this file. All original assertions remain unchanged.
+Initial observations used `cbfb4771`. The three source gaps below are confirmed
+again on `73c43bdb`, including the published `d1a0fe02` event-geometry repair.
+Rust1.99.1, production native library graph; no original assertion changed.
 
 ## Original iRules event word
 
@@ -103,3 +104,21 @@ conditional method syntax and the independently supported same-frame source
 relation, while refusing inheritance of the outer handle in a new procedure
 or handler frame. The original first two negatives and final if positive all
 remain required; no fixture, depth, expected location or assertion changed.
+
+## Confirmation on the published repair snapshot
+
+`73c43bdb` still has zero event words for both genuine event bodies in all12
+combinations: profile versus environment-default context; body versus file
+lexer configuration; context builder, complete-input builder and explicit
+standalone-input builder. Each produces2events and no native entry. This
+includes the exact constructor shape used by the new compiler source-graph
+positive. Raw `latest-event-ingress-matrix-20261023.txt.gz`. No consumer ingress
+variant repairs it; retain the original geometry-without-activation contract.
+
+Latest production probes also confirm flat remote1/current/exact vector join,
+setter-RHS remote0, procedure-body constructor/read0, and loss of the later
+handler's cards after a procedure prefix. Raw `latest-{nested-ilx,if-prefix,
+source-input,procedure}-probe-20261023.txt.gz`. These are observations, not
+passing semantic regressions. The latest affected native tests still have
+CLI15/17, source-event0/1, trace0/2; full raw/summary are in
+`published-event-repair-20261023.{txt.gz,json}`. All byte-fidelity tests pass.

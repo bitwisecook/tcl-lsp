@@ -1,0 +1,18 @@
+{
+  "status": "TIMEOUT180s",
+  "stdout": "",
+  "stderr": "",
+  "clean_original_contract": "unreached; no passing test claim",
+  "command": [
+    "/workspace/bigip-lsp/target/debug/f5-query",
+    "irule",
+    "minify",
+    "--aggressive",
+    "/workspace/scratch/bigip-20261023/latest-minify-500.irule"
+  ],
+  "source_commit": "73c43bdb",
+  "source_sha256": "ad28a388685c2b0220db4d443fe6694b63c4a5997fcc0f7e0ef8f7a7880f5584",
+  "binary_sha256": "d2cc04069ab896a68c45b9bc1afabe0d94d07d08e2c9f3f53451498f675bd0c0",
+  "seconds": 183.71215057373047,
+  "scope": "Finite production-binary recheck after compiler event-geometry repair. Original depth500 and assertion unchanged. A timeout is incomplete, not an accepted budget or passing test."
+}

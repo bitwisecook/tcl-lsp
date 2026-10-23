@@ -1,0 +1,13 @@
+{
+  "source": "73c43bdb76983daf92f6b889fd2e4e1ed8089e22",
+  "date_utc": "2026-10-23T13:13Z",
+  "command": "cargo clippy --locked --manifest-path rust/bigip-query-wasm/Cargo.toml --target wasm32-unknown-unknown --lib --no-deps --message-format=json -- -D warnings",
+  "exit": 0,
+  "warnings": 0,
+  "raw_sha256": {
+    "wasm-current-clippy.jsonl": "fa6611193232175792f6342cc0d675bb339d7526ebe8f8f2e8ab70017a8e4a40",
+    "wasm-current-clippy.stderr": "0dc65b0b69553e87952190c37f52d5e63183ee7cb4d5eeea618c97c8574b7602"
+  },
+  "scope": "Selected F5 primary roots only; dependency-inclusive repository and editor-host gates remain open.",
+  "worktree": "/workspace/bigip-coordination"
+}
