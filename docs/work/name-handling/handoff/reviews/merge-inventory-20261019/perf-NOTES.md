@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 17:27 UTC
+Last updated: 2026-10-23 17:35 UTC
 
 **Environment recovered; canonical proof retry required.** Frozen a3 control
 and opt1 builds fail the same6 upstream compiler type errors, zero warnings /
@@ -255,3 +255,8 @@ patch application, scoped formatting and exact toggle reconstruction PASS; no
 semantic acceptance inferred. Current controls/normal libraries compile; clean6
 ccd filters run after a zero-warning build. Both residual analyser drafts and
 nested LSP currentness draft refresh toa3, remain Blocked/routed and unproven.
+
+Both proof sources are rebased tob6ea6dc5 with fresh independent builds.
+Exact six/two split + ordered application, scope fmt, toggle reconstruction
+and clean6 match PASS. Clean6 opt1 lexer586/586 BOTH passes without warnings;
+compiler/control/corpus acceptance remains pending. No perf production commit.

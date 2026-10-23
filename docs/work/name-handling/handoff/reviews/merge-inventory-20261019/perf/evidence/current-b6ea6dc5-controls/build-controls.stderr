@@ -1,0 +1,21 @@
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lexer)
+   Compiling crossbeam-utils v0.8.23
+   Compiling crossbeam-epoch v0.9.21
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-syntax)
+   Compiling crossbeam-deque v0.8.8
+   Compiling parking_lot_core v0.9.12
+   Compiling scopeguard v1.2.0
+   Compiling rayon-core v1.13.0
+   Compiling lock_api v0.4.14
+   Compiling parking_lot v0.12.5
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-pkg-model)
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-compiler)

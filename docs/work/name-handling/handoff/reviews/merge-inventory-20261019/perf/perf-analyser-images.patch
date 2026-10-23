@@ -115,7 +115,7 @@
          let descended = descend_token(&sm, *token, word.config());
          let mut segments = segments_from_tree(descended.tree(), &sm);
          if segments.len() != 1 {
-@@ -3048,7 +3065,7 @@
+@@ -3056,7 +3073,7 @@
          arg_single: &[bool],
          scope_path: &[usize],
      ) {
@@ -124,7 +124,7 @@
          let config = self.file_lexer_config();
          let Some(head) = tokens.words().first().and_then(|word| {
              self.result
-@@ -3840,7 +3857,7 @@
+@@ -3848,7 +3865,7 @@
          let Some(head_word) = tokens.words().first() else {
              return;
          };
@@ -133,7 +133,7 @@
          let config = self.file_lexer_config();
          let vendor = self
              .result
-@@ -3933,7 +3950,7 @@
+@@ -3941,7 +3958,7 @@
                  &tokens,
              )
          } else if self.vendor_source_name_policy().is_some() {
@@ -142,7 +142,7 @@
              tokens
                  .words()
                  .first()
-@@ -4342,7 +4359,7 @@
+@@ -4350,7 +4367,7 @@
          let Some(owner) = self.result.resolved_input.as_ref() else {
              return (None, None);
          };
@@ -151,7 +151,7 @@
          if !self
              .result
              .matches_original_source_image(&image, owner.lexer_config())
-@@ -5239,7 +5256,7 @@
+@@ -5247,7 +5264,7 @@
          if !self.result.allows_lexical_declaration_advice() {
              let generation = self.analysis_context();
              let registry = generation.commands();
@@ -160,7 +160,7 @@
              return self
                  .head_identities
                  .source_bindings_ref()
-@@ -6004,10 +6021,9 @@
+@@ -6012,10 +6029,9 @@
                      .snapshot()
                      .semantic_key()
              || self.file_lexer_config() != input.lexer_config()
@@ -185,8 +185,8 @@
          let Some((head, site)) = self
              .head_identities
              .original_written_head_at_span_in_source(&image, cmd_tok.span, input.lexer_config())
-@@ -2815,7 +2815,7 @@
-         right: &ExprNode,
+@@ -2811,7 +2811,7 @@
+         (op, left, right): (&str, &ExprNode, &ExprNode),
      ) -> Option<String> {
          let config = self.file_lexer_config();
 -        let image = tcl_lexer::SourceImage::document(&self.source);

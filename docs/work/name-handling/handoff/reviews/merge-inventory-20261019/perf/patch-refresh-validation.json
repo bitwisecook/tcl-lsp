@@ -1,9 +1,10 @@
 {
-  "base": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
+  "base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
   "ordered_apply_reconstructs_snapshot": true,
   "scoped_rustfmt": true,
   "toggled_helper_matches_proof_tree": true,
-  "upstream_line_at_retained_both_modes": true,
-  "status": "Patch construction/formatting only; full proof pending",
-  "time": 1792773658.4315932
+  "clean6_matches_owned_proof_tree": true,
+  "temporary_switch_in_patches": false,
+  "status": "Construction and formatting only; full semantic proof pending",
+  "time": 1792776783.5383534
 }

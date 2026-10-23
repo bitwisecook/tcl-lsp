@@ -1,0 +1,20 @@
+{
+  "old_head": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
+  "new_head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "mode": "full",
+  "saved_diff_sha256": "3f2756dd09e37a32d31b20dcb3fbf9c8accc5ff8a7bcb4f854bc36b093a94f53",
+  "scoped_rustfmt": true,
+  "paths": [
+    "rust/tcl-lexer/src/parse_cut.rs",
+    "rust/tcl-lexer/src/source_map.rs",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+    "rust/tcl-compiler/src/realm.rs",
+    "rust/tcl-compiler/src/interprocedural.rs",
+    "rust/tcl-lexer/src/lib.rs"
+  ],
+  "new_diff_sha256": "e7e55e134f34379c834e7c1a809af459c36381e97c778c300041f792a56902a1",
+  "time": 1792776614.3015063
+}

@@ -1,0 +1,7 @@
+{
+  "publisher_jim_path": "/workspace/tcl-lsp-publish/tmp/jimtcl-oracle/jimsh",
+  "actual_executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "sha256": "a635503f5f8991141f28b93c9e040ed149acf00a9a0f7def9f51b4e5fafb37e7",
+  "reason": "Control launch sourced env in publisher cwd; supply the same pinned oracle through its tmp symlink before any runtime. Build and source unchanged. No process environment was readable.",
+  "time": 1792776989.3834143
+}

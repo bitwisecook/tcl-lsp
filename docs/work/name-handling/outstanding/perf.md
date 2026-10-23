@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 17:27 UTC
+Last updated: 2026-10-23 17:43 UTC
 
 ## Resume
 
@@ -27,13 +27,31 @@ cleanup. Its Clippy failed281 lint errors outside the six owned files; a3
 combined Clippy failed6 compiler errors plus2 unrelated doc-comment lints.
 All full logs are preserved, not a workspace-green claim.
 
-Next: after all source-tree workers stop, rebase the FULL nine-file switched
-batch in /workspace/tcl-lsp-perf-latest and clean6/no-switch tree in
-/workspace/tcl-lsp-owned to the same repaired commit. Refresh/reconstruct the
-clean six/two split; retain the canonical line-index fallback in BOTH modes.
-Run exact16 report/actual-realm controls both modes, then the full authenticated
+FULL nine-file switched tree and clean6/no-switch tree are BOTH now rebased
+onto canonicalb6ea6dc5 (includes owner6-type-error fixes), independently rebuilt
+with separate targets. Split patch ordered application/scoped fmt, exact toggle
+reconstruction and clean6 snapshot match PASS. Production patch has no switch.
+
+Active commands (build/run/delete executables in one command):
+- Combined complete controls6329, /tmp/perf-b6-controls.log, opt1/assertions on.
+  Full compiler-filter watcher49190 uses its exact SHA-verified private copy;
+  full corpus watcher66128 starts ONLY after both complete control inventories
+  pass with unchanged source. Current evidence: current-b6ea6dc5-controls/.
+- Clean6 checks76019 /tmp/perf-b6-clean6.log: lexer586/586 PASS BOTH environment
+  executions, zero warnings and executable deleted. The variable is ignored in
+  this no-switch source. Compiler filters now building atopt1/assertions on.
+- Combined lexer queued /tmp/perf-b6-lexer.log, same original586 inventory;
+  combined Clippy45643 /tmp/perf-b6-clippy.log checks default target separately.
+- Memory guard89564 may serialize ONLY the two large rustc --test compilations;
+  never signals runtime test executables. Its finally resumes any paused rustc.
+  Source/configuration remain fixed; build timing is not a latency comparison.
+
+Finish complete16 report/actual-realm controls both modes, then full authenticated
 all-old/mixed102 Tcl+15 iRules+synthetics and ordered PackSet proof. Keep strict
 runtime Eq separately recorded. All3 report pairs must Equal; Unavailable fails.
+After these builds, queue the original server/SpecTcl suites and run them in a
+quiet window after other runtime work finishes naturally (do not pause tests
+whose wall budgets would keep ticking). Preserve every failed comparison.
 
 Do not commit realm.rs, interprocedural.rs or either switch. Land exactly six
 owned files as ONE code commit only after the full proof. The two-file patch
@@ -167,3 +185,11 @@ Resource maintenance: the16GiB cgroup reached its limit without an OOM kill.
  Advisory POSIX_FADV_DONTNEED on cold build artifacts reduced file cache by
  about3GiB (no source/settings/content/mtime edits). All data and limits are
  cold-build-cache-20261023.json; this is resource management, not latency proof.
+
+Remaining suite builder29944 waits for the exact control binary, then builds
+server(default0) and SpecTcl(opt1), retaining original assertions/budgets. Quiet
+coordinator55361 waits for all other compiler/corpus/lexer runtime work to finish
+naturally before releasing server then SpecTcl readiness. No runtime is paused.
+Current b6 Clippy has2 unrelated empty-line-after-doc-comment errors; a separate
+whitespace repair is included with this publication. Full current Clippy is
+not yet green, and no new semantic proof is inferred from that repair.

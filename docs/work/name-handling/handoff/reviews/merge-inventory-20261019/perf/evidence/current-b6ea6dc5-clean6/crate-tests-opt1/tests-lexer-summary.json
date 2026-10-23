@@ -1,0 +1,21 @@
+{
+  "lexer/lib/new": {
+    "returncode": 0,
+    "seconds": 2.993,
+    "passed": 586,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-lexer-lib-new.out",
+    "pass_to_fail": []
+  },
+  "lexer/lib/old": {
+    "returncode": 0,
+    "seconds": 4.237,
+    "passed": 586,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-lexer-lib-old.out"
+  }
+}

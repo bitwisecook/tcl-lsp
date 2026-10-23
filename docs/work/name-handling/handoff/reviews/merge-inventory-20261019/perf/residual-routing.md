@@ -166,3 +166,10 @@ a3a4b181. Ordered analyser patch application reproduces the scoped formatted
 snapshot exactly. Production sources remain untouched. These are still
 Blocked/routed, uncompiled and unproven. Full semantic proofs and unchanged
 positive ordinary-path measurements remain with compiler-names and LSP.
+
+## Canonical refresh b6ea6dc5
+
+All three drafts refresh tob6ea6dc5. Ordered analyser application reproduces
+the scoped formatted snapshot. No production source is changed; all remain
+Blocked/routed, uncompiled and semantically unproven. The line-index and
+immutable-vector admission arguments retain the earlier documented limits.

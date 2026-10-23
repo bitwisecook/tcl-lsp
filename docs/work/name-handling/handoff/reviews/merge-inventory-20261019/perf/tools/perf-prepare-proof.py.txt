@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import sys,subprocess,json,hashlib,time
+from pathlib import Path
+r=Path(sys.argv[1]);mode=sys.argv[2];ref=sys.argv[3]
+perf=Path('docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');publisher=Path('/workspace/tcl-lsp-publish')
+meta=json.loads((publisher/perf/'patch-inputs.json').read_text());expected=meta['owned']+(meta['routed']+['rust/tcl-lexer/src/lib.rs'] if mode=='full' else [])
+def git(*args):return subprocess.check_output(['git',*args],cwd=r)
+paths=git('diff','--name-only').decode().splitlines();codepaths=[p for p in paths if p.startswith('rust/')];assert set(codepaths)==set(expected),(codepaths,expected)
+for p in Path('/proc').iterdir():
+ if not p.name.isdigit():continue
+ try:
+  comm=(p/'comm').read_text().strip();argv=(p/'cmdline').read_bytes().replace(b'\0',b' ').decode()
+  if comm in ['rustc','clippy-driver'] or comm.startswith('tcl_compiler-'):assert str(r) not in argv,(p.name,argv[:180])
+ except OSError:pass
+save=Path('/tmp')/('perf-'+mode+'-before-'+ref[:8]);save.mkdir(exist_ok=False)
+for p in paths:
+ assert p in expected or p==str(perf/'batch/apply_batch.py'),p
+ t=save/p;t.parent.mkdir(parents=True,exist_ok=True);t.write_bytes((r/p).read_bytes())
+old=git('rev-parse','HEAD').decode().strip();diff=git('diff')
+(save/'saved.patch').write_bytes(diff)
+subprocess.run(['git','restore','--',*paths],cwd=r,check=True)
+subprocess.run(['git','switch','--detach',ref],cwd=r,check=True)
+subprocess.run(['python3',str(publisher/perf/'batch/apply_batch.py'),str(r),*(['--zz'] if mode=='full' else ['--only',','.join(expected)])],check=True)
+subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true',*[str(r/p) for p in expected]],check=True)
+assert set(git('diff','--name-only').decode().splitlines())==set(expected)
+head=git('rev-parse','HEAD').decode().strip();out=Path('/workspace/tcl-lsp-work')/perf/'evidence'/('current-'+head[:8]+('-clean6' if mode=='clean6' else ''))
+out.mkdir(parents=True,exist_ok=True)
+(out/'rebase-inputs.json').write_text(json.dumps({'old_head':old,'new_head':head,'mode':mode,'saved_diff_sha256':hashlib.sha256(diff).hexdigest(),'scoped_rustfmt':True,'paths':expected,'new_diff_sha256':hashlib.sha256(git('diff')).hexdigest(),'time':time.time()},indent=2)+'\n')
+print('PREPARED',mode,head,flush=True)
