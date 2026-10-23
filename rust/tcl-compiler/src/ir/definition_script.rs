@@ -24,6 +24,15 @@ use crate::command_binding::SourceAnalysisEntry;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
+pub(crate) struct DefinitionScriptLayout {
+    pub body: usize,
+    pub name: usize,
+    pub per_object: bool,
+    pub offset: u32,
+    pub grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    pub descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
+}
+
 /// Selected source structure from the actual definition-script allocator.
 #[derive(Debug, Clone)]
 pub struct OriginalDefinitionScriptSource {
@@ -69,14 +78,17 @@ impl OriginalDefinitionScriptSource {
         module: &Module,
         id: ProcedureId,
         tokens: &CommandTokens,
-        body: usize,
-        name: usize,
-        per_object: bool,
-        offset: u32,
-        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
-        descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
+        layout: &DefinitionScriptLayout,
         registry: &CommandRegistry,
     ) -> Option<Self> {
+        let DefinitionScriptLayout {
+            body,
+            name,
+            per_object,
+            offset,
+            grammar,
+            descriptor,
+        } = *layout;
         let input = module.source_metadata_input.as_ref()?;
         if !input.has_logical_source_name_context()
             || module.source_entry.native_entry.is_some()
@@ -221,18 +233,13 @@ impl Module {
     pub(crate) fn retain_definition_script_source(
         &mut self,
         tokens: &CommandTokens,
-        body: usize,
-        name: usize,
-        per_object: bool,
-        offset: u32,
-        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
-        descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
+        layout: &DefinitionScriptLayout,
         registry: &CommandRegistry,
     ) -> ProcedureId {
         let id = self.procedure_ids.allocate();
-        if let Some(source) = OriginalDefinitionScriptSource::capture(
-            self, id, tokens, body, name, per_object, offset, grammar, descriptor, registry,
-        ) {
+        if let Some(source) =
+            OriginalDefinitionScriptSource::capture(self, id, tokens, layout, registry)
+        {
             self.original_definition_scripts
                 .insert(id, std::sync::Arc::new(source));
         }

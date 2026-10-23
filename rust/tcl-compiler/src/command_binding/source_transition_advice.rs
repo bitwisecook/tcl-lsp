@@ -1338,41 +1338,59 @@ impl OriginalSourceTransitionAdviceTape {
         );
     }
 
-    fn extend_inventory(&mut self, other: Self) {
+    fn extend_prefix_inventory(&mut self, other: &mut Self) {
         merge_receipt_inventory(
             &mut self.conditional_procedure_declarations,
-            other.conditional_procedure_declarations,
+            std::mem::take(&mut other.conditional_procedure_declarations),
         );
-        merge_receipt_inventory(&mut self.decoded_lambda_phases, other.decoded_lambda_phases);
+        merge_receipt_inventory(
+            &mut self.decoded_lambda_phases,
+            std::mem::take(&mut other.decoded_lambda_phases),
+        );
         merge_receipt_inventory(
             &mut self.native_procedure_calls,
-            other.native_procedure_calls,
+            std::mem::take(&mut other.native_procedure_calls),
         );
         merge_receipt_inventory(
             &mut self.logical_procedure_calls,
-            other.logical_procedure_calls,
+            std::mem::take(&mut other.logical_procedure_calls),
         );
         merge_receipt_inventory(
             &mut self.logical_name_references,
-            other.logical_name_references,
+            std::mem::take(&mut other.logical_name_references),
         );
         merge_receipt_inventory(
             &mut self.logical_ensemble_transition_receipts,
-            other.logical_ensemble_transition_receipts,
+            std::mem::take(&mut other.logical_ensemble_transition_receipts),
         );
-        merge_receipt_inventory(&mut self.arity_prefixes, other.arity_prefixes);
+        merge_receipt_inventory(
+            &mut self.arity_prefixes,
+            std::mem::take(&mut other.arity_prefixes),
+        );
         self.logical_procedure_catalogue_refusals
-            .extend(other.logical_procedure_catalogue_refusals);
+            .extend(std::mem::take(
+                &mut other.logical_procedure_catalogue_refusals,
+            ));
         merge_receipt_inventory(
             &mut self.native_procedure_may_commands,
-            other.native_procedure_may_commands,
+            std::mem::take(&mut other.native_procedure_may_commands),
         );
-        merge_receipt_inventory(&mut self.logical_callbacks, other.logical_callbacks);
+        merge_receipt_inventory(
+            &mut self.logical_callbacks,
+            std::mem::take(&mut other.logical_callbacks),
+        );
         merge_receipt_inventory(
             &mut self.logical_variable_words,
-            other.logical_variable_words,
+            std::mem::take(&mut other.logical_variable_words),
         );
-        merge_receipt_inventory(&mut self.logical_math, other.logical_math);
+        merge_receipt_inventory(
+            &mut self.logical_math,
+            std::mem::take(&mut other.logical_math),
+        );
+    }
+
+    fn extend_inventory(&mut self, mut other: Self) {
+        self.extend_prefix_inventory(&mut other);
         for (offset, candidate) in other.logical_navigation {
             self.merge_logical_navigation(offset, candidate);
         }
@@ -2855,6 +2873,58 @@ impl AdviceInvocationContext<'_> {
         retained
     }
 
+    fn retain_original_invocation_prefix(
+        &self,
+        graph: &mut AdviceGraph,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: &tcl_lexer::NativeScriptCommandWords,
+        written: &[SourceAdviceWord],
+    ) -> bool {
+        self.retain_native_procedure_may_command(tape, graph, &invocation.words, written);
+        self.retain_original_operand_constructor_calls(tape, graph, &invocation.words, None);
+        self.retain_original_source_receiver(tape, graph, &invocation.words, written)
+    }
+
+    fn retain_unresolved_invocation_operands(
+        &self,
+        graph: &mut AdviceGraph,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: &tcl_lexer::NativeScriptCommandWords,
+    ) -> Option<()> {
+        if matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
+            // The original children execute before an unknown parent head;
+            // retaining them does not select that head from result data.
+            let _ = self.inspect_operand_effects(graph, &invocation.words, tape);
+            tape.registry_barriers
+                .insert(invocation.words.first()?.span().start());
+        }
+        graph.widen(&invocation.words);
+        Some(())
+    }
+
+    fn append_original_invocation_operands(
+        arguments: &mut Vec<SourceAdviceWord>,
+        written: Vec<SourceAdviceWord>,
+    ) {
+        for (ordinal, argument) in arguments.iter_mut().enumerate() {
+            argument.origin =
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(ordinal);
+        }
+        arguments.extend(written.into_iter().skip(1));
+    }
+
+    fn retain_invocation_barrier(
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: &tcl_lexer::NativeScriptCommandWords,
+        original_barrier: bool,
+    ) -> Option<()> {
+        if original_barrier {
+            tape.registry_barriers
+                .insert(invocation.words.first()?.span().start());
+        }
+        Some(())
+    }
+
     fn retain_original_invocation_inner(
         &self,
         graph: &mut AdviceGraph,
@@ -2868,9 +2938,7 @@ impl AdviceInvocationContext<'_> {
             graph.widen(&invocation.words);
             return Some(());
         };
-        self.retain_native_procedure_may_command(tape, graph, &invocation.words, &written);
-        self.retain_original_operand_constructor_calls(tape, graph, &invocation.words, None);
-        if self.retain_original_source_receiver(tape, graph, &invocation.words, &written) {
+        if self.retain_original_invocation_prefix(graph, tape, invocation, &written) {
             return Some(());
         }
         let handle = self.before_operand_handle_binding(graph, &invocation.words, &written);
@@ -2881,14 +2949,7 @@ impl AdviceInvocationContext<'_> {
             .and_then(|head| head.input.as_ref())
             .cloned()
         else {
-            if matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
-                // The original children execute before an unknown parent head;
-                // retaining them does not select that head from result data.
-                let _ = self.inspect_operand_effects(graph, &invocation.words, tape);
-                tape.registry_barriers
-                    .insert(invocation.words.first()?.span().start());
-            }
-            graph.widen(&invocation.words);
+            self.retain_unresolved_invocation_operands(graph, tape, invocation)?;
             return Some(());
         };
         let original_selection = (graph.native_baseline || class_handle.is_some())
@@ -2900,10 +2961,7 @@ impl AdviceInvocationContext<'_> {
             graph.widen(&invocation.words);
             return Some(());
         };
-        if original_barrier {
-            tape.registry_barriers
-                .insert(invocation.words.first()?.span().start());
-        }
+        Self::retain_invocation_barrier(tape, invocation, original_barrier)?;
         OriginalSourceTransitionAdviceTape::retain_logical_procedure_call(
             tape,
             graph,
@@ -2919,11 +2977,7 @@ impl AdviceInvocationContext<'_> {
         };
         // Prefix ordinals belong to the composed effective prefix. Each
         // retained word/input still owns its original transition producer.
-        for (ordinal, argument) in arguments.iter_mut().enumerate() {
-            argument.origin =
-                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(ordinal);
-        }
-        arguments.extend(written.into_iter().skip(1));
+        Self::append_original_invocation_operands(&mut arguments, written);
         let words = registry_words(&arguments);
         let resolution =
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
@@ -2946,24 +3000,14 @@ impl AdviceInvocationContext<'_> {
             arguments: &arguments,
             lineage: &lineage,
         };
-        self.retain_arity_debt(graph, selected, &schema)?;
-        self.observe_source_point(graph, selected.native, &schema);
-        self.observe_normal_source_operation(graph, &schema);
-        let procedure = self.source_procedure_declaration(graph, selected, &schema);
-        if let Some(shape) = schema.authored_source_procedure_arguments() {
-            source_class::merge_receipt(
-                &mut tape.conditional_procedure_declarations,
-                invocation.words.first()?.span().start(),
-                procedure.clone().map(|procedure| (procedure, shape)),
-            );
-        }
-        self.retain_source_inventory(
+        let mut procedure = None;
+        self.retain_original_invocation_inventory(
+            graph,
             tape,
             selected,
-            graph,
             &schema,
-            procedure.as_deref(),
             callback_scope,
+            &mut procedure,
         )?;
         self.retain_interpreter_paths(tape, selected, graph, &schema);
         let factory = self.registered_factory(graph, selected, &schema);
@@ -2990,6 +3034,36 @@ impl AdviceInvocationContext<'_> {
         Self::install_source_class(tape, graph, class);
         Self::install_authored_jim_class(tape, graph, authored_jim);
         source_procedure::install_original_procedure(graph, procedure);
+        Some(())
+    }
+    fn retain_original_invocation_inventory(
+        &self,
+        graph: &mut AdviceGraph,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        callback_scope: logical_navigation::LogicalCallbackScope<'_>,
+        procedure: &mut Option<Arc<source_procedure::OriginalSourceProcedureBody>>,
+    ) -> Option<()> {
+        self.retain_arity_debt(graph, invocation, schema)?;
+        self.observe_source_point(graph, invocation.native, schema);
+        self.observe_normal_source_operation(graph, schema);
+        *procedure = self.source_procedure_declaration(graph, invocation, schema);
+        if let Some(shape) = schema.authored_source_procedure_arguments() {
+            source_class::merge_receipt(
+                &mut tape.conditional_procedure_declarations,
+                invocation.native.first()?.span().start(),
+                procedure.clone().map(|procedure| (procedure, shape)),
+            );
+        }
+        self.retain_source_inventory(
+            tape,
+            invocation,
+            graph,
+            schema,
+            procedure.as_deref(),
+            callback_scope,
+        )?;
         Some(())
     }
 }

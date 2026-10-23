@@ -189,8 +189,7 @@ impl ConditionalLogicalScalarStore {
         input: &crate::analyser::ResolvedAnalysisInput,
         words: std::sync::Arc<[crate::ir::WordExpr]>,
         site: crate::command_binding::CommandAllocationSite,
-        name: String,
-        value: String,
+        (name, value): (String, String),
         registry: &CommandRegistry,
     ) -> Option<Self> {
         let store = Self {

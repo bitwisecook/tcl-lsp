@@ -474,7 +474,7 @@ impl<'a> IrulesSourceQuery<'a> {
     /// Distinguish ordinary functions from an unavailable original event.
     /// The actual map entry and lowering descriptor own identity; report names
     /// select neither source bodies nor conditional event frame policy.
-    fn event(&self, function: &FunctionUnit) -> Option<Option<OriginalEvent<'_>>> {
+    fn event(&self, function: &FunctionUnit) -> Option<OriginalEventPresence<'_>> {
         let module = &self.unit.ir_module;
         let Some((key, owned)) = self
             .unit
@@ -483,10 +483,13 @@ impl<'a> IrulesSourceQuery<'a> {
             .find(|(_, owned)| std::ptr::eq(*owned, function))
         else {
             return std::ptr::eq(function, std::ptr::from_ref(&self.unit.top_level))
-                .then_some(None);
+                .then_some(OriginalEventPresence::Ordinary);
         };
         let Some(expected) = module.irules_event_bodies.get(key) else {
-            return owned.irules_event_body.is_none().then_some(None);
+            return owned
+                .irules_event_body
+                .is_none()
+                .then_some(OriginalEventPresence::Ordinary);
         };
         self.function_config(owned)?;
         let body = owned.irules_event_body.as_ref()?;
@@ -501,7 +504,10 @@ impl<'a> IrulesSourceQuery<'a> {
         {
             return None;
         }
-        Some(Some(OriginalEvent { body, procedure }))
+        Some(OriginalEventPresence::Event(OriginalEvent {
+            body,
+            procedure,
+        }))
     }
 
     fn argument_calls(
@@ -571,7 +577,7 @@ impl<'a> IrulesSourceQuery<'a> {
         let mut flow_commands = Vec::new();
         for id in module.irules_event_bodies.keys() {
             let function = self.unit.procedures.get(id)?;
-            let event = self.event(function)??;
+            let event = self.event(function)?.into_event()?;
             let mut declarations = module
                 .top_level
                 .statements
@@ -681,7 +687,9 @@ impl<'a> IrulesSourceQuery<'a> {
                     if possible.candidates.is_empty() {
                         return None;
                     }
-                    if let Some(command) = possible_irule_flow_command(token, &possible)? {
+                    if let OriginalIrulesFlowPresence::Relevant(command) =
+                        possible_irule_flow_command(token, &possible)?
+                    {
                         handler_flow_commands.push(command);
                     }
                     for candidate in &possible.candidates {
@@ -905,6 +913,20 @@ struct OriginalEvent<'a> {
     procedure: &'a crate::ir::Procedure,
 }
 
+enum OriginalEventPresence<'a> {
+    Ordinary,
+    Event(OriginalEvent<'a>),
+}
+
+impl<'a> OriginalEventPresence<'a> {
+    fn into_event(self) -> Option<OriginalEvent<'a>> {
+        match self {
+            Self::Ordinary => None,
+            Self::Event(event) => Some(event),
+        }
+    }
+}
+
 /// Select the actual function's complete config before choosing parser purpose.
 /// Standalone assistance requires explicit standalone Module and CFG owners.
 fn irules_function_source_config(
@@ -1038,7 +1060,9 @@ fn original_irules_flow_inventory(
         if possible.may_be_absent {
             obligations.insert(CollectionSourceObligationKind::MayBeAbsent);
         }
-        if let Some(command) = possible_irule_flow_command(tokens, &possible)? {
+        if let OriginalIrulesFlowPresence::Relevant(command) =
+            possible_irule_flow_command(tokens, &possible)?
+        {
             calls.push(command);
         }
     }
@@ -1048,10 +1072,15 @@ fn original_irules_flow_inventory(
     })
 }
 
+enum OriginalIrulesFlowPresence {
+    Irrelevant,
+    Relevant(OriginalIrulesFlowCommand),
+}
+
 fn possible_irule_flow_command(
     tokens: &crate::ir::CommandTokens,
     possible: &crate::registry_invocation::RegistryInvocationAssistance,
-) -> Option<Option<OriginalIrulesFlowCommand>> {
+) -> Option<OriginalIrulesFlowPresence> {
     use tcl_registry::events::IrulesSourceFlowAction;
     let mut drops_connection = false;
     let mut returns_dns_packet = false;
@@ -1079,18 +1108,20 @@ fn possible_irule_flow_command(
         || requires_http_context
         || disables_all_events)
     {
-        return Some(None);
+        return Some(OriginalIrulesFlowPresence::Irrelevant);
     }
     let command = tokens.argv_texts.first()?.clone();
-    Some(Some(OriginalIrulesFlowCommand {
-        command,
-        span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
-        drops_connection,
-        returns_dns_packet,
-        disables_all_events,
-        may_commit_response,
-        requires_http_context,
-    }))
+    Some(OriginalIrulesFlowPresence::Relevant(
+        OriginalIrulesFlowCommand {
+            command,
+            span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
+            drops_connection,
+            returns_dns_packet,
+            disables_all_events,
+            may_commit_response,
+            requires_http_context,
+        },
+    ))
 }
 
 fn drop_flow_command(state: &DropFlowState, command: &OriginalIrulesFlowCommand) -> DropFlowState {
@@ -1134,7 +1165,7 @@ pub fn find_unguarded_drop_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let Some(event) = event else {
+        let OriginalEventPresence::Event(event) = event else {
             continue;
         };
         let proc = event.procedure;
@@ -1789,7 +1820,7 @@ fn conditional_irule_source_flow_advice<'unit>(
     let mut findings = Vec::new();
     for (id, commands) in &owner.flow_commands {
         let function = owner.unit.procedures.get(id)?;
-        let event = source.event(function)??;
+        let event = source.event(function)?.into_event()?;
         let http = events
             .get_props(event.body.event())
             .is_some_and(|props| props.implied_profiles.contains(&"HTTP"));
@@ -1863,7 +1894,7 @@ fn collect_flow_state(source: &IrulesSourceQuery<'_>) -> Option<(CollectFlowStat
     let mut events_seen = Vec::new();
     let events = EventRegistry::build();
     for fu in source.unit.analysable_functions() {
-        let Some(event) = source.event(fu)? else {
+        let OriginalEventPresence::Event(event) = source.event(fu)? else {
             continue;
         };
         let event = event.body.event();
@@ -1956,7 +1987,7 @@ fn event_anchor_span(
     source
         .unit
         .functions()
-        .filter_map(|fu| source.event(fu).flatten())
+        .filter_map(|fu| source.event(fu).and_then(OriginalEventPresence::into_event))
         .filter(|owned| owned.body.event() == event)
         .filter_map(|owned| {
             owned
@@ -2111,7 +2142,7 @@ pub fn find_http_flow_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let Some(event) = event else {
+        let OriginalEventPresence::Event(event) = event else {
             continue;
         };
         let bare_event = event.body.event();
@@ -2636,7 +2667,7 @@ pub fn find_hoistable_set_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let Some(event) = event else {
+        let OriginalEventPresence::Event(event) = event else {
             continue;
         };
         if !events.is_per_request(event.body.event()) {
@@ -2700,7 +2731,7 @@ fn event_mutation_counts(
     let mut counts = HashMap::new();
     let registry = source.registry;
     for fu in source.unit.functions() {
-        let Some(event) = source.event(fu)? else {
+        let OriginalEventPresence::Event(event) = source.event(fu)? else {
             continue;
         };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
@@ -2851,7 +2882,7 @@ pub fn find_generic_static_name_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let Some(event) = event else {
+        let OriginalEventPresence::Event(event) = event else {
             continue;
         };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
@@ -5426,7 +5457,7 @@ mod original_event_owner_tests {
     fn events(source: &IrulesSourceQuery<'_>) -> Option<Vec<String>> {
         let mut names = Vec::new();
         for function in source.unit.functions() {
-            if let Some(event) = source.event(function)? {
+            if let OriginalEventPresence::Event(event) = source.event(function)? {
                 names.push(event.body.event().to_owned());
             }
         }

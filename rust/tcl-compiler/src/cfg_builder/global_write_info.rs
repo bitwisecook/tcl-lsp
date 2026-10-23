@@ -412,8 +412,10 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
     namespace: &str,
     procedures: &HashMap<crate::ir::ProcedureId, GlobalWriteInfo>,
     owners: &'a super::OriginalProcedureSummaryOwners,
-    metadata: Option<InvocationMetadataContext<'a>>,
-    config: tcl_lexer::LexerConfig,
+    (metadata, config): (
+        Option<InvocationMetadataContext<'a>>,
+        tcl_lexer::LexerConfig,
+    ),
 ) -> GlobalWriteInfo {
     let Some(metadata) = metadata.filter(|metadata| {
         metadata.matches_registry(registry)
@@ -1981,8 +1983,7 @@ mod tests {
             "::",
             &procedures,
             &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
-            None,
-            module.lexer_config,
+            (None, module.lexer_config),
         );
         assert!(missing.opaque_global_frame);
         assert!(missing.names.is_empty());
@@ -1995,8 +1996,7 @@ mod tests {
             "::",
             &procedures,
             &super::super::OriginalProcedureSummaryOwners::for_module(&module, &registry),
-            Some(foreign.as_ref().into()),
-            module.lexer_config,
+            (Some(foreign.as_ref().into()), module.lexer_config),
         );
         assert!(refused.opaque_global_frame);
         assert!(refused.names.is_empty());

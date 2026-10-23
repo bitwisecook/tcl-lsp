@@ -37,6 +37,7 @@ use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
 
 mod definition_script;
+pub(crate) use definition_script::DefinitionScriptLayout;
 pub use definition_script::OriginalDefinitionScriptSource;
 mod byte_source_namespace;
 pub use byte_source_namespace::OriginalByteSourceNamespace;

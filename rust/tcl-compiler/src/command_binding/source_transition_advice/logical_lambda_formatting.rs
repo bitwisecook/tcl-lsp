@@ -224,43 +224,8 @@ impl AdviceInvocationContext<'_> {
                 source: image.clone(),
             },
         ));
-        let plan = tcl_lexer::native_script_words_in_with_purpose(
-            image.clone(),
-            tcl_lexer::Span::new(0, u32::try_from(image.bytes().len()).ok()?),
-            self.config,
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        )
-        .ok()?;
-        if plan.fatal_tail.is_some() {
-            return None;
-        }
-        let context = AdviceInvocationContext {
-            origin: &origin,
-            context: self.context,
-            config: self.config,
-            dialect: self.dialect,
-            policy: self.policy,
-            query: None,
-        };
-        let mut branch = graph.clone();
-        branch.logical_namespace = Some(namespace);
-        branch.handles.clear();
-        branch.class_handles.clear();
-        let mut tape = OriginalSourceTransitionAdviceTape::default();
-        for command in plan.commands {
-            let step = graph
-                .decoded_phase_steps
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if step >= 2048 {
-                return None;
-            }
-            context.retain_original_invocation(
-                &mut branch,
-                &mut tape,
-                &command,
-                logical_navigation::LogicalCallbackScope::Unavailable,
-            )?;
-        }
+        let (_branch, tape) =
+            self.collect_logical_lambda_phase(graph, &origin, &image, namespace)?;
         let offsets: BTreeSet<_> = tape
             .advice
             .keys()
@@ -289,6 +254,52 @@ impl AdviceInvocationContext<'_> {
             advice,
             nested: tape.decoded_lambda_phases,
         })
+    }
+    fn collect_logical_lambda_phase(
+        &self,
+        graph: &AdviceGraph,
+        origin: &Arc<crate::command_binding::SourceOriginId>,
+        image: &tcl_lexer::SourceImage,
+        namespace: tcl_core_types::ByteNamespacePath,
+    ) -> Option<(AdviceGraph, OriginalSourceTransitionAdviceTape)> {
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(image.bytes().len()).ok()?),
+            self.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let context = AdviceInvocationContext {
+            origin,
+            context: self.context,
+            config: self.config,
+            dialect: self.dialect,
+            policy: self.policy,
+            query: None,
+        };
+        let mut branch = graph.clone();
+        branch.logical_namespace = Some(namespace);
+        branch.handles.clear();
+        branch.class_handles.clear();
+        let mut tape = OriginalSourceTransitionAdviceTape::default();
+        for command in plan.commands {
+            let step = graph
+                .decoded_phase_steps
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if step >= 2048 {
+                return None;
+            }
+            context.retain_original_invocation(
+                &mut branch,
+                &mut tape,
+                &command,
+                logical_navigation::LogicalCallbackScope::Unavailable,
+            )?;
+        }
+        Some((branch, tape))
     }
 }
 

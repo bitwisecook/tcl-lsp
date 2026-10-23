@@ -379,11 +379,13 @@ impl OriginalSourceConditionalContinuation {
                 incoming: Arc::clone(&incoming),
                 graph: Arc::clone(&graph),
             }));
+            let walked = walk_region(&entry, context);
+            drop(entry);
             let RegionWalk {
                 region,
                 mut outcomes,
                 graph: normal_graph,
-            } = walk_region(entry, context)?;
+            } = walked?;
             regions.push(region);
             // Completion remains conditional. Restore only this captured,
             // positively selected namespace's real parent activation, in order.
@@ -437,7 +439,7 @@ struct RegionWalk {
     graph: Option<Arc<AdviceGraph>>,
 }
 fn walk_region(
-    entry: SourceConditionalRegionEntry,
+    entry: &SourceConditionalRegionEntry,
     context: &ContextRegistry,
 ) -> Option<RegionWalk> {
     static MEMO: OnceLock<Mutex<Vec<Weak<RegionPayload>>>> = OnceLock::new();
