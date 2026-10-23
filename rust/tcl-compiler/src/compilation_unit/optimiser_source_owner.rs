@@ -197,6 +197,43 @@ impl CompilationUnit {
             ingress,
         );
     }
+    /// Build the raw optimiser's genuine summary while retaining its source issuer.
+    pub(crate) fn prepare_raw_optimiser_interprocedural(
+        &mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> bool {
+        let original = self
+            .original_optimiser_prepared_unit(registry, dialect)
+            .filter(OriginalOptimiserPreparedUnit::is_whole_source_unit);
+        if original.is_none() {
+            self.optimiser_source_owner = None;
+        }
+        let object_types = crate::object_types::object_handle_classes(self, registry);
+        let Some(identities) =
+            crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
+        else {
+            return false;
+        };
+        let analysis = crate::interprocedural::build_interprocedural_analysis_for_unit(
+            self,
+            registry,
+            dialect,
+            crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
+            &identities,
+        );
+        self.interproc = Some(analysis);
+        self.optimiser_source_owner = None;
+        if let Some(original) = original.filter(|owner| {
+            owner.matches_registry(registry)
+                && owner.matches_dialect(dialect)
+                && owner.origin().is_current_analysis_context()
+        }) {
+            self.retain_enriched_original_optimiser_owner(&original);
+        }
+        true
+    }
+
     pub(super) fn retain_enriched_original_optimiser_owner(
         &mut self,
         original: &OriginalOptimiserPreparedUnit,

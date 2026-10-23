@@ -76,6 +76,8 @@ use super::helpers::spans::{
 use super::{Optimisation, PassContext};
 use tcl_syntax::naming::whole_scalar_variable_reference_name;
 
+mod declared_body;
+
 // Off-tree diagnostic only: exact original row24, enabled explicitly.
 macro_rules! ccg_row24_trace {
     ($ctx:expr, $($arg:tt)*) => {
@@ -168,6 +170,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         n17_live_trace!("propagation-procedure name={qname:?} namespace={namespace}");
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
+    declared_body::run(ctx, cu);
     // Load-forwarding runs a separate per-function pass on top
     // of the SCCP-based substitutions. It consults the def-use
     // chains directly and fires independently of the SCCP

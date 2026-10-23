@@ -702,6 +702,24 @@ impl OriginalNativeSourceCommand {
     }
 }
 impl crate::command_binding::SourceInvocationBinding {
+    /// Same original source declaration only; the caller retains current Module/body correspondence.
+    pub(crate) fn original_native_source_owner_for_card(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        card: &crate::command_binding::OriginalNativeProcedureBody,
+    ) -> bool {
+        tokens.source_binding.as_ref() == Some(self)
+            && self
+                .original_native_source_command
+                .as_ref()
+                .is_some_and(|command| {
+                    command.matches_tokens(tokens, input, registry)
+                        && card.owns_source_declaration(&command.owner.declaration)
+                })
+    }
+
     pub(crate) fn original_native_source_owner_for_body(
         &self,
         tokens: &crate::ir::CommandTokens,

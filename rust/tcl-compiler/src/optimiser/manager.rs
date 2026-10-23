@@ -958,20 +958,9 @@ pub fn optimise_raw_for_profile(
         || CompilationUnit::build_for(source, registry, false),
         |profile| CompilationUnit::build_for_profile(source, registry, false, profile),
     );
-    let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let Some(identities) =
-        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
-    else {
+    if !cu.prepare_raw_optimiser_interprocedural(registry, dialect) {
         return Vec::new();
-    };
-    let ia = crate::interprocedural::build_interprocedural_analysis_for_unit(
-        &cu,
-        registry,
-        dialect,
-        crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
-        &identities,
-    );
-    cu.interproc = Some(ia);
+    }
     let mut ctx = build_pass_context(&cu, registry, dialect);
     run_passes(&mut ctx, &cu, &PassId::all());
     ctx.optimisations
