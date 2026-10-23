@@ -2,11 +2,11 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 13:21 UTC
+Last updated: 2026-10-23 13:34 UTC
 
 ## Resume
 
-**Compiler lib-test build BLOCKED; independent SpecTcl build RUNNING. No production commit.** All obsolete0322
+**Test typing fix PUSHED; compiler retry and independent server/SpecTcl builds RUNNING. No perf production commit.** All obsolete0322
 workers have been stopped and executables/probe sources cleaned after the
 functional upstream a8e7bc7a repair landed. Their partial compiler/server/
 SpecTcl runs are superseded, NOT completed pass-to-fail comparisons. Exact
@@ -29,10 +29,13 @@ both modes. Different and Unavailable still fail the full corpus gate.
 Current a8e7 default control build FAILED before tests: E0277 at
 source_graph.rs560, SourceImage::from_bytes(b"changed source", channel)
 passes &[u8;14] where Into<Arc<[u8]>> is required. Zero warnings, no tests,
-source unchanged and cleanup complete. Origin/work1dd84381 still has the
-call. perf-source-graph-test-slice.patch is a one-line OFF-TREE compiler-owned
-type correction: identical literal bytes as a slice, same channel and every
-assertion preserved. Route to compiler/coordinator; no owner source edited.
+source unchanged and cleanup complete. The user explicitly authorised the necessary correction and requested that
+it reach work immediately. It is PUSHED as6c1c9d2c: identical literal bytes
+as a slice, same channel and every assertion preserved; rustfmt clean. This
+is a separate compiler test fix, not the six-file perf commit. The frozen a8
+proof tree now includes precisely this additional test-only diff; existing
+normal-library builds have no production source change. New compiler receipts
+are isolated under current-a8e7bc7a-test-slice/.
 
 Actual a8e7 public-API hosted smoke is also COMPLETE/FAILED: all3
 old1/new/old2 pairs for cookbook_http_collect.irul are still
@@ -46,6 +49,14 @@ Cargo fresh:false and a different compiler hash from0322; no stale reuse
 is inferred. Exact37-byte control fixture/provenance is retained.
 
 Current jobs:
+- /tmp/perf-run-a8e7-test-slice.log, session70544: compiler controls retry
+  including the published test-only correction; build then both16 controls,
+  complete smoke/PackSet probes and cleanup in one command.
+- /tmp/perf-watch-compiler-checks.log, session58557 waits for that exact
+  compiler binary, makes a SHA-verified private copy, runs all original
+  compiler filters both modes plus the existing report trace, then deletes it.
+- /tmp/perf-server-a8e7.log, session19381: default0 server build; tests wait
+  for /tmp/perf-a8e7-heavy-tests-finished.
 - /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
   control build; zero tests, source unchanged and cleanup complete.
 - /tmp/perf-lexer-a8e7.log, session39041 COMPLETE: default0 lexer586/586 both modes,
@@ -53,14 +64,14 @@ Current jobs:
 - /tmp/perf-spectcl-a8e7.log, session2241: isolated target-spectcl-opt1,
   debug/overflow assertions on; tests wait for /tmp/perf-a8e7-server-finished.
 
-After BOTH controls green, start current compiler filters with private
-executables while main still owns its original test binary, then default0
-server build with /tmp/perf-a8e7-heavy-tests-finished resource flag. Keep
+Compiler filters use a private exact copy while the main command owns its
+original test binary. Server uses the /tmp/perf-a8e7-heavy-tests-finished
+resource flag. Keep
 server180s limits/assertions unchanged and release only after other heavy
 work finishes. Release SpecTcl runtime only after server tests finish.
 
 Full corpus command uses tools/run_authenticated_corpus.py ROOT --controls
-current-a8e7bc7a --opt-level1 --target-dir ROOT/target-spectcl-opt1 --evidence
+current-a8e7bc7a-test-slice --opt-level1 --target-dir ROOT/target-spectcl-opt1 --evidence
 NEW_DIRECTORY. It requires completed green current controls, exact source/
 batch and all117 original fixture bytes; the actual-realm control may be in
 that same inventory or a separately supplied --realm-controls directory.
@@ -69,7 +80,7 @@ Corpus and current crate/filter/server proofs still UNRUN or in progress.
 
 Use source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh. Persistent
 job metadata is /workspace/perf-active-state.json; update it on transitions.
-Publish ONLY own docs/artifacts, fetch/rebase before every normal push,
+Publish own docs/artifacts and authorised necessary fixes; fetch/rebase before every normal push,
 at most30min apart. No PR. Footer Co-Authored-By: Codex <noreply@openai.com>.
 
 ## Completed evidence

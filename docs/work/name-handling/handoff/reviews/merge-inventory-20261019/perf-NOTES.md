@@ -1,8 +1,8 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 13:03 UTC
+Last updated: 2026-10-23 13:34 UTC
 
-**Latest-source retry running at a8e7bc7a; no production code landed.** The
+**Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
 and exact authentic alias owner controls. All0322 workers were stopped and
 cleaned; their partial regression runs are superseded, never full comparisons.
@@ -170,3 +170,10 @@ warnings, no tests, source unchanged and cleanup complete. The routed
 perf-source-graph-test-slice.patch borrows the same literal bytes as &[u8],
 retaining the channel and every assertion. It is off-tree, with no owner source
 edited. Independent opt1 SpecTcl compilation continues; full proof pending.
+
+The user authorised necessary shared-file work and immediate work publication.
+The source_graph.rs byte-slice test typing correction is pushed separately as
+6c1c9d2c, retaining fixture bytes/channel/assertions and clean rustfmt. The
+compiler retry now includes this exact test-only diff; its fresh receipts
+will be current-a8e7bc7a-test-slice/. Default0 server and opt1 SpecTcl builds
+continue independently. Neither patch is semantically proven or accepted.
