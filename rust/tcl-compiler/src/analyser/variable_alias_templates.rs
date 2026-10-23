@@ -29,7 +29,7 @@ struct OriginalFrameCommandSites {
 }
 
 impl OriginalFrameCommandSites {
-    fn get(&mut self, frame: &SourceOriginalVariableFrame) -> &Option<HashSet<u32>> {
+    fn get(&mut self, frame: &SourceOriginalVariableFrame) -> Option<&HashSet<u32>> {
         let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), frame);
         let bucket = self.buckets.entry(hash).or_default();
         let position = bucket.iter().position(|(stored, _)| stored == frame);
@@ -39,7 +39,7 @@ impl OriginalFrameCommandSites {
             bucket.push((frame.clone(), original_frame_command_sites(frame)));
             bucket.len() - 1
         };
-        &bucket[index].1
+        bucket[index].1.as_ref()
     }
 }
 
@@ -164,7 +164,6 @@ impl AnalysisResult {
             if anchor.span != declaration.span()
                 && !direct
                     .get(&frame)
-                    .as_ref()
                     .is_some_and(|sites| sites.contains(&alias.invocation_offset()))
             {
                 continue;

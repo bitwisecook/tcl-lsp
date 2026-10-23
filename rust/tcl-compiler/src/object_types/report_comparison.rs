@@ -88,8 +88,8 @@ enum ReportCandidatePresence<'a> {
 }
 
 fn candidate_reports_match(
-    left: &Option<ReportCandidatePresence<'_>>,
-    right: &Option<ReportCandidatePresence<'_>>,
+    left: Option<&ReportCandidatePresence<'_>>,
+    right: Option<&ReportCandidatePresence<'_>>,
 ) -> bool {
     match (left, right) {
         (None, None)
@@ -433,7 +433,10 @@ impl ObjectHandleFacts {
             || self.proven_reads != other.proven_reads
             || self.physical_type_reads != other.physical_type_reads
             || self.normal_procedure_results != other.normal_procedure_results
-            || !candidate_reports_match(&a.reported_candidates(self), &b.reported_candidates(other))
+            || !candidate_reports_match(
+                a.reported_candidates(self).as_ref(),
+                b.reported_candidates(other).as_ref(),
+            )
         {
             return false;
         }

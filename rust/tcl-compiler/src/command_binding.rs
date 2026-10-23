@@ -18532,25 +18532,15 @@ fn apply_may_invocation_transitions(
             // Stock Tcl `proc` carries DEFERS_BODY and stays on the hot path.
             exact_definition_key = None;
         }
-        let body_selection_is_indeterminate =
-            invocation_may_select_evaluated_body(&invocation.facts);
-        let readable_body_was_applied = body_shape_is_selected
-            && apply_readable_evaluated_body(
-                &invocation,
-                registry,
-                &mut alternative,
-                observed,
-                execution_namespace,
-                context,
-            );
-        if invocation_body_requires_widening(
-            &invocation.facts,
+        apply_possible_invocation_body(
+            &invocation,
+            registry,
+            &mut alternative,
+            observed,
+            execution_namespace,
+            context,
             body_shape_is_selected,
-            body_selection_is_indeterminate,
-            readable_body_was_applied,
-        ) {
-            alternative.mark_opaque_binding_mutation();
-        }
+        );
         if non_binding_before
             .is_some_and(|before| before != alternative.non_binding_observation_stamp())
         {
@@ -18569,6 +18559,35 @@ fn apply_may_invocation_transitions(
         bindings.mark_source_order_user_procedure_call();
     }
     observe_exact_procedure_definition(observed, bindings, exact_definition_key)
+}
+
+fn apply_possible_invocation_body(
+    invocation: &ResolvedBindingInvocation,
+    registry: &CommandRegistry,
+    alternative: &mut ModuleCommandBindings,
+    observed: &mut Option<ModuleCommandBindings>,
+    execution_namespace: &crate::ir_helpers::ExecutionNamespace,
+    context: &mut InvocationBindingContext<'_>,
+    body_shape_is_selected: bool,
+) {
+    let body_selection_is_indeterminate = invocation_may_select_evaluated_body(&invocation.facts);
+    let readable_body_was_applied = body_shape_is_selected
+        && apply_readable_evaluated_body(
+            invocation,
+            registry,
+            alternative,
+            observed,
+            execution_namespace,
+            context,
+        );
+    if invocation_body_requires_widening(
+        &invocation.facts,
+        body_shape_is_selected,
+        body_selection_is_indeterminate,
+        readable_body_was_applied,
+    ) {
+        alternative.mark_opaque_binding_mutation();
+    }
 }
 
 /// Preserve external loading and unreadable body effects beyond declared transfers.
