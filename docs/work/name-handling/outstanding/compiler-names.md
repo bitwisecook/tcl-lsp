@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T07:28:40.935285Z
+Last updated: 2026-10-23T07:37:49.899018Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Separate import row35 / child Error diagnostic7dff4cd9 staticCLEAR:** original8G4 actual5PASS3FAIL; 874d other2fixture corrections pendingruntime. Actual namespace evalA33/B86 BODY_FINISH normaltrue/child_completefalse/abrupt1; capture succeeds. Children proc/export/import commandZZ reports no abrupt, enclosingeval addsError+unclosed, root_statefalse. Earlier display filter omitted FINISH; capturetail2f8d is HELD/OFFTARGET, neverintegrated/run, exact correction+archive retained. New `/tmp/compiler-names-import-child-outcome-trace-v1`7dff4cd9 logs original preflightassessment/entryError and command-return/script-join completion/routes; debug trackcaller identifies existing require_provider calls, other2 possible_error writes logged. Every original predicate/join/error/Normal/refusal unchanged, no extra semanticquery, no R1/force-import/13:17 policy change. Independent3current/final/applyzero-fuzz-nooffset/pinnedfmtPASS; CCG bounded staticCLEAR485638eb. Fullcandidate/currentbeforeafter/peer/actual7row/heldofftarget lossless20file archive under `source46-g4-import-child-outcome-trace-v1/` 2130dc53. Rusttyping/actualdiagnostic/cause UNRUN; source/provider HOLD.
 
 **BOM fixture peer c00a8a7d staticCLEAR only:** independently confirmed default for_profile/fullinput and explicit Content positive use identical Content policy. LSP root-authorized one existing FEFF refusal row now supplies actual Skip fullinput, preserving same expectedquoted output and every other fixture/source/assertion/Content positive. Replacing new analysis block with original call restores entire currentfile byte-for-byte. Independentcurrent/finalshadow/zero-fuzz-nooffset/pinnedfmtPASS; receipt `lsp-quote-bom-skip-fixture-v1-static-peer.json`38cd3cf4. No production/helper edit, typing/runtime/source application or policy change.
 

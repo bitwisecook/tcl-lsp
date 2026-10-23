@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T07:38:31.403973+00:00",
+  "tool_session_id": 52604,
+  "exit_code": 1,
+  "actual_error": "STOP: current full source inventory differs from completed typecheck8",
+  "jim_root_go_exists": false,
+  "cargo_started": false,
+  "launcher_started": false,
+  "full_source_before_count": 100405,
+  "current_source_count_before_rename": 100406,
+  "sole_added_source_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-bom-row8-diagnosis-20261023/oracle.tcl",
+  "no_removed_paths": true,
+  "actual_added_evidence_sha256": "1e6a4b90096f1ed1ad2515834a7067c36e770a575eb9385c5182a198fd417a09",
+  "remedy": "Owner preserved exactbytes as oracle.tcl.txt and updated owned evidence references. Root must stage tracked path rename then independently recompare actual fullsource inventory to v9. Old receipt/manifests/guard unchanged.",
+  "release_admissions": []
+}

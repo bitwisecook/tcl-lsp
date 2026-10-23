@@ -10,5 +10,8 @@
     "rust/tcl-lsp-core/src/minify/original.rs": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
     "rust/tcl-lexer/src/lexer.rs": "3b05eb94f9e4afff67af1d7828cfb5fe8668f063d8b4e8050f338199e02c537b",
     "rust/tcl-syntax/src/word_rules.rs": "a25b8dcefb350d688447d93ce0fc744b54c832ef7b17144ddc9254d945bc1730"
-  }
+  },
+  "oracle_evidence_path": "oracle.tcl.txt",
+  "oracle_historical_path": "oracle.tcl (renamed with identical bytes; see oracle-path-correction.json)",
+  "prior_diagnosis_sha256": "467961b65fdf37ab9612180d79024e2b91971872bab03a602156d7e3c206c573"
 }

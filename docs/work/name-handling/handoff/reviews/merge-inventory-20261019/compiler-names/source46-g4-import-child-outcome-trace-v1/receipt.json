@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-23T07:37:49.885648+00:00",
+  "status": "Bounded static CLEAR pure diagnostic only; typing and actual Error origin unmeasured",
+  "patch_sha256": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b",
+  "peer_sha256": "485638eb6ebcbc12cc8018c478cd902ba2851a1236280601ade8e70f79e9d08f",
+  "archive_sha256": "2130dc5370eefd5c839df47bddd5d35218e7065db595cb086345cbdd1bf32dd4",
+  "archive_files": {
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.command": "cbdea74ea4041b7dfa85d81f6a52b0a3464bbb6b8f1c31498c43e2249aad6dad",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.env.json": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.process.json": "04d6efaa1394cf860f706106a94883b27a7ab0ca66d088e24451468fec9e771d",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.result.json": "256b61606421042f1fb151730e8504418678653cbb595d86879de92b371fbe63",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.sha256.json": "fb7979622f5c1acf60337fe4f0d03e3f7ed2c355451de80890462bddf41758cd",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.stderr": "78a1caaaca86f2438f12df4571381fca0a27733890336a33769ae46679809934",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.stdout": "dc9cfa38e98520656bb5c99b249af593a331774b036bd72302ec3829bcedc6d1",
+    "candidate/ccg-static-peer.txt": "485638eb6ebcbc12cc8018c478cd902ba2851a1236280601ade8e70f79e9d08f",
+    "candidate/independent-check.json": "cdcaaef5bbfc34a5ad54fca6526e158cad354b799c374aeb21c0e288763cbad0",
+    "candidate/manifest.json": "43ef0296b19a4097009dfcfc606f7ee190057f4c7286f49cb44e0dd3ef7c0436",
+    "candidate/prepare.py": "289faa82d566c1a817b06dd091816d424e661daf57e87ffb884df6b4058e85fa",
+    "candidate/proposal.patch": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b",
+    "current/rust/tcl-compiler/src/command_binding.rs": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+    "current/rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "a6f3d97e7707bd87ae77771bf5417cd0002ce24e8061a65d77db6436ba630acf",
+    "current/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "9dd13a0d92df2e73d786e2d092b20084d2f14483cf6e90ce7dd595225d3ce10e",
+    "held-offtarget/held-candidate-peer-and-actual-row35.tar.gz": "da6d33fc30f0976aa2953e21d8d2c7c1ec231fe23b15ebab04e67562db7ed8c5",
+    "held-offtarget/held-receipt.json": "4ecd35ec89455015e49e4b638a22a7d02d61d7941f15ad47d57fee81dde96bf4",
+    "proposed/rust/tcl-compiler/src/command_binding.rs": "9083e1ab7d2fc2463cd1c46d978f047feb6c06b84cba4e51025383adec466fb0",
+    "proposed/rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "55808f4424e88c9c960bd9ad13038d0f996bc634d1f67ff61b77e6001b863446",
+    "proposed/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd"
+  },
+  "facts": "row35 C8.4 namespace eval33/86 BODY_FINISH normaltrue/child_completefalse/abrupt1. Original child commands proc/export/import return no abrupt, so rootstatefalse. Need distinguish preflight entryError from command/join completion withdrawal; current exactorigin unmeasured.",
+  "scope": "Read existing prepared preflight assessment once; trace source-script entryError and original outcome fields before/after unchanged joins. Debug trackcaller on existing require_provider setter + logs at both other possible_error assignments. No extra semantic query/condition/state change, all original ?/OR/join/result semantics and error alternatives preserved.",
+  "limits": "No new token/proof/Normal/Native/body/completion authority, no R1/force-import guard/test/Eq changes. Pinnedfmt3PASS; actualdiagnostic/Rusttyping/sourceapply/Cargo/Git/GO absent. Capturetail2f8d heldofftarget because prior tracefilter omitted actualFINISH lines.",
+  "held_correction": "2f8d capturetail probe off-target; earlier filter omitted actual FINISH lines. Full held evidence retained separately. No Error removal/Normal donation."
+}

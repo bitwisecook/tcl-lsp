@@ -1,0 +1,10 @@
+{
+  "actual_utc": "2026-10-23T07:38:06.441250+00:00",
+  "reason": "Root actual Jim allocation refused because loose evidence .tcl entered fullsource inventory; preserve exact evidence bytes under safe .txt suffix",
+  "historical_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-bom-row8-diagnosis-20261023/oracle.tcl",
+  "current_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-bom-row8-diagnosis-20261023/oracle.tcl.txt",
+  "sha256_before_and_after": "1e6a4b90096f1ed1ad2515834a7067c36e770a575eb9385c5182a198fd417a09",
+  "product_contents_changed": false,
+  "baseline_or_go_modified": false,
+  "history": "Original diagnosis/raw receipts remain immutable historical evidence; this addendum records pathname-only correction."
+}
