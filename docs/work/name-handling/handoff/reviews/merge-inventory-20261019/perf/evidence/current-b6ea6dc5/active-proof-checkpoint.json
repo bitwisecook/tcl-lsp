@@ -1,0 +1,11 @@
+{
+  "observed_utc": "2026-10-23 19:36 UTC",
+  "proof_head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "production_perf_commit": false,
+  "runtime_acceptance": false,
+  "normal_libraries": "complete, zero Rust warnings",
+  "clean6_lexer": "586/586 pass both executions, no switch, executable deleted",
+  "full_unit_rustc_pid": 40699,
+  "held_clean6_unit_rustc_pid": 40734,
+  "policy": "Keep frozen Rust source; serialize build-only memory use; no runtime paused; finish original inventories and budgets."
+}

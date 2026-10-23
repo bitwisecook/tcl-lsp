@@ -2,92 +2,79 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 19:18 UTC
+Last updated: 2026-10-23 19:36 UTC
 
 ## Resume
 
-**Environment recovered; no perf production commit or full corpus acceptance.**
-Canonical a3 control and opt1 library builds FAILED with the same6 upstream
-compiler type errors, zero warnings and zero tests. They concern the retained
-source-module owner, current CommandWord geometry, and mutable class errors.
-Owner fixes17d5f8f2/e1a37145 are now on work. Rebase both proof trees to repaired
-canonical source before retrying. Latest fetched canonical:7f3d0bfe.
+**Full batch and clean six-file proofs are running on frozen canonical
+b6ea6dc5ebaa9589f6e1c1747875127fecdbb573. No perf production commit or full
+corpus acceptance exists. Keep the active Rust sources fixed until the jobs
+finish; later work commits are publication/rebase inputs, not this proof base.**
 
-No a3 runtime or complete comparison exists. Preserve source-before/after,
-failed Cargo JSON and exact diagnostics in current-a3a4b181-controls/ and
-current-a3a4b181/. Source seal passed; corpus watcher correctly refused to
-start and compiler watcher had no executable. Remaining failed-build server /
-SpecTcl dependency jobs were retired, original readiness flags never released.
-Their partial build receipts and superseded-type-errors.json are retained.
+Both normal compiler libraries are built with zero Rust warnings. Combined
+unit-test rustc40699 is still CPU-active; clean6 unit-test rustc40734 is held
+by the build-only memory guard until the combined executable is built or its
+build fails. No runtime test is paused. The guard resumes held rustc in finally.
+There is no fresh control, compiler-filter, corpus, server or SpecTcl verdict.
+Clean6 lexer586/586 PASS in BOTH environment executions, zero warnings, exe
+removed; the old variable is ignored in this no-switch source.
 
-Clean6 ccd build completed with zero warnings. Its partial runtime43 new cases
-was retired because19936 was absent; old mode UNRUN, no complete verdict.
-Original parent/child exited and no process remains paused; verify artifact
-cleanup. Its Clippy failed281 lint errors outside the six owned files; a3
-combined Clippy failed6 compiler errors plus2 unrelated doc-comment lints.
-All full logs are preserved, not a workspace-green claim.
+Active roots/logs (terminal handles lost at18:41; use PIDs/files):
+- Controls34585: /tmp/perf-b6-controls.log; current-b6ea6dc5-controls/.
+- Clean634692: /tmp/perf-b6-clean6.log; current-b6ea6dc5-clean6/.
+- Compiler-filter waiter41020: /tmp/perf-watch-compiler-b6.log. Copies the
+  exact SHA-verified control ELF, waits for controls cleanup, runs original8
+  filters PLUS the original non-UTF8 native-array control, BOTH modes.
+- Corpus waiter35120: /tmp/perf-b6-full-corpus.log. Requires every report
+  control BOTH modes and unchanged source before starting complete all-old /
+  mixed102 text Tcl+15 iRules+synthetics and ordered PackSet. All3 report pairs
+  must Equal; Different/Unavailable fail. Strict runtime Eq stays separate.
+- Combined lexer36947: /tmp/perf-b6-lexer.log, queued on the Cargo lock.
+- Remaining-suite builder: /tmp/perf-b6-remaining-suites.log. Waits for the
+  control executable, then builds server(default0) and SpecTcl(opt1).
+- Quiet guard: /tmp/perf-b6-quiet-tests.log. Waits for all other workers and
+  rustc processes to finish naturally, then releases server and SpecTcl in
+  order with original assertions/timeouts/budgets. No readiness flag released.
 
-FULL nine-file switched tree and clean6/no-switch tree are BOTH now rebased
-onto canonicalb6ea6dc5 (includes owner6-type-error fixes), independently rebuilt
-with separate targets. Split patch ordered application/scoped fmt, exact toggle
-reconstruction and clean6 snapshot match PASS. Production patch has no switch.
+Source/split/toggle reconstruction, ordered application, scoped fmt and exact
+clean6 snapshot checks PASS. Current artifacts/driver receipts are in
+current-b6ea6dc5/; active driver sources are preserved there for reproduction.
+Independent worktrees/targets; opt1 retains debug and overflow assertions.
+Pinned Tcl9.0.4/8.6.18/Jim0.84; publisher/tmp resolves to the same oracle tree.
+Build/run/delete remain one command per driver, including private ELF cleanup.
 
-Active commands (build/run/delete executables in one command):
-- Combined complete controls6329, /tmp/perf-b6-controls.log, opt1/assertions on.
-  Full compiler-filter watcher49190 uses its exact SHA-verified private copy;
-  full corpus watcher66128 starts ONLY after both complete control inventories
-  pass with unchanged source. Current evidence: current-b6ea6dc5-controls/.
-- Clean6 checks76019 /tmp/perf-b6-clean6.log: lexer586/586 PASS BOTH environment
-  executions, zero warnings and executable deleted. The variable is ignored in
-  this no-switch source. Compiler filters now building atopt1/assertions on.
-- Combined lexer queued /tmp/perf-b6-lexer.log, same original586 inventory;
-  combined Clippy45643 /tmp/perf-b6-clippy.log checks default target separately.
-- Memory guard36561 holds ONLY the clean6 rustc --test compilation until the
-  combined control executable is built or its build fails;
-  never signals runtime test executables. Its finally resumes any paused rustc.
-  Source/configuration remain fixed; build timing is not a latency comparison.
-
-Finish complete16 report/actual-realm controls both modes, then full authenticated
-all-old/mixed102 Tcl+15 iRules+synthetics and ordered PackSet proof. Keep strict
-runtime Eq separately recorded. All3 report pairs must Equal; Unavailable fails.
-After these builds, queue the original server/SpecTcl suites and run them in a
-quiet window after other runtime work finishes naturally (do not pause tests
-whose wall budgets would keep ticking). Preserve every failed comparison.
-
-Do not commit realm.rs, interprocedural.rs or either switch. Land exactly six
-owned files as ONE code commit only after the full proof. The two-file patch
-stays withheld until genuinely proven at an exact commit. Residual analyser /
-LSP drafts remain Blocked/routed and semantically unproven; their a3 context
-refreshes are preserved. No residual product source was applied.
+Current b6 Clippy FAILED62 diagnostics, zero in the six owned files and no
+compiler type errors. One NEW routed realm warning needs mechanical cleanup
+AFTER frozen proof: spell query_memo's existing resolved constructor as
+crate::command_binding::original_name_value::OriginalRealmQueryMemo::default().
+Record that spelling-only delta and scoped fmt/typecheck before readiness.
+Two unrelated doc-spacing lints were fixed separately0f1d32b8; other baseline
+lints route to compiler. No workspace-green claim or suppression.
 
 Latest necessary hosted repair19936eb9 compares source when and retained
-::when via existing rooted-key helper; genuine control covers BOTH spellings,
-all assertions retained. Runtime successor proof remains pending. Earlier
-6c1c9d2c/6e729fe9 repairs are separate from the future single perf code commit.
+::when through the existing rooted-key helper, preserving all guards; its
+original genuine control covers BOTH spellings. Fresh runtime proof is pending.
+The earlier a3 build failures and retired ccd partial43 new tests remain
+preserved under their exact bases. No old run is represented as current proof.
 
-Frozen a8 evidence remains scoped and unchanged:16 report controls15/1 BOTH;
-Native smoke/synthetic calls10 and complete ordered PackSet all3 pairs pass;
-hosted comparison unavailable. Main source seal and executable/probe cleanup
-pass. Historical compiler partial151 new, old UNRUN, is not a comparison.
+Finish controls, complete corpus/PackSet and every requested crate suite BOTH
+modes, zero pass-to-fail and zero Rust warnings. Preserve failed comparisons:
+a8 SpecTcl had one actual eda_xilinx wall-budget P2F; golden packs were UNRUN.
+a8 server startup failed first retained-read assertion BOTH (reindex unreached)
+and workspace-symbol timed out180 BOTH. Quiet retries do not erase these runs.
 
-Frozen a8 SpecTcl opt1 new27/1 (3336.099s), old27/1 (2190.397s), one observed
-P2F: new interpreted eda_xilinx hits its original30-minute wall budget, old
-passes. Old command-step budget-axis case fails with wall-clock exhaustion,
-new passes. Golden packs BOTH UNRUN after early abort; both executables removed
-and CPU masks restored. Preserve the failed run even if a quiet repeat passes.
-The strengthened runner now requires every declared test, records P2F as failed
-and still executes later suites before returning failure; no assertion/budget
-is weakened. Repeat all requested suites on repaired canonical source.
+Only after the full proof, land EXACTLY the six owned no-switch files as ONE
+perf code commit rebased onto latest work. Never commit realm/interprocedural.
+Refresh their two-file patch against latest work and record the exact requested
+proven-at-commit readiness statement only when genuinely proven. Residual image /
+segment and ordinary-LSP drafts remain Blocked/routed and semantically unproven;
+no production files owned by those agents were applied. Final NOTES needs scoped
+before/after timings and remaining limits before stopping.
 
-Quiet a8 server: startup first retained-read count0 vs1 BOTH, factory reindex
-UNREACHED; workspace symbol timeout180 BOTH, original limits retained. Zero
-P2F/warnings, gates failed. Raw results and separate contended171.372s analyser
-trace remain in current-a8e7bc7a/. These are not successor verdicts.
-
-Publish from /workspace/tcl-lsp-publish, reconcile5a965040 remote checkpoint,
-fetch/rebase before every normal push; no force/PR. Pinned environment and
-reproduction details below. The interrupted clean6 successor helper creation
-did not start; construct it only after verifying current process/source state.
+Publish from /workspace/tcl-lsp-publish with fetch/rebase before every push,
+retry rejection, never force, no PR. Push at most30min apart. Footer and pinned
+reproduction environment are below. /workspace/perf-active-state.json is local
+operational metadata; this Resume is the current published task snapshot.
 
 ## Completed evidence and current failures
 
@@ -176,70 +163,3 @@ The user authorized **authenticated full-report comparison** as the new perf equ
 ### Coordinator dependency delivery — 2026-10-23T01:05:06.334470+00:00 (owner header unchanged)
 
 Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. [Exact API and 14-control handoff](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-v7-20261023T0101Z/) and [guarded execution preparation](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-focused14-v1-20261023T0106Z/) are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
-
-If the SpecTcl driver exits early (for example P2F) before all4 summary rows
-finish, interrupt the active perf-partition-spec-cpus.py guard with SIGINT
-(after verifying its argv) to execute finally and restore the CPU masks.
-Do not leave the guard waiting on pending rows after an aborted driver.
-
-Resource maintenance: the16GiB cgroup reached its limit without an OOM kill.
- Advisory POSIX_FADV_DONTNEED on cold build artifacts reduced file cache by
- about3GiB (no source/settings/content/mtime edits). All data and limits are
- cold-build-cache-20261023.json; this is resource management, not latency proof.
-
-Remaining suite builder29944 waits for the exact control binary, then builds
-server(default0) and SpecTcl(opt1), retaining original assertions/budgets. Quiet
-coordinator55361 waits for all other compiler/corpus/lexer runtime work to finish
-naturally before releasing server then SpecTcl readiness. No runtime is paused.
-Current b6 Clippy has2 unrelated empty-line-after-doc-comment errors; a separate
-whitespace repair is included with this publication. Full current Clippy is
-not yet green, and no new semantic proof is inferred from that repair.
-
-B6 Clippy is COMPLETE/FAILED:62 lint diagnostics, zero in the six owned files,
-no compiler type error. Full JSON/stderr + clippy-summary.json are retained in
-current-b6ea6dc5/. Two doc-spacing errors were fixed separately0f1d32b8; the
-remaining baseline lints route to compiler. No workspace-green claim and no
-new suppression/assertion weakening. Runtime proof builds still execute.
-
-Correction to the broader Clippy classification:1 of62 is NEW in the routed
-realm hunk: query_memo: Default::default() at realm.rs688 triggers
-default_trait_access. Before final delivery, spell the existing resolved
-constructor as crate::command_binding::original_name_value::
-OriginalRealmQueryMemo::default(). This is a type-qualified spelling of the
-same constructor, with no changed runtime behavior. Preserve frozen source
-while builders/controls/corpus are active; record the mechanical delta and
-verify scoped fmt/typecheck before readiness. The other routed interprocedural
-scan_statement length warning predates its two call-site changes. Six owned
-files have zero diagnostics. No full-workspace Clippy success is claimed.
-
-Current build-memory guard was restarted with the stronger ordering before
-any unit executable existed. Its first no-pause interval is preserved as
-build-memory-guard-initial.json. No runtime test is signalled or paused. Both
-normal compiler-library LLVM builds continue; no new runtime verdict yet.
-Memo-boundary source audit is memo-boundary-review.json, explicitly not a
-substitute for the required controls/corpus. Preserve the frozen b6 source.
-
-18:48 UTC: BOTH normal compiler libraries are built, zero Rust warnings.
-Combined unit-test compiler40699 is active; clean6 unit-test compiler40734
-is held by the build guard until the combined executable is ready. No runtime
-results yet. library-milestones.json retains exact Cargo artifact receipts.
-The18:41 control-plane restart preserved all worker PIDs/files, but old terminal
-session handles are UNKNOWN. Do not interpret write_stdin Unknown process id
-as job failure or restart builds. Monitor /proc and /tmp/perf-b6-*.log instead.
-Active Python roots34585(controls),34692(clean6),34776(filters),35120(corpus)
-survived. Quiet suite builder/guard still wait on their recorded prerequisites.
-
-19:18 UTC: combined unit compiler40699 continues; clean6 unit compiler40734
-remains held by the build-only memory guard, no runtime paused. No current
-control/corpus verdict exists yet. Normal libraries are complete, no Rust
-warnings/errors seen. Keep frozen b6 sources and existing jobs; do not rebuild.
-
-The compiler-filter waiter was replaced BEFORE any executable existed to add
-the existing native-byte fixture control:
-codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena.
-New waiter41020 (session80266), same /tmp/perf-watch-compiler-b6.log, runs
-all original filters PLUS that exact native control in both modes. Assertions
-unchanged. Original byte fixture stays byte-exact; no lossy text decoding.
-Quiet guard was re-registered to watch successor41020 before any readiness
-release (session23726). Initial guard state and worker-registration-update.json
-are preserved. Old session handles lost at18:41 remain invalid; use PIDs/logs.

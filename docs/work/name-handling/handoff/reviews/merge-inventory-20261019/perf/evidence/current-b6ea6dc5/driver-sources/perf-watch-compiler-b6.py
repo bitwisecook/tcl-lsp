@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+import hashlib,json,os,re,shutil,subprocess,tempfile,time
+from pathlib import Path
+root=Path('/workspace/tcl-lsp-perf-latest')
+control=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-controls')
+out=control/'compiler-artifact-checks'
+out.mkdir(parents=True,exist_ok=True)
+receipt=control/'controls-binary.json'
+while not receipt.exists():
+ if (control/'final.json').exists(): raise RuntimeError('control build ended without a binary')
+ time.sleep(5)
+r=json.loads(receipt.read_text()); original=Path(r['path'])
+with tempfile.TemporaryDirectory(prefix='perf-compiler-checks-') as td:
+ exe=Path(td)/original.name
+ shutil.copy2(original,exe)
+ assert hashlib.sha256(exe.read_bytes()).hexdigest()==r['sha256']
+ (out/'binary.json').write_text(json.dumps(r|{'copy':str(exe),'source_control_inputs':str(control/'inputs.json'),'copy_sha256':r['sha256']},indent=2)+'\n')
+ filters=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena']
+ package=root/'rust/tcl-compiler'
+ env=os.environ.copy();env['CARGO_MANIFEST_DIR']=str(package);env.pop('ZZ_OLD_ENV',None)
+ summaries={}
+ while not (control/'final.json').exists():time.sleep(5)
+ for kind,selected,extra in [('filters',filters,{})]:
+  listed=subprocess.check_output([str(exe),*selected,'--list'],cwd=package,env=env,text=True)
+  (out/(kind+'-list.out')).write_text(listed)
+  expected=set(re.findall(r'^(.+): test$',listed,re.M)); assert expected
+  observed={}
+  for mode in ['new','old']:
+   start=time.monotonic(); log=out/(kind+'-'+mode+'.out')
+   mode_env=env|extra|({'ZZ_OLD_ENV':'1'} if mode=='old' else {})
+   argv=[str(exe),*selected,'--test-threads=1' if kind=='report-trace' else '--test-threads=2']
+   if kind=='report-trace':argv.append('--nocapture')
+   with log.open('w') as f: code=subprocess.run(argv,cwd=package,env=mode_env,stdout=f,stderr=subprocess.STDOUT).returncode
+   found=dict(re.findall(r'^test (.+?) \.\.\. (ok|FAILED|ignored)$',log.read_text(),re.M))
+   if kind=='report-trace':
+    # --nocapture prints trace lines after the test prefix; the separate
+    # completed ordinary-control inventory remains the acceptance authority.
+    found={}
+   else: assert set(found)==expected, 'incomplete selected-filter test inventory'
+   observed[mode]=found
+   summaries[kind+'/'+mode]={'exit':code,'wall_s':time.monotonic()-start,'outcomes':found,'listed_count':len(expected)}
+   (out/'progress.json').write_text(json.dumps(summaries,indent=2)+'\n')
+   print(kind,mode,code,len(found),flush=True)
+  if kind=='filters':
+   regressions=[n for n,v in observed['old'].items() if v=='ok' and observed['new'][n]!='ok']
+   summaries['pass_to_fail']=regressions
+   assert not regressions,regressions
+ (out/'final.json').write_text(json.dumps(summaries|{'copy_removed_on_exit':True},indent=2)+'\n')
+print('copy removed',flush=True)

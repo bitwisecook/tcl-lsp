@@ -1,13 +1,15 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 17:59 UTC
+Last updated: 2026-10-23 19:36 UTC
 
-**Environment recovered; canonical proof retry required.** Frozen a3 control
-and opt1 builds fail the same6 upstream compiler type errors, zero warnings /
-zero tests. Repaired owner source17d5f8f2/e1a37145 is now on work. Failed Cargo
-and source-seal receipts are retained; no successor runtime verdict exists.
-Clean6 ccd partial43-case runtime is retired (old UNRUN). Six-file perf code
-and routed two-file patch remain unlanded/unproven. See outstanding/perf.md.
+**Frozen b6ea6dc5 proof is running; six-file perf commit remains unlanded.**
+Both normal compiler libraries built with zero Rust warnings. The combined
+unit-test executable is still compiling; the clean6 unit-test compiler is held
+by the build-only memory guard. No runtime is paused. Clean6 lexer586/586
+passes both environment executions; the old variable is ignored without the
+switch. No fresh report/corpus or selected compiler/server/SpecTcl verdict yet.
+See outstanding/perf.md and current-b6ea6dc5/ for the current task snapshot.
+Historical failures and timings below retain their original source/profile.
 
 ## Current0322 progress
 
