@@ -1,0 +1,23 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+fn main() {
+    let path = std::env::args().nth(1).expect("original fixture");
+    let original = std::fs::read_to_string(path).expect("complete original input");
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6).lexer_grammar);
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(&original, 0, config);
+    let end = usize::try_from(commands[1].span.start()).expect("next original command start");
+    let fib = &original[..end];
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    for call in ["", "puts [fib 0]", "puts [fib 20]"] {
+        let source = format!("{fib}\nproc empty {{}} {{}}\n{call}\n");
+        let report = Analyser::new().analyse_for_report(&source, "tcl8.6");
+        let analysis = report.analysis();
+        let registry = analysis.resolved_registry().expect("resolved registry");
+        let entry = analysis.original_source_analysis_entry(&source, registry, None);
+        println!("OWNER call={call:?} capture={report:?} self={:?} original_entry_current={} input_present={} realm_present={}", report.compare(&report), entry.is_some(), analysis.resolved_input.is_some(), analysis.retained_command_realm().is_some());
+    }
+}

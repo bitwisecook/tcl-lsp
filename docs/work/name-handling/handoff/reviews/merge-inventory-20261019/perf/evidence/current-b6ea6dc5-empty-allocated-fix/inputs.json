@@ -1,0 +1,7 @@
+{
+  "started_unix": 1792791072.9818282,
+  "root": "/workspace/tcl-lsp-diagnostic",
+  "base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "scope": "Candidate actual-report API repair only: add complete original allocation-card admission for empty allocated declaration body; installed helper/guards and all existing assertions unchanged. No program-analysis or global/runtime/cache equality change. Full trace first refusal is body push for allocated OriginalDeclaration empty span.",
+  "validation": "scoped rustfmt/parser only; tests/build pending"
+}

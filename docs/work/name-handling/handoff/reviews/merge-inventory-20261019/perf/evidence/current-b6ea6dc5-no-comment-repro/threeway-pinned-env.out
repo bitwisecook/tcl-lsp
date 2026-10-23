@@ -1,0 +1,8 @@
+REPORT label="/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-no-comment-repro/source.tcl" old1_ms=1619 new_ms=1104 old2_ms=1067 old_old=Unavailable(CurrentOwnerUnavailable) old_new=Unavailable(CurrentOwnerUnavailable) new_old=Unavailable(CurrentOwnerUnavailable) strict_old_old=false strict_old_new=false strict_new_old=false pass=false
+REPORT_SUMMARY inputs=1 failed=1
+
+thread 'main' (59790) panicked at rust/tcl-compiler/examples/zz_authenticated_perfprobe.rs:108:5:
+assertion `left == right` failed: every complete report pair must be Equal; Different and Unavailable fail
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -19,3 +19,8 @@ REPORT label="rust/tcl-compiler/tests/data/native_itcl/protocols.tcl" old1_ms=16
 REPORT label="tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl" old1_ms=1994 new_ms=15790 old2_ms=2392 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
 REPORT label="tests/fixtures/tcl9/completion-options-control.tcl" old1_ms=3002 new_ms=3196 old2_ms=3136 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
 REPORT label="tests/fixtures/tcl9/completion-options-alias.tcl" old1_ms=5369 new_ms=4353 old2_ms=4416 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT label="tests/fixtures/tcl9/array-get-read-traces.tcl" old1_ms=963090 new_ms=725749 old2_ms=726049 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT label="tests/fixtures/tcl9/expanded-command-head.tcl" old1_ms=6423 new_ms=5090 old2_ms=5153 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT label="tests/external/backend_constraints.tcl" old1_ms=11696 new_ms=11439 old2_ms=22110 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/classes.tcl" old1_ms=1487 new_ms=938 old2_ms=5021 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=25 failed=0

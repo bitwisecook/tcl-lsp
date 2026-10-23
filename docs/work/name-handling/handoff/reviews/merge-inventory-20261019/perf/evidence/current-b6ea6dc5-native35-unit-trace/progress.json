@@ -1,0 +1,9 @@
+{
+  "started_unix": 1792787683.1307535,
+  "pid": 56173,
+  "scope": "Isolated existing cfg(test) traces with the exact complete original native35 fixture and genuine self-Equal assertion; diagnostic only, never a passing equivalence proof.",
+  "target_dir": "/workspace/tcl-lsp-diagnostic/target",
+  "rust_diff_sha256": "4b4dc3ef001122f6da3ab8da63cc47dbe4a526f5e936a9038e94c60b1e67bf9f",
+  "build_exit": 0,
+  "warnings": 0
+}

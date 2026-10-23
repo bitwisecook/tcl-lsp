@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 20:52 UTC
+Last updated: 2026-10-23 21:34 UTC
 
 **Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
 All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
@@ -293,3 +293,12 @@ qualify before delivery; the remaining issues are retained/routed. Separate
 0f1d32b8 removed2 pre-existing doc-spacing errors, scope fmt passes. No full
 workspace lint success or new runtime outcome is claimed. Both compiler
 libraries still build; no frozen source was edited to address lint meanwhile.
+
+Current b6 mixed Tcl completes101 Equal/1 native35 Unavailable; recovered old
+25/25 tail Equal restores original102 coverage with the same single refusal.
+Original77-row resource failure is retained. The exact cfg(test) trace confirms
+empty allocated OriginalDeclaration body rejected by Installed-only empty-span
+admission. Separate full original-allocation-card admission is a candidate in
+isolated diagnostic tree, with all old assertions plus new positive/negative
+controls; build underway, no Rust diagnostics yet. No repair acceptance or perf
+production commit is claimed. Main iRules/synthetics/PackSet continue.

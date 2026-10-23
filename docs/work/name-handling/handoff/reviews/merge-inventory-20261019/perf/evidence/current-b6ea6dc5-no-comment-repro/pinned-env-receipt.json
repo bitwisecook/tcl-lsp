@@ -1,0 +1,7 @@
+{
+  "exit": 101,
+  "wall_s": 3.8511664867401123,
+  "require_tclsh": "9.0,8.6",
+  "jimsh": "/workspace/tcl-lsp-perf-latest/tmp/jimtcl-oracle/jimsh",
+  "scope": "Authoritative diagnostic repeat with task-pinned environment. First probe omitted explicit task environment setup; preserve but do not use it as proof. Main driver owns this existing executable and will delete it."
+}

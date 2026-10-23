@@ -1,0 +1,3 @@
+OWNER call="" capture=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal original_entry_current=true input_present=true realm_present=true
+OWNER call="puts [fib 0]" capture=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal original_entry_current=true input_present=true realm_present=true
+OWNER call="puts [fib 20]" capture=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable) original_entry_current=true input_present=true realm_present=true

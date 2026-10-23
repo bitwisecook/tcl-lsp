@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792790201.8672101,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: public rebuild of retained genuine source request, inspect public IR before/after with_interprocedural for fixed fib0/fib20 plus empty. Rebuilt unit is NOT substituted into report capture and is not claimed to be the original diagnostic CU.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792790234.0198119,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

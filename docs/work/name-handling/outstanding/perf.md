@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 21:03 UTC
+Last updated: 2026-10-23 21:34 UTC
 
 ## Resume
 
@@ -18,6 +18,29 @@ source seal unchanged, executable removed. Switched lexer586/586 PASS BOTH
 removed; old variable is ignored in the clean6 no-switch source.
 
 **Current blockers: full corpus is not accepted and compiler run is incomplete.**
+Mixed Tcl COMPLETE102:101 Equal/1 native35 Unavailable, same refusal as all-old.
+Recovered all-old tail COMPLETE25/25 Equal; overall original102 covered101 Equal /
+1 Unavailable, while the original one-process77-row OOM run remains failed.
+
+Original diagnostic unit trace COMPLETE build0/warnings0, runtime101 as expected.
+Exact first refusal: ReportBodyInventory::push gets an empty allocated original-
+declaration span, but empty_installed_body accepts only Installed purpose.
+Actual trace ends capture.bodies available=false at allocated OriginalDeclaration
+body scope1 ordinal13, owns=true/duplicate=false/declaration_nonempty=false.
+Public retained-request IR diagnostic independently shows fib20 has allocated
+original-declaration empty body; fib0 uses Installed plus Native source cards.
+This is not a replacement diagnostic CU or a bypassed guard.
+
+Candidate repair ONLY in isolated diagnostic tree: separate empty allocated-
+declaration admission, requiring its complete current ORIGINAL declaration card,
+exact allocation/site/root/source/namespace/span/mapping and proper role/purpose.
+Existing Installed helper and every original assertion remain unchanged. Added
+strict positive recursion/empty-source control plus allocated-card negatives.
+Controls build underway opt0/assertions-on, currently zero Rust diagnostics;
+no success/production repair commit claimed yet. Evidence:
+current-b6ea6dc5-empty-allocated-fix/ and -empty-allocated-controls/;
+/tmp/perf-b6-empty-allocated-controls.log (session44535).
+
 NEW selected compiler finished228/229 (142 pass/86 assertion failures). The
 remaining1000-level deeply_nested_if_survives_interprocedural_scan grew past
 15GiB RSS and the cgroup recorded its first OOM kill at20:06. Original driver
@@ -88,8 +111,7 @@ empty procedure also Equal. Evidence: current-b6ea6dc5-capture-empty-order/.
 perf-report-empty-recursive-call-repro.patch is a strict positive test draft,
 parser/fmt checked only, NOT a fix, compiled test result or readiness statement.
 It tests self and independent-report Equal for no call/fib0/fib20. Route to
-compiler actual report/body owner; actual private guard remains unobserved
-until the isolated unit trace finishes. All original corpus inputs remain.
+compiler actual report/body owner; private first-refusal trace is now confirmed above. All original corpus inputs remain.
 
 The main all-old Tcl process was also OOM-killed (exit-9) after77/102 reports
 during the same memory pressure. Preserve that failed one-process run. Exact

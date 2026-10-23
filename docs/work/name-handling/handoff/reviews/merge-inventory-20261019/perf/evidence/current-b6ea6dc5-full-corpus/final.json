@@ -1,0 +1,92 @@
+{
+  "results": [
+    {
+      "mode": "old-only",
+      "case": "tcl",
+      "exit": -9,
+      "valid": false,
+      "expected": 102,
+      "wall_s": 1670.5712833709986
+    },
+    {
+      "mode": "old-only",
+      "case": "irules",
+      "exit": 0,
+      "valid": true,
+      "expected": 15,
+      "wall_s": 187.38418625399936
+    },
+    {
+      "mode": "old-only",
+      "case": "calls",
+      "exit": 0,
+      "valid": true,
+      "expected": 4,
+      "wall_s": 172.1935654659901
+    },
+    {
+      "mode": "old-only",
+      "case": "procs",
+      "exit": 0,
+      "valid": true,
+      "expected": 1,
+      "wall_s": 8.15487104699423
+    },
+    {
+      "mode": "old-only",
+      "case": "upvar",
+      "exit": 0,
+      "valid": true,
+      "expected": 2,
+      "wall_s": 292.53926216901164
+    },
+    {
+      "mode": "mixed",
+      "case": "tcl",
+      "exit": 101,
+      "valid": false,
+      "expected": 102,
+      "wall_s": 3194.3684963019914
+    },
+    {
+      "mode": "mixed",
+      "case": "irules",
+      "exit": 0,
+      "valid": true,
+      "expected": 15,
+      "wall_s": 87.28302483199514
+    },
+    {
+      "mode": "mixed",
+      "case": "calls",
+      "exit": 0,
+      "valid": true,
+      "expected": 4,
+      "wall_s": 63.534404906997224
+    },
+    {
+      "mode": "mixed",
+      "case": "procs",
+      "exit": 0,
+      "valid": true,
+      "expected": 1,
+      "wall_s": 7.184836590997293
+    },
+    {
+      "mode": "mixed",
+      "case": "upvar",
+      "exit": 0,
+      "valid": true,
+      "expected": 2,
+      "wall_s": 157.6939539820014
+    },
+    {
+      "case": "packset",
+      "exit": 0,
+      "valid": true,
+      "wall_s": 35.40318958500575
+    }
+  ],
+  "rust_diff_unchanged": true,
+  "executables_removed": true
+}

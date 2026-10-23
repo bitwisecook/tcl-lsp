@@ -1,0 +1,37 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::compilation_unit::CompilationUnit;
+fn inspect(label: &str, unit: &CompilationUnit) {
+    let module = &unit.ir_module;
+    println!("IR_STAGE {label} named={} units={}", module.procedures.len(), module.body_units.len());
+    for (id, body) in module.procedures.iter().chain(module.body_units.iter()) {
+        println!("IR_BODY {label} id={id:?} name={:?} kind={:?} span={:?} offset={} source_present={} namespace_present={} allocated={} native={} logical={} authored={} installed={} cfg_current={}", body.qualified_name, body.body_kind, body.span, body.body_offset, body.body.executed_source.is_some(), body.body.namespace_context.is_some(), module.original_declaration_body_units.contains_key(id), module.original_native_declaration_body_units.contains_key(id), module.original_logical_declaration_body_units.contains_key(id), module.original_authored_declaration_body_units.contains_key(id), module.installed_procedure_body_units.contains_key(id), unit.original_procedure_cfg_for_body(*id).is_some());
+    }
+}
+fn main() {
+    let path = std::env::args().nth(1).expect("original fixture");
+    let original = std::fs::read_to_string(path).expect("complete original input");
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6).lexer_grammar);
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(&original, 0, config);
+    let end = usize::try_from(commands[1].span.start()).expect("next original command start");
+    let fib = &original[..end];
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    for call in ["puts [fib 0]", "puts [fib 20]"] {
+        let source = format!("{fib}\nproc empty {{}} {{}}\n{call}\n");
+        let report = Analyser::new().analyse_for_report(&source, "tcl8.6");
+        let analysis = report.analysis();
+        let registry = analysis.resolved_registry().expect("resolved registry");
+        println!("IR_CASE call={call:?} original_capture={report:?} self={:?}", report.compare(&report));
+        if let Some(unit) = analysis.original_optimiser_source_unit(&source, registry, None) {
+            inspect("before-interprocedural", &unit);
+            let unit = unit.with_interprocedural(registry, Some(analysis.resolved_input.as_ref().expect("input").unit_profile()));
+            inspect("after-interprocedural", &unit);
+        } else {
+            println!("RETAINED_REQUEST_REBUILD unavailable");
+        }
+    }
+}

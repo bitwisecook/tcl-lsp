@@ -1,0 +1,16 @@
+REPORT label="samples/for_screenshots/32-extract-datagroup-mapping-after.irul" old1_ms=566 new_ms=345 old2_ms=407 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/31-extract-datagroup-ip-before.irul" old1_ms=877 new_ms=933 old2_ms=601 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/31-extract-datagroup-ip-after.irul" old1_ms=358 new_ms=291 old2_ms=445 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/24-template-fallback.irul" old1_ms=460 new_ms=138 old2_ms=155 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/32-extract-datagroup-mapping-before.irul" old1_ms=329 new_ms=244 old2_ms=301 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/05-security-taint-before.irul" old1_ms=276 new_ms=221 old2_ms=351 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/30-extract-datagroup-before.irul" old1_ms=590 new_ms=512 old2_ms=579 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/05-security-taint-after.irul" old1_ms=825 new_ms=481 old2_ms=596 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/30-extract-datagroup-after.irul" old1_ms=413 new_ms=491 old2_ms=447 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/for_screenshots/ai-scene.irul" old1_ms=339 new_ms=263 old2_ms=445 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/irules/cookbook_http_collect.irul" old1_ms=3982 new_ms=3816 old2_ms=3461 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/irules/diagnostics_event_flow.irul" old1_ms=3321 new_ms=3131 old2_ms=3553 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/irules/cookbook_tcp_collect.irul" old1_ms=10941 new_ms=6321 old2_ms=16376 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/irules/diagnostics_security.irul" old1_ms=2372 new_ms=1644 old2_ms=3396 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="samples/irules/diagnostics_style_perf.irul" old1_ms=4839 new_ms=2512 old2_ms=3704 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=15 failed=0
