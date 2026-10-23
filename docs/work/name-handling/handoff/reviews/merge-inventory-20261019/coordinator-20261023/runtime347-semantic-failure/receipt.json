@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T15:29:31.087729+00:00",
+  "candidate": "34798afd80ebc84196d11f4a02a4ec6a7fc17791",
+  "run": 39975195569,
+  "job": 120487989756,
+  "raw_sha256": "80635d4e9b559942f8181c4fe55090c2ee8f621a0a495e0376bb6d04f9b1b526",
+  "gzip_sha256": "21ca3a358a2a47d98ffb04495306c85812259426c5d2a4be88696190bd90676c",
+  "strict_no_tommath_capability": {
+    "status": "PASS",
+    "original_typed_value_tests": 17,
+    "original_missing_bignum_refusal_tests": 1
+  },
+  "full_tommath_semantics": {
+    "status": "FAILED_AND_ABORTED",
+    "complete_inventory": false,
+    "fatal": "stack overflow, SIGABRT",
+    "fatal_test": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_namespace_cache_retirement_checks_same_body_before_adoption",
+    "summary": "No complete suite summary; all unreached identities unknown"
+  },
+  "audit_admissions": []
+}

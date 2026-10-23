@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T15:24:49Z: root55746 actual45a852/d5c71cc v5 RUNNING /workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T152322.481573Z, selectedserverbuildactive/noresult yet. Root integrated current-snapshot recapture084cf61b+WORK Contextobserver466dd178 as exactuniondc765896 NamesCLEAR. Candidate functional-onlycc33 appliedroot401a374d, observerexcluded. Separate nativeoriginalproj-a Context repro2282361d CCGstaticCLEAR95c37133 awaitsroot88125/currentcoldworkergroupclosure; no runtime/editorhost acceptance. Priorb2b validFAIL3690.83ms/allfinalsealstrue archived; exactopenfield unknown. Current095multi-folder4ContextFAIL/WASIlocaldef146empty/browserrename147UnknownWorld remainopen. No allgreen/F/zeroP2F claim.
+Current status 2026-10-23T15:27:55Z: actual45a diagnostic root55746 selectedserverbuild FAILED1E0277/0observedwarnings at WORK-only Contextobserver current_diagnostics311 (Uri lacks Display), no runtime. Fullprotocolfinalseals stillpending; neverTERM. Minimal observer-onlyfix204509f2 uses Uri.as_str(), NamesexacttypeCLEAR7d5dbf9e, rootapplyawaitsclosure. Functionalfresh-current recapture084cf61b remainsunchanged/unmeasured. Separate originalproj-a native Contextrepro2282361d CCGCLEAR95c37133 prepared/root-only180s88125/20MiB/2GiB afterfreshcorrectedserver. Candidatefunctionalcc33 appliedroot401a374d withobserverexcluded. Priorb2b validcoldFAIL archived; allshippingF/P2F/hostacceptanceOPEN.
 
 
 
@@ -63,15 +63,15 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T15:24:49Z
+Last updated: 2026-10-23T15:27:55Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Current status 2026-10-23T15:24:49Z: root55746 actual45a852/d5c71cc v5 RUNNING /workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T152322.481573Z, selectedserverbuildactive/noresult yet. Root integrated current-snapshot recapture084cf61b+WORK Contextobserver466dd178 as exactuniondc765896 NamesCLEAR. Candidate functional-onlycc33 appliedroot401a374d, observerexcluded. Separate nativeoriginalproj-a Context repro2282361d CCGstaticCLEAR95c37133 awaitsroot88125/currentcoldworkergroupclosure; no runtime/editorhost acceptance. Priorb2b validFAIL3690.83ms/allfinalsealstrue archived; exactopenfield unknown. Current095multi-folder4ContextFAIL/WASIlocaldef146empty/browserrename147UnknownWorld remainopen. No allgreen/F/zeroP2F claim.
+Current status 2026-10-23T15:27:55Z: actual45a diagnostic root55746 selectedserverbuild FAILED1E0277/0observedwarnings at WORK-only Contextobserver current_diagnostics311 (Uri lacks Display), no runtime. Fullprotocolfinalseals stillpending; neverTERM. Minimal observer-onlyfix204509f2 uses Uri.as_str(), NamesexacttypeCLEAR7d5dbf9e, rootapplyawaitsclosure. Functionalfresh-current recapture084cf61b remainsunchanged/unmeasured. Separate originalproj-a native Contextrepro2282361d CCGCLEAR95c37133 prepared/root-only180s88125/20MiB/2GiB afterfreshcorrectedserver. Candidatefunctionalcc33 appliedroot401a374d withobserverexcluded. Priorb2b validcoldFAIL archived; allshippingF/P2F/hostacceptanceOPEN.
 
-Next: read-only monitor actualroot55746 firstcoldrequest andfinalseals; neverTERM. Onlyafterclosure rootcanallocate exactContextrepro withfreshinstrumentedexe+SHA. No ownCargo/GO/sourcewrites.
+Next: preserve actual55746 finalseals/lockrelease; root-only observerformatfix204509f2 integration/freshidentity/protocol, selectedserverrebuild andunchangedcoldworker. No ownsource/Cargo/GO.
 
 ## In progress
 
