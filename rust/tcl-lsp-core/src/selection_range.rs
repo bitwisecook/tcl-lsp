@@ -205,6 +205,10 @@ pub fn selection_range_for_dialect(
         });
     }
 
+    selection_chain(ranges)
+}
+
+fn selection_chain(mut ranges: Vec<LspRange>) -> Vec<SelectionRange> {
     // Enforce the LSP parent-contains-child invariant: every range must lie
     // within its outward neighbour. A full-width *line* range can stick out of
     // an enclosing body that starts/ends mid-line (e.g. `proc foo {} {\n set x 1
