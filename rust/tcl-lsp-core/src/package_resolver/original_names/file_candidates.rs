@@ -119,33 +119,28 @@ impl<'a> FileCandidateScanner<'a> {
         })
     }
 
-    pub(super) fn collect(
-        &self,
+    fn inputs_mismatch(
         original: &[NativeWord],
         loader: &NativeWord,
-        directory: &Path,
-        exists: &dyn Fn(&Path) -> bool,
-        list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
-    ) -> Vec<OriginalPackageFileCandidate> {
-        // Implementation contract: naming.package.original-file-candidate-provenance
-        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
-        let image = SourceImage::document(self.source);
-        let Some(config) = self.analysis.body_lexer_config else {
-            return Vec::new();
-        };
-        if loader.image() != &image
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        loader.image() != image
             || loader.config() != config
             || original
                 .iter()
-                .any(|word| word.image() != &image || word.config() != config)
+                .any(|word| word.image() != image || word.config() != config)
             || !original.contains(loader)
-        {
-            return Vec::new();
-        }
-        let Some(head) = original.first() else {
-            return Vec::new();
-        };
-        let regions = self
+    }
+
+    fn loader_regions(
+        &self,
+        head: &NativeWord,
+        loader: &NativeWord,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Vec<tcl_lexer::Span> {
+        self
             .structure
             .commands
             .iter()
@@ -160,13 +155,71 @@ impl<'a> FileCandidateScanner<'a> {
                     .into_iter()
                     .filter(|body| {
                         body.original_container() == loader
-                            && body.matches_source(&image, config)
+                            && body.matches_source(image, config)
                             && body.matches_context(&self.context)
                     })
                     .map(|body| body.content_span())
                     .collect::<Vec<_>>()
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+
+    fn source_path_argument(&self, schema: &OriginalRegistryWords) -> Option<usize> {
+        let source = schema
+            .with_source_schema(&self.context, |selected| {
+                selected.semantics.analyser_hook
+                    == Some(tcl_registry::hooks::AnalyserHookId::Source)
+                    && selected
+                        .words
+                        .arguments()
+                        .exact_argv_len()
+                        .is_some_and(|count| {
+                            u16::try_from(count.saturating_sub(selected.semantics.argument_offset))
+                                .is_ok_and(|count| selected.semantics.arity.accepts(count))
+                        })
+            })
+            .unwrap_or(false);
+        if !source {
+            return None;
+        }
+        let grammar = schema
+            .dialect()
+            .and_then(tcl_registry::InvocationDialect::source_file_grammar)?;
+        let tcl_registry::source_file::SourceFileSelection::Selected(layout) = grammar
+            .select_original(
+                schema.arguments().len(),
+                schema
+                    .arguments()
+                    .first()
+                    .and_then(|word| word.literal_bytes()),
+            )
+        else {
+            return None;
+        };
+        Some(layout.path_at)
+    }
+
+    pub(super) fn collect(
+        &self,
+        original: &[NativeWord],
+        loader: &NativeWord,
+        directory: &Path,
+        exists: &dyn Fn(&Path) -> bool,
+        list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
+    ) -> Vec<OriginalPackageFileCandidate> {
+        // Implementation contract: naming.package.original-file-candidate-provenance
+        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
+        let image = SourceImage::document(self.source);
+        let Some(config) = self.analysis.body_lexer_config else {
+            return Vec::new();
+        };
+        if Self::inputs_mismatch(original, loader, &image, config) {
+            return Vec::new();
+        }
+        let Some(head) = original.first() else {
+            return Vec::new();
+        };
+        let regions = self.loader_regions(head, loader, &image, config);
         let mut files = Vec::new();
         for command in &self.structure.commands {
             if !regions.iter().any(|region| {
@@ -177,43 +230,9 @@ impl<'a> FileCandidateScanner<'a> {
             let Some(schema) = source_registry_words(self.source, self.analysis, command) else {
                 continue;
             };
-            let source = schema
-                .with_source_schema(&self.context, |selected| {
-                    selected.semantics.analyser_hook
-                        == Some(tcl_registry::hooks::AnalyserHookId::Source)
-                        && selected
-                            .words
-                            .arguments()
-                            .exact_argv_len()
-                            .is_some_and(|count| {
-                                u16::try_from(
-                                    count.saturating_sub(selected.semantics.argument_offset),
-                                )
-                                .is_ok_and(|count| selected.semantics.arity.accepts(count))
-                            })
-                })
-                .unwrap_or(false);
-            if !source {
-                continue;
-            }
-            let Some(grammar) = schema
-                .dialect()
-                .and_then(tcl_registry::InvocationDialect::source_file_grammar)
-            else {
+            let Some(argument) = self.source_path_argument(&schema) else {
                 continue;
             };
-            let tcl_registry::source_file::SourceFileSelection::Selected(layout) = grammar
-                .select_original(
-                    schema.arguments().len(),
-                    schema
-                        .arguments()
-                        .first()
-                        .and_then(|word| word.literal_bytes()),
-                )
-            else {
-                continue;
-            };
-            let argument = layout.path_at;
             // No captured alias prefix or expansion child can become a filename word.
             if !matches!(
                 schema.origins().get(argument + 1),
@@ -268,21 +287,30 @@ impl<'a> FileCandidateScanner<'a> {
             }
         }
         if files.is_empty() {
-            for path in list_files(directory) {
-                if path.file_name().is_some_and(|name| name != "pkgIndex.tcl")
-                    && !files.iter().any(|file| file.path == path)
-                {
-                    files.push(OriginalPackageFileCandidate {
-                        path,
-                        kind: OriginalPackageFileCandidateKind::DirectoryHint,
-                        loader: loader.clone(),
-                        operand: None,
-                        schema: None,
-                    });
-                }
-            }
+            append_directory_file_hints(&mut files, loader, directory, list_files);
         }
         files
+    }
+}
+
+fn append_directory_file_hints(
+    files: &mut Vec<OriginalPackageFileCandidate>,
+    loader: &NativeWord,
+    directory: &Path,
+    list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
+) {
+    for path in list_files(directory) {
+        if path.file_name().is_some_and(|name| name != "pkgIndex.tcl")
+            && !files.iter().any(|file| file.path == path)
+        {
+            files.push(OriginalPackageFileCandidate {
+                path,
+                kind: OriginalPackageFileCandidateKind::DirectoryHint,
+                loader: loader.clone(),
+                operand: None,
+                schema: None,
+            });
+        }
     }
 }
 
