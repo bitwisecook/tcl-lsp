@@ -308,7 +308,10 @@ enum CurrentDiagnostics {
 pub(super) fn trace_diagnostic_context_check(uri: &Uri, stage: &str, accepted: bool) -> bool {
     #[cfg(debug_assertions)]
     if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-        eprintln!("DIAGNOSTIC_CONTEXT uri={uri} stage={stage} accepted={accepted}");
+        eprintln!(
+            "DIAGNOSTIC_CONTEXT uri={} stage={stage} accepted={accepted}",
+            uri.as_str()
+        );
     }
     #[cfg(not(debug_assertions))]
     let _ = (uri, stage);
