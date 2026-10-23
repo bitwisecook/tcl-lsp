@@ -175,7 +175,10 @@ impl Lowerer<'_> {
             .as_ref()
             .and_then(|bindings| card.source_children(bindings));
         let previous_children = std::mem::replace(&mut self.native_source_children, children);
-        let previous = std::mem::replace(&mut self.readonly_native_declaration_body, true);
+        let previous = std::mem::replace(
+            &mut self.readonly_native_declaration_body,
+            crate::lowering::SourceBodyMode::ReadOnly,
+        );
         let mut body =
             self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_original_source_body(
@@ -243,7 +246,10 @@ impl Lowerer<'_> {
         else {
             return;
         };
-        let previous = std::mem::replace(&mut self.readonly_logical_body, true);
+        let previous = std::mem::replace(
+            &mut self.readonly_logical_body,
+            crate::lowering::SourceBodyMode::ReadOnly,
+        );
         let mut body =
             self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_original_source_body(

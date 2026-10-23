@@ -35,7 +35,10 @@ impl Lowerer<'_> {
         let body_namespace = card.namespace().advisory_key()?;
         let scope = card.create_source_scope(&self.module);
         let previous_scope = std::mem::replace(&mut self.authored_source_scope, scope.clone());
-        let previous = std::mem::replace(&mut self.readonly_authored_body, true);
+        let previous = std::mem::replace(
+            &mut self.readonly_authored_body,
+            crate::lowering::SourceBodyMode::ReadOnly,
+        );
         let mut body =
             self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_original_source_body(

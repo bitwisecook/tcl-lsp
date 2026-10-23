@@ -1144,6 +1144,12 @@ fn tokenise_to_words(source: &str, registry: &CommandRegistry) -> Vec<CommandWor
         .unwrap_or_default()
 }
 
+#[derive(Debug, Clone)]
+enum WrittenWordGeometry {
+    Missing,
+    Present,
+}
+
 /// One word of a tokenised command, in both spellings its consumers need.
 ///
 /// The segmenter's reconstructed word text canonicalises a substitution to its
@@ -1162,7 +1168,7 @@ pub(crate) struct CommandWord {
     /// stays `$x`; original delimiters and expansion markers remain complete.
     /// Missing written geometry is unavailable, never a static literal.
     pub raw: String,
-    source_available: bool,
+    geometry: WrittenWordGeometry,
     /// Some constituent fragment is a `$` / `[` substitution, so the word's
     /// value is not its source text.
     pub substituted: bool,
@@ -1176,12 +1182,16 @@ pub(crate) struct CommandWord {
 }
 
 impl CommandWord {
+    fn has_source_geometry(&self) -> bool {
+        matches!(self.geometry, WrittenWordGeometry::Present)
+    }
+
     /// Project this source word into the registry's value-conservative
     /// invocation vocabulary. Expansion takes precedence because it changes
     /// argv shape even when the wrapped value is otherwise literal.
     #[must_use]
     pub(crate) fn invocation_word(&self) -> InvocationWord<'_> {
-        if !self.source_available {
+        if !self.has_source_geometry() {
             InvocationWord::Dynamic
         } else if self.expanded {
             InvocationWord::Expanded
@@ -2329,7 +2339,11 @@ fn command_words(
                 .as_ref()
                 .and_then(|spans| spans.get(idx))
                 .map_or_else(String::new, |span| sm.text(*span).to_owned()),
-            source_available: written.is_some(),
+            geometry: if written.is_some() {
+                WrittenWordGeometry::Present
+            } else {
+                WrittenWordGeometry::Missing
+            },
             substituted: written.is_none()
                 || tokens
                     .as_ref()
@@ -3710,7 +3724,7 @@ mod original_written_source_tests {
                 "{*}[set é]"
             ]
         );
-        assert!(words[0].iter().all(|word| word.source_available));
+        assert!(words[0].iter().all(CommandWord::has_source_geometry));
         let map = SourceMap::new(source);
         let command =
             crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())

@@ -1594,14 +1594,17 @@ impl Lowerer<'_> {
                 return super::over_depth_script(tok.span.start(), text.len());
             };
             let previous_scope = self.authored_source_scope.replace(child.clone());
-            let previous_readonly = std::mem::replace(&mut self.readonly_authored_body, true);
+            let previous_readonly = std::mem::replace(
+                &mut self.readonly_authored_body,
+                crate::lowering::SourceBodyMode::ReadOnly,
+            );
             let mut script = self.lower_body(&source, span.start(), &namespace);
             self.authored_source_scope = previous_scope;
             self.readonly_authored_body = previous_readonly;
             script.namespace_context = Some(Box::new(child.namespace().clone()));
             return script;
         }
-        if self.readonly_authored_body {
+        if self.readonly_authored_body.is_read_only() {
             return super::over_depth_script(tok.span.start(), text.len());
         }
         if let Some(script) = self

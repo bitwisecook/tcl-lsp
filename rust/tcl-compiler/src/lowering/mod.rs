@@ -1093,6 +1093,18 @@ impl<'a> StandaloneSourceInput<'a> {
 
 use tcl_lexer::SourceSegmentationPurpose;
 
+#[derive(Clone, Copy)]
+enum SourceBodyMode {
+    Ordinary,
+    ReadOnly,
+}
+
+impl SourceBodyMode {
+    fn is_read_only(self) -> bool {
+        matches!(self, Self::ReadOnly)
+    }
+}
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -1218,13 +1230,13 @@ pub struct Lowerer<'r> {
     /// suppressed.
     suppress_proc_register: bool,
     /// Genuine readonly Logical body preparation cannot issue executed-source metadata.
-    readonly_logical_body: bool,
-    readonly_native_declaration_body: bool,
+    readonly_logical_body: SourceBodyMode,
+    readonly_native_declaration_body: SourceBodyMode,
     native_source_children:
         Option<std::sync::Arc<crate::command_binding::OriginalNativeSourceBodyChildren>>,
     /// Hosted source cards keep their independent declaration owner.
-    readonly_hosted_body: bool,
-    readonly_authored_body: bool,
+    readonly_hosted_body: SourceBodyMode,
+    readonly_authored_body: SourceBodyMode,
     authored_source_scope:
         Option<std::sync::Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>>,
     /// Lexer config for the document's dialect, threaded into every
@@ -1445,11 +1457,11 @@ impl<'r> Lowerer<'r> {
             namespace_directive_sites: HashSet::new(),
             dead_code_depth: 0,
             suppress_proc_register: false,
-            readonly_logical_body: false,
-            readonly_native_declaration_body: false,
+            readonly_logical_body: SourceBodyMode::Ordinary,
+            readonly_native_declaration_body: SourceBodyMode::Ordinary,
             native_source_children: None,
-            readonly_hosted_body: false,
-            readonly_authored_body: false,
+            readonly_hosted_body: SourceBodyMode::Ordinary,
+            readonly_authored_body: SourceBodyMode::Ordinary,
             authored_source_scope: None,
             config,
             dialect: None,
@@ -2192,7 +2204,7 @@ impl<'r> Lowerer<'r> {
         lowerer.source_bindings = Some(positioned.clone().into());
         lowerer.structured_source_parent = Some(Box::new(parent.clone()));
         lowerer.suppress_proc_register = true;
-        lowerer.readonly_logical_body = true;
+        lowerer.readonly_logical_body = SourceBodyMode::ReadOnly;
         let mut script = lowerer.lower_body(
             text,
             body.content_span().start(),
@@ -2264,10 +2276,10 @@ impl<'r> Lowerer<'r> {
 
     /// Retain an unchanged body slice independently of compiler admission.
     fn retain_script_source(&self, mut script: Script, text: &str, base: u32) -> Script {
-        if self.readonly_logical_body
-            || self.readonly_hosted_body
-            || self.readonly_authored_body
-            || self.readonly_native_declaration_body
+        if self.readonly_logical_body.is_read_only()
+            || self.readonly_hosted_body.is_read_only()
+            || self.readonly_authored_body.is_read_only()
+            || self.readonly_native_declaration_body.is_read_only()
         {
             return script;
         }
@@ -2785,10 +2797,10 @@ impl<'r> Lowerer<'r> {
 
     /// Retain only a failure agreed by every reached compilation entry.
     fn attach_native_compilation_failure(&self, mut script: Script, chunk: u32) -> Script {
-        if self.readonly_logical_body
-            || self.readonly_hosted_body
-            || self.readonly_authored_body
-            || self.readonly_native_declaration_body
+        if self.readonly_logical_body.is_read_only()
+            || self.readonly_hosted_body.is_read_only()
+            || self.readonly_authored_body.is_read_only()
+            || self.readonly_native_declaration_body.is_read_only()
         {
             return script;
         }
@@ -2998,7 +3010,7 @@ impl<'r> Lowerer<'r> {
             });
         }
         let metadata = self.invocation_metadata_context()?;
-        if self.readonly_native_declaration_body {
+        if self.readonly_native_declaration_body.is_read_only() {
             return crate::registry_invocation::original_native_source_structured_invocation(
                 self.registry,
                 metadata,
@@ -3048,7 +3060,7 @@ impl<'r> Lowerer<'r> {
     /// text that was segmented into it (see [`WordSpace`]).
     fn cmd_tokens(&self, seg: &SegmentedCommand) -> CommandTokens {
         let mut tokens = CommandTokens::from_segmented(&self.word_space.map(), self.config, seg);
-        if self.readonly_authored_body {
+        if self.readonly_authored_body.is_read_only() {
             if let Some(scope) = &self.authored_source_scope {
                 let mut scalar = None;
                 if let Some(bindings) = &self.source_bindings

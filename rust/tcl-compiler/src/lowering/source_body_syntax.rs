@@ -369,9 +369,9 @@ impl Lowerer<'_> {
         owner: SourceBodySyntaxOwner,
     ) -> Option<SourceBodySyntaxRequest> {
         let purpose = match (
-            self.readonly_native_declaration_body,
-            self.readonly_logical_body,
-            self.readonly_authored_body,
+            self.readonly_native_declaration_body.is_read_only(),
+            self.readonly_logical_body.is_read_only(),
+            self.readonly_authored_body.is_read_only(),
         ) {
             (true, false, false) if self.native_source_children.is_some() => SourcePurpose::Native,
             (false, true, false) if self.source_bindings.is_some() => SourcePurpose::Logical,

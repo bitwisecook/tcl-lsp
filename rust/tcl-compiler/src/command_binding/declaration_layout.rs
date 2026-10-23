@@ -502,6 +502,50 @@ fn original_alias_template_local_is_byte_unique(
     original_local_primary_is_byte_unique(state, policy, name)
 }
 
+fn original_alias_template_rows_match<'a>(
+    rows: impl Iterator<Item = &'a DeclarationLayoutObservation>,
+    input: &crate::signature_scan::scope::SignatureSourceNameInput,
+    receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+    alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
+    requires_qualified_target: impl Fn() -> bool,
+    absolute_root: impl Fn() -> bool,
+) -> Option<bool> {
+    let mut found = false;
+    for row in rows {
+        if !original_alias_template_input_is_current(row, input)
+            || !original_alias_template_local_is_byte_unique(
+                row,
+                input.policy(),
+                alias.local().as_bytes(),
+            )
+        {
+            return None;
+        }
+        if requires_qualified_target() {
+            let namespace = if absolute_root() {
+                Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+                    Some(input.policy()),
+                ))
+            } else {
+                row.snapshot
+                    .state
+                    .original_namespace_geometry(&row.namespace, input.policy())
+            }?;
+            let target = crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol::from_original_input(
+                input,
+                &namespace,
+                crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::QualifiedOnly,
+                receiver,
+            );
+            if target.as_ref() != Some(alias.target()) {
+                return None;
+            }
+        }
+        found = true;
+    }
+    Some(found)
+}
+
 /// Immutable original local-frame naming owner. This is a conditional source
 /// declaration identity, not an entered activation or a physical local table.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1276,43 +1320,20 @@ impl SourceCommandBindings {
             {
                 continue;
             }
-            for row in rows {
-                if !original_alias_template_input_is_current(row, input)
-                    || !original_alias_template_local_is_byte_unique(
-                        row,
-                        input.policy(),
-                        alias.local().as_bytes(),
-                    )
-                {
-                    return false;
-                }
-                if span != declaration.span() && !local {
-                    let namespace = if selected.root().qualification()
+            let Some(site_found) = original_alias_template_rows_match(
+                rows,
+                input,
+                receiver,
+                alias,
+                || span != declaration.span() && !local,
+                || {
+                    selected.root().qualification()
                         == tcl_syntax::naming::NativeNameQualification::Absolute
-                    {
-                        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-                            Some(input.policy()),
-                        ))
-                    } else {
-                        row.snapshot
-                            .state
-                            .original_namespace_geometry(&row.namespace, input.policy())
-                    };
-                    let Some(namespace) = namespace else {
-                        return false;
-                    };
-                    let target = crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol::from_original_input(
-                        input,
-                        &namespace,
-                        crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::QualifiedOnly,
-                        receiver,
-                    );
-                    if target.as_ref() != Some(alias.target()) {
-                        return false;
-                    }
-                }
-                found = true;
-            }
+                },
+            ) else {
+                return false;
+            };
+            found |= site_found;
         }
         found
     }
@@ -2282,105 +2303,119 @@ impl SourceCommandBindings {
             return;
         };
         for (body, command) in commands {
-            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(parent) =
-                body.original_parent_body().source_words().source()
-            else {
-                continue;
-            };
-            if parent.logical_source_input() != Some(&input)
-                || !Arc::ptr_eq(&parent.site().source, &origin)
-                || !parent.matches_source(origin.source_image(), config)
-                || !parent.matches_context(input.borrowed_context_registry())
-            {
-                continue;
-            }
-            // Only the actual retained parent declaration supplies this
-            // lineage. A fresh root state cannot stand in for a missing row.
-            let Some(parents) = self
-                .declaration_layouts
-                .get(parent.site())
-                .and_then(|rows| original_declaration_layouts(rows))
-                .map(|rows| rows.cloned().collect::<Vec<_>>())
-            else {
-                continue;
-            };
-            if parents.iter().any(|row| {
-                row.config != config
-                    || row.snapshot.state.logical_source_name_advice_input() != Some(&input)
-                    || !row.entry.owns_source(&origin, parent.site().offset)
-                    || !row
-                        .entry
-                        .owns_original_context(&row.snapshot.state.source_variables)
-                    || row.snapshot.state.variable_frame != *row.entry.frame()
-                    || row.snapshot.state.current_source_origin.as_ref() != Some(&origin)
-                    || origin
-                        .original_lexical_command(&row.words, parent.site().offset, config)
-                        .is_none_or(|original| original.native_words() != parent.original_words())
-            }) {
-                continue;
-            }
-            let content = body.content_span();
-            let Some(bytes) = origin.source_image().bytes().get(content.as_range()) else {
-                continue;
-            };
-            // This facet retains unchanged original body geometry. Transformed
-            // values require their distinct source correspondence owner.
-            if tcl_syntax::word_rules::original_static_word_unicode_value(body.original_container())
-                .as_deref()
-                != Some(bytes)
-            {
-                continue;
-            }
-            let Some(source) = super::ExecutedScriptSource::contiguous_image(
-                Arc::clone(&origin),
-                tcl_lexer::SourceImage::from_bytes(bytes, origin.source_image().channel()),
-                content.start(),
-            ) else {
-                continue;
-            };
-            let Some(member) = body.original_words().first() else {
-                continue;
-            };
-            let member_offset = member.span().start();
-            let entry = Arc::new(OriginalDiagnosticFrameEntry::LogicalReceiver(Arc::new(
-                OriginalLogicalReceiverSourceBody {
-                    body,
-                    input: input.clone(),
-                    source,
-                    frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
-                        identity: super::source_activation_name(
-                            Some(&origin),
-                            "logical-receiver-source-layout",
-                            member_offset,
-                        ),
-                    },
-                },
-            )));
-            let site = CommandAllocationSite {
-                source: Arc::clone(&origin),
-                offset: command.native_words()[0].span().start(),
-            };
-            let tokens = crate::ir::CommandTokens::from_segmented(
-                &tcl_lexer::SourceMap::from_image(origin.source_image()),
-                config,
-                command.command(),
+            self.retain_one_logical_receiver_source_catalogue(
+                body, command, &origin, &input, config,
             );
-            let rows = self.declaration_layouts.entry(site).or_default();
-            for parent in parents {
-                let row = DeclarationLayoutObservation {
-                    issuer: DeclarationLayoutIssuer::ConditionalReceiverSource,
-                    entry: Arc::clone(&entry),
-                    // The held snapshot/namespace belong to the parent
-                    // declaration. LogicalReceiver cannot project them as a
-                    // receiver lookup namespace or entered naming context.
-                    snapshot: parent.snapshot,
-                    namespace: parent.namespace,
-                    config,
-                    words: Arc::from(tokens.words()),
-                };
-                if !rows.contains(&row) {
-                    rows.push(row);
-                }
+        }
+    }
+
+    fn retain_one_logical_receiver_source_catalogue(
+        &mut self,
+        body: Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+        command: Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
+        origin: &Arc<super::SourceOriginId>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            parent,
+        ) = body.original_parent_body().source_words().source()
+        else {
+            return;
+        };
+        if parent.logical_source_input() != Some(input)
+            || !Arc::ptr_eq(&parent.site().source, origin)
+            || !parent.matches_source(origin.source_image(), config)
+            || !parent.matches_context(input.borrowed_context_registry())
+        {
+            return;
+        }
+        // Only the actual retained parent declaration supplies this
+        // lineage. A fresh root state cannot stand in for a missing row.
+        let Some(parents) = self
+            .declaration_layouts
+            .get(parent.site())
+            .and_then(|rows| original_declaration_layouts(rows))
+            .map(|rows| rows.cloned().collect::<Vec<_>>())
+        else {
+            return;
+        };
+        if parents.iter().any(|row| {
+            row.config != config
+                || row.snapshot.state.logical_source_name_advice_input() != Some(input)
+                || !row.entry.owns_source(origin, parent.site().offset)
+                || !row
+                    .entry
+                    .owns_original_context(&row.snapshot.state.source_variables)
+                || row.snapshot.state.variable_frame != *row.entry.frame()
+                || row.snapshot.state.current_source_origin.as_ref() != Some(origin)
+                || origin
+                    .original_lexical_command(&row.words, parent.site().offset, config)
+                    .is_none_or(|original| original.native_words() != parent.original_words())
+        }) {
+            return;
+        }
+        let content = body.content_span();
+        let Some(bytes) = origin.source_image().bytes().get(content.as_range()) else {
+            return;
+        };
+        // This facet retains unchanged original body geometry. Transformed
+        // values require their distinct source correspondence owner.
+        if tcl_syntax::word_rules::original_static_word_unicode_value(body.original_container())
+            .as_deref()
+            != Some(bytes)
+        {
+            return;
+        }
+        let Some(source) = super::ExecutedScriptSource::contiguous_image(
+            Arc::clone(origin),
+            tcl_lexer::SourceImage::from_bytes(bytes, origin.source_image().channel()),
+            content.start(),
+        ) else {
+            return;
+        };
+        let Some(member) = body.original_words().first() else {
+            return;
+        };
+        let member_offset = member.span().start();
+        let entry = Arc::new(OriginalDiagnosticFrameEntry::LogicalReceiver(Arc::new(
+            OriginalLogicalReceiverSourceBody {
+                body,
+                input: input.clone(),
+                source,
+                frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                    identity: super::source_activation_name(
+                        Some(origin),
+                        "logical-receiver-source-layout",
+                        member_offset,
+                    ),
+                },
+            },
+        )));
+        let site = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset: command.native_words()[0].span().start(),
+        };
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(origin.source_image()),
+            config,
+            command.command(),
+        );
+        let rows = self.declaration_layouts.entry(site).or_default();
+        for parent in parents {
+            let row = DeclarationLayoutObservation {
+                issuer: DeclarationLayoutIssuer::ConditionalReceiverSource,
+                entry: Arc::clone(&entry),
+                // The held snapshot/namespace belong to the parent
+                // declaration. LogicalReceiver cannot project them as a
+                // receiver lookup namespace or entered naming context.
+                snapshot: parent.snapshot,
+                namespace: parent.namespace,
+                config,
+                words: Arc::from(tokens.words()),
+            };
+            if !rows.contains(&row) {
+                rows.push(row);
             }
         }
     }
