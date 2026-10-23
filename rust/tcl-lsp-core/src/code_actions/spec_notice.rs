@@ -36,6 +36,89 @@ pub struct SpecPackNoticeSubject {
     line: u32,
     original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
 }
+#[derive(Clone, Copy)]
+struct LoaderNoticeSite<'a> {
+    line: u32,
+    wanted: &'a str,
+    kind: &'a SpecPackNoticeKind,
+}
+fn loader_notice_plain_word(word: &NativeWord) -> Option<&str> {
+    if word.group().expand {
+        return None;
+    }
+    let bytes = word
+        .image()
+        .bytes()
+        .get(word.content_span().ok()?.as_range())?;
+    if bytes
+        .iter()
+        .any(|b| matches!(b, b'\\' | b'$' | b'[' | b']'))
+    {
+        return None;
+    }
+    std::str::from_utf8(bytes).ok()
+}
+fn collect_loader_notice_sites(
+    image: &SourceImage,
+    region: Span,
+    config: LexerConfig,
+    depth: u32,
+    site: LoaderNoticeSite<'_>,
+    sites: &mut Vec<Span>,
+) -> Option<()> {
+    let LoaderNoticeSite { line, wanted, kind } = site;
+    if depth > 32 {
+        return None;
+    }
+    let plan =
+        tcl_lexer::native_script_words_in(image.clone(), region, config.at_depth(depth)).ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    for command in plan.commands {
+        let head = command.words.first()?;
+        let head_text = loader_notice_plain_word(head);
+        for (ordinal, word) in command.words.iter().enumerate() {
+            // A notice's line is counted once; no `bytecount` dependency is warranted.
+            #[allow(clippy::naive_bytecount)]
+            let word_line = u32::try_from(
+                image
+                    .bytes()
+                    .get(..word.span().start() as usize)?
+                    .iter()
+                    .filter(|&&b| b == b'\n')
+                    .count(),
+            )
+            .ok()?
+            .checked_add(1)?;
+            let position = match kind {
+                SpecPackNoticeKind::Property => ordinal == 0,
+                SpecPackNoticeKind::Flag { row } => {
+                    ordinal > 0 && head_text == Some(row.as_str()) && wanted.starts_with('-')
+                }
+            };
+            if position
+                && word_line == line
+                && loader_notice_plain_word(word) == Some(wanted)
+                && word.group().kind != tcl_lexer::WordKind::Braced
+            {
+                sites.push(word.content_span().ok()?);
+            }
+            if word.group().kind == tcl_lexer::WordKind::Braced {
+                let _ = collect_loader_notice_sites(
+                    image,
+                    word.content_span().ok()?,
+                    config,
+                    depth + 1,
+                    site,
+                    sites,
+                );
+            }
+        }
+    }
+    Some(())
+}
+
 impl SpecPackNoticeSubject {
     /// Legacy unpositioned geometry lookup; this does not authenticate a loader rejection.
     /// Computed, escaped, ambiguous and absent sites cannot issue a geometry subject.
@@ -47,102 +130,17 @@ impl SpecPackNoticeSubject {
         word: &str,
         kind: SpecPackNoticeKind,
     ) -> Option<Self> {
-        #[derive(Clone, Copy)]
-        struct NoticeSite<'a> {
-            line: u32,
-            wanted: &'a str,
-            kind: &'a SpecPackNoticeKind,
-        }
-        fn plain(word: &NativeWord) -> Option<&str> {
-            if word.group().expand {
-                return None;
-            }
-            let bytes = word
-                .image()
-                .bytes()
-                .get(word.content_span().ok()?.as_range())?;
-            if bytes
-                .iter()
-                .any(|b| matches!(b, b'\\' | b'$' | b'[' | b']'))
-            {
-                return None;
-            }
-            std::str::from_utf8(bytes).ok()
-        }
-        fn walk(
-            image: &SourceImage,
-            region: Span,
-            config: LexerConfig,
-            depth: u32,
-            site: NoticeSite<'_>,
-            sites: &mut Vec<Span>,
-        ) -> Option<()> {
-            let NoticeSite { line, wanted, kind } = site;
-            if depth > 32 {
-                return None;
-            }
-            let plan =
-                tcl_lexer::native_script_words_in(image.clone(), region, config.at_depth(depth))
-                    .ok()?;
-            if plan.fatal_tail.is_some() {
-                return None;
-            }
-            for command in plan.commands {
-                let head = command.words.first()?;
-                let head_text = plain(head);
-                for (ordinal, word) in command.words.iter().enumerate() {
-                    // A notice's line is counted once; no `bytecount` dependency is warranted.
-                    #[allow(clippy::naive_bytecount)]
-                    let word_line = u32::try_from(
-                        image
-                            .bytes()
-                            .get(..word.span().start() as usize)?
-                            .iter()
-                            .filter(|&&b| b == b'\n')
-                            .count(),
-                    )
-                    .ok()?
-                    .checked_add(1)?;
-                    let position = match kind {
-                        SpecPackNoticeKind::Property => ordinal == 0,
-                        SpecPackNoticeKind::Flag { row } => {
-                            ordinal > 0
-                                && head_text == Some(row.as_str())
-                                && wanted.starts_with('-')
-                        }
-                    };
-                    if position
-                        && word_line == line
-                        && plain(word) == Some(wanted)
-                        && word.group().kind != tcl_lexer::WordKind::Braced
-                    {
-                        sites.push(word.content_span().ok()?);
-                    }
-                    if word.group().kind == tcl_lexer::WordKind::Braced {
-                        let _ = walk(
-                            image,
-                            word.content_span().ok()?,
-                            config,
-                            depth + 1,
-                            site,
-                            sites,
-                        );
-                    }
-                }
-            }
-            Some(())
-        }
         if word.is_empty() || !word.is_ascii() || word.contains(char::is_whitespace) {
             return None;
         }
         let image = SourceImage::document(source);
         let mut sites = Vec::new();
-        walk(
+        collect_loader_notice_sites(
             &image,
             Span::new(0, u32::try_from(image.len()).ok()?),
             config,
             0,
-            NoticeSite {
+            LoaderNoticeSite {
                 line,
                 wanted: word,
                 kind: &kind,

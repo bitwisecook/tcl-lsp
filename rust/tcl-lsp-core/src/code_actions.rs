@@ -2488,56 +2488,10 @@ fn collect_bootstrap_actions_current(
     if source_action_spec(analysis, registry, handler.name).is_none() {
         return Vec::new();
     }
-    let choices: Vec<(&str, &str)> = if diagnostic.code.as_str() == "IRULE1005" {
-        // The issuer's exact event operand must belong to the selected header.
-        if enclosing
-            .words
-            .get(1)
-            .is_none_or(|word| word.span() != diagnostic.span)
-        {
-            return Vec::new();
-        }
-        let Some(setup) = events
-            .get_props(event)
-            .and_then(|properties| properties.setup_event)
-        else {
-            return Vec::new();
-        };
-        let Some((protocols, _)) = events.data_collect_requirement(event) else {
-            return Vec::new();
-        };
-        protocols
-            .iter()
-            .filter_map(|protocol| {
-                registry
-                    .data_collection_collect_command(protocol)
-                    .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
-                    .map(|spec| (spec.name, setup))
-            })
-            .collect()
-    } else {
-        let mut operations = commands
-            .iter()
-            .filter(|command| {
-                command.span.start() <= diagnostic.span.start()
-                    && diagnostic.span.end() <= command.span.end()
-            })
-            .filter_map(|command| registry.data_collection_operation(&command.canonical))
-            .filter(|operation| operation.action == DataCollectionAction::Payload);
-        let Some(operation) = operations.next() else {
-            return Vec::new();
-        };
-        if operations.next().is_some() {
-            return Vec::new();
-        }
-        let Some(setup) = operation.protocol.bootstrap_event_for(event) else {
-            return Vec::new();
-        };
-        registry
-            .data_collection_collect_command(operation.protocol.name)
-            .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
-            .map(|spec| vec![(spec.name, setup)])
-            .unwrap_or_default()
+    let Some(choices) = bootstrap_collect_choices(
+        analysis, registry, commands, diagnostic, enclosing, event, &events,
+    ) else {
+        return Vec::new();
     };
     let index = LineIndex::new(source);
     let anchor = index.line_at(enclosing.span.start());
@@ -2563,6 +2517,68 @@ fn collect_bootstrap_actions_current(
         .collect()
 }
 
+fn bootstrap_collect_choices(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    commands: &[diagnostic_context::SourceCommand],
+    diagnostic: &tcl_compiler::compiler_checks::Diagnostic,
+    enclosing: &diagnostic_context::SourceCommand,
+    event: &str,
+    events: &EventRegistry,
+) -> Option<Vec<(&'static str, &'static str)>> {
+    Some(if diagnostic.code.as_str() == "IRULE1005" {
+        // The issuer's exact event operand must belong to the selected header.
+        if enclosing
+            .words
+            .get(1)
+            .is_none_or(|word| word.span() != diagnostic.span)
+        {
+            return None;
+        }
+        let Some(setup) = events
+            .get_props(event)
+            .and_then(|properties| properties.setup_event)
+        else {
+            return None;
+        };
+        let Some((protocols, _)) = events.data_collect_requirement(event) else {
+            return None;
+        };
+        protocols
+            .iter()
+            .filter_map(|protocol| {
+                registry
+                    .data_collection_collect_command(protocol)
+                    .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
+                    .map(|spec| (spec.name, setup))
+            })
+            .collect()
+    } else {
+        let mut operations = commands
+            .iter()
+            .filter(|command| {
+                command.span.start() <= diagnostic.span.start()
+                    && diagnostic.span.end() <= command.span.end()
+            })
+            .filter_map(|command| registry.data_collection_operation(&command.canonical))
+            .filter(|operation| operation.action == DataCollectionAction::Payload);
+        let Some(operation) = operations.next() else {
+            return None;
+        };
+        if operations.next().is_some() {
+            return None;
+        }
+        let Some(setup) = operation.protocol.bootstrap_event_for(event) else {
+            return None;
+        };
+        registry
+            .data_collection_collect_command(operation.protocol.name)
+            .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
+            .map(|spec| vec![(spec.name, setup)])
+            .unwrap_or_default()
+    })
+}
+
 fn taint_subject_actions(
     source: &str,
     analysis: &AnalysisResult,
@@ -2583,32 +2599,7 @@ fn taint_subject_actions(
     // semantics-preserving refactoring. The selected source head, option
     // grammar and written insertion extent must all be current.
     if diagnostic.code.as_str() == "T100" && command.canonical == "subst" {
-        let Some(spec) = source_action_spec(analysis, registry, &command.canonical) else {
-            return Vec::new();
-        };
-        if !spec
-            .options
-            .iter()
-            .any(|option| option.name == "-nocommands")
-            || command
-                .words
-                .iter()
-                .skip(1)
-                .any(|word| diagnostic_context::source_literal(word) == Some("-nocommands"))
-        {
-            return Vec::new();
-        }
-        let Some(head) = command.words.first() else {
-            return Vec::new();
-        };
-        return vec![context_action(
-            "Add -nocommands to disable command substitution".to_owned(),
-            vec![source_edit(
-                source,
-                tcl_lexer::Span::new(head.span().end(), head.span().end()),
-                " -nocommands".to_owned(),
-            )],
-        )];
+        return subst_nocommands_action(source, analysis, registry, command);
     }
     // Other rewrites introduce or remove evaluations. Authored vendor and
     // explicit lexical source advice may offer reviewed hardening; selected
@@ -2695,6 +2686,40 @@ fn taint_subject_actions(
         }
         _ => Vec::new(),
     }
+}
+
+fn subst_nocommands_action(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    command: &diagnostic_context::SourceCommand,
+) -> Vec<CodeAction> {
+    let Some(spec) = source_action_spec(analysis, registry, &command.canonical) else {
+        return Vec::new();
+    };
+    if !spec
+        .options
+        .iter()
+        .any(|option| option.name == "-nocommands")
+        || command
+            .words
+            .iter()
+            .skip(1)
+            .any(|word| diagnostic_context::source_literal(word) == Some("-nocommands"))
+    {
+        return Vec::new();
+    }
+    let Some(head) = command.words.first() else {
+        return Vec::new();
+    };
+    vec![context_action(
+        "Add -nocommands to disable command substitution".to_owned(),
+        vec![source_edit(
+            source,
+            tcl_lexer::Span::new(head.span().end(), head.span().end()),
+            " -nocommands".to_owned(),
+        )],
+    )]
 }
 
 #[cfg(test)]
