@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -489,7 +489,7 @@ jobs:
 
   # Temporary WORK-only failure inventory. Never carry this diagnostic to release.
   runtime-fulltom-diagnostics:
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runtime-fulltom-diagnostics' && github.ref == 'refs/heads/work'
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'runtime-fulltom-diagnostics' || inputs.mode == 'runtime-fulltom-focused-diagnostics') && github.ref == 'refs/heads/work'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -500,6 +500,7 @@ jobs:
       CARGO_BUILD_JOBS: "2"
       CARGO_TERM_COLOR: never
       RUST_BACKTRACE: short
+      RUNTIME_FULLTOM_FOCUSED: ${{ inputs.mode == 'runtime-fulltom-focused-diagnostics' && '1' || '0' }}
     steps:
       - name: Record diagnostic deadline
         timeout-minutes: 1
@@ -544,6 +545,9 @@ jobs:
           python3 --version > "$OUT/python-version.txt"
           printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
           printf '%s\n' 'DIAGNOSTIC ONLY: original standalone lib/integration tests, actual selected roster authoritative. nextest excludes doctests. No full cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            printf '%s\n' 'DIAGNOSTIC ONLY: exactly three original runtime lib tests. All other tests and doctests excluded. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
+          fi
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         timeout-minutes: 3
         run: |
@@ -575,7 +579,9 @@ jobs:
           # its absolute deadline leaves time for final seals and evidence upload.
           set +e
           timeout --signal=INT --kill-after=20s "$remaining" python3 - <<'BUILD'
+          import json
           import os
+          import runpy
           import selectors
           import signal
           import subprocess
@@ -597,6 +603,20 @@ jobs:
               "--message-format",
               "json",
           ]
+          focused_tests = (
+              "interp::tests::active_original_command_keeps_client_data_until_dispatch_releases_its_handle",
+              "cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+              "builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+          )
+          focused = os.environ["RUNTIME_FULLTOM_FOCUSED"] == "1"
+          expression = (
+              "binary_id(=tcl-runtime) & ("
+              + " | ".join("test(=" + name + ")" for name in focused_tests)
+              + ")"
+          )
+          if focused:
+              argv += ["-E", expression]
+              (out / "nextest-filter.txt").write_text(expression + "\n")
           # Keep draining when timeout interrupts the group; exec resets this handler in Cargo.
           signal.signal(signal.SIGINT, lambda _signal, _frame: None)
           process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -623,6 +643,22 @@ jobs:
           code = process.wait()
           (out / "build-exit.txt").write_text(str(code) + "\n")
           (out / "build-incomplete.txt").write_text(str(int(truncated)) + "\n")
+          if focused and code == 0 and not truncated:
+              capture = runpy.run_path("scripts/dev/nextest-terminal-capture.py")
+              digest, _suites, selected, _ignored = capture["roster"](out / "selected.json")
+              expected = {("tcl-runtime", name) for name in focused_tests}
+              if set(selected) != expected:
+                  (out / "focus-selected-mismatch.json").write_text(
+                      json.dumps(
+                          {"expected": sorted(expected), "actual": sorted(selected)}, indent=2
+                      )
+                      + "\n"
+                  )
+                  raise SystemExit(125)
+              (out / "focus-selected-verified.json").write_text(
+                  json.dumps({"listing_sha256": digest, "selected": sorted(expected)}, indent=2)
+                  + "\n"
+              )
           raise SystemExit(125 if truncated else code if code >= 0 else 128 - code)
           BUILD
           build_result=$?
@@ -638,6 +674,11 @@ jobs:
             printf '\nBUILD_OUTPUT %s\n' "$output" >> "$OUT/backend-output.txt"
             cat "$output" >> "$OUT/backend-output.txt"
           done
+          filter_args=()
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            test -f "$OUT/focus-selected-verified.json"
+            filter_args=(-E "$(cat "$OUT/nextest-filter.txt")")
+          fi
           # Original cases retain their 180-second timeout and assertions.
           # The capture owns and drains nextest directly, retaining full reporter
           # JSON within its bound. JUnit preserves exits, signals and timeouts.
@@ -650,7 +691,7 @@ jobs:
           printf '%s\n' "$remaining" > "$OUT/capture-deadline-seconds.txt"
           set +e
           python3 scripts/dev/nextest-terminal-capture.py --selected-json "$OUT/selected.json" --output-dir "$OUT/terminal" --console-cap 20000000 --raw-cap 20000000 --deadline-seconds "$remaining" --min-free-bytes 2147483648 -- \
-            cargo nextest run --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --no-fail-fast --message-format libtest-json-plus --message-format-version 0.1
+            cargo nextest run --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" "${filter_args[@]}" --no-fail-fast --message-format libtest-json-plus --message-format-version 0.1
           result=$?
           set -e
           printf '%s\n' "$result" > "$OUT/capture-exit.txt"
@@ -717,7 +758,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: runtime-fulltom-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          name: ${{ inputs.mode }}-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/runtime-fulltom-output/*.txt
             ${{ runner.temp }}/runtime-fulltom-output/*.sha256
