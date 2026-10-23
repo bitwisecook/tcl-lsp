@@ -1,0 +1,27 @@
+{
+  "Cargo_executed": false,
+  "all_five_match_pinned_naming_env_script": true,
+  "exact_added_required_environment": {
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1"
+  },
+  "manifest_hashes_match": true,
+  "no_GO_launcher_and_suite_refused_before_lock_Cargo": true,
+  "original_filters_selected_and_build_keys": [
+    7,
+    7,
+    2
+  ],
+  "plan_sha256": "4fbc087ed88b7d2de9c7c60100da2cd7cc7a35ac937109ac962bc81a3779fb49",
+  "prior_receipt_sha256": "510c35c18c3a2585e58ce3cbea337a34a06cae569a2e2f38195a192671b5b797",
+  "reviewed_utc": "2026-10-23T05:12:02.593572+00:00",
+  "runner_input_manifest_sha256": "18dd9435efccc9e26cdfa5e6b4602a875091cf13252aaf3b561a1a76e6a37e5c",
+  "scope": "exact v1\u2192v2 five Tcl provider-path delta; v1 lifecycle/artifact/count receipt retained",
+  "scripts_identical_except_immutable_BASE": true,
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN",
+  "suite_sha256": "e6a4102ec04225e006697520836092e4f32390fe1470529bd63d4de5c78074be",
+  "tests_executed": false
+}

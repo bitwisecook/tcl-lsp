@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T05:17:37.960371+00:00",
+  "prior_product": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "typecheck8_actual": "FAIL Cargo101 exactly1E0716 zero warnings, source/provider/GO/docsHEAD/rawprocessstable; aggregate guard_validfalse includesCargoexit",
+  "diagnostic": "ir/source_bpf_command.rs673 temporary default registry borrow remains used by closure676",
+  "patch_sha256": "b9747a9ab12a6eb195ccee50b6828f60c02d4f19e1a3a4070375b052f03803d3",
+  "before_sha256": "65f11ee047a6603f6c55b5395cbafd474c414ae4d1613577536770aac61f2494",
+  "after_sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+  "peer_receipt_sha256": "3063d50f",
+  "scope": "Test-only named registry lifetime. All5assertions/order/productioncode unchanged; retrytyping/runtime unrun. Cumulative productpaths remains46."
+}

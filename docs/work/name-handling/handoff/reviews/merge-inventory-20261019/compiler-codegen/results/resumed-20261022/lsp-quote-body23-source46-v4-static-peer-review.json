@@ -1,0 +1,27 @@
+{
+  "cargo_executed": false,
+  "checks": [
+    "five fresh Cargo JSON executable artifacts uniquely joined by package manifest, target name/kind/test profile and actual target directory",
+    "exact 23 selectors require one printed name/start/summary/status/exit and preserve original objects",
+    "reviewed direct 88125 executor, 3600-second build and 180-second selector timers, 20MB per-process cap, 2.3GB actual mount floor",
+    "source/provider/artifact and GO/approved HEAD/tree checked across phases, explicit lock release and failure receipt",
+    "launcher rejects inherited build overrides before setting pinned environment; all five Tcl provider paths and Jim pinned; no shell script sourcing",
+    "no GO launcher and direct suite refused before lock/Cargo"
+  ],
+  "input_manifest_hashes_match": true,
+  "original_23_selector_objects_unchanged_from_v3": true,
+  "pins": {
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py": "809029b353507efc2590bbe97f12aec0de7fbeaf84918e71ec4bd13f5a33e69b",
+    "plan.json": "28dac95bcfab8f6042e5b16a874d1fa876029ecfdeed2f7aa96c8be4bff16c2b",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "run.sh": "c0ff4132a61e2ba4a389e16690d995e60845a36d04e69f447e8f129c092a112b",
+    "runner-input-manifest.json": "0a54cb723cc4d718d81fe9747bd0a489e38578ccd39190fe978dc90bdcf2d5d8",
+    "suite.py": "1e4fd52ff050a2c52c4ccabf2116a72c45d5f047dbff2d20e6eec8e960554a5e"
+  },
+  "reviewed_utc": "2026-10-23T05:06:38.214337+00:00",
+  "scope": "LSP23 v4 lifecycle, artifact, selector counts and launcher chain; Names owns syntax/source authority and environment delta",
+  "selectors_executed": false,
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN",
+  "version": "v4 final successor; v3 earlier review superseded"
+}

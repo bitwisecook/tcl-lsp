@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T05:08:44.441600+00:00",
+  "verdict": "NOT CLEAR for explicit Tcl provider prelock requirement; Rust environment delta static clear only",
+  "pins": {
+    "plan.json": "eeea1e40114e363ebbfce72d97c19505880aa927a22bae1e06bfd10dd22738ee",
+    "suite.py": "fcff910c8389093269361cf7c60d7b7d4cc40f1e19b9b6e370e7a1b0981a8a9a",
+    "runner-input-manifest.json": "28d3c2c1e9de0f3c3fc24ec8ee939e7a9a2f622c249c4b5f9afdcf63cd16faee",
+    "preparation-receipt.json": "9b5c534b5d2ce99a5aca310570e5a85f95cf9a525dadcc3290d1e30bfee5458b"
+  },
+  "checked": [
+    "allmanifestinputsha/AST",
+    "Rust required_env/refused exact+patterns/PATH/Cargo+rustc hashes exactly8v8",
+    "launcher refuses inherited flags/wrappers/target before constructing pinnedenv; directsuite source_view checks beforelock and eachphase",
+    "exactoriginal3/5sourcepins/buildargv/providers/direct88125/budgets unchanged"
+  ],
+  "finding": "All five TCL_LSP_TCLSH84/85/86/90/91 are absent from plan.build_environment.required_environment. Wrapper sources pinned env defining them and full provider seal still refuses wrong/missing map before Cargo, but directsuite prelock explicit key enforcement is absent. Root requested explicit provider requirements, analogous to fixed LSP variant.",
+  "proposed_successor": "immutablev5 add5exactpublicpaths, preserving8v8 Rust contract as subset and allotherbytes/guards; do not mutatev4",
+  "no_unsafe_test_gap_claim": "unchanged provider seal remains failclosed beforeCargo; no actual bad-provider/test outcome inferred",
+  "execution": "no runner/provider/launcher/Git/Cargo/lock/source actions; source46 typecheck stillawaited separately"
+}

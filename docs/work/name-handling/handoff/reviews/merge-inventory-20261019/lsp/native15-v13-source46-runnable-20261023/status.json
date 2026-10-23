@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T05:08:48.627354+00:00",
+  "status": "dual bounded staticCLEAR Names(source/env/HEAD) andCCG(lifecycle/artifacts); no GO/actualtypingverdict",
+  "actual_product_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "actual_product_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07",
+  "typecheck": "ACTIVE; actualreceiptSHA bound onlyatallocation after real8PASS0W; none fabricated",
+  "GO": "ABSENT",
+  "runtime": "UNRUN; no Cargo/provider/source/Git mutation",
+  "old_versions": "immutable historical; Nativev10\u219212 inherited env/provider/finalHEAD gaps corrected only in successors",
+  "ccg_receipt_sha256": "538546f293c988c858d89272c1e8ade959d0eaade2f2c6b61789e7d947f0ca62"
+}

@@ -2,11 +2,39 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T05:01Z (actual Spec66v4 COMPLETE04:59:18=51PASS15FAIL,all66strictguards/7artifacts/source/providers stable0W; losslesscompletearchive ready)
+Last updated: 2026-10-23T05:10Z (Spec66complete51/15 archived; direct3v5 explicit5Tcl+8v8Rustenv delta peerCLEAR, actual8PASS gate stillrequired; noCargo/source)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+CCG direct3v5 final boundedenv delta peerCLEAR: frozen
+`/tmp/ccg-post46-direct3-v5/`, plan3875fbea, suite8383ffcf,
+launcherf4152f1d, inputsa238f926. V4 held/historical; v5 scripts differ only
+BASE identity and plan adds exactly5public Tcl paths matching pinnedenv.
+All8v8 Rustenv requirements remain subset; override/PATH/toolhash and5Tcl
+keys checked directprelock/perphase, unchangedcompleteproviderseal before
+Cargo. Exact3/5producerpins/direct88125/lifecycle/providers/budgets unchanged.
+Inputhashes/AST/GOabsence checked only; rootmustsupply actualsource46approved
+HEAD/tree and sameproduct8pkgPASS/guardvalid/0W evidence beforeGO. Prior
+report14FAIL immutablecontext only. Receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/ccg-post46-direct3-v5-static-review.txt`.
+No runner/provider/Git/Cargo/lock/source invoked by reviewer.
+
+
+CCG direct3v4 boundedenv/tool delta review: Rust required/refused keys,
+patterns/PATH/Cargo+rustc hashes exactly8v8; launcher refusal precedes env
+setup, directsource_view checks beforelock/perphase. Exact3/5producerpins/
+providers/direct88125/budgets retained. NOT CLEAR for explicit5public Tcl
+prelock requirement: required_env omits TCL_LSP_TCLSH84/85/86/90/91.
+Pinned wrapper sources them and completeproviderseal still failcloses before
+Cargo, so no unsafe execution gap claimed; root asked explicitkey enforcement.
+Recommended immutablev5 add5exactpaths, Rust8v8 contract as subset; root/CCG
+informed, no protocol mutation by reviewer. Receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/ccg-post46-direct3-v4-static-review.txt`.
+Actualsource46 eightpackage typing final remains separate; no Cargo/GO/Git/
+source/provider action by VM role. Spec66source30 completed51/15 proof retained.
+
 
 Actual Spec66v4 COMPLETE04:59:18Z, launcherfinal04:59:19 exit1, inputs/GO/
 manifest stable, lockreleased.66exact observations51PASS15FAIL; allstrict

@@ -670,7 +670,8 @@ mod tests {
         assert!(build(&changed, &module, registry, config).is_none());
         let (foreign, _) = closed_phase_fixture(registry);
         assert!(build(&script, &foreign, registry, config).is_none());
-        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());
+        let foreign_registry = CommandRegistry::build_default();
+        assert!(build(&script, &module, &foreign_registry, config).is_none());
         let mut changed_config = config;
         changed_config.strict_quoting = !changed_config.strict_quoting;
         assert!(build(&script, &module, registry, changed_config).is_none());

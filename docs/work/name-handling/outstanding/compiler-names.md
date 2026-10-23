@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T05:04:12.986579Z
+Last updated: 2026-10-23T05:16:23.167511Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Actual source46 v8 typing FAIL / v9 binding pending repaired tuple:** guarded8package alltargets closed05:14:22, exactlyone E0716 test-only temporary foreignCommandRegistry borrow `ir/source_bpf_command.rs:673` usedagain676; rootcompiler prepares one-letbinding fix. No warnings observed; aggregate guard_valid=false reflects Cargo101 and diagnosticclean=false includes theerror, while actual source/providers/GO/docs-onlyHEAD/rawprocess stable. ActualHEAD425bd8bd→0417a84d docsadvance correctly accepted, no typePASS/runtime acceptance. Lossless31file archive `source46-typecheck-v8-failure/evidence.tar.gz` SHA8c9fddd9/receipt9aa42c42 allroundtripSHA PASS; originalv8 immutable. Names will prepare binding-only v9 after root actual repairedHEAD/tree/one-row46map arrives; allguards/packages unchanged, no fictionalHEAD/GO/Cargo/Git/source actions. All106 runtime templates require new actual bindings beforeallocation; laterstyle13 remainsout.
+
+**Final finite LSP23v4 static CLEAR / Native15 delta:** exact `/tmp/lsp-quote-body-finite-v4-source46-direct23` plan28dac95b/suite1e4fd52f/inputs0a54cb72 fixes heldv2 compiler-env/tool gap and v3 omitted fiveTclSH bindings. Independent input/source46+selectorpins/exact23inventory/AST4/Bash/absentGO/pureoverridecontrols PASS; actualv8 compiler policy and explicit fiveC+Jim paths pinned, all23/assertions/source/typingreceipt/artifact/process and monotonic docsHEAD+finalaftercaptures checks retained. Receipt `lsp-quote-body-finite-v4-peer.json`; actualtypecheckPASS0W+GO/tests stillunrun. Native15v13 a95ce333/14cc038e/af169c2a focused final env/tool/sourceapproval/HEAD delta static CLEAR; exactsource_view AST matches23 except hash-only priorreport context, final aftercaptures sample+monotonicHEAD records retained. Receipt `native15-v13-final-delta-peer.json`. No source/Cargo/Git/GO.
 
 **Actual source46 and finite LSP23 peer in progress:** root integrated425bd8bd/tree5bc79699 and started actual8pkg v8typecheck05:00:06, no PASS yet. Frozen finite LSP23v2 b6130a0a/42c071f1/b5f8dfed exactinventory22097938 sourcepins7/product46/runnerpins/AST/Bash/absentGO/refusal PASS; strict23printedname/count/status/exit and fresh5target CargoJSON artifacts+currentapprovedproduct/docsHEAD/finalseals sound statically. Peer HELD: inherited Rustflags/wrappers/build-target overrides can undermine0W/compileridentity; expectedCargo/rustc/requiredenv not rejoined to pinnedtypingplan. LSP preparing successor reusev8env/tool policy beforelock, same23data/assertions/process. Root informed; Nativev10 sharedpattern caveat sent. Receipt `lsp-quote-body-finite-v2-held-peer.json`. Source46 HOLD; laterstyle13 staysout.
 

@@ -1,0 +1,22 @@
+{
+  "GO_absent": true,
+  "cargo_executed": false,
+  "checks": [
+    "only post-final-seals source_view, monotonic actual HEAD samples, summary/failure sample recording added in suite",
+    "source_view requires every checked current HEAD be docs-only descendant of approved source46 and monotonic descendant of prior actual sample",
+    "original15 selector objects unchanged, direct executor and artifact/lifecycle code unchanged",
+    "all 15 runner input hashes match",
+    "no-GO launcher and suite refuse before lock/Cargo"
+  ],
+  "pins": {
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py": "9250d9163763aa77d8a49d1d1bedd5fe0085456a228506ad710bfca2412e4adc",
+    "plan.json": "a95ce333bf657c023323e532b62efbaf0a06369d2bdd6aa0e5a1fd6c4edb3409",
+    "run.sh": "e6b476ed8b975e1344af5f37e51a1e496bbe2ef9e459908e3730329bccccbe55",
+    "runner-input-manifest.json": "af169c2a98b850492c5a41bc4264d6aba0bce8f9cac1b515c76d7249a780ee3d",
+    "suite.py": "14cc038e8bae195d7af264c3db92ca4dd0a796ed3018f3517fb4d82ddb88a110"
+  },
+  "reviewed_utc": "2026-10-23T05:07:43.000911+00:00",
+  "scope": "Native15 v12 to v13 exact final HEAD sampling delta; v12 lifecycle/artifact/count peer receipt SHA 0da7c196 remains applicable",
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN"
+}

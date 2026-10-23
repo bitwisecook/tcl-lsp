@@ -1,0 +1,345 @@
+{
+  "utc": "2026-10-23T05:01:44.884854+00:00",
+  "status": "FROZEN actualsource46 runnable PREPARATION; no GO/queue; actual eight-package PASS0W receipt bound only at allocation",
+  "scope": "original23 frozen quote/body producer/consumer/oldNative/refusal assertions unchanged; case excluded; no release/host claim",
+  "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "approved_product_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "approved_product_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07",
+  "original_inventory_path": "/tmp/lsp-nextbatch-quote-body-finite-inventory-v1/inventory.json",
+  "original_inventory_sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+  "selectors": [
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory exact original factorial formerly FAIL; complete expected source output",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory exact original default nested-body/Expr oracle control formerly FAIL",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_drops_redundant_quotes_around_number",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory original42 regression",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_keeps_quotes_around_hash_to_avoid_comment",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original leading# quote refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_keeps_quotes_when_value_starts_with_brace",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original brace quote refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old independently authorized semantic inversion remains separate from sourcegap",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::native_minifier_uses_separate_authentic_body_syntax_without_native_word_admission",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "additive genuine source/control assertions",
+      "purpose": "authentic exactfactorial ingress; oldwordsNone/newnonempty body/Expr +complete output; equalforeign/stale/config negatives",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "additive genuine source/control assertions",
+      "purpose": "quote42/quotedchild positive; empty/space/semicolon/#/{/dynamic/command/expand/malformed/Unicode/BOM controls",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::native_static_quote_edits_retain_the_actual_bom_configuration",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "additive genuine source/control assertions",
+      "purpose": "actual full LeadingBom::Content configured positive",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old independently selected expression gaps; changed expr observer/malformed/refusal controls",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old whole-word/nested/expanded syntax preservation",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original body positive remains actualcurrent",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory original changedhandler-after-proc/observer negatives",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original fullsource/config/malformed refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old hosted source vsNative boundary/zero-gap brackets",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "source_structure::syntax_compaction_tests::original_syntax_regions_keep_quiet_selected_bodies_and_source_currency",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old sourceStructure quiet positive +actualsource/config refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "source_structure::syntax_compaction_tests::original_syntax_regions_do_not_promote_conditional_roles_or_declarations",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old conditional/unavailable/declaration/data refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original actual effectivehead mutation refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::actual_factorial_compiler_syntax_does_not_borrow_native_attachment",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory originalfact minifierinput; compilerstateNone+oldwordsNone remains, newsourcegap/body NONEMPTY, same/foreign owner",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::source_compiler_syntax_refuses_changed_handlers_and_observers",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "mandatory genuine compiler sourcepurpose changedhandler/observer/unknownfuture refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "original inventory request/realm/currentsource/fullinput negative",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "command_binding::compiler_inventory::source_syntax_alternative_tests::source_syntax_requires_every_actual_alternative_and_full_input",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "ALL actual compiler alternatives; missingpolicy/opaquesnapshot/equalforeign refusal",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "original unchanged",
+      "purpose": "old genuineNative/compiler sourcecarrier currentfullinput/vector positive +foreign/config/vector refusal",
+      "expected_tests": 1
+    }
+  ],
+  "source_pins": [
+    {
+      "path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+      "sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a"
+    }
+  ],
+  "required_typecheck_packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-lsp-server",
+    "tcl-vm",
+    "tcl-fuzz",
+    "tcl-spectcl",
+    "bpf-tcl-ir"
+  ],
+  "lifecycle": {
+    "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "build_deadline_seconds": 3600,
+    "selector_deadline_seconds": 180,
+    "per_process_output_cap_bytes": 20000000,
+    "actual_mount_floor_bytes": 2300000000,
+    "source46_manifest_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "post46_eight_package_typecheck_plan_sha256": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b"
+  },
+  "runner_parent_plan_sha256": "f7ba3c96f6c67f99cb5f673031d25448167bc8f8b6b1655c149fac684904248f",
+  "runner_parent_suite_sha256": "c1075b7f4528654cfa82aa05a7b5b5b5de115c004942dc1a036bf485f728074a",
+  "trace_env": {
+    "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+  },
+  "required_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "/workspace/.cargo",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+    "RUSTC": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1"
+  },
+  "path_prefix": "/workspace/.cargo/bin:/workspace/naming-toolchains/node26/bin:/workspace/naming-toolchains/bin",
+  "refused_environment_exact": [
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_RUSTFLAGS",
+    "CARGO_BUILD_RUSTC",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+    "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_TARGET",
+    "RUSTC_BOOTSTRAP"
+  ],
+  "refused_environment_patterns": [
+    {
+      "prefix": "CARGO_TARGET_",
+      "suffix": "_RUSTFLAGS"
+    }
+  ],
+  "cargo_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+  "cargo_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+  "rustc_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+  "rustc_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+  "predecessor_v2_plan_sha256": "b6130a0a7400bfa5c8233ea4dd7c256b105a4696cb4c190029469b167e762737",
+  "predecessor_v2_runner_inputs_sha256": "b5f8dfed2200852632d61b6cfeb260561ba49bc884cb7e0b3b608ba981d33992",
+  "provider_environment_source": {
+    "path": "/tmp/tcl-lsp-naming-env.sh",
+    "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "scope": "five explicit Tcl interpreter path bindings, preserved from former sourced script; no ambient tool choice"
+  }
+}

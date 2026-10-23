@@ -1,0 +1,17 @@
+{
+  "inputs": {
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/name-handling-eight-package-check-v8-source46/source46-manifest.json": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "/tmp/name-handling-eight-package-check-v8-source46/plan.json": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+    "/tmp/lsp-nextbatch-quote-body-finite-inventory-v1/inventory.json": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/run.sh": "c0ff4132a61e2ba4a389e16690d995e60845a36d04e69f447e8f129c092a112b",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/suite.py": "1e4fd52ff050a2c52c4ccabf2116a72c45d5f047dbff2d20e6eec8e960554a5e",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/launch.py": "809029b353507efc2590bbe97f12aec0de7fbeaf84918e71ec4bd13f5a33e69b",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-quote-body-finite-v4-source46-direct23/plan.json": "28dac95bcfab8f6042e5b16a874d1fa876029ecfdeed2f7aa96c8be4bff16c2b"
+  },
+  "root_go_contract": "actual product425bd8bd/tree5bc79699 and exactsource46map; actual eight-package source46 PASS0W final receipt SHA bound at allocation ONLY after actual pass; exactplan/runner pins; no GO minted"
+}

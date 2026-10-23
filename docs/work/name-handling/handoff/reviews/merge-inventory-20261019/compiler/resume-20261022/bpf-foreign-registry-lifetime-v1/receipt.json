@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T05:15:31.277700+00:00",
+  "status": "OFFTREE test-only E0716 lifetime correction; untyped/unrun",
+  "patch_sha256": "b9747a9ab12a6eb195ccee50b6828f60c02d4f19e1a3a4070375b052f03803d3",
+  "path": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+  "before_sha256": "65f11ee047a6603f6c55b5395cbafd474c414ae4d1613577536770aac61f2494",
+  "final_sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+  "cause": "Closure registry parameter inferred borrowed across subsequent call; temporary default registry was dropped after assertion while closure used again. Actual compiler E0716 help recommends local binding.",
+  "change": "Bind same fresh CommandRegistry::build_default() to foreign_registry at same sequence point immediately before original negative assertion; only substitute its borrow. All five assertions/predicates/order unchanged; production bytes unchanged.",
+  "diagnostic_path": "/tmp/naming-source46-typecheck-diagnostics.json",
+  "diagnostic_sha256": "0bb82afe9dbd082982498cfcec2c6c932e85b1b086090dffd342fd18dea1cd9e",
+  "checks": "Pinnedfmt2024 --check PASS; exact currentbefore; zero-fuzz dryrunPASS; no Cargo/Git/source application",
+  "source46_protocols": "Existing v1/v2 pins immutable and invalid for changed product; root must integrate new actualHEAD/tree/map then explicit successor protocols."
+}

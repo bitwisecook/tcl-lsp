@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T05:07:20.234340+00:00",
+  "status": "frozen actualsource46 PREPARATION; no GO/Cargo/provider/source/Git",
+  "pins": {
+    "plan.json": "a95ce333bf657c023323e532b62efbaf0a06369d2bdd6aa0e5a1fd6c4edb3409",
+    "suite.py": "14cc038e8bae195d7af264c3db92ca4dd0a796ed3018f3517fb4d82ddb88a110",
+    "launch.py": "9250d9163763aa77d8a49d1d1bedd5fe0085456a228506ad710bfca2412e4adc",
+    "run.sh": "e6b476ed8b975e1344af5f37e51a1e496bbe2ef9e459908e3730329bccccbe55",
+    "runner-input-manifest.json": "af169c2a98b850492c5a41bc4264d6aba0bce8f9cac1b515c76d7249a780ee3d",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "delta": "Nativev12\u2192v13 lifts reviewed LSP23v4 exact monotonicdocs HEADsamples/finalsource_view-afterseals+summaryactualproducttuple/failureheadsamples; no env/process/selector/budget/artifact changes",
+  "validation": "AST4/Bash/manifest/env+selector equality/absentGO PASS; peer pending; actual8PASSreceipt not fabricated; runtimeUNRUN"
+}

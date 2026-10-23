@@ -1,0 +1,26 @@
+{
+  "cargo_executed": false,
+  "checks": [
+    "fresh e2e/lib Cargo JSON test artifacts and e2e server bin exact name/kind/manifest/test-profile, unique event and actual target directory",
+    "strict exact15 printed name/start/summary/status/exit",
+    "reviewed 88125 direct executor 3600/180 timers, 20MB per-process output, 2.3GB actual mount floor",
+    "source/provider/artifact and GO approved HEAD/tree checked before and after phases, explicit failure receipt and lock release",
+    "launcher inherited overrides refused before environment setup, pinned Cargo/rustc and five Tcl provider paths plus Jim",
+    "no GO launcher and suite refused before lock/Cargo"
+  ],
+  "input_manifest_hashes_match": true,
+  "original15_selector_objects_unchanged_from_v10": true,
+  "pins": {
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py": "7f7e673766ddc29a15632fc6cecbb04e454edc425de7d9c4b9ef15164da3534e",
+    "plan.json": "8f19791e4f017c337c9581d431a27f54454e2bef00752e21d5a9fb568cc19be9",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "run.sh": "1e682147db007425664eb92c658796a71634aa1241568ff5d18ef7a47522d1e3",
+    "runner-input-manifest.json": "21a925064ca2cb383df1779f1a3681ad8791a36194a15e44d86403008617d837",
+    "suite.py": "c649ee0a122a93da6ac685b4144013fadca1fdab9837624ea7388572ae25896f"
+  },
+  "reviewed_utc": "2026-10-23T05:07:08.992251+00:00",
+  "scope": "Native15 v12 lifecycle, artifacts, selector counts and launcher chain; Names owns environment authority delta",
+  "selectors_executed": false,
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN"
+}

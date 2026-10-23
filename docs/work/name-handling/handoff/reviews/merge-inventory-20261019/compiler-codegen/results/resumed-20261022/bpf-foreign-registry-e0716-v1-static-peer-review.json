@@ -1,0 +1,19 @@
+{
+  "Cargo_executed": false,
+  "Rust_typing_after_fix": "UNRUN",
+  "actual_diagnostic_sha256": "0bb82afe9dbd082982498cfcec2c6c932e85b1b086090dffd342fd18dea1cd9e",
+  "after_sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+  "before_sha256": "65f11ee047a6603f6c55b5395cbafd474c414ae4d1613577536770aac61f2494",
+  "canonical_source_modified_by_reviewer": false,
+  "evidence": [
+    "actual E0716 points to temporary default CommandRegistry at line 673 and later closure borrow at line 676",
+    "exact current before hash matches",
+    "off-tree zero-fuzz patch apply gives stated after hash",
+    "new local binds the same fresh default registry immediately before original negative assertion",
+    "all five assertion expressions, predicates and order preserved after substituting local borrow"
+  ],
+  "patch_sha256": "b9747a9ab12a6eb195ccee50b6828f60c02d4f19e1a3a4070375b052f03803d3",
+  "scope": "one test-only E0716 lifetime fix in source_bpf_command.rs; no production or assertion-policy change",
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN",
+  "utc": "2026-10-23T05:16:04.403020+00:00"
+}

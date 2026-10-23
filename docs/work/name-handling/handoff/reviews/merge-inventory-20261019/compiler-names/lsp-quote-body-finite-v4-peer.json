@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T05:07:21.895447+00:00",
+  "status": "CLEAR bounded independent static source/inventory/artifact/env/process review; no execution or runtime acceptance",
+  "path": "/tmp/lsp-quote-body-finite-v4-source46-direct23",
+  "pins": {
+    "plan.json": "28dac95bcfab8f6042e5b16a874d1fa876029ecfdeed2f7aa96c8be4bff16c2b",
+    "suite.py": "1e4fd52ff050a2c52c4ccabf2116a72c45d5f047dbff2d20e6eec8e960554a5e",
+    "launch.py": "809029b353507efc2590bbe97f12aec0de7fbeaf84918e71ec4bd13f5a33e69b",
+    "run.sh": "c0ff4132a61e2ba4a389e16690d995e60845a36d04e69f447e8f129c092a112b",
+    "runner-input-manifest.json": "0a54cb723cc4d718d81fe9747bd0a489e38578ccd39190fe978dc90bdcf2d5d8",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "approved_product_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "approved_product_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07",
+  "checks": [
+    "All runner input hashes verified; exact originalinventory22097938 selectors/data/counts/assertion descriptors unchanged23; grouped1+1+4+12+5.",
+    "All7 selector-source and46 current product pins verified during v2 review; unchanged in finalv4.",
+    "Exact v8 compiler required environment subset, PATH prefix, refusedoverride list/pattern and Cargo/rustc path+hash policy; expected compiler binaries verified.",
+    "Additional5 TclSH binding values equal literal exports in pinnedenvscript; all provider-required five+Jim env keys explicitly set and checked, no script source to mask overrides.",
+    "Pure exact10+target-specific refused override and required-env positive controls exercised independently in both AST-extracted helpers; helpers identical.",
+    "AST4/Bash parse and absentGO launch refusalPASS2 before runner/lock/Cargo.",
+    "Original approved product tuple/source46 approvedblobs/worktree/docs-only monotonic actualHEAD sampling/currentfullinput sourcepins and aftercaptures finalsource_view retained.",
+    "Actual eight-package PASS0W finalreceipt hash is required only at root allocation; no pending pass fabricated.",
+    "Fresh exact CargoJSON artifact name/kind/testprofile/manifest/path underactualtarget required; per-selector/final hashes and same reviewed88125 process owner/timer/group/disk/cap guards retained.",
+    "Original exact printedname/start/summary/status/exit counts preserved, failures remain failed; no core/compiler server donation."
+  ],
+  "limits": [
+    "No Cargo/build/Git/provider/canonical source/GO by reviewer; typing currentlyactive, testsunrun.",
+    "Clear binds this exact preparation only; root allocates solebuildslot and mustpin actualtypecheckPASS0W receipt/GO after completion.",
+    "Native15 v12 has separate finalHEAD sampling gap and is not covered by this LSP23 verdict."
+  ]
+}

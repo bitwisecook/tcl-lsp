@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T05:05:53.745415+00:00",
+  "status": "frozen actualsource46 PREPARATION; no GO/Cargo/provider/source/Git",
+  "pins": {
+    "plan.json": "28dac95bcfab8f6042e5b16a874d1fa876029ecfdeed2f7aa96c8be4bff16c2b",
+    "suite.py": "1e4fd52ff050a2c52c4ccabf2116a72c45d5f047dbff2d20e6eec8e960554a5e",
+    "launch.py": "809029b353507efc2590bbe97f12aec0de7fbeaf84918e71ec4bd13f5a33e69b",
+    "run.sh": "c0ff4132a61e2ba4a389e16690d995e60845a36d04e69f447e8f129c092a112b",
+    "runner-input-manifest.json": "0a54cb723cc4d718d81fe9747bd0a489e38578ccd39190fe978dc90bdcf2d5d8",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "delta": "five mandatory explicit TCLSH84/85/86/90/91 paths added to launcher-set/suite-required environment from pinned originalenvscript; v8 compiler environment policy unchanged; provider-required envkeys coverage checked",
+  "validation": "AST4/Bash/manifest/selector equality/providerkeys/absentGO PASS; peer pending; actual8PASSreceipt not fabricated; runtimeUNRUN"
+}

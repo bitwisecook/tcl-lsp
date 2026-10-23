@@ -1,0 +1,25 @@
+{
+  "GO_absent": true,
+  "cargo_executed": false,
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "expected_selected": 7,
+  "fresh_build_artifact_keys": 2,
+  "input_manifest_hashes_match": true,
+  "launch_sha256": "c730fc0cb5cd736abeb168afcf8e75aa27771753ab5a6822dd24d8e78077e422",
+  "notes": [
+    "exact pinned Cargo JSON artifact name/kind/manifest/test-profile/executable and target-dir check; no stale fallback",
+    "direct reviewed executor with 3600-second build and 180-second selector deadlines, owned-group and artifact checks",
+    "source/provider and approved HEAD/tree checks before and after phases",
+    "Cargo/rustc path+digest, required environment, PATH prefix, inherited override refusal before lock; launcher rejects overrides before setup",
+    "exact selector and summary counts retained; actual outcomes unmeasured"
+  ],
+  "original_selectors": 7,
+  "plan_sha256": "ea778e6f50b22f3464e533a66b10b72d947e391c5d342a516f2ff6d94263194f",
+  "protocol": "compiler-jim7",
+  "reviewed_utc": "2026-10-23T05:06:14.085584+00:00",
+  "runner_manifest_sha256": "b5cd38ba3a6ac41357ec6800f1d2ad95b79b5d0b480d71dec2dc08a028907799",
+  "scope": "bounded static lifecycle, artifact, count and build environment review; no runtime acceptance",
+  "selector_executed": false,
+  "status": "STATIC_CLEAR_UNRUN",
+  "suite_sha256": "b61826f70e9dc632b7ea3568c8e7da9bd9a191fe9fb850d85a7cfa2e4c4299ae"
+}

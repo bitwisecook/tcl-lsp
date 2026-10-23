@@ -1,6 +1,7 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T04:43:52Z: root source46 nextbatch frozen28files/cumulative46vs3b1; current source30 spec66 HOLD continues, no LSP source/Cargo/GO/Git. Native15 successor v10 source46 TEMPLATE `/tmp/lsp-native-protocol-v10-source46-direct15-template` staticCLEAR CCG `dd0b4333`: planf7ba3c96/suitec1075b7f/inputs19656f5f, original15+13sourcepins unchanged, direct88125/budgets/strict currentCargoartifact+host/provider/transitivecapture/_paths retained. Exact printedname/start/count/status/exit enforced; actualsource46 approvedproduct HEAD/tree+all46 committedblobs+eight-packagePASS0W receipt required only afterrootintegration, no fakeHEAD/GO minted. Prior report14 failures remain contextual/hash-only. Owner LSP23 inventory22097938 unchanged/no compiler31 overlap; source46 bindingtemplatef9f05e62 validates unioncomponent pins, awaiting actual integratedSHA before runnableversion. All15/all23 runtimeUNRUN; no D6/host/allD/shipping/release claim.
+Current status 2026-10-23T05:08:48Z: source46 ACTUAL product `425bd8bd0360294bc5929a39e814fe555ed9b07c`/tree `5bc79699ab0b53026d71ca7fe37972bfdb990c07` integrated04:59 after valid Spec66 closure51PASS15FAIL. Eight-package v8 source46 typecheck ACTIVE since05:00:06, no verdict/PASSreceipt fabricated; SOURCE/PROVIDER HOLD. LSP23 runnable v4 `/tmp/lsp-quote-body-finite-v4-source46-direct23` plan28dac95b/suite1e4fd52f/inputs0a54cb72 dual staticCLEAR Names+CCG; Native15 runnable v13 `/tmp/lsp-native-protocol-v13-source46-direct15` plana95ce333/suite14cc038e/inputsaf169c2a dual staticCLEAR. Both exactrootactualtuple+full46, explicit8env/override/toolhash +5TCLprovider paths, strictname/count/status/exit/currentCargoartifacts/direct88125/budgets/fullseals/docsonlymonotonicHEAD-finalrecheck. Actual8PASS0W receipt SHA binds onlyatrootallocation; no GO/queue/Cargo/provider/source/Git byLSP. Inventory23 remains22097938, zero exact/substring overlap compiler58+Jim7 f37fa50c. All23/all15runtimeUNRUN; no allD/D6/host/shipping/releaseclaim.
+
 
 
 
@@ -61,13 +62,14 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T04:43:52Z
+Last updated: 2026-10-23T05:08:48Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T04:43:52Z: read `lsp/native15-v10-source46-template-20261023/status.json` and `lsp/nextbatch-quote-body-finite-inventory-v1-20261023/source46-binding-template.json`. Root alone binds actualsource46 integratedHEAD/tree and postintegration8pkgPASS0W before GO; oldNative15v8 and allsource30 evidence remain immutable. V10 is template staticCLEAR only; priorreport14FAIL not a green prerequisite. LSP23 codecomponents union2834a8b6/issuer9bdae873/quote68302f94 matchcandidate46 but remain type/runtimeUNRUN. Case-list excluded/provisional. Preserve all original assertions, user2231 opaque stop, source/currentness/refusal guards and old finite20 missingfinalproviderseal.
+Latest resume pointer 2026-10-23T05:08:48Z: read `lsp/quote-body23-v4-source46-runnable-20261023/status.json` and `lsp/native15-v13-source46-runnable-20261023/status.json` first. Root source46 eighttypecheck active; actual425bd/tree5bc7 immutable; no product/source/provider edits. Both runnable successors staticCLEAR only: GO must bind actual finished8PASS0W receipt path/SHA afterverdict, not futurepath or fictionpass. OldNativev10→12 and LSPv2→3 remain immutablehistorical; inheritedenv/provider/finalHEAD gaps corrected only in currentv4/v13. Native15 priorreport14FAIL is hash-only context; own15measurement stillunrun. Preserve original23/15 assertions/refusals, user2231 opaque clear/break, corebodyNative/sourcepurpose separation, and finite20 missingfinalproviderseal; no release/zeroP2Fclaim.
+
 
 
 

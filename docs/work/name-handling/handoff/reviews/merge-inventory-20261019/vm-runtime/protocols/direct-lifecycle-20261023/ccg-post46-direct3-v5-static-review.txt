@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T05:09:06.140711+00:00",
+  "verdict": "CLEAR bounded immutablev5 env/tool delta; source46 current actual8PASS0W evidence stillmandatory; no runtime admission",
+  "pins": {
+    "plan.json": "3875fbeaf263182e15e5dbf6ff1b49f2eadb63d34f9d44b600ae196ef00bc994",
+    "suite.py": "8383ffcfec307f3fea75fcd8547587fe875444e37bd78a0778019f2c38c2738d",
+    "launch.py": "f4152f1dbe10ab0bb483c0d7b60acdbcfe5849c5fc8bca4afad6cfca6d5fcfb4",
+    "runner-input-manifest.json": "a238f92656aab2d278519ad533e4f9040894e1be3ff11fd98f2ad2cb7985962d",
+    "preparation-receipt.json": "17469e290a00f158a9939bc33c29afdb7ce1b3012a180d015da2beb1fe48f522"
+  },
+  "checked": [
+    "all inputhashes+AST match, GOabsent",
+    "v4\u2192v5 scripts only BASE identities; required_env adds exactly5public Tcl paths matching pinned naming env",
+    "complete8v8 Rust required_env remains subset; original env override/path/tool checks unchanged",
+    "five Tcl keys now explicit directprelock/per-source_view, launcher sets them after override refusal; unchangedfullproviderseal remains beforeCargo",
+    "exact3/5sourcepins/buildargv/direct88125/lifecycle/providers/limits unchanged"
+  ],
+  "limits": [
+    "v4 held/historical; v5 unrun/noGO",
+    "rootapproved exactsource46+sameproduct8pkgPASS/guardvalid/zeroW receipts required beforeallocation",
+    "priorreport14FAIL contextonly, no unrelatedgreen prerequisite"
+  ],
+  "execution": "static only; no launcher/runner/provider/helper/Git/Cargo/lock/source invoked"
+}
