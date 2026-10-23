@@ -487,8 +487,11 @@ ensure_reference_tclsh() {
         info "Building $command_name ($expected) from $tree_dir"
         (
             cd "$tree_dir/unix"
-            CFLAGS="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration" \
-                ./configure --disable-shared >/dev/null
+            reference_cflags="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration"
+            if [ "$release" = "8.4" ]; then
+                reference_cflags="$reference_cflags -std=gnu17"
+            fi
+            CFLAGS="$reference_cflags" ./configure --disable-shared >/dev/null
             make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" >/dev/null
         )
         if ! tcl_reference_tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
