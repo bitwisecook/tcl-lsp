@@ -1043,215 +1043,257 @@ fn object_arity_description(
     }
 }
 
+fn arity_subject_description(
+    diagnostic: &Diagnostic,
+    subject: &DiagnosticSubject,
+) -> Option<SubjectDescription> {
+    Some(match subject {
+        DiagnosticSubject::PrivateTclNamespace(original) => {
+            if diagnostic.code != tcl_core_types::DiagCode::W143 {
+                return None;
+            }
+            SubjectDescription::PrivateTclNamespace {
+                source_name: original.classified_source_name().to_owned(),
+                public_command: original.policy().public_command.to_owned(),
+                tail: original.policy().tail.clone(),
+                selected_source_descriptor: original.selected_source_words().is_some(),
+                obligations: original.obligations().iter().map(Into::into).collect(),
+                start: original.original_head().span().start(),
+                end: original.original_head().span().end(),
+            }
+        }
+        DiagnosticSubject::UserSourceArity(original) => {
+            if !matches!(
+                diagnostic.code,
+                tcl_core_types::DiagCode::E002 | tcl_core_types::DiagCode::E003
+            ) {
+                return None;
+            }
+            let words = original.original_words();
+            let first = words.first()?;
+            let arity = original.declared_arity();
+            SubjectDescription::UserSourceArity {
+                logical_source: original.is_logical_source(),
+                declared_minimum: arity.min,
+                declared_maximum: arity.max,
+                captured_argument_count: original.captured_argument_count(),
+                obligations: original.obligations().iter().map(Into::into).collect(),
+                source_channel: match first.image().channel() {
+                    tcl_lexer::SourceChannel::Document => "document",
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                }
+                .to_owned(),
+                start: first.span().start(),
+                end: words.last()?.span().end(),
+            }
+        }
+        DiagnosticSubject::CallbackSourceArity(original) => {
+            if original.issue().code() != diagnostic.code {
+                return None;
+            }
+            callback_arity_description(original)?
+        }
+        DiagnosticSubject::ObjectSourceArity(original) => object_arity_description(original)?,
+        DiagnosticSubject::CommandAvailability(original) => {
+            command_availability_description(original)
+        }
+        _ => return None,
+    })
+}
+
+fn declared_subject_description(subject: &DiagnosticSubject) -> Option<SubjectDescription> {
+    Some(match subject {
+        DiagnosticSubject::RegisteredInstanceSource(original) => {
+            let words = original.words();
+            let word = words.original_words().first()?;
+            SubjectDescription::RegisteredInstanceSource {
+                purpose: match original.kind() {
+                    tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::MethodName => RegisteredInstancePurposeDescription::MethodName,
+                    tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::Arity => RegisteredInstancePurposeDescription::Arity,
+                    tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::OptionRelation => RegisteredInstancePurposeDescription::OptionRelation,
+                },
+                factory_command: words.instance().factory().command().to_owned(),
+                instance_name_bytes: words.instance().name_input().bytes().to_vec(),
+                factory_start: words.instance().factory().site().offset,
+                source_channel: match word.image().channel() {
+                    tcl_lexer::SourceChannel::Document => "document",
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                }.to_owned(),
+                obligations: words.obligations().iter().map(Into::into).collect(),
+                start: word.span().start(),
+                end: words.original_words().last()?.span().end(),
+            }
+        }
+        DiagnosticSubject::DeclaredSource(original) => {
+            let word = original.words().original_words().first()?;
+            SubjectDescription::DeclaredSource {
+                purpose: match original.kind() {
+                    tcl_compiler::analyser::DeclaredSourceDiagnosticKind::Expression => {
+                        DeclaredPurposeDescription::Expression
+                    }
+                    tcl_compiler::analyser::DeclaredSourceDiagnosticKind::Arity => {
+                        DeclaredPurposeDescription::Arity
+                    }
+                    tcl_compiler::analyser::DeclaredSourceDiagnosticKind::VariableName => {
+                        DeclaredPurposeDescription::VariableName
+                    }
+                    tcl_compiler::analyser::DeclaredSourceDiagnosticKind::ChannelArgument => {
+                        DeclaredPurposeDescription::ChannelArgument
+                    }
+                },
+                declaration_name: original.words().descriptor().name.clone(),
+                provenance: original.words().descriptor().provenance().into(),
+                obligations: original
+                    .words()
+                    .obligations()
+                    .iter()
+                    .copied()
+                    .map(Into::into)
+                    .collect(),
+                argument: original.argument(),
+                source_channel: match word.image().channel() {
+                    tcl_lexer::SourceChannel::Document => "document",
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                }
+                .to_owned(),
+                start: original.span().start(),
+                end: original.span().end(),
+            }
+        }
+        _ => return None,
+    })
+}
+
+fn registry_subject_description(subject: &DiagnosticSubject) -> Option<SubjectDescription> {
+    Some(match subject {
+        DiagnosticSubject::RegistrySource(original) => {
+            let word = original.words().head_source()?.word()?;
+            SubjectDescription::RegistrySource {
+                purpose: original.kind().into(),
+                supplemental_literals: original
+                    .supplemental_literals()
+                    .iter()
+                    .map(|(argument, value)| SupplementalLiteralDescription {
+                        argument: *argument,
+                        value: value.clone(),
+                    })
+                    .collect(),
+                list_element_path: original.list_element_path().to_vec(),
+                command: original.words().command().to_owned(),
+                argument: original.argument(),
+                written_argument: original.written_argument(),
+                source_channel: match word.image().channel() {
+                    tcl_lexer::SourceChannel::Document => "document",
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                }
+                .to_owned(),
+                start: original.span().start(),
+                end: original.span().end(),
+                required_package: original.required_package().map(str::to_owned),
+                native_package: original.required_package_key().map(|key| {
+                    NativePackageDescription {
+                        bytes: key.bytes().to_vec(),
+                        policy: key.policy().into(),
+                    }
+                }),
+            }
+        }
+        DiagnosticSubject::ConditionalInterpreterVisibility(original) => {
+            let key = original.name_input().original_word_key()?;
+            SubjectDescription::ConditionalInterpreterVisibility {
+                bytes: original.name_input().bytes().to_vec(),
+                policy: original.name_input().policy().into(),
+                source_channel: match key.source_image().channel() {
+                    tcl_lexer::SourceChannel::Document => "document",
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                }
+                .to_owned(),
+                start: key.span().start(),
+                end: key.span().end(),
+                root_slot: original.slot().simple.as_bytes().to_vec(),
+                obligations: original
+                    .obligations()
+                    .iter()
+                    .copied()
+                    .map(Into::into)
+                    .collect(),
+            }
+        }
+        DiagnosticSubject::RequiredPackage(key) => SubjectDescription::RequiredPackage {
+            bytes: key.bytes().to_vec(),
+            policy: key.policy().into(),
+        },
+        _ => return None,
+    })
+}
+
+fn unresolved_subject_description(subject: &DiagnosticSubject) -> Option<SubjectDescription> {
+    Some(match subject {
+        DiagnosticSubject::UnresolvedMathFunction(original) => {
+            let occurrence = original.occurrence();
+            SubjectDescription::UnresolvedMathFunction {
+                bytes: occurrence.bytes().to_vec(),
+                policy: occurrence.name_policy().into(),
+                reporting_name: original.reporting_name().to_owned(),
+                source_channel: match occurrence.source_image().channel() {
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                    tcl_lexer::SourceChannel::Document => "document",
+                }
+                .to_owned(),
+                start: occurrence.span().start(),
+                end: occurrence.span().end(),
+                ordinal: occurrence.ordinal(),
+                argument_count: occurrence.argument_count(),
+                dispatch: match occurrence.dispatch() {
+                    tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable => {
+                        MathDispatchDescription::FixedTable
+                    }
+                    tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable => {
+                        MathDispatchDescription::CommandTable
+                    }
+                },
+                classification: MathClassificationDescription::Absent,
+            }
+        }
+        DiagnosticSubject::UnresolvedCommand(original) => {
+            let key = original.name_input();
+            SubjectDescription::UnresolvedCommand {
+                bytes: key.bytes().to_vec(),
+                policy: key.policy().into(),
+                reporting_name: original.reporting_name().to_owned(),
+                source_channel: match key.source_image().channel() {
+                    tcl_lexer::SourceChannel::NativeValue => "nativeValue",
+                    tcl_lexer::SourceChannel::Document => "document",
+                }
+                .to_owned(),
+                start: key.span().start(),
+                end: key.span().end(),
+            }
+        }
+        _ => return None,
+    })
+}
+
 impl DiagnosticSubjectData {
     /// Project the emitting owner's typed subject without parsing presentation.
     #[must_use]
     pub fn from_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
-        let subject = match diagnostic.subject()? {
-            DiagnosticSubject::PrivateTclNamespace(original) => {
-                if diagnostic.code != tcl_core_types::DiagCode::W143 {
-                    return None;
-                }
-                SubjectDescription::PrivateTclNamespace {
-                    source_name: original.classified_source_name().to_owned(),
-                    public_command: original.policy().public_command.to_owned(),
-                    tail: original.policy().tail.clone(),
-                    selected_source_descriptor: original.selected_source_words().is_some(),
-                    obligations: original.obligations().iter().map(Into::into).collect(),
-                    start: original.original_head().span().start(),
-                    end: original.original_head().span().end(),
-                }
+        let original = diagnostic.subject()?;
+        let subject = match original {
+            DiagnosticSubject::PrivateTclNamespace(_)
+            | DiagnosticSubject::UserSourceArity(_)
+            | DiagnosticSubject::CallbackSourceArity(_)
+            | DiagnosticSubject::ObjectSourceArity(_)
+            | DiagnosticSubject::CommandAvailability(_) => {
+                arity_subject_description(diagnostic, original)?
             }
-            DiagnosticSubject::UserSourceArity(original) => {
-                if !matches!(
-                    diagnostic.code,
-                    tcl_core_types::DiagCode::E002 | tcl_core_types::DiagCode::E003
-                ) {
-                    return None;
-                }
-                let words = original.original_words();
-                let first = words.first()?;
-                let arity = original.declared_arity();
-                SubjectDescription::UserSourceArity {
-                    logical_source: original.is_logical_source(),
-                    declared_minimum: arity.min,
-                    declared_maximum: arity.max,
-                    captured_argument_count: original.captured_argument_count(),
-                    obligations: original.obligations().iter().map(Into::into).collect(),
-                    source_channel: match first.image().channel() {
-                        tcl_lexer::SourceChannel::Document => "document",
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                    }
-                    .to_owned(),
-                    start: first.span().start(),
-                    end: words.last()?.span().end(),
-                }
-            }
-            DiagnosticSubject::CallbackSourceArity(original) => {
-                if original.issue().code() != diagnostic.code {
-                    return None;
-                }
-                callback_arity_description(original)?
-            }
-            DiagnosticSubject::ObjectSourceArity(original) => object_arity_description(original)?,
-            DiagnosticSubject::CommandAvailability(original) => {
-                command_availability_description(original)
-            }
-            DiagnosticSubject::RegisteredInstanceSource(original) => {
-                let words = original.words();
-                let word = words.original_words().first()?;
-                SubjectDescription::RegisteredInstanceSource {
-                    purpose: match original.kind() {
-                        tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::MethodName => RegisteredInstancePurposeDescription::MethodName,
-                        tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::Arity => RegisteredInstancePurposeDescription::Arity,
-                        tcl_compiler::analyser::RegisteredInstanceSourceDiagnosticKind::OptionRelation => RegisteredInstancePurposeDescription::OptionRelation,
-                    },
-                    factory_command: words.instance().factory().command().to_owned(),
-                    instance_name_bytes: words.instance().name_input().bytes().to_vec(),
-                    factory_start: words.instance().factory().site().offset,
-                    source_channel: match word.image().channel() {
-                        tcl_lexer::SourceChannel::Document => "document",
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                    }.to_owned(),
-                    obligations: words.obligations().iter().map(Into::into).collect(),
-                    start: word.span().start(),
-                    end: words.original_words().last()?.span().end(),
-                }
-            }
-            DiagnosticSubject::DeclaredSource(original) => {
-                let word = original.words().original_words().first()?;
-                SubjectDescription::DeclaredSource {
-                    purpose: match original.kind() {
-                        tcl_compiler::analyser::DeclaredSourceDiagnosticKind::Expression => {
-                            DeclaredPurposeDescription::Expression
-                        }
-                        tcl_compiler::analyser::DeclaredSourceDiagnosticKind::Arity => {
-                            DeclaredPurposeDescription::Arity
-                        }
-                        tcl_compiler::analyser::DeclaredSourceDiagnosticKind::VariableName => {
-                            DeclaredPurposeDescription::VariableName
-                        }
-                        tcl_compiler::analyser::DeclaredSourceDiagnosticKind::ChannelArgument => {
-                            DeclaredPurposeDescription::ChannelArgument
-                        }
-                    },
-                    declaration_name: original.words().descriptor().name.clone(),
-                    provenance: original.words().descriptor().provenance().into(),
-                    obligations: original
-                        .words()
-                        .obligations()
-                        .iter()
-                        .copied()
-                        .map(Into::into)
-                        .collect(),
-                    argument: original.argument(),
-                    source_channel: match word.image().channel() {
-                        tcl_lexer::SourceChannel::Document => "document",
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                    }
-                    .to_owned(),
-                    start: original.span().start(),
-                    end: original.span().end(),
-                }
-            }
-            DiagnosticSubject::RegistrySource(original) => {
-                let word = original.words().head_source()?.word()?;
-                SubjectDescription::RegistrySource {
-                    purpose: original.kind().into(),
-                    supplemental_literals: original
-                        .supplemental_literals()
-                        .iter()
-                        .map(|(argument, value)| SupplementalLiteralDescription {
-                            argument: *argument,
-                            value: value.clone(),
-                        })
-                        .collect(),
-                    list_element_path: original.list_element_path().to_vec(),
-                    command: original.words().command().to_owned(),
-                    argument: original.argument(),
-                    written_argument: original.written_argument(),
-                    source_channel: match word.image().channel() {
-                        tcl_lexer::SourceChannel::Document => "document",
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                    }
-                    .to_owned(),
-                    start: original.span().start(),
-                    end: original.span().end(),
-                    required_package: original.required_package().map(str::to_owned),
-                    native_package: original.required_package_key().map(|key| {
-                        NativePackageDescription {
-                            bytes: key.bytes().to_vec(),
-                            policy: key.policy().into(),
-                        }
-                    }),
-                }
-            }
-            DiagnosticSubject::ConditionalInterpreterVisibility(original) => {
-                let key = original.name_input().original_word_key()?;
-                SubjectDescription::ConditionalInterpreterVisibility {
-                    bytes: original.name_input().bytes().to_vec(),
-                    policy: original.name_input().policy().into(),
-                    source_channel: match key.source_image().channel() {
-                        tcl_lexer::SourceChannel::Document => "document",
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                    }
-                    .to_owned(),
-                    start: key.span().start(),
-                    end: key.span().end(),
-                    root_slot: original.slot().simple.as_bytes().to_vec(),
-                    obligations: original
-                        .obligations()
-                        .iter()
-                        .copied()
-                        .map(Into::into)
-                        .collect(),
-                }
-            }
-            DiagnosticSubject::RequiredPackage(key) => SubjectDescription::RequiredPackage {
-                bytes: key.bytes().to_vec(),
-                policy: key.policy().into(),
-            },
-            DiagnosticSubject::UnresolvedMathFunction(original) => {
-                let occurrence = original.occurrence();
-                SubjectDescription::UnresolvedMathFunction {
-                    bytes: occurrence.bytes().to_vec(),
-                    policy: occurrence.name_policy().into(),
-                    reporting_name: original.reporting_name().to_owned(),
-                    source_channel: match occurrence.source_image().channel() {
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                        tcl_lexer::SourceChannel::Document => "document",
-                    }
-                    .to_owned(),
-                    start: occurrence.span().start(),
-                    end: occurrence.span().end(),
-                    ordinal: occurrence.ordinal(),
-                    argument_count: occurrence.argument_count(),
-                    dispatch: match occurrence.dispatch() {
-                        tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable => {
-                            MathDispatchDescription::FixedTable
-                        }
-                        tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable => {
-                            MathDispatchDescription::CommandTable
-                        }
-                    },
-                    classification: MathClassificationDescription::Absent,
-                }
-            }
-            DiagnosticSubject::UnresolvedCommand(original) => {
-                let key = original.name_input();
-                SubjectDescription::UnresolvedCommand {
-                    bytes: key.bytes().to_vec(),
-                    policy: key.policy().into(),
-                    reporting_name: original.reporting_name().to_owned(),
-                    source_channel: match key.source_image().channel() {
-                        tcl_lexer::SourceChannel::NativeValue => "nativeValue",
-                        tcl_lexer::SourceChannel::Document => "document",
-                    }
-                    .to_owned(),
-                    start: key.span().start(),
-                    end: key.span().end(),
-                }
-            }
+            DiagnosticSubject::RegisteredInstanceSource(_)
+            | DiagnosticSubject::DeclaredSource(_) => declared_subject_description(original)?,
+            DiagnosticSubject::RegistrySource(_)
+            | DiagnosticSubject::ConditionalInterpreterVisibility(_)
+            | DiagnosticSubject::RequiredPackage(_) => registry_subject_description(original)?,
+            DiagnosticSubject::UnresolvedMathFunction(_)
+            | DiagnosticSubject::UnresolvedCommand(_) => unresolved_subject_description(original)?,
         };
         Some(Self {
             version: 1,
