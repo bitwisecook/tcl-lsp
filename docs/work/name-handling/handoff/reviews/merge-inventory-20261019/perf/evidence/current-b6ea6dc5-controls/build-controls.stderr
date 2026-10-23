@@ -25,3 +25,5 @@
    Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-engine-tclvm)
    Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bigip)
    Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lsp-core)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spectcl)

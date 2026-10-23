@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 18:22 UTC
+Last updated: 2026-10-23 18:49 UTC
 
 ## Resume
 
@@ -218,3 +218,13 @@ build-memory-guard-initial.json. No runtime test is signalled or paused. Both
 normal compiler-library LLVM builds continue; no new runtime verdict yet.
 Memo-boundary source audit is memo-boundary-review.json, explicitly not a
 substitute for the required controls/corpus. Preserve the frozen b6 source.
+
+18:48 UTC: BOTH normal compiler libraries are built, zero Rust warnings.
+Combined unit-test compiler40699 is active; clean6 unit-test compiler40734
+is held by the build guard until the combined executable is ready. No runtime
+results yet. library-milestones.json retains exact Cargo artifact receipts.
+The18:41 control-plane restart preserved all worker PIDs/files, but old terminal
+session handles are UNKNOWN. Do not interpret write_stdin Unknown process id
+as job failure or restart builds. Monitor /proc and /tmp/perf-b6-*.log instead.
+Active Python roots34585(controls),34692(clean6),34776(filters),35120(corpus)
+survived. Quiet suite builder/guard still wait on their recorded prerequisites.

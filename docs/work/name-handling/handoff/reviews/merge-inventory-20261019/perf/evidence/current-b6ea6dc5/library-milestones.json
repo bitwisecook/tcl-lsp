@@ -1,0 +1,83 @@
+{
+  "observed_unix": 1792781345.5831847,
+  "libraries": [
+    {
+      "mode": "full",
+      "library_artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp-perf-latest/rust/tcl-compiler#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "1",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": false
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_compiler-55511d93ea2f7a5a.rlib",
+          "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_compiler-55511d93ea2f7a5a.rmeta"
+        ],
+        "executable": null,
+        "fresh": false
+      },
+      "diagnostics": [],
+      "status": "normal library complete; unit-test executable not yet complete"
+    },
+    {
+      "mode": "clean6",
+      "library_artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp-owned/rust/tcl-compiler#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp-owned/rust/tcl-compiler/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/tcl-lsp-owned/rust/tcl-compiler/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "1",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": false
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp-owned/target/debug/deps/libtcl_compiler-55511d93ea2f7a5a.rlib",
+          "/workspace/tcl-lsp-owned/target/debug/deps/libtcl_compiler-55511d93ea2f7a5a.rmeta"
+        ],
+        "executable": null,
+        "fresh": false
+      },
+      "diagnostics": [],
+      "status": "normal library complete; unit-test executable not yet complete"
+    }
+  ],
+  "not_runtime_acceptance": true,
+  "control_plane_recovery": "same workers survived18:41; terminal handles lost, monitor PIDs/logs instead"
+}
