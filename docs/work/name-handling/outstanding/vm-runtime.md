@@ -2,11 +2,26 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T18:09:19.571904+00:00 (VM8 integratedpublisher unvalidated; FullTomactual closure pending; no lifetimeoracle/sourcechanges)
+Last updated: 2026-10-23T18:36:59.046624+00:00 (FullTom job completed/cancelled; artifact absent; exact partial roster retained; no source/build changes)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Read-only replacement owner now monitors hosted diagnostic39995195040/job120556789149.
+Actual API at18:33UTC: job COMPLETED/CANCELLED, capture step CANCELLED; upload remains
+IN_PROGRESS metadata and artifact list empty at18:36. Exact cancellation cause is
+UNKNOWN. Connector log is a truncated firstslice
+through18:11:43, not actual end. Markers1..5082 are contiguous:2652 selected identities,
+2421 unique terminals (2274ok/147failed),231 identities UNKNOWN after slice. All2343
+lib identities closed (2210ok/133failed); every114 CI88 failed identity also FAILED
+in isolation. Suspected180s timeout and one suspected process crash require raw
+nextest stderr for verification; no exact SIGSEGV selector is yet established.
+Samples retain only first128 encoded bytes, so full panic messages remain pending.
+Receipt and exact reached/unknown inventories:
+`/workspace/naming-proof-storage/vm-fulltom-isolated-39995195040-partial/`.
+Root reports VM8 fixes published and carried through release7ad0bc; no duplicate edits.
+Isolated outcomes never discharge the original shared-process semantic runtime gate.
 
 Root integrated both8Spec/Studio attr cohorts publisher284d469b8/80383a413
 (unpublished atrootreport); fresh typing/Clippy/runtime UNRUN. Root now directs

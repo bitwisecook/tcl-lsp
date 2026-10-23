@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T19:00:05.661864+00:00",
+  "scheduled_report_utc": "2026-10-23T18:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T19:25:37+00:00",
+  "change_since_previous_report": [
+    "18:25snapshotfc5 normalpushed3793 at18:31:21. Workfunctionaltraitrecursioncbafd/DB39b5/nav7fc3 thenfreshfetched/rebasedontoexternal828perfdocs andnormalPUSHED2793567. All concurrentexternalchanges preserved; shallowfetchrules retained.",
+    "Actualselectedserverv5 build STOPPED18:34:39 bymandatory2GiBfloor (minimum2144006144, ownedSIGINT/groupsclosed), beforeselectedartifact orworker. Final18:35:53 allstabilityunestablished becauseproviderfinalspawnfloorrefused; lockreleased/launcherclosed18:35:54 outer_stopfalse. Separatepreviousendpoint600successdoesnotrepairthisfailure. No currentcache-parent acceptance orstartupresult.",
+    "Reclaimed399605760bytes byhardlinkingonlyexactSHA/mode/owner closedhistoricalJSONsnapshotduplicates: source46group32paths213123072 andsource30groups28paths186482688. All62 paths/content preserved, no target/executable/currentinput/provider changes; optional27MBpair remainsheld. Workspace~2.28GBstilltoo tight forreliablelocalserverbuild, no retry.",
+    "Executionenvironmentrecovered18:41; alloldroleturns ended. RootreadcloudruntimeSkill/status currentenforcedunrestrictednetwork, restoredfiveimplementationrolesplusDBhelper frompersistednotes. No in-flighttestresultinvented. Productsourceactive8332 remainsunmirrored; rootonlymutatespublisher/release.",
+    "WORKnowhasreviewedDB39 union2240267d, Core navigation7 dbac84bf, and minimumcompilertraitsolverlimit256normal-library491652a8 (already256fortests). ExistingexternalirulesE0275/128vs256 evidencejustifiesdepthchange; actualCore4ArcdiagnosticclosurestillUNRUN. No unsafeSend/Rc/suppressionor runtime/teststackchange.",
+    "Server84actualfindingshaveindependentrecoveryAssertion62review20b36861 andwholecomposition21ceddc0; integrationpendingcycle. MoreactualCore/Serverlengthproposals andnormal-libsourcewarningfixes ready/underpeer. Freshvalidationstillrequired; preparedsitecountsarenotwarningdischarge.",
+    "CleanreleaseLOCAL637b36ff nowincludesVM8/Names19/newcompiler3/completion5/Core4 carries, preserving priorobservers/commentcleanupand10byte-identicalfixturerelocations. DB39clean counterpartpreparedpeerpending; sourcefixesremainfirstonWORK. Releasepushandfreshallchecksremainpending; noPR.",
+    "HostedFullTomdiagnosticfinalCANCELLED18:32:24 withannotationmaximumexecutiontime1h. Capturesstepcancel18:11:46/uploadbegansameinstant/stale20mincauseunderdiagnosis. Exactpartialroster2652/28binaries;2421closed2274ok147FAIL/231UNKNOWN, full2343lib2210ok133FAIL. All114CI88failstillfail;onepriornumericcasePASS\u2192isolatedFAILcrosssource/modeunattributed. No uploadedartifact/fullpanic/signalreason available; oldsharedSIGSEGVunfixed.",
+    "WORK-onlyhostedstartupdiagnostic nowpreparedwithoriginaltypical/Contextbudgets, currentfreshstrict0WserverCargoJSON, lockeddependencyfetch+before/afterseals, ownedlifecycleand20MiBbounded evidence-onlyupload; source/typingpeer underway, no localbuild. Runtimecapturefix separately preservesrawfailure reason/fullpayloadandexplicitpartialstatus.",
+    "Current9cCI39996625386 stillred: actualserverbuild/Python/cargodeny/webfrontends/doctest/testextwebpass, strictcompiler26/runtime/heavy/WASM/WASI/SpecTcl/editor/e2epart3fail;fourRustshards/twoe2epartitionsstillactive. Full24,312baselinecomparisonunknown; knownheavy16P2FandSpecTcl1P2Fretained. BIGIP13:17stale>60mintolduser; no takeover. InstructionfourflagsAPIversusoneallowexceptionaskedonceandpendinganswer, neverassumed."
+  ],
+  "committed": [
+    "fc5e68592a669562777f453b560be87bc154ccde"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish18:55officialreport/WIPsnapshot, rearm19:25 reminder; pushreviewedreleasecarriesafterfreshworkfetch.",
+    "Integratepeer-clearedServer84/Corecohorts pluscleanreleasecounterparts; dispatchhostedfreshstartupdiagnostictofindconcreteContextcausewithoutanotherlocalfloorfailure.",
+    "RepairFullTomcapturetoobtainactualsignals/fullassertions, thenfunctionalVM-SpecTcl/hostfixes; preservecasebudgetsandallfailures.",
+    "AwaitInstructionflagpolicyanswer; completeallcurrentstrict/format/generated/docs/baseline/performancegatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T18:24:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Noadmissionsorvalidated-rowchanges. Latestlocalserverfailedresourcefloor/noruntime/finalsealsunestablished; Original13allUNRUN. Reviewedsourcefixesnotfreshgreen. FullTomCANCELLED147partialFAIL231unknown,noartifact. Wholebaseline/performanceunknownandknownP2FblockPR.",
+  "disk_free_bytes": 2255745024,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

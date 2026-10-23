@@ -1,6 +1,12 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-23T18:23:48Z
+Last updated: 2026-10-23T18:54:57Z
+
+Resumed LSP status 2026-10-23T18:54:57Z: no Cargo/active product/Git mutations. Minimum Core recursion limit proposal `/workspace/naming-proof-storage/lsp-core-recursion-limit-v1` patch491652a8 expands existing cfg(test)256 to cratewide256; retained assertion/all remaining bytes unchanged, copiedapply0/finals/pinnedfmt parsePASS. Prior Core test E0275 and external actual iRules256 strict0 justify alignment; actual fresh Core Arc4 effect UNRUN. Root owns independent review/application. Core navigation7v2 dbac84bf already independent staticCLEAR3453d42; cleanmechanical4 982dc remains root-ready.
+
+DB final all39 current union patch2240267d independently compositionCLEAR899437ae (`/workspace/naming-proof-storage/lsp-peer-db39-current-union-v1/review.json`): current6beforepins, exact all11 reviewed component reconstruction/nonoverlap, removed crateallow absent, copiedapply0/finals/pinnedfmtPASS. Pending4 components separately semanticCLEAR0d68ac03 under `lsp-peer-db-production-lattice-v2`; earlier8testlength cohorts retained. Author/root handle integration; no actual strict/type/runtime closure. Server validation2 a9d56e83 bounded staticCLEAR51f6918e; Server84 composition peer running off-tree. New Core hover2lengthv3 `/workspace/naming-proof-storage/lsp-core-hover-two-length-v3` patch04f09c22 exactbefore745857ff finalb694248c; source-role ControlFlow preserves definitive None, terminal class/registry/IP helper preserves guards/order, earlier hierarchy extraction composed. Parents90/73/helpers60/51/66 static lines, copiedapply/final/fmt/testmodulebytesPASS; DB peer pending, actual typing/lint/runtimeUNRUN. Names owns actual Core code_actions/spec_notice.rs +code_actions.rs and completion3submodule lengths; LSP avoids their edits.
+
+Hosted startup diagnostic protocol is under independent review with CCG; original typical/Context worker30/15/6/180 budgets retained, no current actual server/Context run. Selected local serverv5 stopped below diskfloor with no server artifact/runtime; startup firstcause remains UNKNOWN. Three-crate actual402 lint inventory remains the measured authority until fresh runs.
 
 Current status: actual scoped strict Clippy39996600299 on ecbf completed3/3 failure, full artifact12520192909 ZIPdigest5493d93f verified. Measured402 diagnostics: Core90(length80), DB39(length12), Server273(length59,large_futures136,assert_is_empty62). Zero RustE-code typing errors observed; Corelib stopped later targets, fullinventory unknown. Work removed3crate allowances; active8332 remains frozen/no source edits. Fresh9c editor multifolder10PASS4ContextFAIL; partition2 17PASS11FAIL CodeLens unavailable then pipeline/global wedges. Actual source firstcause UNKNOWN. Core exact4 mechanical+hover helper off-tree; independent peers pending. Server62assertions reserved compiler-clippy. Selectedserver endpointbridgev3 static CLEARf42cb272 awaits actual successful reconciliation then ownfresh0Wserver; no Cargo/GO here. Contextv3 original budgets retained.
 
@@ -86,9 +92,7 @@ Maintained by the lsp agent. It lists what this agent considers it must still co
 
 ## Resume
 
-Current status: actual scoped strict Clippy39996600299 on ecbf completed3/3 failure, full artifact12520192909 ZIPdigest5493d93f verified. Measured402 diagnostics: Core90(length80), DB39(length12), Server273(length59,large_futures136,assert_is_empty62). Zero RustE-code typing errors observed; Corelib stopped later targets, fullinventory unknown. Work removed3crate allowances; active8332 remains frozen/no source edits. Fresh9c editor multifolder10PASS4ContextFAIL; partition2 17PASS11FAIL CodeLens unavailable then pipeline/global wedges. Actual source firstcause UNKNOWN. Core exact4 mechanical+hover helper off-tree; independent peers pending. Server62assertions reserved compiler-clippy. Selectedserver endpointbridgev3 static CLEARf42cb272 awaits actual successful reconciliation then ownfresh0Wserver; no Cargo/GO here. Contextv3 original budgets retained.
-
-Next: root integrates peer-cleared WORK-only startup phase observer and allocates fresh diagnostic build/run; inspect first actual unfinished pack stage. No speculative authority change, retries, budget increases, own Cargo/source/runtime.
+Read the current resumed status at the top. Next complete Server84 composition and hosted startup independent protocol review; receive hover2v3 peer; continue distinct remaining actual Core length sites. Root alone integrates/rebuilds/runs. Never ship diagnostic SendSync overlay or relax source/provider/receipt/assertion/timeout/stack guards. Current measured lint402 and original native/editor/WASM failures remain open; no static receipt is a measured pass.
 
 ## In progress
 
