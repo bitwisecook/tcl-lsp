@@ -1587,8 +1587,28 @@ impl SourceStructure {
             .flatten();
             queue.push_back((body.content_span(), depth + 1, parent));
         }
+        self.command_operand_bodies(source, (&words, &context), input, config, script, queue);
+    }
+    fn command_operand_bodies(
+        &mut self,
+        source: &str,
+        words_context: (
+            &crate::original_invocation::OriginalRegistryWords,
+            &tcl_registry::model::ContextRegistry,
+        ),
+        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        script: &SourceScriptContext<'_>,
+        queue: &mut VecDeque<PendingSourceRegion>,
+    ) {
+        let (words, context) = words_context;
+        let SourceScriptContext {
+            depth,
+            definition_parent,
+            ..
+        } = *script;
         let list_argument = words
-            .with_source_schema(&context, |schema| {
+            .with_source_schema(context, |schema| {
                 schema
                     .authored_source_case_invocation()
                     .and_then(|(_, layout)| layout.clause_list_index)
@@ -1632,6 +1652,47 @@ impl SourceStructure {
             }
         }
     }
+
+    fn census_definition_member_bodies(
+        &mut self,
+        command: &SegmentedCommand,
+        script: &SourceScriptContext<'_>,
+        context: &tcl_registry::model::ContextRegistry,
+        queue: &mut VecDeque<PendingSourceRegion>,
+    ) -> bool {
+        use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
+        let disposition = script
+            .definition_members
+            .zip(command.argv.first())
+            .and_then(|(members, head)| {
+                members
+                    .original_command_words_at(head.span.start())
+                    .map(|words| members.script_body_disposition(context, words))
+            });
+        match disposition {
+            Some(D::CompleteNonMember) => {}
+            Some(D::CompleteMember(bodies)) => {
+                for body in bodies {
+                    queue.push_back((
+                        body.content_span(),
+                        script.depth + 1,
+                        body.definition_parent().cloned(),
+                    ));
+                }
+                return true;
+            }
+            Some(D::Unavailable) | None => {
+                self.package_census
+                    .as_mut()
+                    .unwrap()
+                    .unavailable
+                    .push(command.span);
+                return true;
+            }
+        }
+        false
+    }
+
     fn census_command_bodies(
         &mut self,
         source: &str,
@@ -1653,37 +1714,10 @@ impl SourceStructure {
         // checked potential-source walker does. Missing member geometry or an
         // unavailable disposition stays incomplete without a global fallback;
         // only a complete nonmember keeps the ordinary lookup below.
-        if script.definition_parent.is_some() {
-            use tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberDisposition as D;
-            let disposition = script
-                .definition_members
-                .zip(command.argv.first())
-                .and_then(|(members, head)| {
-                    members
-                        .original_command_words_at(head.span.start())
-                        .map(|words| members.script_body_disposition(&context, words))
-                });
-            match disposition {
-                Some(D::CompleteNonMember) => {}
-                Some(D::CompleteMember(bodies)) => {
-                    for body in bodies {
-                        queue.push_back((
-                            body.content_span(),
-                            script.depth + 1,
-                            body.definition_parent().cloned(),
-                        ));
-                    }
-                    return;
-                }
-                Some(D::Unavailable) | None => {
-                    self.package_census
-                        .as_mut()
-                        .unwrap()
-                        .unavailable
-                        .push(command.span);
-                    return;
-                }
-            }
+        if script.definition_parent.is_some()
+            && self.census_definition_member_bodies(command, script, &context, queue)
+        {
+            return;
         }
         let Some(words) = source_registry_words(source, analysis, command) else {
             if original_positioned_absent_head(source, analysis, command) {
