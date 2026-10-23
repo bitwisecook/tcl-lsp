@@ -1649,9 +1649,7 @@ impl FunctionUnit {
     /// names is read from.
     #[must_use]
     fn build_procedure_in_module(
-        id: crate::ir::ProcedureId,
-        is_event_body: bool,
-        name: &str,
+        (id, is_event_body, name): (crate::ir::ProcedureId, bool, &str),
         cfg: CfgFunction,
         (params, param_constants): (&[String], ParamSeeds<'_>),
         dialect: UnitDialect<'_>,
@@ -3290,9 +3288,11 @@ fn build_procedure_units(
         };
         let mut fu = memoised.unwrap_or_else(|| {
             FunctionUnit::build_procedure_in_module(
-                *id,
-                proc.is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event),
-                qname,
+                (
+                    *id,
+                    proc.is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event),
+                    qname,
+                ),
                 cfg.clone(),
                 (params, param_constants.as_ref()),
                 UnitDialect {
@@ -3671,9 +3671,7 @@ impl CompilationUnit {
             },
             entry,
             None,
-            input,
-            Some(source_body_cache),
-            None,
+            (input, Some(source_body_cache), None),
         )
     }
 
@@ -3699,9 +3697,7 @@ impl CompilationUnit {
             },
             entry,
             None,
-            input,
-            Some(source_body_cache),
-            None,
+            (input, Some(source_body_cache), None),
         )
     }
 
@@ -3824,9 +3820,7 @@ impl CompilationUnit {
             },
             None,
             None,
-            Some(input),
-            None,
-            Some(owner),
+            (Some(input), None, Some(owner)),
         ))
     }
 
@@ -3860,9 +3854,7 @@ impl CompilationUnit {
             },
             entry,
             context,
-            input,
-            None,
-            None,
+            (input, None, None),
         )
     }
 
@@ -3873,9 +3865,11 @@ impl CompilationUnit {
         body_caches: OriginalBodyCacheInputs<'_>,
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
-        input: Option<&crate::analyser::ResolvedAnalysisInput>,
-        source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
-        standalone: Option<crate::lowering::StandaloneSourceInput<'_>>,
+        (input, source_body_cache, standalone): (
+            Option<&crate::analyser::ResolvedAnalysisInput>,
+            Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+            Option<crate::lowering::StandaloneSourceInput<'_>>,
+        ),
     ) -> Self {
         // Optional callback/cache outputs need their own authentic analysis
         // receipts before this source-action producer can reborrow them.
