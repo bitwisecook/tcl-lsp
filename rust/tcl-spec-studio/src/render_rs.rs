@@ -260,7 +260,6 @@ fn shipped_grammar_constant(name: &str) -> String {
 /// whole grammar as an inline literal — every member row, built-in method,
 /// member-body command and manufacturer a struct literal — promoted to
 /// `'static` exactly as the shipped grammars' constants are.
-#[allow(clippy::too_many_lines)]
 fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
     if let Some(name) = value.as_str() {
         tcl_spectcl::SHIPPED_DEFINITION_BODIES
@@ -307,25 +306,8 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
     } else {
         "None"
     };
-    let source_hint = match grammar.get("bare_word_construction_source_hint") {
-        None | Some(Value::Null) => "None".to_owned(),
-        Some(hint) => {
-            let values = hint.get("values")?.as_array()?;
-            let prefixes = hint.get("prefixes")?.as_array()?;
-            if !values.iter().all(Value::is_string)
-                || !prefixes
-                    .iter()
-                    .all(|value| value.as_str().is_some_and(|prefix| !prefix.is_empty()))
-            {
-                return None;
-            }
-            format!(
-                "Some(crate::definer::BareWordConstructionSourceHint {{ values: {}, prefixes: {} }})",
-                str_slice(values),
-                str_slice(prefixes)
-            )
-        }
-    };
+    let source_hint =
+        bare_word_source_hint_expr(grammar.get("bare_word_construction_source_hint"))?;
     let family = grammar.get("family").and_then(Value::as_str)?;
     Some(format!(
         "Some(&crate::definer::DefinitionBodyGrammar {{\n\
@@ -365,6 +347,28 @@ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
         })?,
         accessors = strs("property_accessor_methods"),
     ))
+}
+
+fn bare_word_source_hint_expr(value: Option<&Value>) -> Option<String> {
+    Some(match value {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(hint) => {
+            let values = hint.get("values")?.as_array()?;
+            let prefixes = hint.get("prefixes")?.as_array()?;
+            if !values.iter().all(Value::is_string)
+                || !prefixes
+                    .iter()
+                    .all(|value| value.as_str().is_some_and(|prefix| !prefix.is_empty()))
+            {
+                return None;
+            }
+            format!(
+                "Some(crate::definer::BareWordConstructionSourceHint {{ values: {}, prefixes: {} }})",
+                str_slice(values),
+                str_slice(prefixes)
+            )
+        }
+    })
 }
 
 /// `Some(expr)` of a present key, `None` for a null one.

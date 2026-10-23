@@ -1439,6 +1439,89 @@ impl Unrecovered {
     }
 }
 
+fn subcommand_value_and_effect_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+    d.insert(
+        "closed_value_args".into(),
+        index_list(sub.closed_value_args),
+    );
+    d.insert(
+        "arg_values_accept_prefix".into(),
+        json!(sub.arg_values_accept_prefix),
+    );
+    d.insert(
+        "body_arg_implicit_args".into(),
+        json!(sub.body_arg_implicit_args),
+    );
+    d.insert("taint_transform".into(), taint(sub.taint_transform));
+    d.insert(
+        "taint_transform_when".into(),
+        sub.taint_transform_when
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
+    d.insert(
+        "taint_double_encode_colour".into(),
+        taint(sub.taint_double_encode_colour),
+    );
+    d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
+    d.insert(
+        "channel_configuration".into(),
+        sub.channel_configuration.map_or(Value::Null, |descriptor| {
+            json!(catalogue::variant_name(&descriptor))
+        }),
+    );
+    d.insert("credential_arg".into(), opt_index(sub.credential_arg));
+    d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
+    d.insert(
+        "pattern_type".into(),
+        sub.pattern_type
+            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+    );
+    d.insert(
+        "format_string_type".into(),
+        sub.format_string_type
+            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+    );
+    d.insert(
+        "side_effects".into(),
+        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
+    );
+    d.insert("destructive".into(), json!(sub.destructive));
+    d.insert("returns_path".into(), json!(sub.returns_path));
+    d.insert(
+        "source_index_bounds".into(),
+        sub.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
+        "source_path_operation".into(),
+        sub.source_path_operation.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
+        "source_configuration_reference".into(),
+        sub.source_configuration_reference
+            .map_or(Value::Null, |layout| {
+                json!(catalogue::variant_name(&layout))
+            }),
+    );
+    d.insert("is_unescape".into(), json!(sub.is_unescape));
+    d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
+    d.insert(
+        "sub_subcommands".into(),
+        nested_rows(sub.sub_subcommands, "sub_subcommands", lost, sub_subcommand),
+    );
+    d.insert(
+        "defines_command_at".into(),
+        opt_index(sub.defines_command_at),
+    );
+    d.insert(
+        "max_leading_option_words".into(),
+        opt_index(sub.max_leading_option_words),
+    );
+}
+
 /// Seed a draft from a live [`SubCommand`].
 #[must_use]
 pub fn from_subcommand(sub: &SubCommand) -> Draft {
@@ -1940,7 +2023,6 @@ fn subcommand_execution_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrec
     );
 }
 
-#[allow(clippy::too_many_lines)]
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     subcommand_option_surface(d, sub, lost);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
@@ -1980,86 +2062,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
     subcommand_execution_fields(d, sub, lost);
-    d.insert(
-        "closed_value_args".into(),
-        index_list(sub.closed_value_args),
-    );
-    d.insert(
-        "arg_values_accept_prefix".into(),
-        json!(sub.arg_values_accept_prefix),
-    );
-    d.insert(
-        "body_arg_implicit_args".into(),
-        json!(sub.body_arg_implicit_args),
-    );
-    d.insert("taint_transform".into(), taint(sub.taint_transform));
-    d.insert(
-        "taint_transform_when".into(),
-        sub.taint_transform_when
-            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
-    );
-    d.insert(
-        "taint_double_encode_colour".into(),
-        taint(sub.taint_double_encode_colour),
-    );
-    d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
-    d.insert(
-        "channel_configuration".into(),
-        sub.channel_configuration.map_or(Value::Null, |descriptor| {
-            json!(catalogue::variant_name(&descriptor))
-        }),
-    );
-    d.insert("credential_arg".into(), opt_index(sub.credential_arg));
-    d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
-    d.insert(
-        "pattern_type".into(),
-        sub.pattern_type
-            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
-    );
-    d.insert(
-        "format_string_type".into(),
-        sub.format_string_type
-            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
-    );
-    d.insert(
-        "side_effects".into(),
-        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
-    );
-    d.insert("destructive".into(), json!(sub.destructive));
-    d.insert("returns_path".into(), json!(sub.returns_path));
-    d.insert(
-        "source_index_bounds".into(),
-        sub.source_index_bounds.map_or(Value::Null, |operation| {
-            json!(catalogue::variant_name(&operation))
-        }),
-    );
-    d.insert(
-        "source_path_operation".into(),
-        sub.source_path_operation.map_or(Value::Null, |operation| {
-            json!(catalogue::variant_name(&operation))
-        }),
-    );
-    d.insert(
-        "source_configuration_reference".into(),
-        sub.source_configuration_reference
-            .map_or(Value::Null, |layout| {
-                json!(catalogue::variant_name(&layout))
-            }),
-    );
-    d.insert("is_unescape".into(), json!(sub.is_unescape));
-    d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
-    d.insert(
-        "sub_subcommands".into(),
-        nested_rows(sub.sub_subcommands, "sub_subcommands", lost, sub_subcommand),
-    );
-    d.insert(
-        "defines_command_at".into(),
-        opt_index(sub.defines_command_at),
-    );
-    d.insert(
-        "max_leading_option_words".into(),
-        opt_index(sub.max_leading_option_words),
-    );
+    subcommand_value_and_effect_fields(d, sub, lost);
 }
 
 /// Seed a draft from a live [`CommandSpec`].
@@ -2255,7 +2258,6 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 }
 
 /// Constant folders, compiler / analyser hooks, and effects.
-#[allow(clippy::too_many_lines)]
 fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "const_fold".into(),
@@ -2284,24 +2286,7 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         spec.lowering_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
-    d.insert(
-        "codegen_hook".into(),
-        spec.codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
-        "inline_codegen_hook".into(),
-        spec.inline_codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
-        "codegen_hook_windows".into(),
-        stamp_windows(spec.codegen_hook_windows, hook_name),
-    );
-    d.insert(
-        "inline_codegen_hook_windows".into(),
-        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
-    );
+    command_codegen_hooks(d, spec);
     d.insert(
         "analyser_hook".into(),
         spec.analyser_hook
@@ -2360,6 +2345,27 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "inferred_storage_type".into(),
         spec.inferred_storage_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+    );
+}
+
+fn command_codegen_hooks(d: &mut Draft, spec: &CommandSpec) {
+    d.insert(
+        "codegen_hook".into(),
+        spec.codegen_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "inline_codegen_hook".into(),
+        spec.inline_codegen_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(spec.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
     );
 }
 
