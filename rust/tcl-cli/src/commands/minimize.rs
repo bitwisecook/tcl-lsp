@@ -42,8 +42,9 @@
 //! irrelevant to the reduction — both engines reduce to a snippet that still
 //! fires CODE.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Write as _;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -185,15 +186,17 @@ fn collect_rename_edits(
         .iter()
         .collect::<Vec<_>>();
     occurrences.sort_by_key(|occurrence| (occurrence.span().start(), occurrence.span().end()));
-    // Keys are borrowed from the finished analysis and are never mutated.
-    #[allow(clippy::mutable_key_type)]
-    let mut selected = HashSet::new();
+    // Bucket by the complete symbol hash, then compare the complete identity.
+    let mut selected: HashMap<u64, Vec<_>> = HashMap::new();
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     for occurrence in occurrences {
         let symbol = occurrence.symbol();
-        if !selected.insert(symbol) {
+        let hash = selected.hasher().hash_one(symbol);
+        let bucket = selected.entry(hash).or_default();
+        if bucket.contains(&symbol) {
             continue;
         }
+        bucket.push(symbol);
         let Some(name) = symbol
             .rename_tail()
             .and_then(|name| std::str::from_utf8(name).ok())

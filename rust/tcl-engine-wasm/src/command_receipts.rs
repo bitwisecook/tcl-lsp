@@ -209,7 +209,7 @@ pub(crate) fn settle<C: AsContextMut<Data = HostState>>(
     match host_error(context, exports, interp)? {
         None => Ok(()),
         Some(EngineError::ExecutionRefusal(reason)) => Err(Failure::ExecutionRefusal(reason)),
-        Some(EngineError::ExecutionFailure(cause)) => Err(Failure::ExecutionFailure(*cause)),
+        Some(EngineError::ExecutionFailure(cause)) => Err(Failure::NativeExecution(*cause)),
         Some(_) => unreachable!("host_error supplies only the host channel"),
     }
 }

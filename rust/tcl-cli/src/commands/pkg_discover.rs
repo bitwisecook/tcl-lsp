@@ -114,7 +114,6 @@ pub struct DiscoverOptions<'a> {
 }
 
 /// Run `tcl pkg discover`.
-#[allow(clippy::too_many_lines)]
 pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let DiscoverOptions {
         inputs,
@@ -167,38 +166,13 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
         .chain(&manifest.dev_requires)
         .map(|requirement| requirement.name.clone())
         .collect();
-    let mut reports = Vec::new();
-    let mut warnings = Vec::new();
-    let mut scanned_files = 0;
-
-    for document in &documents {
-        if document.abstains_on_encoding() {
-            warnings.push(format!(
-                "{} is not UTF-8 text; package discovery skipped it",
-                display_path(document.path.as_deref(), &project_dir, &document.label)
-            ));
-            continue;
-        }
-        scanned_files += 1;
-        let profile = document.effective_dialect(explicit_dialect);
-        let registry = tcl_cli_support::registry_for_dialect(profile.name);
-        let file = display_path(document.path.as_deref(), &project_dir, &document.label);
-        // A lone-CR document must scan the same reading `diag`/`opt` give it:
-        // the raw form parses as one command under the lexer's treatment of a
-        // bare `\r`, which would hide every `package require` after the first
-        // line (#1953).
-        let (requirements, warning) = discover_document_requirements(
-            &document.analysis_source(),
-            &file,
-            profile,
-            &registry,
-            tcl_cli_support::spec_pack_key(profile.name),
-        );
-        warnings.extend(warning);
-        for requirement in requirements {
-            reports.push(classify(requirement, &file, &manifest, &declared));
-        }
-    }
+    let (mut reports, warnings, scanned_files) = scan_documents(
+        &documents,
+        &project_dir,
+        explicit_dialect,
+        &manifest,
+        &declared,
+    );
 
     reports.sort_by(|left, right| {
         left.file
@@ -232,6 +206,49 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     };
     render_output(&output, common.json, add)?;
     Ok(0)
+}
+
+fn scan_documents(
+    documents: &[tcl_cli_support::InputDocument],
+    project_dir: &Path,
+    explicit_dialect: Option<&'static tcl_dialect::DialectProfile>,
+    manifest: &ManifestAst,
+    declared: &BTreeSet<String>,
+) -> (Vec<RequirementReport>, Vec<String>, usize) {
+    let mut reports = Vec::new();
+    let mut warnings = Vec::new();
+    let mut scanned_files = 0;
+
+    for document in documents {
+        if document.abstains_on_encoding() {
+            warnings.push(format!(
+                "{} is not UTF-8 text; package discovery skipped it",
+                display_path(document.path.as_deref(), project_dir, &document.label)
+            ));
+            continue;
+        }
+        scanned_files += 1;
+        let profile = document.effective_dialect(explicit_dialect);
+        let registry = tcl_cli_support::registry_for_dialect(profile.name);
+        let file = display_path(document.path.as_deref(), project_dir, &document.label);
+        // A lone-CR document must scan the same reading `diag`/`opt` give it:
+        // the raw form parses as one command under the lexer's treatment of a
+        // bare `\r`, which would hide every `package require` after the first
+        // line (#1953).
+        let (requirements, warning) = discover_document_requirements(
+            &document.analysis_source(),
+            &file,
+            profile,
+            &registry,
+            tcl_cli_support::spec_pack_key(profile.name),
+        );
+        warnings.extend(warning);
+        for requirement in requirements {
+            reports.push(classify(requirement, &file, manifest, declared));
+        }
+    }
+
+    (reports, warnings, scanned_files)
 }
 
 fn render_output(output: &DiscoveryOutput, json: bool, add: bool) -> anyhow::Result<()> {
