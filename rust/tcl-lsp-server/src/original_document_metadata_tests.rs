@@ -857,8 +857,8 @@ fn assert_older_formatter_analysis(older: &tcl_compiler::analyser::AnalysisResul
 
 fn assert_current_formatter_analysis(
     current: &tcl_compiler::analyser::AnalysisResult,
-    current_input: &Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
-    older_input: &Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    current_input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    older_input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) {
     assert_ne!(current_input, older_input);
     assert!(Arc::ptr_eq(
@@ -987,7 +987,10 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .unwrap()
         .unwrap();
     assert_eq!(refused["source"], source);
-    assert_eq!(refused["optimisations"].as_array().unwrap().as_slice(), []);
+    assert_eq!(
+        refused["optimisations"].as_array().unwrap().as_slice(),
+        &[] as &[serde_json::Value]
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
