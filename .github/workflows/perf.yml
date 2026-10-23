@@ -50,7 +50,11 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired]
+        options: [standard, paired, runtime-diagnostics]
+      runtime_sha:
+        description: Exact full work commit SHA for temporary runtime diagnostics
+        required: false
+        type: string
       baseline_sha:
         description: Full baseline commit SHA (paired mode only)
         required: false
@@ -77,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -98,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -438,4 +442,47 @@ jobs:
           name: paired-perf-${{ matrix.platform }}-${{ matrix.scope }}-${{ inputs.candidate_sha }}
           path: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}
           if-no-files-found: warn
+          retention-days: 30
+
+  runtime-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runtime-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 115
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-diagnostics-target
+      TCL_RUNTIME_EXPECT_NO_TOMMATH: "1"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Capture isolated original runtime failures
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          DIAGNOSTIC_OUTPUT: ${{ runner.temp }}/runtime-diagnostics-output
+        run: |
+          unset TCL_TOMMATH_DIR
+          python3 docs/work/name-handling/validation-tools/runtime-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$DIAGNOSTIC_OUTPUT"
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/runtime-diagnostics-output
+          if-no-files-found: error
           retention-days: 30
