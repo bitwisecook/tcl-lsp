@@ -1,9 +1,9 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 10:43 UTC
+Last updated: 2026-10-23 11:04 UTC
 
 **Latest proof refresh in progress; no production code landed.** The independent
-f149597f checkout contains the full switched batch. Clean six/two-file patches
+0322d9cd checkout contains the full switched batch. Clean six/two-file patches
 and routed residual drafts are refreshed against that exact source; formatting
 and byte-exact switch reconstruction pass. This is applicability evidence,
 not semantic acceptance.
@@ -11,11 +11,25 @@ not semantic acceptance.
 The coordinator-recorded user2256 contract accepts the distinct authenticated
 complete-report API. The new harness requires all three old/new/old comparisons
 to be Equal and records strict runtime equality independently. Current compiler
-controls and smoke cases are running; see perf/evidence/current-f149597f/.
+controls and smoke cases are running; see perf/evidence/current-0322d9cd/.
 Earlier failed results below remain pinned to their historical source commits.
 No latest full-corpus verdict or compiler-patch readiness is claimed.
 
-## Current-source confirmation
+## Current0322 progress
+
+Lexer library: 586/586 pass in both modes, same complete inventory, zero
+warnings, default test opt0/debug0, executable removed. Byte audit retains all
+102 text Tcl +15 iRules inputs unchanged from the baseline/added-class roster.
+SpecTcl tracked input census is complete (72 present /0 missing). Runtime
+providers are pinned Tcl9.0.4/Tcl8.6.18/Jim0.84-9-g5bac7c9.
+
+The initial f149597f build executed zero tests because propagation::run lacked
+documentation. The existing upstream f89bd6f6 repair is included in0322; no
+perf edit to that optimiser source was made. Failed build/source receipts
+remain in evidence/current-f149597f/. The current compiler controls build is
+still running; no report availability/equality result is claimed yet.
+
+## Historical current-source confirmation (39b39296)
 
 A separate shallow checkout rebuilt all 28 local artifacts at 39b39296 with
 zero warnings; only third-party caches were retained. Exact source, binary,

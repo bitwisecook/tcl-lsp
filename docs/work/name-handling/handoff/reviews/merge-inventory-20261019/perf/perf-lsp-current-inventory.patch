@@ -1,0 +1,40 @@
+--- a/rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs
++++ b/rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs
+@@ -104,6 +104,10 @@
+         let Some(inventory) = Inventory::capture(documents) else {
+             return false;
+         };
++        self.is_current_in_inventory(&inventory)
++    }
++    fn is_current_in_inventory(&self, inventory: &Inventory<'_>) -> bool {
++        let documents = &inventory.documents;
+         let Some(owner) = inventory.owner(self) else {
+             return false;
+         };
+@@ -412,7 +416,7 @@
+             && self.root.as_ref().is_none_or(|identity| {
+                 documents.iter().any(|document| {
+                     identity.is_current(document.uri, document.source, document.analysis)
+-                }) && identity.is_current_in(documents)
++                }) && identity.is_current_in_inventory(&inventory)
+             })
+             && self
+                 .items
+@@ -422,7 +426,7 @@
+                     documents.iter().any(|document| {
+                         item.identity
+                             .is_current(document.uri, document.source, document.analysis)
+-                    }) && item.identity.is_current_in(documents)
++                    }) && item.identity.is_current_in_inventory(&inventory)
+                 })
+             && self.occurrences.iter().all(|occurrence| {
+                 occurrence.is_current(documents) && inventory.reissues_occurrence(occurrence)
+@@ -1067,7 +1071,7 @@
+     identity
+         .is_current(owner.uri, owner.source, owner.analysis)
+         .then_some(())?;
+-    identity.is_current_in(documents).then_some(())?;
++    identity.is_current_in_inventory(&inventory).then_some(())?;
+     inventory.incomplete |= identity.has_unresolved_applicability();
+     let occurrences = inventory.occurrences()?;
+     let mut edges: Vec<LogicalCallHierarchyEdge> = Vec::new();

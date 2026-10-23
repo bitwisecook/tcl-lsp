@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("--target-dir", type=Path)
 parser.add_argument("--evidence-dir", type=Path)
+parser.add_argument("--opt-level", choices=("0", "1", "2", "3"), default="0")
 parser.add_argument("--stage", choices=("lexer", "compiler", "spectcl", "server", "all"), default="all")
 parser.add_argument("--suite", action="append", help="Rerun only these suites; preserve other saved outcomes")
 args = parser.parse_args()
@@ -26,6 +27,10 @@ evidence.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_TEST_DEBUG="0",
            TCL_LSP_REQUIRE_TCLSH="9.0,8.6", TCL_LSP_JIMSH=str(root / "tmp/jimtcl-oracle/jimsh"),
            CARGO_TARGET_DIR=str((args.target_dir or root / "target").resolve()))
+env["CARGO_PROFILE_TEST_OPT_LEVEL"] = args.opt_level
+env["CARGO_PROFILE_DEV_OPT_LEVEL"] = args.opt_level
+env["CARGO_PROFILE_TEST_DEBUG_ASSERTIONS"] = "true"
+env["CARGO_PROFILE_TEST_OVERFLOW_CHECKS"] = "true"
 env.pop("ZZ_OLD_ENV", None)
 filters = ["spectcl_source", "original_name_value", "formal_call_advice", "realm",
            "interprocedural", "w216", "w143", "incomplete_body"]
@@ -61,7 +66,7 @@ for stage, (package, targets, suites) in stages.items():
     (evidence / f"tests-{stage}-build-inputs.json").write_text(json.dumps({
         "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
         "rust_diff_sha256": hashlib.sha256(source_diff).hexdigest(),
-        "profile": "test opt-level=0 debug=0 incremental=0", "target_dir": env["CARGO_TARGET_DIR"],
+        "profile": f"test opt-level={args.opt_level} debug=0 incremental=0; debug/overflow assertions enabled", "target_dir": env["CARGO_TARGET_DIR"],
         "server_timeout_seconds_both_modes": 180,
     }, indent=2) + "\n")
     for suite, _ in suites:
@@ -73,6 +78,8 @@ for stage, (package, targets, suites) in stages.items():
         built = subprocess.run(["cargo", "test", "--locked", "-j2", "-p", package, *targets,
                                 "--no-run", "--message-format=json"], cwd=root, env=env,
                                stdout=out, stderr=err)
+    (evidence / f"tests-{stage}-build.jsonl").write_bytes(build_json.read_bytes())
+    (evidence / f"tests-{stage}-build.stderr").write_bytes(build_log.read_bytes())
     artifacts = {}
     warnings = []
     for line in build_json.read_text().splitlines():

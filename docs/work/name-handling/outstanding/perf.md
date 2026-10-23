@@ -2,12 +2,12 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 10:43 UTC
+Last updated: 2026-10-23 11:04 UTC
 
 ## Resume
 
 **Fresh current-source validation RUNNING; no production commit.**
-Latest frozen proof source is f149597fc926b82a69590e475d091527dd82173e in
+Latest frozen proof source is 0322d9cd1af50e28157b7c3693f53b77cc92adf7 in
 /workspace/tcl-lsp-perf-latest, an independent shallow checkout. AGENTS.md is
 byte-identical to the earlier proof guide. The FULL batch is applied in nine
 experimental Rust files, including temporary switches; both clean patches are
@@ -20,15 +20,21 @@ requires Equal for old1/old2, old1/new AND new/old2. Different and Unavailable
 fail; strict runtime equality is recorded separately without alteration.
 Compiler authenticated-report controls run in both modes before the current
 smoke controls for E003, aliases and hosted source. Evidence is written under
-perf/evidence/current-f149597f/; RUNNING is not a successful result. No broad
+perf/evidence/current-0322d9cd/; RUNNING is not a successful result. No broad
 corpus/full proof or realm/interprocedural readiness is claimed yet.
 
-Runner PID/status: inspect /tmp/perf-run-latest.log and evidence progress.json.
+Runner PID/status: inspect /tmp/perf-run-retry.log and evidence progress.json.
 Build/run/delete happen in the same command. All new targets are isolated at
 /workspace/tcl-lsp-perf-latest/target, built from source without local artifact
 reuse. Source-before/after and artifact hashes will be retained. Use
 source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh; preserved oracles
 are available through the proof checkout's tmp symlink.
+
+The initial f149597f current build stopped at the upstream propagation::run
+missing_docs error (0 warnings, no tests), fixed upstream in f89bd6f6. Its
+complete failed build/source receipts remain in evidence/current-f149597f/.
+The retry uses that repair without any perf edit to optimiser source. The
+main clean patches are refreshed against0322; no semantic proof is implied.
 
 Prior confirmed comparison failures at 39b39296 and all historical corpus,
 crate, timing and timeout outcomes below remain evidence of those exact
@@ -40,6 +46,13 @@ Do not commit realm.rs or interprocedural.rs or mark their patch proven
 without the required complete latest-source proof.
 
 ## Completed evidence
+
+Current0322 lexer library: **586/586 PASS in BOTH modes**, identical complete
+inventories, no warnings, test executable removed. Exact default-profile
+build/outputs: evidence/current-0322d9cd/crate-tests-default/. No other current
+suite verdict yet. All 117 text corpus bytes match the recorded baseline and
+added-class roster; all 72 tracked SpecTcl source/test inputs are present.
+
 
 - Broad frozen e4a01bbe corpus: 102 text Tcl, 100 equal / 2 unequal (E003 and
   aliases), zero panics; every successful row deterministic. Both failing
@@ -75,9 +88,10 @@ without the required complete latest-source proof.
 
 ## Remaining, in order
 
-1. Owner resolution of current all-old full-result comparison blocker. Then
-   repeat complete latest-work 102+15+synthetic equality and PackSet proof.
-   Fresh controls are a blocker confirmation, not a latest broad-suite verdict.
+1. Finish the current authenticated controls/smoke. Complete actual diagnostic-
+   output realm control in both modes, then full all-old/mixed 102+15+synthetic
+   report equality and PackSet proof. Different/Unavailable fail. Never infer
+   latest availability from the historical all-old failures.
 2. Finish current-source crate/no-switch gates with zero pass-to-fail and zero
    new warnings. Preserve known failure/resource limits. Older six-file-only
    Clippy snapshot: zero owned /783 foreign; not current workspace green.
@@ -94,8 +108,8 @@ without the required complete latest-source proof.
 
 ## Files, trees and reproduction
 
-Main patches are refreshed against39b39296; byte-exact clean application only,
-no semantic proof implied. /tmp/perf-latest-clean-batch holds clean snapshots.
+Main patches are refreshed against0322d9cd; byte-exact clean application only,
+no semantic proof implied. /tmp/perf-0322-clean holds clean snapshots.
 refresh_patches.py ROOT --base REF --snapshot DEST refreshes clean6/two split;
 use --output-dir to avoid overwriting main artifacts during historical checks.
 Older e4 proof patches/inputs are archived in evidence/latest-e4a01bbe/proof-patches/.

@@ -1,0 +1,74 @@
+{
+  "status": "build blocked; zero tests executed; not a report comparison result",
+  "errors": [
+    {
+      "rendered": "error: missing documentation for a function\n   --> rust/tcl-compiler/src/optimiser/propagation.rs:116:1\n    |\n116 | pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\nnote: the lint level is defined here\n   --> rust/tcl-compiler/src/lib.rs:83:9\n    |\n 83 | #![deny(missing_docs)]\n    |         ^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "the lint level is defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 4245,
+              "byte_start": 4233,
+              "column_end": 21,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/lib.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 83,
+              "line_start": 83,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 21,
+                  "highlight_start": 9,
+                  "text": "#![deny(missing_docs)]"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "missing documentation for a function",
+      "spans": [
+        {
+          "byte_end": 5036,
+          "byte_start": 4977,
+          "column_end": 60,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/optimiser/propagation.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 116,
+          "line_start": 116,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 60,
+              "highlight_start": 1,
+              "text": "pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  ],
+  "warnings": 0,
+  "upstream_repair": "f89bd6f6 moves the existing documentation to propagation::run; retry source is 0322d9cd",
+  "source_unchanged": true,
+  "runner_sha256": "478a99c80eefcf13b7b62fdb22e1f9fce08e704682834cddffae9a10b550fd3f"
+}

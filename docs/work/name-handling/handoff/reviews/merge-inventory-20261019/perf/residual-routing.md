@@ -129,3 +129,32 @@ ordinary-path measurements above establish substantial remaining LSP cost.
 Route the server case and inventory/index reuse to the LSP owner. Retain
 all cap, role, source-owner and reference assertions. Raw summaries distinguish
 timeouts from assertion failures; no timeout is a fabricated Rust test result.
+
+## Current-source refresh and bounded LSP draft
+
+The image/segment patches are refreshed against f149597f and ordered clean
+application reconstructs the formatted snapshots exactly. They remain
+uncompiled, unproven and unapplied to the production/proof trees. Main split
+batch patches are independently refreshed; neither residual is in that batch.
+
+`perf-lsp-current-inventory.patch` is a separate **Blocked/routed to LSP** draft
+against 0322d9cd. It extracts the existing LogicalCallIdentity currentness
+checks into a private helper over the actual captured immutable Inventory.
+The public method still captures the independently supplied documents. The
+edges and advice validation paths already own that same complete capture and
+reuse it for their nested currentness checks. Every original source/input,
+unique-URI, owner, consumer and selecting-occurrence reissue guard remains in
+the helper; no receipt or reporting-key cache is introduced. The helper uses
+the captured document references directly, preventing a second mismatched
+slice from being supplied. No public API or production code is changed here.
+
+This removes duplicate captures within one query but retains per-lens outer
+capture and occurrence enumeration. It does not establish linear scaling or
+resolve all review 4.1 shapes. The owner must type it, prove complete advice
+and final lens/reference equality (including currentness/coverage/identities),
+retain foreign/changed/missing/duplicate URI and occurrence negatives, and
+measure the unchanged positive ordinary-path probe before accepting it.
+`lsp-inventory-draft-inputs.json` pins exact before/after bytes. Current source
+sites for the broader request-scoped reuse proposal are retained in
+`evidence/current-f149597f/ordinary-lsp-source-audit.json`; that is a source
+audit, not a fresh latency or output-equivalence result.

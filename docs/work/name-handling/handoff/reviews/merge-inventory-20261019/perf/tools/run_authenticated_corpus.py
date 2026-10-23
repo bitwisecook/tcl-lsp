@@ -16,6 +16,7 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('root', type=Path)
 parser.add_argument('--controls', type=Path, required=True)
+parser.add_argument('--realm-controls', type=Path, required=True)
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 root = args.root.resolve()
@@ -33,6 +34,15 @@ for mode in ['new', 'old']:
     assert set(observed) == listed and all(value == 'ok' for value in observed.values())
 head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 inputs = json.loads((controls / 'inputs.json').read_text())
+realm_controls = args.realm_controls.resolve()
+realm_inputs = json.loads((realm_controls / 'tests-compiler-build-inputs.json').read_text())
+assert realm_inputs['head'] == inputs['head'], 'realm controls use another commit'
+assert realm_inputs['rust_diff_sha256'] == inputs['rust_diff_sha256'], 'realm controls use another batch'
+realm_name = 'object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm'
+for mode in ['new', 'old']:
+    output = (realm_controls / f'tests-compiler-lib-{mode}.out').read_text()
+    actual = dict(re.findall(r'^test (.+?) \.\.\. (ok|FAILED|ignored)$', output, re.M))
+    assert actual.get(realm_name) == 'ok', f'{mode} diagnostic-output realm control has not passed'
 assert head == inputs['head'], 'controls use another source commit'
 diff = subprocess.check_output(['git', 'diff', '--', 'rust'], cwd=root)
 assert hashlib.sha256(diff).hexdigest() == inputs['rust_diff_sha256'], 'batch changed since controls'
@@ -41,11 +51,14 @@ perf = tools.parent
 evidence = args.evidence.resolve()
 evidence.mkdir(parents=True, exist_ok=False)
 rosters = {}
+expected_hashes = json.loads((perf / 'evidence/origin-inputs.json').read_text())['inputs']
+expected_hashes.update(json.loads((perf / 'evidence/corpus-roster-audit.json').read_text())['text_input_sha256'])
 for name, expected in [('corpus.txt', 102), ('corpus_irules.txt', 15)]:
     paths = (perf / 'evidence' / name).read_text().splitlines()
     assert len(paths) == expected and len(set(paths)) == expected
     for relative in paths:
         (root / relative).read_text(encoding='utf-8')
+        assert hashlib.sha256((root / relative).read_bytes()).hexdigest() == expected_hashes[relative], f'baseline input bytes changed: {relative}'
     rosters[name] = paths
 sources = {'zz_authenticated_perfprobe': 'authenticated_perfprobe.rs.txt',
            'zz_complete_spectclprobe': 'complete_spectclprobe.rs.txt'}

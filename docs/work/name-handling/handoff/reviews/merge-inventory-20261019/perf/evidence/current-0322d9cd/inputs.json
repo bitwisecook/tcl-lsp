@@ -1,0 +1,8 @@
+{
+  "head": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "profile": "dev/test opt-level=0 debug=0 incremental=0; debug/overflow assertions unchanged",
+  "rust_diff_sha256": "a08ab4ae11f480c1b740cf2db4136a9bd55d31b129f9cfbc06405146c5ec07fe",
+  "probe_sha256": "c8fea9f3df182412a134a4b4f07b51307e541733100e37731a6871b5ac84f137",
+  "acceptance": "all three report comparisons Equal; strict runtime equality recorded separately",
+  "started_unix": 1792752528.3979871
+}

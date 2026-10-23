@@ -1,0 +1,19 @@
+{
+  "tclsh9.0": {
+    "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh9.0",
+    "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "sha256": "7af36bfe6b9999c5dbd9590a6433255fd858bc71eb7297619c3dc79aa95ba017",
+    "patchlevel": "9.0.4"
+  },
+  "tclsh8.6": {
+    "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh8.6",
+    "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "patchlevel": "8.6.18"
+  },
+  "jimsh": {
+    "path": "/workspace/tcl-lsp-perf-latest/tmp/jimtcl-oracle/jimsh",
+    "sha256": "a635503f5f8991141f28b93c9e040ed149acf00a9a0f7def9f51b4e5fafb37e7",
+    "version": "0.84-9-g5bac7c9"
+  }
+}

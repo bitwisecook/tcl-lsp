@@ -1,0 +1,7 @@
+{
+  "head": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "rust_diff_sha256": "a08ab4ae11f480c1b740cf2db4136a9bd55d31b129f9cfbc06405146c5ec07fe",
+  "profile": "test opt-level=0 debug=0 incremental=0; debug/overflow assertions enabled",
+  "target_dir": "/workspace/tcl-lsp-perf-latest/target-lexer-controls",
+  "server_timeout_seconds_both_modes": 180
+}
