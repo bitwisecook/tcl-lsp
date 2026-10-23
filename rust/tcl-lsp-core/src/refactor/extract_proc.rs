@@ -335,6 +335,53 @@ struct OriginalCapture {
     writes: Vec<tcl_lexer::Span>,
 }
 
+fn record_original_capture(
+    context: (&str, &AnalysisResult),
+    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    span: tcl_lexer::Span,
+    write: bool,
+    captures: &mut Vec<OriginalCapture>,
+    unavailable: &impl Fn() -> String,
+) -> Result<(), String> {
+    let (source, analysis) = context;
+    let mut matches = analysis
+        .original_variable_symbols
+        .iter()
+        .filter(|occurrence| {
+            occurrence.span() == span && occurrence.original_name_input() == input
+        });
+    let first = matches.next().ok_or_else(unavailable)?;
+    if !matches.all(|candidate| candidate.symbol() == first.symbol()) {
+        return Err(unavailable());
+    }
+    if !crate::original_name_edit::original_input_matches_source(source, analysis, input, span) {
+        return Err(unavailable());
+    }
+    if first.original_local_alias().is_some() {
+        return Err("carrying an original alias across a new procedure frame needs an independent link contract".to_owned());
+    }
+    let position = captures
+        .iter()
+        .position(|capture| capture.symbol == *first.symbol());
+    let index = position.unwrap_or_else(|| {
+        captures.push(OriginalCapture {
+            symbol: first.symbol().clone(),
+            reads: Vec::new(),
+            writes: Vec::new(),
+        });
+        captures.len() - 1
+    });
+    let rows = if write {
+        &mut captures[index].writes
+    } else {
+        &mut captures[index].reads
+    };
+    if !rows.contains(&span) {
+        rows.push(span);
+    }
+    Ok(())
+}
+
 /// Native source capture classification retains real symbol equality and
 /// selected roles. It never resolves a cell from a reported variable name.
 fn original_extraction_plan(
@@ -353,43 +400,14 @@ fn original_extraction_plan(
                       span: tcl_lexer::Span,
                       write: bool|
      -> Result<(), String> {
-        let mut matches = analysis
-            .original_variable_symbols
-            .iter()
-            .filter(|occurrence| {
-                occurrence.span() == span && occurrence.original_name_input() == input
-            });
-        let first = matches.next().ok_or_else(unavailable)?;
-        if !matches.all(|candidate| candidate.symbol() == first.symbol()) {
-            return Err(unavailable());
-        }
-        if !crate::original_name_edit::original_input_matches_source(source, analysis, input, span)
-        {
-            return Err(unavailable());
-        }
-        if first.original_local_alias().is_some() {
-            return Err("carrying an original alias across a new procedure frame needs an independent link contract".to_owned());
-        }
-        let position = captures
-            .iter()
-            .position(|capture| capture.symbol == *first.symbol());
-        let index = position.unwrap_or_else(|| {
-            captures.push(OriginalCapture {
-                symbol: first.symbol().clone(),
-                reads: Vec::new(),
-                writes: Vec::new(),
-            });
-            captures.len() - 1
-        });
-        let rows = if write {
-            &mut captures[index].writes
-        } else {
-            &mut captures[index].reads
-        };
-        if !rows.contains(&span) {
-            rows.push(span);
-        }
-        Ok(())
+        record_original_capture(
+            (source, analysis),
+            input,
+            span,
+            write,
+            &mut captures,
+            &unavailable,
+        )
     };
     for root in selected {
         let mut nested = Vec::new();
@@ -598,19 +616,7 @@ fn plan_extraction(
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
     reject_enclosing_definition_body(source, scope, &walk)?;
     reject_frame_sensitive_selection(source, selected, &walk)?;
-    let source_selection =
-        if analysis.resolved_input.as_ref().is_some_and(
-            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-        ) {
-            Some(
-                LogicalExtractionSourceSelection::capture(source, analysis, selected, &walk)
-                    .ok_or_else(|| {
-                        "the selected original body/case descriptors are unavailable".to_owned()
-                    })?,
-            )
-        } else {
-            None
-        };
+    let source_selection = logical_extraction_source_selection(source, analysis, selected, &walk)?;
 
     let roles = if let Some(selection) = source_selection.as_ref() {
         classify_selected_variables(source, selected, &walk, Some(selection))?
@@ -642,37 +648,14 @@ fn plan_extraction(
     // in must keep reaching the caller; one that is not becomes a proc local.
     let mut used_after: BTreeSet<String> = BTreeSet::new();
     let mut nested_tail = Vec::new();
-    for (start, end) in observing_regions(source, &walk, block_start, block_end) {
-        let text = source.get(start as usize..end as usize).unwrap_or_default();
-        // Segmented at its real offset so the same-frame walk below can
-        // address nested bodies in `source`'s own coordinates.
-        for command in segment_commands_with_offset_and_config(text, start, config) {
-            if command.name().is_empty() {
-                continue;
-            }
-            used_after.extend(
-                command_variable_references(source, &command, &walk)?
-                    .into_iter()
-                    .map(|reference| reference.name),
-            );
-            used_after.extend(role_named_variables(source, &command, &walk)?);
-            // A read decides `upvar` versus proc local, so a role-named read
-            // nested in a control-flow body has to count exactly as a
-            // top-level one does: `if {$ok} {incr total}` carries no `$total`
-            // for the text scan to find, and missing it would turn the
-            // selection's write into a proc local and lose the caller's value.
-            nested_tail.clear();
-            walk.nested_same_frame_commands(source, &command, &mut nested_tail);
-            for inner in &nested_tail {
-                used_after.extend(
-                    command_variable_references(source, inner, &walk)?
-                        .into_iter()
-                        .map(|reference| reference.name),
-                );
-                used_after.extend(role_named_variables(source, inner, &walk)?);
-            }
-        }
-    }
+    collect_observed_variables(
+        source,
+        &walk,
+        (block_start, block_end),
+        config,
+        &mut used_after,
+        &mut nested_tail,
+    )?;
 
     let by_name: Vec<String> = roles
         .written
@@ -732,6 +715,71 @@ fn plan_extraction(
             },
         ],
     })
+}
+
+fn collect_observed_variables(
+    source: &str,
+    walk: &super::FrameWalk<'_>,
+    block: (u32, u32),
+    config: LexerConfig,
+    used_after: &mut BTreeSet<String>,
+    nested_tail: &mut Vec<SegmentedCommand>,
+) -> Result<(), String> {
+    let (block_start, block_end) = block;
+    for (start, end) in observing_regions(source, walk, block_start, block_end) {
+        let text = source.get(start as usize..end as usize).unwrap_or_default();
+        // Segmented at its real offset so the same-frame walk below can
+        // address nested bodies in `source`'s own coordinates.
+        for command in segment_commands_with_offset_and_config(text, start, config) {
+            if command.name().is_empty() {
+                continue;
+            }
+            used_after.extend(
+                command_variable_references(source, &command, walk)?
+                    .into_iter()
+                    .map(|reference| reference.name),
+            );
+            used_after.extend(role_named_variables(source, &command, walk)?);
+            // A read decides `upvar` versus proc local, so a role-named read
+            // nested in a control-flow body has to count exactly as a
+            // top-level one does: `if {$ok} {incr total}` carries no `$total`
+            // for the text scan to find, and missing it would turn the
+            // selection's write into a proc local and lose the caller's value.
+            nested_tail.clear();
+            walk.nested_same_frame_commands(source, &command, nested_tail);
+            for inner in nested_tail.iter() {
+                used_after.extend(
+                    command_variable_references(source, inner, walk)?
+                        .into_iter()
+                        .map(|reference| reference.name),
+                );
+                used_after.extend(role_named_variables(source, inner, walk)?);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn logical_extraction_source_selection(
+    source: &str,
+    analysis: &AnalysisResult,
+    selected: &[&SegmentedCommand],
+    walk: &super::FrameWalk<'_>,
+) -> Result<Option<LogicalExtractionSourceSelection>, String> {
+    Ok(
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
+            Some(
+                LogicalExtractionSourceSelection::capture(source, analysis, selected, walk)
+                    .ok_or_else(|| {
+                        "the selected original body/case descriptors are unavailable".to_owned()
+                    })?,
+            )
+        } else {
+            None
+        },
+    )
 }
 
 /// The byte ranges that can still observe what the selection writes.
