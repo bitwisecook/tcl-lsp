@@ -2848,6 +2848,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     function_lattice_fallback(
         db,
         key,
+        context,
         registry,
         config,
         (upvar, proc_params, global_write_procs),
@@ -2863,6 +2864,7 @@ type LatticeFallbackMaps = (
 fn function_lattice_fallback<'db>(
     db: &'db dyn TclDb,
     key: FnLatticeKey<'db>,
+    context: CfgContext<'db>,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
     maps: LatticeFallbackMaps,
