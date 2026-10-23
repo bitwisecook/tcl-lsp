@@ -2430,6 +2430,26 @@ mod tests {
     #[cfg(have_tommath)]
     #[test]
     fn native_expression_and_increment_follow_selected_numeric_towers() {
+        let ok = |interp: &mut Interp, source: &[u8]| {
+            let host = interp.host();
+            let environment = host.numeric_environment();
+            let before = environment.map(tcl_platform::NumericEnvironment::state);
+            let code = interp.eval_str(source);
+            let after = (code != Code::Ok)
+                .then(|| environment.map(tcl_platform::NumericEnvironment::state));
+            assert_eq!(
+                code,
+                Code::Ok,
+                "eval {:?} → {:?}; host refusal: {:?}; dialect: {:?}; numeric before: {:?}; failure after: {:?}",
+                String::from_utf8_lossy(source),
+                String::from_utf8_lossy(&interp.result_bytes()),
+                interp.native_access_refusal(),
+                interp.dialect_profile().name,
+                before,
+                after
+            );
+            interp.result_bytes()
+        };
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             leak_free(|interp| {
                 interp.set_dialect_profile(

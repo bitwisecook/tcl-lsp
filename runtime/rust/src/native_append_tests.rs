@@ -94,8 +94,11 @@ fn native_append_preserves_every_measured_primary_storage_and_identity_window() 
                 .unwrap()
                 .split_once("-source-")
                 .unwrap();
+            eprintln!("APPEND_DIAGNOSTIC row={observations} profile={profile} phase=construct");
             let mut interp = Interp::new();
+            eprintln!("APPEND_DIAGNOSTIC row={observations} profile={profile} phase=pin");
             interp.set_dialect_profile(crate::environment::profile_for_dialect(profile));
+            eprintln!("APPEND_DIAGNOSTIC row={observations} profile={profile} phase=exercise");
             if kinds.0 != "missing" {
                 let destination = make(&mut interp, kinds.0);
                 interp.var_set(b"v", destination.as_ptr()).unwrap();
@@ -181,6 +184,7 @@ fn native_append_preserves_every_measured_primary_storage_and_identity_window() 
                 fields[16],
                 "{label} reached result projection"
             );
+            eprintln!("APPEND_DIAGNOSTIC row={observations} profile={profile} phase=retire");
             observations += 1;
         }
     }
