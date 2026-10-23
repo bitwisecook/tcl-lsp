@@ -1,8 +1,8 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 11:04 UTC
+Last updated: 2026-10-23 11:28 UTC
 
-**Latest proof refresh in progress; no production code landed.** The independent
+**Blocked on current compiler report controls; regression checks continue. No production code landed.** The independent
 0322d9cd checkout contains the full switched batch. Clean six/two-file patches
 and routed residual drafts are refreshed against that exact source; formatting
 and byte-exact switch reconstruction pass. This is applicability evidence,
@@ -26,8 +26,17 @@ providers are pinned Tcl9.0.4/Tcl8.6.18/Jim0.84-9-g5bac7c9.
 The initial f149597f build executed zero tests because propagation::run lacked
 documentation. The existing upstream f89bd6f6 repair is included in0322; no
 perf edit to that optimiser source was made. Failed build/source receipts
-remain in evidence/current-f149597f/. The current compiler controls build is
-still running; no report availability/equality result is claimed yet.
+remain in evidence/current-f149597f/. The current compiler control build passes with zero warnings. Its15 report
+controls finish12PASS/3FAIL in BOTH modes: two original alias-role assertions
+at body_correspondence.rs813/884 and hosted CurrentOwnerUnavailable at
+analyser/authenticated_report.rs500. Equal inventory/zero pass-to-fail does
+not make that a usable full-report acceptance gate.
+
+Direct public-API smoke from the exact completed Cargo libraries returns all
+three authenticated Equal pairs for E003 and aliases, forced-old AND mixed;
+strict runtime comparisons remain false. This is only a two-fixture smoke.
+Hosted smoke, full corpus and current regression suites remain pending or
+blocked; see the outstanding file for the active resource-separated pipeline.
 
 ## Historical current-source confirmation (39b39296)
 

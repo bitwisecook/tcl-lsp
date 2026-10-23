@@ -1,0 +1,3 @@
+REPORT label="samples/diagnostics/E003_proc_call_arity/example.tcl" old1_ms=62843 new_ms=41537 old2_ms=41662 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/aliases.tcl" old1_ms=64300 new_ms=136399 old2_ms=61392 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=2 failed=0

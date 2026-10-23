@@ -107,3 +107,25 @@ Hosted all-old/mixed controls completed: ALL 15 fail in BOTH modes, zero
 panics. Both Tcl fixtures also fail in both modes. Current source failure
 is confirmed independently of the older broad proof; no production code
 was committed and neither patch is declared proven.
+
+## Authenticated API controls at0322d9cd
+
+Compiler/source-report owner: both modes now finish12PASS/3FAIL out of15,
+zero warnings, identical inventories and zero pass-to-fail. Exact controls,
+source/binary receipts and summary are in evidence/current-0322d9cd/. The
+Native E003 positive and foreign-subject refusal controls pass. Both Native
+original_aliases and the additive supported_logical_alias controls stop at
+`actual Named and NamespaceScript owners at one original declaration`, before
+their full correspondence assertions. The genuine hosted control refuses
+actual capture with CurrentOwnerUnavailable. Do not change these assertions
+or infer an exact producer cause from the assertion text alone.
+
+Separate public-API smoke linked from the exact normal Cargo libraries gives
+complete authenticated Equal old1/old2, old1/new and new/old2 for the actual
+E003 and aliases corpus fixtures, forced-old and mixed. Raw strict runtime Eq
+is false independently and unchanged. This distinguishes report-level progress
+from the still-failing issuer controls. It is not full102+15 corpus proof and
+provides no permission to accept Unavailable, omit any field or release the
+realm/interprocedural patch. Hosted full actual correspondence remains a
+blocking owner task. Perf continues only independent regression checks until
+the complete original controls can admit the full proof.

@@ -2,11 +2,11 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 11:04 UTC
+Last updated: 2026-10-23 11:28 UTC
 
 ## Resume
 
-**Fresh current-source validation RUNNING; no production commit.**
+**BLOCKED on current compiler report controls; regression checks RUNNING. No production commit.**
 Latest frozen proof source is 0322d9cd1af50e28157b7c3693f53b77cc92adf7 in
 /workspace/tcl-lsp-perf-latest, an independent shallow checkout. AGENTS.md is
 byte-identical to the earlier proof guide. The FULL batch is applied in nine
@@ -18,10 +18,20 @@ The user2256 acceptance contract is authenticated complete-report comparison,
 separate from strict runtime/cache Eq. tools/authenticated_perfprobe.rs.txt
 requires Equal for old1/old2, old1/new AND new/old2. Different and Unavailable
 fail; strict runtime equality is recorded separately without alteration.
-Compiler authenticated-report controls run in both modes before the current
-smoke controls for E003, aliases and hosted source. Evidence is written under
-perf/evidence/current-0322d9cd/; RUNNING is not a successful result. No broad
-corpus/full proof or realm/interprocedural readiness is claimed yet.
+Current authenticated-report controls are COMPLETE: 15 each, **12 PASS /3 FAIL
+in BOTH modes**, zero warnings, identical inventory, zero pass-to-fail.
+report-controls-summary.json records the two unchanged alias-role assertions
+and hosted CurrentOwnerUnavailable failure. E003 positive/foreign controls
+pass. The separate direct-artifact smoke returns complete Equal triples for
+E003 and aliases in forced-old AND mixed modes; strict runtime Eq remains
+false and was not altered. Direct hosted smoke is still pending.
+
+Full corpus acceptance remains BLOCKED until the original report controls and
+the separate diagnostic-output realm control pass in both modes. Different
+and Unavailable fail. No field, assertion, subject or budget is weakened;
+neither perf patch is proven/ready. The new preflight explicitly checks both
+report and actual-realm controls, exact source/batch and all117 fixture bytes.
+Evidence is under perf/evidence/current-0322d9cd/.
 
 Runner PID/status: inspect /tmp/perf-run-retry.log and evidence progress.json.
 Build/run/delete happen in the same command. All new targets are isolated at
@@ -88,10 +98,10 @@ added-class roster; all 72 tracked SpecTcl source/test inputs are present.
 
 ## Remaining, in order
 
-1. Finish the current authenticated controls/smoke. Complete actual diagnostic-
-   output realm control in both modes, then full all-old/mixed 102+15+synthetic
-   report equality and PackSet proof. Different/Unavailable fail. Never infer
-   latest availability from the historical all-old failures.
+1. Compiler owner resolves the current two alias-role assertion failures and
+   hosted CurrentOwnerUnavailable. Then complete actual-realm controls and
+   full all-old/mixed 102+15+synthetic report equality/PackSet proof. Never
+   treat the native two-fixture smoke as complete corpus acceptance.
 2. Finish current-source crate/no-switch gates with zero pass-to-fail and zero
    new warnings. Preserve known failure/resource limits. Older six-file-only
    Clippy snapshot: zero owned /783 foreign; not current workspace green.
@@ -144,3 +154,29 @@ The user authorized **authenticated full-report comparison** as the new perf equ
 ### Coordinator dependency delivery — 2026-10-23T01:05:06.334470+00:00 (owner header unchanged)
 
 Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. [Exact API and 14-control handoff](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-v7-20261023T0101Z/) and [guarded execution preparation](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-focused14-v1-20261023T0106Z/) are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
+
+## Active regression pipeline
+
+- /tmp/perf-run-retry.log: main default-profile control/smoke/PackSet command;
+  controls complete, Cargo probe build queued behind the server build.
+- /tmp/perf-direct-smoke.log: public API smoke linked from exact completed
+  normal Cargo artifacts while unit-test build finished; source/library/binary
+  hashes and cleanup recorded in evidence/current-0322d9cd/direct-smoke/.
+- /tmp/perf-compiler-current.log: original selected compiler filters in BOTH
+  default-profile modes, private byte-identical executable copies. No final
+  inventory comparison yet; all test assertions unchanged.
+- /tmp/perf-server-current.log: default-profile named server build. It waits
+  for /tmp/perf-heavy-tests-finished before running the unchanged180s cases.
+  Release that resource flag ONLY after compiler/main/direct jobs AND SpecTcl
+  compilation stop using CPU, so the server tests run quietly.
+- /tmp/perf-spectcl-current.log: separate target-spectcl-opt1 compilation with
+  debug/overflow assertions on; eval_loader/golden_packs wait for
+  /tmp/perf-server-tests-finished. Release only after server tests finish.
+  Opt1 results do not erase historical default-profile budget outcomes.
+
+No background publisher/controller is running. Manually checkpoint own docs
+with fetch/rebase before each normal push, at most30minutes apart. All active
+commands build/run/delete their executables in the same command. Temporary
+probe .rs files must be removed after the main command; never commit them.
+The LSP inventory draft is an additional uncompiled/unproven route, not part
+of either perf batch patch and not a fix for all review4.1 scaling shapes.

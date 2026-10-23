@@ -1,0 +1,43 @@
+
+running 15 tests
+test analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::empty_installed_body_requires_the_current_complete_source_card ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration ... FAILED
+test analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration ... FAILED
+test analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners ... ok
+test analyser::authenticated_report::capture_controls::changed_plain_report_value_is_a_difference_after_current_owners_join ... ok
+test analyser::authenticated_report::capture_controls::completed_report_request_cannot_capture_a_later_ordinary_analysis ... ok
+test analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable ... ok
+test analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain ... FAILED
+test analyser::authenticated_report::capture_controls::report_capture_rejects_changed_producer_facts_and_unavailable_output ... ok
+test analyser::authenticated_report::capture_controls::report_capture_rejects_equal_source_foreign_output_attachment ... ok
+test analyser::authenticated_report::capture_controls::report_capture_requires_its_actual_source_build_request ... ok
+test analyser::authenticated_report::capture_controls::report_capture_self_comparison_requires_complete_current_owners ... ok
+
+failures:
+
+---- analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration stdout ----
+
+thread 'analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration' (8777) panicked at rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:813:14:
+actual Named and NamespaceScript owners at one original declaration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration stdout ----
+
+thread 'analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration' (8932) panicked at rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:884:14:
+actual Named and NamespaceScript owners at one original declaration
+
+---- analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain stdout ----
+
+thread 'analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain' (8986) panicked at rust/tcl-compiler/src/analyser/authenticated_report.rs:500:14:
+actual hosted diagnostics CU: CurrentOwnerUnavailable
+
+
+failures:
+    analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration
+    analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration
+    analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain
+
+test result: FAILED. 12 passed; 3 failed; 0 ignored; 0 measured; 10569 filtered out; finished in 220.52s

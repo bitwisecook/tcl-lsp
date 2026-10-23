@@ -11,12 +11,18 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import shutil
+import tempfile
 import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("--target-dir", type=Path)
 parser.add_argument("--evidence-dir", type=Path)
+parser.add_argument("--wait-before-tests", type=Path,
+                    help="After building, wait for this resource-readiness file before running tests")
+parser.add_argument("--private-executables", action="store_true",
+                    help="Run/delete isolated copies; the concurrent original builder owns its originals")
 parser.add_argument("--opt-level", choices=("0", "1", "2", "3"), default="0")
 parser.add_argument("--stage", choices=("lexer", "compiler", "spectcl", "server", "all"), default="all")
 parser.add_argument("--suite", action="append", help="Rerun only these suites; preserve other saved outcomes")
@@ -89,11 +95,29 @@ for stage, (package, targets, suites) in stages.items():
         if item.get("reason") == "compiler-message" and item["message"]["level"] == "warning":
             warnings.append(item["message"]["rendered"])
     if built.returncode or warnings:
-        for exe in artifacts.values():
-            exe.unlink(missing_ok=True)
+        if not args.private_executables:
+            for exe in artifacts.values():
+                exe.unlink(missing_ok=True)
         raise RuntimeError(f"{stage} build: exit={built.returncode}, warnings={len(warnings)}; {build_log}, {build_json}")
+    private_directory = None
+    if args.private_executables:
+        private_directory = Path(tempfile.mkdtemp(prefix="perf-test-executables-"))
+        receipt = {}
+        for target, original in artifacts.items():
+            copied = private_directory / original.name
+            shutil.copy2(original, copied)
+            digest = hashlib.sha256(copied.read_bytes()).hexdigest()
+            assert digest == hashlib.sha256(original.read_bytes()).hexdigest()
+            artifacts[target] = copied
+            receipt[target] = {"original": str(original), "copy": str(copied),
+                               "sha256": digest, "cleanup": "copy by this runner; original by its concurrent builder"}
+        (evidence / f"tests-{stage}-private-executables.json").write_text(json.dumps(receipt, indent=2) + "\n")
     try:
         assert artifacts, f"no test executables for {stage}"
+        if args.wait_before_tests:
+            print(f"WAIT for quiet test resources: {args.wait_before_tests}", flush=True)
+            while not args.wait_before_tests.exists():
+                time.sleep(5)
         for suite, selected in suites:
             exe = (artifacts[suite] if stage == "spectcl" else next(iter(artifacts.values())))
             outcomes = {}
@@ -151,5 +175,7 @@ for stage, (package, targets, suites) in stages.items():
     finally:
         for exe in artifacts.values():
             exe.unlink(missing_ok=True)
+        if private_directory is not None:
+            private_directory.rmdir()
 if failed:
     raise SystemExit("One or more test runs failed; inspect the complete saved output")
