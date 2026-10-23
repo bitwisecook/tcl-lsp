@@ -5711,14 +5711,17 @@ mod tests {
     fn trace_callbacks_follow_operation_and_exact_element_address() {
         use tcl_registry::TraceOperation::{Read, Unset, Write};
         let registry = CommandRegistry::build_default();
-        let state = ResolveContext::for_function("::f");
+        let mut state = ResolveContext::for_function("::f");
+        trace(&mut state, "a(k)", Write);
         assert!(resolve_literal_access("a(k)", &state, false, &registry, Write).observed);
         assert!(!resolve_literal_access("a(j)", &state, false, &registry, Write).observed);
         assert!(!resolve_literal_access("a(k)", &state, false, &registry, Read).observed);
         assert!(!resolve_literal_access("a", &state, true, &registry, Unset).observed);
         assert!(resolve_literal_access("a", &state, true, &registry, Write).observed);
+        trace(&mut state, "a", Read);
         assert!(resolve_literal_access("a(j)", &state, false, &registry, Read).observed);
         assert!(!resolve_literal_access("unrelated", &state, false, &registry, Write).observed);
+        trace(&mut state, "a(j)", Unset);
         assert!(resolve_literal_access("a", &state, false, &registry, Unset).observed);
     }
 
@@ -5726,7 +5729,9 @@ mod tests {
     fn braced_substitution_preserves_literal_element_and_dollar_name() {
         use tcl_registry::TraceOperation::Read;
         let registry = CommandRegistry::build_default();
-        let state = ResolveContext::for_function("::f");
+        let mut state = ResolveContext::for_function("::f");
+        trace(&mut state, "a($i)", Read);
+        trace(&mut state, "$x", Read);
         let literal =
             crate::var_resolve::resolve_substitution_access("${a($i)}", &state, &registry, Read);
         assert_eq!(
@@ -5753,8 +5758,10 @@ mod tests {
         use tcl_registry::TraceOperation::Write;
         let registry = CommandRegistry::build_default();
         let mut state = ResolveContext::for_function("::f");
+        trace(&mut state, "a(k)", Write);
         destroy_root(&mut state, "a(k)", 10, &registry);
         assert!(!resolve_literal_access("a(k)", &state, false, &registry, Write).observed);
+        trace(&mut state, "a(k)", Write);
         destroy_root(&mut state, "a", 20, &registry);
         assert!(!resolve_literal_access("a(k)", &state, false, &registry, Write).observed);
     }
@@ -5765,6 +5772,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut state = ResolveContext::for_function("::f");
         state.known_namespaces.insert("::N".to_owned());
+        trace(&mut state, "::N::x", Write);
         apply_namespace(
             &mut state,
             &NamespaceTransition::Delete {
