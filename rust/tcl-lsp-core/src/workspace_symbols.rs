@@ -181,36 +181,7 @@ pub(crate) fn original_symbols(
     use crate::original_declaration::{OriginalDeclarationRole, declarations};
     use crate::original_indexed_location::OriginalIndexedSourceLocation;
     let mut symbols = Vec::new();
-    if let Some(cards) = crate::vendor_declaration::declarations(source, analysis) {
-        for card in cards {
-            let Some(name) = crate::vendor_declaration::source_label(card.input(), card.purpose())
-            else {
-                continue;
-            };
-            let kind = if card.procedure_metadata().is_some() {
-                WorkspaceSymbolKind::Function
-            } else if card.class_metadata().is_some() {
-                WorkspaceSymbolKind::Class
-            } else if let Some(metadata) = card.symbol_metadata() {
-                WorkspaceSymbolKind::from(metadata.kind)
-            } else {
-                continue;
-            };
-            let Some(location) =
-                OriginalIndexedSourceLocation::from_vendor_declaration(uri, context, &card)
-            else {
-                continue;
-            };
-            symbols.push(IndexedWorkspaceSymbol {
-                uri: uri.to_owned(),
-                name,
-                container_name: None,
-                kind,
-                name_span: card.span(),
-                original_location: Some(location),
-                logical_source: None,
-            });
-        }
+    if append_vendor_workspace_symbols(uri, source, analysis, context, &mut symbols) {
         return symbols;
     }
     for identity in declarations(uri, source, analysis).unwrap_or_default() {
@@ -295,6 +266,49 @@ pub(crate) fn original_symbols(
         }
     }
     symbols
+}
+
+fn append_vendor_workspace_symbols(
+    uri: &str,
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    context: &crate::workspace_index::WorkspaceDiagnosticSourceContext,
+    symbols: &mut Vec<IndexedWorkspaceSymbol>,
+) -> bool {
+    use crate::original_indexed_location::OriginalIndexedSourceLocation;
+    if let Some(cards) = crate::vendor_declaration::declarations(source, analysis) {
+        for card in cards {
+            let Some(name) = crate::vendor_declaration::source_label(card.input(), card.purpose())
+            else {
+                continue;
+            };
+            let kind = if card.procedure_metadata().is_some() {
+                WorkspaceSymbolKind::Function
+            } else if card.class_metadata().is_some() {
+                WorkspaceSymbolKind::Class
+            } else if let Some(metadata) = card.symbol_metadata() {
+                WorkspaceSymbolKind::from(metadata.kind)
+            } else {
+                continue;
+            };
+            let Some(location) =
+                OriginalIndexedSourceLocation::from_vendor_declaration(uri, context, &card)
+            else {
+                continue;
+            };
+            symbols.push(IndexedWorkspaceSymbol {
+                uri: uri.to_owned(),
+                name,
+                container_name: None,
+                kind,
+                name_span: card.span(),
+                original_location: Some(location),
+                logical_source: None,
+            });
+        }
+        return true;
+    }
+    false
 }
 
 fn original_label(bytes: &[u8]) -> String {
