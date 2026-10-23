@@ -27,45 +27,7 @@ pub(super) fn items(
         return Vec::new();
     }
     if analysis.allows_lexical_declaration_advice() {
-        if !workspace.allows_lexical_rename_advice() {
-            return Vec::new();
-        }
-        let mut items = Vec::new();
-        for (_, declaration) in workspace.logical_procedure_source_candidates() {
-            let Some(name) = declaration.name() else {
-                continue;
-            };
-            let Some(spelling) = declaration.source_word(config) else {
-                continue;
-            };
-            if (!name.starts_with(partial) && !spelling.starts_with(partial))
-                || analysis.all_procs.values().any(|local| {
-                    analysis
-                        .logical_source_procedure_declaration(local)
-                        .and_then(|local| local.source_word(config))
-                        .as_deref()
-                        == Some(spelling.as_str())
-                })
-            {
-                continue;
-            }
-            items.push(CompletionItem {
-                label: name.to_owned(),
-                insert_text: spelling,
-                kind: CompletionKind::Function,
-                detail: Some(format!(
-                    "{} params (workspace)",
-                    declaration.metadata().params.len()
-                )),
-                sort_text: Some(format!("C0_{name}")),
-                ..CompletionItem::default()
-            });
-        }
-        items.sort_by(|left, right| left.insert_text.cmp(&right.insert_text));
-        items.dedup_by(|left, right| {
-            left.insert_text == right.insert_text && left.detail == right.detail
-        });
-        return items;
+        return logical_workspace_items(analysis, workspace, config, partial);
     }
     // A hosted producer remains a separate purpose, including when its units
     // are unavailable. It cannot acquire a C or Jim protocol from a sibling.
@@ -158,6 +120,53 @@ pub(super) fn items(
         left.insert_text
             .cmp(&right.insert_text)
             .then_with(|| left.detail.cmp(&right.detail))
+    });
+    items
+}
+
+fn logical_workspace_items(
+    analysis: &AnalysisResult,
+    workspace: &WorkspaceIndex,
+    config: tcl_lexer::LexerConfig,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    if !workspace.allows_lexical_rename_advice() {
+        return Vec::new();
+    }
+    let mut items = Vec::new();
+    for (_, declaration) in workspace.logical_procedure_source_candidates() {
+        let Some(name) = declaration.name() else {
+            continue;
+        };
+        let Some(spelling) = declaration.source_word(config) else {
+            continue;
+        };
+        if (!name.starts_with(partial) && !spelling.starts_with(partial))
+            || analysis.all_procs.values().any(|local| {
+                analysis
+                    .logical_source_procedure_declaration(local)
+                    .and_then(|local| local.source_word(config))
+                    .as_deref()
+                    == Some(spelling.as_str())
+            })
+        {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: name.to_owned(),
+            insert_text: spelling,
+            kind: CompletionKind::Function,
+            detail: Some(format!(
+                "{} params (workspace)",
+                declaration.metadata().params.len()
+            )),
+            sort_text: Some(format!("C0_{name}")),
+            ..CompletionItem::default()
+        });
+    }
+    items.sort_by(|left, right| left.insert_text.cmp(&right.insert_text));
+    items.dedup_by(|left, right| {
+        left.insert_text == right.insert_text && left.detail == right.detail
     });
     items
 }
