@@ -551,8 +551,7 @@ fn expr_comparison_inversion_string_equal() {
     // tclsh-proof: with a=foo b=bar both `!($a eq $b)` and `$a ne $b` -> 1;
     //   with a=foo b=foo both -> 0 (8.6 + 9.0): the rewrite preserves the
     //   boolean result.
-    // 2026-10-22T13:17Z removes safe gaps; wordop-manual-oracle-20261022.json.
-    // Keep the independent ne inversion expectation; remove only its safe gap.
+    // The word operator needs a separator only before its name.
     assert_eq!(min("if {!($a eq $b)} {puts x}\n"), "if {$a ne$b} {puts x}");
 }
 
@@ -564,7 +563,6 @@ fn expr_comparison_inversion_membership() {
     //   both -> 0 (8.6 + 9.0).
     assert_eq!(
         min("if {!($x in {a b})} {puts y}\n"),
-        // 13:17 decision and the same pinned wordop source controls.
         "if {$x ni{a b}} {puts y}",
     );
 }
@@ -841,9 +839,8 @@ fn default_minify_compacts_expression_gaps_and_preserves_oracle_results() {
 
 #[test]
 fn native_word_operators_remove_safe_gaps_without_changing_tokens_or_data() {
-    // Decision 2026-10-22T13:17Z; pinned control families and negative
-    // boundaries in lsp/wordop-manual-oracle-20261022.json. This executes
-    // actual minifier output while preserving the complete token/data guard.
+    // Execute minifier output across the supported dialects, checking both
+    // removable word-operator gaps and boundaries that preserve operand data.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut source = String::from(
             "set a a\nset b a\nset c c\nset items {a b}\n\
