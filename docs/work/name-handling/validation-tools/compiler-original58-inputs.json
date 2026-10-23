@@ -1,0 +1,199 @@
+{
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "historical_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "/workspace/.cargo",
+    "CARGO_HTTP_MULTIPLEXING": "false",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+    "RUSTC": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0"
+  },
+  "historical_row_environment_sha256": {
+    "01-01-report14-.env.json": "667423c5cbb1512a7de21f727143502b92edb84dd641a373c3086caf6767b72d",
+    "02-02-report14-full_report_candidates_require_the_actual_diagnostic_output_realm.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "03-03-diagnostic11-original-conditional_expression_template_retains_grammar_without_actual_entry.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "04-04-diagnostic11-original-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "05-05-diagnostic11-original-scoped_nested_normalisation_keeps_original_world_frame_and_source.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "06-06-diagnostic11-original-selected_nested_normalisation_projects_actual_operand_and_command_source.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "07-07-diagnostic11-original-deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix.env.json": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+    "08-08-diagnostic11-original-sequential_tail_returns_to_the_same_original_prefix_without_reanalysis.env.json": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+    "09-09-diagnostic11-original-conditional_region_purpose_refuses_a_genuine_whole_child.env.json": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+    "10-10-diagnostic11-original-intrinsic_conditional_refuses_source_effect_and_transition_overrides.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "11-11-diagnostic11-original-first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "13-13-diagnostic11-original-first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "15-15-new-owner-controls4-normal_source_outcome_requires_actual_quiet_variable_effects.env.json": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+    "16-16-new-owner-controls4-normal_source_outcome_refuses_foreign_equal_source_and_changed_config.env.json": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+    "17-17-new-owner-controls4-vendor_source_effect_summary_keeps_native_dialect_unavailable.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "18-18-c6-sh21-tnt03-original-fp_sh_21.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "19-19-c6-sh21-tnt03-original-fp_tnt_03.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "20-20-rbs3-original-with-existing-traces-fp_rbs_15_all_break_switch_not_a_proc_terminator.env.json": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f",
+    "21-21-rbs3-original-with-existing-traces-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.env.json": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f",
+    "22-22-rbs3-original-with-existing-traces-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.env.json": "e12a745b3f65f5a8f006ee30198fe9cc10d91a65619fb60b9585ba64ffcea93f",
+    "23-23-integration3-original-eval_sink.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "24-24-integration3-original-a_braced_expr_word_with_no_nested_write_still_folds.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "25-25-integration3-original-cu_catch_literal_body_threads_its_upvar.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "26-26-bpf6-selected-phase-controls-closed_bpf_effects_keep_script_module_registry_and_config_current.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "27-27-bpf6-selected-phase-controls-closed_bpf_effects_refuse_missing_selection_and_effectful_conditions.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "28-28-bpf6-selected-phase-controls-closed_bpf_effects_refuse_over_budget_scalar_tree.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "29-29-bpf6-selected-phase-controls-closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution.env.json": "66a4b204dca40d45ef54466406afa26b1c057beb11eaa1ec35364dd14e8baca1",
+    "30-30-bpf6-selected-phase-controls-losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory.env.json": "66a4b204dca40d45ef54466406afa26b1c057beb11eaa1ec35364dd14e8baca1",
+    "31-31-bpf6-selected-phase-controls-fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity.env.json": "66a4b204dca40d45ef54466406afa26b1c057beb11eaa1ec35364dd14e8baca1",
+    "32-32-g4-original4-supplement-declaration_layout_keeps_its_original_table_without_a_compiler_visit.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "33-33-g4-original4-supplement-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "34-34-g4-original4-supplement-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.env.json": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37",
+    "35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.env.json": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37"
+  },
+  "hosted_scope": "Native-only original58 diagnostic. Historical WASI_SDK_PATH is retained as ambient provenance, not a selected provider; no wasm build/guest execution/gate admission. Original tool/path variables relocate to current hosted equivalents; semantic per-row flags remain exact. All5 Tcl+Jim/fullTom required.",
+  "jim_patchlevel": "0.84-9-g5bac7c9",
+  "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "original_selector_bytes_sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+  "row_environments": {
+    "01": {
+      "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+    },
+    "02": {},
+    "03": {},
+    "04": {},
+    "05": {},
+    "06": {},
+    "07": {
+      "TCL_LSP_TRACE_N13_POINT": "1"
+    },
+    "08": {
+      "TCL_LSP_TRACE_N13_POINT": "1"
+    },
+    "09": {
+      "TCL_LSP_TRACE_N13_POINT": "1"
+    },
+    "10": {
+      "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+    },
+    "11": {
+      "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+    },
+    "12": {
+      "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+    },
+    "13": {
+      "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+    },
+    "14": {},
+    "15": {
+      "TCL_LSP_TRACE_N13_POINT": "1"
+    },
+    "16": {
+      "TCL_LSP_TRACE_N13_POINT": "1"
+    },
+    "17": {
+      "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+    },
+    "18": {},
+    "19": {},
+    "20": {
+      "TCL_LSP_TRACE_N13_POINT": "1",
+      "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+      "ZZ_PROBE_LOWER": "1"
+    },
+    "21": {
+      "TCL_LSP_TRACE_N13_POINT": "1",
+      "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+      "ZZ_PROBE_LOWER": "1"
+    },
+    "22": {
+      "TCL_LSP_TRACE_N13_POINT": "1",
+      "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+      "ZZ_PROBE_LOWER": "1"
+    },
+    "23": {},
+    "24": {},
+    "25": {},
+    "26": {},
+    "27": {},
+    "28": {},
+    "29": {
+      "TCL_LSP_TRACE_BPF_PHASE": "1"
+    },
+    "30": {
+      "TCL_LSP_TRACE_BPF_PHASE": "1"
+    },
+    "31": {
+      "TCL_LSP_TRACE_BPF_PHASE": "1"
+    },
+    "32": {},
+    "33": {},
+    "34": {
+      "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+      "ZZ_PROBE_OPAQUE": "1"
+    },
+    "35": {
+      "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+      "ZZ_PROBE_OPAQUE": "1"
+    }
+  },
+  "source_head_at_preparation": "9e1db358cc90e121838262496a7075cf78b35d6a",
+  "source_pins": {
+    "rust/tcl-compiler/tests/optimiser.rs": "7751bb4488e42fec69f4d03ae50b11bfac35b36cfc065e095359ef1f74c0255d",
+    "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
+    "rust/tcl-compiler/tests/var_escape_residual2.rs": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+    "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+  },
+  "targets": [
+    {
+      "expected_selected": 52,
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "package": "tcl-compiler"
+    },
+    {
+      "expected_selected": 1,
+      "kind": [
+        "test"
+      ],
+      "name": "taint",
+      "package": "tcl-compiler"
+    },
+    {
+      "expected_selected": 1,
+      "kind": [
+        "test"
+      ],
+      "name": "optimiser",
+      "package": "tcl-compiler"
+    },
+    {
+      "expected_selected": 1,
+      "kind": [
+        "test"
+      ],
+      "name": "var_escape_residual2",
+      "package": "tcl-compiler"
+    },
+    {
+      "expected_selected": 3,
+      "kind": [
+        "lib"
+      ],
+      "name": "bpf_tcl_ir",
+      "package": "bpf-tcl-ir"
+    }
+  ]
+}

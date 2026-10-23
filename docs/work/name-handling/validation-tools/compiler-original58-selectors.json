@@ -1,0 +1,707 @@
+{
+  "created_at_utc": "2026-10-23T20:30:23.379292+00:00",
+  "scope": "Exact original58 test names reconstructed from immutable guarded897b actual35filter receipts. No substring-family refresh; fresh artifact --list exact roster validation required by root. Root alone chooses/executes bounded hosted reuse.",
+  "historical_results_path": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/results.json",
+  "historical_results_sha256": "e01449320b6754ba2ed0584a7b90c532780fcc8da78cff772a91b4919f436066",
+  "historical_source": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "rows": [
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::changed_plain_report_value_is_a_difference_after_current_owners_join",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::completed_report_request_cannot_capture_a_later_ordinary_analysis",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::report_capture_rejects_changed_producer_facts_and_unavailable_output",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::report_capture_rejects_equal_source_foreign_output_attachment",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::report_capture_requires_its_actual_source_build_request",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::authenticated_report::capture_controls::report_capture_self_comparison_requires_complete_current_owners",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 1,
+      "historical_stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 2,
+      "historical_stdout_sha256": "724c3e109c2a3e92fd06e70add654e57bec88e0be5da40547a882de16a6997e0"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 3,
+      "historical_stdout_sha256": "67cb2acbb49725f06f4848c15db1d6c692eb8c6366caba300fef2997d6ccb355"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 4,
+      "historical_stdout_sha256": "f47c2bc21df646472c3fac11f5d8114b60cc37f8945f9d05646283ff5e580917"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 5,
+      "historical_stdout_sha256": "d44d4def353f4fc3772cee951a2714991d40b654d9ba3f4f98410e9cd6f59cde"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 6,
+      "historical_stdout_sha256": "a7da8a16ffd96697faa4ed43de4d9d613287023dacede76187fa49a47674bf38"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 7,
+      "historical_stdout_sha256": "d8f828ee962ba414cbf8b3eff59c3bdfe3fa4c46740b806fb1f179fa2dd1ced7"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 8,
+      "historical_stdout_sha256": "f6aa166b802de2757cbf943ca8a9e10326a980cbb1acb27c6f4afb2ec2355b0a"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 9,
+      "historical_stdout_sha256": "8d99c90fbaa6af432c2bd494dc3324e9a32efa713d5a7ad6b98b1b1c85ae5572"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 10,
+      "historical_stdout_sha256": "aaa72553242e4207302a83268b45b3313d6c58ac59db2d9fe95d2eddefe88aaf"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 11,
+      "historical_stdout_sha256": "51504bb8f1c1b61cc0cc35dab0ae2468888c75583229d6ddfed6363d3fb7795c"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 12,
+      "historical_stdout_sha256": "840350db3945e202082709567805aaf3d4164336d4e22edcbf58ee11ca02a45a"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 13,
+      "historical_stdout_sha256": "3c5fd516acfd6b11b122e5fadb58a4a75d10588369f59862b7ba4b50cdd1c2ae"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 14,
+      "historical_stdout_sha256": "0f4d738b0d87607c411ea49ff067029dffc1f783ada3bce44dc64040e5052df4"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 15,
+      "historical_stdout_sha256": "6f28d3daba46fa7765269cbcc782b580bcb7d9b8d1f1750b4dfd688e786d658a"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 16,
+      "historical_stdout_sha256": "2f7ccffcdf703908565c44610189dc5ae6b3db7ae0700f76852896873c6a28aa"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "registry_invocation::source_remote_first_operand::tests::vendor_source_effect_summary_keeps_native_dialect_unavailable",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 17,
+      "historical_stdout_sha256": "83d9aa49f274371bf252b9c5dcc9279bfc20e5ba80e93a35d69cdd14852842a6"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 18,
+      "historical_stdout_sha256": "88d51634ee961079e2393240a7646ca306d91f08494735618b6e069b27021b18"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 19,
+      "historical_stdout_sha256": "760b43eb6b2105aa8eaf7d0ed1fedf14ce587bcc827bdda38ccc5d3680d496da"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 20,
+      "historical_stdout_sha256": "e8b31c81e52f7edcd5055d5f3699f1dea1d10d7ddc6ec9512e22a12a77140eb8"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 21,
+      "historical_stdout_sha256": "1e4317e7badad3220c10c335c39fdb677a7f7597d33c0142042068b0b880dc64"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 22,
+      "historical_stdout_sha256": "1456ae70b816321001120130fcfc191236dd0209df4698812272a7160e2146db"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "taint",
+      "exact_selector": "dangerous_sinks::eval_sink",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 23,
+      "historical_stdout_sha256": "5de0f9b87defbb4bc67104aea98543afb43225b4da8c74afbe76cf39c263eaff"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "optimiser",
+      "exact_selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 24,
+      "historical_stdout_sha256": "c9d53c8abbcd884f9c044fc3ddb649c87fc5307f99494f9381e486390d415861"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "var_escape_residual2",
+      "exact_selector": "cu_catch_literal_body_threads_its_upvar",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 25,
+      "historical_stdout_sha256": "aad6e89859809196881d38d1193bedcad853743225b06696aeaa30d8ec2b5c15"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "ir::source_bpf_command::tests::closed_bpf_effects_keep_script_module_registry_and_config_current",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 26,
+      "historical_stdout_sha256": "0cb671ce9f44d47356f1d4bd7977a6f509dd795e83dc94da57c8ac72d4747610"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 27,
+      "historical_stdout_sha256": "9dd044259bf30ba76efbe19c5a60041c66039f60da13fc59a7191143d34c64b7"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_over_budget_scalar_tree",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 28,
+      "historical_stdout_sha256": "cb0a0a6fb0bb964048dc7a34a3d6ce725ed266ac35ee3f1a4b0484ce26a3b0cd"
+    },
+    {
+      "package": "bpf-tcl-ir",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "bpf_tcl_ir",
+      "exact_selector": "source::phase::tests::closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 29,
+      "historical_stdout_sha256": "9aaa9f95047b328357afa0c116c7b44282b07d23375c5e7438a113f56c6e070b"
+    },
+    {
+      "package": "bpf-tcl-ir",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "bpf_tcl_ir",
+      "exact_selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 30,
+      "historical_stdout_sha256": "37077e17915a4652e11888c93f9649d47d8eeb133168975c69223ec08e931981"
+    },
+    {
+      "package": "bpf-tcl-ir",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "bpf_tcl_ir",
+      "exact_selector": "source::phase::tests::fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 31,
+      "historical_stdout_sha256": "240e7094cbb5d0cfe051aea8817ad6ea4dfc8cddd056634602024a3017e963b6"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "expected_selected": 1,
+      "historical_897b_status": "ok",
+      "historical_filter_index": 32,
+      "historical_stdout_sha256": "94e30ef000744423705dbe3b9e877d7d138e80e2ef3a1515b73fe150ea1fcd5b"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 33,
+      "historical_stdout_sha256": "12cf0912775021adbedf48a50a47b68b1fc7c1791280e81371830d15d793a322"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 34,
+      "historical_stdout_sha256": "f9d2d6c68edc3254cdad6abbf36ec74e21e1613f490ffcfe98dde39ad8505afb"
+    },
+    {
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "exact_selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "expected_selected": 1,
+      "historical_897b_status": "FAILED",
+      "historical_filter_index": 35,
+      "historical_stdout_sha256": "dc9cfa38e98520656bb5c99b249af593a331774b036bd72302ec3829bcedc6d1"
+    }
+  ],
+  "guards": "All original source/provider/tool/launcher/process/artifact/assertion guards and timeouts remain required; no local build/newGO/protocol launch. Existing diagnostic env flags can be reused only from original row env snapshots; no guard relaxation.",
+  "limits": "Statuses are historic897b 40PASS18FAIL, not current source outcomes."
+}

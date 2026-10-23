@@ -1,0 +1,25 @@
+{
+  "env": {
+    "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+  },
+  "expected_selected": 3,
+  "group": "supplemental-native35",
+  "kind": [
+    "lib"
+  ],
+  "package": "tcl-compiler",
+  "scope": "Root-authorised separate additive Native35 report3; unchanged original58 remains separate. No semantic/capture guard changes. Existing cfg(test) trace only.",
+  "selectors": [
+    "analyser::authenticated_report::capture_controls::native_dispatch_first_16_declarations_keep_actual_report_owners",
+    "analyser::authenticated_report::capture_controls::native_dispatch_first_call_keeps_actual_report_owners",
+    "analyser::authenticated_report::capture_controls::native_dispatch_complete_fixture_keeps_actual_report_owners"
+  ],
+  "source_head_at_preparation": "9c034861e58e8d1245cd52e2174d95e6843f4f3e",
+  "source_pins": {
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe",
+    "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8"
+  },
+  "source_proposal_manifest_sha256": "d2457e9dae28bc1343ab5ceba6ec92fb48e166f5865cc14efb8b8d7ba11c345a",
+  "source_semantic_peer_reference": "0607937a",
+  "target": "tcl_compiler"
+}
