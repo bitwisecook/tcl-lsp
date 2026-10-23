@@ -1,0 +1,27 @@
+from pathlib import Path
+import difflib,hashlib,json,subprocess
+r=Path('/workspace/tcl-lsp-perf-latest');relative='rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs'
+before=(r/relative).read_text();after=before
+old='''        let Some(inventory) = Inventory::capture(documents) else {
+            return false;
+        };
+        let Some(owner) = inventory.owner(self) else {'''
+new='''        let Some(inventory) = Inventory::capture(documents) else {
+            return false;
+        };
+        self.is_current_in_inventory(&inventory)
+    }
+    fn is_current_in_inventory(&self, inventory: &Inventory<'_>) -> bool {
+        let documents = &inventory.documents;
+        let Some(owner) = inventory.owner(self) else {'''
+assert after.count(old)==1;after=after.replace(old,new)
+# Each caller already captured these same immutable documents. Keep every
+# original owner/source/input/occurrence reissue check in the shared helper.
+old='identity.is_current_in(documents)';new='identity.is_current_in_inventory(&inventory)'
+assert after.count(old)==3;after=after.replace(old,new)
+p=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf')
+patch=''.join(difflib.unified_diff(before.splitlines(True),after.splitlines(True),fromfile='a/'+relative,tofile='b/'+relative)).replace('\n \n','\n\n')
+(p/'perf-lsp-current-inventory.patch').write_text(patch)
+out=Path('/tmp/perf-lsp-inventory-draft');target=out/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_text(after)
+(p/'lsp-inventory-draft-inputs.json').write_text(json.dumps({'base':subprocess.check_output(['git','rev-parse','HEAD'],cwd=r,text=True).strip(),'file':relative,'before_sha256':hashlib.sha256(before.encode()).hexdigest(),'after_sha256':hashlib.sha256(after.encode()).hexdigest(),'status':'Blocked/routed to LSP owner; off-tree, uncompiled, semantically unproven','scope':'reuse the already captured immutable inventory for nested currentness checks; preserves all checks; per-lens outer inventory and occurrence rebuilding remain'},indent=2)+'\n')
+print('Wrote LSP-owned draft only; production source unchanged')

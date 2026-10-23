@@ -1,0 +1,7 @@
+    Blocking waiting for file lock on build directory
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-cmd-core)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-pkg-model)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-compiler)

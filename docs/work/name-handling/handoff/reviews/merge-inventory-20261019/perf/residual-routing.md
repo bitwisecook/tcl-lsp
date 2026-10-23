@@ -158,3 +158,11 @@ measure the unchanged positive ordinary-path probe before accepting it.
 sites for the broader request-scoped reuse proposal are retained in
 `evidence/current-f149597f/ordinary-lsp-source-audit.json`; that is a source
 audit, not a fresh latency or output-equivalence result.
+
+## Canonical refresh a3a4b181
+
+Both analyser drafts and the nested LSP currentness draft are refreshed against
+a3a4b181. Ordered analyser patch application reproduces the scoped formatted
+snapshot exactly. Production sources remain untouched. These are still
+Blocked/routed, uncompiled and unproven. Full semantic proofs and unchanged
+positive ordinary-path measurements remain with compiler-names and LSP.

@@ -1,0 +1,7 @@
+{
+  "observed_utc": "2026-10-23T16:49:02Z",
+  "disconnect": "exec-server transport disconnected then environment unavailable",
+  "recovery": "restored same workspace/PIDs; active jobs survived",
+  "memory_events": "low 0\nhigh 0\nmax 19721\noom 0\noom_kill 0\noom_group_kill 0\n",
+  "acceptance": "No new runtime verdict inferred; original source/build receipts remain authoritative"
+}

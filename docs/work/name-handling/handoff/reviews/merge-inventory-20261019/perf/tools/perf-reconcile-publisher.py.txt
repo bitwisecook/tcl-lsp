@@ -1,0 +1,100 @@
+from pathlib import Path
+import subprocess,json,re,shutil,time
+r=Path('/workspace/tcl-lsp-publish');save=Path('/tmp/perf-publisher-before-recovery');save.mkdir(exist_ok=False)
+def git(*a):return subprocess.check_output(['git',*a],cwd=r)
+paths=git('diff','--name-only').decode().splitlines();allpaths=paths+git('ls-files','--others','--exclude-standard').decode().splitlines()
+for p in allpaths:
+ assert p.startswith('docs/work/name-handling/')
+ t=save/p;t.parent.mkdir(parents=True,exist_ok=True);t.write_bytes((r/p).read_bytes())
+keep={p:(r/p).read_bytes() for p in allpaths};prefix=Path('docs/work/name-handling/handoff/reviews/merge-inventory-20261019');outstanding='docs/work/name-handling/outstanding/perf.md';notes=str(prefix/'perf-NOTES.md');runner=str(prefix/'perf/tools/run_crate_proofs.py')
+remote={p:git('show','origin/work:'+p).decode() for p in [outstanding,notes,runner]}
+assert keep[runner].decode()==remote[runner]
+now=subprocess.check_output(['date','-u','+%Y-%m-%d %H:%M UTC'],text=True).strip()
+resume='''## Resume
+
+**Environment recovered; no perf production commit or full corpus acceptance.**
+Canonical a3 control and opt1 library builds FAILED with the same6 upstream
+compiler type errors, zero warnings and zero tests. They concern the retained
+source-module owner, current CommandWord geometry, and mutable class errors.
+Owner fixes17d5f8f2/e1a37145 are now on work. Rebase both proof trees to repaired
+canonical source before retrying. Latest fetched canonical:7f3d0bfe.
+
+No a3 runtime or complete comparison exists. Preserve source-before/after,
+failed Cargo JSON and exact diagnostics in current-a3a4b181-controls/ and
+current-a3a4b181/. Source seal passed; corpus watcher correctly refused to
+start and compiler watcher had no executable. Remaining failed-build server /
+SpecTcl dependency jobs were retired, original readiness flags never released.
+Their partial build receipts and superseded-type-errors.json are retained.
+
+Clean6 ccd build completed with zero warnings. Its partial runtime43 new cases
+was retired because19936 was absent; old mode UNRUN, no complete verdict.
+Original parent/child exited and no process remains paused; verify artifact
+cleanup. Its Clippy failed281 lint errors outside the six owned files; a3
+combined Clippy failed6 compiler errors plus2 unrelated doc-comment lints.
+All full logs are preserved, not a workspace-green claim.
+
+Next: after all source-tree workers stop, rebase the FULL nine-file switched
+batch in /workspace/tcl-lsp-perf-latest and clean6/no-switch tree in
+/workspace/tcl-lsp-owned to the same repaired commit. Refresh/reconstruct the
+clean six/two split; retain the canonical line-index fallback in BOTH modes.
+Run exact16 report/actual-realm controls both modes, then the full authenticated
+all-old/mixed102 Tcl+15 iRules+synthetics and ordered PackSet proof. Keep strict
+runtime Eq separately recorded. All3 report pairs must Equal; Unavailable fails.
+
+Do not commit realm.rs, interprocedural.rs or either switch. Land exactly six
+owned files as ONE code commit only after the full proof. The two-file patch
+stays withheld until genuinely proven at an exact commit. Residual analyser /
+LSP drafts remain Blocked/routed and semantically unproven; their a3 context
+refreshes are preserved. No residual product source was applied.
+
+Latest necessary hosted repair19936eb9 compares source when and retained
+::when via existing rooted-key helper; genuine control covers BOTH spellings,
+all assertions retained. Runtime successor proof remains pending. Earlier
+6c1c9d2c/6e729fe9 repairs are separate from the future single perf code commit.
+
+Frozen a8 evidence remains scoped and unchanged:16 report controls15/1 BOTH;
+Native smoke/synthetic calls10 and complete ordered PackSet all3 pairs pass;
+hosted comparison unavailable. Main source seal and executable/probe cleanup
+pass. Historical compiler partial151 new, old UNRUN, is not a comparison.
+
+Frozen a8 SpecTcl opt1 new27/1 (3336.099s), old27/1 (2190.397s), one observed
+P2F: new interpreted eda_xilinx hits its original30-minute wall budget, old
+passes. Old command-step budget-axis case fails with wall-clock exhaustion,
+new passes. Golden packs BOTH UNRUN after early abort; both executables removed
+and CPU masks restored. Preserve the failed run even if a quiet repeat passes.
+The strengthened runner now requires every declared test, records P2F as failed
+and still executes later suites before returning failure; no assertion/budget
+is weakened. Repeat all requested suites on repaired canonical source.
+
+Quiet a8 server: startup first retained-read count0 vs1 BOTH, factory reindex
+UNREACHED; workspace symbol timeout180 BOTH, original limits retained. Zero
+P2F/warnings, gates failed. Raw results and separate contended171.372s analyser
+trace remain in current-a8e7bc7a/. These are not successor verdicts.
+
+Publish from /workspace/tcl-lsp-publish, reconcile5a965040 remote checkpoint,
+fetch/rebase before every normal push; no force/PR. Pinned environment and
+reproduction details below. The interrupted clean6 successor helper creation
+did not start; construct it only after verifying current process/source state.
+
+'''
+s=remote[outstanding];a=s.index('## Resume\n');b=s.index('## Completed evidence',a);s=s[:a]+resume+s[b:];s=re.sub(r'Last updated: .*','Last updated: '+now,s,count=1);keep[outstanding]=s.encode()
+s=remote[notes];a=s.index('**Execution');b=s.index('## Current0322',a);s=s[:a]+'''**Environment recovered; canonical proof retry required.** Frozen a3 control
+and opt1 builds fail the same6 upstream compiler type errors, zero warnings /
+zero tests. Repaired owner source17d5f8f2/e1a37145 is now on work. Failed Cargo
+and source-seal receipts are retained; no successor runtime verdict exists.
+Clean6 ccd partial43-case runtime is retired (old UNRUN). Six-file perf code
+and routed two-file patch remain unlanded/unproven. See outstanding/perf.md.
+
+''' + s[b:];s=re.sub(r'Last updated: .*','Last updated: '+now,s,count=1)
+local=keep[notes].decode();marker='\nCanonical full switched proof is now rebased'
+if marker in local:s += local[local.index(marker):]
+keep[notes]=s.encode()
+subprocess.run(['git','restore','--',*paths],cwd=r,check=True)
+subprocess.run(['git','switch','--detach','origin/work'],cwd=r,check=True)
+for p,content in keep.items():(r/p).write_bytes(content)
+base=Path('/workspace/tcl-lsp-work')/prefix/'perf/evidence'
+for rel in ['current-a3a4b181','current-a3a4b181-controls','current-ccd57033-clean6']:
+ shutil.copytree(base/rel,r/prefix/'perf/evidence'/rel,dirs_exist_ok=True)
+for f in ['perf-retire-a3-builds.py','perf-reconcile-publisher.py']:
+ shutil.copy2('/tmp/'+f,r/prefix/'perf/tools'/(f+'.txt'))
+print('Reconciled source and remote checkpoint, preserved all local drafts',flush=True)

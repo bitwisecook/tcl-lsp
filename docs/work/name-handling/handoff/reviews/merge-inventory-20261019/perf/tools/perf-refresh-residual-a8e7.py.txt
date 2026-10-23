@@ -1,0 +1,50 @@
+from pathlib import Path
+import difflib,hashlib,json,subprocess
+root=Path('/workspace/tcl-lsp-perf-latest')
+perf=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf')
+out=Path('/tmp/perf-a8e7-residual');out.mkdir(exist_ok=True)
+paths=['rust/tcl-compiler/src/analyser/commands.rs','rust/tcl-compiler/src/analyser/diagnostics/validity.rs']
+original={p:(root/p).read_text() for p in paths}
+helper='''    /// Reuse the retained document's immutable bytes and line index only
+    /// while the complete public source buffer still matches. All callers
+    /// keep their independent source/input/configuration admission checks.
+    pub(in crate::analyser) fn document_source_image(&self) -> tcl_lexer::SourceImage {
+        self.head_identities
+            .original_source_image()
+            .filter(|image| {
+                image.channel() == tcl_lexer::SourceChannel::Document
+                    && image.bytes() == self.source.as_bytes()
+            })
+            .cloned()
+            .unwrap_or_else(|| tcl_lexer::SourceImage::document(&self.source))
+    }
+
+'''
+modified={}
+for p,s in original.items():
+ expected=13 if p.endswith('commands.rs') else 2
+ assert s.count('tcl_lexer::SourceImage::document(&self.source)')==expected
+ s=s.replace('tcl_lexer::SourceImage::document(&self.source)','self.document_source_image()')
+ if p.endswith('commands.rs'):
+  assert s.count('impl Analyser {')==1
+  s=s.replace('impl Analyser {\n','impl Analyser {\n'+helper,1)
+  for old,new in [
+   ('let sm = SourceMap::new(&self.source);','let image = self.document_source_image();\n        let sm = SourceMap::from_image(&image);'),
+   ('let sm = tcl_lexer::SourceMap::new(&self.source);','let image = self.document_source_image();\n        let sm = tcl_lexer::SourceMap::from_image(&image);'),
+   ('let mut tokens = crate::ir::CommandTokens::from_segmented(\n            &tcl_lexer::SourceMap::new(&self.source),','let image = self.document_source_image();\n        let mut tokens = crate::ir::CommandTokens::from_segmented(\n            &tcl_lexer::SourceMap::from_image(&image),')]:
+   assert s.count(old)==1,old
+   s=s.replace(old,new)
+ f=out/p;f.parent.mkdir(parents=True,exist_ok=True);f.write_text(s)
+subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true',*[str(out/p) for p in paths]],check=True)
+modified={p:(out/p).read_text() for p in paths}
+def patch(before,after):
+ return ''.join(''.join(difflib.unified_diff(before[p].splitlines(True),after[p].splitlines(True),fromfile='a/'+p,tofile='b/'+p)) for p in before).replace('\n \n','\n\n')
+(out/'perf-analyser-images.patch').write_text(patch(original,modified))
+oldpatch=(perf/'perf-analyser-segments.patch').read_text().splitlines(True)
+old=''.join(l[1:] for l in oldpatch if l.startswith('-') and not l.startswith('---'))
+new=''.join(l[1:] for l in oldpatch if l.startswith('+') and not l.startswith('+++'))
+p=paths[0];s=modified[p];assert s.count(old)==1;s=s.replace(old,new);(out/p).write_text(s)
+subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true',str(out/p)],check=True)
+after=(out/p).read_text();(out/'perf-analyser-segments.patch').write_text(patch({p:modified[p]},{p:after}))
+(out/'inputs.json').write_text(json.dumps({'base':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'status':'Blocked/routed to compiler-names; refreshed context and formatting only; unapplied/uncompiled/unproven','files':paths,'base_sha256':{p:hashlib.sha256(original[p].encode()).hexdigest() for p in paths},'order':['perf-analyser-images.patch','perf-analyser-segments.patch']},indent=2)+'\n')
+print('Refreshed residual snapshots only; production files unchanged')

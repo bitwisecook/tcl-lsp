@@ -1,16 +1,19 @@
 {
-  "base": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "base": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
   "status": "Blocked/routed to compiler-names; refreshed context and formatting only; unapplied/uncompiled/unproven",
   "files": [
     "rust/tcl-compiler/src/analyser/commands.rs",
     "rust/tcl-compiler/src/analyser/diagnostics/validity.rs"
   ],
   "base_sha256": {
-    "rust/tcl-compiler/src/analyser/commands.rs": "819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+    "rust/tcl-compiler/src/analyser/commands.rs": "23de67ba66cb8d671e200505aba37c79ecc3f69dcd32b6a8e4ee14da0d7286df",
     "rust/tcl-compiler/src/analyser/diagnostics/validity.rs": "bd05f487ddd2f1edd4fbd966cc273d562d8ec2024a2a92f4c3fc7a11cfe19aa0"
   },
   "order": [
     "perf-analyser-images.patch",
     "perf-analyser-segments.patch"
-  ]
+  ],
+  "ordered_apply_reconstructs_snapshot": true,
+  "rustfmt_clean_scoped": true,
+  "updated_unix": 1792773796.4279566
 }

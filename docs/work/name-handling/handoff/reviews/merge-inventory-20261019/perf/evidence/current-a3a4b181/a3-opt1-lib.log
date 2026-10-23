@@ -1,0 +1,16 @@
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lexer)
+   Compiling digest v0.11.3
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-runtime-api)
+   Compiling sha2 v0.11.1
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-compiler)
+error: could not compile `tcl-compiler` (lib) due to 6 previous errors

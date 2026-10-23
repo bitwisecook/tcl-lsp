@@ -1,30 +1,13 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 17:00:04 UTC
+Last updated: 2026-10-23 17:27 UTC
 
-**Execution is currently blocked by the cloud shell disconnect; full canonical
-proof is incomplete and the six-file perf code remains unlanded.** Latest
-verified publication is4d531fb2. See outstanding/perf.md Resume for exact
-surviving-job checks, retired43-case no-switch run, and unreleased quiet-test
-readiness. No runtime successor verdict follows from patch generation.
-
-**Necessary hosted-name repair19936eb9 is pushed; perf code remains unlanded.**
-Source head when was compared to retained rooted target ::when. The repair
-uses the existing rooted-key helper on both sides and extends the unchanged
-genuine capture assertions to both source spellings. Runtime proof on its
-canonical successor is pending. Frozen a8 full controls are15/1 BOTH;
-Native smoke/synthetics and complete ordered PackSet pass, hosted fails.
-
-The frozen a8 opt1 SpecTcl eval_loader comparison has one observed P2F:
-new27/1 (3336.099s), old27/1 (2190.397s). New shipped-pack interpreted
-eda_xilinx exhausts its original30-minute wall budget; old passes. Old budget
-axis assertion fails while new passes. Golden packs BOTH UNRUN after the P2F
-abort; both executables removed. CPU masks restored after guard interruption.
-All raw outcomes stay preserved even if a quiet canonical repeat differs.
-Compiler partial filters151 new completed, old UNRUN, retired for canonical
-functional changes; never a complete regression verdict. Full a8 main runner
-finished with source unchanged, ordered PackSet all3 Equal and executable /
-probe cleanup verified. Current canonical rebase/proof state is outstanding/perf.md.
+**Environment recovered; canonical proof retry required.** Frozen a3 control
+and opt1 builds fail the same6 upstream compiler type errors, zero warnings /
+zero tests. Repaired owner source17d5f8f2/e1a37145 is now on work. Failed Cargo
+and source-seal receipts are retained; no successor runtime verdict exists.
+Clean6 ccd partial43-case runtime is retired (old UNRUN). Six-file perf code
+and routed two-file patch remain unlanded/unproven. See outstanding/perf.md.
 
 ## Current0322 progress
 
@@ -265,3 +248,10 @@ Current opt1 eval_loader new finishes27/1 in3336.099s: interpreted eda_xilinx
  no zero-P2F verdict yet. Preserve this run. Resource maintenance evicted cold
  clean build-file cache (~3GiB) without altering source/settings/file contents;
  no OOM kill occurred. The resource receipt is not timing acceptance evidence.
+
+Canonical full switched proof is now rebased toa3a4b181, preserving the upstream
+line-index implementation in BOTH old/new modes. Clean six/two split, ordered
+patch application, scoped formatting and exact toggle reconstruction PASS; no
+semantic acceptance inferred. Current controls/normal libraries compile; clean6
+ccd filters run after a zero-warning build. Both residual analyser drafts and
+nested LSP currentness draft refresh toa3, remain Blocked/routed and unproven.

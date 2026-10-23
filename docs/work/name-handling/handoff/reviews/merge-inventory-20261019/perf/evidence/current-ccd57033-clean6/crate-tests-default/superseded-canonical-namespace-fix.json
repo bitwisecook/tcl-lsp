@@ -1,0 +1,8 @@
+{
+  "time": 1792774549.6265008,
+  "reason": "Canonical19936 rooted hosted-head fix is absent; partial CCD runtime results are historical, never full current comparison. Rebuild clean6 on exact same canonical a3 source as full batch, opt1 assertions retained.",
+  "parent": 29714,
+  "child": 31121,
+  "prior_build": "complete zero warnings",
+  "old_mode": "UNRUN"
+}

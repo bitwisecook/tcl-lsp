@@ -1,0 +1,30 @@
+{
+  "started_unix": 1792774419.408392,
+  "policy": "No active test process is paused: budgets measure real wall time. Server then SpecTcl after all compiler/corpus work finishes naturally.",
+  "watched_workers": [
+    {
+      "pid": 29714,
+      "state": "S",
+      "start_ticks": 6622227,
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage compiler --opt-level 0 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-ccd57033-clean6/crate-tests-default "
+    },
+    {
+      "pid": 31142,
+      "state": "S",
+      "start_ticks": 6789127,
+      "argv": "python3 /tmp/perf-watch-compiler-canonical.py "
+    },
+    {
+      "pid": 31145,
+      "state": "S",
+      "start_ticks": 6789225,
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py . --evidence /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a3a4b181-controls "
+    },
+    {
+      "pid": 32385,
+      "state": "S",
+      "start_ticks": 6844009,
+      "argv": "python3 /tmp/perf-corpus-after-controls.py "
+    }
+  ]
+}

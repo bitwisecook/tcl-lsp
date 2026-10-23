@@ -1,0 +1,7 @@
+{
+  "head": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
+  "rust_diff_sha256": "115cec0db176e19837d747a35b356ae60f8917a2e91b463aad54ad636fd64191",
+  "profile": "test opt-level=1 debug=0 incremental=0; debug/overflow assertions enabled",
+  "target_dir": "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1",
+  "server_timeout_seconds_both_modes": 180
+}

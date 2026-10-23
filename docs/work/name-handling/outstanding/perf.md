@@ -2,137 +2,73 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 17:00:04 UTC
+Last updated: 2026-10-23 17:27 UTC
 
 ## Resume
 
-**Execution interrupted at 2026-10-23 17:00:04 UTC.** The cloud execution service is
-unavailable after a second transport disconnect. GitHub remains accessible.
-No successor control/corpus/crate verdict or six-file perf commit is claimed.
-The last verified product repair is19936eb9; evidence/patch publication is
-4d531fb2. The combined proof source is frozen ata3a4b181, which includes that
-repair. The later coordinator34191a36 is not in that frozen proof tree.
+**Environment recovered; no perf production commit or full corpus acceptance.**
+Canonical a3 control and opt1 library builds FAILED with the same6 upstream
+compiler type errors, zero warnings and zero tests. They concern the retained
+source-module owner, current CommandWord geometry, and mutable class errors.
+Owner fixes17d5f8f2/e1a37145 are now on work. Rebase both proof trees to repaired
+canonical source before retrying. Latest fetched canonical:7f3d0bfe.
 
-On recovery, inspect the surviving processes and logs before starting work.
-The first disconnect recovered the same workspace/PIDs; the second has not
-recovered at this checkpoint. Do not assume either job completion or cleanup.
+No a3 runtime or complete comparison exists. Preserve source-before/after,
+failed Cargo JSON and exact diagnostics in current-a3a4b181-controls/ and
+current-a3a4b181/. Source seal passed; corpus watcher correctly refused to
+start and compiler watcher had no executable. Remaining failed-build server /
+SpecTcl dependency jobs were retired, original readiness flags never released.
+Their partial build receipts and superseded-type-errors.json are retained.
 
-- Combined controls: session14484, /tmp/perf-a3-controls.log, Python31145;
-  private compiler-filter watcher80149, /tmp/perf-watch-compiler-canonical.log,
-  Python31142. Current control build had no diagnostic yet when last checked.
-- Opt1 normal library build97685, /tmp/perf-a3-opt1-lib.log, Cargo31394.
-  Full corpus watcher14724, /tmp/perf-a3-full-corpus.log, Python32385 starts
-  only after complete controls pass both modes and the source seal matches.
-- Clean6 ccd compiler build finished with zero warnings. Its runtime was
-  deliberately retired at43 completed new-mode cases; old mode UNRUN. This
-  predecessor lacks19936 and is not a complete current comparison. Receipt:
-  current-ccd57033-clean6/crate-tests-default/
-  superseded-canonical-namespace-fix.json. Parent29714/child31121 exited;
-  verify original executable cleanup. No workers were left paused by retirement.
-- Clean6 Clippy64026, /tmp/perf-clean6-ccd-clippy.log, parent31910 was still
-  checking compiler source. Combined canonical Clippy59053,
-  /tmp/perf-a3-clippy.log, was waiting for the Cargo target lock.
-- Fresh server34519 (/tmp/perf-a3-server.log, Python32586) and SpecTcl82587
-  (/tmp/perf-a3-spectcl.log, Python32597) were queued to build/run/delete with
-  original assertions/budgets, then wait for separate resource-readiness files.
-  The quiet coordinator27780 was stopped before either readiness release.
-  Recreate it AFTER registering the successor clean6 runner; finish current
-  compiler/corpus work naturally before quiet wall-budget comparisons.
-- The attempted /tmp/perf-clean6-canonical.py creation/start failed when the
-  second transport disconnected. Do not assume it exists or started. Once all
-  owned-tree builders stop, preserve the six-file diff, switch to the same
-  canonical proof commit, apply clean6 with the refreshed helper, scope-format,
-  verify exact six-file snapshot/no switch, and run lexer/compiler inventories
-  atopt1 with debug/overflow assertions retained and separate owned target.
+Clean6 ccd build completed with zero warnings. Its partial runtime43 new cases
+was retired because19936 was absent; old mode UNRUN, no complete verdict.
+Original parent/child exited and no process remains paused; verify artifact
+cleanup. Its Clippy failed281 lint errors outside the six owned files; a3
+combined Clippy failed6 compiler errors plus2 unrelated doc-comment lints.
+All full logs are preserved, not a workspace-green claim.
 
-The local publisher also contains uncommitted a3 residual refreshes, helper
-reproductions, a frozen-a8 timing table and tracking updates. Preserve them,
-then fetch/rebase current work before publishing; this remote checkpoint
-changes the same tracking/runner paths, so reconcile rather than discarding.
-No residual production change is applied. The ordinary-path and analyser
-residual drafts remain Blocked/routed and semantically unproven.
+Next: after all source-tree workers stop, rebase the FULL nine-file switched
+batch in /workspace/tcl-lsp-perf-latest and clean6/no-switch tree in
+/workspace/tcl-lsp-owned to the same repaired commit. Refresh/reconstruct the
+clean six/two split; retain the canonical line-index fallback in BOTH modes.
+Run exact16 report/actual-realm controls both modes, then the full authenticated
+all-old/mixed102 Tcl+15 iRules+synthetics and ordered PackSet proof. Keep strict
+runtime Eq separately recorded. All3 report pairs must Equal; Unavailable fails.
 
-The crate runner saved by this checkpoint requires EVERY declared test outcome.
-A recorded P2F keeps the overall exit failed while later suites still execute;
-no test assertion or budget is weakened. This prevents another golden-packs
-omission after an eval-loader regression. Earlier aborted runs remain retained.
+Do not commit realm.rs, interprocedural.rs or either switch. Land exactly six
+owned files as ONE code commit only after the full proof. The two-file patch
+stays withheld until genuinely proven at an exact commit. Residual analyser /
+LSP drafts remain Blocked/routed and semantically unproven; their a3 context
+refreshes are preserved. No residual product source was applied.
 
+Latest necessary hosted repair19936eb9 compares source when and retained
+::when via existing rooted-key helper; genuine control covers BOTH spellings,
+all assertions retained. Runtime successor proof remains pending. Earlier
+6c1c9d2c/6e729fe9 repairs are separate from the future single perf code commit.
 
-**Hosted-head repair19936eb9 is pushed to work. No perf production commit or
-full-corpus acceptance yet.** The user authorised necessary shared-file repairs
-and immediate publication. Compiler repairs6c1c9d2c/6e729fe9/19936eb9 are
-separate from the future single six-file perf commit.
+Frozen a8 evidence remains scoped and unchanged:16 report controls15/1 BOTH;
+Native smoke/synthetic calls10 and complete ordered PackSet all3 pairs pass;
+hosted comparison unavailable. Main source seal and executable/probe cleanup
+pass. Historical compiler partial151 new, old UNRUN, is not a comparison.
 
-Full switched batch in /workspace/tcl-lsp-perf-latest is rebased onto
-canonical a3a4b181. Both split patches refreshed, ordered application/scoped
-fmt and exact toggled reconstruction PASS. Fresh controls build RUNNING:
-session14484 /tmp/perf-a3-controls.log; private compiler-filter watcher80149
-waits for that exact SHA-verified binary and complete control outcomes, then
-runs both original filter inventories and deletes its copy. Rerun full report/actual-realm
-controls and the all-old/mixed102 Tcl+15 iRules+synthetic corpus. The canonical
-source has additional compiler refactors, Native declaration-span fixes and
-an already-landed SpecTcl line-index improvement. Preserve those changes and
-make the temporary old switch reflect the CURRENT baseline. Both split perf
-patches are refreshed againsta3; semantic proof remains pending. Do not commit realm/interprocedural or either switch.
+Frozen a8 SpecTcl opt1 new27/1 (3336.099s), old27/1 (2190.397s), one observed
+P2F: new interpreted eda_xilinx hits its original30-minute wall budget, old
+passes. Old command-step budget-axis case fails with wall-clock exhaustion,
+new passes. Golden packs BOTH UNRUN after early abort; both executables removed
+and CPU masks restored. Preserve the failed run even if a quiet repeat passes.
+The strengthened runner now requires every declared test, records P2F as failed
+and still executes later suites before returning failure; no assertion/budget
+is weakened. Repeat all requested suites on repaired canonical source.
 
-The hosted refusal is now located, not speculative: source head "when" was
-compared to retained canonical target "::when". Public target diagnostics
-observe ["::when"] BOTH modes; exact private-branch logging takes the
-CandidateIterator::any refusal. Fix19936eb9 compares both through the existing
-unroot_rooted_key helper. All other guards remain. The existing genuine control
-now runs both when and ::when with every original assertion. Runtime successor
-proof is still pending. Complete source/binary/unchanged-branch diagnostics:
-evidence/current-a8e7bc7a-test-slice/hosted-{target,branch}-diagnostic/.
-The diagnostic changes no branch result and is NOT acceptance evidence.
+Quiet a8 server: startup first retained-read count0 vs1 BOTH, factory reindex
+UNREACHED; workspace symbol timeout180 BOTH, original limits retained. Zero
+P2F/warnings, gates failed. Raw results and separate contended171.372s analyser
+trace remain in current-a8e7bc7a/. These are not successor verdicts.
 
-Completed frozen a8+published test-slice proof:
-- All16 report/actual-realm controls:15 PASS/1 FAIL BOTH, zero P2F/warnings.
-  Sole genuine hosted failure is what19936 addresses; successor proof required.
-- Native E003/aliases complete Equal triples BOTH forced-old/mixed; hosted
-  cookbook all3 Unavailable BOTH; synthetic calls10 Equal. Complete ordered
-  PackSet all3 comparisons and deterministic endpoints PASS. Main final.json
-  verifies source unchanged and5 executable/alias removals; probes removed.
-- Compiler private-copy filters were retired when canonical functional fixes
-  arrived:151 new-mode cases completed; old mode UNRUN. This is NOT a full
-  comparison. Exact partial logs and superseded-canonical-source.json retained;
-  private executable deleted. The original report traces remain complete.
-
-SpecTcl frozen a8 opt1 comparison is COMPLETE/FAILED: eval_loader new27/1 in
-3336.099s; old27/1 in2190.397s, zero build warnings. New every_shipped_pack fails
-its unchanged30-minute interpreted eda_xilinx wall budget while old PASSES:
-**one observed pass-to-fail**. Old a_budget_blowing_loop fails its command-step
-axis assertion with wall-clock exhaustion while new PASSES. Do not erase this
-comparison. The driver aborts on P2F, so golden_packs BOTH UNRUN; both test
-executables were deleted in finally. The CPU partition guard was interrupted
-after driver exit and restored surviving roots' original masks. Full raw logs,
-summary and partition receipt: evidence/current-a8e7bc7a/crate-tests-opt1/.
-A fresh canonical repeat must preserve all assertions and original budgets.
-
-Quiet server window a8 is COMPLETE: startup fails its FIRST retained-read count
-0 versus1 BOTH (10.412/21.355s), factory reindex assertions UNREACHED. workspace
-symbol times out180 BOTH (181.069/180.329s), original180s limits unchanged.
-Zero P2F/warnings, gates FAILED. All8 stopped compiler processes resumed and
-server executable deleted. Separate contended existing-phase trace completes
-analysis at171.372s (walk79.839/diagnostics91.531 inclusive), then times out180;
-not quiet latency attribution. Raw source/binary/cleanup receipts in current-a8.
-
-Historical clean6 no-switch compiler retry at ccd57033 built without warnings;
-its partial runtime is retired as described above. The predecessor was in
-/workspace/tcl-lsp-owned: session35495, /tmp/perf-clean6-complete-inputs.log.
-Earlier6e build failed only3 owner VM typing errors, fixed upstream0747a2a5.
-Canonicalccd build then failed12 includes across8 sparse-excluded tracked
-fixtures; exact8 files were restored and verified against HEAD, then this retry
-started. Failed build/recovery receipts retained in current-ccd57033-clean6/.
-This tree does not yet include19936; update only after retiring/completing its
-active builder and preserve source-scoped outcomes. Six dirty owned files only.
-
-Use tools/run_authenticated_corpus.py ROOT --controls CURRENT_CONTROLS
---opt-level1 --target-dir ROOT/target-spectcl-opt1 --evidence NEW_DIRECTORY.
-Preflight requires exact HEAD/Rust diff, complete report AND actual realm
-controls, zero build warnings and all117 fixture hashes. All three old1/old2,
-old1/new AND new/old2 comparisons must Equal; Different/Unavailable fail.
-Strict runtime/cache/global equality stays untouched and separately recorded.
-No normalization, omitted field/subject, weakened assertion or budget.
+Publish from /workspace/tcl-lsp-publish, reconcile5a965040 remote checkpoint,
+fetch/rebase before every normal push; no force/PR. Pinned environment and
+reproduction details below. The interrupted clean6 successor helper creation
+did not start; construct it only after verifying current process/source state.
 
 ## Completed evidence and current failures
 

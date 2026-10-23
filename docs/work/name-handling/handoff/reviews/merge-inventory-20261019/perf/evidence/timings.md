@@ -231,3 +231,21 @@ The initial full-suite result remains recorded, rather than being overwritten
 by the controlled repeat or optimized green runs. Raw: latest-e4a01bbe/
 controlled-default-eval/. The original separate five-second budget-axis
 assertion failed in both default-profile modes; it was not changed.
+
+## Frozen a8e7bc7a + published source-slice test fix (2026-10-23)
+
+Default opt0/debug0, assertions retained, contended diagnostic wall timings.
+This is a source-scoped smoke/PackSet result; hosted refusal prevents full
+corpus acceptance. Canonical successor changes require fresh proof.
+
+| Input | old1 ms | new ms | old2 ms | complete comparison |
+|---|---:|---:|---:|---|
+| calls10 | 26812 | 16507 | 24765 | three report pairs Equal |
+| E003 | 77091 | 17144 | 14963 | three report pairs Equal |
+| aliases | 59430 | 42227 | 54421 | three report pairs Equal |
+| load_embedded | 90957 | 44423 | 61493 | complete ordered Debug, all3 pairs equal |
+
+PackSet has8 packs/0 notices/0 errors and484936 ordered Debug lines. Its old
+endpoints are deterministic. Strict runtime AnalysisResult Eq remains false
+and is recorded independently. Raw: current-a8e7bc7a-test-slice/. No timing ratio
+is inferred across its opt0 profile and the opt1 origin baseline.

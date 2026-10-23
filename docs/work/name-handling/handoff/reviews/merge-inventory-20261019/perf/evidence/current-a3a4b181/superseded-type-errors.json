@@ -1,0 +1,55 @@
+{
+  "time": 1792776384.9740279,
+  "reason": "All canonical a3 builds fail the same6 compiler type errors, fixed upstream17d5f8f2/e1a37145. No tests executed; retire remaining failed-build dependency codegen before rebasing.",
+  "retired": [
+    {
+      "pid": 32586,
+      "ppid": 32581,
+      "state": "S",
+      "start": "6864861",
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage server --opt-level 0 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a3a4b181/crate-tests-default --wait-before-tests /tmp/perf-a3-server-quiet-ready "
+    },
+    {
+      "pid": 33409,
+      "ppid": 32620,
+      "state": "S",
+      "start": "7019760",
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_compiler --edition=2024 rust/tcl-compiler/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=3a556445b0ffd420 -C extra-filename=-b5255d2cb1f147d9 --out-dir /workspace/tcl-lsp-perf-latest/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-perf-latest/target/debug/deps --extern bitflags=/workspace/tcl-lsp-perf-latest/target/debug/deps/libbitflags-1fdf0fce4c11fa73.rmeta --extern num_bigint=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_bigint-0d8571d427f93d3d.rmeta --extern num_integer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_integer-de14a98996d95faf.rmeta --extern num_traits=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_traits-84554fa0bfb1fd1b.rmeta --extern regex=/workspace/tcl-lsp-perf-latest/target/debug/deps/libregex-38f976e9261f37f5.rmeta --extern rustc_hash=/workspace/tcl-lsp-perf-latest/target/debug/deps/librustc_hash-24b16ca29408e1a7.rmeta --extern tcl_bytecode=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_bytecode-ff66e61314835284.rmeta --extern tcl_cmd_core=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_cmd_core-39f2bfac757f804f.rmeta --extern tcl_core_types=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_core_types-7a0c30e1b57eb98b.rmeta --extern tcl_dialect=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_dialect-051746368397d9ae.rmeta --extern tcl_lexer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-b0ebfa465461824b.rmeta --extern tcl_registry=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_registry-2f39e5547510ce8d.rmeta --extern tcl_runtime_api=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_runtime_api-2a3b6bf02a0d24f9.rmeta --extern tcl_syntax=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_syntax-64fbb40b9de979ab.rmeta --extern thiserror=/workspace/tcl-lsp-perf-latest/target/debug/deps/libthiserror-675c2c1ef66790f3.rmeta --extern unicode_general_category=/workspace/tcl-lsp-perf-latest/target/debug/deps/libunicode_general_category-08e203d4bfdf5349.rmeta "
+    },
+    {
+      "pid": 32620,
+      "ppid": 32586,
+      "state": "S",
+      "start": "6865122",
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j2 -p tcl-lsp-server --lib --no-run --message-format=json "
+    },
+    {
+      "pid": 32597,
+      "ppid": 32592,
+      "state": "S",
+      "start": "6865044",
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage spectcl --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a3a4b181/crate-tests-opt1 --wait-before-tests /tmp/perf-a3-spec-quiet-ready "
+    },
+    {
+      "pid": 33391,
+      "ppid": 32659,
+      "state": "S",
+      "start": "7007908",
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_registry --edition=2024 rust/tcl-registry/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C opt-level=1 -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) -C debug-assertions=on --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=4ccd2b77db086aef -C extra-filename=-9bbb53551b00db59 --out-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps --extern bitflags=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libbitflags-dbc8fb2050b308b4.rmeta --extern rustc_hash=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/librustc_hash-92e9905c259a906a.rmeta --extern sha2=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libsha2-0b82f62b906c1aea.rmeta --extern smallvec=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libsmallvec-8e7d1c1bec49a238.rmeta --extern tcl_cmd_core=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_cmd_core-26b8a3a437cec554.rmeta --extern tcl_core_types=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_core_types-6e6e4b40c41cd79e.rmeta --extern tcl_dialect=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_dialect-4f4415e365709c75.rmeta --extern tcl_lexer=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_lexer-914941f149e77bfd.rmeta --extern tcl_regex=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_regex-62541bb7639eec39.rmeta --extern tcl_runtime_api=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_runtime_api-c4888e07e3ec820e.rmeta --extern tcl_syntax=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_syntax-6317eb859eff9e7e.rmeta "
+    },
+    {
+      "pid": 33435,
+      "ppid": 32659,
+      "state": "S",
+      "start": "7028462",
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_compiler --edition=2024 rust/tcl-compiler/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C opt-level=1 -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) -C debug-assertions=on --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=267d82d19bafaa4f -C extra-filename=-55511d93ea2f7a5a --out-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps --extern bitflags=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libbitflags-dbc8fb2050b308b4.rmeta --extern num_bigint=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libnum_bigint-6ebac370cfc010ee.rmeta --extern num_integer=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libnum_integer-083c1e9a0ed581a1.rmeta --extern num_traits=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libnum_traits-f8179a221e4195a8.rmeta --extern regex=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libregex-6be0a88023cdfe96.rmeta --extern rustc_hash=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/librustc_hash-92e9905c259a906a.rmeta --extern tcl_bytecode=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_bytecode-cdfb076bc68a49ad.rmeta --extern tcl_cmd_core=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_cmd_core-26b8a3a437cec554.rmeta --extern tcl_core_types=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_core_types-6e6e4b40c41cd79e.rmeta --extern tcl_dialect=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_dialect-4f4415e365709c75.rmeta --extern tcl_lexer=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_lexer-914941f149e77bfd.rmeta --extern tcl_registry=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_registry-9bbb53551b00db59.rmeta --extern tcl_runtime_api=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_runtime_api-c4888e07e3ec820e.rmeta --extern tcl_syntax=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libtcl_syntax-6317eb859eff9e7e.rmeta --extern thiserror=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libthiserror-1853c7b68aebf03a.rmeta --extern unicode_general_category=/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/libunicode_general_category-8b0f7ecbeed10ca2.rmeta "
+    },
+    {
+      "pid": 32659,
+      "ppid": 32597,
+      "state": "S",
+      "start": "6865352",
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j2 -p tcl-spectcl --test eval_loader --test golden_packs --no-run --message-format=json "
+    }
+  ]
+}

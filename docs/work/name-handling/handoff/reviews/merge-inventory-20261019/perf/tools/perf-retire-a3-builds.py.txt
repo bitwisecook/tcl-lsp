@@ -1,0 +1,39 @@
+from pathlib import Path
+import os,signal,time,json,shutil
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a3a4b181')
+def info(pid):
+ p=Path('/proc')/str(pid)
+ try:
+  s=(p/'stat').read_text();v=s[s.rfind(')')+2:].split();return {'pid':pid,'ppid':int(v[1]),'state':v[0],'start':v[19],'argv':(p/'cmdline').read_bytes().replace(b'\0',b' ').decode()}
+ except OSError:return None
+def descend(pid):
+ found=[]
+ for p in Path('/proc').iterdir():
+  if p.name.isdigit():
+   q=info(int(p.name))
+   if q and q['ppid']==pid:found+=descend(q['pid'])+[q]
+ return found
+record={'time':time.time(),'reason':'All canonical a3 builds fail the same6 compiler type errors, fixed upstream17d5f8f2/e1a37145. No tests executed; retire remaining failed-build dependency codegen before rebasing.','retired':[]}
+for pid,stage,profile in [(32586,'server','default'),(32597,'spectcl','opt1')]:
+ parent=info(pid)
+ if parent and parent['state']!='Z':
+  assert '--stage '+stage in parent['argv'],parent
+  os.kill(pid,signal.SIGSTOP)
+  children=descend(pid)
+  for q in children:
+   if q['state']!='Z':
+    try:os.kill(q['pid'],signal.SIGINT)
+    except ProcessLookupError:pass
+  os.kill(pid,signal.SIGINT);os.kill(pid,signal.SIGCONT)
+  record['retired'] += [parent]+children
+ out=base/('crate-tests-'+profile);out.mkdir(exist_ok=True)
+ for suffix in ['jsonl','log']:
+  src=Path('/tmp/perf-'+stage+'-test-build.'+suffix)
+  if src.exists():shutil.copy2(src,out/('tests-'+stage+'-build.'+('stderr' if suffix=='log' else suffix)))
+for n in ['a3-opt1-lib','a3-clippy','clean6-ccd-clippy']:
+ out=base if n!='clean6-ccd-clippy' else base.parent/'current-ccd57033-clean6'
+ for ext in ['jsonl','log']:
+  src=Path('/tmp/perf-'+n+'.'+ext)
+  if src.exists():shutil.copy2(src,out/(n+'.'+ext))
+(base/'superseded-type-errors.json').write_text(json.dumps(record,indent=2)+'\n')
+print('Retired failed-source builders; no readiness flag released',flush=True)
