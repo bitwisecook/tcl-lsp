@@ -506,7 +506,6 @@ impl OriginalBodySyntaxInventory {
 
     /// Same configured token-gap verifier after independently closed source
     /// compiler syntax, without borrowing a Native handler envelope.
-
     #[must_use]
     pub fn source_expression_gaps(
         &self,

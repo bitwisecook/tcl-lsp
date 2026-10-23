@@ -467,7 +467,6 @@ impl super::CommandBindingRealm {
 
     /// Distinct conditional Jim source header and parent-bound base providers.
     /// Reborrowing this source tape issues no Native class, argument or receiver.
-
     pub(crate) fn original_authored_jim_call(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
