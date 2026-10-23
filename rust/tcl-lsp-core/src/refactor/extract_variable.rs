@@ -135,7 +135,23 @@ pub fn extract_variable(
         // column zero could place the new assignment outside that frame.
         (command_start, format!("{setter} {var_name} {value}; "))
     };
-    Some(Refactoring {
+    Some(extracted_variable_action(
+        var_name,
+        Span::new(start, end),
+        insertion,
+        assignment,
+        proposed_reference,
+    ))
+}
+
+fn extracted_variable_action(
+    var_name: &str,
+    selection: Span,
+    insertion: u32,
+    assignment: String,
+    reference: String,
+) -> Refactoring {
+    Refactoring {
         title: format!("Extract into variable '${var_name}'"),
         edits: vec![
             RefactorEdit {
@@ -144,15 +160,15 @@ pub fn extract_variable(
                 new_text: assignment,
             },
             RefactorEdit {
-                start,
-                end,
-                new_text: proposed_reference,
+                start: selection.start(),
+                end: selection.end(),
+                new_text: reference,
             },
         ],
         kind: ActionKind::RefactorExtract,
         data_group: None,
         disabled: None,
-    })
+    }
 }
 
 /// The existing Logical extraction feature proposes an authored edit, not an
@@ -398,9 +414,7 @@ fn original_assignment_candidate(
     var_name: &str,
     analysis: &AnalysisResult,
 ) -> Result<(), String> {
-    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
     use tcl_compiler::ssa::SsaSourceView;
-    use tcl_compiler::var_resolve::VariableCellKey;
     let unavailable =
         || "No current original scalar availability and setter proposal is retained".to_owned();
     let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
@@ -414,19 +428,7 @@ fn original_assignment_candidate(
     )
     .ok_or_else(unavailable)?;
     let image = SourceImage::document(source);
-    let unit = CompilationUnit::build_with_analysis_input(
-        source,
-        UnitBuildOptions {
-            registry,
-            config,
-            dialect: Some(input.unit_profile()),
-            defer_top_level: false,
-            external_call_sites: None,
-            declared_commands: None,
-        },
-        None,
-        input,
-    );
+    let unit = assignment_candidate_unit(source, registry, config, input);
     let mut found = false;
     for function in unit.analysable_body_function_units() {
         if function.complexity_guarded || function.dynamic_barrier_blocks_value_motion() {
@@ -485,25 +487,7 @@ fn original_assignment_candidate(
                     {
                         return Err(unavailable());
                     }
-                    // Missing locations cannot certify future-name coverage, even when a
-                    // separate source-symbol projection is unavailable.
-                    if function
-                        .ssa
-                        .variable_symbols()
-                        .any(|symbol| function.ssa.cell_key(symbol).is_none())
-                    {
-                        return Err("Future local-name coverage is unavailable".to_owned());
-                    }
-                    // Location inventory includes future represented uses and definitions;
-                    // its labels cannot prove that introducing this local avoids capture.
-                    for cell in function.ssa.cell_keys() {
-                        match cell.root() {
-                            VariableCellKey::Authored(_) => return Err("Future local-name coverage is unavailable".to_owned()),
-                            VariableCellKey::Activation { simple, .. } if simple.as_bytes() == native_name.as_ref() =>
-                                return Err("The proposed local is named elsewhere in the complete function".to_owned()),
-                            _ => {}
-                        }
-                    }
+                    require_assignment_name_coverage(function, &native_name)?;
                     found = true;
                 }
             }
@@ -517,6 +501,60 @@ fn original_assignment_candidate(
                 .to_owned(),
         )
     }
+}
+
+fn assignment_candidate_unit(
+    source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> tcl_compiler::compilation_unit::CompilationUnit {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    CompilationUnit::build_with_analysis_input(
+        source,
+        UnitBuildOptions {
+            registry,
+            config,
+            dialect: Some(input.unit_profile()),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        input,
+    )
+}
+
+fn require_assignment_name_coverage(
+    function: &tcl_compiler::compilation_unit::FunctionUnit,
+    native_name: &[u8],
+) -> Result<(), String> {
+    use tcl_compiler::var_resolve::VariableCellKey;
+    // Missing locations cannot certify future-name coverage, even when a
+    // separate source-symbol projection is unavailable.
+    if function
+        .ssa
+        .variable_symbols()
+        .any(|symbol| function.ssa.cell_key(symbol).is_none())
+    {
+        return Err("Future local-name coverage is unavailable".to_owned());
+    }
+    // Location inventory includes future represented uses and definitions;
+    // its labels cannot prove that introducing this local avoids capture.
+    for cell in function.ssa.cell_keys() {
+        match cell.root() {
+            VariableCellKey::Authored(_) => {
+                return Err("Future local-name coverage is unavailable".to_owned());
+            }
+            VariableCellKey::Activation { simple, .. } if simple.as_bytes() == native_name => {
+                return Err(
+                    "The proposed local is named elsewhere in the complete function".to_owned(),
+                );
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
