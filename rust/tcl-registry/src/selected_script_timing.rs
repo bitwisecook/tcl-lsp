@@ -542,58 +542,69 @@ mod tests {
         );
     }
 
+    type LookupScopeCase = (
+        &'static str,
+        Vec<crate::InvocationWord<'static>>,
+        usize,
+        Option<crate::ScriptLookupScope>,
+    );
+
+    fn executable_lookup_scope_cases() -> [LookupScopeCase; 9] {
+        use crate::ScriptLookupScope::{GlobalFrame, InvokingFrame};
+        [
+            (
+                "lsort",
+                vec![Literal("-command"), Literal("cmp"), Literal("b a")],
+                1,
+                Some(InvokingFrame),
+            ),
+            (
+                "lsort",
+                vec![Literal("-command"), Dynamic, Literal("b a")],
+                1,
+                Some(InvokingFrame),
+            ),
+            (
+                "lsort",
+                vec![Literal("-command"), Literal("cmp"), Literal("b a")],
+                2,
+                None,
+            ),
+            ("lsort", vec![Literal("-command"), Literal("cmp")], 1, None),
+            (
+                "lsort",
+                vec![Literal("-command"), Expanded, Literal("b a")],
+                1,
+                None,
+            ),
+            (
+                "after",
+                vec![Literal("idle"), Literal("delayed")],
+                1,
+                Some(GlobalFrame),
+            ),
+            (
+                "after",
+                vec![Literal("1000"), Literal("delayed")],
+                1,
+                Some(GlobalFrame),
+            ),
+            (
+                "after",
+                vec![Literal("cancel"), Literal("delayed")],
+                1,
+                None,
+            ),
+            ("after", vec![Literal("idle"), Literal("delayed")], 0, None),
+        ]
+    }
+
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn selected_lookup_scopes_require_executable_positions_and_reference_timing() {
-        use crate::ScriptLookupScope::{GlobalFrame, InvokingFrame, TriggerFrame};
+        use crate::ScriptLookupScope::TriggerFrame;
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = crate::model::ingress::static_context_for(name).commands();
-            for (head, arguments, index, expected) in [
-                (
-                    "lsort",
-                    vec![Literal("-command"), Literal("cmp"), Literal("b a")],
-                    1,
-                    Some(InvokingFrame),
-                ),
-                (
-                    "lsort",
-                    vec![Literal("-command"), Dynamic, Literal("b a")],
-                    1,
-                    Some(InvokingFrame),
-                ),
-                (
-                    "lsort",
-                    vec![Literal("-command"), Literal("cmp"), Literal("b a")],
-                    2,
-                    None,
-                ),
-                ("lsort", vec![Literal("-command"), Literal("cmp")], 1, None),
-                (
-                    "lsort",
-                    vec![Literal("-command"), Expanded, Literal("b a")],
-                    1,
-                    None,
-                ),
-                (
-                    "after",
-                    vec![Literal("idle"), Literal("delayed")],
-                    1,
-                    Some(GlobalFrame),
-                ),
-                (
-                    "after",
-                    vec![Literal("1000"), Literal("delayed")],
-                    1,
-                    Some(GlobalFrame),
-                ),
-                (
-                    "after",
-                    vec![Literal("cancel"), Literal("delayed")],
-                    1,
-                    None,
-                ),
-                ("after", vec![Literal("idle"), Literal("delayed")], 0, None),
-            ] {
+            for (head, arguments, index, expected) in executable_lookup_scope_cases() {
                 let invocation = registry.resolve_structured_invocation(
                     InvocationWords::structured(Literal(head), &arguments),
                     registry.own_surface_query(),

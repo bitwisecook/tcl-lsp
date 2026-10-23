@@ -67,17 +67,14 @@ pub struct AuthoredSourceChannelConfiguration {
 mod tests {
     use crate::InvocationWord::{Dynamic, Literal};
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn original_channel_configuration_requires_its_descriptor_and_admitted_option_topology() {
-        // naming.diagnostic.registry-source-ownership
+    type ChannelConfigurationCase = (
+        &'static str,
+        Vec<crate::InvocationWord<'static>>,
+        Option<(usize, usize)>,
+    );
 
-        let current =
-            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let older = crate::model::ingress::static_context_for("tcl8.4")
-            .with_command_store(std::sync::Arc::clone(current.commands()));
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        for (command, arguments, expected) in [
+    fn original_channel_configuration_cases() -> [ChannelConfigurationCase; 4] {
+        [
             (
                 "fconfigure",
                 vec![
@@ -125,7 +122,19 @@ mod tests {
                 ],
                 None,
             ),
-        ] {
+        ]
+    }
+
+    #[test]
+    fn original_channel_configuration_requires_its_descriptor_and_admitted_option_topology() {
+        // naming.diagnostic.registry-source-ownership
+
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (command, arguments, expected) in original_channel_configuration_cases() {
             let selected =
                 crate::model::assembly::resolve_structured_invocation_in_resolved_context(
                     current.commands(),

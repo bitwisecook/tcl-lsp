@@ -27,9 +27,13 @@ fn providers() -> Vec<(&'static str, &'static str, InvocationDialect)> {
         .collect()
 }
 
-#[allow(clippy::format_collect)]
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    use std::fmt::Write;
+    let mut hex = String::new();
+    for byte in bytes {
+        write!(hex, "{byte:02x}").expect("writing to a string succeeds");
+    }
+    hex
 }
 
 fn observation(provider: &str, version: &str, case: &str) -> (u8, String) {
@@ -113,21 +117,17 @@ fn original_vwait_basic_boundaries_match_twenty_four_native_source_rows() {
     }
 }
 
-#[test]
-#[allow(clippy::too_many_lines)]
-fn original_vwait_extended_boundaries_match_sixty_native_source_rows() {
-    // naming.event.vwait-native-extended-argv-boundaries
+type NativeVwaitRoles = Option<Vec<(u8, ArgRole)>>;
+type NativeVwaitCase = (
+    &'static str,
+    &'static [&'static str],
+    NativeVwaitRoles,
+    NativeVwaitRoles,
+);
 
-    // naming.event.original-vwait-operand-boundaries
-
+fn original_vwait_boundary_cases() -> [NativeVwaitCase; 10] {
     use ArgRole::{Body, VarWrite};
-    #[allow(clippy::type_complexity)]
-    let cases: &[(
-        &str,
-        &[&str],
-        Option<Vec<(u8, ArgRole)>>,
-        Option<Vec<(u8, ArgRole)>>,
-    )] = &[
+    [
         (
             "end-name",
             &["--", "--"],
@@ -188,10 +188,19 @@ fn original_vwait_extended_boundaries_match_sixty_native_source_rows() {
             Some(vec![]),
             Some(vec![(0, VarWrite), (1, Body)]),
         ),
-    ];
+    ]
+}
+
+#[test]
+fn original_vwait_extended_boundaries_match_sixty_native_source_rows() {
+    // naming.event.vwait-native-extended-argv-boundaries
+
+    // naming.event.original-vwait-operand-boundaries
+
+    let cases = original_vwait_boundary_cases();
     for (provider, version, dialect) in providers() {
         let protocol = dialect.native_vwait_protocol().unwrap();
-        for (case, arguments, c_roles, jim_roles) in cases {
+        for (case, arguments, c_roles, jim_roles) in &cases {
             let (code, result) = observation(provider, version, case);
             let form = protocol
                 .form(arguments.len(), |index| {

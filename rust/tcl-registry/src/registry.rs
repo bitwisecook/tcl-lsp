@@ -12641,18 +12641,66 @@ mod tests {
         );
     }
 
+    const MUTATED_PATTERN_OPTIONS: &[crate::hover::OptionSpec] = &[crate::hover::OptionSpec {
+        name: "-skip",
+        value: crate::hover::OptionValue::value("count"),
+        detail: "fixture value",
+        surface: None,
+        aliases: &[],
+        lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    }];
+    fn mutated_pattern_literal_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+        let first = crate::spec::leading_option_word_count_with(
+            MUTATED_PATTERN_OPTIONS,
+            args,
+            PrefixMatching::Strict,
+        );
+        [
+            (first, ArgRole::Pattern),
+            (first + 2, ArgRole::FormatString),
+        ]
+        .into_iter()
+        .filter_map(|(index, role)| {
+            (index < args.len())
+                .then(|| u8::try_from(index).ok().map(|index| (index, role)))
+                .flatten()
+        })
+        .collect()
+    }
+    fn mutated_pattern_layout_roles(
+        args: crate::invocation_words::InvocationArguments<'_>,
+        options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+    ) -> Option<Vec<(u8, ArgRole)>> {
+        let first = options.leading_word_count(args)?;
+        let count = args.exact_argv_len()?;
+        Some(
+            [
+                (first, ArgRole::Pattern),
+                (first + 2, ArgRole::FormatString),
+            ]
+            .into_iter()
+            .filter_map(|(index, role)| {
+                (index < count)
+                    .then(|| u8::try_from(index).ok().map(|index| (index, role)))
+                    .flatten()
+            })
+            .collect(),
+        )
+    }
+
     /// The source proof follows descriptors installed in the registry, not a
     /// closed list of Tcl command names. A pack or a later registry mutation
     /// can introduce the same option-dependent pattern/replacement grammar
     /// and all generic consumers receive the new answer unchanged.
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn source_aware_pattern_and_format_queries_follow_mutated_descriptors() {
         const SPEC: CommandSpec = CommandSpec {
             name: "mutated-pattern-format-owner",
-            options: OPTIONS,
+            options: MUTATED_PATTERN_OPTIONS,
             prefix_matching: PrefixMatching::Strict,
-            arg_role_layout_resolver: Some(layout_roles),
+            arg_role_layout_resolver: Some(mutated_pattern_layout_roles),
             pattern_type: Some(PatternType::Regex),
             format_string_type: Some(FormatType::Regsub),
             ..CommandSpec::DEFAULT
@@ -12660,53 +12708,8 @@ mod tests {
         use crate::invocation_words::{InvocationArguments, InvocationWord};
         use crate::patterns::{FormatType, PatternArg, PatternType};
 
-        const OPTIONS: &[crate::hover::OptionSpec] = &[crate::hover::OptionSpec {
-            name: "-skip",
-            value: crate::hover::OptionValue::value("count"),
-            detail: "fixture value",
-            surface: None,
-            aliases: &[],
-            lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
-            min_abbrev: None,
-            effect: None,
-        }];
-        fn literal_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-            let first =
-                crate::spec::leading_option_word_count_with(OPTIONS, args, PrefixMatching::Strict);
-            [
-                (first, ArgRole::Pattern),
-                (first + 2, ArgRole::FormatString),
-            ]
-            .into_iter()
-            .filter_map(|(index, role)| {
-                (index < args.len())
-                    .then(|| u8::try_from(index).ok().map(|index| (index, role)))
-                    .flatten()
-            })
-            .collect()
-        }
-        fn layout_roles(
-            args: InvocationArguments<'_>,
-            options: crate::resolved_invocation::InvocationOptions<'_, '_>,
-        ) -> Option<Vec<(u8, ArgRole)>> {
-            let first = options.leading_word_count(args)?;
-            let count = args.exact_argv_len()?;
-            Some(
-                [
-                    (first, ArgRole::Pattern),
-                    (first + 2, ArgRole::FormatString),
-                ]
-                .into_iter()
-                .filter_map(|(index, role)| {
-                    (index < count)
-                        .then(|| u8::try_from(index).ok().map(|index| (index, role)))
-                        .flatten()
-                })
-                .collect(),
-            )
-        }
         assert_eq!(
-            literal_roles(&["-skip", "1", "a", "s", "replacement"]),
+            mutated_pattern_literal_roles(&["-skip", "1", "a", "s", "replacement"]),
             vec![(2, ArgRole::Pattern), (4, ArgRole::FormatString)]
         );
 

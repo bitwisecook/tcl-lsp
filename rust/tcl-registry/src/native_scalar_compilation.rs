@@ -227,12 +227,8 @@ mod tests {
     use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
     include!("../tests/data/native_scalar_compilation/cases.rs");
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {
-        let registry = crate::CommandRegistry::build_default();
-        let mut windows = 0;
-        for (version, table) in [
+    fn original_scalar_windows() -> [(TclVersion, &'static str); 5] {
+        [
             (
                 TclVersion::V8_4,
                 include_str!("../tests/data/native_scalar_compilation/8.4.20.tsv"),
@@ -253,7 +249,14 @@ mod tests {
                 TclVersion::V9_1,
                 include_str!("../tests/data/native_scalar_compilation/9.1.0.tsv"),
             ),
-        ] {
+        ]
+    }
+
+    #[test]
+    fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {
+        let registry = crate::CommandRegistry::build_default();
+        let mut windows = 0;
+        for (version, table) in original_scalar_windows() {
             let dialect = crate::InvocationDialect::for_version(version);
             for row in table.lines() {
                 let fields: Vec<_> = row.split('\t').collect();

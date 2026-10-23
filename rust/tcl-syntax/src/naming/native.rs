@@ -3863,13 +3863,8 @@ mod tests {
         assert_eq!(unset.error_code, None);
     }
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn retired_namespace_write_sites_match_retained_original_c_rows() {
-        use NativeVariableDiagnosticOperation::Write;
-        use NativeVariableDiagnosticReason::RetiredNamespace;
-        use NativeVariableFailureSite::{IndexedNameLookup, NameLookup, ValueWrite};
-        let inputs = [
+    fn retired_namespace_original_inputs() -> [(TclVersion, &'static str, &'static str); 5] {
+        [
             (
                 TclVersion::V8_4,
                 include_str!(
@@ -3915,7 +3910,15 @@ mod tests {
                     "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt"
                 ),
             ),
-        ];
+        ]
+    }
+
+    #[test]
+    fn retired_namespace_write_sites_match_retained_original_c_rows() {
+        use NativeVariableDiagnosticOperation::Write;
+        use NativeVariableDiagnosticReason::RetiredNamespace;
+        use NativeVariableFailureSite::{IndexedNameLookup, NameLookup, ValueWrite};
+        let inputs = retired_namespace_original_inputs();
         for (version, compiled, object_command) in inputs {
             let protocol = crate::native_string::NativeStringProtocol::C(version);
             for (capture, label, site, original) in [

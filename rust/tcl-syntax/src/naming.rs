@@ -3004,7 +3004,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::single_range_in_vec_init)] // vectors of component ranges
     fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
         // naming.editor.logical-written-component-geometry
 
@@ -3014,7 +3013,7 @@ mod tests {
             (&b":::a:::b"[..], vec![3..4, 7..8]),
             (&b"::::a::::b"[..], vec![4..5, 9..10]),
             (&b":::::a:::::b:::::"[..], vec![5..6, 11..12]),
-            (&b"a:b"[..], vec![0..3]),
+            (&b"a:b"[..], std::iter::once(0..3).collect()),
             (&b"::"[..], vec![]),
             (&b":::::"[..], vec![]),
             (&b""[..], vec![]),
