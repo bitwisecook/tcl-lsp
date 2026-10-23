@@ -2455,6 +2455,13 @@ mod tests {
                 interp.set_dialect_profile(
                     tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
                 );
+                // Each dialect's success vectors start with clear host errno.
+                interp
+                    .host()
+                    .numeric_environment()
+                    .expect("native numeric fixture host")
+                    .reset()
+                    .expect("zero-errno success precondition");
                 let fixed = matches!(dialect, "tcl8.4" | "jim");
                 assert_eq!(
                     ok(interp, b"expr {(9223372036854775807 + 1) < 0}"),
