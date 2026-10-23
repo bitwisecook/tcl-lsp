@@ -546,7 +546,7 @@ jobs:
           printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
           printf '%s\n' 'DIAGNOSTIC ONLY: original standalone lib/integration tests, actual selected roster authoritative. nextest excludes doctests. No full cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
-            printf '%s\n' 'DIAGNOSTIC ONLY: exactly three original runtime lib tests. All other tests and doctests excluded. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
+            printf '%s\n' 'DIAGNOSTIC ONLY: original three-test subtotal, followed by separate original baseline14 and stack1 diagnostics. Remaining tests and doctests excluded. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
           fi
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         timeout-minutes: 3
@@ -682,6 +682,16 @@ jobs:
             test -f "$OUT/focus-selected-verified.json"
             filter_args=(-E "$(cat "$OUT/nextest-filter.txt")")
           fi
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            set +e
+            python3 docs/work/name-handling/validation-tools/runtime-baseline-supplement.py prepare --out "$OUT" --sha '${{ inputs.runtime_sha }}'
+            prepare_result=$?
+            set -e
+            printf '%s\n' "$prepare_result" > "$OUT/supplement-prepare-exit.txt"
+          fi
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            printf '%s\n' 'SUPPLEMENT ONLY: fourteen exact original baseline regressions and one separately isolated stack case after original3, same sealed fullTom ELF. Independent subtotals; no full shared-process semantic gate acceptance.' > "$OUT/coverage-supplement.txt"
+          fi
           # Original cases retain their 180-second timeout and assertions.
           # The capture owns and drains nextest directly, retaining full reporter
           # JSON within its bound. JUnit preserves exits, signals and timeouts.
@@ -746,6 +756,14 @@ jobs:
           COMPLETE
           )
           printf '%s\n' "$incomplete" > "$OUT/raw-capture-incomplete.txt"
+          supplement_result=0
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            set +e
+            python3 docs/work/name-handling/validation-tools/runtime-baseline-supplement.py run --out "$OUT" --sha '${{ inputs.runtime_sha }}'
+            supplement_result=$?
+            set -e
+            printf '%s\n' "$supplement_result" > "$OUT/supplement-exit.txt"
+          fi
           find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-after.sha256"
           cmp "$OUT/tommath-before.sha256" "$OUT/tommath-after.sha256"
           python3 scripts/dev/tracked-source-snapshot.py verify "$OUT/tracked-source-before.json" > "$OUT/source-after.json"
@@ -755,6 +773,8 @@ jobs:
             echo "::error::bounded diagnostic evidence is missing, incomplete or inconsistent"
             exit 125
           fi
+          if (( supplement_result != 0 && supplement_result != 100 )); then exit 125; fi
+          if (( result == 0 && supplement_result != 0 )); then result=$supplement_result; fi
           exit "$result"
       - name: Upload full diagnostic evidence
         timeout-minutes: 5
@@ -772,6 +792,9 @@ jobs:
             ${{ runner.temp }}/runtime-fulltom-output/terminal/*.json
             ${{ runner.temp }}/runtime-fulltom-output/terminal/*.jsonl
             ${{ runner.temp }}/runtime-fulltom-output/terminal/*.txt
+            ${{ runner.temp }}/runtime-fulltom-output/supplement/*.json
+            ${{ runner.temp }}/runtime-fulltom-output/supplement/*.stdout
+            ${{ runner.temp }}/runtime-fulltom-output/supplement/*.stderr
           compression-level: 0
           if-no-files-found: error
           retention-days: 30

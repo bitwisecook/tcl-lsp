@@ -1,0 +1,23 @@
+{
+  "baseline14": [
+    "cmd_list::tests::lappend_read_trace_fires_but_swallows_error",
+    "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+    "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+    "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+    "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+    "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+    "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+    "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+    "env_trace::tests::the_home_directory_follows_env_home",
+    "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+    "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it",
+    "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+    "interp::tests::a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace",
+    "interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it"
+  ],
+  "stack_abort1": [
+    "interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit"
+  ],
+  "proof_assessment_sha256": "40ab8757585a26ac88c2033d0072e081c130597c6a7b92228bcbd65226069a59",
+  "scope": "Exact original fourteen baseline PASS to current FAIL identities; separate newly named observed stack abort, not baseline identity substitution."
+}
