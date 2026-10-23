@@ -201,7 +201,6 @@
 #![recursion_limit = "256"]
 // Long linear fail-closed guard chains and scenario tests; splitting them is
 // tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
-#![allow(clippy::too_many_lines)]
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};

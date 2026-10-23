@@ -32,7 +32,6 @@
 #![forbid(unsafe_code)]
 // Long linear fail-closed guard chains and scenario tests; splitting them is
 // tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
-#![allow(clippy::too_many_lines)]
 
 /// The INI parse and the three-layer merge, shared with every surface
 /// through `tcl-lsp-core`.
