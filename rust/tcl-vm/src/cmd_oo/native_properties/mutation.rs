@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original property setters, owning working Lists and checked metadata effects.
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, CmdError, NativePropertyGraphDependents, OoId, OriginalPropertyOperation,
+    Value, ValueError, Vm, original_stages,
+};
 #[cfg(test)]
 mod tests;
 use super::super::original_name_operands::OriginalOoNameScope;
@@ -19,9 +22,8 @@ fn run_effect(
     class: bool,
     work: impl FnOnce(&mut Vm, &OriginalOoNameScope) -> Result<(), CmdError>,
 ) -> Result<(), CmdError> {
-    let scope = NativeOperationScope::enter(vm).map_err(|error| {
-        retain(vm, &error);
-        error
+    let scope = NativeOperationScope::enter(vm).inspect_err(|error| {
+        retain(vm, error);
     })?;
     let names = OriginalOoNameScope::enter(vm, Some((class, target)))?;
     let reached = work(vm, &names);

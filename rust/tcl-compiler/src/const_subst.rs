@@ -160,6 +160,23 @@ struct OriginalConstSubstSource<'a> {
     ) -> Option<String>,
 }
 
+macro_rules! n17_live_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17G_LIVE {}", format_args!($($arg)*));
+        }
+    };
+}
+
+macro_rules! n17_live_some {
+    ($value:expr, $gate:literal) => {{
+        let value = $value;
+        n17_live_trace!("gate={} present={}", $gate, value.is_some());
+        value
+    }};
+}
+
 impl ConstSubstCtx<'_> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
@@ -180,31 +197,43 @@ impl ConstSubstCtx<'_> {
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
+        n17_live_trace!("fold-entry span={:?} depth={depth}", call.span);
         if depth > MAX_CONST_SUBST_DEPTH {
+            n17_live_trace!("decline=fold-depth");
             return None;
         }
-        let tokens = call.tokens.as_ref()?;
-        let binding = tokens.source_binding.as_ref()?;
-        binding
-            .proved_execution_target()
-            .filter(|target| target.registry_backed)?;
-        let invocation =
+        let tokens = n17_live_some!(call.tokens.as_ref(), "fold-tokens")?;
+        let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
+        n17_live_some!(
+            binding
+                .proved_execution_target()
+                .filter(|target| target.registry_backed),
+            "fold-actual-registry-target"
+        )?;
+        let invocation = n17_live_some!(
             crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
                 self.registry,
                 Some(context),
                 tokens,
-            )?;
-        let dialect = invocation.dialect?;
+            ),
+            "fold-handler"
+        )?;
+        n17_live_trace!("selected-command={}", invocation.facts.canonical_command);
+        let dialect = n17_live_some!(invocation.dialect, "fold-dialect")?;
         // A fold hook supplies the contract for the call it replaces;
         // absent effect metadata stays conservative for other calls.
         if invocation.facts.effects.requires_world_barrier()
-            && invocation.with_metadata_schema(
-                self.registry,
-                context,
-                binding.invocation_realm()?,
-                |schema| Some(schema.semantics.world_effects.is_declared()),
+            && n17_live_some!(
+                invocation.with_metadata_schema(
+                    self.registry,
+                    context,
+                    n17_live_some!(binding.invocation_realm(), "fold-realm")?,
+                    |schema| Some(schema.semantics.world_effects.is_declared()),
+                ),
+                "fold-world-schema"
             )?
         {
+            n17_live_trace!("decline=declared-world-footprint");
             return None;
         }
         if invocation.facts.operation
@@ -214,24 +243,46 @@ impl ConstSubstCtx<'_> {
         {
             return None;
         }
-        let args = self.retained_arguments_at_depth(call, calls, depth, context)?;
+        let args = n17_live_some!(
+            self.retained_arguments_at_depth(call, calls, depth, context),
+            "fold-arguments"
+        )?;
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        let spec = self.registry.get_for_surface(
-            &invocation.facts.canonical_command,
-            Some(context.context().authoring_query()),
+        let spec = n17_live_some!(
+            self.registry.get_for_surface(
+                &invocation.facts.canonical_command,
+                Some(context.context().authoring_query()),
+            ),
+            "fold-spec"
         )?;
         if let Some(class) = self.defining_class
             && let Some(value) = oo_context_fact_fold(spec, &args, class)
         {
             return Some(value);
         }
-        let arguments = arg_refs.get(invocation.facts.argument_offset..)?;
-        if spec.subcommands.is_empty() {
+        let arguments = n17_live_some!(
+            arg_refs.get(invocation.facts.argument_offset..),
+            "fold-offset"
+        )?;
+        n17_live_trace!(
+            "hook-call command={} argc={}",
+            invocation.facts.canonical_command,
+            arguments.len()
+        );
+        let answer = if spec.subcommands.is_empty() {
             spec.run_const_fold_in(arguments, dialect)
         } else {
-            spec.subcommand(invocation.facts.subcommand.canonical_name()?)?
-                .run_const_fold_in(arguments, dialect)
-        }
+            n17_live_some!(
+                spec.subcommand(n17_live_some!(
+                    invocation.facts.subcommand.canonical_name(),
+                    "fold-subcommand-name"
+                )?),
+                "fold-subcommand"
+            )?
+            .run_const_fold_in(arguments, dialect)
+        };
+        n17_live_trace!("hook-return present={}", answer.is_some());
+        answer
     }
 
     /// Original argument values whose evaluation has independently closed
@@ -263,7 +314,12 @@ impl ConstSubstCtx<'_> {
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
-        self.retained_token_arguments_at_depth(call.tokens.as_ref()?, calls, depth, context)
+        self.retained_token_arguments_at_depth(
+            n17_live_some!(call.tokens.as_ref(), "fold-tokens")?,
+            calls,
+            depth,
+            context,
+        )
     }
 
     fn retained_token_arguments_at_depth(
@@ -274,16 +330,26 @@ impl ConstSubstCtx<'_> {
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
         if !context.matches_registry(self.registry) {
+            n17_live_trace!("decline=argument-registry-context");
             return None;
         }
-        let binding = tokens.source_binding.as_ref()?;
-        let target = binding.proved_execution_target().or_else(|| {
-            binding
-                .scoped_procedure_evaluation(tokens)
-                .map(|receipt| receipt.target)
-        })?;
-        let dialect = binding.variable_context.invocation_dialect?;
-        let effective = crate::registry_invocation::effective_words_for_target(tokens, target)?;
+        let binding = n17_live_some!(tokens.source_binding.as_ref(), "fold-binding")?;
+        let target = n17_live_some!(
+            binding.proved_execution_target().or_else(|| {
+                binding
+                    .scoped_procedure_evaluation(tokens)
+                    .map(|receipt| receipt.target)
+            }),
+            "argument-target"
+        )?;
+        let dialect = n17_live_some!(
+            binding.variable_context.invocation_dialect,
+            "argument-dialect"
+        )?;
+        let effective = n17_live_some!(
+            crate::registry_invocation::effective_words_for_target(tokens, target),
+            "argument-effective-words"
+        )?;
         effective
             .words
             .iter()
@@ -295,6 +361,7 @@ impl ConstSubstCtx<'_> {
                     Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
                 ) && !binding.object_callback_effects_closed()
                 {
+                    n17_live_trace!("decline=argument-effect-or-child-uniqueness");
                     return None;
                 }
                 let value = || {
@@ -316,7 +383,7 @@ impl ConstSubstCtx<'_> {
                     .and_then(|bytes| std::str::from_utf8(bytes).ok())
                     .map(str::to_owned)
                 };
-                match word {
+                let answer = match word {
                     crate::ir::WordExpr::Literal { .. }
                     | crate::ir::WordExpr::BracedLiteral { .. } => value(),
                     crate::ir::WordExpr::Template { parts, .. }
@@ -327,7 +394,7 @@ impl ConstSubstCtx<'_> {
                         value()
                     }
                     crate::ir::WordExpr::Variable { spelling, source } => {
-                        let access = tokens.variable_access_at(source, spelling)?;
+                        let access = n17_live_some!(tokens.variable_access_at(source, spelling), "argument-variable-access")?;
                         if access.context_alternatives().is_empty()
                             || access.context_residual()
                                 != crate::command_binding::SourceVariableReadResidual::Closed
@@ -340,7 +407,8 @@ impl ConstSubstCtx<'_> {
                                     )
                             })
                         {
-                            return None;
+                            n17_live_trace!("decline=argument-effect-or-child-uniqueness");
+                    return None;
                         }
                         value()
                     }
@@ -348,14 +416,17 @@ impl ConstSubstCtx<'_> {
                         let mut selected = calls
                             .iter()
                             .filter(|child| child.span.start() == source.span.start());
-                        let child = selected.next()?;
+                        let child = n17_live_some!(selected.next(), "argument-child")?;
                         if selected.next().is_some() {
-                            return None;
+                            n17_live_trace!("decline=argument-effect-or-child-uniqueness");
+                    return None;
                         }
                         self.fold_retained_at_depth(child, calls, depth + 1, context)
                     }
                     _ => None,
-                }
+                };
+                n17_live_trace!("argument-value index={index} present={}", answer.is_some());
+                answer
             })
             .collect()
     }

@@ -49,7 +49,7 @@ impl AnalysisResult {
         };
         let source_templates = source_declarations
             .iter()
-            .filter_map(|declaration| declaration.template_source())
+            .filter_map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration::template_source)
             .filter(|source| source.matches_source(image, input))
             .collect::<Vec<_>>();
         let mut anchors = self.original_alias_source_anchors();
@@ -90,7 +90,7 @@ impl AnalysisResult {
             let mut candidates = self
                 .original_variable_alias_receipts
                 .iter()
-                .chain(source_templates.iter().map(|source| source.relation()))
+                .chain(source_templates.iter().map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasTemplateSource::relation))
                 .filter(|alias| {
                     alias.frame() == &frame
                         && alias.invocation_offset() <= anchor.span.start()

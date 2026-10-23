@@ -17,6 +17,44 @@ pub(super) fn report(
     let input = unit.ir_module.source_metadata_input.as_ref();
     let metadata =
         input.and_then(|input| InvocationMetadataContext::for_analysis_input(registry, input));
+    let named_count = unit.ir_module.procedures.len();
+    let lowered_count = unit.ir_module.body_lowerings().count();
+    eprintln!(
+        "N17G3 inventory named={named_count} lowerings={lowered_count} analysed_named={} analysed_body={} carried_installed={} top_statements={}",
+        unit.procedures.len(),
+        unit.body_units.len(),
+        unit.carried_installed_lowerings.len(),
+        unit.ir_module.top_level.statements.len(),
+    );
+    for (store, id, body) in unit
+        .ir_module
+        .procedures
+        .iter()
+        .map(|(id, body)| ("named", id, body))
+        .chain(
+            unit.ir_module
+                .body_lowerings()
+                .map(|(id, body)| ("lowering", id, body)),
+        )
+    {
+        let original = unit.original_procedure_for_body(*id);
+        let function = if store == "named" {
+            unit.procedures.get(id)
+        } else {
+            unit.body_lowering_function(*id)
+        };
+        eprintln!(
+            "N17G3 body store={store} id={id:?} owned={} kind={:?} label={:?} span={:?} original={} original_same_body={} analysis={} body_id_rejoin={}",
+            unit.ir_module.procedure_ids.owns(*id),
+            body.body_kind,
+            body.qualified_name,
+            body.span,
+            original.is_some(),
+            original.is_some_and(|original| std::ptr::eq(original, body)),
+            function.is_some(),
+            function.is_some_and(|function| function.body_id == Some(*id)),
+        );
+    }
     let original_count = unit
         .ir_module
         .procedures

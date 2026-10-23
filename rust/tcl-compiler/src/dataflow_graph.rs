@@ -350,7 +350,10 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
             continue;
         }
         let symbol = *cell;
-        let cell_display = current_cell.map_or_else(String::new, |cell| cell.compatibility_name());
+        let cell_display = current_cell.map_or_else(
+            String::new,
+            super::var_resolve::cell_key::VariableCellKey::compatibility_name,
+        );
         let var_name = ssa.var_name(symbol);
         let ssa_key = Some((symbol, *version));
         nodes.push(DataFlowNode {
@@ -383,8 +386,10 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
                     use_site.phi_version,
                 );
                 edge.to_symbol = Some(use_site.variable);
-                edge.to_cell =
-                    receiving_cell.map_or_else(String::new, |cell| cell.compatibility_name());
+                edge.to_cell = receiving_cell.map_or_else(
+                    String::new,
+                    super::var_resolve::cell_key::VariableCellKey::compatibility_name,
+                );
                 edge
             } else {
                 DataFlowEdge::direct(

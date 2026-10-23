@@ -401,12 +401,11 @@ pub(crate) fn logical_double_using<E: From<ValueError>>(
     simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
     bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
 ) -> Result<f64, E> {
-    let number = match simulation.parse_number(
+    let Ok(number) = simulation.parse_number(
         &bytes()?,
         tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Number,
-    ) {
-        Ok(number) => number,
-        Err(_) => return Err(ValueError::NotDoubleBytes(bytes()?.to_vec()).into()),
+    ) else {
+        return Err(ValueError::NotDoubleBytes(bytes()?.to_vec()).into());
     };
     match number {
         Number::Int(value) => {

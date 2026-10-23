@@ -140,16 +140,16 @@ impl Mapping<'_> {
             } = entry;
             // The inspected private worker releases variableObj before fullNameObj.
             drop(original);
-            if let Err(error) = self.checked() {
-                if first.is_none() {
-                    first = Some(error);
-                }
+            if let Err(error) = self.checked()
+                && first.is_none()
+            {
+                first = Some(error);
             }
             drop(full_name);
-            if let Err(error) = self.checked() {
-                if first.is_none() {
-                    first = Some(error);
-                }
+            if let Err(error) = self.checked()
+                && first.is_none()
+            {
+                first = Some(error);
             }
             drop(name);
         }

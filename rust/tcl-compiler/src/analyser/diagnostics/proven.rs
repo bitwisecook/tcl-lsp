@@ -584,7 +584,7 @@ impl Analyser {
         let original_proven_spans = original
             .supplemental_literals()
             .iter()
-            .filter_map(|(ordinal, _)| original.word(*ordinal).map(|word| word.span()))
+            .filter_map(|(ordinal, _)| original.word(*ordinal).map(tcl_lexer::NativeWord::span))
             .collect::<Vec<_>>();
         let at_proven = |code: DiagCode, span: Span| {
             PROVEN_CODES.contains(&code)

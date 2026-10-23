@@ -439,7 +439,10 @@ fn selected_values(
                 .map(|index| arguments.literal_at(index))
                 .collect::<Option<Vec<_>>>();
             literals.and_then(|literals| {
-                match arguments.dialect().and_then(|dialect| dialect.family()) {
+                match arguments
+                    .dialect()
+                    .and_then(tcl_registry::InvocationDialect::family)
+                {
                     Some(tcl_dialect::model::Family::Jim) => {
                         Some(tcl_syntax::list::concat_values_jim(literals))
                     }

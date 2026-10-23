@@ -420,6 +420,18 @@ impl RetainedSourceModuleBindings {
             .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original))
     }
 
+    #[cfg(debug_assertions)]
+    pub(crate) fn trace_original_body_compiler_census(
+        &self,
+        body: crate::ir::ProcedureId,
+        span: tcl_lexer::Span,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) {
+        self.positioned
+            .trace_original_body_compiler_census(body, span, input, registry);
+    }
+
     /// Independent source-syntax observations from the original compiler.
     /// Runtime and Native attachment remain unchanged and may be unavailable.
     pub(crate) fn original_compiler_syntax_alternatives<'a>(

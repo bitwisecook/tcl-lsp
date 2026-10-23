@@ -179,7 +179,10 @@ impl LogicalSourceFormalParameters {
             let name = fields.first()?;
             if fields.len() != 1 + usize::from(parameter.default.is_some())
                 || name.value() != parameter.name
-                || fields.get(1).map(|field| field.value()) != parameter.default.as_deref()
+                || fields
+                    .get(1)
+                    .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
+                    != parameter.default.as_deref()
             {
                 return None;
             }

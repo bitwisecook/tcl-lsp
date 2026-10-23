@@ -897,7 +897,24 @@ mod tests {
             ("puts {*}\"42\"", "puts {*}\"42\""),
             ("puts \"42", "puts \"42"),
         ] {
-            let analysis = super::analysis_for_profile(source, profile, &registry);
+            let analysis = if source == "puts \"\u{feff}42\"" {
+                // The refusal control must actually select whole-input BOM skipping.
+                // Content is exercised independently by the positive control below.
+                let config = tcl_lexer::LexerConfig {
+                    leading_bom: tcl_lexer::LeadingBom::Skip,
+                    ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+                };
+                let generation = crate::context_for_dialect_profile(profile);
+                let context = std::sync::Arc::new(
+                    generation.with_command_store(registry.snapshot().shared_registry()),
+                );
+                let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile, profile, context, config,
+                );
+                super::analysis_with_input(source, &input)
+            } else {
+                super::analysis_for_profile(source, profile, &registry)
+            };
             assert!(!analysis.allows_lexical_declaration_advice());
             let result =
                 super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());

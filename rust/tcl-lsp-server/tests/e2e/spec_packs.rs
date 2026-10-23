@@ -1833,3 +1833,194 @@ fn the_diagnostics_master_switch_clears_a_packs_notices() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Every shipped UPF optional-value slot reaches the ordinary server's option
+/// scanner. Direct upf_hooks tests independently prove all 17 body answers;
+/// here a following option must remain an option when the value is omitted.
+#[test]
+fn every_bundled_upf_optional_value_hook_reaches_editor_option_scanning() {
+    const BOOLEAN_SLOTS: &[(&str, &str)] = &[
+        ("connect_supply_set", "-transitive"),
+        ("find_objects", "-transitive"),
+        ("set_design_attributes", "-is_soft_macro"),
+        ("set_design_attributes", "-is_hard_macro"),
+        ("set_design_attributes", "-is_refinable_macro"),
+        ("set_design_attributes", "-is_power_aware_model"),
+        ("set_equivalent", "-interchangeable"),
+        ("set_isolation", "-diff_supply_only"),
+        ("set_isolation", "-use_functional_equivalence"),
+        ("set_level_shifter", "-use_functional_equivalence"),
+        ("set_repeater", "-use_functional_equivalence"),
+        ("set_retention_elements", "-transitive"),
+        ("sim_assertion_control", "-transitive"),
+        ("sim_corruption_control", "-transitive"),
+        ("sim_replay_control", "-transitive"),
+    ];
+    assert_eq!(BOOLEAN_SLOTS.len(), 15);
+    let root = workspace("bundled-upf-option-hooks");
+    let mut source = String::from("# tcl-dialect: xilinx-eda-tcl\n");
+    let mut expected_options = Vec::new();
+    let mut expected_values = Vec::new();
+    for &(command, option) in BOOLEAN_SLOTS {
+        // The first option takes zero words; the second takes TRUE. A fixed
+        // one-word fallback instead eats the second option as a closed value.
+        let line = format!("{command} {option} {option} TRUE UPF_TARGET\n");
+        let line_number = i64::try_from(source.lines().count()).expect("line number");
+        for (column, _) in line.match_indices(option) {
+            expected_options.push((line_number, i64::try_from(column).unwrap(), option));
+        }
+        expected_values.push((
+            line_number,
+            i64::try_from(line.find(" TRUE ").unwrap() + 1).unwrap(),
+            "TRUE",
+            "enumMember",
+        ));
+        source.push_str(&line);
+    }
+    for line in [
+        "set_port_attributes -feedthrough -unconnected\n",
+        "set_port_attributes -feedthrough FT -unconnected\n",
+    ] {
+        let line_number = i64::try_from(source.lines().count()).expect("line number");
+        for option in ["-feedthrough", "-unconnected"] {
+            expected_options.push((
+                line_number,
+                i64::try_from(line.find(option).unwrap()).unwrap(),
+                option,
+            ));
+        }
+        if let Some(column) = line.find(" FT ") {
+            expected_values.push((
+                line_number,
+                i64::try_from(column + 1).unwrap(),
+                "FT",
+                "property",
+            ));
+        }
+        source.push_str(line);
+    }
+    let doc = root.join("upf-options.tcl");
+    write(&doc, &source);
+    let uri = file_uri(&doc);
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+    await_pack_named(&mut lsp, "upf");
+    lsp.open_ready(&uri, &source);
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+    let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+    for (line, column, option) in expected_options {
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == column
+                && token.length == i64::try_from(option.len()).unwrap()
+                && legend[usize::try_from(token.ttype).unwrap()] == "decorator"),
+            "{line}:{column}: {option} must remain a declared option after its predecessor: {tokens:?}"
+        );
+    }
+    for (line, column, value, kind) in expected_values {
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == column
+                && token.length == i64::try_from(value.len()).unwrap()
+                && legend[usize::try_from(token.ttype).unwrap()] == kind),
+            "{line}:{column}: {value} must be consumed as the declared option value ({kind}): {tokens:?}"
+        );
+    }
+    let diagnostics =
+        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
+            !diags.iter().any(|diag| {
+                matches!(
+                    diag.get("code").and_then(Value::as_str),
+                    Some("E002" | "E003" | "W002" | "W123" | "W127")
+                )
+            })
+        });
+    assert!(
+        !diagnostics.iter().any(|diag| matches!(
+            diag.get("code").and_then(Value::as_str),
+            Some("E002" | "E003" | "W002" | "W123" | "W127")
+        )),
+        "optional words/closed booleans must be consumed under the shipped hook answers: {diagnostics:#?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The moving trailing body role must reach both diagnostics and memoised
+/// semantic tokens, while an ordinary braced UPF data list remains data.
+#[test]
+fn the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens() {
+    let root = workspace("bundled-upf-body-hook");
+    let source = "# tcl-dialect: xilinx-eda-tcl\ndefine_power_model PM {\n    upf_body_plain_missing\n    set from_plain 1\n}\ndefine_power_model PM2 -for {MODEL} {\n    upf_body_option_missing\n    set from_option 1\n}\ncreate_power_domain PD -elements {\n    upf_body_data_missing\n    set not_script 1\n}\n";
+    let doc = root.join("upf-bodies.tcl");
+    write(&doc, source);
+    let uri = file_uri(&doc);
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+    await_pack_named(&mut lsp, "upf");
+    lsp.open_ready(&uri, source);
+    let missing = |diags: &[Value], marker: &str| {
+        diags.iter().any(|diag| {
+            diag.get("code").and_then(Value::as_str) == Some("W123")
+                && diag
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|message| message.contains(marker))
+        })
+    };
+    let diagnostics =
+        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
+            missing(diags, "upf_body_plain_missing") && missing(diags, "upf_body_option_missing")
+        });
+    for (marker, line) in [
+        ("upf_body_plain_missing", 2),
+        ("upf_body_option_missing", 6),
+    ] {
+        assert!(
+            diagnostics.iter().any(
+                |diag| diag.get("code").and_then(Value::as_str) == Some("W123")
+                    && diag["range"]["start"]["line"].as_i64() == Some(line)
+                    && diag
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .is_some_and(|message| message.contains(marker))
+            ),
+            "the resolver's actual trailing body must be analysed: {diagnostics:#?}"
+        );
+    }
+    assert!(
+        !missing(&diagnostics, "upf_body_data_missing"),
+        "ordinary UPF list data is not a script: {diagnostics:#?}"
+    );
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+    let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+    for line in [3, 7] {
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == 4
+                && token.length == 3
+                && legend[usize::try_from(token.ttype).unwrap()] == "function"),
+            "set inside each resolved body must be a command: {tokens:?}"
+        );
+    }
+    assert!(
+        !tokens.iter().any(|token| token.line == 11
+            && token.char == 4
+            && legend[usize::try_from(token.ttype).unwrap()] == "function"),
+        "set inside a data list must not be a command: {tokens:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

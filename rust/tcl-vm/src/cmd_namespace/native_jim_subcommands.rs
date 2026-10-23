@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `ParseSubCmd` consumes the original object's distinct native table cache.
 
-use super::*;
+use super::{Code, Completion, Value, Vm, err};
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use tcl_cmd_core::CmdError;
 use tcl_registry::native_jim_lookup::{

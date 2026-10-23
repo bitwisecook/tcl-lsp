@@ -146,6 +146,7 @@ pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
+pub use source_transition_advice::OriginalAuthoredJimClassCall;
 pub use source_transition_advice::{
     LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
     OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
@@ -6597,6 +6598,26 @@ fn join_source_procedure_noop(outcomes: &mut SourceOutcomes, incoming: &ModuleCo
 }
 
 impl SourceOutcomes {
+    #[cfg(debug_assertions)]
+    fn trace_original_namespace_child(&self, stage: &str, offset: u32) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_NAMESPACE_CHILD stage={stage} site={offset} normal={} complete={} native_complete={} conditional_complete={} unclosed={:?} routes={:?}",
+                self.normal.is_some(),
+                self.normal_completion.is_some(),
+                self.native_normal_completion.is_some(),
+                self.conditional_normal_completion.is_some(),
+                self.normal
+                    .as_ref()
+                    .map(|normal| normal.unclosed_command_world),
+                self.abrupt
+                    .iter()
+                    .map(|(route, _)| route)
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+
     fn retain_closed_native_handler_completion(
         &mut self,
         native: SourceNativeInvocation<'_>,
@@ -9107,6 +9128,14 @@ impl SourceCommandBindings {
         self.retain_original_argument_syntax_commands(base, segments, state, context);
         let mut outcomes = SourceOutcomes::normal(state);
         outcomes.retain_complete_normal_evaluation();
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_NAMESPACE_CHILD_ENTRY base={base} entry_error={} segments={}",
+                entry_error.is_some(),
+                segments.len()
+            );
+        }
         if let Some(abrupt) = entry_error {
             outcomes.add_abrupt(
                 tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
@@ -9115,6 +9144,8 @@ impl SourceCommandBindings {
                 abrupt,
             );
         }
+        #[cfg(debug_assertions)]
+        outcomes.trace_original_namespace_child("script_entry", base);
         for (index, segment) in segments.iter().enumerate() {
             let Some(mut continuing) = outcomes.normal.take() else {
                 if !outcomes.abrupt.is_empty() {
@@ -9169,6 +9200,8 @@ impl SourceCommandBindings {
                     command.abrupt.len(),
                 );
             }
+            #[cfg(debug_assertions)]
+            command.trace_original_namespace_child("command_return", segment.span.start());
             outcomes.join(&command);
             outcomes.normal_completion = outcomes
                 .normal_completion
@@ -9176,6 +9209,8 @@ impl SourceCommandBindings {
             outcomes.complete_procedure_return = outcomes
                 .complete_procedure_return
                 .filter(|_| prefix_complete.is_some());
+            #[cfg(debug_assertions)]
+            outcomes.trace_original_namespace_child("script_join", segment.span.start());
             let Some(continuing) = &outcomes.normal else {
                 continue;
             };
@@ -9213,6 +9248,35 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         let preflight_timing = root_owner_work::Timing::at(root_owner_work::Query::Preflight);
         let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_NAMESPACE_CHILD_PREFLIGHT base={base} bytes={} failure={} possible_error={} native_entry_unavailable={} compiler_sites={} child_regions={} preview_depth={}",
+                image.len(),
+                assessment.failure.is_some(),
+                assessment.possible_error,
+                assessment.native_entry_unavailable,
+                assessment.compiler_invocations.len(),
+                assessment.compiled_children.len(),
+                self.declaration_preview_depth,
+            );
+        }
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+        {
+            eprintln!(
+                "ZZ_NATIVE_PREFLIGHT_ASSESSMENT base={base} source_len={} mode={:?} frame={:?} preview_depth={} possible_error={} native_entry_unavailable={} failure={} visits={} children={}",
+                image.len(),
+                context.compilation.mode,
+                context.compilation.frame,
+                self.declaration_preview_depth,
+                assessment.possible_error,
+                assessment.native_entry_unavailable,
+                assessment.failure.is_some(),
+                assessment.compiler_invocations.len(),
+                assessment.compiled_children.len(),
+            );
+        }
         #[cfg(any(test, debug_assertions))]
         drop(preflight_timing);
         #[cfg(any(test, debug_assertions))]

@@ -465,7 +465,7 @@ pub fn original_project_receiver_class_with_sources(
             .class_declaration()
             .name_input()
             .native_input()
-            .map(|input| input.policy());
+            .map(crate::signature_scan::name_value::SignatureSourceNameInput::policy);
         let local = OriginalProjectClassCards::capture(analysis)?;
         return finish(
             class,
@@ -574,7 +574,7 @@ fn constructor_receiver_class(
             .class_declaration()
             .name_input()
             .native_input()
-            .map(|input| input.policy());
+            .map(crate::signature_scan::name_value::SignatureSourceNameInput::policy);
         let constructor_body = class
             .constructor_body
             .as_ref()

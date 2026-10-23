@@ -7,6 +7,33 @@
 use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
 use std::collections::BTreeMap;
 
+fn trace_compiler_syntax_option<T>(
+    stage: &str,
+    offset: Option<u32>,
+    value: Option<T>,
+) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!(
+            "ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset);
+    value
+}
+
+fn trace_compiler_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!("ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} value={value}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset);
+    value
+}
+
 /// Runtime entry knowledge for one exact original command allocation.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum SourceRuntimeReachability {
@@ -231,6 +258,134 @@ impl SourceInvocationBinding {
 }
 
 impl SourceCommandBindings {
+    /// Read every retained compiler row without assigning a body or selecting it.
+    #[cfg(debug_assertions)]
+    pub(super) fn trace_original_body_compiler_census(
+        &self,
+        body: crate::ir::ProcedureId,
+        span: tcl_lexer::Span,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
+            return;
+        }
+        let in_span =
+            |site: &CommandAllocationSite| span.start() <= site.offset && site.offset < span.end();
+        let trace_visit = |kind: &str,
+                           site: &CommandAllocationSite,
+                           ordinal: usize,
+                           visit: &SourceCompilerInvocation| {
+            let original = visit.original_words.as_ref();
+            let policy = visit.policy.as_ref();
+            let point = visit
+                .table
+                .state
+                .baseline
+                .metadata_context
+                .source_analysis_input();
+            eprintln!(
+                "ORIGINAL_BODY_COMPILER_ROW body={body:?} kind={kind} offset={} ordinal={ordinal} head={:?} root={} numeric_in_body={} selection={:?} admitted={} structured={} words={} word_count={:?} word_offset={:?} config={:?} config_matches={} source_site={} table_source={} registry={} metadata_matches={} compiler={} dialect={} protocol={} realm={}",
+                site.offset,
+                visit.head,
+                self.root_origin
+                    .as_ref()
+                    .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
+                in_span(site),
+                visit.selection,
+                visit.admitted.is_some(),
+                visit.structured.is_some(),
+                original.is_some(),
+                original.map(|words| words.words.len()),
+                original
+                    .and_then(|words| words.words.first().map(|word| word.source().span.start())),
+                original.map(|words| words.config),
+                original.is_some_and(|words| words.config == input.lexer_config()),
+                original.is_some_and(|words| words.site == *site),
+                visit.table.state.current_source_origin.as_ref() == Some(&site.source),
+                visit.table.state.baseline.registry_snapshot
+                    == Some(registry.snapshot().semantic_key()),
+                point == Some(input),
+                policy.is_some_and(|policy| policy.compiler.is_some()),
+                policy.is_some_and(|policy| policy.words.is_some()),
+                policy.is_some_and(|policy| policy.source_protocol.is_some()),
+                policy.is_some_and(|policy| policy.realm == visit.table.realm),
+            );
+        };
+        eprintln!(
+            "ORIGINAL_BODY_COMPILER_CENSUS body={body:?} span={span:?} direct_sites={} child_regions={} analysis_owner={}",
+            self.compiler_invocations.len(),
+            self.compiled_children.len(),
+            self.original_analysis_owner.is_some(),
+        );
+        for (site, visits) in &self.compiler_invocations {
+            for (ordinal, visit) in visits.iter().enumerate() {
+                trace_visit("direct", site, ordinal, visit);
+            }
+        }
+        for (site, children) in &self.compiled_children {
+            for (ordinal, child) in children.iter().enumerate() {
+                let parent_current = match child.parent.as_ref() {
+                    super::compiled_invocation::SourceNativeCompilerAdmission::Inline(parent) => {
+                        self.compiler_invocations
+                            .get(&parent.compilation_site)
+                            .is_some_and(|parents| {
+                                !parents.is_empty()
+                                    && parents.iter().all(|visit| {
+                                        visit.admitted.as_deref() == Some(child.parent.as_ref())
+                                            && visit.namespace_key == child.parent_namespace_key
+                                            && visit.table == child.table
+                                    })
+                            })
+                    }
+                    super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => false,
+                };
+                eprintln!(
+                    "ORIGINAL_BODY_COMPILER_CHILD body={body:?} offset={} ordinal={ordinal} source_root={} enclosing_offset={} enclosing_root={} parent_offset={:?} parent_root={} base={} bytes={} mapping={:?} script_root={} origin_matches_site={} provider_required={} parent_current={parent_current} sites={}",
+                    site.offset,
+                    self.root_origin
+                        .as_ref()
+                        .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
+                    child.enclosing.offset,
+                    self.root_origin
+                        .as_ref()
+                        .is_some_and(|root| Arc::ptr_eq(root, &child.enclosing.source)),
+                    match child.parent.as_ref() {
+                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
+                            parent,
+                        ) => Some(parent.compilation_site.offset),
+                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => None,
+                    },
+                    match child.parent.as_ref() {
+                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
+                            parent,
+                        ) => self
+                            .root_origin
+                            .as_ref()
+                            .is_some_and(|root| Arc::ptr_eq(root, &parent.compilation_site.source)),
+                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) =>
+                            false,
+                    },
+                    child.script.base(),
+                    child.script.text.len(),
+                    child.script.mapping,
+                    self.root_origin
+                        .as_ref()
+                        .is_some_and(|root| Arc::ptr_eq(root, &child.script.origin)),
+                    child.script.origin == site.source,
+                    self.compilation_provider_required
+                        .contains(&child.enclosing),
+                    child.compiler_visits.len(),
+                );
+                for (command, visits) in child.compiler_visits.iter() {
+                    for (ordinal, visit) in visits.iter().enumerate() {
+                        trace_visit("raw-child", command, ordinal, visit);
+                    }
+                }
+            }
+        }
+    }
+
     /// Every actual compiler observation retains its own immutable table and
     /// namespace. Missing unanimous Native attachment cannot select one table.
     pub(crate) fn original_compiler_syntax_alternatives<'a>(
@@ -239,25 +394,72 @@ impl SourceCommandBindings {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {
-        let owner = self.original_analysis_owner.as_ref()?;
-        let binding = tokens.source_binding.as_ref()?;
-        if tokens.synthetic.is_some()
-            || !tokens.original_words_match_argv_text()
-            || input.has_logical_source_name_context()
-            || input.has_hosted_source_name_context()
-            || !binding
-                .original_analysis_owner
-                .as_ref()
-                .is_some_and(|actual| Arc::ptr_eq(actual, owner))
-            || owner.metadata.source_analysis_input() != Some(input)
-            || !self
-                .matches_original_source_image(owner.source.source_image(), input.lexer_config())
+        let offset = tokens
+            .words()
+            .first()
+            .map(|word| word.source().span.start());
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+            eprintln!(
+                "ORIGINAL_COMPILER_SYNTAX_QUERY offset={offset:?} words={:?} argv_texts={:?} input_config={:?}",
+                tokens.words(),
+                tokens.argv_texts,
+                input.lexer_config()
+            );
+        }
+        let owner = trace_compiler_syntax_option(
+            "analysis_owner",
+            offset,
+            self.original_analysis_owner.as_ref(),
+        )?;
+        let binding =
+            trace_compiler_syntax_option("source_binding", offset, tokens.source_binding.as_ref())?;
+        if trace_compiler_syntax_flag("synthetic", offset, tokens.synthetic.is_some())
+            || trace_compiler_syntax_flag(
+                "word_text_mismatch",
+                offset,
+                !tokens.original_words_match_argv_text(),
+            )
+            || trace_compiler_syntax_flag(
+                "logical_context",
+                offset,
+                input.has_logical_source_name_context(),
+            )
+            || trace_compiler_syntax_flag(
+                "hosted_context",
+                offset,
+                input.has_hosted_source_name_context(),
+            )
+            || trace_compiler_syntax_flag(
+                "binding_owner_mismatch",
+                offset,
+                !binding
+                    .original_analysis_owner
+                    .as_ref()
+                    .is_some_and(|actual| Arc::ptr_eq(actual, owner)),
+            )
+            || trace_compiler_syntax_flag(
+                "owner_input_mismatch",
+                offset,
+                owner.metadata.source_analysis_input() != Some(input),
+            )
+            || trace_compiler_syntax_flag(
+                "source_image_mismatch",
+                offset,
+                !self.matches_original_source_image(
+                    owner.source.source_image(),
+                    input.lexer_config(),
+                ),
+            )
         {
             return None;
         }
         let site = CommandAllocationSite {
             source: Arc::clone(&owner.source),
-            offset: tokens.words().first()?.source().span.start(),
+            offset: trace_compiler_syntax_option("head_word", offset, tokens.words().first())?
+                .source()
+                .span
+                .start(),
         };
         let mut visits = self
             .compiler_invocations
@@ -265,16 +467,34 @@ impl SourceCommandBindings {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        if let Some(children) = self.original_child_compiler_visits(&site) {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+            eprintln!(
+                "ORIGINAL_COMPILER_SYNTAX_DIRECT offset={offset:?} visits={}",
+                visits.len()
+            );
+        }
+        if let Some(children) = trace_compiler_syntax_option(
+            "child_visits",
+            offset,
+            self.original_child_compiler_visits(&site),
+        ) {
             visits.extend(children);
         }
-        if visits.is_empty() {
+        if trace_compiler_syntax_flag("visits_empty", offset, visits.is_empty()) {
             return None;
         }
         visits
             .into_iter()
-            .map(|visit| {
-                original_compiler_syntax_alternative(visit, owner, tokens, input, registry)
+            .enumerate()
+            .map(|(ordinal, visit)| {
+                #[cfg(debug_assertions)]
+                if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+                    eprintln!("ORIGINAL_COMPILER_SYNTAX_VISIT offset={offset:?} ordinal={ordinal} words={:?}", visit.original_words.as_ref().map(|words| &words.words));
+                }
+                #[cfg(not(debug_assertions))]
+                let _ = ordinal;
+                trace_compiler_syntax_option("alternative", offset, original_compiler_syntax_alternative(visit, owner, tokens, input, registry))
             })
             .collect()
     }
@@ -287,40 +507,85 @@ fn original_compiler_syntax_alternative<'a>(
     input: &crate::analyser::ResolvedAnalysisInput,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<OriginalCompilerArgumentSyntax<'a>> {
-    let original = visit.original_words.as_ref()?;
-    let policy = visit.policy.as_ref()?;
-    policy.compiler?;
-    policy.source_protocol?;
-    let dialect = policy.words?;
-    let snapshot = &visit.table;
-    if original.words.as_ref() != tokens.words()
-        || original.config != input.lexer_config()
-        || owner.config != original.config
-        || !Arc::ptr_eq(&owner.source, &original.site.source)
-        || snapshot.state.current_source_origin.as_ref() != Some(&original.site.source)
-        || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
-        || policy.realm != snapshot.realm
-    {
-        return None;
-    }
-    original.site.source.original_lexical_command(
-        &original.words,
-        original.site.offset,
-        original.config,
+    let offset = tokens
+        .words()
+        .first()
+        .map(|word| word.source().span.start());
+    let original = trace_compiler_syntax_option(
+        "visit.original_words",
+        offset,
+        visit.original_words.as_ref(),
     )?;
-    let point = snapshot
-        .state
-        .baseline
-        .metadata_context
-        .source_analysis_input()?;
-    if point != input && point != &input.for_nested_source() {
+    let policy = trace_compiler_syntax_option("visit.policy", offset, visit.policy.as_ref())?;
+    trace_compiler_syntax_option("visit.compiler", offset, policy.compiler)?;
+    trace_compiler_syntax_option("visit.source_protocol", offset, policy.source_protocol)?;
+    let dialect = trace_compiler_syntax_option("visit.word_dialect", offset, policy.words)?;
+    let snapshot = &visit.table;
+    if trace_compiler_syntax_flag(
+        "visit.word_vector_mismatch",
+        offset,
+        original.words.as_ref() != tokens.words(),
+    ) || trace_compiler_syntax_flag(
+        "visit.input_config_mismatch",
+        offset,
+        original.config != input.lexer_config(),
+    ) || trace_compiler_syntax_flag(
+        "visit.owner_config_mismatch",
+        offset,
+        owner.config != original.config,
+    ) || trace_compiler_syntax_flag(
+        "visit.origin_mismatch",
+        offset,
+        !Arc::ptr_eq(&owner.source, &original.site.source),
+    ) || trace_compiler_syntax_flag(
+        "visit.snapshot_origin_mismatch",
+        offset,
+        snapshot.state.current_source_origin.as_ref() != Some(&original.site.source),
+    ) || trace_compiler_syntax_flag(
+        "visit.registry_mismatch",
+        offset,
+        snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key()),
+    ) || trace_compiler_syntax_flag(
+        "visit.realm_mismatch",
+        offset,
+        policy.realm != snapshot.realm,
+    ) {
         return None;
     }
-    let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
-        registry,
-        point,
-        original.config,
-        Some(point.unit_profile()),
+    trace_compiler_syntax_option(
+        "visit.original_lexical_command",
+        offset,
+        original.site.source.original_lexical_command(
+            &original.words,
+            original.site.offset,
+            original.config,
+        ),
+    )?;
+    let point = trace_compiler_syntax_option(
+        "visit.point_input",
+        offset,
+        snapshot
+            .state
+            .baseline
+            .metadata_context
+            .source_analysis_input(),
+    )?;
+    if trace_compiler_syntax_flag(
+        "visit.point_input_mismatch",
+        offset,
+        point != input && point != &input.for_nested_source(),
+    ) {
+        return None;
+    }
+    let metadata = trace_compiler_syntax_option(
+        "visit.metadata",
+        offset,
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            point,
+            original.config,
+            Some(point.unit_profile()),
+        ),
     )?;
     Some(OriginalCompilerArgumentSyntax {
         metadata,

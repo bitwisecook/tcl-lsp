@@ -609,7 +609,10 @@ impl AdviceGraph {
         &self,
         head: &[u8],
     ) -> Option<(Arc<OriginalSourceClassDeclaration>, Vec<SourceAdviceWord>)> {
-        let mut key = self.selected_head_key(head)?;
+        let mut key = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.selected_head_key",
+            self.selected_head_key(head),
+        )?;
         let mut seen = Vec::new();
         let mut prefix = Vec::new();
         let mut lineage = Vec::new();
@@ -618,7 +621,20 @@ impl AdviceGraph {
                 return None;
             }
             seen.push(key.clone());
-            match self.cells.get(&key)? {
+            let cell = self.cells.get(&key);
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+                let kind = cell.map(|cell| match cell {
+                    AdviceCell::SourceClass(_) => "SourceClass",
+                    AdviceCell::AuthoredJimClass(_) => "AuthoredJimClass",
+                    AdviceCell::Alias { .. } => "Alias",
+                    _ => "Other",
+                });
+                eprintln!(
+                    "JIM_SOURCE_OWNER stage=constructor.graph_cell head={head:?} kind={kind:?}"
+                );
+            }
+            match cell? {
                 AdviceCell::SourceClass(class) => {
                     let mut class = class.as_ref().clone();
                     class.lineage.extend(lineage);
@@ -921,6 +937,19 @@ impl AdviceInvocationContext<'_> {
             let Some(written) = super::original_words(child, self.policy) else {
                 continue;
             };
+            if body.is_some()
+                && graph
+                    .selected_head_key(
+                        written
+                            .first()
+                            .and_then(|word| word.input.as_ref())
+                            .map_or(&[], |head| head.bytes()),
+                    )
+                    .and_then(|key| graph.cells.get(&key))
+                    .is_some_and(|cell| matches!(cell, AdviceCell::AuthoredJimClass(_)))
+            {
+                continue;
+            }
             if self.retain_source_constructor_call(tape, graph, child, &written)
                 && let Some((body, obligation)) = body
             {
@@ -961,6 +990,18 @@ impl AdviceInvocationContext<'_> {
             );
             graph.widen(native);
             return true;
+        }
+        if graph
+            .selected_head_key(
+                written
+                    .first()
+                    .and_then(|word| word.input.as_ref())
+                    .map_or(&[], |head| head.bytes()),
+            )
+            .and_then(|key| graph.cells.get(&key))
+            .is_some_and(|cell| matches!(cell, AdviceCell::AuthoredJimClass(_)))
+        {
+            return false;
         }
         if !self.retain_source_constructor_call(tape, graph, native, &written) {
             return false;
@@ -1018,10 +1059,29 @@ impl AdviceInvocationContext<'_> {
         native: &[NativeWord],
         written: &[SourceAdviceWord],
     ) -> bool {
-        let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=constructor.retain_attempt offset={:?} words={}",
+                native.first().map(|word| word.span().start()),
+                native.len()
+            );
+        }
+        let Some(head) = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.written_head",
+            written.first().and_then(|word| word.input.as_ref()),
+        ) else {
             return false;
         };
-        let Some((class, mut arguments)) = graph.resolve_source_class(head) else {
+        if self.retain_authored_jim_call(tape, graph, native, written) {
+            return true;
+        }
+        let Some((class, mut arguments)) =
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "constructor.source_class",
+                graph.resolve_source_class(head),
+            )
+        else {
             return false;
         };
         for (ordinal, word) in arguments.iter_mut().enumerate() {

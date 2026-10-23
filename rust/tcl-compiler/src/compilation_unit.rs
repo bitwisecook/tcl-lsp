@@ -2077,7 +2077,7 @@ impl FunctionUnit {
             original_lattice_callback_admission: None,
             source_metadata_input: source_metadata_input.cloned(),
             source_config: config,
-            name: name.into(),
+            name,
             body_id: None,
             cfg,
             ssa,

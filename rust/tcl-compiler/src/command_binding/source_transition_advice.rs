@@ -36,7 +36,7 @@ mod source_point;
 pub(super) use source_point::OriginalSourcePointAdviceGraph;
 mod source_class;
 mod source_jim_class;
-pub use source_jim_class::OriginalAuthoredJimClass;
+pub use source_jim_class::{OriginalAuthoredJimClass, OriginalAuthoredJimClassCall};
 mod source_constructor_effects;
 pub use source_constructor_effects::{
     OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
@@ -874,6 +874,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
     registered_handles: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredHandleBinding>>>,
     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
+    authored_jim_calls: BTreeMap<u32, Option<OriginalAuthoredJimClassCall>>,
     authored_jim_classes: BTreeMap<u32, Option<Arc<OriginalAuthoredJimClass>>>,
     class_declaration_facets: BTreeMap<u32, Vec<source_class::SourceClassDeclarationFacet>>,
     constructor_calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
@@ -1431,6 +1432,9 @@ impl OriginalSourceTransitionAdviceTape {
         self.interpreter_paths.extend(other.interpreter_paths);
         for (offset, receipt) in other.authored_jim_classes {
             source_class::merge_receipt(&mut self.authored_jim_classes, offset, receipt);
+        }
+        for (offset, receipt) in other.authored_jim_calls {
+            source_class::merge_receipt(&mut self.authored_jim_calls, offset, receipt);
         }
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);
         self.extend_class_proc_calls(other.class_proc_calls);
@@ -3092,6 +3096,7 @@ impl super::SourceCommandBindings {
         self.matches_original_source_image(origin.source_image(), config)
             .then_some(())?;
         Some(OriginalSourceTransitionSeed {
+            analysis_owner: self.original_analysis_owner().cloned(),
             origin: Arc::clone(origin),
             config,
             baseline: Arc::clone(&self.final_state.baseline),
@@ -3162,13 +3167,26 @@ impl super::SourceCommandBindings {
 
 /// Immutable whole-source issuer shared by independently requested purposes.
 /// The baseline retains its real metadata and entry; no body becomes a new entry.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(super) struct OriginalSourceTransitionSeed {
+    // Only the Normal-source query uses this attachment. Source syntax reuse
+    // keeps its existing four-field seed equality below.
+    pub(super) analysis_owner: Option<Arc<super::OriginalSourceAnalysisOwner>>,
     pub(super) origin: Arc<super::SourceOriginId>,
     pub(super) config: LexerConfig,
     pub(super) baseline: Arc<super::BindingBaseline>,
     pub(super) logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
 }
+impl PartialEq for OriginalSourceTransitionSeed {
+    fn eq(&self, other: &Self) -> bool {
+        self.origin == other.origin
+            && self.config == other.config
+            && self.baseline == other.baseline
+            && self.logical_input == other.logical_input
+    }
+}
+impl Eq for OriginalSourceTransitionSeed {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OriginalSourceCataloguePurpose {
     CompleteProgram,
@@ -3447,6 +3465,7 @@ pub(super) fn original_conditional_procedure_declaration(
         .source
         .original_lexical_command(tokens.words(), site.offset, row.config)?;
     let seed = OriginalSourceTransitionSeed {
+        analysis_owner: Some(Arc::clone(owner)),
         origin: Arc::clone(&site.source),
         config: row.config,
         baseline: Arc::clone(baseline),

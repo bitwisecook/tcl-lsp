@@ -21,6 +21,42 @@ pub struct OriginalBodySyntaxInventory {
     request: crate::compilation_unit::OriginalOptimiserSourceOrigin,
     retained: Arc<crate::command_binding::RetainedSourceModuleBindings>,
     commands: Vec<CommandTokens>,
+    source_commands: Vec<CommandTokens>,
+}
+
+fn trace_body_syntax_option<T>(
+    stage: &str,
+    offset: Option<u32>,
+    alternative: Option<usize>,
+    value: Option<T>,
+) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!(
+            "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset, alternative);
+    value
+}
+
+fn trace_body_syntax_flag(
+    stage: &str,
+    offset: Option<u32>,
+    alternative: Option<usize>,
+    value: bool,
+) -> bool {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!(
+            "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} value={value}"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset, alternative);
+    value
 }
 
 impl OriginalBodySyntaxInventory {
@@ -53,6 +89,7 @@ impl OriginalBodySyntaxInventory {
             request,
             retained: Arc::clone(retained),
             commands: Vec::new(),
+            source_commands: Vec::new(),
         };
         let mut bodies = std::collections::BTreeSet::new();
         for (id, procedure) in module
@@ -75,12 +112,17 @@ impl OriginalBodySyntaxInventory {
             {
                 continue;
             }
+            #[cfg(debug_assertions)]
+            retained.trace_original_body_compiler_census(*id, procedure.span, input, registry);
             let mut scripts = vec![&procedure.body];
             while let Some(script) = scripts.pop() {
                 if inventory.commands.len() > 65_536 {
                     return None;
                 }
                 inventory.retain_script(script, retained, registry);
+                if inventory.commands.len() + inventory.source_commands.len() > 65_536 {
+                    return None;
+                }
                 for statement in &script.statements {
                     scripts.extend(statement.child_scripts());
                 }
@@ -104,6 +146,7 @@ impl OriginalBodySyntaxInventory {
             .iter()
             .filter_map(|statement| script.retained_source_tokens_for_statement(statement));
         for tokens in sites.chain(statements) {
+            self.retain_nested_source_commands(tokens, retained, registry);
             let Some(binding) = tokens.source_binding.as_ref() else {
                 continue;
             };
@@ -114,6 +157,21 @@ impl OriginalBodySyntaxInventory {
                 registry,
                 retained.owns_original_analysis_attachment(tokens),
             );
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+                eprintln!(
+                    "ORIGINAL_BODY_SYNTAX_NESTED_CARRIERS parent_offset={:?} nested_offsets={:?}",
+                    tokens
+                        .words()
+                        .first()
+                        .map(|word| word.source().span.start()),
+                    tokens
+                        .nested_bindings
+                        .iter()
+                        .map(|(offset, _)| *offset)
+                        .collect::<Vec<_>>(),
+                );
+            }
             let native = binding
                 .original_compiler_argument_syntax(tokens, &self.input, registry)
                 .is_some_and(|syntax| {
@@ -134,6 +192,51 @@ impl OriginalBodySyntaxInventory {
                     });
             if (native || source) && !self.commands.contains(tokens) {
                 self.commands.push(tokens.clone());
+            }
+        }
+    }
+
+    // Nested substitutions can lower into value expressions instead of Script
+    // statements. Reborrow their actual retained vector proofs; source text is
+    // never used to discover or authorise a compiler command. This intake is
+    // source-only: words() and its Native admission inventory remain unchanged.
+    fn retain_nested_source_commands(
+        &mut self,
+        parent: &CommandTokens,
+        retained: &crate::command_binding::RetainedSourceModuleBindings,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if !retained.owns_original_analysis_attachment(parent) {
+            return;
+        }
+        for (offset, proof) in &parent.nested_bindings {
+            if self.commands.len() + self.source_commands.len() > 65_536 {
+                return;
+            }
+            let Some((_, mut tokens)) = proof.original_recorded_command() else {
+                continue;
+            };
+            if tokens
+                .words()
+                .first()
+                .map(|word| word.source().span.start())
+                != Some(*offset)
+            {
+                continue;
+            }
+            tokens.source_binding = Some(proof.clone());
+            // Every direct and parent-authenticated compiler visit must still
+            // have the original complete vector, input, registry and owner.
+            let closed = retained
+                .original_compiler_syntax_alternatives(&tokens, &self.input, registry)
+                .is_some_and(|syntax| {
+                    syntax.iter().all(|syntax| {
+                        syntax.image() == &self.image
+                            && syntax.config() == self.input.lexer_config()
+                    })
+                });
+            if closed && !self.source_commands.contains(&tokens) {
+                self.source_commands.push(tokens);
             }
         }
     }
@@ -159,7 +262,14 @@ impl OriginalBodySyntaxInventory {
         analysis: &AnalysisResult,
         segment: &crate::segmenter::SegmentedCommand,
     ) -> Option<&CommandTokens> {
-        self.matches_analysis(source, analysis).then_some(())?;
+        let offset = segment.argv.first().map(|word| word.span.start());
+        trace_body_syntax_flag(
+            "tokens.current_analysis",
+            offset,
+            None,
+            self.matches_analysis(source, analysis),
+        )
+        .then_some(())?;
         let parsed = CommandTokens::from_segmented(
             &self.image.source_map(),
             self.input.lexer_config(),
@@ -171,6 +281,43 @@ impl OriginalBodySyntaxInventory {
                 && tokens.argv_texts == parsed.argv_texts
                 && tokens.original_words_match_argv_text()
         });
+        let first = trace_body_syntax_option("tokens.match", offset, None, matching.next())?;
+        trace_body_syntax_flag(
+            "tokens.unanimous_match",
+            offset,
+            None,
+            matching.all(|other| other == first),
+        )
+        .then_some(first)
+    }
+
+    fn source_tokens(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<&CommandTokens> {
+        self.matches_analysis(source, analysis).then_some(())?;
+        let parsed = CommandTokens::from_segmented(
+            &self.image.source_map(),
+            self.input.lexer_config(),
+            segment,
+        );
+        let same_geometry = |tokens: &CommandTokens| {
+            tokens.words() == parsed.words()
+                && tokens.argv == parsed.argv
+                && tokens.argv_texts == parsed.argv_texts
+                && tokens.original_words_match_argv_text()
+        };
+        // A present original carrier remains terminal, including ambiguity or
+        // later authority refusal. Nested intake fills only absent geometry.
+        if self.commands.iter().any(same_geometry) {
+            return self.tokens(source, analysis, segment);
+        }
+        let mut matching = self
+            .source_commands
+            .iter()
+            .filter(|tokens| same_geometry(tokens));
         let first = matching.next()?;
         matching.all(|other| other == first).then_some(first)
     }
@@ -252,39 +399,72 @@ impl OriginalBodySyntaxInventory {
         analysis: &AnalysisResult,
         segment: &crate::segmenter::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
-        let tokens = self.tokens(source, analysis, segment)?;
+        let offset = segment.argv.first().map(|word| word.span.start());
+        let tokens = trace_body_syntax_option(
+            "source_syntax.tokens",
+            offset,
+            None,
+            self.source_tokens(source, analysis, segment),
+        )?;
         let context = self.input.borrowed_context_registry();
         let registry = context.commands();
-        let alternatives =
+        let alternatives = trace_body_syntax_option(
+            "source_syntax.alternatives",
+            offset,
+            None,
             self.retained
-                .original_compiler_syntax_alternatives(tokens, &self.input, registry)?;
+                .original_compiler_syntax_alternatives(tokens, &self.input, registry),
+        )?;
         let mut unanimous = None;
-        for syntax in alternatives {
+        for (ordinal, syntax) in alternatives.into_iter().enumerate() {
             let metadata = syntax.metadata();
-            let advice = syntax.source_lookup_advice(tokens)?;
-            if !advice.closed_authored_simulation_source_lookup(tokens, metadata, registry) {
+            let advice = trace_body_syntax_option(
+                "source_syntax.advice",
+                offset,
+                Some(ordinal),
+                syntax.source_lookup_advice(tokens),
+            )?;
+            if !trace_body_syntax_flag(
+                "source_syntax.closed",
+                offset,
+                Some(ordinal),
+                advice.closed_authored_simulation_source_lookup(tokens, metadata, registry),
+            ) {
                 return None;
             }
-            let selected = super::super::resolve_original_declared_layout(
-                registry, metadata, tokens, &advice,
+            let selected = trace_body_syntax_option(
+                "source_syntax.layout",
+                offset,
+                Some(ordinal),
+                super::super::resolve_original_declared_layout(registry, metadata, tokens, &advice),
             )?;
-            let candidate = compiler_source_words(
-                &self.image,
-                &self.input,
-                tokens,
-                segment,
-                &syntax,
-                &selected,
+            let candidate = trace_body_syntax_option(
+                "source_syntax.words",
+                offset,
+                Some(ordinal),
+                compiler_source_words(
+                    &self.image,
+                    &self.input,
+                    tokens,
+                    segment,
+                    &syntax,
+                    &selected,
+                ),
             )?;
             if let Some(prior) = &unanimous {
-                if prior != &candidate || !same_source_descriptor(prior, &candidate, context) {
+                if trace_body_syntax_flag(
+                    "source_syntax.disagreement",
+                    offset,
+                    Some(ordinal),
+                    prior != &candidate || !same_source_descriptor(prior, &candidate, context),
+                ) {
                     return None;
                 }
             } else {
                 unanimous = Some(candidate);
             }
         }
-        unanimous
+        trace_body_syntax_option("source_syntax.unanimous", offset, None, unanimous)
     }
 
     /// Same configured token-gap proof through the unchanged Native syntax
@@ -641,5 +821,58 @@ mod tests {
         let mut unavailable = first.clone();
         unavailable.body_lexer_config = None;
         assert!(!inventory.matches_analysis(source, &unavailable));
+    }
+    #[test]
+    fn nested_factorial_expressions_use_their_retained_source_compiler_vectors() {
+        let source = "proc fact {n} {\n# base case\nif {$n <= 1} { return 1 }\nreturn [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
+        let analysis = minifier_analysis(source);
+        let foreign = minifier_analysis(source);
+        let inventory = OriginalBodySyntaxInventory::capture(source, &analysis).unwrap();
+        for (needle, candidate) in [
+            ("expr {$n *", "$n*[fact [expr {$n - 1}]]"),
+            ("expr {$n -", "$n-1"),
+        ] {
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            let tokens = inventory
+                .source_commands
+                .iter()
+                .find(|tokens| {
+                    tokens
+                        .words()
+                        .first()
+                        .map(|word| word.source().span.start())
+                        == Some(offset)
+                })
+                .expect("actual nested retained compiler source vector");
+            let (segment, _) = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_recorded_command()
+                .unwrap();
+            assert!(inventory.tokens(source, &analysis, &segment).is_none());
+            assert!(inventory.words(source, &analysis, &segment).is_none());
+            assert!(
+                !inventory
+                    .expression_operands(source, &analysis, &segment)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                inventory
+                    .source_expression_gaps(source, &analysis, &segment, 0, candidate)
+                    .is_some()
+            );
+            assert!(
+                inventory
+                    .source_expression_gaps(source, &foreign, &segment, 0, candidate)
+                    .is_none()
+            );
+            assert!(
+                inventory
+                    .source_expression_gaps("# stale", &analysis, &segment, 0, candidate)
+                    .is_none()
+            );
+        }
     }
 }

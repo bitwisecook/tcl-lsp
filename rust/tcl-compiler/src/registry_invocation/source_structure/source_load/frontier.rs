@@ -40,7 +40,7 @@ impl OriginalProjectSourceCurrentCut {
         self.kernel.point()
     }
     /// Raw path assignments before this cut's actual handler head. This omits
-    /// the current SourceLoad barrier, never a preceding opaque/write barrier.
+    /// the current `SourceLoad` barrier, never a preceding opaque/write barrier.
     /// Physical filename and genuine imported global homes remain host-owned;
     /// no runtime value, local-cell import or child-return continuity is granted.
     #[must_use]

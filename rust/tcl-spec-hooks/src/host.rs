@@ -127,6 +127,23 @@ pub struct HookHost<E: Engine> {
     error_log: RefCell<Vec<String>>,
 }
 
+macro_rules! n17_live_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17G_LIVE {}", format_args!($($arg)*));
+        }
+    };
+}
+
+macro_rules! n17_live_some {
+    ($value:expr, $gate:literal) => {{
+        let value = $value;
+        n17_live_trace!("gate={} present={}", $gate, value.is_some());
+        value
+    }};
+}
+
 impl<E: Engine> HookHost<E> {
     /// A host that builds one engine per pack with `engine_factory`.
     #[must_use]
@@ -537,15 +554,18 @@ impl<E: Engine> HookHost<E> {
         call: &HookCall<'_>,
     ) -> Option<Outcome> {
         if pack.poisoned {
+            n17_live_trace!("decline=host-poisoned");
             return None;
         }
         let program = &pack.hooks[hook_index].program;
         if pack.hooks[hook_index].quarantined {
+            n17_live_trace!("decline=host-quarantined");
             return None;
         }
         // Normative precondition, enforced here as well as at the call
         // site: a fold body never runs on a call carrying a dynamic word.
         if program.family.requires_all_literal() && !call.all_literal() {
+            n17_live_trace!("decline=host-nonliteral");
             return None;
         }
         // Matches `effective_parameters`: a hook that declared inputs
@@ -567,7 +587,7 @@ impl<E: Engine> HookHost<E> {
         // A release-pinned hook never runs at an engine's default release:
         // with no release named for the call it abstains.
         let pinned = if program.release_pinned {
-            Some(self.pinned_engine(pack, call.dialect?))
+            Some(self.pinned_engine(pack, n17_live_some!(call.dialect, "host-release")?))
         } else {
             None
         };
@@ -586,7 +606,13 @@ impl<E: Engine> HookHost<E> {
                 let PinnedEngine {
                     engine, handles, ..
                 } = &mut pinned_engines[index];
-                (engine.as_mut()?, handles.get(hook_index)?.as_ref()?)
+                (
+                    n17_live_some!(engine.as_mut(), "host-pinned-engine")?,
+                    n17_live_some!(
+                        n17_live_some!(handles.get(hook_index), "host-pinned-index")?.as_ref(),
+                        "host-pinned-handle"
+                    )?,
+                )
             }
         };
         sink.clear();
@@ -609,6 +635,7 @@ impl<E: Engine> HookHost<E> {
                 hook.program.label()
             ));
             reading.clear();
+            n17_live_trace!("decline=host-budget-setup");
             return None;
         }
         let invoked = catch_unwind(AssertUnwindSafe(|| engine.invoke(handle, &arguments)));
@@ -626,6 +653,14 @@ impl<E: Engine> HookHost<E> {
             ));
         }
         reading.clear();
+        n17_live_trace!(
+            "host-engine-return outcome={}",
+            match &invoked {
+                Ok(Ok(_)) => "ok",
+                Ok(Err(_)) => "error",
+                Err(_) => "panic",
+            }
+        );
         Some(match invoked {
             Ok(Ok(_)) => Outcome::Answer(answer_of(family, sink.drain(), call.targets)),
             Ok(Err(error)) => {
@@ -678,7 +713,9 @@ impl<E: Engine> PackHookHost for HookHost<E> {
     }
 
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+        n17_live_trace!("host-entry slot={slot:?}");
         let Some(&(pack_index, hook_index)) = self.slots.borrow().get(&slot) else {
+            n17_live_trace!("decline=host-slot-missing slot={slot:?}");
             return HookAnswer::Abstain;
         };
         let outcome = {
@@ -691,6 +728,7 @@ impl<E: Engine> PackHookHost for HookHost<E> {
         match outcome {
             Outcome::Answer(answer) => answer,
             Outcome::Errored(seen, message) => {
+                n17_live_trace!("host-error message={message}");
                 if seen == 1 {
                     let label = {
                         let packs = self.packs.borrow();
@@ -703,6 +741,7 @@ impl<E: Engine> PackHookHost for HookHost<E> {
                 HookAnswer::Abstain
             }
             Outcome::Crash(kind, detail) => {
+                n17_live_trace!("host-crash kind={kind:?} detail={detail}");
                 self.record_crash(
                     pack_index,
                     hook_index,

@@ -3236,12 +3236,11 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .release_compiled
         .take()
         .is_some_and(|compiled| compiled.script_word.is_some());
-    if vm.uses_jim_error_stack() {
-        if let Err(error) = vm.reset_original_jim_global_error_code()
-            && vm.refused_completion().is_some()
-        {
-            return error;
-        }
+    if vm.uses_jim_error_stack()
+        && let Err(error) = vm.reset_original_jim_global_error_code()
+        && vm.refused_completion().is_some()
+    {
+        return error;
     }
     let jim = vm.uses_jim_error_stack();
     let dialect = if jim {
@@ -3310,16 +3309,16 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // code — is absorbed by `finish_catch` (which binds the result/options vars
         // and yields the status code). Mirrors `cmd_eval`'s pending request, but
         // catch's completion is caught rather than propagated.
-        if let Some(original) = &original {
-            if let Err(error) = original.current_for_value(vm, script) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
+        if let Some(original) = &original
+            && let Err(error) = original.current_for_value(vm, script)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         let prepared = vm.prepare_script_commands_value(script);
-        if let Some(original) = &original {
-            if let Err(error) = original.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
+        if let Some(original) = &original
+            && let Err(error) = original.check(vm)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         match prepared {
             Ok(prepared) if prepared.prefix.is_some() => {
@@ -3351,10 +3350,10 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     })();
-    if let Some(original) = original {
-        if let Err(error) = original.finish(vm) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
+    if let Some(original) = original
+        && let Err(error) = original.finish(vm)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
 }

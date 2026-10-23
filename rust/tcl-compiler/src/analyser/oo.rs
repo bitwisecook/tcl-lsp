@@ -2837,6 +2837,47 @@ impl Analyser {
         scope_path: &[usize],
         command_token: Token,
     ) -> bool {
+        if let Some(call) =
+            crate::registry_invocation::source_structure::source_authored_jim_call_at(
+                &self.source,
+                &self.result,
+                command_token.span.start(),
+            )
+        {
+            let Some(mut class) = call.metadata(&self.result).cloned() else {
+                return false;
+            };
+            let context = self
+                .result
+                .resolved_input
+                .as_ref()
+                .map(|input| input.context_registry());
+            let Some(context) = context else {
+                return false;
+            };
+            let Some(grammar) = context
+                .context()
+                .resolve_spec(context.commands(), call.class().factory().command())
+                .and_then(|spec| spec.definition_body)
+            else {
+                return false;
+            };
+            if grammar.family != tcl_registry::definer::DefinerFamily::JimClass {
+                return false;
+            }
+            if !super::original_definer::logical_arguments_match(
+                call.original_words(),
+                args,
+                arg_tokens,
+            ) {
+                return false;
+            }
+            if !self.analyse_jim_inline_member(grammar, args, arg_tokens, &mut class, scope_path) {
+                return false;
+            }
+            self.register_defined_class(class.qualified_name.clone(), class, scope_path);
+            return true;
+        }
         let original = super::original_definer::OriginalClassCallSource::capture(
             &self.source,
             &self.result,

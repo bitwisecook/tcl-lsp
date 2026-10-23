@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original property context and derivation observations, without lookup grants.
 use super::super::original_name_operands::OriginalOoNameScope;
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, Completion, OoId, Rc, Value, ValueError, Vm, private_storage_name_bytes,
+    slot_ref_obj,
+};
 use crate::interp::{
     native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
 };

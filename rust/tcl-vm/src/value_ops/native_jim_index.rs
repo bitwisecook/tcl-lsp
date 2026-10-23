@@ -222,16 +222,17 @@ impl NativeIndexOps for Vm {
         &mut self,
         list: &Value,
         first: &Value,
-        last: &Value,
+        last_index: &Value,
     ) -> Result<Option<tcl_cmd_core::index::IndexResult<Value>>, CmdError> {
         if self.index_c_version().is_none() {
             return Ok(None);
         }
-        self.original_list_range(list, first, last).map(|value| {
-            Some(tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(
-                value,
-            ))
-        })
+        self.original_list_range(list, first, last_index)
+            .map(|value| {
+                Some(tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(
+                    value,
+                ))
+            })
     }
     fn index_c_version(&self) -> Option<tcl_dialect::TclVersion> {
         self.actual_native_invocation_dialect()

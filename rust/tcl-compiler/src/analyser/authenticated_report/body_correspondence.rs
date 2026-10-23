@@ -128,6 +128,7 @@ impl ReportBodyInventory {
             Self::push(
                 &mut bodies,
                 module,
+                registry,
                 *id,
                 Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
             )?;
@@ -141,6 +142,7 @@ impl ReportBodyInventory {
             Self::push(
                 &mut bodies,
                 module,
+                registry,
                 *id,
                 Self::procedure(module, *id, body, role)?,
             )?;
@@ -149,6 +151,7 @@ impl ReportBodyInventory {
             Self::push(
                 &mut bodies,
                 module,
+                registry,
                 *id,
                 ReportBodyOwner {
                     id: *id,
@@ -169,6 +172,7 @@ impl ReportBodyInventory {
             Self::push(
                 &mut bodies,
                 module,
+                registry,
                 *id,
                 ReportBodyOwner {
                     id: *id,
@@ -237,20 +241,33 @@ impl ReportBodyInventory {
         // Every additional event card must join an actual retained body, and
         // each original event word belongs to this complete source generation.
         for (id, card) in &module.irules_event_bodies {
-            let body = module
-                .procedures
-                .get(id)
-                .or_else(|| module.body_lowering(id))?;
-            if !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry) {
+            let body = super::trace_capture_option(
+                module
+                    .procedures
+                    .get(id)
+                    .or_else(|| module.body_lowering(id)),
+                "bodies.event-procedure",
+            )?;
+            if super::trace_capture_gate(
+                !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry),
+                "bodies.event-procedure-match",
+            ) {
                 return None;
             }
-            let row = bodies.iter_mut().find(|row| row.id == *id)?;
-            if row.original_word.is_some() {
+            let row = super::trace_capture_option(
+                bodies.iter_mut().find(|row| row.id == *id),
+                "bodies.event-row",
+            )?;
+            if super::trace_capture_gate(row.original_word.is_some(), "bodies.event-duplicate-word")
+            {
                 return None;
             }
             row.original_word = Some(
-                card.event_word(&module.source, module.native_lexer_config(), registry)?
-                    .clone(),
+                super::trace_capture_option(
+                    card.event_word(&module.source, module.native_lexer_config(), registry),
+                    "bodies.event-word",
+                )?
+                .clone(),
             );
         }
         // A reference into a definition scope must join this same complete
@@ -392,6 +409,7 @@ impl ReportBodyInventory {
     fn push(
         bodies: &mut Vec<ReportBodyOwner>,
         module: &crate::ir::Module,
+        registry: &CommandRegistry,
         id: ProcedureId,
         body: ReportBodyOwner,
     ) -> Option<()> {
@@ -414,12 +432,74 @@ impl ReportBodyInventory {
                 .source
                 .bytes()
                 .get(body.declaration.as_range())
-                .is_none_or(|source| source.is_empty())
+                .is_none_or(|source| {
+                    source.is_empty()
+                        && Self::empty_installed_body(module, registry, id, &body).is_none()
+                })
         {
             return None;
         }
         bodies.push(body);
         Some(())
+    }
+
+    // An installed body retains its evaluated value extent. Admit an empty
+    // extent only through the same current source card used by the Lowerer.
+    fn empty_installed_body(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        id: ProcedureId,
+        body: &ReportBodyOwner,
+    ) -> Option<()> {
+        (matches!(
+            body.role,
+            ReportBodyRole::Unit(ProcedureBodyKind::Installed)
+        ) && body.id == id
+            && body.declaration_purpose.is_none()
+            && body.declaration.is_empty())
+        .then_some(())?;
+        let positioned = module
+            .retained_source_bindings
+            .as_ref()?
+            .positioned_for_module(module, registry)?;
+        let root = positioned.source_origin()?;
+        let allocation = module.installed_procedure_body_units.get(&id)?;
+        let held = module.body_units.get(&id)?;
+        let source = body.source.as_ref()?;
+        let namespace = body.namespace.as_deref()?;
+        (module.procedure_ids.owns(id)
+            && held.body_kind == ProcedureBodyKind::Installed
+            && held.span == body.declaration
+            && held.declaration_site == body.site
+            && Some(held.body_offset) == body.body_offset
+            && held.body_offset == body.declaration.start()
+            && held
+                .body
+                .executed_source
+                .as_ref()
+                .is_some_and(|actual| Arc::ptr_eq(actual, source))
+            && held.body.namespace_context.as_deref() == Some(namespace)
+            && body.site.as_ref() == Some(&allocation.site)
+            && allocation.matches_source_declaration_image(&module.source, allocation.site.offset)
+            && Arc::ptr_eq(&allocation.site.source, root)
+            && Arc::ptr_eq(&source.origin, root)
+            && source.text.bytes().is_empty()
+            && matches!(
+                &source.mapping,
+                crate::command_binding::ExecutedScriptMapping::Contiguous { base }
+                    if *base == body.declaration.start()
+            ))
+        .then_some(())?;
+        positioned
+            .installed_procedure_body_units()
+            .into_iter()
+            .any(|card| {
+                card.allocation == *allocation
+                    && card.source == **source
+                    && Arc::ptr_eq(&card.source.origin, root)
+                    && card.namespace_key == *namespace
+            })
+            .then_some(())
     }
 
     #[cfg(test)]
@@ -607,6 +687,88 @@ mod owner_controls {
     }
 
     #[test]
+    fn empty_installed_body_requires_the_current_complete_source_card() {
+        let source = "proc retained {} {}\nretained EXTRA";
+        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let capture = left
+            .current_capture()
+            .expect("genuine empty installed body");
+        assert_eq!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Equal
+        );
+        let module = &capture.bodies.prepared.unit().ir_module;
+        let registry = left.analysis.resolved_registry().unwrap();
+        let (&id, _) = module.installed_procedure_body_units.iter().next().unwrap();
+        let make = |module: &crate::ir::Module| {
+            ReportBodyInventory::procedure(
+                module,
+                id,
+                module.body_units.get(&id).unwrap(),
+                ReportBodyRole::Unit(ProcedureBodyKind::Installed),
+            )
+            .unwrap()
+        };
+        let body = make(module);
+        assert_eq!(body.declaration, Span::empty(18));
+        assert!(body.declaration_purpose.is_none());
+        assert!(ReportBodyInventory::empty_installed_body(module, registry, id, &body).is_some());
+        let mut missing = module.clone();
+        missing.installed_procedure_body_units.remove(&id);
+        assert!(ReportBodyInventory::empty_installed_body(&missing, registry, id, &body).is_none());
+        let mut changed = module.clone();
+        changed.body_units.get_mut(&id).unwrap().body_offset += 1;
+        assert!(
+            ReportBodyInventory::empty_installed_body(&changed, registry, id, &make(&changed))
+                .is_none()
+        );
+        let mut no_owner = module.clone();
+        no_owner.retained_source_bindings = None;
+        assert!(
+            ReportBodyInventory::empty_installed_body(&no_owner, registry, id, &body).is_none()
+        );
+        let foreign = &right
+            .current_capture()
+            .unwrap()
+            .bodies
+            .prepared
+            .unit()
+            .ir_module;
+        assert!(ReportBodyInventory::empty_installed_body(foreign, registry, id, &body).is_none());
+        let mut wrong_role = make(module);
+        wrong_role.role = ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration);
+        assert!(
+            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_role).is_none()
+        );
+        let mut wrong_purpose = make(module);
+        wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::AllocatedSource);
+        assert!(
+            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_purpose)
+                .is_none()
+        );
+        let mut wrong_span = make(module);
+        wrong_span.declaration = Span::empty(0);
+        assert!(
+            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_span).is_none()
+        );
+        let mut out_of_range = make(module);
+        out_of_range.declaration = Span::empty(u32::try_from(source.len() + 1).unwrap());
+        assert!(
+            ReportBodyInventory::push(&mut Vec::new(), module, registry, id, out_of_range)
+                .is_none()
+        );
+        let mut bodies = Vec::new();
+        assert!(
+            ReportBodyInventory::push(&mut bodies, module, registry, id, make(module)).is_some()
+        );
+        assert!(
+            ReportBodyInventory::push(&mut bodies, module, registry, id, make(module)).is_none()
+        );
+        assert_eq!(bodies.len(), 1);
+    }
+
+    #[test]
     fn actual_complete_body_inventory_is_total_and_role_sensitive() {
         let left = actual();
         let right = actual();
@@ -626,6 +788,77 @@ mod owner_controls {
         let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
         let left = Analyser::new().analyse_for_report(source, "tcl8.6");
         let right = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let a = &left
+            .current_capture()
+            .expect("actual original alias diagnostics CU")
+            .bodies;
+        let b = &right
+            .current_capture()
+            .expect("independent original alias diagnostics CU")
+            .bodies;
+        let named = a
+            .bodies
+            .iter()
+            .find(|body| {
+                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
+                    && a.bodies.iter().any(|other| {
+                        matches!(
+                            other.role,
+                            ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
+                        ) && body.site.is_some()
+                            && body.site == other.site
+                            && body.declaration == other.declaration
+                    })
+            })
+            .expect("actual Named and NamespaceScript owners at one original declaration");
+        let joined = a
+            .bodies
+            .iter()
+            .filter(|body| body.site == named.site && body.declaration == named.declaration)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            joined.len(),
+            2,
+            "both original actual roles remain present, never deduplicated"
+        );
+        assert_ne!(joined[0].id, joined[1].id);
+        let correspondence = ReportBodyCorrespondence::capture(a, b)
+            .expect("complete unique actual owner correspondence");
+        for row in joined {
+            assert_eq!(
+                correspondence
+                    .pairs
+                    .iter()
+                    .filter(|(left, _)| *left == row.id)
+                    .count(),
+                1
+            );
+        }
+        assert_eq!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Equal
+        );
+    }
+
+    #[test]
+    fn supported_logical_alias_roles_keep_the_shared_declaration() {
+        // Explicit Logical source analysis retains its own source-only roles.
+        let source = "namespace eval ::owned {proc retained {} {return VALUE}}\ninterp alias {} ::pick {} ::owned::retained\npick";
+        let left = Analyser::new().analyse_for_report(source, "tcl");
+        let right = Analyser::new().analyse_for_report(source, "tcl");
+        assert!(
+            left.current_capture()
+                .unwrap()
+                .input
+                .has_logical_source_name_context()
+        );
+        assert!(
+            right
+                .current_capture()
+                .unwrap()
+                .input
+                .has_logical_source_name_context()
+        );
         let a = &left
             .current_capture()
             .expect("actual original alias diagnostics CU")

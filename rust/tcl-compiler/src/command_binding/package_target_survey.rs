@@ -144,7 +144,7 @@ impl SourceCommandBindings {
             origin: Arc::clone(origin),
             input: input.clone(),
             _words: Arc::from(command.words.clone()),
-            namespaces: namespaces,
+            namespaces,
             subject: subject.map(str::to_owned),
             _advice: Arc::clone(advice),
             _layouts: layouts,

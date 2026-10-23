@@ -23,7 +23,7 @@ use tcl_registry::native_scalar_compilation::NativeScalarOperation;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Vm {
-    /// Only the admitted non-strict C ASCII STR_CLASS form reaches this worker.
+    /// Only the admitted non-strict C ASCII `STR_CLASS` form reaches this worker.
     pub(super) fn execute_native_ascii_predicate(
         &mut self,
         original: &Value,

@@ -35,7 +35,7 @@ pub enum TclHostFailure {
     PrimitiveErrorStateRequired(Box<tcl_syntax::scalar_getter::NativeScalarGetterError>),
 }
 
-fn resident_projection_failure(error: tcl_syntax::value::ValueError) -> TclHostFailure {
+fn resident_projection_failure(error: &tcl_syntax::value::ValueError) -> TclHostFailure {
     TclHostFailure::ValueAccess(error.native_access_refusal().unwrap_or(
         NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest value projection"),
     ))
@@ -143,10 +143,10 @@ impl TclError {
                 completion
                     .result
                     .check_native_header()
-                    .map_err(resident_projection_failure)?;
+                    .map_err(|error| resident_projection_failure(&error))?;
                 completion.result.resident_string_bytes().ok_or_else(|| {
                     resident_projection_failure(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "borrowed guest message",
                         ),
                     )
@@ -207,15 +207,15 @@ impl TclError {
             Self::Guest(completion) if completion.code == Code::Error => {
                 let original =
                     crate::command::opt_get_resident_checked(&completion.options, b"-errorcode")
-                        .map_err(resident_projection_failure)?;
+                        .map_err(|error| resident_projection_failure(&error))?;
                 original
                     .map(|value| {
                         value
                             .check_native_header()
-                            .map_err(resident_projection_failure)?;
+                            .map_err(|error| resident_projection_failure(&error))?;
                         value.resident_string_bytes().ok_or_else(|| {
                             resident_projection_failure(
-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                                     "borrowed error-code bytes",
                                 ),
                             )
@@ -265,21 +265,21 @@ impl TclError {
             .is_some()
         {
             return Err(resident_projection_failure(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "borrowed Dictionary error-code mutation",
                 ),
             ));
         }
         let pairs = crate::command::completion_option_rows_resident(&completion.options)
-            .map_err(resident_projection_failure)?;
+            .map_err(|error| resident_projection_failure(&error))?;
         let mut replacement = Vec::with_capacity(pairs.len() * 2 + 2);
         let mut replaced = false;
         for (key, value) in pairs {
             key.check_native_header()
-                .map_err(resident_projection_failure)?;
+                .map_err(|error| resident_projection_failure(&error))?;
             let bytes = key.resident_string_bytes().ok_or_else(|| {
                 resident_projection_failure(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "borrowed option key",
                     ),
                 )

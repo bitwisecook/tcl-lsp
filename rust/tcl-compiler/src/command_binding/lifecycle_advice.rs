@@ -423,6 +423,23 @@ mod tests {
         );
         assert!(binding.compiler_lookup_state.is_none());
         assert!(bindings.final_state.baseline.native_entry.is_none());
+        assert!(SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry).is_none());
+
+        // An abrupt root keeps this independent declaration survey Conditional.
+        // Its genuine source carrier must satisfy the scoped provider contract.
+        let (bindings, tokens, registry) = inventory("; return ROOT");
+        crate::command_binding::trace_original_g4_owner(
+            "scoped-lifecycle-conditional",
+            &bindings,
+            &tokens,
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Conditional
+        );
+        assert!(binding.lookup_state.is_some());
+        assert!(bindings.final_state.baseline.native_entry.is_none());
         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)
             .expect("original scoped provider");
         for phase in [

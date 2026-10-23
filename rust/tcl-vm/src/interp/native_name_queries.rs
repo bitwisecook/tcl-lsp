@@ -381,12 +381,10 @@ impl Vm {
             .as_ref()
             .map(|query| query.bytes(self, &scope, &query.declaration.body_src))
             .transpose();
-        if let Err(error) = &reached {
-            if let Some(cause) = error.native_execution_refusal() {
-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
-                    cause.clone(),
-                ));
-            }
+        if let Err(error) = &reached
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
         }
         drop(query);
         scope.check(self)?;
@@ -417,12 +415,10 @@ impl Vm {
             let body = query.bytes(self, &scope, &query.declaration.body_src)?;
             Ok(Some(ProcInfo { body, params }))
         })();
-        if let Err(error) = &reached {
-            if let Some(cause) = error.native_execution_refusal() {
-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
-                    cause.clone(),
-                ));
-            }
+        if let Err(error) = &reached
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
         }
         drop(query);
         scope.check(self)?;
@@ -521,12 +517,10 @@ impl Vm {
             }
             Ok(Some(result))
         })();
-        if let Err(error) = &reached {
-            if let Some(cause) = error.native_execution_refusal() {
-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
-                    cause.clone(),
-                ));
-            }
+        if let Err(error) = &reached
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
         }
         drop(originals);
         scope.check(self)?;

@@ -494,10 +494,10 @@ fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Val
                         vm.push_script(label.to_owned());
                     }
                     let completion = vm.eval_script(&Value::from_native_string_bytes(contents));
-                    if label.is_some() {
-                        if let Err(error) = vm.cleanup(Vm::pop_script) {
-                            return crate::command::completion_from_cmd_error(vm, error);
-                        }
+                    if label.is_some()
+                        && let Err(error) = vm.cleanup(Vm::pop_script)
+                    {
+                        return crate::command::completion_from_cmd_error(vm, error);
                     }
                     let completion = vm.settle_callback(completion);
                     vm.settle_package_source_completion(completion)

@@ -1094,7 +1094,7 @@ impl AnalysisResult {
             .values()
             .chain(
                 self.original_class_declarations()
-                    .map(|declaration| declaration.metadata()),
+                    .map(crate::signature_scan::original_name::SourceDeclarationMetadata::metadata),
             )
             .chain(
                 self.logical_class_declarations

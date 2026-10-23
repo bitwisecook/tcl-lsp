@@ -2120,7 +2120,7 @@ impl ClassCommandFallback {
 }
 
 /// Whether this body belongs to the surrounding interpreter's source walk.
-/// This is independent of lambda context and TclOO lookup/callability axes.
+/// This is independent of lambda context and `TclOO` lookup/callability axes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum InterpreterSourceBody {
     Enclosing,

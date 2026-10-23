@@ -386,43 +386,39 @@ impl Vm {
         // These are the same reached mandatory cache clear workers. A retained
         // refusal never skips a later clear, and each actual clear settles its
         // stage before the next owner is retired.
-        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache.clear()) {
-            if first.is_none() {
-                first = Some(error);
-            }
+        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache.clear())
+            && first.is_none()
+        {
+            first = Some(error);
         }
         if let Err(error) =
             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+            && first.is_none()
         {
-            if first.is_none() {
-                first = Some(error);
-            }
+            first = Some(error);
         }
         if let Err(error) =
             self.retire_observed_input_cache(target, |vm| vm.eval_cache_plain.clear())
+            && first.is_none()
         {
-            if first.is_none() {
-                first = Some(error);
-            }
+            first = Some(error);
         }
         if let Err(error) =
             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+            && first.is_none()
         {
-            if first.is_none() {
-                first = Some(error);
-            }
+            first = Some(error);
         }
-        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.module_procs.clear()) {
-            if first.is_none() {
-                first = Some(error);
-            }
+        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.module_procs.clear())
+            && first.is_none()
+        {
+            first = Some(error);
         }
         if let Err(error) =
             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+            && first.is_none()
         {
-            if first.is_none() {
-                first = Some(error);
-            }
+            first = Some(error);
         }
         first.map_or(Ok(()), Err)
     }
@@ -461,10 +457,10 @@ impl Vm {
         let result = stage
             .as_deref_mut()
             .map_or(Ok(()), |check| check(self, reached));
-        if let Err(error) = &result {
-            if let Some(first) = error.native_execution_refusal() {
-                self.retain_tcl_host_failure(crate::TclHostFailure::Execution(first.clone()));
-            }
+        if let Err(error) = &result
+            && let Some(first) = error.native_execution_refusal()
+        {
+            self.retain_tcl_host_failure(crate::TclHostFailure::Execution(first.clone()));
         }
         result
     }

@@ -1636,19 +1636,17 @@ impl Vm {
                         .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original)
                     && let (Some(array), Some(member)) =
                         (captured.cell.array, captured.cell.elem.as_ref())
-                {
-                    if !self
+                    && !self
                         .var_arena
                         .retain_original_array_key(array, member, key.clone())
-                    {
-                        return Err(completion_from_cmd_error(
-                            self,
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "original array member key publication",
-                            )
-                            .into(),
-                        ));
-                    }
+                {
+                    return Err(completion_from_cmd_error(
+                        self,
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original array member key publication",
+                        )
+                        .into(),
+                    ));
                 }
                 scope
                     .check(self)

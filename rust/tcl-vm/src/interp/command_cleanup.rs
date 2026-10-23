@@ -192,14 +192,14 @@ impl OriginalCommandCleanup {
     fn end_c(&self, generation: u64) {
         // Withdraw only this pure guard in the captured allocation, even when
         // operation currency was withdrawn. No current table is selected here.
-        if self.c_order.is_some() {
-            if let Some(world) = self.world.upgrade() {
-                let mut world = world.borrow_mut();
-                world.command_deletion_active.remove(&generation);
-                world
-                    .command_compiler_deletion_published
-                    .remove(&generation);
-            }
+        if self.c_order.is_some()
+            && let Some(world) = self.world.upgrade()
+        {
+            let mut world = world.borrow_mut();
+            world.command_deletion_active.remove(&generation);
+            world
+                .command_compiler_deletion_published
+                .remove(&generation);
         }
     }
     fn unlink(&self, vm: &mut Vm, source: &CommandTokenIdentity, recursive: bool) {
@@ -310,10 +310,10 @@ impl OriginalCommandCleanup {
                     .insert(source.generation)
                 {
                     vm.note_native_command_name_node_changed(source.generation);
-                    if let CommandSidecarKey::Visible(key) = &source.key {
-                        if let Some(slot) = vm.command_slot(key) {
-                            vm.note_native_namespace_command_lookup(slot.namespace);
-                        }
+                    if let CommandSidecarKey::Visible(key) = &source.key
+                        && let Some(slot) = vm.command_slot(key)
+                    {
+                        vm.note_native_namespace_command_lookup(slot.namespace);
                     }
                 }
             });

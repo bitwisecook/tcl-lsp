@@ -290,16 +290,16 @@ impl Vm {
         &mut self,
         list: &Value,
         first: &Value,
-        last: &Value,
+        last_index: &Value,
     ) -> Result<Value, CmdError> {
         if self
             .actual_native_invocation_dialect()
             .native_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
-            return native_list_index::command_range(self, list, first, last);
+            return native_list_index::command_range(self, list, first, last_index);
         }
-        tcl_cmd_core::list::lrange(self, list, first, last)
+        tcl_cmd_core::list::lrange(self, list, first, last_index)
     }
     pub(crate) fn original_list_index(
         &mut self,

@@ -382,7 +382,12 @@ impl<'t> SyntaxNode<'t> {
                 SyntaxElement::Node(node) => node.collect_lexer_tokens(out),
             }
         }
-        let trailing_width: u32 = self.green.trailing.iter().map(|t| t.width()).sum();
+        let trailing_width: u32 = self
+            .green
+            .trailing
+            .iter()
+            .map(super::green::GreenTrivia::width)
+            .sum();
         let mut offset =
             self.tree.base_offset + self.full_start + self.green.full_width() - trailing_width;
         for trivia in &self.green.trailing {

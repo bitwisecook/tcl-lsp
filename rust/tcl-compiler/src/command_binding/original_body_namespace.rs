@@ -285,6 +285,25 @@ mod tests {
         OriginalBodyGeometryFixture { input, tokens }
     }
 
+    fn original_conditional_body_fixture(source: &str, environment: &str) -> OriginalBodyFixture {
+        let wrapped = format!("proc conditional_body {{condition}} {{{source}}}; return ROOT");
+        let mut fixture = original_fixture(&wrapped, environment);
+        let start = wrapped.find(source).unwrap();
+        fixture.tokens = source
+            .match_indices("if ")
+            .map(|(relative, _)| {
+                let offset = u32::try_from(start + relative).unwrap();
+                let binding = fixture.bindings.invocation_at_source("", offset);
+                let (_, mut tokens) = binding
+                    .original_recorded_command()
+                    .expect("genuine original conditional body command");
+                tokens.source_binding = Some(binding);
+                tokens
+            })
+            .collect();
+        fixture
+    }
+
     fn body_at(
         tokens: &CommandTokens,
         written: usize,
@@ -448,6 +467,48 @@ mod tests {
                     "{environment}: {parent:?}"
                 );
                 assert!(binding.native_structured_preparation.is_none());
+                // A missing condition errors before selecting or entering this
+                // body; the original namespace syntax above remains independent.
+                assert!(
+                    fixture
+                        .bindings
+                        .executed_script_namespace_context(&body)
+                        .is_none()
+                );
+                let site = binding.invocation_site().unwrap();
+                assert!(fixture.bindings.executed_script_at(site, 1).is_none());
+                assert!(
+                    fixture
+                        .bindings
+                        .executed_script_entry_namespace_context_at(site, 1, &body)
+                        .is_none()
+                );
+                assert!(
+                    fixture
+                        .bindings
+                        .compiled_script_namespace_context(&body)
+                        .is_none()
+                );
+            }
+            // Unknown but bound formal input reaches genuine conditional body
+            // observations. It does not infer entry from the lexical body word.
+            let fixture = original_conditional_body_fixture(source, environment);
+            let config = fixture.input.lexer_config();
+            let expected = SourceNamespaceKey::from_native_entry(
+                fixture.entry.native_entry.as_deref().unwrap(),
+            )
+            .unwrap();
+            assert_eq!(fixture.tokens.len(), 2);
+            for parent in &fixture.tokens {
+                let binding = parent.source_binding.as_ref().unwrap();
+                assert_eq!(
+                    binding.runtime_reachability(),
+                    super::super::SourceRuntimeReachability::Conditional
+                );
+                let body_config = binding
+                    .original_lexer_config_for_tokens(parent)
+                    .expect("actual original nested body configuration");
+                let body = body_at(parent, 2, body_config);
                 // The readonly namespace query also retains conditional body
                 // syntax; it does not assert that the body entered. Pin that
                 // distinction against the exact actual-entry query.
@@ -462,14 +523,13 @@ mod tests {
                 assert!(
                     fixture
                         .bindings
-                        .executed_script_entry_namespace_context_at(site, 1, &body)
-                        .is_none()
-                );
-                assert!(
-                    fixture
-                        .bindings
-                        .compiled_script_namespace_context(&body)
-                        .is_none()
+                        .entered_scripts
+                        .values()
+                        .flat_map(|arguments| arguments.values().flatten())
+                        .any(|observation| observation.source == body
+                            && observation.frame.is_none()
+                            && observation.namespace.is_none()
+                            && observation.conditional_namespace.as_ref() == Some(&expected))
                 );
             }
             let mut lowerer =

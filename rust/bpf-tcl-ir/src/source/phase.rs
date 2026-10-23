@@ -460,7 +460,23 @@ when XDP {use t {a b=7}; pass}",
     #[test]
     fn losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory() {
         let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
-        let module = super::super::lower_bpf_source("map m hash 4 8 1; pass", registry);
+        // Socket filters use accept/drop. Keep the former pass spelling as a
+        // negative control so it cannot masquerade as a selection failure.
+        let incompatible = super::super::lower_bpf_source("map m hash 4 8 1; pass", registry);
+        let incompatible_phase = BpfSourceScript::from_module(&incompatible, registry).unwrap();
+        let incompatible_prepared = incompatible_phase
+            .prepare_function(&incompatible, "main", registry)
+            .expect("pass remains a selected command before program-type validation");
+        let error = crate::lower::lower_prepared_function(
+            &incompatible_prepared,
+            crate::ir::ProgType::SocketFilter,
+            registry,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, crate::diag::BpfDiag::OutOfSubset);
+        assert!(error.msg.contains("`pass` is not a valid verdict"));
+
+        let module = super::super::lower_bpf_source("map m hash 4 8 1; accept", registry);
         let phase = BpfSourceScript::from_module(&module, registry).unwrap();
         let mut script = phase.script().clone();
         let Statement::Call { tokens, .. } = &mut script.statements[0] else {

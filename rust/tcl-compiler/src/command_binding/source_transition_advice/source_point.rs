@@ -464,9 +464,16 @@ impl OriginalSourceTransitionSeed {
         context: &ContextRegistry,
         bindings: &crate::command_binding::SourceCommandBindings,
     ) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
-        if bindings
-            .source_origin()
-            .is_none_or(|origin| !Arc::ptr_eq(origin, &self.origin))
+        // Equal-source memo reuse has a distinct analysis attachment even when
+        // the original source origin and baseline allocations are shared.
+        if self
+            .analysis_owner
+            .as_ref()
+            .zip(bindings.original_analysis_owner())
+            .is_none_or(|(expected, actual)| !Arc::ptr_eq(expected, actual))
+            || bindings
+                .source_origin()
+                .is_none_or(|origin| !Arc::ptr_eq(origin, &self.origin))
             || !Arc::ptr_eq(&bindings.final_state.baseline, &self.baseline)
             || !bindings.matches_original_source_image(self.origin.source_image(), self.config)
         {
@@ -566,8 +573,32 @@ mod quiet_variable_normal_graph_controls {
             seed.normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
                 .is_some()
         );
+        assert!(!Arc::ptr_eq(
+            bindings.original_analysis_owner().unwrap(),
+            other.original_analysis_owner().unwrap(),
+        ));
+        assert_eq!(seed, other.original_source_transition_seed().unwrap());
         assert!(
             seed.normal_source_outcome_graph(input.borrowed_context_registry(), other)
+                .is_none()
+        );
+        let mut missing_owner = bindings.clone();
+        missing_owner.original_analysis_owner = None;
+        assert!(
+            seed.normal_source_outcome_graph(input.borrowed_context_registry(), &missing_owner)
+                .is_none()
+        );
+        let mut foreign_owner = bindings.clone();
+        foreign_owner.original_analysis_owner = other.original_analysis_owner().cloned();
+        assert!(
+            seed.normal_source_outcome_graph(input.borrowed_context_registry(), &foreign_owner)
+                .is_none()
+        );
+        let mut missing_seed_owner = seed.clone();
+        missing_seed_owner.analysis_owner = None;
+        assert!(
+            missing_seed_owner
+                .normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
                 .is_none()
         );
         // Keep every other actual point field unchanged; only replace its
@@ -613,6 +644,13 @@ mod quiet_variable_normal_graph_controls {
             changed
                 .normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
                 .is_none()
+        );
+        let second_seed = other.original_source_transition_seed().unwrap();
+        let second_input = foreign.resolved_input.as_ref().unwrap();
+        assert!(
+            second_seed
+                .normal_source_outcome_graph(second_input.borrowed_context_registry(), other)
+                .is_some()
         );
     }
 }

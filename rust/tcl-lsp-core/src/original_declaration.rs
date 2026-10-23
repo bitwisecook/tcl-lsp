@@ -140,7 +140,13 @@ pub struct OriginalDeclarationIdentity {
 
 impl OriginalDeclarationIdentity {
     fn current(source: &str, analysis: &AnalysisResult) -> Option<(SourceImage, LexerConfig)> {
-        let image = SourceImage::document(source);
+        let image = analysis.retained_command_realm()?.original_source_image()?;
+        if image.channel() != tcl_lexer::SourceChannel::Document
+            || image.bytes() != source.as_bytes()
+        {
+            return None;
+        }
+        let image = image.clone();
         let config = analysis.body_lexer_config?;
         analysis
             .matches_original_source_image(&image, config)

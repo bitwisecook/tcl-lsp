@@ -390,9 +390,8 @@ impl OriginalVariableCleanup {
         dying: bool,
     ) -> Vec<VarId> {
         let mut retired = Vec::new();
-        let elements = match self.in_original(vm, |_| elements.into_iter()) {
-            Ok(elements) => elements,
-            Err(_) => return retired,
+        let Ok(elements) = self.in_original(vm, |_| elements.into_iter()) else {
+            return retired;
         };
         for (element, raw) in elements {
             let id = self
@@ -614,9 +613,8 @@ impl OriginalVariableCleanup {
         let removed = self
             .in_original(vm, |vm| {
                 if let Some(frame) = frame {
-                    let level = match binding.owner {
-                        super::VarTableOwner::Frame(level) => level,
-                        _ => return None,
+                    let super::VarTableOwner::Frame(level) = binding.owner else {
+                        return None;
                     };
                     if !frame.upgrade().is_some_and(|selected| {
                         vm.frames
@@ -884,13 +882,12 @@ impl OriginalVariableCleanup {
     ) {
         let jim = vm.jim_variable_lookup();
         let owner = super::VarTableOwner::Namespace(if jim { super::ROOT_NS } else { namespace });
-        let table_birth = match self
+        let Some(table_birth) = self
             .state_mut(vm)
             .ok()
             .and_then(|state| table(state, owner).map(crate::vars::VarTable::weak_birth))
-        {
-            Some(birth) => birth,
-            None => return,
+        else {
+            return;
         };
         if jim {
             let prefix = (!canonical.is_empty()).then(|| {

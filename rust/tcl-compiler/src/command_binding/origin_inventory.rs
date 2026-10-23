@@ -794,10 +794,11 @@ impl SourceCommandBindings {
                 .then_some(first);
         }
         let mut conditional = self.entered_scripts.values().flat_map(|arguments| {
-            arguments.values().flatten().filter_map(|observation| {
-                (&observation.source == source && observation.frame.is_none())
-                    .then(|| observation.conditional_namespace.clone())
-            })
+            arguments
+                .values()
+                .flatten()
+                .filter(|observation| &observation.source == source && observation.frame.is_none())
+                .map(|observation| observation.conditional_namespace.clone())
         });
         if let Some(first) = conditional.next().flatten() {
             let mut declared = self.deferred.values().filter(|body| {

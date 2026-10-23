@@ -160,9 +160,10 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => body.parameters(),
             Self::DeclaredReceiver(body) => body.parameters(),
-            Self::LogicalReceiver(_) => &[],
             Self::DeclaredProcedure(body) => &body.parameters,
-            Self::RootScript { .. } | Self::ScriptActivation { .. } => &[],
+            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
+                &[]
+            }
         }
     }
 
@@ -172,9 +173,10 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => body.original_formal_topology(),
             Self::DeclaredReceiver(body) => body.original_formal_topology(),
-            Self::LogicalReceiver(_) => None,
             Self::DeclaredProcedure(body) => body.original_parameters.as_ref(),
-            Self::RootScript { .. } | Self::ScriptActivation { .. } => None,
+            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
+                None
+            }
         }
     }
 

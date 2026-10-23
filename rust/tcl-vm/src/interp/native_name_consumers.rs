@@ -404,10 +404,10 @@ impl OriginalNameConsumerScope {
             ops.current_for_value(lifetime.value())?;
             reached
         })();
-        if let Err(error) = &reached {
-            if let Some(cause) = error.native_execution_refusal() {
-                vm.retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
-            }
+        if let Err(error) = &reached
+            && let Some(cause) = error.native_execution_refusal()
+        {
+            vm.retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
         }
         drop(lifetime);
         self.check(vm)?;

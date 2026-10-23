@@ -277,8 +277,10 @@ impl OriginalLogicalVariableScope {
         SignatureNamespaceScope::C(match &self.frame {
             LogicalVariableFrameRecipe::Document(_) => tcl_core_types::ByteNamespacePath::root(),
             LogicalVariableFrameRecipe::Formal(card) => card.scope().namespace_recipe().clone(),
-            LogicalVariableFrameRecipe::LambdaFormal(scope) => scope.namespace_recipe().clone(),
-            LogicalVariableFrameRecipe::Declared { scope, .. } => scope.namespace_recipe().clone(),
+            LogicalVariableFrameRecipe::LambdaFormal(scope)
+            | LogicalVariableFrameRecipe::Declared { scope, .. } => {
+                scope.namespace_recipe().clone()
+            }
         })
     }
 
@@ -297,13 +299,13 @@ impl OriginalLogicalVariableScope {
                 &self.input,
             );
         }
-        let card = match &self.frame {
-            LogicalVariableFrameRecipe::Declared {
-                procedure: Some(card),
-                ..
-            }
-            | LogicalVariableFrameRecipe::Formal(card) => card,
-            _ => return None,
+        let (LogicalVariableFrameRecipe::Declared {
+            procedure: Some(card),
+            ..
+        }
+        | LogicalVariableFrameRecipe::Formal(card)) = &self.frame
+        else {
+            return None;
         };
         SourceOriginalVariableFrame::from_logical_procedure_source(card, &self.input)
     }

@@ -249,6 +249,7 @@ impl OriginalSourcePointEntry {
             .get_or_init(|| {
                 let state = &self.payload.snapshot.state;
                 let seed = super::source_transition_advice::OriginalSourceTransitionSeed {
+                    analysis_owner: Some(Arc::clone(&self.payload.owner)),
                     origin: Arc::clone(&self.payload.site.source),
                     config: self.input().lexer_config(),
                     baseline: Arc::clone(&state.baseline),

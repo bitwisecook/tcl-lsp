@@ -1555,17 +1555,29 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<Sha
 /// pure memo, so losing it costs a re-run and never an answer.
 const MAX_CACHE_ENTRIES: usize = 8192;
 
+macro_rules! n17_live_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17G_LIVE {}", format_args!($($arg)*));
+        }
+    };
+}
+
 /// Invoke a pack hook after synchronizing its actual published plan receiver.
 /// The current receiver's cache is used only when declared inputs permit it;
 /// unavailable hosts retain the family's silence.
 #[must_use]
 pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+    n17_live_trace!("dispatch-entry slot={slot:?}");
     if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
+        n17_live_trace!("decline=dispatch-no-host slot={slot:?}");
         return HookAnswer::Abstain;
     }
     // Synchronize the actual installed receiver/plan before deriving cache
     // mode or admitting a prior answer. Installation clears stale TLS entries.
     let Some(host) = ensure_host() else {
+        n17_live_trace!("decline=dispatch-no-receiver slot={slot:?}");
         return HookAnswer::Abstain;
     };
     let mode = cache_mode(slot);
@@ -1586,9 +1598,12 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
             hit
         })
     {
+        n17_live_trace!("dispatch-cache-hit slot={slot:?} answer={hit:?}");
         return hit;
     }
+    n17_live_trace!("dispatch-host-call slot={slot:?}");
     let answer = host.invoke(slot, call);
+    n17_live_trace!("dispatch-host-return slot={slot:?} answer={answer:?}");
     if let Some(key) = key {
         SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();

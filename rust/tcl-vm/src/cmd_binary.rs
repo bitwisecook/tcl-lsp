@@ -1037,7 +1037,7 @@ fn binary_scan_with_invocation(
                         &data,
                         grammar.extent(&fmt),
                         &mut |field| {
-                            let vm = &mut *vm.borrow_mut();
+                            let vm = &mut vm.borrow_mut();
                             original
                                 .current_for_value(vm, data_v)
                                 .and_then(|()| original.current_for_value(vm, fmt_v))

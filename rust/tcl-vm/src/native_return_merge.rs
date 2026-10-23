@@ -201,9 +201,7 @@ pub(crate) fn process(
                             }
                         }
                         b"-errorstack" if vm.supports_error_stack() => {
-                            if let Err(error) = vm.seed_error_stack(value) {
-                                return Err(error);
-                            }
+                            vm.seed_error_stack(value)?;
                         }
                         b"-errorline" => {
                             if let Some(line) = crate::return_options::with_original_return_ops(

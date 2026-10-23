@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Source-inspected setter stages and independent actual software owning roles.
 use super::*;
+use crate::Code;
 use crate::cmd_oo::resolve_object_value;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,

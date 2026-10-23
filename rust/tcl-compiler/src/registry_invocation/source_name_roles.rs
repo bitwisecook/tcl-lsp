@@ -199,7 +199,7 @@ pub(crate) fn standalone_written_source_name_roles(
                 tcl_registry::InvocationWord::Literal(head),
                 &arguments,
             ),
-            dialect.and_then(|dialect| dialect.authoring_query()),
+            dialect.and_then(tcl_registry::InvocationDialect::authoring_query),
         )
         .resolved()?;
     let facts = Box::new(invocation.facts());

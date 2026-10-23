@@ -407,10 +407,10 @@ impl OriginalOoActivation {
         }
     }
     pub(crate) fn retire_call(&mut self, vm: &mut Vm, completed: bool) {
-        if let Some(call) = self.call.take() {
-            if let Err(error) = self.original.pop_selected_call_frame(vm, &call, completed) {
-                retain_error(vm, &error);
-            }
+        if let Some(call) = self.call.take()
+            && let Err(error) = self.original.pop_selected_call_frame(vm, &call, completed)
+        {
+            retain_error(vm, &error);
         }
     }
     pub(crate) fn retire_namespace(&mut self, vm: &mut Vm, completed: bool) {

@@ -22,6 +22,27 @@ use crate::InvocationArguments;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
+/// Descriptor data applied only while preparing actual compiled-in core rows.
+/// Reading this data grants no command, compiler or current-registration proof.
+#[derive(Debug, Clone, Copy)]
+pub struct BuiltinCoreProcedureDescriptor {
+    pub name: &'static str,
+    pub provider: tcl_dialect::model::SpecProvider,
+    pub analyser_hook: crate::hooks::AnalyserHookId,
+    pub traits: crate::Traits,
+    pub definition: NativeProcedureDefinitionSpec,
+}
+
+/// The registry-owned argv descriptor of the trusted embedded Jim procedure row.
+pub const BUILTIN_CORE_PROCEDURE_DESCRIPTORS: &[BuiltinCoreProcedureDescriptor] =
+    &[BuiltinCoreProcedureDescriptor {
+        name: "proc",
+        provider: tcl_dialect::model::SpecProvider::Core(tcl_dialect::model::Family::Jim),
+        analyser_hook: crate::hooks::AnalyserHookId::Proc,
+        traits: crate::Traits::DEFINES_PROCEDURE.union(crate::Traits::DEFERS_BODY),
+        definition: NativeProcedureDefinitionSpec::Core,
+    }];
+
 /// One stable descriptor clone per actual compiled-in core row. Repeated core
 /// registration retains pointer identity and does not advance its generation.
 type CoreDefinitionSpecs = HashMap<usize, &'static crate::CommandSpec>;
@@ -33,22 +54,25 @@ type CoreDefinitionSpecs = HashMap<usize, &'static crate::CommandSpec>;
 pub(crate) fn attach_builtin_core_definition(
     spec: &'static crate::CommandSpec,
 ) -> &'static crate::CommandSpec {
-    use tcl_dialect::model::{Family, SpecProvider};
     static ATTACHED: OnceLock<Mutex<CoreDefinitionSpecs>> = OnceLock::new();
-    if spec.name != "proc"
-        || spec.procedure_definition.is_some()
-        || spec.analyser_hook != Some(crate::hooks::AnalyserHookId::Proc)
-        || !spec
-            .traits
-            .contains(crate::Traits::DEFINES_PROCEDURE | crate::Traits::DEFERS_BODY)
-        || !spec.surface.is_some_and(|surface| {
-            surface
-                .iter()
-                .any(|row| row.provider == SpecProvider::Core(Family::Jim))
-        })
-    {
+    if spec.procedure_definition.is_some() {
         return spec;
     }
+    let Some(descriptor) = BUILTIN_CORE_PROCEDURE_DESCRIPTORS
+        .iter()
+        .find(|descriptor| {
+            spec.name == descriptor.name
+                && spec.analyser_hook == Some(descriptor.analyser_hook)
+                && spec.traits.contains(descriptor.traits)
+                && spec.surface.is_some_and(|surface| {
+                    surface
+                        .iter()
+                        .any(|row| row.provider == descriptor.provider)
+                })
+        })
+    else {
+        return spec;
+    };
     let mut memo = ATTACHED
         .get_or_init(Mutex::default)
         .lock()
@@ -56,7 +80,7 @@ pub(crate) fn attach_builtin_core_definition(
     memo.entry(std::ptr::from_ref(spec).addr())
         .or_insert_with(|| {
             let mut attached = spec.clone();
-            attached.procedure_definition = Some(NativeProcedureDefinitionSpec::Core);
+            attached.procedure_definition = Some(descriptor.definition);
             Box::leak(Box::new(attached))
         })
 }

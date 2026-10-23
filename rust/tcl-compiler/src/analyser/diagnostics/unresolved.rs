@@ -262,6 +262,20 @@ impl Analyser {
             if inv.existence_probe {
                 continue;
             }
+            // A genuine selected authored class call is conditional source evidence;
+            // it does not assert successful execution or issue callable identity.
+            if matches!(
+                inv.lookup,
+                crate::signature_scan::types::SignatureCommandLookup::InvocationHead
+            ) && crate::registry_invocation::source_structure::source_authored_jim_call_at(
+                &self.source,
+                &self.result,
+                inv.range.start(),
+            )
+            .is_some_and(|call| !call.has_earlier_unknown_mutations())
+            {
+                continue;
+            }
             // Only diagnostic-purpose selected-slot absence feeds W123.
             if self.command_diagnostic_slot_presence(
                 name,

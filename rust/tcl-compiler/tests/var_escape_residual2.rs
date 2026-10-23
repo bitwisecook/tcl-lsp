@@ -87,29 +87,72 @@ fn registry() -> &'static CommandRegistry {
     static_context_for(TCL).commands()
 }
 
+enum EscapeSource {
+    Unit(Box<CompilationUnit>),
+    Ir(Box<tcl_compiler::Module>),
+}
+
 /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),
 /// interprocedural fixpoint folded in.
 struct EscapeSummaries {
-    module: tcl_compiler::Module,
+    source: EscapeSource,
     by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
 }
 
 impl EscapeSummaries {
-    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
-        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
-            return tcl_core_types::BodyFrameId::Top(self.module.procedure_ids.module_id());
+    fn module(&self) -> &tcl_compiler::Module {
+        match &self.source {
+            EscapeSource::Unit(unit) => &unit.ir_module,
+            EscapeSource::Ir(module) => module,
         }
-        let mut bodies = self
-            .module
+    }
+
+    fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
+        let module = self.module();
+        if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+            return tcl_core_types::BodyFrameId::Top(module.procedure_ids.module_id());
+        }
+        if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some() {
+            for (id, body) in module.procedures.iter().chain(module.body_lowerings()) {
+                let original = match &self.source {
+                    EscapeSource::Unit(unit) => unit.original_procedure_for_body(*id).is_some(),
+                    EscapeSource::Ir(_) => module.procedures.contains_key(id),
+                };
+                eprintln!(
+                    "ESCAPE_BODY_OWNER id={id:?} kind={:?} label={:?} span={:?} original={} summary={}",
+                    body.body_kind,
+                    body.qualified_name,
+                    body.span,
+                    original,
+                    self.by_body
+                        .contains_key(&tcl_core_types::BodyFrameId::Body(*id)),
+                );
+            }
+        }
+        let mut bodies = module
             .procedures
             .iter()
+            .chain(module.body_lowerings())
+            .filter(|(id, body)| match &self.source {
+                EscapeSource::Unit(unit) => unit
+                    .original_procedure_for_body(**id)
+                    .is_some_and(|original| std::ptr::eq(original, *body)),
+                EscapeSource::Ir(_) => module.procedures.contains_key(*id),
+            })
             .filter(|(_, body)| body.qualified_name == label);
-        let (id, _) = bodies.next().expect("original authored fixture body");
+        let (id, body) = bodies.next().expect("original authored fixture body");
         assert!(
             bodies.next().is_none(),
             "ambiguous authored fixture body {label}"
         );
-        assert!(self.module.procedure_ids.owns(*id));
+        assert!(module.procedure_ids.owns(*id));
+        if matches!(&self.source, EscapeSource::Unit(_)) {
+            assert!(matches!(
+                body.body_kind,
+                tcl_compiler::ir::ProcedureBodyKind::Named
+                    | tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+            ));
+        }
         tcl_core_types::BodyFrameId::Body(*id)
     }
 }
@@ -118,7 +161,7 @@ fn escape_cu(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
     let by_body = analyse_var_escape_cu(&cu, true);
     EscapeSummaries {
-        module: cu.ir_module,
+        source: EscapeSource::Unit(Box::new(cu)),
         by_body,
     }
 }
@@ -128,7 +171,7 @@ fn escape_cu_raw(src: &str) -> EscapeSummaries {
     let cu = CompilationUnit::build_for(src, registry(), false);
     let by_body = analyse_var_escape_cu(&cu, false);
     EscapeSummaries {
-        module: cu.ir_module,
+        source: EscapeSource::Unit(Box::new(cu)),
         by_body,
     }
 }
@@ -137,7 +180,10 @@ fn escape_cu_raw(src: &str) -> EscapeSummaries {
 fn escape_ir(src: &str) -> EscapeSummaries {
     let module = lower_to_ir(src, registry());
     let by_body = analyse_var_escape(&module, true);
-    EscapeSummaries { module, by_body }
+    EscapeSummaries {
+        source: EscapeSource::Ir(Box::new(module)),
+        by_body,
+    }
 }
 
 /// Drive the low-level [`analyse_cfg_function`] directly on a top-level script and

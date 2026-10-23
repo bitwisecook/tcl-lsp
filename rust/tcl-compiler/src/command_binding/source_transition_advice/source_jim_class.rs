@@ -410,3 +410,101 @@ impl AdviceInvocationContext<'_> {
         graph.cells.insert(class.slot.clone(), cell);
     }
 }
+
+/// Actual selected conditional Jim class call; no callable class or allocation grant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalAuthoredJimClassCall {
+    original: Arc<[NativeWord]>,
+    class: Arc<OriginalAuthoredJimClass>,
+    obligations: Vec<super::SourceCommandTransitionObligation>,
+}
+impl OriginalAuthoredJimClassCall {
+    pub fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+    pub fn class(&self) -> &OriginalAuthoredJimClass {
+        &self.class
+    }
+    pub fn has_earlier_unknown_mutations(&self) -> bool {
+        self.obligations
+            .contains(&super::SourceCommandTransitionObligation::UnknownEarlierMutation)
+    }
+    pub fn obligations(&self) -> &[super::SourceCommandTransitionObligation] {
+        &self.obligations
+    }
+    pub(crate) fn matches_source_context(
+        &self,
+        image: &SourceImage,
+        config: LexerConfig,
+        context: &ContextRegistry,
+    ) -> bool {
+        self.original
+            .iter()
+            .all(|word| word.image() == image && word.config() == config)
+            && self.class.matches_source_context(image, config, context)
+    }
+    pub(crate) fn metadata<'a>(&self, analysis: &'a AnalysisResult) -> Option<&'a ClassDef> {
+        self.class.metadata(analysis)
+    }
+}
+impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn authored_jim_call(&self, offset: u32) -> Option<&OriginalAuthoredJimClassCall> {
+        self.authored_jim_calls.get(&offset)?.as_ref()
+    }
+}
+impl AdviceInvocationContext<'_> {
+    pub(super) fn retain_authored_jim_call(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        native: &[NativeWord],
+        written: &[super::SourceAdviceWord],
+    ) -> bool {
+        // Deferred owner attachment is intentionally unsupported here. It must not
+        // borrow the distinct SourceClass call's body-owner receipt.
+        if graph.procedure_body.is_some() || graph.future_procedure_source {
+            return false;
+        }
+        let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
+            return false;
+        };
+        let Some(key) = graph.selected_head_key(head.bytes()) else {
+            return false;
+        };
+        let Some(AdviceCell::AuthoredJimClass(class)) = graph.cells.get(&key) else {
+            return false;
+        };
+        if !class.matches_source_context(self.origin.source_image(), self.config, self.context)
+            || native.iter().any(|word| {
+                word.group().expand
+                    || word
+                        .executable_parts()
+                        .all_parts()
+                        .any(|part| !matches!(part.part, tcl_lexer::ExecutablePart::Text(_)))
+            })
+        {
+            return false;
+        }
+        let Some(first) = native.first() else {
+            return false;
+        };
+        let mut obligations = class.factory.obligations.clone();
+        if !graph.uncertain_operations.is_empty()
+            && !obligations
+                .contains(&super::SourceCommandTransitionObligation::UnknownEarlierMutation)
+        {
+            obligations.push(super::SourceCommandTransitionObligation::UnknownEarlierMutation);
+        }
+        let call = OriginalAuthoredJimClassCall {
+            original: Arc::from(native),
+            class: Arc::clone(class),
+            obligations,
+        };
+        merge_receipt(
+            &mut tape.authored_jim_calls,
+            first.span().start(),
+            Some(call),
+        );
+        true
+    }
+}

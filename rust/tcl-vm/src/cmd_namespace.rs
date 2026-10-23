@@ -585,12 +585,10 @@ fn cmd_namespace_in(
                         None => {
                             if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
                                 vm.current_namespace_execution_context()
-                            {
-                                if let Err(error) =
+                                && let Err(error) =
                                     context.materialize_using(vm, &|vm| original_names.check(vm))
-                                {
-                                    return crate::command::completion_from_cmd_error(vm, error);
-                                }
+                            {
+                                return crate::command::completion_from_cmd_error(vm, error);
                             }
                             match vm.with_jim_current_namespace(|original| {
                                 Ok(original.native_lifetime_lease().into_value())
@@ -1059,13 +1057,9 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 Ok(bytes) => bytes,
                 Err(error) => return crate::command::completion_from_cmd_error(vm, error),
             };
-            let clear = match policy.recipe().namespace_export_clears(&bytes) {
-                Ok(clear) => clear,
-                Err(_) => {
-                    return vm.refuse_host_command(
-                        "native export control projection is unavailable".into(),
-                    );
-                }
+            let Ok(clear) = policy.recipe().namespace_export_clears(&bytes) else {
+                return vm
+                    .refuse_host_command("native export control projection is unavailable".into());
             };
             if clear {
                 vm.clear_exports();
@@ -1177,9 +1171,8 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Ok(bytes) => bytes,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let allow_overwrite = match policy.recipe().namespace_import_forces(&first) {
-            Ok(force) => force,
-            Err(_) => return vm.refuse_host_command("native import control is unavailable".into()),
+        let Ok(allow_overwrite) = policy.recipe().namespace_import_forces(&first) else {
+            return vm.refuse_host_command("native import control is unavailable".into());
         };
         for operand in &rest[usize::from(allow_overwrite)..] {
             // Native repeats the original first getter when it was not -force.

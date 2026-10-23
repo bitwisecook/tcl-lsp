@@ -1529,7 +1529,7 @@ fn project_script_writes(
                 if matches!(body_namespace, ExecutionNamespace::RuntimeSelected) {
                     *opaque = true;
                     continue;
-                };
+                }
                 walk(body, semantics, &body_namespace, names, opaque, depth + 1);
             }
         }

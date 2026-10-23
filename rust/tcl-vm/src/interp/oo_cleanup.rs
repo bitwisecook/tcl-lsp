@@ -49,10 +49,10 @@ impl SavedOriginalOoCleanup {
     fn attach(&self, vm: &mut Vm) -> OriginalOoCleanup {
         // Check before selecting the saved physical target. Returning to that
         // target cannot erase a callback's foreign-interpreter first cause.
-        if let Some(currency) = &self.currency {
-            if let Err(first) = currency.check(vm) {
-                retain_error(vm, &first);
-            }
+        if let Some(currency) = &self.currency
+            && let Err(first) = currency.check(vm)
+        {
+            retain_error(vm, &first);
         }
         let (operation, entry_failure) = match &self.currency {
             Some(currency) => {

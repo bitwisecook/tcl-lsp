@@ -4730,6 +4730,20 @@ impl<'r> Lowerer<'r> {
         Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
+    // Preserve each queried Option; this reports source ownership only.
+    fn trace_report_event_option<T>(value: Option<T>, stage: &str) -> Option<T> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            eprintln!(
+                "REPORT_EVENT_SOURCE stage={stage} available={}",
+                value.is_some()
+            );
+        }
+        #[cfg(not(test))]
+        let _ = stage;
+        value
+    }
+
     /// Event geometry comes from the retained declaration and original words.
     /// A captured/derived argument cannot borrow a displayed event spelling.
     fn original_when_event_word(
@@ -4739,52 +4753,65 @@ impl<'r> Lowerer<'r> {
         image: &tcl_lexer::SourceImage,
     ) -> Option<tcl_lexer::NativeWord> {
         use tcl_registry::events::IrulesTopLevelDeclaration;
-        let candidates = self
-            .source_bindings
-            .as_ref()?
-            .deferred_rule_declaration_candidates(seg.span.start())?;
-        let indices = candidates
-            .iter()
-            .map(|candidate| {
-                let IrulesTopLevelDeclaration::Event { event: name, .. } = &candidate.declaration
-                else {
-                    return None;
-                };
-                if name != event
-                    || !candidate.target.registry_backed
-                    || !candidate.target.prepended.is_empty()
-                {
-                    return None;
-                }
-                let symbol = self
-                    .registry
-                    .get(&candidate.target.command)?
-                    .defines_symbol?;
-                (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
-                    .then_some(usize::from(symbol.name_arg) + 1)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        let &index = indices.first()?;
+        let bindings =
+            Self::trace_report_event_option(self.source_bindings.as_ref(), "source-bindings")?;
+        let candidates = Self::trace_report_event_option(
+            bindings.deferred_rule_declaration_candidates(seg.span.start()),
+            "deferred-candidates",
+        )?;
+        let indices = Self::trace_report_event_option(
+            candidates
+                .iter()
+                .map(|candidate| {
+                    let IrulesTopLevelDeclaration::Event { event: name, .. } =
+                        &candidate.declaration
+                    else {
+                        return None;
+                    };
+                    if name != event
+                        || !candidate.target.registry_backed
+                        || !candidate.target.prepended.is_empty()
+                    {
+                        return None;
+                    }
+                    let symbol = self
+                        .registry
+                        .get(&candidate.target.command)?
+                        .defines_symbol?;
+                    (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
+                        .then_some(usize::from(symbol.name_arg) + 1)
+                })
+                .collect::<Option<Vec<_>>>(),
+            "event-indices",
+        )?;
+        let &index = Self::trace_report_event_option(indices.first(), "event-index")?;
         if indices.iter().any(|candidate| *candidate != index) {
             return None;
         }
         let tokens = self.cmd_tokens(seg);
-        let words = crate::registry_invocation::original_native_compiler_words(
-            image,
-            &tokens.word_exprs,
-            seg.span.start(),
-            self.config,
+        let words = Self::trace_report_event_option(
+            crate::registry_invocation::original_native_compiler_words(
+                image,
+                &tokens.word_exprs,
+                seg.span.start(),
+                self.config,
+            ),
+            "original-words",
         )?;
-        let word = words.get(index)?;
-        if let Some(context) = self.invocation_metadata_context()
+        let word = Self::trace_report_event_option(words.get(index), "original-event-word")?;
+        if let Some(context) =
+            Self::trace_report_event_option(self.invocation_metadata_context(), "metadata-context")
             && context
                 .source_analysis_input()
                 .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
         {
-            let metadata = crate::registry_invocation::original_hosted_source_registry_metadata(
-                self.registry,
-                context,
-                &tokens,
+            let metadata = Self::trace_report_event_option(
+                crate::registry_invocation::original_hosted_source_registry_metadata(
+                    self.registry,
+                    context,
+                    &tokens,
+                ),
+                "hosted-metadata",
             )?;
             if metadata.shape().original_words() != words.as_slice()
                 || !candidates
@@ -4798,10 +4825,16 @@ impl<'r> Lowerer<'r> {
                     word,
                     metadata.shape().original_head().policy(),
                 );
-            return input
-                .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName)?
-                .eq_ignore_ascii_case(event.as_bytes())
-                .then(|| word.clone());
+            let literal = Self::trace_report_event_option(
+                input.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName),
+                "hosted-event-units",
+            )?;
+            return Self::trace_report_event_option(
+                literal
+                    .eq_ignore_ascii_case(event.as_bytes())
+                    .then(|| word.clone()),
+                "hosted-event-value",
+            );
         }
         let dialect = self.invocation_dialect?;
         let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(

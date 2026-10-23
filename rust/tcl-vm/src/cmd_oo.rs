@@ -3025,15 +3025,15 @@ fn teardown_original(
                 .and_then(|object| object.namespace_token),
         )
     };
-    if let Some(command_key) = command_key {
-        if let Err(error) = owner.retire_command(vm, obj_key, &command_key) {
-            first.get_or_insert(error);
-        }
+    if let Some(command_key) = command_key
+        && let Err(error) = owner.retire_command(vm, obj_key, &command_key)
+    {
+        first.get_or_insert(error);
     }
-    if let Some(namespace) = namespace {
-        if let Err(error) = owner.retire_namespace(vm, namespace) {
-            first.get_or_insert(error);
-        }
+    if let Some(namespace) = namespace
+        && let Err(error) = owner.retire_namespace(vm, namespace)
+    {
+        first.get_or_insert(error);
     }
     let retired_name = owner
         .oo_mut(vm)?
@@ -3694,10 +3694,8 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) ->
             if let Err(error) = original_names.check_target(vm) {
                 return crate::command::completion_from_cmd_error(vm, error);
             }
-            if changed {
-                if let Err(error) = vm.native_property_structure_changed(target, true) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
+            if changed && let Err(error) = vm.native_property_structure_changed(target, true) {
+                return crate::command::completion_from_cmd_error(vm, error);
             }
             return ok(Value::empty());
         }
@@ -3750,10 +3748,8 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> 
             if let Err(error) = original_names.check_target(vm) {
                 return crate::command::completion_from_cmd_error(vm, error);
             }
-            if changed {
-                if let Err(error) = vm.native_property_structure_changed(target, true) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
+            if changed && let Err(error) = vm.native_property_structure_changed(target, true) {
+                return crate::command::completion_from_cmd_error(vm, error);
             }
             return ok(Value::empty());
         }
@@ -3890,10 +3886,8 @@ fn def_export(
                 }
             }
         }
-        if changed {
-            if let Err(error) = vm.native_property_structure_changed(target, is_class) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
+        if changed && let Err(error) = vm.native_property_structure_changed(target, is_class) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         ok(Value::empty())
     })

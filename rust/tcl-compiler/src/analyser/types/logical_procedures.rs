@@ -355,7 +355,7 @@ impl AnalysisResult {
             .values()
             .chain(
                 self.original_procedure_declarations()
-                    .map(|declaration| declaration.metadata()),
+                    .map(crate::signature_scan::original_name::SourceDeclarationMetadata::metadata),
             )
             .chain(
                 self.logical_source_procedure_declarations()

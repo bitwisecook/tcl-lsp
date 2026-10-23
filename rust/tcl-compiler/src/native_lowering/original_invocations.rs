@@ -74,7 +74,7 @@ impl OriginalInvocations {
                 && tokens
                     .source_binding
                     .as_ref()
-                    .and_then(|binding| binding.original_recorded_command())
+                    .and_then(super::super::command_binding::SourceInvocationBinding::original_recorded_command)
                     .is_some_and(|(command, _)| command.span == invoke.source.span)
         }))
     }

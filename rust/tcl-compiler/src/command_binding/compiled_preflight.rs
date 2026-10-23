@@ -295,6 +295,12 @@ pub(super) fn preflight_image(
             .as_ref()
             .is_some_and(|own| own != required)
         {
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                eprintln!(
+                    "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={base} reason=math_table_prerequisite_mismatch"
+                );
+            }
             scanner.possible_error = true;
         } else {
             failure.math_table_prerequisite = Some(required.clone());
@@ -430,7 +436,27 @@ struct CompilerTraversal<'a> {
 }
 
 impl CompilerTraversal<'_> {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn require_provider(&mut self) {
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={} previous_possible_error={} caller={}",
+                self.chunk.offset,
+                self.possible_error,
+                std::panic::Location::caller(),
+            );
+        }
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+        {
+            eprintln!(
+                "ZZ_NATIVE_PROVIDER_REQUEST caller={} chunk_offset={} source_len={}",
+                std::panic::Location::caller(),
+                self.chunk.offset,
+                self.chunk.source.source_image().len(),
+            );
+        }
         self.possible_error = true;
         self.locals = None;
     }

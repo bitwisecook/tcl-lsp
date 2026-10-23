@@ -136,6 +136,81 @@ fn matching_document_image(
         .then(|| image.clone())
 }
 
+fn trace_original_source_role_option<T>(
+    stage: &str,
+    offset: Option<u32>,
+    value: Option<T>,
+) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!(
+            "ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset);
+    value
+}
+
+fn trace_original_source_role_words(
+    stage: &str,
+    offset: Option<u32>,
+    value: Option<OriginalRegistryWords>,
+) -> Option<OriginalRegistryWords> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        if let Some(words) = value.as_ref() {
+            let source = match &words.source {
+                OriginalRegistrySource::Selected => "Selected",
+                OriginalRegistrySource::Scoped(_) => "Scoped",
+                OriginalRegistrySource::DefinitionMember(_) => "DefinitionMember",
+                OriginalRegistrySource::SourceTransitions(_) => "SourceTransitions",
+                OriginalRegistrySource::ProducedPrefix(_) => "ProducedPrefix",
+                OriginalRegistrySource::Conditional(_) => "Conditional",
+                OriginalRegistrySource::ConditionalNativeSource(_) => "ConditionalNativeSource",
+                OriginalRegistrySource::Vendor(_) => "Vendor",
+            };
+            eprintln!(
+                "ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present=true source={source} command={:?} roles={:?} operands_preserve_lookup={}",
+                words.command, words.roles, words.operands_preserve_source_lookup
+            );
+        } else {
+            eprintln!("ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present=false");
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, offset);
+    value
+}
+
+#[cfg(debug_assertions)]
+fn trace_original_source_role_binding(
+    stage: &str,
+    offset: Option<u32>,
+    binding: Option<&crate::command_binding::SourceInvocationBinding>,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        if let Some(binding) = binding {
+            eprintln!(
+                "ORIGINAL_SOURCE_ROLE_BINDING stage={stage} offset={offset:?} targets={:?} unknown={} absent={} runtime_state={} compiler_state={} compiler_admission={:?}",
+                binding
+                    .targets
+                    .iter()
+                    .map(|target| (&target.command, target.registry_backed, &target.kind))
+                    .collect::<Vec<_>>(),
+                binding.unknown,
+                binding.may_be_absent,
+                binding.lookup_state.is_some(),
+                binding.compiler_lookup_state.is_some(),
+                binding.native_compilation_admission
+            );
+        } else {
+            eprintln!("ORIGINAL_SOURCE_ROLE_BINDING stage={stage} offset={offset:?} present=false");
+        }
+    }
+}
+
 /// Original document/workspace assistance at the unchanged complete call.
 /// Known replacements, unsupported lookup scope and missing full source
 /// correspondence decline. This never inherits Registry implementation facts.
@@ -163,6 +238,12 @@ pub fn source_declared_command_words(
         segment,
     );
     realm.stamp_original_tokens(&mut tokens);
+    #[cfg(debug_assertions)]
+    trace_original_source_role_binding(
+        "declared",
+        segment.argv.first().map(|word| word.span.start()),
+        tokens.source_binding.as_ref(),
+    );
     let offset = segment.argv.first()?.span.start();
     let original = crate::registry_invocation::original_native_compiler_words(
         &image,
@@ -171,10 +252,23 @@ pub fn source_declared_command_words(
         config,
     )?;
     let binding = tokens.source_binding.as_ref()?;
-    let selected = binding
-        .original_declared_source_selection(&tokens, input, &original)
-        .or_else(|| realm.original_authored_declared_source_selection(input, &tokens, &original))?;
-    crate::command_binding::OriginalDeclaredCommandWords::from_selected(selected, input)
+    let selected = trace_original_source_role_option(
+        "declared.point",
+        Some(offset),
+        binding.original_declared_source_selection(&tokens, input, &original),
+    )
+    .or_else(|| {
+        trace_original_source_role_option(
+            "declared.authored",
+            Some(offset),
+            realm.original_authored_declared_source_selection(input, &tokens, &original),
+        )
+    })?;
+    trace_original_source_role_option(
+        "declared.words",
+        Some(offset),
+        crate::command_binding::OriginalDeclaredCommandWords::from_selected(selected, input),
+    )
 }
 
 /// Fresh readonly source grammar with its own complete editing input and
@@ -1143,21 +1237,21 @@ fn selected_registry_words_from_tokens(
         segment.argv.first()?.span.start(),
         config,
     );
-    let dialect = binding.original_source_word_dialect_for_tokens(&tokens)?;
+    let dialect = binding.original_source_word_dialect_for_tokens(tokens)?;
     let protocol = dialect.native_source_string_protocol()?;
     let arguments =
-        original_source_argument_words(&tokens, effective, native.as_deref()?, protocol)?;
+        original_source_argument_words(tokens, effective, native.as_deref()?, protocol)?;
     let words: Vec<_> = arguments
         .iter()
         .map(|word| word.as_registry_word())
         .collect();
     InvocationArguments::structured(&words).exact_argv_len()?;
     let operands =
-        effective_operand_sources(segment, &tokens, effective, &arguments, native.as_deref())?;
+        effective_operand_sources(segment, tokens, effective, &arguments, native.as_deref())?;
     let head = native.as_deref().and_then(|words| {
         Some(OriginalOperandSource {
             span: words.first()?.span(),
-            input: binding.original_written_name_input(&tokens, 0),
+            input: binding.original_written_name_input(tokens, 0),
             word: words.first().cloned(),
         })
     });
@@ -1172,7 +1266,7 @@ fn selected_registry_words_from_tokens(
         source: OriginalRegistrySource::Selected,
         captured_values: None,
         operands_preserve_source_lookup: binding
-            .original_source_operands_preserve_lookup(&tokens, registry),
+            .original_source_operands_preserve_lookup(tokens, registry),
         image,
         config,
         registry: registry.snapshot().semantic_key(),
@@ -1939,7 +2033,11 @@ fn source_registry_words_with_definition_parent(
     }
     let config = analysis.body_lexer_config?;
     let realm = analysis.retained_command_realm()?;
-    let image = retained_document_image(source, realm, config);
+    let image = trace_remote_source_option(
+        "source.image",
+        segment.argv.first().map(|word| word.span.start()),
+        retained_document_image(source, realm, config),
+    );
     #[cfg(test)]
     trace_original_child_guard(
         "source.image",
@@ -1947,7 +2045,11 @@ fn source_registry_words_with_definition_parent(
         image.is_some(),
     );
     let image = image?;
-    let matches_image = analysis.matches_original_source_image(&image, config);
+    let matches_image = trace_remote_source_flag(
+        "source.image_config",
+        segment.argv.first().map(|word| word.span.start()),
+        analysis.matches_original_source_image(&image, config),
+    );
     #[cfg(test)]
     trace_original_child_guard(
         "source.image_config",
@@ -1963,7 +2065,29 @@ fn source_registry_words_with_definition_parent(
         segment,
     );
     realm.stamp_original_tokens(&mut tokens);
-    let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
+    #[cfg(debug_assertions)]
+    trace_original_source_role_binding(
+        "registry",
+        segment.argv.first().map(|word| word.span.start()),
+        tokens.source_binding.as_ref(),
+    );
+    let blocked = trace_remote_source_flag(
+        "source.blocked",
+        segment.argv.first().map(|word| word.span.start()),
+        realm.original_source_registry_barrier(&input.context_registry(), &tokens),
+    );
+    trace_remote_source_flag(
+        "source.binding",
+        segment.argv.first().map(|word| word.span.start()),
+        tokens.source_binding.is_some(),
+    );
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        eprintln!(
+            "ORIGINAL_SOURCE_ROLE_ROUTE stage=registry.barrier offset={:?} blocked={blocked}",
+            segment.argv.first().map(|word| word.span.start())
+        );
+    }
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = segment.argv.first().map(|word| word.span.start());
@@ -1976,7 +2100,11 @@ fn source_registry_words_with_definition_parent(
     if let Some(parent) = parent {
         return original_definition_member_registry_words(source, analysis, segment, parent);
     }
-    if let Some(scoped) = original_scoped_registry_words(source, analysis, segment) {
+    if let Some(scoped) = trace_original_source_role_words(
+        "registry.scoped",
+        segment.argv.first().map(|word| word.span.start()),
+        original_scoped_registry_words(source, analysis, segment),
+    ) {
         return Some(scoped);
     }
     if realm
@@ -1987,13 +2115,21 @@ fn source_registry_words_with_definition_parent(
         return logical_source_registry_words(source, realm, input, segment);
     }
     if !analysis.has_original_vendor_source_names()
-        && let Some(selected) = selected_registry_words(source, analysis, segment, registry)
+        && let Some(selected) = trace_original_source_role_words(
+            "registry.selected",
+            segment.argv.first().map(|word| word.span.start()),
+            selected_registry_words(source, analysis, segment, registry),
+        )
     {
         return Some(selected);
     }
     let offset = segment.argv.first()?.span.start();
     if analysis.has_original_vendor_source_names() {
-        let (metadata, _) = selected_vendor_registry_words_at(source, analysis, offset)?;
+        let (metadata, _) = trace_remote_source_option(
+            "source.selected_vendor",
+            Some(offset),
+            selected_vendor_registry_words_at(source, analysis, offset),
+        )?;
         let context = analysis.resolved_input.as_ref()?.context_registry();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::from_image(&image),
@@ -2005,27 +2141,51 @@ fn source_registry_words_with_definition_parent(
             .stamp_original_tokens(&mut tokens);
         // The shared builder authenticates the complete original native
         // vector. Resegmentation's comment trivia is not word identity.
-        return original_vendor_registry_words(&context, &tokens, metadata);
+        return trace_remote_source_option(
+            "source.vendor_words",
+            Some(offset),
+            original_vendor_registry_words(&context, &tokens, metadata),
+        );
     }
     let metadata = analysis
         .original_conditional_registry_metadata_in_source(&image, config, offset)
         .cloned();
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    native_source_registry_words(
-        source,
-        config,
-        analysis.retained_command_realm()?,
-        &context,
-        segment,
-        metadata,
+    trace_original_source_role_words(
+        "registry.native",
+        Some(offset),
+        native_source_registry_words(
+            source,
+            config,
+            analysis.retained_command_realm()?,
+            &context,
+            segment,
+            metadata,
+        ),
     )
     .or_else(|| {
-        let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
-        source_transition_words_with_segment(source, config, &context, segment, advice)
+        let advice = trace_original_source_role_option(
+            "registry.prefix_advice",
+            Some(offset),
+            realm.original_source_prefix_catalogue_advice(input, &tokens),
+        )?;
+        trace_original_source_role_words(
+            "registry.prefix_words",
+            Some(offset),
+            source_transition_words_with_segment(source, config, &context, segment, advice),
+        )
     })
     .or_else(|| {
-        let advice = realm.original_member_source_catalogue_advice(input, &tokens)?;
-        source_transition_words_with_segment(source, config, &context, segment, advice)
+        let advice = trace_original_source_role_option(
+            "registry.member_advice",
+            Some(offset),
+            realm.original_member_source_catalogue_advice(input, &tokens),
+        )?;
+        trace_original_source_role_words(
+            "registry.member_words",
+            Some(offset),
+            source_transition_words_with_segment(source, config, &context, segment, advice),
+        )
     })
 }
 
@@ -2223,16 +2383,24 @@ pub fn source_registry_words_at(
     // naming.diagnostic.original-package-source-advice
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
     if let Some(region) = analysis.original_source_region.as_ref()
-        && !region.owns_original_command_at(analysis, offset)
+        && !trace_remote_source_flag(
+            "at.region_owns",
+            Some(offset),
+            region.owns_original_command_at(analysis, offset),
+        )
     {
         return None;
     }
-    let config = analysis.body_lexer_config?;
+    let config = trace_remote_source_option("at.config", Some(offset), analysis.body_lexer_config)?;
     let image = tcl_lexer::SourceImage::document(source);
-    analysis
-        .matches_original_source_image(&image, config)
-        .then_some(())?;
-    let realm = analysis.retained_command_realm()?;
+    trace_remote_source_flag(
+        "at.image_config",
+        Some(offset),
+        analysis.matches_original_source_image(&image, config),
+    )
+    .then_some(())?;
+    let realm =
+        trace_remote_source_option("at.realm", Some(offset), analysis.retained_command_realm())?;
     let binding = realm.invocation_at_source("", offset);
     let segment = if let Some((segment, _)) = binding.original_recorded_command() {
         segment
@@ -2249,7 +2417,42 @@ pub fn source_registry_words_at(
             .next()?
     };
     (segment.argv.first()?.span.start() == offset).then_some(())?;
-    source_registry_words(source, analysis, &segment)
+    trace_remote_source_option(
+        "at.source_registry_words",
+        Some(offset),
+        source_registry_words(source, analysis, &segment),
+    )
+}
+
+/// Diagnostic identity: reports only the original query result.
+#[inline]
+pub(super) fn trace_remote_source_option<T>(
+    stage: &str,
+    offset: Option<u32>,
+    value: Option<T>,
+) -> Option<T> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+        eprintln!(
+            "REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(test))]
+    let _ = (stage, offset);
+    value
+}
+
+/// Diagnostic identity: reports only the original predicate result.
+#[inline]
+pub(super) fn trace_remote_source_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+        eprintln!("REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} value={value}");
+    }
+    #[cfg(not(test))]
+    let _ = (stage, offset);
+    value
 }
 
 /// Original whole words under a positively retained Logical source input.
@@ -2883,9 +3086,8 @@ pub fn original_package_require_insert_offset(
         }
         let insertion_end = match original.terminator {
             Some(terminator) if terminator.start() == source_extent.end() => terminator.end(),
-            Some(_) => return None,
             None if source_extent.end() == source_end => source_extent.end(),
-            None => return None,
+            Some(_) | None => return None,
         };
         if start < end {
             continue;
@@ -3954,10 +4156,16 @@ fn native_source_registry_words(
         }
         return logical_source_registry_words(source, realm, input, segment);
     }
-    let Some(metadata) =
-        native_source_metadata(source, config, realm, context, segment, retained_metadata)
-    else {
-        return source_transition_registry_words(source, config, realm, context, segment);
+    let Some(metadata) = trace_original_source_role_option(
+        "native.metadata",
+        segment.argv.first().map(|word| word.span.start()),
+        native_source_metadata(source, config, realm, context, segment, retained_metadata),
+    ) else {
+        return trace_original_source_role_words(
+            "native.transition_fallback",
+            segment.argv.first().map(|word| word.span.start()),
+            source_transition_registry_words(source, config, realm, context, segment),
+        );
     };
     conditional_source_registry_words(source, config, realm, context, segment, metadata)
 }
@@ -3982,19 +4190,33 @@ fn native_source_metadata(
         return None;
     }
 
-    let metadata = if let Some(metadata) = retained_metadata {
+    let metadata = if let Some(metadata) = trace_original_source_role_option(
+        "metadata.retained",
+        segment.argv.first().map(|word| word.span.start()),
+        retained_metadata,
+    ) {
         metadata
     } else {
         let candidate = tokens
             .source_binding
             .as_ref()
             .and_then(|binding| {
-                binding.original_catalogue_source_candidate_from_tokens(&tokens, registry)
+                trace_original_source_role_option(
+                    "metadata.point_candidate",
+                    segment.argv.first().map(|word| word.span.start()),
+                    binding.original_catalogue_source_candidate_from_tokens(&tokens, registry),
+                )
             })
             .or_else(|| {
-                realm
-                    .source_bindings_ref()
-                    .original_future_source_catalogue_candidate(&image, config, &tokens, registry)
+                trace_original_source_role_option(
+                    "metadata.future_candidate",
+                    segment.argv.first().map(|word| word.span.start()),
+                    realm
+                        .source_bindings_ref()
+                        .original_future_source_catalogue_candidate(
+                            &image, config, &tokens, registry,
+                        ),
+                )
             });
         candidate.and_then(|candidate| {
             super::conditional_metadata::original_catalogue_registry_metadata(context, candidate)
@@ -4694,14 +4916,15 @@ pub fn selected_vendor_registry_words_at(
     }
     // Choose the actual innermost original command before querying metadata.
     // Missing/blocked inner metadata cannot borrow an outer script's roles.
-    let occurrence = selected?;
+    let occurrence =
+        trace_remote_source_option("vendor.selected_occurrence", Some(cursor), selected)?;
     let words = occurrence.original_words();
     let start = words.first()?.span().start();
     let end = words.last()?.span().end();
     let text = source.get(start as usize..end as usize)?;
     let mut commands =
         crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
-    if commands.len() != 1 {
+    if !trace_remote_source_flag("vendor.single_command", Some(cursor), commands.len() == 1) {
         return None;
     }
     let command = commands.pop()?;
@@ -4711,8 +4934,12 @@ pub fn selected_vendor_registry_words_at(
         &command,
     );
     realm.stamp_original_tokens(&mut tokens);
-    let metadata = crate::registry_invocation::original_vendor_occurrence_registry_metadata(
-        &context, &tokens, occurrence,
+    let metadata = trace_remote_source_option(
+        "vendor.occurrence_metadata",
+        Some(cursor),
+        crate::registry_invocation::original_vendor_occurrence_registry_metadata(
+            &context, &tokens, occurrence,
+        ),
     )?;
     Some((metadata, command))
 }
@@ -7197,4 +7424,15 @@ mod stock_source_proposal_metadata_tests {
             syntax.source_image()
         );
     }
+}
+
+/// Genuine selected authored Jim class call, conditional metadata only.
+#[must_use]
+pub fn source_authored_jim_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalAuthoredJimClassCall> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_authored_jim_call(input, &native)
 }

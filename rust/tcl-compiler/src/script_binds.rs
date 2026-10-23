@@ -27,6 +27,16 @@
 
 use tcl_registry::{ArgRole, CommandRegistry};
 
+fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
+    }
+    #[cfg(not(test))]
+    let _ = stage;
+    value
+}
+
 /// How deep to follow nested script words.
 ///
 /// Every level is a `{…}` the answer has to look inside, and real bodies nest
@@ -404,9 +414,9 @@ pub(crate) fn authored_procedure_read_advice(
     analysis: &crate::analyser::AnalysisResult,
     context: &tcl_registry::model::ContextRegistry,
 ) -> Option<AuthoredProcedureReadAdvice> {
-    let config = analysis.body_lexer_config?;
-    let input = analysis.resolved_input.as_ref()?;
-    let realm = analysis.retained_command_realm()?;
+    let config = rbs_read_option("recipe.config", analysis.body_lexer_config)?;
+    let input = rbs_read_option("recipe.input", analysis.resolved_input.as_ref())?;
+    let realm = rbs_read_option("recipe.realm", analysis.retained_command_realm())?;
     if !realm.matches_resolved_analysis_input(input)
         || !realm.matches_original_source_image(image, config)
         || input.lexer_config() != config
@@ -414,13 +424,19 @@ pub(crate) fn authored_procedure_read_advice(
         return None;
     }
     let binding = realm.invocation_at_source("", procedure.span.start());
-    let (_, mut tokens) = binding.original_recorded_command()?;
+    let (_, mut tokens) = rbs_read_option(
+        "recipe.recorded_command",
+        binding.original_recorded_command(),
+    )?;
     tokens.source_binding = Some(binding);
-    let recipe = realm
-        .source_bindings_ref()
-        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
-    let body_span = recipe.original_body_span()?;
-    let body = procedure.body_source.as_ref()?;
+    let recipe = rbs_read_option(
+        "recipe.declaration",
+        realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input),
+    )?;
+    let body_span = rbs_read_option("recipe.body_span", recipe.original_body_span())?;
+    let body = rbs_read_option("recipe.body_source", procedure.body_source.as_ref())?;
     if recipe.original_image() != image
         || body_span.start() != procedure.body_offset
         || recipe.original_body_text()? != body

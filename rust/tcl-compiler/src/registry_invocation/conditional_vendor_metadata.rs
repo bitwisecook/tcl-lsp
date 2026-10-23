@@ -2,6 +2,7 @@
 //! Hosted conditional source roles share the catalogue barrier owner.
 
 use super::VendorRegistryInvocationShape;
+use super::source_structure::{trace_remote_source_flag, trace_remote_source_option};
 use crate::command_binding::{VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation};
 use crate::ir::CommandTokens;
 use crate::signature_scan::vendor_name::VendorSourceNameInput;
@@ -59,18 +60,38 @@ pub fn original_conditional_vendor_registry_metadata(
     head: &VendorSourceNameInput,
     original: &[NativeWord],
 ) -> Option<OriginalConditionalVendorRegistryMetadata> {
-    let shape = super::vendor_registry_invocation_shape(context, head, original)?;
-    let catalogue = tokens
-        .source_binding
-        .as_ref()?
-        .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands())?;
-    if catalogue.command() != shape.command() {
+    let shape = trace_remote_source_option(
+        "metadata.shape",
+        tokens.argv.first().map(|word| word.start()),
+        super::vendor_registry_invocation_shape(context, head, original),
+    )?;
+    let catalogue = trace_remote_source_option(
+        "metadata.lookup_catalogue",
+        tokens.argv.first().map(|word| word.start()),
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands()),
+    )?;
+    if !trace_remote_source_flag(
+        "metadata.catalogue_shape",
+        tokens.argv.first().map(|word| word.start()),
+        catalogue.command() == shape.command(),
+    ) {
         return None;
     }
-    let authored_barriers = super::vendor_source_barriers::capture(
-        context,
-        head,
-        &catalogue.selected_source_prefixes()?,
+    let authored_barriers = trace_remote_source_option(
+        "metadata.prefix_barriers",
+        tokens.argv.first().map(|word| word.start()),
+        super::vendor_source_barriers::capture(
+            context,
+            head,
+            &trace_remote_source_option(
+                "metadata.prefixes",
+                tokens.argv.first().map(|word| word.start()),
+                catalogue.selected_source_prefixes(),
+            )?,
+        ),
     )?;
     Some(OriginalConditionalVendorRegistryMetadata {
         catalogue,
@@ -86,38 +107,76 @@ pub(crate) fn original_vendor_occurrence_registry_metadata(
     tokens: &CommandTokens,
     occurrence: &crate::signature_scan::vendor_name::VendorSourceNameOccurrence,
 ) -> Option<OriginalConditionalVendorRegistryMetadata> {
-    let binding = tokens.source_binding.as_ref()?;
-    let body = occurrence.body_origin();
-    if body.is_some_and(|body| !body.matches_child(context, occurrence.original_words())) {
+    let binding = trace_remote_source_option(
+        "metadata.binding",
+        tokens.argv.first().map(|word| word.start()),
+        tokens.source_binding.as_ref(),
+    )?;
+    let body = trace_remote_source_option(
+        "metadata.body_origin",
+        tokens.argv.first().map(|word| word.start()),
+        occurrence.body_origin(),
+    );
+    if body.is_some_and(|body| {
+        !trace_remote_source_flag(
+            "metadata.current_child",
+            tokens.argv.first().map(|word| word.start()),
+            body.matches_child(context, occurrence.original_words()),
+        )
+    }) {
         return None;
     }
-    let mut metadata = if binding.lookup_state.is_some() {
+    let mut metadata = if trace_remote_source_flag(
+        "metadata.lookup_state_present",
+        tokens.argv.first().map(|word| word.start()),
+        binding.lookup_state.is_some(),
+    ) {
         // A present lookup cannot fall through when its own cell classifier
         // rejects the descriptor. The script receipt supplies no other table.
-        original_conditional_vendor_registry_metadata(
-            context,
-            tokens,
-            occurrence.name_input(),
-            occurrence.original_words(),
+        trace_remote_source_option(
+            "metadata.lookup_classifier",
+            tokens.argv.first().map(|word| word.start()),
+            original_conditional_vendor_registry_metadata(
+                context,
+                tokens,
+                occurrence.name_input(),
+                occurrence.original_words(),
+            ),
         )?
     } else {
         let body = body?;
-        let shape = super::vendor_registry_invocation_shape(
-            context,
-            occurrence.name_input(),
-            occurrence.original_words(),
+        let shape = trace_remote_source_option(
+            "metadata.shape",
+            tokens.argv.first().map(|word| word.start()),
+            super::vendor_registry_invocation_shape(
+                context,
+                occurrence.name_input(),
+                occurrence.original_words(),
+            ),
         )?;
-        let catalogue = binding.original_vendor_script_body_source_candidate(
-            context,
-            tokens,
-            &shape,
-            occurrence.site(),
-            body,
+        let catalogue = trace_remote_source_option(
+            "metadata.body_catalogue",
+            tokens.argv.first().map(|word| word.start()),
+            binding.original_vendor_script_body_source_candidate(
+                context,
+                tokens,
+                &shape,
+                occurrence.site(),
+                body,
+            ),
         )?;
-        let authored_barriers = super::vendor_source_barriers::capture(
-            context,
-            occurrence.name_input(),
-            &catalogue.selected_source_prefixes()?,
+        let authored_barriers = trace_remote_source_option(
+            "metadata.prefix_barriers",
+            tokens.argv.first().map(|word| word.start()),
+            super::vendor_source_barriers::capture(
+                context,
+                occurrence.name_input(),
+                &trace_remote_source_option(
+                    "metadata.prefixes",
+                    tokens.argv.first().map(|word| word.start()),
+                    catalogue.selected_source_prefixes(),
+                )?,
+            ),
         )?;
         OriginalConditionalVendorRegistryMetadata {
             catalogue,
@@ -127,11 +186,19 @@ pub(crate) fn original_vendor_occurrence_registry_metadata(
     };
     if let Some(body) = body {
         metadata.catalogue.retain_script_body_origin(body);
-        metadata.authored_barriers = super::vendor_source_barriers::capture_in_script_body(
-            context,
-            occurrence.name_input(),
-            &metadata.catalogue.selected_source_prefixes()?,
-            body,
+        metadata.authored_barriers = trace_remote_source_option(
+            "metadata.body_barriers",
+            tokens.argv.first().map(|word| word.start()),
+            super::vendor_source_barriers::capture_in_script_body(
+                context,
+                occurrence.name_input(),
+                &trace_remote_source_option(
+                    "metadata.retained_prefixes",
+                    tokens.argv.first().map(|word| word.start()),
+                    metadata.catalogue.selected_source_prefixes(),
+                )?,
+                body,
+            ),
         )?;
     }
     Some(metadata)

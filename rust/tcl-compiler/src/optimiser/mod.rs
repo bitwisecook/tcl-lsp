@@ -412,17 +412,43 @@ impl<'a> PassContext<'a> {
         let bindings = self.ir_module.and_then(|module| {
             crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)
         });
+        #[cfg(debug_assertions)]
+        let row24_trace = std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
+            && self.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
+        #[cfg(debug_assertions)]
+        if row24_trace {
+            eprintln!("CCG24 stage=eval-bindings present={}", bindings.is_some());
+        }
         let policy = self.fold_policy();
         let context = policy.preparation_context()?;
+        #[cfg(debug_assertions)]
+        if row24_trace {
+            eprintln!("CCG24 stage=eval-preparation-context");
+        }
         let preparation = bindings.and_then(|bindings| bindings.preparation_for_context(&context));
         let preparation = preparation?;
+        #[cfg(debug_assertions)]
+        if row24_trace {
+            eprintln!("CCG24 stage=eval-preparation");
+        }
         crate::expression_rewrite::expression_result_protocol_equivalence(
             &preparation.witness,
             None,
         )
         .ok()?;
+        #[cfg(debug_assertions)]
+        if row24_trace {
+            eprintln!("CCG24 stage=eval-result-equivalence");
+        }
         let numeric = bindings
             .and_then(|bindings| bindings.source_numeric_operands(&context, self.registry?));
+        #[cfg(debug_assertions)]
+        if row24_trace {
+            eprintln!(
+                "CCG24 stage=eval-numeric-operands count={}",
+                numeric.as_ref().map_or(0, |(_, operands)| operands.len())
+            );
+        }
         // A literal replacement requires result-object equivalence as well as
         // input conversion proof. Partial arithmetic rewrites use the separate
         // expression equivalence gate and retain a numeric result operation.

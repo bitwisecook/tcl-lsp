@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Jim helper fallback performs ordinary lookup of the original selector's head.
 
-use super::*;
+use super::{Completion, Value, Vm};
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use tcl_cmd_core::CmdError;
 use tcl_syntax::value::ValueError;
@@ -39,6 +39,7 @@ pub(super) fn dispatch(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Code;
     use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
 
     const OBSERVED: &str = include_str!(

@@ -1955,7 +1955,7 @@ impl super::SourceCommandBindings {
             .map(|(offset, _)| *offset)
             .collect::<std::collections::BTreeSet<_>>();
         if self.original_logical_source_name_advice_input().is_some() {
-            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
+            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
                 (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
             }));
         }
@@ -2012,29 +2012,29 @@ impl super::SourceCommandBindings {
             let site = binding.invocation_site()?.clone();
             found.push((native[written].clone(), written, binding, site));
         }
-        if found.is_empty() {
-            if let Some(input) = self.original_logical_source_name_advice_input() {
-                if config != input.lexer_config() {
-                    return None;
-                }
-                let tape = self.original_source_transition_advice_tape_for(
-                    input.borrowed_context_registry(),
-                    super::OriginalSourceCataloguePurpose::CompletePrefix,
-                )?;
-                for (word, written, site) in
-                    tape.logical_original_word_observations_at_span(origin, input, span)?
+        if found.is_empty()
+            && let Some(input) = self.original_logical_source_name_advice_input()
+        {
+            if config != input.lexer_config() {
+                return None;
+            }
+            let tape = self.original_source_transition_advice_tape_for(
+                input.borrowed_context_registry(),
+                super::OriginalSourceCataloguePurpose::CompletePrefix,
+            )?;
+            for (word, written, site) in
+                tape.logical_original_word_observations_at_span(origin, input, span)?
+            {
+                let binding = self.invocation_at_source("", site.offset);
+                // A present original owner stays terminal even when its checks
+                // refuse. Independent body geometry only fills an absent facet.
+                if binding.original_written_words.is_some()
+                    || binding.original_compiler_words.is_some()
+                    || binding.declaration_layout_observations.is_some()
                 {
-                    let binding = self.invocation_at_source("", site.offset);
-                    // A present original owner stays terminal even when its checks
-                    // refuse. Independent body geometry only fills an absent facet.
-                    if binding.original_written_words.is_some()
-                        || binding.original_compiler_words.is_some()
-                        || binding.declaration_layout_observations.is_some()
-                    {
-                        continue;
-                    }
-                    found.push((word, written, binding, site));
+                    continue;
                 }
+                found.push((word, written, binding, site));
             }
         }
         (!found.is_empty()).then_some(found)
