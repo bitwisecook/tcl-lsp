@@ -845,6 +845,29 @@ impl Vm {
         )
     }
 
+    fn missing_original_named_variable(
+        &mut self,
+        report: OriginalJimVariableReport,
+        bytes: &[u8],
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<Value, Completion<Value>> {
+        if report == OriginalJimVariableReport::Silent {
+            let context = self
+                .native_jim_object_context()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            let empty = context.empty_object().native_lifetime_lease();
+            original_names
+                .current_for_value(self, empty.value())
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            return Err(Completion::new(
+                super::Code::Error,
+                empty.value().native_lifetime_lease().into_value(),
+                empty.into_value(),
+            ));
+        }
+        self.read_variable_result_bytes(bytes, None)
+    }
+
     pub(crate) fn read_original_named_variable_using(
         &mut self,
         original: &Value,
@@ -934,21 +957,7 @@ impl Vm {
             {
                 return Ok(result.select(value));
             }
-            if report == OriginalJimVariableReport::Silent {
-                let context = self.native_jim_object_context().map_err(|error| {
-                    crate::command::completion_from_cmd_error(self, error.into())
-                })?;
-                let empty = context.empty_object().native_lifetime_lease();
-                original_names
-                    .current_for_value(self, empty.value())
-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-                return Err(Completion::new(
-                    super::Code::Error,
-                    empty.value().native_lifetime_lease().into_value(),
-                    empty.into_value(),
-                ));
-            }
-            self.read_variable_result_bytes(&bytes, None)
+            self.missing_original_named_variable(report, &bytes, &original_names)
         })();
         if let Ok(value) = &reached {
             original_names

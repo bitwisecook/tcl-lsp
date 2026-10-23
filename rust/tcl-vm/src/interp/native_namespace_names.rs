@@ -485,6 +485,85 @@ impl Vm {
         }
     }
 
+    fn current_original_namespace_cache(
+        &mut self,
+        original: &Value,
+        recipe: tcl_syntax::native_namespace_name::NativeNamespaceNameRecipe,
+        interpreter: NativeInterpreterIdentity,
+        reference: &Token,
+        entered: &OriginalLookup,
+    ) -> Result<Option<NsId>, CmdError> {
+        if let Some(cache) = original.native_namespace_name_cache() {
+            if cache.version() != recipe.version() {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "native namespace-name descriptor origin",
+                )
+                .into());
+            }
+            if cache.is_current(recipe, interpreter, reference)
+                && let Some(target) = cache.namespace()
+            {
+                let namespace = NsId(u32::try_from(target.token()).map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("native namespace token width")
+                })?);
+                if self
+                    .name_world
+                    .borrow()
+                    .namespace_name_tokens
+                    .get(&namespace)
+                    .is_some_and(|actual| actual.same_token(target))
+                {
+                    return Ok(Some(namespace));
+                }
+            }
+            if !recipe.missing_installs_unresolved() {
+                let resident = original.resident_string_bytes();
+                original.retire_native_namespace_name_cache();
+                entered.check(self)?;
+                if resident.is_none() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "retired namespace-name resident storage",
+                    )
+                    .into());
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn install_original_resolved_namespace_cache(
+        &mut self,
+        original: &Value,
+        dialect: tcl_registry::InvocationDialect,
+        entered: &OriginalLookup,
+        namespace: NsId,
+        target: Token,
+        reference: Option<Token>,
+    ) -> Result<(), CmdError> {
+        let selected_target = QueryNamespace::capture(self, namespace)?;
+        let target_lifecycle = target.lifecycle();
+        let target_observation = target.clone();
+        let reached = original.install_native_namespace_name_cache_checked(
+            Cache::resolved(recipe.version(), target, reference),
+            dialect,
+            &mut || {
+                entered.check(self)?;
+                let current = selected_target.current(self)
+                    && target_observation.lifecycle() == target_lifecycle
+                    && self
+                        .name_world
+                        .borrow()
+                        .namespace_name_tokens
+                        .get(&namespace)
+                        .is_some_and(|actual| actual.same_token(&target_observation));
+                entered.require(self, current, "original namespace lookup target")
+            },
+        );
+        entered.check(self)?;
+        reached?;
+        Ok(())
+    }
+
     pub(crate) fn native_namespace_object_lookup(
         &mut self,
         original: &Value,
@@ -541,40 +620,14 @@ impl Vm {
             };
             let reference = self.native_namespace_name_token(reference_ns)?;
             let interpreter = reference.interpreter();
-            if let Some(cache) = original.native_namespace_name_cache() {
-                if cache.version() != recipe.version() {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "native namespace-name descriptor origin",
-                    )
-                    .into());
-                }
-                if cache.is_current(recipe, interpreter, &reference)
-                    && let Some(target) = cache.namespace()
-                {
-                    let namespace = NsId(u32::try_from(target.token()).map_err(|_| {
-                        ValueError::CommandProtocolUnavailable("native namespace token width")
-                    })?);
-                    if self
-                        .name_world
-                        .borrow()
-                        .namespace_name_tokens
-                        .get(&namespace)
-                        .is_some_and(|actual| actual.same_token(target))
-                    {
-                        return Ok(Some(namespace));
-                    }
-                }
-                if !recipe.missing_installs_unresolved() {
-                    let resident = original.resident_string_bytes();
-                    original.retire_native_namespace_name_cache();
-                    entered.check(self)?;
-                    if resident.is_none() {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "retired namespace-name resident storage",
-                        )
-                        .into());
-                    }
-                }
+            if let Some(namespace) = self.current_original_namespace_cache(
+                original,
+                recipe,
+                interpreter,
+                &reference,
+                &entered,
+            )? {
+                return Ok(Some(namespace));
             }
             if bytes.is_none() {
                 bytes = Some(entered.read(self)?);
@@ -598,27 +651,9 @@ impl Vm {
             if let Some((namespace, target)) = selected {
                 let reference =
                     (!absolute || recipe.absolute_references_global()).then_some(reference);
-                let selected_target = QueryNamespace::capture(self, namespace)?;
-                let target_lifecycle = target.lifecycle();
-                let target_observation = target.clone();
-                let reached = original.install_native_namespace_name_cache_checked(
-                    Cache::resolved(recipe.version(), target, reference),
-                    dialect,
-                    &mut || {
-                        entered.check(self)?;
-                        let current = selected_target.current(self)
-                            && target_observation.lifecycle() == target_lifecycle
-                            && self
-                                .name_world
-                                .borrow()
-                                .namespace_name_tokens
-                                .get(&namespace)
-                                .is_some_and(|actual| actual.same_token(&target_observation));
-                        entered.require(self, current, "original namespace lookup target")
-                    },
-                );
-                entered.check(self)?;
-                reached?;
+                self.install_original_resolved_namespace_cache(
+                    original, dialect, &entered, namespace, target, reference,
+                )?;
             } else if recipe.missing_installs_unresolved() {
                 let reached = original.install_native_namespace_name_cache_checked(
                     Cache::unresolved(interpreter),

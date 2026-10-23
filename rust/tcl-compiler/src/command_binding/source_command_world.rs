@@ -1397,17 +1397,26 @@ impl SourceCommandBindings {
                 self.original_completed_root_state.is_some()
             );
         }
-        let state = self.original_completed_root_state.as_ref()?;
-        if state.baseline.unknown_entry
-            || state.original_command_world.unavailable
-            || state.source_step_observed()
-            || state.source_execution_observed(None)
+        let state = trace_completed_world_option(
+            "ledger.root-state",
+            self.original_completed_root_state.as_ref(),
+        )?;
+        if trace_completed_world_flag("ledger.unknown-entry", state.baseline.unknown_entry)
+            || trace_completed_world_flag(
+                "ledger.unavailable",
+                state.original_command_world.unavailable,
+            )
+            || trace_completed_world_flag("ledger.source-step", state.source_step_observed())
+            || trace_completed_world_flag(
+                "ledger.source-execution",
+                state.source_execution_observed(None),
+            )
         {
             return None;
         }
         Some(OriginalCompletedCommandWorld {
-            source: self.root_origin.clone()?,
-            config: self.lexer_config?,
+            source: trace_completed_world_option("ledger.root-origin", self.root_origin.clone())?,
+            config: trace_completed_world_option("ledger.config", self.lexer_config)?,
             state: Arc::clone(state),
         })
     }
@@ -2353,6 +2362,26 @@ impl OriginalSourceCommandWorld {
         }
         Some(())
     }
+}
+
+// Temporary WORK-only owner diagnostic; no source or execution permission.
+#[inline]
+pub(super) fn trace_completed_world_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    if std::env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
+        eprintln!(
+            "COMPLETED_COMMAND_WORLD stage={stage} present={}",
+            value.is_some()
+        );
+    }
+    value
+}
+
+#[inline]
+pub(super) fn trace_completed_world_flag(stage: &str, value: bool) -> bool {
+    if std::env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
+        eprintln!("COMPLETED_COMMAND_WORLD stage={stage} value={value}");
+    }
+    value
 }
 
 fn source_simple<'a>(

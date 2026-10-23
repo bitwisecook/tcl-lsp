@@ -1765,9 +1765,9 @@ impl<'a> ExprEval<'a> {
 
     pub(crate) fn finish_expression_result(
         self,
-        result: Value,
+        result: &Value,
     ) -> Result<tcl_runtime_api::Completion<Value>, TclError> {
-        let result = normalize_result_for_vm(self.vm, &result,
+        let result = normalize_result_for_vm(self.vm, result,
             tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)?;
         Ok(self.finish(result))
     }

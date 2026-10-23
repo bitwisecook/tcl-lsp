@@ -6,6 +6,60 @@ use crate::interp::{Vm, native_numeric_ops::OriginalNumericOps};
 use std::cell::RefCell;
 use tcl_syntax::value::ValueError;
 
+fn authored_list_membership(
+    vm: &mut Vm,
+    needle: &Value,
+    list: &Value,
+    selected: tcl_registry::InvocationDialect,
+    context: super::OriginalNumericCommandContext<'_>,
+) -> Result<bool, TclError> {
+    // An inherited operation is currency only. The authored grammar
+    // continues through the configured parser and pure String route.
+    let vm = RefCell::new(&mut *vm);
+    let current = |actual: &Value| -> Result<(), TclError> {
+        context
+            .current(&mut vm.borrow_mut())
+            .map_err(TclError::from_execution_failure)?;
+        if let Err(refusal) = actual.original_native_header_currentness() {
+            let first = vm
+                .borrow_mut()
+                .retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(refusal));
+            return Err(TclError::from_execution_failure(first));
+        }
+        Ok(())
+    };
+    let string = |actual: &Value| -> Result<std::rc::Rc<[u8]>, TclError> {
+        current(actual)?;
+        let reached = actual.string_bytes();
+        current(actual)?;
+        Ok(reached)
+    };
+    let result = (|| {
+        current(list)?;
+        current(needle)?;
+        let items = list.native_list_elements_with_strings(
+            selected.lexer_grammar.list_parse,
+            selected.lexer_grammar.escapes,
+            &mut || current(list),
+            &mut |actual| string(actual),
+        )?;
+        for item in &*items {
+            current(list)?;
+            items.check_generation()?;
+            let left = string(needle)?;
+            let right = string(item)?;
+            current(list)?;
+            items.check_generation()?;
+            if left == right {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    })();
+    current(list)?;
+    result
+}
+
 pub(super) fn in_list(vm: &mut Vm, needle: &Value, list: &Value) -> Result<bool, TclError> {
     with_original_numeric_command(vm, TclError::from_execution_failure, |vm, context| {
         let selected = vm.native_invocation_dialect();
@@ -15,51 +69,7 @@ pub(super) fn in_list(vm: &mut Vm, needle: &Value, list: &Value) -> Result<bool,
         let needle = needle.native_lifetime_lease();
         let list = list.native_lifetime_lease();
         let reached = if context.authored.is_some() {
-            // An inherited operation is currency only. The authored grammar
-            // continues through the configured parser and pure String route.
-            let vm = RefCell::new(&mut *vm);
-            let current = |actual: &Value| -> Result<(), TclError> {
-                context
-                    .current(&mut vm.borrow_mut())
-                    .map_err(TclError::from_execution_failure)?;
-                if let Err(refusal) = actual.original_native_header_currentness() {
-                    let first = vm.borrow_mut().retain_tcl_host_failure(
-                        crate::error::TclHostFailure::ValueAccess(refusal),
-                    );
-                    return Err(TclError::from_execution_failure(first));
-                }
-                Ok(())
-            };
-            let string = |actual: &Value| -> Result<std::rc::Rc<[u8]>, TclError> {
-                current(actual)?;
-                let reached = actual.string_bytes();
-                current(actual)?;
-                Ok(reached)
-            };
-            let result = (|| {
-                current(list.value())?;
-                current(needle.value())?;
-                let items = list.value().native_list_elements_with_strings(
-                    selected.lexer_grammar.list_parse,
-                    selected.lexer_grammar.escapes,
-                    &mut || current(list.value()),
-                    &mut |actual| string(actual),
-                )?;
-                for item in &*items {
-                    current(list.value())?;
-                    items.check_generation()?;
-                    let left = string(needle.value())?;
-                    let right = string(item)?;
-                    current(list.value())?;
-                    items.check_generation()?;
-                    if left == right {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            })();
-            current(list.value())?;
-            result
+            authored_list_membership(vm, needle.value(), list.value(), selected, context)
         } else {
             let scope = context
                 .original

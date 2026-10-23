@@ -131,6 +131,72 @@ pub(crate) fn manufacture(recipe: &NativeReturnOptionsLiteral) -> Result<Value, 
     Ok(merged.options)
 }
 
+fn seed_original_merged_error_options(
+    vm: &mut crate::Vm,
+    scope: &crate::interp::native_operation_currency::NativeOperationScope,
+    ops: &mut NativeReturnOps,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    options: &Value,
+) -> Result<(), crate::TclError> {
+    options
+        .with_cached_dictionary_representation(|pairs, _| {
+            for (key, value) in pairs {
+                let name = key.native_string_bytes(strings).map_err(|error| {
+                    crate::command::completion_option_failure(
+                        vm,
+                        ValueError::NativeStringAccess(
+                            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                        ),
+                    )
+                })?;
+                match name.as_ref() {
+                    b"-errorinfo" => {
+                        let bytes = crate::return_options::with_original_return_ops(
+                            vm,
+                            scope,
+                            ops,
+                            |checked| checked.bytes(value),
+                        )
+                        .map_err(|error| crate::command::completion_option_failure(vm, error))?;
+                        if !bytes.is_empty() {
+                            vm.seed_error_info_original(value, &bytes);
+                        }
+                    }
+                    b"-errorstack" if vm.supports_error_stack() => {
+                        vm.seed_error_stack(value)?;
+                    }
+                    b"-errorline" => {
+                        if let Some(line) = crate::return_options::with_original_return_ops(
+                            vm,
+                            scope,
+                            ops,
+                            |checked| checked.integer_probe(value, false),
+                        )
+                        .map_err(|error| crate::command::completion_option_failure(vm, error))?
+                        {
+                            vm.set_error_line(u32::from_le_bytes(
+                                line.to_le_bytes()[..4]
+                                    .try_into()
+                                    .expect("native int width"),
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let original = pairs
+                .iter()
+                .find(|(key, _)| {
+                    key.resident_string_bytes()
+                        .is_some_and(|bytes| bytes.as_ref() == b"-errorcode")
+                })
+                .map(|(_, value)| value);
+            let _ = vm.retain_return_error_code(original, true);
+            Ok::<(), crate::TclError>(())
+        })
+        .expect("reached original Dictionary")
+}
+
 /// Apply the reached original merged header without regenerating option words.
 pub(crate) fn process(
     vm: &mut crate::Vm,
@@ -170,69 +236,13 @@ pub(crate) fn process(
     if code == 1 {
         vm.clear_return_error_info();
         vm.observe_native_error_result(&result);
-        let error = options
-            .with_cached_dictionary_representation(|pairs, _| {
-                for (key, value) in pairs {
-                    let name = key
-                        .native_string_bytes(application.strings())
-                        .map_err(|error| {
-                            crate::command::completion_option_failure(
-                                vm,
-                                ValueError::NativeStringAccess(
-                                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
-                                        error,
-                                    ),
-                                ),
-                            )
-                        })?;
-                    match name.as_ref() {
-                        b"-errorinfo" => {
-                            let bytes = crate::return_options::with_original_return_ops(
-                                vm,
-                                &scope,
-                                &mut ops,
-                                |checked| checked.bytes(value),
-                            )
-                            .map_err(|error| {
-                                crate::command::completion_option_failure(vm, error)
-                            })?;
-                            if !bytes.is_empty() {
-                                vm.seed_error_info_original(value, &bytes);
-                            }
-                        }
-                        b"-errorstack" if vm.supports_error_stack() => {
-                            vm.seed_error_stack(value)?;
-                        }
-                        b"-errorline" => {
-                            if let Some(line) = crate::return_options::with_original_return_ops(
-                                vm,
-                                &scope,
-                                &mut ops,
-                                |checked| checked.integer_probe(value, false),
-                            )
-                            .map_err(|error| crate::command::completion_option_failure(vm, error))?
-                            {
-                                vm.set_error_line(u32::from_le_bytes(
-                                    line.to_le_bytes()[..4]
-                                        .try_into()
-                                        .expect("native int width"),
-                                ));
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                let original = pairs
-                    .iter()
-                    .find(|(key, _)| {
-                        key.resident_string_bytes()
-                            .is_some_and(|bytes| bytes.as_ref() == b"-errorcode")
-                    })
-                    .map(|(_, value)| value);
-                let _ = vm.retain_return_error_code(original, true);
-                Ok::<(), crate::TclError>(())
-            })
-            .expect("reached original Dictionary");
+        let error = seed_original_merged_error_options(
+            vm,
+            &scope,
+            &mut ops,
+            application.strings(),
+            options,
+        );
         if let Err(error) = error {
             return crate::command::completion_from_tcl_error(vm, error);
         }

@@ -180,7 +180,7 @@ impl Vm {
                 .option_lookup(original, words, exact, noun)
                 .map_err(Into::into)
         })
-        .map_err(original_static_value_error)
+        .map_err(|error| original_static_value_error(&error))
     }
 
     pub(crate) fn native_interpreter_option_from_original_checked(
@@ -205,7 +205,7 @@ impl Vm {
                 .native_jim_enum_from_original(original, table, flags, noun)
                 .map_err(Into::into)
         })
-        .map_err(original_static_value_error)
+        .map_err(|error| original_static_value_error(&error))
     }
 
     pub(crate) fn native_jim_compare_immediate_checked(
@@ -219,7 +219,7 @@ impl Vm {
                 .native_jim_compare_immediate(original, table, index)
                 .map_err(Into::into)
         })
-        .map_err(original_static_value_error)
+        .map_err(|error| original_static_value_error(&error))
     }
 
     pub(crate) fn native_index_usage_bytes_checked(
@@ -231,7 +231,7 @@ impl Vm {
                 .native_index_usage_bytes(original)
                 .map_err(Into::into)
         })
-        .map_err(original_static_value_error)
+        .map_err(|error| original_static_value_error(&error))
     }
 
     pub(crate) fn native_static_option_index_checked(
@@ -270,14 +270,14 @@ impl Vm {
                 .native_index_from_original(original, table, exact, noun)
                 .map_err(Into::into)
         })
-        .map_err(original_static_value_error)
+        .map_err(|error| original_static_value_error(&error))
     }
 }
 
 // Compatibility errors carry no replacement cause. The full actual Host refusal
 // was already retained while the original entry was held; its real consumer
 // checks that cause before any Guest presentation.
-fn original_static_value_error(error: tcl_cmd_core::CmdError) -> ValueError {
+fn original_static_value_error(error: &tcl_cmd_core::CmdError) -> ValueError {
     error.native_access_refusal().map_or_else(
         super::native_numeric_ops::OriginalNumericOps::value_unwind,
         Into::into,

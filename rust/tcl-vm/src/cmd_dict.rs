@@ -962,29 +962,18 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Ok(root) => root,
             Err(error) => return error,
         };
-        let leaf = if path.is_empty() {
-            root.clone()
-        } else {
-            match tcl_cmd_core::dict::get(vm, &root, path) {
-                Ok(leaf) => leaf,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            }
+        let leaf = match dictionary_scope_leaf(vm, &root, path) {
+            Ok(leaf) => leaf,
+            Err(error) => return error,
         };
         let pairs = match native_dictionary_pairs(vm, &leaf) {
             Ok(pairs) => pairs,
             Err(error) => return error,
         };
-        let mut mappings = Vec::with_capacity(pairs.len());
-        for (key, value) in pairs {
-            let written = match original_names.read(vm, &key) {
-                Ok(name) => name,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            if let Err(error) = vm.store_var_result_bytes(&written, value) {
-                return error;
-            }
-            mappings.push((key.clone(), key));
-        }
+        let mappings = match populate_dictionary_with_variables(vm, &original_names, pairs) {
+            Ok(mappings) => mappings,
+            Err(error) => return error,
+        };
         drop(leaf);
         drop(root);
         let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
@@ -1026,13 +1015,8 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Some(refusal) = vm.refused_completion() {
             return refusal;
         }
-        if let Err(mut error) = writeback {
-            if plan.writeback_failure
-                == tcl_registry::dictionary_scope::DictionaryWritebackFailure::NormalWithErrorResult
-            {
-                error.code = Code::Ok;
-            }
-            return error;
+        if let Err(error) = writeback {
+            return dictionary_scope_writeback_failure(plan.writeback_failure, error);
         }
         outcome
     })();
@@ -1040,6 +1024,48 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
+}
+
+fn dictionary_scope_writeback_failure(
+    policy: tcl_registry::dictionary_scope::DictionaryWritebackFailure,
+    mut error: Completion<Value>,
+) -> Completion<Value> {
+    if policy == tcl_registry::dictionary_scope::DictionaryWritebackFailure::NormalWithErrorResult {
+        error.code = Code::Ok;
+    }
+    error
+}
+
+fn dictionary_scope_leaf(
+    vm: &mut Vm,
+    root: &Value,
+    path: &[Value],
+) -> Result<Value, Completion<Value>> {
+    if path.is_empty() {
+        Ok(root.clone())
+    } else {
+        tcl_cmd_core::dict::get(vm, root, path)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    }
+}
+
+fn populate_dictionary_with_variables(
+    vm: &mut Vm,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    pairs: Vec<(Value, Value)>,
+) -> Result<Vec<(Value, Value)>, Completion<Value>> {
+    let mut mappings = Vec::with_capacity(pairs.len());
+    for (key, value) in pairs {
+        let written = match original_names.read(vm, &key) {
+            Ok(name) => name,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        if let Err(error) = vm.store_var_result_bytes(&written, value) {
+            return Err(error);
+        }
+        mappings.push((key.clone(), key));
+    }
+    Ok(mappings)
 }
 
 fn native_dictionary_pairs(
@@ -1211,6 +1237,45 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 }
 
 /// Explicit original key/variable pairs surround a caller-frame body.
+fn populate_dictionary_update_variables(
+    vm: &mut Vm,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    root: &Value,
+    pairs: &[Value],
+) -> Result<Vec<(Value, Value)>, Completion<Value>> {
+    let mut mappings = Vec::with_capacity(pairs.len() / 2);
+    for pair in pairs.as_chunks::<2>().0 {
+        let name = match original_names.read(vm, &pair[1]) {
+            Ok(name) => name,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        let selected = match tcl_cmd_core::dict::getdef(vm, root, &pair[..1], &Value::empty()) {
+            Ok(value) => value,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        let exists = match tcl_cmd_core::dict::exists(vm, root, &pair[..1]) {
+            Ok(exists) => exists,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        let exists = match tcl_syntax::value::ValueOps::as_bool(vm, &exists) {
+            Ok(exists) => exists,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        };
+        if exists {
+            if let Err(error) = vm.store_var_result_bytes(&name, selected) {
+                return Err(error);
+            }
+        } else {
+            let _ = vm.unset_var_bytes(&name);
+            if let Some(refusal) = vm.refused_completion() {
+                return Err(refusal);
+            }
+        }
+        mappings.push((pair[0].clone(), pair[1].clone()));
+    }
+    Ok(mappings)
+}
+
 fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let compiled = vm.pending.release_compiled.take().is_some();
     let original_names =
@@ -1261,37 +1326,11 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Err(error) = vm.native_object_dict_pairs_in(&root, objects.string_protocol()) {
             return crate::command::completion_from_cmd_error(vm, error.into());
         }
-        let mut mappings = Vec::with_capacity(pairs.len() / 2);
-        for pair in pairs.as_chunks::<2>().0 {
-            let name = match original_names.read(vm, &pair[1]) {
-                Ok(name) => name,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            let selected = match tcl_cmd_core::dict::getdef(vm, &root, &pair[..1], &Value::empty())
-            {
-                Ok(value) => value,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            let exists = match tcl_cmd_core::dict::exists(vm, &root, &pair[..1]) {
-                Ok(exists) => exists,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            let exists = match tcl_syntax::value::ValueOps::as_bool(vm, &exists) {
-                Ok(exists) => exists,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            };
-            if exists {
-                if let Err(error) = vm.store_var_result_bytes(&name, selected) {
-                    return error;
-                }
-            } else {
-                let _ = vm.unset_var_bytes(&name);
-                if let Some(refusal) = vm.refused_completion() {
-                    return refusal;
-                }
-            }
-            mappings.push((pair[0].clone(), pair[1].clone()));
-        }
+        let mappings = match populate_dictionary_update_variables(vm, &original_names, &root, pairs)
+        {
+            Ok(mappings) => mappings,
+            Err(error) => return error,
+        };
         drop(root);
         let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
         if let Some(refusal) = vm.refused_completion() {

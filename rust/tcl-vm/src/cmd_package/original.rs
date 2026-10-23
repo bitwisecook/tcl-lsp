@@ -141,12 +141,12 @@ impl OriginalPackage<'_> {
         &mut self,
         callback: impl FnOnce(&mut Vm) -> Result<T, crate::TclError>,
     ) -> Result<T, crate::TclError> {
-        self.check().map_err(original_tcl_failure)?;
+        self.check().map_err(|error| original_tcl_failure(&error))?;
         let reached = callback(self.vm);
         if let Err(crate::TclError::Host(first)) = &reached {
             self.vm.retain_tcl_host_failure(first.clone());
         }
-        self.check().map_err(original_tcl_failure)?;
+        self.check().map_err(|error| original_tcl_failure(&error))?;
         reached
     }
 
@@ -204,7 +204,7 @@ fn retain_at_owner(ops: &OriginalNumericOps<'_>, error: &CmdError) {
     }
 }
 
-fn original_tcl_failure(error: CmdError) -> crate::TclError {
+fn original_tcl_failure(error: &CmdError) -> crate::TclError {
     crate::TclError::from_execution_failure(
         error
             .native_execution_refusal()

@@ -54,6 +54,30 @@ impl Vm {
         self.original_name_finish(scope, reached)?
     }
 
+    fn store_alias_registration_command(
+        &mut self,
+        key: CommandSidecarKey,
+        command: Command,
+    ) -> Result<(), CmdError> {
+        match key {
+            CommandSidecarKey::Hidden(key) => {
+                self.hidden.commands.insert(key, command);
+            }
+            CommandSidecarKey::Visible(key) => {
+                if let Some(root) = self.retained_root_for_visible_key(&key) {
+                    let mut world = self.name_world.borrow_mut();
+                    let record = world.ns_deferral.retained.get_mut(&root).ok_or(
+                        ValueError::CommandProtocolUnavailable("original alias retained owner"),
+                    )?;
+                    record.commands.insert(key, command);
+                } else {
+                    self.commands.insert(key, command);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn complete_modern_alias_registration(
         &mut self,
         original: &Value,
@@ -138,24 +162,7 @@ impl Vm {
                 let replacement = Value::new_native_string_bytes(token.as_slice());
                 *registration = Some(replacement.clone());
                 *report = NameBytes::from(token.as_slice());
-                match live.key {
-                    CommandSidecarKey::Hidden(key) => {
-                        self.hidden.commands.insert(key, command);
-                    }
-                    CommandSidecarKey::Visible(key) => {
-                        if let Some(root) = self.retained_root_for_visible_key(&key) {
-                            let mut world = self.name_world.borrow_mut();
-                            let record = world.ns_deferral.retained.get_mut(&root).ok_or(
-                                ValueError::CommandProtocolUnavailable(
-                                    "original alias retained owner",
-                                ),
-                            )?;
-                            record.commands.insert(key, command);
-                        } else {
-                            self.commands.insert(key, command);
-                        }
-                    }
-                }
+                self.store_alias_registration_command(live.key, command)?;
                 drop(selected);
                 drop(bytes);
                 drop(current);

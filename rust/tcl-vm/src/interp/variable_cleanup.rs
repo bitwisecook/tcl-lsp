@@ -287,7 +287,7 @@ impl OriginalVariableCleanup {
                         None,
                     )
                 })
-                .unwrap_or_else(|error| Err(native_failure(vm, error))),
+                .unwrap_or_else(|error| Err(native_failure(vm, &error))),
             Err(first) => {
                 let _ = self.in_original(vm, |_| drop(taken));
                 Err(first)
@@ -531,7 +531,7 @@ impl OriginalVariableCleanup {
     }
 }
 
-fn native_failure(vm: &mut Vm, error: CmdError) -> NativeExecutionError {
+fn native_failure(vm: &mut Vm, error: &CmdError) -> NativeExecutionError {
     let first = error
         .native_execution_refusal()
         .cloned()

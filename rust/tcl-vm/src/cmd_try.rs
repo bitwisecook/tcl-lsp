@@ -792,6 +792,38 @@ fn parse_clauses(
     Ok((handlers, finally))
 }
 
+fn select_original_jim_try_prefix(
+    vm: &mut Vm,
+    args: &[Value],
+    original: Option<&crate::interp::native_name_consumers::OriginalNameConsumerScope>,
+    usage: &str,
+) -> Result<Option<tcl_registry::catch_invocation::JimCapturePrefix>, Completion<Value>> {
+    if let Some(original) = original {
+        let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
+            args.len(),
+            vm.actual_native_invocation_dialect(),
+            |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
+        );
+        if let Err(error) = original.check(vm) {
+            return Err(crate::command::completion_from_cmd_error(vm, error));
+        }
+        match selected {
+            Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Valid(prefix)) => {
+                Ok(Some(prefix))
+            }
+            Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Invalid) => {
+                Err(crate::command::native_wrong_arguments_message(vm, usage))
+            }
+            Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Unknown) => {
+                Err(vm.refuse_host_command("original Jim try prefix is unavailable".into()))
+            }
+            Err(error) => Err(crate::command::completion_from_cmd_error(vm, error)),
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 /// `try body ?handler ...? ?finally script?` — structured exception handling.
 ///
 /// Parses and validates the grammar synchronously (unchanged), then defers the
@@ -824,29 +856,9 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         {
             return error;
         }
-        let jim_prefix = if let Some(original) = &original {
-            let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
-                args.len(),
-                vm.actual_native_invocation_dialect(),
-                |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
-            );
-            if let Err(error) = original.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            match selected {
-                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Valid(prefix)) => {
-                    Some(prefix)
-                }
-                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Invalid) => {
-                    return crate::command::native_wrong_arguments_message(vm, USAGE);
-                }
-                Ok(tcl_registry::catch_invocation::JimCapturePrefixSelection::Unknown) => {
-                    return vm.refuse_host_command("original Jim try prefix is unavailable".into());
-                }
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            }
-        } else {
-            None
+        let jim_prefix = match select_original_jim_try_prefix(vm, args, original.as_ref(), USAGE) {
+            Ok(prefix) => prefix,
+            Err(error) => return error,
         };
         let rest_args = &args[jim_prefix.map_or(0, |prefix| prefix.script_at)..];
         let Some((body, rest)) = rest_args.split_first() else {
@@ -947,6 +959,45 @@ pub(crate) fn advance_try(vm: &mut Vm, state: TryState, c: Completion<Value>) ->
     }
 }
 
+fn advance_deferred_try_clauses(
+    vm: &mut Vm,
+    plan: &Rc<TryPlan>,
+    clauses: &[Value],
+    body_comp: Completion<Value>,
+) -> TryOutcome {
+    let captured_error_code = match vm.capture_original_jim_error_code() {
+        Ok(value) => Rc::new(value),
+        Err(error) => {
+            return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
+        }
+    };
+    let (handlers, finally) = match parse_clauses(
+        vm,
+        clauses,
+        Some(body_comp.code),
+        Some(&captured_error_code),
+    ) {
+        Ok(parsed) => parsed,
+        Err(error) => return TryOutcome::Deliver(error),
+    };
+    let Some(prefix) = plan.jim_prefix else {
+        return TryOutcome::Deliver(
+            vm.refuse_host_command("original Jim try prefix is unavailable".into()),
+        );
+    };
+    let parsed = Rc::new(TryPlan {
+        handlers,
+        finally,
+        jim: true,
+        deferred_clauses: None,
+        jim_prefix: Some(prefix),
+        ignored_body: prefix.ignores(body_comp.code.as_int()),
+        body_error_code: Some(captured_error_code),
+        compiled: plan.compiled,
+    });
+    advance_after_body(vm, &parsed, body_comp)
+}
+
 /// The body just completed as `body_comp`: match a handler (if any), bind its
 /// variables, and either push it as the next phase or fall through to
 /// [`finish_body_or_handler`].
@@ -959,37 +1010,7 @@ fn advance_after_body(
         return TryOutcome::Deliver(refusal);
     }
     if let Some(clauses) = &plan.deferred_clauses {
-        let captured_error_code = match vm.capture_original_jim_error_code() {
-            Ok(value) => Rc::new(value),
-            Err(error) => {
-                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(vm, error));
-            }
-        };
-        let (handlers, finally) = match parse_clauses(
-            vm,
-            clauses,
-            Some(body_comp.code),
-            Some(&captured_error_code),
-        ) {
-            Ok(parsed) => parsed,
-            Err(error) => return TryOutcome::Deliver(error),
-        };
-        let Some(prefix) = plan.jim_prefix else {
-            return TryOutcome::Deliver(
-                vm.refuse_host_command("original Jim try prefix is unavailable".into()),
-            );
-        };
-        let parsed = Rc::new(TryPlan {
-            handlers,
-            finally,
-            jim: true,
-            deferred_clauses: None,
-            jim_prefix: Some(prefix),
-            ignored_body: prefix.ignores(body_comp.code.as_int()),
-            body_error_code: Some(captured_error_code),
-            compiled: plan.compiled,
-        });
-        return advance_after_body(vm, &parsed, body_comp);
+        return advance_deferred_try_clauses(vm, plan, clauses, body_comp);
     }
     if plan.jim {
         // Settlement and finally observe the result left by all reached clauses.

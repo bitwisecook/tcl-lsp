@@ -1203,7 +1203,7 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     }
                 };
             if let Err(problem) =
-                vm.import_commands_selected(selected, imported, allow_overwrite, &original_names)
+                vm.import_commands_selected(selected, &imported, allow_overwrite, &original_names)
             {
                 return problem.completion(vm);
             }

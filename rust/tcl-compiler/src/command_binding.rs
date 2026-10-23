@@ -6775,7 +6775,10 @@ impl SourceOutcomes {
     /// effects stay withheld by the opaque and observer premises.
     fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
-        let normal = self.normal.as_ref()?;
+        let normal = source_command_world::trace_completed_world_option(
+            "root.normal-state",
+            self.normal.as_ref(),
+        )?;
         // `Unknown` is a handler's uncatalogued residue beside a possible
         // normal return (`puts`'s channel error). A document-finishing
         // `return`, `exit` or tail call keeps its own route; a script whose
@@ -6788,13 +6791,35 @@ impl SourceOutcomes {
         });
         // `original_completed_command_world` separately refuses a withdrawn
         // command world and unknown entry.
-        let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
-            || (errors_only
-                && !normal.unclosed_command_world
-                && !normal.has_opaque_domain()
-                && !normal.source_step_observed()
-                && !normal.source_execution_observed(None)
-                && normal.unknown_handler_is_original());
+        let errors_only =
+            source_command_world::trace_completed_world_flag("root.errors-only", errors_only);
+        let closed = (source_command_world::trace_completed_world_flag(
+            "root.normal-completion",
+            self.normal_completion.is_some(),
+        ) && source_command_world::trace_completed_world_flag(
+            "root.no-abrupt",
+            self.abrupt.is_empty(),
+        )) || (errors_only
+            && !source_command_world::trace_completed_world_flag(
+                "root.unclosed-world",
+                normal.unclosed_command_world,
+            )
+            && !source_command_world::trace_completed_world_flag(
+                "root.opaque-domain",
+                normal.has_opaque_domain(),
+            )
+            && !source_command_world::trace_completed_world_flag(
+                "root.source-step",
+                normal.source_step_observed(),
+            )
+            && !source_command_world::trace_completed_world_flag(
+                "root.source-execution",
+                normal.source_execution_observed(None),
+            )
+            && source_command_world::trace_completed_world_flag(
+                "root.original-unknown-handler",
+                normal.unknown_handler_is_original(),
+            ));
         #[cfg(test)]
         if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
             eprintln!(

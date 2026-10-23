@@ -1102,6 +1102,26 @@ fn accessor_result(
 
 /// Seed the two root classes `::oo::object` and `::oo::class`. Each is a class,
 /// an object (instance of `::oo::class`), and a command.
+fn foundation_object(class: OoId, namespace: String, identity: OoId) -> Object {
+    Object {
+        cached_name: Rc::new(RefCell::new(None)),
+        class,
+        ns: namespace,
+        namespace_token: None,
+        creation_id: identity.0,
+        methods: native_method_cache::MethodTable::default(),
+        variables: Vec::new(),
+        private_variables: Vec::new(),
+        mixins: Vec::new(),
+        filters: Vec::new(),
+        exported: BTreeSet::new(),
+        unexported: BTreeSet::new(),
+        readable_properties: BTreeSet::new(),
+        writable_properties: BTreeSet::new(),
+        destroyed: false,
+    }
+}
+
 fn bootstrap(vm: &mut Vm) {
     vm.oo.method_reports =
         NativeTclooMethodReportProtocol::select(vm.actual_native_invocation_dialect())
@@ -1133,23 +1153,7 @@ fn bootstrap(vm: &mut Vm) {
         vm.oo.classes.insert(root_id, Class::default());
         vm.oo.objects.insert(
             root_id,
-            Object {
-                cached_name: Rc::new(RefCell::new(None)),
-                class: class_root,
-                ns: private_namespace.clone(),
-                namespace_token: None,
-                creation_id: root_id.0,
-                methods: native_method_cache::MethodTable::default(),
-                variables: Vec::new(),
-                private_variables: Vec::new(),
-                mixins: Vec::new(),
-                filters: Vec::new(),
-                exported: BTreeSet::new(),
-                unexported: BTreeSet::new(),
-                readable_properties: BTreeSet::new(),
-                writable_properties: BTreeSet::new(),
-                destroyed: false,
-            },
+            foundation_object(class_root, private_namespace.clone(), root_id),
         );
         let namespace_token = native_context::install_object_helpers(vm, &private_namespace);
         vm.oo.objects.get_mut(&root_id).unwrap().namespace_token = Some(namespace_token);
@@ -1189,23 +1193,11 @@ fn bootstrap(vm: &mut Vm) {
     vm.declare_namespace_key(&configurable_namespace);
     vm.oo.objects.insert(
         configurable_root,
-        Object {
-            cached_name: Rc::new(RefCell::new(None)),
-            class: class_root,
-            ns: configurable_namespace.clone(),
-            namespace_token: None,
-            creation_id: configurable_root.0,
-            methods: native_method_cache::MethodTable::default(),
-            variables: Vec::new(),
-            private_variables: Vec::new(),
-            mixins: Vec::new(),
-            filters: Vec::new(),
-            exported: BTreeSet::new(),
-            unexported: BTreeSet::new(),
-            readable_properties: BTreeSet::new(),
-            writable_properties: BTreeSet::new(),
-            destroyed: false,
-        },
+        foundation_object(
+            class_root,
+            configurable_namespace.clone(),
+            configurable_root,
+        ),
     );
     vm.declare_namespace("oo::configurable");
     let namespace_token = native_context::install_object_helpers(vm, &configurable_namespace);
