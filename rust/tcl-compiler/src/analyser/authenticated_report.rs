@@ -420,14 +420,18 @@ mod capture_controls {
 
     #[test]
     fn genuine_hosted_event_report_retains_a_separate_actual_domain() {
-        let report = Analyser::new()
-            .analyse_for_report("when HTTP_REQUEST { set value VALUE }", "f5-irules");
-        let capture = report
-            .current_capture()
-            .expect("actual hosted diagnostics CU");
-        assert!(capture.input.has_hosted_source_name_context());
-        assert!(capture.bodies.hosted_domain_for_test());
-        assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
+        for source in [
+            "when HTTP_REQUEST { set value VALUE }",
+            "::when HTTP_REQUEST { set value VALUE }",
+        ] {
+            let report = Analyser::new().analyse_for_report(source, "f5-irules");
+            let capture = report
+                .current_capture()
+                .expect("actual hosted diagnostics CU");
+            assert!(capture.input.has_hosted_source_name_context());
+            assert!(capture.bodies.hosted_domain_for_test());
+            assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
+        }
     }
 
     #[test]
