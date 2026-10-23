@@ -1,0 +1,9 @@
+{
+  "started_unix": 1792785879.0685,
+  "pid": 49887,
+  "original_worker": 41020,
+  "binary_sha256": "964db4b0a7f72c616e9af11abaa9e18977499f90e3034618be4020a56ebec4c2",
+  "original_binary_receipt": "/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-controls/compiler-artifact-checks/binary.json",
+  "reason": "Keep exact ELF for a missing OLD run if the original selected-filter driver exits after an incomplete NEW inventory. Preserve failures, no assertion or budget change.",
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573"
+}

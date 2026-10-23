@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 20:00 UTC
+Last updated: 2026-10-23 20:27 UTC
 
 ## Resume
 
@@ -11,57 +11,85 @@ b6ea6dc5ebaa9589f6e1c1747875127fecdbb573. No perf production commit or full
 corpus acceptance exists. Keep the active Rust sources fixed until the jobs
 finish; later work commits are publication/rebase inputs, not this proof base.**
 
-Both normal compiler libraries and the combined unit-test executable built
-with zero Rust warnings. ALL16 report/actual-realm controls PASS BOTH modes
-(new38.705s, old67.329s), source seal unchanged and executable deleted. This
-proves the19936 hosted control repair on b6, including both when spellings.
-The initial build guard resumed clean6 rustc40734 and exited; no process is held.
-That unit build was later deferred for the memory reason below, before any
-compiler test executable existed. Its normal library remains complete/cached.
-Combined switched lexer586/586 PASS BOTH (4.427/2.879s), zero warnings, removed.
-Clean6 lexer586/586 PASS BOTH (2.993/4.237s), zero warnings, removed; the old
-variable is ignored in that no-switch source.
+Both normal compiler libraries and combined unit executable built without Rust
+warnings. ALL16 report/actual-realm controls PASS BOTH modes (38.705/67.329s),
+source seal unchanged, executable removed. Switched lexer586/586 PASS BOTH
+(4.427/2.879s); clean6 lexer586/586 PASS BOTH (2.993/4.237s), no warnings,
+removed; old variable is ignored in the clean6 no-switch source.
 
-Corpus examples built with zero warnings; first22 all-old Tcl fixtures return
-all3 Equal comparisons. Full102+15+synthetics/mixed/PackSet remain pending.
-Compiler NEW has completed228/229 tests (142 pass,86 fail); the remaining
-1000-level deeply_nested_if_survives_interprocedural_scan is still active.
-Original native0xff array fixture PASSES. OLD and complete P2F verdict pending.
-Both SpecTcl eval_loader/golden_packs executables built with zero warnings and
-wait for the quiet window; server still compiles. No complete acceptance yet.
+**Current blockers: full corpus is not accepted and compiler run is incomplete.**
+NEW selected compiler finished228/229 (142 pass/86 assertion failures). The
+remaining1000-level deeply_nested_if_survives_interprocedural_scan grew past
+15GiB RSS and the cgroup recorded its first OOM kill at20:06. Original driver
+then asserted incomplete inventory before OLD. This is a failed resource gate,
+not a passing test, and no original depth/stack/assertion was changed.
+Exact SHA-verified ELF was preserved BEFORE cleanup. Recovery49887 finished
+OLD with exit-9: the same228 completed outcomes match NEW (142 pass/86 fail),
+same1000-level case missing. Both resource failures stay explicit; zero observed
+P2F among completed tests is NOT a complete229-case comparison. Private ELF
+was removed. Recovery final.json records complete=false.
+Recovery evidence: current-b6ea6dc5-filter-resource-recovery/.
 
-At19:57, selected runtime RSS grew to about7GiB and cgroup anon14.68GiB.
-Cold-cache advisory eviction helped, but the runtime kept growing. SIGINT was
-sent ONLY to owned-tree rustc40734 (unit compilation), freeing about4GiB, to
-preserve runtime and the completed normal library. No runtime was signalled.
-Interrupted build exit101, zero warnings, zero compiler tests; preserve its
-receipt, do not call it a semantic regression or completed clean6 comparison.
-OOM/oom_kill remain0. clean6-unit-memory-deferral.json/cold-build-cache receipts
-record the resource action. Source/configuration/assertions/budgets unchanged.
-Clean6 retry waiter47490, /tmp/perf-b6-clean6-after-memory.log, waits until full
-selected compiler BOTH-mode runtime exits naturally, then rebuilds/runs/deletes
-only the clean6 compiler unit executable, original8 filters BOTH modes.
-Evidence: current-b6ea6dc5-clean6-after-memory-deferral/.
-Quiet guard session37197 was re-registered BEFORE either readiness release to wait
-for this successor47490 as well as the full compiler/corpus workers. Its source
-is /tmp/perf-b6-quiet-tests-after-memory.py; log shares that basename. Old guard
-state and worker-registration-after-memory-deferral.json remain preserved.
+Full corpus examples built cleanly and run unchanged. One current all-old
+failure: samples/wasm/t3-procs/35_native_dispatch_matrix.tcl returns all3
+Unavailable(CurrentOwnerUnavailable), hence fails acceptance. A separate exact
+three-report all-old diagnostic confirms capture_available=false immediately
+for all3 analyses, not invalidation caused by later analyses (17 procedures).
+Its11 fixed component variants, including the original first16 declarations,
+all capture and self-compare Equal. Canonical segmenter prefixes locate the
+first refusal exactly: first16 original declarations capture/self-compare Equal;
+adding the next original command puts [fib 20] makes immediate capture refuse.
+Both exact prefix inputs and probe sources are preserved. Route actual carrier to the
+compiler owner; preserve every source/input/owner/body guard. Never normalize,
+skip the fixture or substitute Debug for authenticated correspondence.
+Evidence: current-b6ea6dc5-native35-refusal/, -capture-variants/, -capture-prefix/;
+blocking-findings-20261023T2020.json pins fixture bytes and scoped observations.
+
+Memory actions are explicit failed-build receipts, zero warnings/zero tests:
+clean6 unit rustc40734 SIGINT at19:57, then server normal-library rustc44343
+SIGINT at20:02 as the one runtime kept growing. Both builders were cancelled
+to preserve runtime; no runtime was signalled/paused. Completed clean6 normal
+library remains cached. Cold-cache advisory eviction changed no file content.
+Clean6 retry47490 was held ONLY as an idle script until OLD recovery ended.
+The guard finally RESUMED it at20:21; it is now rebuilding the unit executable
+from the cached clean normal library, then runs original compiler BOTH modes.
+No process remains deliberately held. retry-recovery-ordering.json is complete.
+Server retry waits for47490 naturally, then rebuilds/runs/deletes original server
+cases with180s limits. Quiet guard is perf-b6-quiet-tests-serialized.py, session42932:
+it waits server actual build readiness before releasing server, then SpecTcl.
+Neither quiet readiness flag is released. No other process is deliberately held.
+
+The main all-old Tcl process was also OOM-killed (exit-9) after77/102 reports
+during the same memory pressure. Preserve that failed one-process run. Exact
+ELF old-tail recovery restores the original25 missing inputs, unchanged triples
+and hashes; first7 already Equal, including lifecycle fixture78. Evidence is
+current-b6ea6dc5-old-corpus-tail-recovery/. This is coverage recovery, not a
+passing original suite. Main driver continued: ALL15 old-only iRules pass;
+synthetics/mixed/PackSet continue. No original fixture is skipped or decoded.
+
+Both SpecTcl test executables built without warnings and await the quiet window.
+The proof runner now retains incomplete-inventory assertions until AFTER both
+modes/remaining suites and artifact cleanup, so an OOM cannot silently skip OLD.
+Missing outcomes stay missing (not invented assertion results), completeness
+and P2F are recorded separately, and the final assertion still fails the gate.
+No assertion, source input, test thread count or budget was weakened.
 
 Active roots/logs (terminal handles lost at18:41; use PIDs/files):
-- Controls34585: /tmp/perf-b6-controls.log; current-b6ea6dc5-controls/.
+- Controls34585 COMPLETE: /tmp/perf-b6-controls.log; current-b6ea6dc5-controls/.
 - Original clean634692 finished with the resource-deferred unit build;
-  successor47490 waits, as above. Original log /tmp/perf-b6-clean6.log retained.
-- Compiler-filter waiter41020: /tmp/perf-watch-compiler-b6.log. Copies the
-  exact SHA-verified control ELF, waits for controls cleanup, runs original8
-  filters PLUS the original non-UTF8 native-array control, BOTH modes.
+  successor47490 rebuilds, as above. Original log /tmp/perf-b6-clean6.log retained.
+- Original compiler waiter41020 exited after NEW OOM/incomplete inventory;
+  /tmp/perf-watch-compiler-b6.log. Recovery49887 COMPLETE/incomplete inventory:
+  /tmp/perf-b6-filter-recovery.log.
+  Original native0xff control PASSED NEW and remains in recovered OLD inventory.
 - Corpus waiter35120: /tmp/perf-b6-full-corpus.log. Requires every report
   control BOTH modes and unchanged source before starting complete all-old /
   mixed102 text Tcl+15 iRules+synthetics and ordered PackSet. All3 report pairs
   must Equal; Different/Unavailable fail. Strict runtime Eq stays separate.
-- Combined lexer36947: /tmp/perf-b6-lexer.log, queued on the Cargo lock.
+- Combined lexer36947 COMPLETE: /tmp/perf-b6-lexer.log.
 - Remaining-suite builder: /tmp/perf-b6-remaining-suites.log. Waits for the
   control executable, then builds server(default0) and SpecTcl(opt1).
-- Quiet guard successor: /tmp/perf-b6-quiet-tests-after-memory.log. Waits for
+- Quiet guard serialized: /tmp/perf-b6-quiet-tests-serialized.log. Waits for
   all other workers and
   rustc processes to finish naturally, then releases server and SpecTcl in
   order with original assertions/timeouts/budgets. No readiness flag released.

@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 20:00 UTC
+Last updated: 2026-10-23 20:27 UTC
 
 **Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
 All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
@@ -11,15 +11,21 @@ the build-only guard resumed the six-file compiler and exited.
 Switched lexer586/586 passes BOTH (4.427/2.879s); clean6 lexer586/586 passes
 BOTH (2.993/4.237s), zero warnings and executables removed. The old variable
 is ignored in the clean6 no-switch build. These are contended test durations,
-not latency benchmarks. Full corpus examples built cleanly; first22 all-old text fixtures have all3
-Equal pairs. Selected compiler NEW228/229 complete (142 pass/86 fail), with
-its1000-level interprocedural scan still running; original native-byte control
-passes. OLD/comparison pending. Both SpecTcl executables built cleanly and
-wait for their quiet window; server builds. The clean6 unit compilation was
-resource-deferred to preserve the growing7GiB runtime (no test paused, no OOM);
-its retry waits for the full compiler comparison to finish naturally. Normal
-clean6 library stays cached. Exact resource and worker receipts are retained. No full corpus or
-complete selected-suite verdict yet; six-file perf code remains unlanded.
+not latency benchmarks. Full corpus examples built cleanly; native_dispatch_matrix currently returns
+Unavailable in all3 forced-old comparisons. Three separate immediate captures
+also refuse;11 fixed component/initial-declaration variants self-compare Equal.
+Exact first16 declarations self-compare Equal; adding puts [fib 20] causes
+immediate refusal. Main original all-old Tcl process was OOM-killed after77
+reports; exact-ELF tail recovery covers original25 missing inputs. First7 Equal.
+All15 all-old iRules pass; remaining main cases continue, with no fixture skipped.
+Selected compiler NEW completed228/229 (142 pass/86 failures), then the1000-level
+nested scan exceeded15GiB and the cgroup recorded an OOM kill. OLD recovery uses
+the exact preserved ELF and also exits-9, same228 outcomes and same nested
+case incomplete. No complete comparison/acceptance. Original native-byte control passes
+NEW. Clean6 and server compilations were resource-deferred, no runtime paused;
+strict original inventory assertions now run after both modes/suite cleanup.
+SpecTcl executables are built, budgets unchanged and readiness held. Six-file
+perf source remains unlanded; routed patch remains unproven/withheld.
 See outstanding/perf.md for exact workers and evidence. Historical failures
 and timings below keep their original source/profile scope.
 

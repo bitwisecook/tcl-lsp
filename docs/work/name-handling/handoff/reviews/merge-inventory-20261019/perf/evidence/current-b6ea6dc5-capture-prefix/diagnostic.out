@@ -1,0 +1,3 @@
+PREFIX commands=16 bytes=1510 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+PREFIX commands=17 bytes=1525 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+FIRST_REFUSAL_ADDED_COMMAND "puts [fib 20]\n\n"

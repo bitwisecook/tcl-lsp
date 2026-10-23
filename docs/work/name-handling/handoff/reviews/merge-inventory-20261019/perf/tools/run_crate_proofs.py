@@ -56,6 +56,7 @@ if args.suite:
     assert set(args.suite) <= available, f"unknown suites: {set(args.suite) - available}"
 summary = {}
 failed = False
+inventory_errors = []
 for stage, (package, targets, suites) in stages.items():
     if args.stage not in (stage, "all"):
         continue
@@ -150,7 +151,9 @@ for stage, (package, targets, suites) in stages.items():
                 if code == "timeout180":
                     # A timeout is a failed gate state, never an assertion result.
                     rows.update({name: "timeout180" for name in expected_tests - set(rows)})
-                assert set(rows) == expected_tests, f"incomplete test inventory in {log}"
+                missing_tests = sorted(expected_tests - set(rows))
+                if missing_tests:
+                    inventory_errors.append(f"incomplete test inventory in {log}: {missing_tests}")
                 outcomes[mode] = rows
                 summary[f"{stage}/{suite}/{mode}"] = {
                     "returncode": code, "seconds": round(time.monotonic() - started, 3),
@@ -158,6 +161,9 @@ for stage, (package, targets, suites) in stages.items():
                     "failed": sum(x == "FAILED" for x in rows.values()),
                     "ignored": sum(x == "ignored" for x in rows.values()),
                     "timed_out": sorted(name for name, state in rows.items() if state == "timeout180"),
+                    "declared_count": len(expected_tests),
+                    "missing_tests": missing_tests,
+                    "inventory_complete": not missing_tests,
                     "log": log.name,
                 }
                 if code:
@@ -166,12 +172,18 @@ for stage, (package, targets, suites) in stages.items():
                 (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
             regressions = [name for name, state in outcomes["old"].items()
                            if state == "ok" and outcomes["new"].get(name) != "ok"]
-            assert set(outcomes["new"]) == set(outcomes["old"]), "test inventories differ"
+            if set(outcomes["new"]) != set(outcomes["old"]):
+                inventory_errors.append(f"test inventories differ for {stage}/{suite}")
             summary[f"{stage}/{suite}/new"]["pass_to_fail"] = regressions
+            comparison_complete = all(set(rows) == expected_tests for rows in outcomes.values())
+            summary[f"{stage}/{suite}/new"]["comparison_complete"] = comparison_complete
             (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
             if regressions:
                 failed = True
                 print(f"FAIL pass-to-fail {stage}/{suite}: {regressions}", flush=True)
+            elif not comparison_complete:
+                failed = True
+                print(f"FAIL incomplete comparison {stage}/{suite}", flush=True)
             else:
                 print(f"PASS zero pass-to-fail {stage}/{suite}", flush=True)
     finally:
@@ -179,5 +191,6 @@ for stage, (package, targets, suites) in stages.items():
             exe.unlink(missing_ok=True)
         if private_directory is not None:
             private_directory.rmdir()
+assert not inventory_errors, "\n".join(inventory_errors)
 if failed:
     raise SystemExit("One or more test runs failed; inspect the complete saved output")

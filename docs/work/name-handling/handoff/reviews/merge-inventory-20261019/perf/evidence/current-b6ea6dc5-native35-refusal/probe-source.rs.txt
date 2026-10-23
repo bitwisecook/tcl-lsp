@@ -1,0 +1,24 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+fn main() {
+    let path = std::env::args().nth(1).expect("fixture path");
+    let source = std::fs::read_to_string(path).expect("complete UTF-8 fixture");
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    let mut reports = Vec::new();
+    for index in 0..3 {
+        let start = std::time::Instant::now();
+        let report = Analyser::new().analyse_for_report(&source, "tcl8.6");
+        println!("CAPTURE index={index} ms={} state={report:?} self={:?} procs={} classes={}", start.elapsed().as_millis(), report.compare(&report), report.analysis().all_procs.len(), report.analysis().all_classes.len());
+        reports.push(report);
+        for (prior, report) in reports.iter().enumerate() {
+            println!("AFTER capture={index} prior={prior} state={report:?} self={:?}", report.compare(report));
+        }
+    }
+    for (left, right) in [(0, 1), (1, 2), (0, 2)] {
+        println!("PAIR left={left} right={right} result={:?}", reports[left].compare(&reports[right]));
+    }
+}

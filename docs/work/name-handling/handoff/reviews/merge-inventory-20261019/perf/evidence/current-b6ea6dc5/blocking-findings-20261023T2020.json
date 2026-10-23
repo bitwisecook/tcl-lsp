@@ -1,0 +1,43 @@
+{
+  "observed_utc": "2026-10-23 20:20 UTC",
+  "proof_base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "acceptance": false,
+  "new_selected_tests": {
+    "declared": 229,
+    "completed": 228,
+    "ok": 142,
+    "assertion_failures": 86,
+    "missing": [
+      "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+    ],
+    "resource": "At20:05:42 active test PID43914 RSS15525416KiB; by20:06:57 PID gone and cgroup oom/oom_kill incremented0->1. Original driver asserted incomplete inventory before OLD. Kernel victim PID/exit code were not separately logged.",
+    "original_depth": 1000,
+    "original_stack_bytes": 67108864
+  },
+  "old_recovery_in_progress": {
+    "completed": 228,
+    "observed_outcome_differences": [],
+    "complete": false,
+    "source": "SHA-verified exact private copy of the same ELF; original filters/assertions retained."
+  },
+  "all_old_text_corpus_in_progress": {
+    "completed": 75,
+    "not_equal": 1,
+    "failures": [
+      "REPORT label=\"samples/wasm/t3-procs/35_native_dispatch_matrix.tcl\" old1_ms=73792 new_ms=21915 old2_ms=21814 old_old=Unavailable(CurrentOwnerUnavailable) old_new=Unavailable(CurrentOwnerUnavailable) new_old=Unavailable(CurrentOwnerUnavailable) strict_old_old=false strict_old_new=false strict_new_old=false pass=false"
+    ]
+  },
+  "report_blocker": {
+    "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+    "sha256": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
+    "immediate_capture_repetitions": 3,
+    "capture_available": false,
+    "self_comparison": "Unavailable(CurrentOwnerUnavailable)",
+    "procs": 17,
+    "later_analyses_do_not_cause_refusal": true,
+    "component_variants": "11 fixed inputs all capture and self-compare Equal, including original first16 declarations. Whole-command prefix diagnostic running.",
+    "route": "Compiler actual report/request/body owner: complete original native fixture fails even forced-old. Preserve full acceptance and guard requirements; no normalization or skipped input."
+  },
+  "runtime_resource_order": "Clean6 idle retry47490 held ONLY by retry-recovery-ordering guard until exact-ELF OLD recovery ends; finally resumes it. Server retry waits clean6 compiler both modes. Quiet guard waits server actual build readiness before original budgets, then SpecTcl. No runtime paused.",
+  "rust_source_mutated": false
+}

@@ -1,0 +1,30 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::{Analyser, AnalysisReportComparison};
+fn main() {
+    let path = std::env::args().nth(1).expect("original fixture");
+    let out = std::path::PathBuf::from(std::env::args().nth(2).expect("diagnostic output"));
+    let original = std::fs::read_to_string(path).expect("complete original input");
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6).lexer_grammar);
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(&original, 0, config);
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    let mut last_good_end = 0;
+    for count in 16..=commands.len() {
+        let end = commands.get(count).map_or(original.len(), |command| usize::try_from(command.span.start()).expect("command start"));
+        let source = &original[..end];
+        let report = Analyser::new().analyse_for_report(source, "tcl8.6");
+        let result = report.compare(&report);
+        println!("PREFIX commands={count} bytes={end} state={report:?} self={result:?}");
+        if result != AnalysisReportComparison::Equal {
+            std::fs::write(out.join("first-refusal-prefix.tcl"), source).expect("save exact prefix");
+            std::fs::write(out.join("last-equal-prefix.tcl"), &original[..last_good_end]).expect("save exact prior prefix");
+            let start = usize::try_from(commands[count - 1].span.start()).expect("last command start");
+            println!("FIRST_REFUSAL_ADDED_COMMAND {:?}", &original[start..end]);
+            break;
+        }
+        last_good_end = end;
+    }
+}

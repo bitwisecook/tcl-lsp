@@ -1,0 +1,11 @@
+VARIANT label=empty state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=nonempty state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=replacement state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=replacement-after-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=rename state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=namespace state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=namespace-delete state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=trace state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=upvar-uplevel state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=varargs state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=1
+VARIANT label=initial-declarations state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal procs=16

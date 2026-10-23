@@ -1,0 +1,12 @@
+CAPTURE index=0 ms=19331 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable) procs=17 classes=0
+AFTER capture=0 prior=0 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+CAPTURE index=1 ms=26596 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable) procs=17 classes=0
+AFTER capture=1 prior=0 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+AFTER capture=1 prior=1 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+CAPTURE index=2 ms=22271 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable) procs=17 classes=0
+AFTER capture=2 prior=0 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+AFTER capture=2 prior=1 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+AFTER capture=2 prior=2 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+PAIR left=0 right=1 result=Unavailable(CurrentOwnerUnavailable)
+PAIR left=1 right=2 result=Unavailable(CurrentOwnerUnavailable)
+PAIR left=0 right=2 result=Unavailable(CurrentOwnerUnavailable)

@@ -1,0 +1,7 @@
+{
+  "observed_unix": 1792786007.9425147,
+  "old_guard": 47611,
+  "new_guard_source": "/tmp/perf-b6-quiet-tests-serialized.py",
+  "policy": "Wait original full modes, optional missing-mode recovery and clean6 retry naturally; then wait for server retry build readiness before releasing original server budgets, then SpecTcl. No runtime paused.",
+  "readiness_flags_absent": true
+}

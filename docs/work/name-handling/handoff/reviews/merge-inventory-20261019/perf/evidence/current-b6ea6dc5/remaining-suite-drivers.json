@@ -1,8 +1,16 @@
 {
   "started_unix": 1792784288.8042395,
   "drivers": {
-    "server": 42379,
+    "server": 50172,
     "spectcl": 42380
   },
-  "readiness": "held until all other runtime work completes naturally"
+  "readiness": "held until all other runtime work completes naturally",
+  "original_server_driver": 42379,
+  "server_retry": {
+    "started_unix": 1792785979.750655,
+    "wait_for_clean6": 47490,
+    "log": "/tmp/perf-b6-server-after-memory.log",
+    "evidence": "crate-tests-default-after-memory",
+    "reason": "Serialize server build after clean6 compiler runtime to preserve memory and original server wall budgets."
+  }
 }

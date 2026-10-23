@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792786735.7662892,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: exact original whole-command prefixes from canonical Tcl8.6 segmenter start offsets, forced-old self comparisons. Stop at first refusal; preserve original complete corpus input.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792786760.9721,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

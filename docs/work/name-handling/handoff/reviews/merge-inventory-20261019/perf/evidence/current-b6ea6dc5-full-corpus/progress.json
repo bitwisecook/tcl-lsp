@@ -1,0 +1,26 @@
+[
+  {
+    "mode": "old-only",
+    "case": "tcl",
+    "exit": -9,
+    "valid": false,
+    "expected": 102,
+    "wall_s": 1670.5712833709986
+  },
+  {
+    "mode": "old-only",
+    "case": "irules",
+    "exit": 0,
+    "valid": true,
+    "expected": 15,
+    "wall_s": 187.38418625399936
+  },
+  {
+    "mode": "old-only",
+    "case": "calls",
+    "exit": 0,
+    "valid": true,
+    "expected": 4,
+    "wall_s": 172.1935654659901
+  }
+]

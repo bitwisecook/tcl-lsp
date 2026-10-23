@@ -1,0 +1,26 @@
+{
+  "observed_utc": "2026-10-23 20:27 UTC",
+  "selected_compiler_both_modes": {
+    "declared": 229,
+    "new_completed": 228,
+    "old_completed": 228,
+    "observed_outcomes_identical": true,
+    "missing_in_both": [
+      "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+    ],
+    "old_exit": -9,
+    "complete": false,
+    "original_assertions_unchanged": true
+  },
+  "cgroup_memory_events": "low 0\nhigh 0\nmax 56649\noom 4\noom_kill 3\noom_group_kill 0\n",
+  "all_old_tcl": {
+    "exit": -9,
+    "completed": 77,
+    "unavailable_fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+    "tail_recovery": "current-b6ea6dc5-old-corpus-tail-recovery",
+    "first_tail7": "Equal, includes lifecycle fixture78; prior termination happened during concurrent resource pressure, not an established fixture-specific memory cause."
+  },
+  "all_old_irules": "15/15 all3 Equal comparisons",
+  "capture_first_refusal": "Original first16 declarations Equal self comparison; next original command puts [fib 20] immediately refuses. Do not infer a private guard without further trace.",
+  "scope": "FAILED/incomplete gates; no acceptance and no perf production commit."
+}

@@ -1,0 +1,29 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+fn main() {
+    let path = std::env::args().nth(1).expect("original fixture");
+    let original = std::fs::read_to_string(path).expect("complete original input");
+    let prefix = original.split_once("\nputs [fib 20]\n").expect("fixed fixture prefix marker").0;
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    let cases = [
+        ("empty", "proc p {} {}\n"),
+        ("nonempty", "proc p {} {return one}\n"),
+        ("replacement", "proc p {} {return one}\nproc p {} {return two}\n"),
+        ("replacement-after-call", "proc p {} {return one}\nputs [p]\nproc p {} {return two}\n"),
+        ("rename", "proc p {} {return one}\nrename p q\nq\n"),
+        ("namespace", "namespace eval ns {proc p {} {return one}}\nns::p\n"),
+        ("namespace-delete", "namespace eval ns {proc p {} {return one}}\nns::p\nnamespace delete ns\n"),
+        ("trace", "proc p {x} {return $x}\ntrace add execution p enter {apply {{cmd op} {puts $cmd}}}\np value\n"),
+        ("upvar-uplevel", "proc p {name delta} {upvar 1 $name v; incr v $delta; uplevel 1 {set seen 1}}\n"),
+        ("varargs", "proc p {name {greeting hello} args} {return \"$greeting $name ([llength $args])\"}\n"),
+        ("initial-declarations", prefix),
+    ];
+    for (label, source) in cases {
+        let report = Analyser::new().analyse_for_report(source, "tcl8.6");
+        println!("VARIANT label={label} state={report:?} self={:?} procs={}", report.compare(&report), report.analysis().all_procs.len());
+    }
+}

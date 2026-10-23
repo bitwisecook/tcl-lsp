@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792786333.8745048,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: three forced-old actual reports, immediate and later self comparisons; no guard or assertion changed.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792786421.4600186,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

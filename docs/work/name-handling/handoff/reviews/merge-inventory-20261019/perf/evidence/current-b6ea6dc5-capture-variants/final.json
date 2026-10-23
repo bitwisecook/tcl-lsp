@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792786520.9486592,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: fixed canonical component inputs and exact original declaration prefix, forced-old self comparisons. No original corpus input, guard or assertion is changed.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792786572.0321393,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}
