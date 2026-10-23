@@ -2347,11 +2347,10 @@ impl Analyser {
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         use std::collections::HashSet;
 
-        #[cfg(debug_assertions)]
-        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
-        #[cfg(debug_assertions)]
+        let phase_start = ((cfg!(debug_assertions)
+            && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+            || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
+        .then(std::time::Instant::now);
         let trace_phase = |stage: &str| {
             if let Some(start) = phase_start {
                 eprintln!(
@@ -2361,7 +2360,6 @@ impl Analyser {
                 );
             }
         };
-        #[cfg(debug_assertions)]
         trace_phase("initial");
         self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
@@ -2407,17 +2405,14 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        #[cfg(debug_assertions)]
         trace_phase("realm-start");
         self.head_identities = self.document_command_realm(source);
-        #[cfg(debug_assertions)]
         trace_phase("realm-complete");
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         self.result.original_command_world =
             self.head_identities.original_completed_command_world();
         self.retain_original_comment_suppressions(source);
         self.record_original_formal_variables();
-        #[cfg(debug_assertions)]
         trace_phase("retained-inventory");
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
@@ -2450,7 +2445,6 @@ impl Analyser {
 
         // Ghost-token recovery (see method doc).
         let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
-        #[cfg(debug_assertions)]
         trace_phase("segmented");
 
         // Walk each command through the dispatcher.  The dispatcher
@@ -2465,10 +2459,8 @@ impl Analyser {
         // tier, all through the ordinary scope machinery.
         self.seed_walk_namespace(source);
         let file_env_pushed = self.seed_file_scope_env(source);
-        #[cfg(debug_assertions)]
         trace_phase("walk-start");
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
-        #[cfg(debug_assertions)]
         trace_phase("walk-complete");
         if file_env_pushed {
             self.body_scope_stack.pop();
@@ -2496,7 +2488,6 @@ impl Analyser {
         // metaclass missing there is invisible to every other document.
         self.record_literal_parameter_definitions();
         self.retain_original_callback_signature_lookups(source);
-        #[cfg(debug_assertions)]
         trace_phase("parameter-definitions");
         if self.structure_only {
             if let Some(registry) = self.registry.as_deref() {
@@ -2505,12 +2496,10 @@ impl Analyser {
         } else {
             self.run_diagnostic_emitters(source);
         }
-        #[cfg(debug_assertions)]
         trace_phase("diagnostics-complete");
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
-        #[cfg(debug_assertions)]
         trace_phase("complete");
         result
     }
@@ -3446,11 +3435,10 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
-        #[cfg(debug_assertions)]
-        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
-        #[cfg(debug_assertions)]
+        let phase_start = ((cfg!(debug_assertions)
+            && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+            || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
+        .then(std::time::Instant::now);
         let trace_phase = |stage: &str| {
             if let Some(start) = phase_start {
                 eprintln!(
@@ -3460,7 +3448,6 @@ impl Analyser {
                 );
             }
         };
-        #[cfg(debug_assertions)]
         trace_phase("initial");
         // Declared package availability first: every emitter below that asks
         // "is this package available here?" — W120, H301, the W123 widening,
@@ -3489,14 +3476,12 @@ impl Analyser {
         self.finalise_invocation_resolutions();
         self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
-        #[cfg(debug_assertions)]
         trace_phase("invocations");
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
         // — a qualified read can precede its declaring `namespace eval`
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
-        #[cfg(debug_assertions)]
         trace_phase("variable-references");
         let diag_registry = self.profile_registry();
         self.emit_unresolved_command_diagnostics(&diag_registry);
@@ -3520,10 +3505,8 @@ impl Analyser {
         // Q8's assistance half. Disjoint from W120 by construction — that
         // fires when the requirement is absent, this when it is merely late.
         self.emit_package_require_ordering_hints(&diag_registry);
-        #[cfg(debug_assertions)]
         trace_phase("command-diagnostics");
         self.emit_variable_usage_diagnostics();
-        #[cfg(debug_assertions)]
         trace_phase("variable-usage");
         #[cfg(test)]
         let before_cfg_ssa = self
@@ -3542,7 +3525,6 @@ impl Analyser {
                     .collect(),
             );
         }
-        #[cfg(debug_assertions)]
         trace_phase("cfg-ssa");
         self.flush_loop_terminations();
         self.flush_objdefine_abort_diagnostics();
@@ -3555,7 +3537,6 @@ impl Analyser {
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();
-        #[cfg(debug_assertions)]
         trace_phase("complete");
     }
 

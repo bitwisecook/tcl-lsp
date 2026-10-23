@@ -6663,6 +6663,9 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
             .db
             .snapshot_from(&db, "sync_workspace_class_factories_round")
         else {
+            workspace_scan_trace!(
+                "factory.round.cancelled_reason sync={handles:p} reason=snapshot_unavailable"
+            );
             return ClassFactoryRound::Cancelled;
         };
         (snapshot, files, project, tcl_lsp_db::database_revision(&db))
@@ -6686,6 +6689,9 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     })
     .await;
     let Ok(Some((want, pending))) = computed else {
+        workspace_scan_trace!(
+            "factory.round.cancelled_reason sync={handles:p} reason=join_or_salsa_unavailable"
+        );
         return ClassFactoryRound::Cancelled;
     };
     apply_workspace_class_factories_if_current(handles, revision, want, pending).await
@@ -6704,6 +6710,9 @@ async fn apply_workspace_class_factories_if_current(
     let mut class_factory_generation = handles.class_factory_generation.write().await;
     let mut db = handles.db.lock().await;
     if tcl_lsp_db::database_revision(&db) != revision {
+        workspace_scan_trace!(
+            "factory.round.cancelled_reason sync={handles:p} reason=revision_changed captured={revision:?}"
+        );
         return ClassFactoryRound::Cancelled;
     }
     let mut changed = Vec::with_capacity(pending.len());
