@@ -150,7 +150,10 @@ impl NativeOperationCurrency {
         let current_host = interpreter.host();
         let epoch = interpreter.native_operation_context_epoch();
         if !Weak::ptr_eq(&self.host, &Rc::downgrade(&current_host))
-            || interpreter.runtime_context() != self.context
+            || {
+                let pin = interpreter.0.pin.borrow();
+                pin.context != self.context
+            }
             || interpreter.native_invocation_dialect() != self.dialect
             || epoch != Some(self.epoch)
         {
