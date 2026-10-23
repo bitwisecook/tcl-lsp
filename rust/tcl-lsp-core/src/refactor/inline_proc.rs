@@ -989,6 +989,18 @@ fn validate_inline_argument_origin(
     Ok(())
 }
 
+type InlineBodyValues<'image, 'names, 'bindings> = (
+    &'image tcl_lexer::SourceImage,
+    tcl_syntax::native_string::NativeStringProtocol,
+    &'names std::collections::BTreeSet<Vec<u8>>,
+    &'bindings std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+);
+
+type InlineBodyReferences<'references, 'expressions> = (
+    &'references mut std::collections::BTreeMap<(u32, u32), Vec<u8>>,
+    &'expressions mut Vec<tcl_lexer::Span>,
+);
+
 fn collect_inline_body_references(
     source: &str,
     command: &tcl_compiler::segmenter::SegmentedCommand,
@@ -998,16 +1010,8 @@ fn collect_inline_body_references(
         &tcl_compiler::command_binding::SourceInvocationBinding,
         &tcl_registry::CommandRegistry,
     ),
-    values: (
-        &tcl_lexer::SourceImage,
-        tcl_syntax::native_string::NativeStringProtocol,
-        &std::collections::BTreeSet<Vec<u8>>,
-        &std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
-    ),
-    output: (
-        &mut std::collections::BTreeMap<(u32, u32), Vec<u8>>,
-        &mut Vec<tcl_lexer::Span>,
-    ),
+    values: InlineBodyValues<'_, '_, '_>,
+    output: InlineBodyReferences<'_, '_>,
     unavailable: &impl Fn() -> String,
 ) -> Result<(), String> {
     let (tokens, binding, registry) = call;
