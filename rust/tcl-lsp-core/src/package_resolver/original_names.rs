@@ -624,7 +624,8 @@ fn analyse_package_index(
     let started = trace.then(std::time::Instant::now);
     if trace {
         eprintln!(
-            "[workspace_scan] package.analysis.begin path={path:?} bytes={} profile={} native_commands={native_commands:?}",
+            "[workspace_scan] package.analysis.begin path={} bytes={} profile={} native_commands={native_commands:?}",
+            path.display(),
             content.len(),
             profile.name
         );
@@ -632,7 +633,8 @@ fn analyse_package_index(
     let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
     if let Some(started) = started {
         eprintln!(
-            "[workspace_scan] package.analysis.end path={path:?} elapsed_ms={} commands={} procedures={} classes={}",
+            "[workspace_scan] package.analysis.end path={} elapsed_ms={} commands={} procedures={} classes={}",
+            path.display(),
             started.elapsed().as_millis(),
             analysis.command_invocations.len(),
             analysis.all_procs.len(),
