@@ -4114,16 +4114,177 @@ fn find_callback_substitution_warnings(
     taint_callback_substitution_report(cu, registry, dialect, baseline).warnings
 }
 
-fn taint_callback_substitution_report(
+fn materialise_callback_replay_candidate(
+    (callback, written_index): (&str, usize),
+    inputs: &'static [tcl_registry::CallbackTaintInput],
+    tokens: Option<&CommandTokens>,
+    stmt: &Statement,
+    source: TaintSourceContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> Option<CallbackReplayCandidate> {
+    let callback_word = tokens.and_then(|tokens| tokens.word_exprs.get(written_index + 1));
+    let command_substitution = callback_word.and_then(whole_command_substitution);
+    let source_is_command_substitution = command_substitution.is_some()
+        || tokens
+            .and_then(|tokens| tokens.argv_kinds.get(written_index + 1))
+            .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
+    // The callback argument is evaluated once when registered.
+    // Reduce static brace/quote/bare/backslash forms to that
+    // runtime value before parsing it as the later callback
+    // script. A whole command substitution remains source for
+    // the specialised list-prefix builder below.
+    let materialised_callback = if source_is_command_substitution {
+        command_substitution.unwrap_or(callback).to_owned()
+    } else if let Some(word) = callback_word {
+        static_word_expr_value(
+            word,
+            lexer_config.escapes,
+            tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
+        )?
+    } else {
+        callback.to_owned()
+    };
+    let callback_input_label = callback_input_label(&materialised_callback, inputs)?;
+    let callback_span = tokens
+        .and_then(|tokens| tokens.argv.get(written_index + 1).copied())
+        .unwrap_or_else(|| stmt.span());
+    let selected_builder = if source_is_command_substitution {
+        let metadata = source.metadata_context()?;
+        let tokens = tokens?;
+        let builder = retained_callback_list_builder(registry, metadata, tokens, callback_span)?;
+        Some(builder)
+    } else {
+        None
+    };
+    // Prove the callback can be materialised before choosing
+    // synthetic names. The probe is never compiled or
+    // evaluated, so it need not be collision-free; it only
+    // exercises the parser/list-prefix policy. This prevents
+    // dynamic registrations from consuming the replay cap or
+    // making callback-free files scan their full source.
+    callback_replay_source(
+        &materialised_callback,
+        inputs,
+        source_is_command_substitution,
+        "__tcl_lsp_callback_probe",
+        "::__tcl_lsp_callback_probe",
+        lexer_config,
+        selected_builder.as_ref(),
+    )?;
+    Some(CallbackReplayCandidate {
+        callback: materialised_callback,
+        inputs,
+        source_is_command_substitution,
+        callback_span,
+        callback_input_label,
+        selected_builder,
+    })
+}
+
+fn collect_statement_callback_candidates(
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: TaintSourceContext<'_>,
+    instance_classes: &LocalInstanceClasses,
+    stmt: &Statement,
+    lexer_config: tcl_lexer::LexerConfig,
+    candidates: &mut Vec<CallbackReplayCandidate>,
+) {
+    let (command, args, tokens) = match stmt {
+        Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => (
+            stmt.canonical_command_or_source(),
+            args.as_slice(),
+            tokens.as_ref(),
+        ),
+        _ => return,
+    };
+    let resolved = crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+        registry,
+        source.metadata,
+        stmt,
+    );
+    if resolved.is_none() {
+        return;
+    }
+    let effective = resolved.as_ref().map(|resolved| &resolved.effective);
+    let command = resolved.as_ref().map_or(command, |resolved| {
+        resolved.facts.canonical_command.as_str()
+    });
+    let presentations: Vec<Option<&str>> = resolved.as_ref().map_or_else(
+        || {
+            args.iter()
+                .map(|argument| Some(argument.as_str()))
+                .collect()
+        },
+        |resolved| {
+            resolved
+                .arguments
+                .iter()
+                .map(|argument| argument.as_deref())
+                .collect()
+        },
+    );
+    let arg_refs = presentations.iter().copied().collect::<Option<Vec<_>>>();
+    for (index, callback) in presentations.iter().copied().enumerate() {
+        let Some(callback) = callback else {
+            continue;
+        };
+        let written_index = match &effective {
+            Some(effective) => {
+                let Some(index) = effective.written_argument(index) else {
+                    continue;
+                };
+                index
+            }
+            None => index,
+        };
+        let direct = resolved.as_ref().map_or(&[] as &[_], |resolved| {
+            resolved.with_argument_words(|words| {
+                registry.callback_taint_inputs_words(words, index, dialect_to_point(dialect))
+            })
+        });
+        let inputs = if direct.is_empty() {
+            arg_refs.as_ref().map_or(&[] as &[_], |arguments| {
+                callback_taint_inputs_at_call(
+                    registry,
+                    command,
+                    arguments,
+                    index,
+                    dialect_to_point(dialect),
+                    instance_classes,
+                    tokens
+                        .and_then(|tokens| tokens.words().first())
+                        .map(|word| (word, source.config, stmt.span().start())),
+                )
+            })
+        } else {
+            direct
+        };
+        if inputs.is_empty() {
+            continue;
+        }
+        if let Some(candidate) = materialise_callback_replay_candidate(
+            (callback, written_index),
+            inputs,
+            tokens,
+            stmt,
+            source,
+            lexer_config,
+            registry,
+        ) {
+            candidates.push(candidate);
+        }
+    }
+}
+
+fn collect_callback_replay_candidates(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
-    baseline: &[TaintWarning],
-) -> TaintWarningReport {
-    let mut candidates = Vec::new();
-    // Most files have no statically replayable command-substitution callback.
-    let lexer_config = cu.ir_module.lexer_config;
-
+    lexer_config: tcl_lexer::LexerConfig,
+    candidates: &mut Vec<CallbackReplayCandidate>,
+) {
     for fu in cu.all_body_function_units() {
         let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
         let instance_classes = instance_classes_for_function(
@@ -4135,169 +4296,131 @@ fn taint_callback_substitution_report(
         );
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
-                let (command, args, tokens) = match stmt {
-                    Statement::Call { args, tokens, .. }
-                    | Statement::Barrier { args, tokens, .. } => (
-                        stmt.canonical_command_or_source(),
-                        args.as_slice(),
-                        tokens.as_ref(),
-                    ),
-                    _ => continue,
-                };
-                let resolved =
-                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-                        registry,
-                        source.metadata,
-                        stmt,
-                    );
-                if resolved.is_none() {
-                    continue;
-                }
-                let effective = resolved.as_ref().map(|resolved| &resolved.effective);
-                let command = resolved.as_ref().map_or(command, |resolved| {
-                    resolved.facts.canonical_command.as_str()
-                });
-                let presentations: Vec<Option<&str>> = resolved.as_ref().map_or_else(
-                    || {
-                        args.iter()
-                            .map(|argument| Some(argument.as_str()))
-                            .collect()
-                    },
-                    |resolved| {
-                        resolved
-                            .arguments
-                            .iter()
-                            .map(|argument| argument.as_deref())
-                            .collect()
-                    },
+                collect_statement_callback_candidates(
+                    registry,
+                    dialect,
+                    source,
+                    &instance_classes,
+                    stmt,
+                    lexer_config,
+                    candidates,
                 );
-                let arg_refs = presentations.iter().copied().collect::<Option<Vec<_>>>();
-                for (index, callback) in presentations.iter().copied().enumerate() {
-                    let Some(callback) = callback else {
-                        continue;
-                    };
-                    let written_index = match &effective {
-                        Some(effective) => {
-                            let Some(index) = effective.written_argument(index) else {
-                                continue;
-                            };
-                            index
-                        }
-                        None => index,
-                    };
-                    let direct = resolved.as_ref().map_or(&[] as &[_], |resolved| {
-                        resolved.with_argument_words(|words| {
-                            registry.callback_taint_inputs_words(
-                                words,
-                                index,
-                                dialect_to_point(dialect),
-                            )
-                        })
-                    });
-                    let inputs = if direct.is_empty() {
-                        arg_refs.as_ref().map_or(&[] as &[_], |arguments| {
-                            callback_taint_inputs_at_call(
-                                registry,
-                                command,
-                                arguments,
-                                index,
-                                dialect_to_point(dialect),
-                                &instance_classes,
-                                tokens
-                                    .and_then(|tokens| tokens.words().first())
-                                    .map(|word| (word, source.config, stmt.span().start())),
-                            )
-                        })
-                    } else {
-                        direct
-                    };
-                    if inputs.is_empty() {
-                        continue;
-                    }
-                    let callback_word =
-                        tokens.and_then(|tokens| tokens.word_exprs.get(written_index + 1));
-                    let command_substitution = callback_word.and_then(whole_command_substitution);
-                    let source_is_command_substitution = command_substitution.is_some()
-                        || tokens
-                            .and_then(|tokens| tokens.argv_kinds.get(written_index + 1))
-                            .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
-                    // The callback argument is evaluated once when registered.
-                    // Reduce static brace/quote/bare/backslash forms to that
-                    // runtime value before parsing it as the later callback
-                    // script. A whole command substitution remains source for
-                    // the specialised list-prefix builder below.
-                    let materialised_callback = if source_is_command_substitution {
-                        command_substitution.unwrap_or(callback).to_owned()
-                    } else if let Some(word) = callback_word {
-                        let Some(value) = static_word_expr_value(
-                            word,
-                            lexer_config.escapes,
-                            tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
-                        ) else {
-                            continue;
-                        };
-                        value
-                    } else {
-                        callback.to_owned()
-                    };
-                    let Some(callback_input_label) =
-                        callback_input_label(&materialised_callback, inputs)
-                    else {
-                        continue;
-                    };
-                    let callback_span = tokens
-                        .and_then(|tokens| tokens.argv.get(written_index + 1).copied())
-                        .unwrap_or_else(|| stmt.span());
-                    let selected_builder = if source_is_command_substitution {
-                        let Some(metadata) = source.metadata_context() else {
-                            continue;
-                        };
-                        let Some(tokens) = tokens else {
-                            continue;
-                        };
-                        let Some(builder) = retained_callback_list_builder(
-                            registry,
-                            metadata,
-                            tokens,
-                            callback_span,
-                        ) else {
-                            continue;
-                        };
-                        Some(builder)
-                    } else {
-                        None
-                    };
-                    // Prove the callback can be materialised before choosing
-                    // synthetic names. The probe is never compiled or
-                    // evaluated, so it need not be collision-free; it only
-                    // exercises the parser/list-prefix policy. This prevents
-                    // dynamic registrations from consuming the replay cap or
-                    // making callback-free files scan their full source.
-                    if callback_replay_source(
-                        &materialised_callback,
-                        inputs,
-                        source_is_command_substitution,
-                        "__tcl_lsp_callback_probe",
-                        "::__tcl_lsp_callback_probe",
-                        lexer_config,
-                        selected_builder.as_ref(),
-                    )
-                    .is_none()
-                    {
-                        continue;
-                    }
-                    candidates.push(CallbackReplayCandidate {
-                        callback: materialised_callback,
-                        inputs,
-                        source_is_command_substitution,
-                        callback_span,
-                        callback_input_label,
-                        selected_builder,
-                    });
-                }
             }
         }
     }
+}
+
+fn retain_callback_replay_report(
+    cu: &crate::compilation_unit::CompilationUnit,
+    baseline: &[TaintWarning],
+    input_var: &str,
+    replay_spans: &[(Span, Span, String)],
+    replay_report: TaintWarningReport,
+    out: &mut TaintWarningReport,
+) {
+    let was_analysed = matches!(&replay_report.replays, TaintReplayAnalysis::Analysed { .. });
+    let mut unavailable = Vec::new();
+    for residual in replay_report.replays.unavailable_replays() {
+        unavailable.extend(original_callback_replay_residuals(
+            residual,
+            cu,
+            replay_spans,
+        ));
+    }
+    if !was_analysed && unavailable.is_empty() {
+        unavailable.extend(replay_spans.iter().map(|(_, registration, _)| {
+            UnavailableTaintReplay {
+                span: *registration,
+                reason: UnavailableTaintReplayReason::SourceMetadata,
+                source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+            }
+        }));
+    }
+    out.replays.merge(if was_analysed {
+        TaintReplayAnalysis::Analysed { unavailable }
+    } else {
+        TaintReplayAnalysis::Unavailable { unavailable }
+    });
+    for mut warning in replay_report.warnings {
+        // A prefix can call a local procedure. Its sink then lies in the
+        // original procedure body even though the synthetic invocation
+        // taints its parameter. Keep that new source span intact. Only a
+        // sink in an appended callback script is retargeted.
+        if baseline.iter().any(|existing| {
+            existing.span == warning.span
+                && existing.variable == warning.variable
+                && existing.sink_command == warning.sink_command
+                && existing.code == warning.code
+        }) {
+            continue;
+        }
+        if let Some((_, registration, callback_input_label)) =
+            replay_spans.iter().find(|(span, _, _)| {
+                warning.span.start() >= span.start() && warning.span.start() < span.end()
+            })
+        {
+            if warning.variable == input_var {
+                let synthetic_name = format!("Tainted variable ${input_var}");
+                warning.variable.clone_from(callback_input_label);
+                warning.message =
+                    warning
+                        .message
+                        .replacen(&synthetic_name, callback_input_label, 1);
+            }
+            warning.span = *registration;
+            // A future sink-specific fix emitted for replay text must
+            // never point at the appended synthetic source.
+            warning.replacement = None;
+            warning.fixes.clear();
+        }
+        out.warnings.push(warning);
+    }
+}
+
+type CallbackReplaySpans = Vec<(Span, Span, String)>;
+
+fn append_callback_replays(
+    source: &str,
+    replays: &[(CallbackReplaySource, Span, String)],
+) -> (String, CallbackReplaySpans) {
+    let mut injected = String::with_capacity(
+        source.len()
+            + replays
+                .iter()
+                .map(|(source, _, _)| source.definition.len() + 1)
+                .sum::<usize>(),
+    );
+    injected.push_str(source);
+    let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
+    // Retained procedure entries share the registration world. Their
+    // arbitrary effects belong to their own future executions, so one
+    // replay never mutates another replay's incoming command table.
+    for (replay, callback_span, callback_input_label) in replays {
+        injected.push('\n');
+        let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+        injected.push_str(&replay.definition);
+        let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+        replay_spans.push((
+            Span::new(start, end),
+            *callback_span,
+            callback_input_label.clone(),
+        ));
+    }
+
+    (injected, replay_spans)
+}
+
+fn taint_callback_substitution_report(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    baseline: &[TaintWarning],
+) -> TaintWarningReport {
+    let mut candidates = Vec::new();
+    // Most files have no statically replayable command-substitution callback.
+    let lexer_config = cu.ir_module.lexer_config;
+
+    collect_callback_replay_candidates(cu, registry, dialect, lexer_config, &mut candidates);
 
     if candidates.is_empty() {
         return TaintWarningReport::analysed(Vec::new(), Vec::new());
@@ -4331,29 +4454,7 @@ fn taint_callback_substitution_report(
             ));
         }
 
-        let mut injected = String::with_capacity(
-            cu.source.len()
-                + replays
-                    .iter()
-                    .map(|(source, _, _)| source.definition.len() + 1)
-                    .sum::<usize>(),
-        );
-        injected.push_str(&cu.source);
-        let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
-        // Retained procedure entries share the registration world. Their
-        // arbitrary effects belong to their own future executions, so one
-        // replay never mutates another replay's incoming command table.
-        for (replay, callback_span, callback_input_label) in &replays {
-            injected.push('\n');
-            let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-            injected.push_str(&replay.definition);
-            let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-            replay_spans.push((
-                Span::new(start, end),
-                *callback_span,
-                callback_input_label.clone(),
-            ));
-        }
+        let (injected, replay_spans) = append_callback_replays(&cu.source, &replays);
 
         #[cfg(test)]
         CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
@@ -4401,63 +4502,14 @@ fn taint_callback_substitution_report(
             dialect,
             Some(&replay_seed),
         );
-        let was_analysed = matches!(&replay_report.replays, TaintReplayAnalysis::Analysed { .. });
-        let mut unavailable = Vec::new();
-        for residual in replay_report.replays.unavailable_replays() {
-            unavailable.extend(original_callback_replay_residuals(
-                residual,
-                cu,
-                &replay_spans,
-            ));
-        }
-        if !was_analysed && unavailable.is_empty() {
-            unavailable.extend(replay_spans.iter().map(|(_, registration, _)| {
-                UnavailableTaintReplay {
-                    span: *registration,
-                    reason: UnavailableTaintReplayReason::SourceMetadata,
-                    source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
-                }
-            }));
-        }
-        out.replays.merge(if was_analysed {
-            TaintReplayAnalysis::Analysed { unavailable }
-        } else {
-            TaintReplayAnalysis::Unavailable { unavailable }
-        });
-        for mut warning in replay_report.warnings {
-            // A prefix can call a local procedure. Its sink then lies in the
-            // original procedure body even though the synthetic invocation
-            // taints its parameter. Keep that new source span intact. Only a
-            // sink in an appended callback script is retargeted.
-            if baseline.iter().any(|existing| {
-                existing.span == warning.span
-                    && existing.variable == warning.variable
-                    && existing.sink_command == warning.sink_command
-                    && existing.code == warning.code
-            }) {
-                continue;
-            }
-            if let Some((_, registration, callback_input_label)) =
-                replay_spans.iter().find(|(span, _, _)| {
-                    warning.span.start() >= span.start() && warning.span.start() < span.end()
-                })
-            {
-                if warning.variable == input_var {
-                    let synthetic_name = format!("Tainted variable ${input_var}");
-                    warning.variable.clone_from(callback_input_label);
-                    warning.message =
-                        warning
-                            .message
-                            .replacen(&synthetic_name, callback_input_label, 1);
-                }
-                warning.span = *registration;
-                // A future sink-specific fix emitted for replay text must
-                // never point at the appended synthetic source.
-                warning.replacement = None;
-                warning.fixes.clear();
-            }
-            out.warnings.push(warning);
-        }
+        retain_callback_replay_report(
+            cu,
+            baseline,
+            &input_var,
+            &replay_spans,
+            replay_report,
+            &mut out,
+        );
     }
     out
 }

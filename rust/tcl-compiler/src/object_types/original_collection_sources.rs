@@ -254,40 +254,37 @@ impl OriginalObjectCollectionSources {
             places: Vec::new(),
         };
         let owners = super::OwnerIndex::build(unit, super::FactMode::Full);
-        for occurrence in &analysis.original_variable_symbols {
-            if result
-                .places
-                .iter()
-                .any(|(symbol, _)| symbol == occurrence.symbol())
-            {
-                continue;
-            }
-            if let Some(place) = collection_place(
-                analysis,
-                unit,
-                &owners,
-                occurrence,
-                occurrence.span().start(),
-            ) {
-                result.places.push((occurrence.symbol().clone(), place));
-            }
-        }
+        result.retain_collection_places(analysis, unit, &owners);
         for (offset, words) in &commands {
             if !collection_lookup_is_available(words) {
                 continue;
             }
-            if let Some((target, values, effect)) = words
-                .with_source_schema(&context, |schema| {
-                    let base = schema.semantics.argument_offset;
-                    if !schema
-                        .authored_source_variable_name_arguments()
-                        .contains(&(base, tcl_registry::ArgRole::VarWrite))
-                    {
-                        return None;
-                    }
-                    let length = schema.words.arguments().exact_argv_len()?;
-                    let effect = schema.semantics.var_elements_effect?;
-                    let values = match effect {
+            result.retain_collection_writes(words, analysis, &context);
+            result.retain_collection_handle(source, analysis, *offset);
+            result.retain_collection_loops(words, analysis, input, &context);
+        }
+        Some(result)
+    }
+
+    fn retain_collection_writes(
+        &mut self,
+        words: &OriginalRegistryWords,
+        analysis: &AnalysisResult,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        if let Some((target, values, effect)) = words
+            .with_source_schema(context, |schema| {
+                let base = schema.semantics.argument_offset;
+                if !schema
+                    .authored_source_variable_name_arguments()
+                    .contains(&(base, tcl_registry::ArgRole::VarWrite))
+                {
+                    return None;
+                }
+                let length = schema.words.arguments().exact_argv_len()?;
+                let effect = schema.semantics.var_elements_effect?;
+                let values =
+                    match effect {
                         tcl_registry::VarElementsEffect::AppendsListElements { values_from } => {
                             (base + usize::from(values_from)..length).collect::<Vec<_>>()
                         }
@@ -299,110 +296,145 @@ impl OriginalObjectCollectionSources {
                         } if length == base + usize::from(values_from) + 1 => vec![length - 1],
                         _ => return None,
                     };
-                    Some((base, values, effect))
-                })
-                .flatten()
-                && let Some(variable) = words
-                    .original_argument_word(target)
-                    .and_then(|word| operand_occurrence(analysis, word))
-                && let Some(place) = result.place_for(&variable)
-            {
-                for value in values {
-                    let Some(value) = words.original_argument_word(value) else {
-                        continue;
-                    };
-                    let Some(child) =
-                        source_structure::original_single_source_command_substitution(value)
-                    else {
-                        continue;
-                    };
-                    result.writes.push(CollectionWrite {
-                        place: place.clone(),
-                        element: OriginalCollectionElementSource {
-                            writer: words.clone(),
-                            variable: variable.clone(),
-                            value: value.clone(),
-                            construction: child.command().clone(),
-                            effect,
-                        },
-                    });
-                }
-            }
-            if let Some(setter) =
-                source_structure::source_handle_construction_at(source, analysis, *offset)
-                && let Some(variable) =
-                    operand_occurrence(analysis, setter.original_variable_word())
-                && let Some(place) = result.place_for(&variable)
-                && let Some(extraction) = setter
-                    .construction()
-                    .words
-                    .first()
-                    .map(|word| word.span().start())
-            {
-                result.handles.push(CollectionHandle {
-                    place,
-                    extraction,
-                    setter,
+                Some((base, values, effect))
+            })
+            .flatten()
+            && let Some(variable) = words
+                .original_argument_word(target)
+                .and_then(|word| operand_occurrence(analysis, word))
+            && let Some(place) = self.place_for(&variable)
+        {
+            for value in values {
+                let Some(value) = words.original_argument_word(value) else {
+                    continue;
+                };
+                let Some(child) =
+                    source_structure::original_single_source_command_substitution(value)
+                else {
+                    continue;
+                };
+                self.writes.push(CollectionWrite {
+                    place: place.clone(),
+                    element: OriginalCollectionElementSource {
+                        writer: words.clone(),
+                        variable: variable.clone(),
+                        value: value.clone(),
+                        construction: child.command().clone(),
+                        effect,
+                    },
                 });
             }
-            let Some(roles) = words.roles() else {
+        }
+    }
+
+    fn retain_collection_handle(&mut self, source: &str, analysis: &AnalysisResult, offset: u32) {
+        if let Some(setter) =
+            source_structure::source_handle_construction_at(source, analysis, offset)
+            && let Some(variable) = operand_occurrence(analysis, setter.original_variable_word())
+            && let Some(place) = self.place_for(&variable)
+            && let Some(extraction) = setter
+                .construction()
+                .words
+                .first()
+                .map(|word| word.span().start())
+        {
+            self.handles.push(CollectionHandle {
+                place,
+                extraction,
+                setter,
+            });
+        }
+    }
+
+    fn retain_collection_loops(
+        &mut self,
+        words: &OriginalRegistryWords,
+        analysis: &AnalysisResult,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        let Some(roles) = words.roles() else {
+            return;
+        };
+        for &(ordinal, role) in roles {
+            if role != tcl_registry::ArgRole::LoopVarList {
+                continue;
+            }
+            let Some(container) = words
+                .original_argument_word(ordinal + 1)
+                .and_then(|word| scalar_occurrence(analysis, word))
+            else {
                 continue;
             };
-            for &(ordinal, role) in roles {
-                if role != tcl_registry::ArgRole::LoopVarList {
+            let Some(place) = self.place_for(&container) else {
+                continue;
+            };
+            let Some(fields) = words
+                .original_argument_word(ordinal)
+                .and_then(tcl_syntax::word_rules::original_static_word_list_elements)
+            else {
+                continue;
+            };
+            let keyed = words.with_source_schema(context, |schema| {
+                schema
+                    .facts()
+                    .argument_type_hint(ordinal + 1)
+                    .is_some_and(|hint| hint.expected == Some(tcl_registry::TclType::Dict))
+            }) == Some(true);
+            for (index, field) in fields.into_iter().enumerate() {
+                if keyed && index != 1 {
                     continue;
                 }
-                let Some(container) = words
-                    .original_argument_word(ordinal + 1)
-                    .and_then(|word| scalar_occurrence(analysis, word))
-                else {
+                let Some(span) = field.source_span() else {
                     continue;
                 };
-                let Some(place) = result.place_for(&container) else {
+                let Some(target) = analysis.original_variable_symbol_in_source(
+                    &self.image,
+                    input.lexer_config(),
+                    span.start(),
+                ) else {
                     continue;
                 };
-                let Some(fields) = words
-                    .original_argument_word(ordinal)
-                    .and_then(tcl_syntax::word_rules::original_static_word_list_elements)
-                else {
-                    continue;
-                };
-                let keyed = words.with_source_schema(&context, |schema| {
-                    schema
-                        .facts()
-                        .argument_type_hint(ordinal + 1)
-                        .is_some_and(|hint| hint.expected == Some(tcl_registry::TclType::Dict))
-                }) == Some(true);
-                for (index, field) in fields.into_iter().enumerate() {
-                    if keyed && index != 1 {
-                        continue;
-                    }
-                    let Some(span) = field.source_span() else {
-                        continue;
-                    };
-                    let Some(target) = analysis.original_variable_symbol_in_source(
-                        &result.image,
-                        input.lexer_config(),
-                        span.start(),
-                    ) else {
-                        continue;
-                    };
-                    for body in words.source_script_bodies(&context) {
-                        if body.inherits_immediate_caller_source_context(&context) {
-                            result.loops.push(CollectionLoop {
-                                place: place.clone(),
-                                target: target.clone(),
-                                field: field.clone(),
-                                words: words.clone(),
-                                body,
-                                variable: container.clone(),
-                            });
-                        }
+                for body in words.source_script_bodies(context) {
+                    if body.inherits_immediate_caller_source_context(context) {
+                        self.loops.push(CollectionLoop {
+                            place: place.clone(),
+                            target: target.clone(),
+                            field: field.clone(),
+                            words: words.clone(),
+                            body,
+                            variable: container.clone(),
+                        });
                     }
                 }
             }
         }
-        Some(result)
+    }
+
+    fn retain_collection_places(
+        &mut self,
+        analysis: &AnalysisResult,
+        unit: &CompilationUnit,
+        owners: &super::OwnerIndex,
+    ) {
+        for occurrence in &analysis.original_variable_symbols {
+            if self
+                .places
+                .iter()
+                .any(|(symbol, _)| symbol == occurrence.symbol())
+            {
+                continue;
+            }
+            if let Some(place) = collection_place(
+                analysis,
+                unit,
+                owners,
+                occurrence,
+                occurrence.span().start(),
+            ) {
+                self.places.push((occurrence.symbol().clone(), place));
+            }
+        }
     }
 
     fn place_for(
@@ -626,47 +658,19 @@ pub fn original_object_collection_sources_at(
     let read = sources.read_at(source, analysis, offset)?;
     Some(sources.project_read(&read, OriginalCollectionReceiverPath::ElementRead))
 }
-fn collection_place(
+fn collection_class_is_lexical(
     analysis: &AnalysisResult,
-    unit: &CompilationUnit,
-    owners: &super::OwnerIndex,
-    occurrence: &SignatureSourceVariableOccurrence,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    class: &crate::signature_scan::original_name::SourceDeclarationMetadata<
+        crate::analyser::ClassDef,
+    >,
+    method: &crate::ir::MethodDef,
+    side: MemberSide,
+    method_span: tcl_lexer::Span,
     offset: u32,
-) -> Option<CollectionSourcePlace> {
-    use crate::signature_scan::variable_symbol::{
-        OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
-    };
-    let input = analysis.resolved_input.as_ref()?;
-    // An actual formal declaration remains a stronger local owner.
-    if analysis.original_variable_symbols.iter().any(|candidate| {
-        candidate.receiver() == OriginalVariableSymbolReceiver::FormalDeclaration
-            && candidate.symbol() == occurrence.symbol()
-    }) {
-        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
-    }
-    let SignatureSourceVariableSlot::Local { simple, .. } = occurrence.symbol().slot() else {
-        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
-    };
-    let scope = owners
-        .spans
-        .iter()
-        .filter(|scope| scope.span.start() <= offset && offset < scope.span.end())
-        .min_by_key(|scope| scope.span.end() - scope.span.start())?;
-    let tcl_core_types::BodyFrameId::Body(id) = scope.frame else {
-        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
-    };
-    let Some(method) = unit.ir_module.methods.get(&id) else {
-        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
-    };
-    let side = if method.kind == crate::ir::MethodKind::ClassMethod {
-        MemberSide::ClassObject
-    } else {
-        MemberSide::Instance
-    };
-    let method_span = method.span?;
-    let context = input.context_registry();
-    for class in analysis.original_class_declarations() {
-        let lexical = if matches!(
+) -> Option<bool> {
+    Some(
+        if matches!(
             method.kind,
             crate::ir::MethodKind::Constructor | crate::ir::MethodKind::Destructor
         ) {
@@ -707,7 +711,76 @@ fn collection_place(
                         && candidate.metadata().body_span.start() <= offset
                         && offset < candidate.metadata().body_span.end()
                 })
-        };
+        },
+    )
+}
+
+fn collection_declaration_matches(
+    input: &crate::analyser::ResolvedAnalysisInput,
+    occurrence: &SignatureSourceVariableOccurrence,
+    declaration: &NativeWord,
+    simple: &tcl_core_types::NameBytes,
+) -> Option<bool> {
+    Some(if input.has_logical_source_name_context() {
+        let name = tcl_syntax::word_rules::original_static_word_unicode_value(declaration)?;
+        name.is_ascii() && name == simple.as_bytes()
+    } else {
+        let policy = occurrence.symbol().policy();
+        let name = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            declaration,
+            tcl_syntax::word_rules::WordValueRules::from_config(&declaration.config()),
+            policy,
+        )?;
+        let projection = policy.recipe().combined_variable_input(name.bytes());
+        projection.element().is_none()
+            && projection.root().qualification()
+                == tcl_syntax::naming::NativeNameQualification::Unqualified
+            && projection.root().selected() == simple.as_bytes()
+    })
+}
+
+fn collection_place(
+    analysis: &AnalysisResult,
+    unit: &CompilationUnit,
+    owners: &super::OwnerIndex,
+    occurrence: &SignatureSourceVariableOccurrence,
+    offset: u32,
+) -> Option<CollectionSourcePlace> {
+    use crate::signature_scan::variable_symbol::{
+        OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
+    };
+    let input = analysis.resolved_input.as_ref()?;
+    // An actual formal declaration remains a stronger local owner.
+    if analysis.original_variable_symbols.iter().any(|candidate| {
+        candidate.receiver() == OriginalVariableSymbolReceiver::FormalDeclaration
+            && candidate.symbol() == occurrence.symbol()
+    }) {
+        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
+    }
+    let SignatureSourceVariableSlot::Local { simple, .. } = occurrence.symbol().slot() else {
+        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
+    };
+    let scope = owners
+        .spans
+        .iter()
+        .filter(|scope| scope.span.start() <= offset && offset < scope.span.end())
+        .min_by_key(|scope| scope.span.end() - scope.span.start())?;
+    let tcl_core_types::BodyFrameId::Body(id) = scope.frame else {
+        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
+    };
+    let Some(method) = unit.ir_module.methods.get(&id) else {
+        return Some(CollectionSourcePlace::Variable(occurrence.symbol().clone()));
+    };
+    let side = if method.kind == crate::ir::MethodKind::ClassMethod {
+        MemberSide::ClassObject
+    } else {
+        MemberSide::Instance
+    };
+    let method_span = method.span?;
+    let context = input.context_registry();
+    for class in analysis.original_class_declarations() {
+        let lexical =
+            collection_class_is_lexical(analysis, input, class, method, side, method_span, offset)?;
         if !lexical {
             continue;
         }
@@ -748,22 +821,8 @@ fn collection_place(
                     continue;
                 }
                 for declaration in region.variable_argument_words(command)? {
-                    let matches = if input.has_logical_source_name_context() {
-                        let name = tcl_syntax::word_rules::original_static_word_unicode_value(
-                            declaration,
-                        )?;
-                        name.is_ascii() && name == simple.as_bytes()
-                    } else {
-                        let policy = occurrence.symbol().policy();
-                        let name = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                            declaration, tcl_syntax::word_rules::WordValueRules::from_config(&declaration.config()), policy,
-                        )?;
-                        let projection = policy.recipe().combined_variable_input(name.bytes());
-                        projection.element().is_none()
-                            && projection.root().qualification()
-                                == tcl_syntax::naming::NativeNameQualification::Unqualified
-                            && projection.root().selected() == simple.as_bytes()
-                    };
+                    let matches =
+                        collection_declaration_matches(input, occurrence, declaration, simple)?;
                     if matches {
                         return Some(CollectionSourcePlace::DeclaredField {
                             class: Box::new(class.clone()),

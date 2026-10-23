@@ -433,6 +433,21 @@ struct IrulesSourceQuery<'a> {
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
 }
 
+struct PairingHandlerInput<'a> {
+    id: &'a crate::ir::ProcedureId,
+    function: &'a FunctionUnit,
+    procedure: &'a crate::ir::Procedure,
+    commands: &'a [tcl_lexer::NativeScriptCommandWords],
+    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+}
+
+struct PairingHandlerOutput<'a> {
+    original: &'a mut Vec<Vec<tcl_lexer::NativeWord>>,
+    handler_flow_commands: &'a mut Vec<OriginalIrulesFlowCommand>,
+    schemas: &'a mut Vec<crate::registry_invocation::RegistryInvocationShape>,
+    completions: &'a mut Vec<tcl_registry::registry::InvocationCompletion>,
+}
+
 impl<'a> IrulesSourceQuery<'a> {
     fn capture(unit: &'a CompilationUnit, registry: &'a CommandRegistry) -> Option<Self> {
         let module = &unit.ir_module;
@@ -552,6 +567,115 @@ impl<'a> IrulesSourceQuery<'a> {
         )
     }
 
+    fn pairing_declaration_words(
+        &self,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        declaration: &crate::ir::CommandTokens,
+        event: &OriginalEvent<'_>,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        let module = &self.unit.ir_module;
+        let declaration_metadata =
+            crate::registry_invocation::original_hosted_source_registry_metadata(
+                self.registry,
+                metadata,
+                declaration,
+            )?;
+        let event_word =
+            event
+                .body
+                .event_word(&module.source, module.lexer_config, self.registry)?;
+        if !declaration_metadata
+            .shape()
+            .possible_traits()
+            .contains(Traits::IS_EVENT_HANDLER)
+            || !declaration_metadata
+                .shape()
+                .original_words()
+                .contains(event_word)
+            || declaration_metadata
+                .authored_barriers()
+                .has_nominal_command_name_hazard()
+        {
+            return None;
+        }
+        crate::registry_invocation::source_structure::original_vendor_registry_words(
+            context,
+            declaration,
+            declaration_metadata,
+        )
+    }
+
+    fn retain_pairing_handler_commands(
+        &self,
+        state: &CollectFlowState,
+        input: &PairingHandlerInput<'_>,
+        output: &mut PairingHandlerOutput<'_>,
+    ) -> Option<()> {
+        for statement in &input.procedure.body.statements {
+            if matches!(
+                statement.original_argv_inventory_disposition(),
+                crate::ir::OriginalArgvInventoryDisposition::EffectOnly(_)
+            ) {
+                continue;
+            }
+            if !statement.child_scripts().is_empty() {
+                return None;
+            }
+            let tokens = input
+                .procedure
+                .body
+                .retained_source_tokens_for_statement(statement)?;
+            let vector = self.original_argv(tokens)?;
+            if !input.commands.iter().any(|command| command.words == vector)
+                || !state
+                    .source_argv
+                    .iter()
+                    .any(|(owner, words)| owner == input.id && words == &vector)
+            {
+                return None;
+            }
+            output.original.push(vector);
+            let children = self.argument_calls(tokens, self.function_config(input.function)?)?;
+            for token in children
+                .iter()
+                .map(|child| child.tokens.as_ref())
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .chain(std::iter::once(tokens))
+            {
+                let vector = self.original_argv(token)?;
+                if !state
+                    .source_argv
+                    .iter()
+                    .any(|(owner, words)| owner == input.id && words == &vector)
+                {
+                    return None;
+                }
+                let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(input.metadata), token)?;
+                if possible.candidates.is_empty() {
+                    return None;
+                }
+                if let OriginalIrulesFlowPresence::Relevant(command) =
+                    possible_irule_flow_command(token, &possible)?
+                {
+                    output.handler_flow_commands.push(command);
+                }
+                for candidate in &possible.candidates {
+                    let completion = candidate.with_source_schema(
+                        self.registry,
+                        input.metadata,
+                        token,
+                        leaf_handler_source_completion,
+                    )?;
+                    output.schemas.push(candidate.clone());
+                    output.completions.push(completion);
+                }
+            }
+        }
+        Some(())
+    }
+
     fn conditional_pairing_advice<'query>(
         &'query self,
         state: &'query CollectFlowState,
@@ -600,36 +724,7 @@ impl<'a> IrulesSourceQuery<'a> {
                 return None;
             }
             declarations_seen.push(declaration_vector.clone());
-            let declaration_metadata =
-                crate::registry_invocation::original_hosted_source_registry_metadata(
-                    self.registry,
-                    metadata,
-                    declaration,
-                )?;
-            let event_word =
-                event
-                    .body
-                    .event_word(&module.source, module.lexer_config, self.registry)?;
-            if !declaration_metadata
-                .shape()
-                .possible_traits()
-                .contains(Traits::IS_EVENT_HANDLER)
-                || !declaration_metadata
-                    .shape()
-                    .original_words()
-                    .contains(event_word)
-                || declaration_metadata
-                    .authored_barriers()
-                    .has_nominal_command_name_hazard()
-            {
-                return None;
-            }
-            let words =
-                crate::registry_invocation::source_structure::original_vendor_registry_words(
-                    context,
-                    declaration,
-                    declaration_metadata,
-                )?;
+            let words = self.pairing_declaration_words(metadata, declaration, &event, context)?;
             let mut bodies = words.source_script_bodies_for_mutation_coverage(context)?;
             if bodies.len() != 1 {
                 return None;
@@ -643,67 +738,22 @@ impl<'a> IrulesSourceQuery<'a> {
             let commands = body.original_commands(context)?;
             let mut original = Vec::new();
             let mut handler_flow_commands = Vec::new();
-            for statement in &event.procedure.body.statements {
-                if matches!(
-                    statement.original_argv_inventory_disposition(),
-                    crate::ir::OriginalArgvInventoryDisposition::EffectOnly(_)
-                ) {
-                    continue;
-                }
-                if !statement.child_scripts().is_empty() {
-                    return None;
-                }
-                let tokens = event
-                    .procedure
-                    .body
-                    .retained_source_tokens_for_statement(statement)?;
-                let vector = self.original_argv(tokens)?;
-                if !commands.iter().any(|command| command.words == vector)
-                    || !state
-                        .source_argv
-                        .iter()
-                        .any(|(owner, words)| owner == id && words == &vector)
-                {
-                    return None;
-                }
-                original.push(vector);
-                let children = self.argument_calls(tokens, self.function_config(function)?)?;
-                for token in children
-                    .iter()
-                    .map(|child| child.tokens.as_ref())
-                    .collect::<Option<Vec<_>>>()?
-                    .into_iter()
-                    .chain(std::iter::once(tokens))
-                {
-                    let vector = self.original_argv(token)?;
-                    if !state
-                        .source_argv
-                        .iter()
-                        .any(|(owner, words)| owner == id && words == &vector)
-                    {
-                        return None;
-                    }
-                    let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(metadata), token)?;
-                    if possible.candidates.is_empty() {
-                        return None;
-                    }
-                    if let OriginalIrulesFlowPresence::Relevant(command) =
-                        possible_irule_flow_command(token, &possible)?
-                    {
-                        handler_flow_commands.push(command);
-                    }
-                    for candidate in &possible.candidates {
-                        let completion = candidate.with_source_schema(
-                            self.registry,
-                            metadata,
-                            token,
-                            leaf_handler_source_completion,
-                        )?;
-                        schemas.push(candidate.clone());
-                        completions.push(completion);
-                    }
-                }
-            }
+            self.retain_pairing_handler_commands(
+                state,
+                &PairingHandlerInput {
+                    id,
+                    function,
+                    procedure: event.procedure,
+                    commands: &commands,
+                    metadata,
+                },
+                &mut PairingHandlerOutput {
+                    original: &mut original,
+                    handler_flow_commands: &mut handler_flow_commands,
+                    schemas: &mut schemas,
+                    completions: &mut completions,
+                },
+            )?;
             if commands.len() != original.len()
                 || commands
                     .iter()
