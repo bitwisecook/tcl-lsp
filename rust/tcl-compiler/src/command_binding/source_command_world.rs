@@ -270,7 +270,7 @@ fn original_covered_alias_target(
     publication: &OriginalCommandPublication,
     alias_input: &SignatureSourceNameInput,
     module: &crate::ir::Module,
-    retained: &SourceCommandBindings,
+    retained: &super::RetainedSourceModuleBindings,
     site: &CommandAllocationSite,
 ) -> Option<(OriginalCommandPublication, super::CommandAllocation)> {
     let root = state.source_root_namespace_key()?;
