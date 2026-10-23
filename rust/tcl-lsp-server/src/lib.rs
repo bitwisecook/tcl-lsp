@@ -27856,7 +27856,15 @@ impl Backend {
             .await;
     }
 
-    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
+    fn reload_spec_packs(
+        &self,
+        trigger: ReloadTrigger,
+    ) -> std::pin::Pin<Box<impl std::future::Future<Output = DocumentSourceResult<bool>> + '_>>
+    {
+        Box::pin(self.reload_spec_packs_inner(trigger))
+    }
+
+    async fn reload_spec_packs_inner(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
         macro_rules! pack_reload_phase {
             ($($arg:tt)*) => {
                 if cfg!(debug_assertions)
