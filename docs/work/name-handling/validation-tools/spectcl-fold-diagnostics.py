@@ -128,7 +128,9 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
-    if prefix.startswith(("pack_source_e2e-", "cmd_control_e2e-", "list-")):
+    if prefix.startswith(
+        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "list-")
+    ):
         require(
             available >= seconds,
             "insufficient overall time for original full test/list budget",
@@ -183,6 +185,11 @@ require(
     roster["catch"] == ["a_catch_body_write_is_visible_after_the_catch"],
     "original catch1 roster",
 )
+require(
+    roster["native_parent_store"]
+    == ["native_parent_store_uses_the_actual_pack_implementation_normal_outcome"],
+    "separate Native parent store1 roster",
+)
 prioritised = [
     "a_pack_file_folds_a_call_site_in_the_optimiser",
     "a_reference_body_answers_through_the_host_as_the_procedure_does",
@@ -192,6 +199,16 @@ order = prioritised + [name for name in roster["spectcl"] if name not in priorit
 rows = [
     {"target": "pack_source_e2e", "selector": name, "state": "UNRUN"} for name in order
 ] + [{"target": "cmd_control_e2e", "selector": roster["catch"][0], "state": "UNRUN"}]
+original_rows = rows
+supplemental_rows = [
+    {
+        "group": "supplemental_native_parent_store",
+        "target": "native_normal_store",
+        "selector": roster["native_parent_store"][0],
+        "state": "UNRUN",
+    }
+]
+rows = original_rows + supplemental_rows
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -334,7 +351,7 @@ try:
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
-            "scope": "Original pack_source_e2e ALL10 and separate original catch1, standalone bounded diagnosis only. Full shared-process suite, eight-package typing, all-release provider and release gates remain separate.",
+            "scope": "Original pack_source_e2e ALL10 and separate original catch1 remain original11; new native_normal_store1 is a distinct supplemental group, standalone bounded diagnosis only. Full shared-process suite, eight-package typing, all-release provider and release gates remain separate.",
             "original_roster": roster,
         },
     )
@@ -375,10 +392,14 @@ try:
     targets = [
         ("tcl-spectcl", "pack_source_e2e", order),
         ("tcl-vm", "cmd_control_e2e", roster["catch"]),
+        ("tcl-spectcl", "native_normal_store", roster["native_parent_store"]),
     ]
     for package, target_name, selectors in targets:
         require(remaining > 512 * 1024, "insufficient log budget before selected build")
-        print("BUILD original target " + target_name, flush=True)
+        target_group = (
+            "supplemental" if target_name == "native_normal_store" else "original"
+        )
+        print("BUILD " + target_group + " target " + target_name, flush=True)
         argv = [
             str(tools["cargo"]),
             "test",
@@ -511,7 +532,7 @@ try:
             row["state"] = "RUNNING"
             save(out / "outcomes.json", rows)
             prefix = target_name + "-" + str(index).zfill(2)
-            print("RUN original " + selector, flush=True)
+            print("RUN " + target_group + " " + selector, flush=True)
             receipt = execute(
                 [
                     str(executable),
@@ -551,8 +572,10 @@ try:
                 sha(executable) == artifact["sha256"], "selected test artifact changed"
             )
     require(
-        len(rows) == 11 and all(row["state"] in ["PASS", "FAIL"] for row in rows),
-        "original test inventory incomplete",
+        len(original_rows) == 11
+        and len(supplemental_rows) == 1
+        and all(row["state"] in ["PASS", "FAIL"] for row in rows),
+        "original or separate supplemental test inventory incomplete",
     )
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
 except (
@@ -616,8 +639,14 @@ finally:
             "outcomes": rows,
             "required_original_tests": 11,
             "original_tests_closed": sum(
-                row["state"] in ["PASS", "FAIL"] for row in rows
+                row["state"] in ["PASS", "FAIL"] for row in original_rows
             ),
+            "original_outcomes": original_rows,
+            "required_supplemental_tests": 1,
+            "supplemental_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in supplemental_rows
+            ),
+            "supplemental_outcomes": supplemental_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
