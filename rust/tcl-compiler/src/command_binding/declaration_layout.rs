@@ -2304,7 +2304,7 @@ impl SourceCommandBindings {
         };
         for (body, command) in commands {
             self.retain_one_logical_receiver_source_catalogue(
-                body, command, &origin, &input, config,
+                body, &command, &origin, &input, config,
             );
         }
     }
@@ -2312,7 +2312,7 @@ impl SourceCommandBindings {
     fn retain_one_logical_receiver_source_catalogue(
         &mut self,
         body: Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
-        command: Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
+        command: &Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
         origin: &Arc<super::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
         config: tcl_lexer::LexerConfig,
