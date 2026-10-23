@@ -1,0 +1,8 @@
+{
+  "observed_unix": 1792789129.4251127,
+  "base": "f704b5bbbad81cdfb5d29593f8b22a92c310f58f",
+  "route": "Compiler actual report/body owner",
+  "status": "Reproduction test draft only, NOT a fix or successful unit-test result. Exact public-API old-mode probes reproduce unavailable for recursive fib20 plus unused empty procedure, but fib0/no call/return-only body capture Equal. Isolated cfg(test) trace build still running.",
+  "patch_sha256": "4a05f9909ed97bd44209804d5a7133c2347611bf4b5a4f3985c1f8d99731662a",
+  "validation": "Rustfmt/parser clean only; source file not edited, draft not compiled/landed. Preserves source/body/input/owner guards and global/runtime Eq; expected self/cross-report Equal assertions are strict."
+}

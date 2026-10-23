@@ -1,0 +1,13 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "started_unix": 1792788956.4682248,
+  "fixture": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+  "scope": "Diagnostic only: fixed declaration-order, empty and recursive call interactions, forced-old self comparisons. Original complete corpus source is unchanged.",
+  "build_exit": 0,
+  "warnings": 0,
+  "run_exit": 0,
+  "finished_unix": 1792789011.184944,
+  "rust_diff_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

@@ -1,0 +1,33 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::{Analyser, AnalysisReportComparison};
+fn main() {
+    let path = std::env::args().nth(1).expect("original fixture");
+    let out = std::path::PathBuf::from(std::env::args().nth(2).expect("diagnostic output"));
+    let original = std::fs::read_to_string(path).expect("complete original input");
+    let config = tcl_lexer::LexerConfig::from_grammar(tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6).lexer_grammar);
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(&original, 0, config);
+    let end = usize::try_from(commands[1].span.start()).expect("next original command start");
+    let fib = &original[..end];
+    let cases = [
+        ("empty-last-other-call", "proc p {} {return one}\nproc empty {} {}\nputs [p]\n".to_owned()),
+        ("empty-last-set", "proc p {} {return one}\nproc empty {} {}\nset x 1\n".to_owned()),
+        ("fib-empty-call20", format!("{fib}\nproc empty {{}} {{}}\nputs [fib 20]\n")),
+        ("fib-empty-call0", format!("{fib}\nproc empty {{}} {{}}\nputs [fib 0]\n")),
+        ("empty-fib-call20", format!("proc empty {{}} {{}}\n{fib}\nputs [fib 20]\n")),
+        ("fib-empty-no-call", format!("{fib}\nproc empty {{}} {{}}\n")),
+        ("fib-returnonly-call", format!("{fib}\nproc nothing {{}} {{return}}\nputs [fib 20]\n")),
+    ];
+    tcl_compiler::realm::ZZ_NO_MEMO.store(true, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(true, Ordering::Relaxed);
+    for (label, source) in cases {
+        let report = Analyser::new().analyse_for_report(&source, "tcl8.6");
+        let result = report.compare(&report);
+        println!("EMPTY_ORDER label={label} state={report:?} self={result:?}");
+        if result != AnalysisReportComparison::Equal {
+            std::fs::write(out.join(format!("{label}.tcl")), source).expect("save exact diagnostic input");
+        }
+    }
+}

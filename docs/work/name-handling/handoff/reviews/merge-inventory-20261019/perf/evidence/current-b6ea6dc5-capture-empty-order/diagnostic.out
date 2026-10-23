@@ -1,0 +1,7 @@
+EMPTY_ORDER label=empty-last-other-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_ORDER label=empty-last-set state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_ORDER label=fib-empty-call20 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+EMPTY_ORDER label=fib-empty-call0 state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_ORDER label=empty-fib-call20 state=AuthenticatedAnalysisReport { capture_available: false, .. } self=Unavailable(CurrentOwnerUnavailable)
+EMPTY_ORDER label=fib-empty-no-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal
+EMPTY_ORDER label=fib-returnonly-call state=AuthenticatedAnalysisReport { capture_available: true, .. } self=Equal

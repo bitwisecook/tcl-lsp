@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 20:52 UTC
+Last updated: 2026-10-23 21:03 UTC
 
 ## Resume
 
@@ -80,7 +80,16 @@ first2/4/6/8/10/12 declarations plus puts [fib 20] also Equal; first14/16 refuse
 Declarations13/14 are nothing {return} and empty {}. Fixed empty/return-only
 interaction cases are now running. These are diagnostic inputs, never substitute
 corpus proof. Evidence: current-b6ea6dc5-capture-fib/, -capture-declarations/,
--capture-empty/. No private guard is inferred until the unit trace executes.
+-capture-empty/. Minimal two-procedure old-mode reproducer is now concrete:
+original fib + unused empty {} + puts [fib 20] refuses immediately. fib 0,
+no call, or replacing empty {} with nothing {return} self-compare Equal;
+reversing declaration order still refuses. Small nonrecursive calls with an
+empty procedure also Equal. Evidence: current-b6ea6dc5-capture-empty-order/.
+perf-report-empty-recursive-call-repro.patch is a strict positive test draft,
+parser/fmt checked only, NOT a fix, compiled test result or readiness statement.
+It tests self and independent-report Equal for no call/fib0/fib20. Route to
+compiler actual report/body owner; actual private guard remains unobserved
+until the isolated unit trace finishes. All original corpus inputs remain.
 
 The main all-old Tcl process was also OOM-killed (exit-9) after77/102 reports
 during the same memory pressure. Preserve that failed one-process run. Exact
