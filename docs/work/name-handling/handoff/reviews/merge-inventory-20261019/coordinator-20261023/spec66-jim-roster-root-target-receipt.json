@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:35:24.763258+00:00",
+  "target": "jim_surface_roster",
+  "observed": 4,
+  "passes": 4,
+  "failures": 0,
+  "manifest_sha256": "87b0caaaec516ee6cf391872f38db2d4e76554523b470d890c3e7b65bf5d904a",
+  "payload_files_verified": 40,
+  "all_target_guards_valid": true,
+  "full66_closure_claim": false
+}

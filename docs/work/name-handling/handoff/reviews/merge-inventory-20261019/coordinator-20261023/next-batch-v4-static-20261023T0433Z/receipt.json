@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:35:24.763258+00:00",
+  "archive_sha256": "7a04da41fb286009ce81803f2a75482fb40b8518af005f3d6da86fee095e220b",
+  "inventory_sha256": "982854a9534e97b8602e29854f64f59e43d43aef2b8f49a75f62af16faf657ad",
+  "lossless_verified": true,
+  "payloads": 13,
+  "current_source30_paths": 28,
+  "cumulative_vs_3b1_paths": 46,
+  "combined_patch_sha256": "8460f1a5cb239f211a431ef6269c3478e091ade157d40902632c10d1ccb8d834",
+  "scope": "Allcomponents boundedstaticpeerCLEAR; zero-fuzz/nooffset doubleapply/fmt28PASS. Still OFFTREE/untyped/unrun/noGO; canonicalsourceHOLD during66."
+}
