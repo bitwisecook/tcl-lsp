@@ -441,6 +441,18 @@ impl UcsMemberSource {
         &self.member.name
     }
 
+    /// Metadata computed from the selected original member, before preview decoding.
+    #[must_use]
+    pub fn file_entry(&self) -> UcsFileEntry {
+        UcsFileEntry {
+            path: self.member.name.clone(),
+            original_path: self.member.path.clone(),
+            size: u64::try_from(self.member.bytes.len()).unwrap_or(u64::MAX),
+            sha256: sha256_hex(&self.member.bytes),
+            is_text: is_text_bytes(&self.member.bytes),
+        }
+    }
+
     fn require_faithful_path(&self) -> Result<(), UcsError> {
         for path in &self.matching_paths {
             std::str::from_utf8(path).map_err(|error| {
@@ -531,6 +543,40 @@ pub fn find_ucs_member_source(
     Ok(Some(UcsMemberSource {
         member: selected.clone(),
         matching_paths,
+    }))
+}
+
+/// Select one exact UTF-8 archive path, without leaf or filestore fallback.
+///
+/// # Errors
+/// Returns decryption, archive or duplicate exact-path failure. A lossy path
+/// preview never substitutes for the requested path.
+pub fn find_exact_ucs_member_source(
+    raw: &[u8],
+    member_path: &str,
+    provider: &PassphraseProvider<'_>,
+    label: &str,
+) -> Result<Option<UcsMemberSource>, UcsError> {
+    let data = decrypt_if_encrypted(raw, provider, label)?;
+    if !is_ucs_bytes(&data) {
+        return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
+    }
+    let want = lstrip_dot_slash(member_path);
+    let members = read_original_members(&data)?;
+    let mut matching = members.into_iter().filter(|member| {
+        std::str::from_utf8(&member.path).ok().map(lstrip_dot_slash) == Some(want)
+    });
+    let Some(member) = matching.next() else {
+        return Ok(None);
+    };
+    if matching.next().is_some() {
+        return Err(UcsError::new(format!(
+            "multiple UCS members match exact path: {member_path}"
+        )));
+    }
+    Ok(Some(UcsMemberSource {
+        matching_paths: vec![member.path.clone()],
+        member,
     }))
 }
 
@@ -846,6 +892,58 @@ mod tests {
         ] {
             assert!(!is_forensic_path(p), "{p} should not be forensic");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exact_member_reads_do_not_use_leafs_or_lossy_path_aliases() {
+        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut archive = tar::Builder::new(gzip);
+        for (path, bytes) in [
+            ("etc/donor", "first"),
+            ("other/donor", "second"),
+            ("etc/\u{fffd}", "literal"),
+        ] {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(u64::try_from(bytes.len()).unwrap());
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive
+                .append_data(&mut header, path, bytes.as_bytes())
+                .unwrap();
+        }
+        let mut header = tar::Header::new_gnu();
+        header.set_path("etc/z").unwrap();
+        header.as_mut_bytes()[..5].copy_from_slice(b"etc/\xff");
+        header.set_size(6);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append(&header, b"opaque".as_slice()).unwrap();
+        let raw = archive.into_inner().unwrap().finish().unwrap();
+        let no_passphrase = || Ok(String::new());
+        assert!(
+            find_exact_ucs_member_source(&raw, "donor", &no_passphrase, "test")
+                .unwrap()
+                .is_none()
+        );
+        let selected = find_exact_ucs_member_source(&raw, "./etc/donor", &no_passphrase, "test")
+            .unwrap()
+            .unwrap();
+        assert_eq!(selected.bytes(), b"first");
+        assert_eq!(selected.file_entry().size, 5);
+        assert!(selected.require_faithful().is_ok());
+        let literal = find_exact_ucs_member_source(&raw, "etc/\u{fffd}", &no_passphrase, "test")
+            .unwrap()
+            .unwrap();
+        assert_eq!(literal.bytes(), b"literal");
+        assert!(literal.require_faithful().is_ok());
+        let duplicate = build_ucs(&[("etc/donor", "a"), ("etc/donor", "b")]);
+        assert!(
+            find_exact_ucs_member_source(&duplicate, "etc/donor", &no_passphrase, "test")
+                .unwrap_err()
+                .to_string()
+                .contains("multiple UCS members")
+        );
     }
 
     #[test]

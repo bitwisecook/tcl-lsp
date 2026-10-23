@@ -30,6 +30,15 @@ f5 query '.ltm.pool["/Common/old"].name = "/Common/new"' --write bigip.conf > ne
 
 `q` is an alias for the same verb.
 
+For a UCS archive, `file("etc/donor") | .content` reads that exact member,
+including files outside the forensic inventory. It displays invalid UTF-8 with
+replacement characters; `.size` and `.sha256` describe the original bytes, and
+`.is_text` says whether those bytes are valid UTF-8 without NUL. `files`, `glob`
+and `grep` discover the forensic subset. An absent explicit path returns null;
+ambiguous duplicate paths refuse. A mutation using an invalid UTF-8 donor is
+refused before any rewritten output or file is published, even if its preview
+looks the same as a literal replacement character.
+
 The DSL carries its own offline help screens:
 
 - `--help-dsl` — grammar reference (operators, precedence, divergences from jq).

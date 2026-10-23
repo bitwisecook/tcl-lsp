@@ -350,7 +350,7 @@ fn source_transforms_refuse_invalid_name_bytes_before_artifacts() {
         assert!(!split.exists());
     }
     let report = Command::new(env!("CARGO_BIN_EXE_f5-query"))
-        .args(["query", ".ltm.pool[].name", input_arg])
+        .args(["query", ".ltm.pool[].full-path", input_arg])
         .output()
         .unwrap();
     assert!(report.status.success(), "{:?}", report.stderr);
@@ -390,7 +390,7 @@ fn mutating_queries_require_faithful_named_and_structured_donors() {
         (
             "--name",
             format!("donor={}", donor.display()),
-            r#"rename("/Common/old", $donor.ltm.pool[].name)"#,
+            r#"rename("/Common/old", $donor.ltm.pool[].full-path)"#,
             Some(donor.as_path()),
         ),
         (

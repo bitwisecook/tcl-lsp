@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T10:54Z
+Last updated: 2026-10-23T11:23Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -19,9 +19,8 @@ same analysis owner. Runtime target remains unavailable. Focused ILX unit valida
 association/obligation/barrier tests PASS. The unchanged foreign-frame test
 returns no method card after an earlier opaque constructor; assertions remain.
 Fresh strict irules library+tests Clippy **PASS, zero warnings** after aligning
-its trait recursion limit with Compiler/server256. Core/server/e2e remain unrun
-on this continuation; the first build was stopped before owned packages while
-the new causes were diagnosed.
+its trait recursion limit with Compiler/server256. Core/server/e2e remain unrun on this continuation; input restoration and
+the user-approved explicit-file behavior required a new coherent test snapshot.
 
 The user decision `user-decisions-20261022T2231Z.json` stops navigation after
 opaque calls. Seven e2e selectors are corrected narrowly for that later-site
@@ -151,30 +150,36 @@ prior receipts below describe their original source, not the new integrated tip.
 
 ## Resume
 
-- Active checkout `/workspace/bigip-lsp`, branch `work`, base `cbfb4771`.
-  Do not rebase or alter compiled inputs while a build/test is active; the
-  detached `/workspace/bigip-coordination` remains available for tracking pushes.
-- Local adapter changes: `rust/tcl-irules/src/ilx.rs`, Core `ilx_navigation.rs`,
-  minimal F5 server `lib.rs` hunks and `tests/e2e/issue1707_ilx_methods.rs`.
-  F5 design/KCS/source-consumer contract updated to describe candidate navigation.
-- Wrapper/environment/plans and live raw logs:
-  `/workspace/scratch/bigip-20261023/`. `env.sh` exports the required CARGO,
-  C Tcl9/8.6 and pinned Jim variables and sources agent-build-env.sh.
-  `run-tests.py` builds, runs and deletes each test executable in one command.
-- Sessions:23178 completed focused ILX23/1, executable deleted;95098 initial strict
-  Clippy3trait-overflow findings; the final post-fix strict pass is green.
-  89706 source-owner probe completed2/2 observations;26528 Core/server/e2e cancelled before owned packages or test artifacts
-  were built, to resolve newly observed trait limits before freezing inputs.64992 full irules was cancelled before build/artifact issuance to
-  avoid overlapping reuse/deletion of the same test executable. Temporary
-  probes were moved out of the repo to scratch; none may be committed. Source
-  probe completed2/2 observations; query probe is prepared but not launched.
-- ILX focused receipt is `/workspace/scratch/bigip-20261023/ilx-unit.log`;
-  archived as `bigip-lsp/ilx-unit-20261023.txt`; strict lint receipt
-  `bigip-lsp/irules-clippy-20261023.json` retains exact source hashes. Keep all old
-  refusal assertions, authentic source ownership and the opaque-call barrier;
-  never recreate HandleScope or issue runtime target from source candidates.
-- Finish routed CLI/iRules causes and scoped strict lint. Full repository/host
-  gates and external-review F remain coordinator release gates. Never open a PR.
+- Active branch `work`, checkout `/workspace/bigip-lsp`, source checkpoint
+  `c695061e` (ILX adapter), plus the next explicit-file change below.
+- User reply in this chat: **"Expand explicit file reads to support lossy
+  previews"**. Original archive-content e2e restored unchanged. `FileOp::Exact`
+  now selects an exact original UTF-8 member path outside forensic discovery,
+  returns original metadata plus lossy content, and retains raw bytes for the
+  unchanged pre-publication mutation guard. No leaf/lossy path alias fallback;
+  duplicate exact paths refuse. New IO/DSL/provider tests; source/dialect
+  behavior is unchanged by this file-preview product decision.
+- Two CLI input-only corrections select `.full-path` rather than leaf `.name`;
+  all refusal/output/artifact assertions remain. Rationale in
+  `bigip-lsp/cli-fixture-corrections-20261023.md`.
+- Sessions:92295 IO+query focused tests active. `/workspace/scratch/bigip-20261023/`
+  holds `env.sh`, build/run/delete helper and all plans/logs. This helper now
+  runs any available selected artifact even after a sibling build failure,
+  labels missing targets not-built, and always deletes every issued test exe.
+- The combined native plan is `native-combined.json` (Compiler5 controls,
+  Core ILX, CLI/provider/trace/simulation, server F5 pull, ILX16/XC/W109 e2e).
+  Previous launch96931 was stopped before artifacts after the new user decision;
+  restart it after the focused explicit-file tests. Build sources stay frozen.
+- Earlier Core test build failed only on three omitted literal experiment
+  fixtures; their exact HEAD bytes are restored and sparse patterns retained.
+  Scoped broad Clippy completed with10generic Core errors, no owned finding;
+  selecting Core as a strict root blocked dependent targets. Next pass must
+  select F5 roots+xtask separately, then server separately, using --no-deps.
+  Current irules strict library/tests is green (256trait recursion, no allowance).
+- Archive raw receipts with exact commands/hashes. ILX focused23/1 and source
+  owner repros are already pushed; current_diagnostics.rs handed back remains.
+  Continue all owned fixes/checks and keep compiler/VM causes under Blocked.
+  Full repository/host gates and external-review F remain open. Never open a PR.
 
 ### Coordinator routing — 2026-10-22T21:19Z (owner header unchanged)
 
