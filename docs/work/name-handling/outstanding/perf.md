@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 23:08 UTC
+Last updated: 2026-10-23 23:23 UTC
 
 ## Resume
 
@@ -35,28 +35,51 @@ current-ce6facfb-repaired-workflow/ and -clean6-workflow/. Do not resume those
 failed evidence directories. Both root sources are quiescent except the finished
 typing check. Full normal0 retry and all unit/corpus/client runs remain required.
 
-Active proof base83774d43464c7d177bcd505ef22fe898ffee9a25 (latest canonical
-work at publication). Both roots now RESET/APPLIED/FROZEN: diagnostic full9
---zz; owned exactly six/no switch/no realm/interprocedural. Scoped fmt passed.
-Source typing repair is in HEAD. Full driver83448, controls opt0 BUILT0warnings,23-case runtime active;
-clean6 driver83943 waits successful complete controls. Client helpers
-spectcl83759/server83755 are waiting. Logs:
-/tmp/perf-83774d43-{repaired,clean6}-workflow.log and
-/tmp/perf-83774d43-client-{spectcl,server}.log. Evidence directories:
-current-83774d43-{repaired,clean6}-workflow/. Read actual JSON/logs before
-restarting workers. Latest23-case inventory is complete/listed; positive current-source controls are
-passing so far, full BOTH verdict pending. Source must remain frozen.
+Active FROZEN source base83774d43464c7d177bcd505ef22fe898ffee9a25, unchanged
+in both trees. Diagnostic full9 --zz; owned exactly six/no switch/no routed2.
+The first current23-control run finished22PASS/1FAIL BOTH. ALL22 actual report/
+realm API controls pass; the additional ordinary ReadFlow foreign-card negative
+fails BOTH at generated_procedures.rs645. Later snapshot negative UNREACHED.
+No assertion changed/ignored. See perf/readflow-owner-failure.md: Blocked/routed
+to compiler. This extra conformance test is retained in both full/clean6
+compiler filter runs. It is not a missing API owner/capture refusal.
+
+The first pipeline stopped at its strict23-case assertion before corpus;
+its raw failure, source seal and private ELF cleanup remain recorded. Clean6
+then exited with zero builds/tests. Existing first837 server helper still
+builds/runs its independent server proof; preserve it and let it finish.
+Its builder/all threads were pinned CPUs0,1 BEFORE its first runtime. First837
+Clippy idle waiter was stopped BEFORE any check/build to avoid racing the
+fresh pipeline, with a superseded receipt; no test/compiler was interrupted.
+
+Fresh strict API-only inventory is the original selector: authenticated_report
+plus actual diagnostic-output realm, all22 required PASS BOTH, complete listed
+inventory and unchanged source/hash. The added ordinary ReadFlow test remains
+failed evidence and will rerun with compiler filters; it is not dropped or
+relabelled as a pass. No report field or test assertion is weakened. Fresh
+pipeline evidence directories have suffix-api22:
+current-83774d43-repaired-workflow-api22/ and
+current-83774d43-clean6-workflow-api22/. Source HEAD and full Rust diff are
+IDENTICAL to first837. Fresh22-control compiler build currently waits for the
+same-tree first server Cargo build lock; do not restart it.
+
+Active logs /tmp/perf-83774d43-api22-{repaired,clean6}-workflow.log,
+/tmp/perf-83774d43-api22-client-{spectcl,server}.log and
+/tmp/perf-83774d43-api22-final-lints.log. All five fresh helpers are launched.
+Main/full waits latest SpecTcl receipt before isolated compiler deep cases;
+clean6 waits full cleanup; final server then Clippy follow. Read progress.json
+PIDs and raw receipts rather than stale historical process handles. Preserve
+both roots until ALL these jobs finish; no latest full corpus verdict yet.
 
 Prepared scripts (also saved as tools/*.py.txt):
 - /tmp/perf-latest-repaired-workflow.py: complete current controls opt0
-  (expected23 including original19,3 existing Native35 controls and actual
-  ReadFlow card), source seal; preserve SHA-checked unit ELF privately; then
+  (all22 report/realm controls: original19 plus3 existing Native35 controls), source seal; preserve SHA-checked unit ELF privately; then
   FULL102 Tcl+15iRules+7 synthetics old-only/mixed and ordered PackSet opt1.
   --isolate-inputs keeps ALL3 analyses/comparisons inside each original input's
   process, retaining every byte/hash/assertion and all child receipts. Only
   Equal passes. After corpus AND fresh SpecTcl cleanup, original compiler
   filters/nonUTF8 control BOTH and unchanged1000-depth case ALONE BOTH.
-- /tmp/perf-latest-clean6-workflow.py: full-workflow prefix is83774d43. Wait successful current report controls,
+- /tmp/perf-latest-clean6-workflow.py: full-workflow prefix is83774d43 with suffix-api22. Wait successful current report controls,
   run no-switch lexer BOTH, build clean6 compiler0, preserve exact private ELF,
   then wait full/compiler/client cleanup before unchanged filters/deep BOTH.
   Old ENV is ignored in this six-file no-switch source. Strict inventory
@@ -127,7 +150,7 @@ runs scoped fmt and compiler all-target Clippy without changing source or
 suppressing any lint; preserve/classify every baseline/new diagnostic.
 
 Publish own evidence/NOTES/this file at most30min apart from publisher root.
-Own checkpoint in this update at2026-10-23 23:08 UTC; next push within30min. Fetch origin work
+Own checkpoint in this update at2026-10-23 23:23 UTC; next push within30min. Fetch origin work
 and rebase before every normal push, retry rejection; no force/PR. Footer:
 Co-Authored-By: Codex <noreply@openai.com>.
 

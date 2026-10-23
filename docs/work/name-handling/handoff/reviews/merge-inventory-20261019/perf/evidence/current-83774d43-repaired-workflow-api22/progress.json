@@ -1,0 +1,12 @@
+{
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "started_unix": 1792797601.4646597,
+  "pid": 85973,
+  "rust_diff_sha256": "8d34b06306190679c0de73d223bc3c33accec4f428a3e56d5e17d21c1e57949e",
+  "policy": "After original server cleanup, latest builds/controls/corpus use CPUs2,3; both SpecTcl modes inherit reserved CPUs0,1. Compiler filters run only after corpus and SpecTcl cleanup. No shared targets, changed inputs/assertions/budgets or paused tests.",
+  "runs": [],
+  "affinity": [
+    2,
+    3
+  ]
+}

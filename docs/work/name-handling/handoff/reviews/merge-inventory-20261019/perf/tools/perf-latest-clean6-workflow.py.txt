@@ -5,7 +5,7 @@
 from pathlib import Path
 import hashlib,json,os,re,shutil,subprocess,tempfile,time
 root=Path('/workspace/tcl-lsp-owned');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')
-full=base/'current-83774d43-repaired-workflow';head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();out=base/('current-'+head[:8]+'-clean6-workflow');out.mkdir(exist_ok=True);assert set(p.name for p in out.iterdir())<={'progress.json','source.patch','waiter-memory-ordering.json'}, 'cannot reuse a started proof directory'
+full=base/'current-83774d43-repaired-workflow-api22';head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();out=base/('current-'+head[:8]+'-clean6-workflow-api22');out.mkdir(exist_ok=True);assert set(p.name for p in out.iterdir())<={'progress.json','source.patch','waiter-memory-ordering.json'}, 'cannot reuse a started proof directory'
 record={'head':head,'pid':os.getpid(),'started_unix':time.time(),'scope':'Exactly six owned files, no switch or realm/interprocedural. Old ENV is ignored. Complete source diff recorded. Original filters/inputs/assertions/threads unchanged; both runs keep original resource failures.','runs':[]};(out/'source.patch').write_bytes(subprocess.check_output(['git','diff','--','rust'],cwd=root))
 def save(): (out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
 def sha(p):
@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='perf-latest-clean6-') as td:
   record['runs'].append({'stage':'compiler-build','exit':code,'warnings':len(warnings),'wall_s':time.monotonic()-start});save();assert code==0 and not warnings and len(artifacts)==1
   original=artifacts[0];backup=Path(td)/original.name;shutil.copy2(original,backup);record['unit_sha256']=sha(original);assert sha(backup)==record['unit_sha256'];save()
   while not (full/'final.json').exists() or alive(42380):time.sleep(3)
-  deep='interprocedural::tests::deeply_nested_if_survives_interprocedural_scan';requested=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body'];outcomes={}
+  deep='interprocedural::tests::deeply_nested_if_survives_interprocedural_scan';requested=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','original_read_card_requires_its_actual_vector_origin_and_snapshot'];outcomes={}
   for suite,selected in [('nondeep',[*requested,'--skip',deep]),('deep',[deep,'--exact'])]:
    listing=subprocess.check_output([str(backup),*selected,'--list'],cwd=root/'rust/tcl-compiler',env=env,text=True);expected=set(re.findall(r'^(.+): test$',listing,re.M));assert expected;(out/(suite+'-list.out')).write_text(listing)
    if suite=='deep':assert expected=={deep}

@@ -1,0 +1,5 @@
+{
+  "started_unix": 1792797675.31223,
+  "pid": 86051,
+  "policy": "Wait all corpus/compiler/client cleanup; check scoped fmt and compiler all-target Clippy. Preserve every baseline diagnostic and classify six owned/API source spans; no suppressions or source formatting edits."
+}

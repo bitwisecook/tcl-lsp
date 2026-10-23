@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 23:08 UTC
+Last updated: 2026-10-23 23:23 UTC
 
 **API report blocker repaired; current full perf acceptance remains pending.**
 ce6facfb admits genuine current empty ALLOCATED declaration bodies through the
@@ -21,8 +21,11 @@ startup fails same first role assertion BOTH; workspace symbol times out180
 BOTH, zeroP2F but failed gates. SpecTcl NEW eval_loader28/28 PASS263.054s;
 OLD eval_loader28/28 PASS301.019s; goldens3/3 PASS BOTH227.942/430.240s.
 Both executables deleted, source unchanged and0warnings. Fresh837 control
-build now passes0warnings; complete23-case runtime is active, no full current
-corpus/client acceptance yet. Do not substitute these frozen
+build now passes0warnings; all22 report/realm controls PASS BOTH in the first23-case run. The added
+ordinary ReadFlow foreign rejection test FAILS BOTH; unchanged assertion and
+unreached later negative are routed to compiler. A fresh strict22-API-only
+run and full corpus are queued at identical frozen source/hash; failed23-case
+run remains retained. No full current corpus/client acceptance yet. Do not substitute these frozen
 results for the queued corrected latest-source run.
 
 b6 contended opt1 wall: calls80 old26815/new2721/old15968ms; upvar30

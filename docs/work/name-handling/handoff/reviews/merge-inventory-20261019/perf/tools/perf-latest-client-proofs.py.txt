@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 from pathlib import Path
 import json,os,subprocess,sys,time
-root=Path('/workspace/tcl-lsp-diagnostic');stage=sys.argv[1];assert stage in ['spectcl','server'];head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence');full=base/('current-'+head[:8]+'-repaired-workflow');clean=base/('current-'+head[:8]+'-clean6-workflow');tool=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py')
+root=Path('/workspace/tcl-lsp-diagnostic');stage=sys.argv[1];assert stage in ['spectcl','server'];head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence');full=base/('current-'+head[:8]+'-repaired-workflow-api22');clean=base/('current-'+head[:8]+'-clean6-workflow-api22');tool=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py')
 def alive(pid):
  try:
   s=(Path('/proc')/str(pid)/'stat').read_text();return s[s.rfind(')')+2:].split()[0]!='Z'

@@ -1,0 +1,18 @@
+{
+  "time_unix": 1792797601.359467,
+  "required_report_api_tests": 22,
+  "additional_ReadFlow_test": "FAILED BOTH at unchanged foreign.owns_original_read_tokens rejection; passed preceding positive/vector/binding/registry assertions, later mutated-snapshot negative UNREACHED",
+  "scope": "Restore original strict report-API/actual-realm filter contract; keep all22 required controls and complete report fields. Do not change/ignore/weaken the unrelated ordinary compiler test; preserve failures and run it again with compiler filters. Route conformance defect to compiler owner.",
+  "old_pipeline_retained": true,
+  "old_server_builder_threads_pinned_to": [
+    0,
+    1
+  ],
+  "server_process_tree": [
+    83755,
+    84507,
+    84530,
+    85960
+  ],
+  "new_pipeline": "same frozen837 source/hash; evidence suffix-api22, separate fresh controls/corpus/tests"
+}

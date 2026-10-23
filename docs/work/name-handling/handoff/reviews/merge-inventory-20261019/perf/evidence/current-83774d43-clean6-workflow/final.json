@@ -1,0 +1,9 @@
+{
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "pid": 83943,
+  "started_unix": 1792796259.4750788,
+  "scope": "Exactly six owned files, no switch or realm/interprocedural. Old ENV is ignored. Complete source diff recorded. Original filters/inputs/assertions/threads unchanged; both runs keep original resource failures.",
+  "runs": [],
+  "exit": "failed report-control dependency; zero tests/builds in this clean6 driver",
+  "finished_unix": 1792797022.0762951
+}

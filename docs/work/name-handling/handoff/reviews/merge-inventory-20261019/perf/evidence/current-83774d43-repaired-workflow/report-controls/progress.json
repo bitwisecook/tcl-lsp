@@ -45,7 +45,22 @@
       "extra_env": {},
       "exit": 101,
       "wall_s": 148.10711002349854
+    },
+    {
+      "label": "controls-old",
+      "argv": [
+        "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "original_read_card_requires_its_actual_vector_origin_and_snapshot",
+        "--test-threads=2"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 101,
+      "wall_s": 104.4387583732605
     }
   ],
-  "updated_unix": 1792796913.062082
+  "updated_unix": 1792797017.506962
 }

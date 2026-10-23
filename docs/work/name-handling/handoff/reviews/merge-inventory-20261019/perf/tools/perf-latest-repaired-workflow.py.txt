@@ -9,7 +9,7 @@ root=Path('/workspace/tcl-lsp-diagnostic')
 perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf')
 base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')
 head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
-out=base/('current-'+head[:8]+'-repaired-workflow');out.mkdir(exist_ok=False)
+out=base/('current-'+head[:8]+'-repaired-workflow-api22');out.mkdir(exist_ok=False)
 controls=out/'report-controls';corpus=out/'corpus';filters=out/'compiler';filters.mkdir()
 record={'head':head,'started_unix':time.time(),'pid':os.getpid(),'rust_diff_sha256':hashlib.sha256(subprocess.check_output(['git','diff','--','rust'],cwd=root)).hexdigest(),'policy':'After original server cleanup, latest builds/controls/corpus use CPUs2,3; both SpecTcl modes inherit reserved CPUs0,1. Compiler filters run only after corpus and SpecTcl cleanup. No shared targets, changed inputs/assertions/budgets or paused tests.','runs':[]}
 def save(): (out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='perf-latest-filter-elf-') as td:
   while alive(42380) or not (out/'spectcl-run-final.json').exists():time.sleep(3)
   env=dict(os.environ,CARGO_MANIFEST_DIR=str(root/'rust/tcl-compiler'));env.pop('ZZ_OLD_ENV',None)
   deep='interprocedural::tests::deeply_nested_if_survives_interprocedural_scan'
-  requested=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','native_array_indices_emit_iteratively_from_the_full_original_arena']
+  requested=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','native_array_indices_emit_iteratively_from_the_full_original_arena','original_read_card_requires_its_actual_vector_origin_and_snapshot']
   outcomes={};record['compiler_runs']=[]
   for suite,selected in [('nondeep',[*requested,'--skip',deep]),('deep',[deep,'--exact'])]:
    listed=subprocess.check_output([str(backup),*selected,'--list'],cwd=root/'rust/tcl-compiler',env=env,text=True);expected=set(re.findall(r'^(.+): test$',listed,re.M));assert expected

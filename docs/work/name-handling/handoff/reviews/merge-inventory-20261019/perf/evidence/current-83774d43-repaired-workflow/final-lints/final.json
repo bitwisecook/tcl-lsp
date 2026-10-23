@@ -1,0 +1,7 @@
+{
+  "started_unix": 1792796703.1335618,
+  "pid": 84157,
+  "policy": "Wait all corpus/compiler/client cleanup; check scoped fmt and compiler all-target Clippy. Preserve every baseline diagnostic and classify six owned/API source spans; no suppressions or source formatting edits.",
+  "exit": "superseded idle waiter; zero checks/builds; fresh API22 pipeline will run final lints",
+  "finished_unix": 1792797601.3310435
+}

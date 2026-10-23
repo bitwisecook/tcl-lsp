@@ -1,3 +1,10 @@
 build-controls exit 0 warnings 0
 {"label": "controls-list", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "original_read_card_requires_its_actual_vector_origin_and_snapshot", "--list"], "extra_env": {}, "exit": 0, "wall_s": 0.04882073402404785}
 {"label": "controls-new", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "original_read_card_requires_its_actual_vector_origin_and_snapshot", "--test-threads=2"], "extra_env": {}, "exit": 101, "wall_s": 148.10711002349854}
+{"label": "controls-old", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "original_read_card_requires_its_actual_vector_origin_and_snapshot", "--test-threads=2"], "extra_env": {"ZZ_OLD_ENV": "1"}, "exit": 101, "wall_s": 104.4387583732605}
+FINISHED source_unchanged True
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py", line 72, in <module>
+    assert all(value=='ok' for value in observed.values()),mode+' controls failed'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: new controls failed
