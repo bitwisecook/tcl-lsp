@@ -1,0 +1,5 @@
+{
+  "utc": "2026-10-23T13:29:31.750883+00:00",
+  "archive_sha256": "e629dd2d4e57abfd487cc77c4a6a983099b85eff7fb5c3cade28ae8fa17fa303",
+  "scope": "Off-tree proposed source-only producer fix; substantive peer and Rust/runtime unrun; no product source/Git/Cargo/GO. Existing assertions unchanged, no acceptance claim."
+}

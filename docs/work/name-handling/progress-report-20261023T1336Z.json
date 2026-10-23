@@ -1,0 +1,68 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T13:36:27.698603+00:00",
+  "scheduled_report_utc": "2026-10-23T13:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T13:55:37+00:00",
+  "change_since_previous_report": [
+    "Correction after1325 report: fresh depth1 fetch recovered13:27, pending10 work commits rebased preserving remote6c1c9d and normal-pushed a136668a0. NestedILX and WORK-only event observer now published d9b2f3ee2. Earlier credential-blocked state is historical, not current.",
+    "Local release projection e4757cfe:126 carried paths, clean workspace/runtime formatting and3292 required-input staging closure. Evidence and process files excluded; full tests, perf and baseline equality remain open.",
+    "Actual Mac medium baseline97.385s green; candidate scan failed120.096s, open4docs34.902s/~2787MiB, edit.tokens exceeded1800s, cleanup PermissionError. Incomplete result is not accepted performance or exact assertion outcome.",
+    "All unfinished owner files are fresh; remote perf13:16 and BIG-IP13:17 verified through authenticated connector. Review-triage completed status retains historical timestamp, no duplicate role started."
+  ],
+  "committed": [
+    "dd146aa237d81e35e79de1ddb4bc4ee17540f353"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish current-source identity mirror and materialise peer-cleared server diagnostic; root GO only after exact source/provider/tool/environment checks. No old eight-package typing inherited.",
+    "Fix actual event/ILX/Native runtime producer gaps on work; selectively carry approved functionality and keep all diagnostic observers off release branch.",
+    "Complete full green CI, Section F, zero pass-to-fail and Tcl corpus performance before a PR. Credentials and substantial correctness/performance/lint debt block the14:56 deadline target."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T13:16:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release-gate admission. Candidatee475 formatting/staging PASS only. Workfunctional fixes d9b2 published afterauthrecovery. Current source still requires fresh typing/runtime. Candidatea6 has real cold-token refusal and Tcl corpus deadline failure; all F/baseline/green gates remain OPEN.",
+  "disk_free_bytes": 6421336064,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

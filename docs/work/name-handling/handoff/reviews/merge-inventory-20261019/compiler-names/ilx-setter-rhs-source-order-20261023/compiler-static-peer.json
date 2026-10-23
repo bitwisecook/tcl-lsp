@@ -1,0 +1,10 @@
+{
+  "patch_sha256": "6ccf473c5465ea17fb074367012721a8d19181182389ce2e5adec60f7dae28ea",
+  "before_git_blob_sha1": "53a3a144e6dcac222eaa031d07c31f9471c28df2",
+  "active_before_match": true,
+  "copy_apply": "PASS zero fuzz/no offset",
+  "after_pin": "PASS",
+  "rustfmt": "PASS pinned1.99.1 edition2024",
+  "substantive_review": "CLEAR: schema-selected setter arity/effects/receiver identity and one literal write; every argument original and unexpanded; all non-RHS operands text-only; RHS exactly one complete original command; nested traversal retains lexical body and complete path and all issuer/currentness guards; unconditional clear/break prevents post-write or post-remote continuity; constructor obligations remain unresolved; additions do not change original assertions. No runtime/Native/normal grant.",
+  "runtime_typecheck": "UNRUN"
+}

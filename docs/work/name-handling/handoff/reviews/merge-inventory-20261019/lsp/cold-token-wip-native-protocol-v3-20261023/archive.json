@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T13:28:17Z",
+  "archive_sha256": "128451d4f13e9fa6dac50c49f8ef91b10cf289e67bf2eb93d19ca4a1a804b4bc",
+  "members": {
+    "static-peer-review.json": "ea9d45203fe5c91ab824168490ad108ed95d441d3f5b5d3c6279f8b6445e390b",
+    "preparation-checks.json": "74cb597e93d9d638990f500800e8b2bd608a337cf58fff72a323d36ea785f75b",
+    "ccg-static-peer.json": "c570d54e1e14f302517ce05e1a2e53594499c7b4604bd6632eda81c7449facb3",
+    "preparation-manifest.json": "6794de72505462e299f6a52c7c3cc8d2b13e95b557931a99facb1bc9e559a60b",
+    "README.txt": "25a087dbf94a1604e9297b147661c5fd3b143155576c009620cbdee3b06ab9c6",
+    "environment-template.json": "a5b1439e611e24db4d7fbd9563bca8214659c257bf7451622d7d2d85d71fb3af",
+    "launch.py.template": "58e43ec206ad586a6d78a822d95999c04c80d289ef64fbc9fcaa2e98cb270d0e",
+    "materialize.py": "27f3cc371e8d86c97787172e902b75967ba833bc6562ab8f742db2da3566a7c5",
+    "suite.py.template": "d35cc97ecd3507348e5b6b93e41501b029073df4143e698ff8f7ce90cfd94ed8",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "lossless_roundtrip": true,
+  "scope": "static preparation only; root actual materialization/GO/build/runtime absent"
+}

@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T13:33:34.140246+00:00",
+  "proposal_sha256": "6ccf473c5465ea17fb074367012721a8d19181182389ce2e5adec60f7dae28ea",
+  "first_peer_sha256": "4ca8dc805ff1e4c35e4a9ccc3530829a8e15b34ae1c8e2c2c8aed328029dc52f",
+  "second_peer_sha256": "425e7d0d980d9823a3ae0ce2bbf9de43c0873f8b87f5368a16585ad9650e2d7e",
+  "test_selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_in_setter_rhs_precedes_outer_store_and_later_opaque_call",
+  "acceptance": "STATIC ONLY; root source integration/typecheck/exact original and additive runtime controls required. Original compiler61 roster/count unchanged."
+}

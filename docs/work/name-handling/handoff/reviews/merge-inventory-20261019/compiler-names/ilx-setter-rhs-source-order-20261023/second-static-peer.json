@@ -1,0 +1,27 @@
+{
+  "status": "STATIC_PEER_PASS_TYPECHECK_RUNTIME_UNRUN",
+  "proposal_sha256": "6ccf473c5465ea17fb074367012721a8d19181182389ce2e5adec60f7dae28ea",
+  "manifest_sha256": "252aa5fdf03137cc987813eaadc28119af470b85954ac96a70da7698d443a8e6",
+  "file": {
+    "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+    "before_sha256": "41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+    "after_sha256": "ed8d49b6517b506413c9545cdbfec2a4a7cf05b93f8ef0409e386e83142694ff"
+  },
+  "checks": {
+    "before_pin_and_active_work_match": "PASS",
+    "zero_fuzz_shadow_application": "PASS",
+    "after_pin": "PASS",
+    "pinned_rustfmt_edition_2024_skip_children_true": "PASS",
+    "removed_lines": "0 (assertions and existing code additive-only)",
+    "cargo_typecheck_clippy_runtime_acceptance": "UNRUN"
+  },
+  "review": {
+    "effect_order": "The helper requires one literal setter receiver matching the sole selected write and one complete nested command in ConstructionValue RHS. Nested script is scanned before the outer setter write, then bindings are unconditionally cleared and outer scan stops.",
+    "guards": "Existing source schema/context, genuine source words, analysis owner/currentness, constructor, same-frame, opaque-write, and remote-call barriers remain in place. New helper is source-selected only and refuses any expanded original argument, mixed executable non-RHS arguments, nonliteral receiver, non-ConstructionValue layout, keyword mismatch, or incomplete/multi-command nested script.",
+    "authority": "No runtime lookup, Native invocation, handler grant, runtime object identity, or association-after-write behavior introduced. No public API or public type changed; helper is private and returns existing Span type.",
+    "tests": "Adds four positive RHS-first syntax vectors and five negative refusal vectors; all existing code/assertions remain unchanged."
+  },
+  "limitations": [
+    "No Cargo/typecheck/runtime/acceptance run; static review cannot prove type correctness or external-probe improvement. Root must exact-hash join this one file and run its authorized verification separately."
+  ]
+}

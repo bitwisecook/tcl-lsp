@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T13:26:57.366657+00:00
+Last updated: 2026-10-23T13:36:27.348493+00:00
 
 ## In progress
 
@@ -49,7 +49,7 @@ Last updated: 2026-10-23T13:26:57.366657+00:00
 
 ### Current cycle and routing (13:25 UTC)
 
-- 13:25 cycle: fresh depth1 fetch attempted; workspace GitHub credentials still require refresh before publication. Last confirmed pushed checkpoint5a359cf61; local functional fixes remain reviewable on work, no push claim.
+- Correction after1325 report: fresh depth1 fetch recovered13:27, pending10 work commits rebased preserving remote6c1c9d and normal-pushed a136668a0. NestedILX and WORK-only event observer now published d9b2f3ee2. Earlier credential-blocked state is historical, not current.
 - Local release projection e4757cfe:126 carried paths, clean workspace/runtime formatting and3292 required-input staging closure. Evidence and process files excluded; full tests, perf and baseline equality remain open.
 - Actual Mac medium baseline97.385s green; candidate scan failed120.096s, open4docs34.902s/~2787MiB, edit.tokens exceeded1800s, cleanup PermissionError. Incomplete result is not accepted performance or exact assertion outcome.
 - All unfinished owner files are fresh; remote perf13:16 and BIG-IP13:17 verified through authenticated connector. Review-triage completed status retains historical timestamp, no duplicate role started.
