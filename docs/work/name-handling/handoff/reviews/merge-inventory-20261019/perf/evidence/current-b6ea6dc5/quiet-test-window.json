@@ -1,5 +1,5 @@
 {
-  "started_unix": 1792777228.5810716,
+  "started_unix": 1792781652.0945377,
   "policy": "Wait for other owned compiler/corpus/lexer jobs to finish naturally. Never pause runtime tests; retain all original budgets.",
   "workers": [
     {
@@ -15,9 +15,9 @@
       "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py /workspace/tcl-lsp-perf-latest --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-controls "
     },
     {
-      "pid": 34776,
+      "pid": 41020,
       "state": "S",
-      "start": "7097275",
+      "start": "7591661",
       "argv": "python3 /tmp/perf-watch-compiler-b6.py "
     },
     {

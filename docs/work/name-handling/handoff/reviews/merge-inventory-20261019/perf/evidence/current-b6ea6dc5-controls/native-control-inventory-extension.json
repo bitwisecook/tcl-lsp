@@ -1,0 +1,8 @@
+{
+  "time": 1792781617.2626424,
+  "reason": "Retain the original non-UTF8 native array fixture through its existing native-codegen test; no lossy conversion or dropped original input. Add this exact existing test to both selected-filter inventories.",
+  "retired_waiter": 34776,
+  "binary_existed": false,
+  "executed_tests_before_change": 0,
+  "assertions": "all original assertions retained"
+}

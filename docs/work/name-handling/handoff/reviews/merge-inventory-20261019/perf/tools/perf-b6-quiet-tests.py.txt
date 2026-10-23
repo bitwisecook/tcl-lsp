@@ -16,7 +16,7 @@ def info(pid):
 def live(old):
  r=info(old['pid']);return r and r['start']==old['start'] and r['state']!='Z'
 workers=[]
-for pid,needle in [(34692,'perf-b6-clean6-checks.py'),(34585,'run_report_controls.py'),(34776,'perf-watch-compiler-b6.py'),(35120,'perf-corpus-b6-after-controls.py'),(36947,'--stage lexer')]:
+for pid,needle in [(34692,'perf-b6-clean6-checks.py'),(34585,'run_report_controls.py'),(41020,'perf-watch-compiler-b6.py'),(35120,'perf-corpus-b6-after-controls.py'),(36947,'--stage lexer')]:
  row=info(pid)
  if row and row['state']!='Z':assert needle in row['argv'],row;workers.append(row)
 record['workers']=workers;write()

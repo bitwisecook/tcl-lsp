@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='perf-compiler-checks-') as td:
  shutil.copy2(original,exe)
  assert hashlib.sha256(exe.read_bytes()).hexdigest()==r['sha256']
  (out/'binary.json').write_text(json.dumps(r|{'copy':str(exe),'source_control_inputs':str(control/'inputs.json'),'copy_sha256':r['sha256']},indent=2)+'\n')
- filters=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body']
+ filters=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena']
  package=root/'rust/tcl-compiler'
  env=os.environ.copy();env['CARGO_MANIFEST_DIR']=str(package);env.pop('ZZ_OLD_ENV',None)
  summaries={}

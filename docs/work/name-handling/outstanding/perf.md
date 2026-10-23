@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 18:49 UTC
+Last updated: 2026-10-23 19:18 UTC
 
 ## Resume
 
@@ -228,3 +228,18 @@ session handles are UNKNOWN. Do not interpret write_stdin Unknown process id
 as job failure or restart builds. Monitor /proc and /tmp/perf-b6-*.log instead.
 Active Python roots34585(controls),34692(clean6),34776(filters),35120(corpus)
 survived. Quiet suite builder/guard still wait on their recorded prerequisites.
+
+19:18 UTC: combined unit compiler40699 continues; clean6 unit compiler40734
+remains held by the build-only memory guard, no runtime paused. No current
+control/corpus verdict exists yet. Normal libraries are complete, no Rust
+warnings/errors seen. Keep frozen b6 sources and existing jobs; do not rebuild.
+
+The compiler-filter waiter was replaced BEFORE any executable existed to add
+the existing native-byte fixture control:
+codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena.
+New waiter41020 (session80266), same /tmp/perf-watch-compiler-b6.log, runs
+all original filters PLUS that exact native control in both modes. Assertions
+unchanged. Original byte fixture stays byte-exact; no lossy text decoding.
+Quiet guard was re-registered to watch successor41020 before any readiness
+release (session23726). Initial guard state and worker-registration-update.json
+are preserved. Old session handles lost at18:41 remain invalid; use PIDs/logs.
