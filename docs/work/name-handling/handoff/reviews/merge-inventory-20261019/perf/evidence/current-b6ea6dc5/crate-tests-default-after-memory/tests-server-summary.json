@@ -1,12 +1,33 @@
 {
   "server/startup/new": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 8.596,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-startup-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
   },
   "server/startup/old": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 5.314,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-startup-old.out"
   },
   "server/workspace_symbol/new": {
-    "status": "pending"
+    "status": "running",
+    "log": "tests-server-workspace_symbol-new.out"
   },
   "server/workspace_symbol/old": {
     "status": "pending"

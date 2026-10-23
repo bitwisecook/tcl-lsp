@@ -1,0 +1,302 @@
+diff --git a/rust/tcl-compiler/src/analyser/authenticated_report.rs b/rust/tcl-compiler/src/analyser/authenticated_report.rs
+index 7c24cb2c..09458dd5 100644
+--- a/rust/tcl-compiler/src/analyser/authenticated_report.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report.rs
+@@ -418,6 +418,36 @@ mod capture_controls {
+         report
+     }
+ 
++    #[test]
++    fn recursive_call_keeps_the_unused_empty_procedures_actual_report_owner() {
++        const DECLARATIONS: &str = r"proc fib {n} {
++    if {$n < 2} { return $n }
++    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]
++}
++proc empty {} {}
++";
++        for call in ["", "puts [fib 0]", "puts [fib 20]"] {
++            let source = format!("{DECLARATIONS}{call}\n");
++            let first = Analyser::new().analyse_for_report(&source, "tcl8.6");
++            let second = Analyser::new().analyse_for_report(&source, "tcl8.6");
++            assert_eq!(
++                first.compare(&first),
++                AnalysisReportComparison::Equal,
++                "{call}"
++            );
++            assert_eq!(
++                second.compare(&second),
++                AnalysisReportComparison::Equal,
++                "{call}"
++            );
++            assert_eq!(
++                first.compare(&second),
++                AnalysisReportComparison::Equal,
++                "{call}"
++            );
++        }
++    }
++
+     #[test]
+     fn report_capture_self_comparison_requires_complete_current_owners() {
+         let report = actual_report();
+diff --git a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+index 98d890c6..bc0a44c1 100644
+--- a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -461,6 +461,8 @@ impl ReportBodyInventory {
+                 .is_none_or(|source| {
+                     source.is_empty()
+                         && Self::empty_installed_body(module, registry, id, &body).is_none()
++                        && Self::empty_allocated_declaration_body(module, registry, id, &body)
++                            .is_none()
+                 })
+         {
+             return None;
+@@ -528,6 +530,65 @@ impl ReportBodyInventory {
+             .then_some(())
+     }
+ 
++    // An empty allocated declaration keeps its original source and namespace
++    // through the complete current declaration card.
++    fn empty_allocated_declaration_body(
++        module: &crate::ir::Module,
++        registry: &CommandRegistry,
++        id: ProcedureId,
++        body: &ReportBodyOwner,
++    ) -> Option<()> {
++        (matches!(
++            body.role,
++            ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration)
++        ) && body.id == id
++            && body.declaration_purpose == Some(ReportDeclarationPurpose::Allocated)
++            && body.declaration.is_empty())
++        .then_some(())?;
++        let positioned = module
++            .retained_source_bindings
++            .as_ref()?
++            .positioned_for_module(module, registry)?;
++        let root = positioned.source_origin()?;
++        let allocation = module.original_declaration_body_units.get(&id)?;
++        let held = module.body_units.get(&id)?;
++        let source = body.source.as_ref()?;
++        let namespace = body.namespace.as_deref()?;
++        (module.procedure_ids.owns(id)
++            && held.body_kind == ProcedureBodyKind::OriginalDeclaration
++            && held.span == body.declaration
++            && held.declaration_site == body.site
++            && Some(held.body_offset) == body.body_offset
++            && held.body_offset == body.declaration.start()
++            && held
++                .body
++                .executed_source
++                .as_ref()
++                .is_some_and(|actual| Arc::ptr_eq(actual, source))
++            && held.body.namespace_context.as_deref() == Some(namespace)
++            && body.site.as_ref() == Some(&allocation.site)
++            && allocation.matches_source_declaration_image(&module.source, allocation.site.offset)
++            && Arc::ptr_eq(&allocation.site.source, root)
++            && Arc::ptr_eq(&source.origin, root)
++            && source.text.bytes().is_empty()
++            && matches!(
++                &source.mapping,
++                crate::command_binding::ExecutedScriptMapping::Contiguous { base }
++                    if *base == body.declaration.start()
++            ))
++        .then_some(())?;
++        positioned
++            .original_declaration_body_units()
++            .into_iter()
++            .any(|card| {
++                card.allocation == *allocation
++                    && card.source == **source
++                    && Arc::ptr_eq(&card.source.origin, root)
++                    && card.namespace_key == *namespace
++            })
++            .then_some(())
++    }
++
+     #[cfg(test)]
+     pub(super) fn hosted_domain_for_test(&self) -> bool {
+         self.hosted_entry.is_some()
+@@ -712,6 +773,181 @@ mod owner_controls {
+         report
+     }
+ 
++    fn allocated_empty() -> super::super::AuthenticatedAnalysisReport {
++        let source = r"proc fib {n} {
++    if {$n < 2} { return $n }
++    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]
++}
++proc empty {} {}
++puts [fib 20]
++";
++        let report = Analyser::new().analyse_for_report(source, "tcl8.6");
++        assert!(
++            report.current_capture().is_ok(),
++            "genuine allocated empty body"
++        );
++        report
++    }
++
++    fn allocated_empty_body(module: &crate::ir::Module) -> ReportBodyOwner {
++        let (&id, _) = module
++            .original_declaration_body_units
++            .iter()
++            .find(|(id, _)| {
++                module
++                    .body_units
++                    .get(id)
++                    .is_some_and(|body| body.span.is_empty())
++            })
++            .expect("actual allocated empty declaration");
++        ReportBodyInventory::procedure(
++            module,
++            id,
++            module.body_units.get(&id).unwrap(),
++            ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration),
++        )
++        .unwrap()
++    }
++
++    #[test]
++    fn empty_allocated_body_requires_the_current_complete_source_card() {
++        let left = allocated_empty();
++        let right = allocated_empty();
++        assert_eq!(
++            left.compare(&right),
++            super::super::AnalysisReportComparison::Equal
++        );
++        let module = &left
++            .current_capture()
++            .unwrap()
++            .bodies
++            .prepared
++            .unit()
++            .ir_module;
++        let registry = left.analysis.resolved_registry().unwrap();
++        let body = allocated_empty_body(module);
++        let id = body.id;
++        assert!(
++            body.declaration_purpose == Some(ReportDeclarationPurpose::Allocated),
++            "actual allocated declaration purpose"
++        );
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(module, registry, id, &body)
++                .is_some()
++        );
++        let mut missing = module.clone();
++        missing.original_declaration_body_units.remove(&id);
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(&missing, registry, id, &body)
++                .is_none()
++        );
++        let mut no_owner = module.clone();
++        no_owner.retained_source_bindings = None;
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(&no_owner, registry, id, &body)
++                .is_none()
++        );
++        let foreign = &right
++            .current_capture()
++            .unwrap()
++            .bodies
++            .prepared
++            .unit()
++            .ir_module;
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(foreign, registry, id, &body)
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn empty_allocated_body_rejects_wrong_roles_geometry_and_duplicates() {
++        let report = allocated_empty();
++        let module = &report
++            .current_capture()
++            .unwrap()
++            .bodies
++            .prepared
++            .unit()
++            .ir_module;
++        let registry = report.analysis.resolved_registry().unwrap();
++        let body = allocated_empty_body(module);
++        let id = body.id;
++        let mut wrong_role = allocated_empty_body(module);
++        wrong_role.role = ReportBodyRole::Unit(ProcedureBodyKind::Installed);
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(
++                module,
++                registry,
++                id,
++                &wrong_role
++            )
++            .is_none()
++        );
++        let mut wrong_purpose = allocated_empty_body(module);
++        wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::Native);
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(
++                module,
++                registry,
++                id,
++                &wrong_purpose
++            )
++            .is_none()
++        );
++        let mut wrong_span = allocated_empty_body(module);
++        wrong_span.declaration = Span::empty(0);
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(
++                module,
++                registry,
++                id,
++                &wrong_span
++            )
++            .is_none()
++        );
++        let mut changed = module.clone();
++        changed.body_units.get_mut(&id).unwrap().body_offset += 1;
++        assert!(
++            ReportBodyInventory::empty_allocated_declaration_body(
++                &changed,
++                registry,
++                id,
++                &allocated_empty_body(&changed)
++            )
++            .is_none()
++        );
++        let mut out_of_range = allocated_empty_body(module);
++        out_of_range.declaration =
++            Span::empty(u32::try_from(module.source.bytes().len() + 1).unwrap());
++        assert!(
++            ReportBodyInventory::push(&mut Vec::new(), module, registry, id, out_of_range)
++                .is_none()
++        );
++        let mut bodies = Vec::new();
++        assert!(
++            ReportBodyInventory::push(
++                &mut bodies,
++                module,
++                registry,
++                id,
++                allocated_empty_body(module)
++            )
++            .is_some()
++        );
++        assert!(
++            ReportBodyInventory::push(
++                &mut bodies,
++                module,
++                registry,
++                id,
++                allocated_empty_body(module)
++            )
++            .is_none()
++        );
++        assert_eq!(bodies.len(), 1);
++    }
++
+     #[test]
+     fn empty_installed_body_requires_the_current_complete_source_card() {
+         let source = "proc retained {} {}\nretained EXTRA";

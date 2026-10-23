@@ -419,6 +419,36 @@ mod capture_controls {
     }
 
     #[test]
+    fn recursive_call_keeps_the_unused_empty_procedures_actual_report_owner() {
+        const DECLARATIONS: &str = r"proc fib {n} {
+    if {$n < 2} { return $n }
+    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]
+}
+proc empty {} {}
+";
+        for call in ["", "puts [fib 0]", "puts [fib 20]"] {
+            let source = format!("{DECLARATIONS}{call}\n");
+            let first = Analyser::new().analyse_for_report(&source, "tcl8.6");
+            let second = Analyser::new().analyse_for_report(&source, "tcl8.6");
+            assert_eq!(
+                first.compare(&first),
+                AnalysisReportComparison::Equal,
+                "{call}"
+            );
+            assert_eq!(
+                second.compare(&second),
+                AnalysisReportComparison::Equal,
+                "{call}"
+            );
+            assert_eq!(
+                first.compare(&second),
+                AnalysisReportComparison::Equal,
+                "{call}"
+            );
+        }
+    }
+
+    #[test]
     fn report_capture_self_comparison_requires_complete_current_owners() {
         let report = actual_report();
         assert!(report.analysis() == report.analysis());

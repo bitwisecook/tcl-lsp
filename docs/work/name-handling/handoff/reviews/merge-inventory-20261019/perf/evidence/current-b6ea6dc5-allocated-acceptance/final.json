@@ -1,0 +1,23 @@
+{
+  "started_unix": 1792794371.6586394,
+  "scope": "Candidate API diagnostic on exact original Native35 plus compact failing source; unchanged full triple in both old-only/mixed modes. Uses existing candidate opt0 normal library; not full corpus acceptance.",
+  "results": [
+    {
+      "mode": "old-only",
+      "exit": 0,
+      "wall_s": 205.7396867275238,
+      "valid": true
+    },
+    {
+      "mode": "mixed",
+      "exit": 0,
+      "wall_s": 173.55820441246033,
+      "valid": true
+    }
+  ],
+  "build_exit": 0,
+  "warnings": 0,
+  "finished_unix": 1792794756.7968705,
+  "executables_removed": true,
+  "probe_removed": true
+}

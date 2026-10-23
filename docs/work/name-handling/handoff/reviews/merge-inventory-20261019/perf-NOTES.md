@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 22:24 UTC
+Last updated: 2026-10-23 22:34 UTC
 
 **Frozen b6 proof progressed; perf code remains unlanded.** Switched and clean6
 lexer586/586 pass BOTH with0Rust warnings. Full selected compiler228 completed
@@ -15,7 +15,11 @@ then its exact-ELF remaining25 inputs all pass. The sole refusal is original
 Native35, caused by a current empty ALLOCATED declaration being admitted only
 for Installed bodies. A report-only candidate preserves strict current cards,
 source/namespace/geometry/role/purpose checks and adds positive/negative controls.
-Its quiet19-control build finished0warnings; runtime is active; no repair acceptance or publication yet.
+Its quiet19-control retry now PASSES BOTH with0warnings and unchanged source.
+Exact full Native35 plus compact reproduction subsequently give all3 Equal
+pairs BOTH forced-old/mixed, with strict runtime Eq separately false. The
+necessary API-only repair is published separately in this update. Full
+corrected latest-source corpus acceptance is still pending.
 Both15 iRules and all7 synthetic sizes give all3 Equal pairs; complete ordered
 PackSet Debug is deterministic/equal (484936 lines,8packs,0notices/errors).
 

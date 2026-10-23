@@ -31,7 +31,33 @@
       "extra_env": {},
       "exit": 0,
       "wall_s": 0.06479930877685547
+    },
+    {
+      "label": "controls-new",
+      "argv": [
+        "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=2"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 154.72654676437378
+    },
+    {
+      "label": "controls-old",
+      "argv": [
+        "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=2"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 0,
+      "wall_s": 78.80950832366943
     }
   ],
-  "updated_unix": 1792794133.7940063
+  "updated_unix": 1792794367.3379507
 }

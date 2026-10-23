@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 22:24 UTC
+Last updated: 2026-10-23 22:34 UTC
 
 ## Resume
 
@@ -35,18 +35,25 @@ Evidence: current-b6ea6dc5-native35-unit-trace/, -capture-empty-order/,
 -capture-owner/, -capture-ir/, -no-comment-repro/; strict reproduction-test
 patch perf-report-empty-recursive-call-repro.patch is a draft, not a fix.
 
-Candidate report-only repair is ONLY /workspace/tcl-lsp-diagnostic (separate
-b6 full batch, source seal/diff recorded). It adds a distinct empty ALLOCATED
-admission using complete current original-declaration inventory, exact actual
-allocation/site/root/source/namespace/span/mapping and proper role/purpose.
-Existing Installed helper, every old assertion, global/runtime/cache Eq and
-ordinary AnalysisResult production remain unchanged. Three positive/negative
-controls added. Candidate is unproven: initial unit build failed2 E0277 test
-assert_eq Debug requirements, corrected to same plain equality assertion; retry
-was resource-killed with0Rust warnings. Preserve both failed builds. No repair
-production commit yet. Scope/fmt candidate files are recorded under
-current-b6ea6dc5-empty-allocated-fix/. First/retry controls are
--empty-allocated-controls/ and -empty-allocated-controls-retry/.
+The report-only empty ALLOCATED repair is published separately from perf code
+in the commit containing this update. Exactly2 API source files, no ordinary
+AnalysisResult/global/runtime/cache equality changes. Complete current original
+allocation/card/site/root/source/namespace/span/mapping and role/purpose guards
+are retained; Installed helper and every old assertion are unchanged. Three
+controls added. Initial2 E0277 and subsequent resource-failed builds remain
+recorded, not overwritten by the successful quiet retry.
+
+Candidate b6 quiet19 report/actual-realm controls PASS BOTH,154.727s new /
+78.810s old, opt0/assertions-on,0Rust warnings, complete source seal unchanged,
+unit executable removed. Exact original Native35 AND compact reproduction
+then pass all3 report pairs in BOTH forced-old and mixed (205.740/173.558s
+whole2-input runs),0warnings, probe/executable removed. Strict runtime Eq
+remains false and separately recorded. No full corrected102-input acceptance
+yet. perf-report-empty-allocated.patch contains ONLY the API repair;
+evidence/empty-allocated-repair-publication.json pins its precommit context.
+Latest canonical source compile/22 controls (including3 existing full Native35
+controls) and full corpus remain pending; this is authorised development
+publication, not a workspace-green or complete batch acceptance claim.
 
 Active memory ordering (no runtime paused):
 1. Original clean6 both compiler modes are COMPLETE/FAILED, both exit-9.
@@ -60,20 +67,19 @@ Active memory ordering (no runtime paused):
 3. Server build has finished0Rust warnings and waits for quiet resources:
    /tmp/perf-b6-server-after-memory.log, current-b6ea6dc5/
    crate-tests-default-after-memory. Original2 tests/BOTH,180s unchanged.
-4. Candidate19 report/realm controls QUIET retry BUILT0warnings; runtime active:
+4. Candidate19 report/realm controls QUIET retry FINISHED/PASS BOTH:
    /tmp/perf-b6-retry-controls-after-isolation.py/.log; evidence
-   current-b6ea6dc5-empty-allocated-controls-quiet/. No runtime verdict yet.
-5. /tmp/perf-b6-capture-allocated-acceptance.py waits for successful controls,
-   then builds/runs/deletes the real triple probe for exact original Native35
+   current-b6ea6dc5-empty-allocated-controls-quiet/. All19 pass BOTH; source unchanged and executable removed.
+5. /tmp/perf-b6-capture-allocated-acceptance.py FINISHED successfully; it built/ran/deleted the real triple probe for exact original Native35
    AND the compact reproduction, forced-old and mixed. Failed initial mini
-   preparation remains recorded separately. No source mutation during controls.
+   preparation remains recorded separately. No source mutation during controls; all3 pairs Equal BOTH.
 6. Both SpecTcl executables built0warnings, queued for server thenSpec quiet
    window. Original28 eval_loader +3 golden_packs each mode; budgets unchanged.
 7. Waiting-only guard was restarted to include the ENTIRE report-control helper
    and acceptance-probe lifetime before releasing server. Original guard56929
    replaced; receipt current-b6ea6dc5/quiet-guard-control-ordering.json.
    Current guard /tmp/perf-b6-quiet-tests-all-workers.py, session89176;
-   /tmp/perf-b6-quiet-tests-all-workers-retry.log. Both flags remain absent.
+   /tmp/perf-b6-quiet-tests-all-workers-retry.log. Server may now run; SpecTcl follows server cleanup.
 
 memory.events: oom9/oom_kill8. No Rust compiler is deliberately held. Normal
 and diagnostic targets never copied/shared. Tcl9.0.4/8.6.18/Jim0.84 remain
@@ -85,12 +91,20 @@ Every original input/hash, assertion and Equal-only requirement is retained;
 this prevents cross-input memory accumulation. Python syntax/diff checks pass;
 the new mode has not yet run. The latest fetched work0a8b8da6 contains the same
 six owned files and realm; interprocedural has a separate helper refactor.
-The report repair applies cleanly to latest work, but is NOT yet published.
+The report repair applies cleanly and is published separately in this update.
+The switch-only query_memo constructor spelling now matches the clean patch,
+removing its new Clippy Default lint without changing runtime behaviour.
 
-Next: finish candidate19 controls and the original Native35 triple. If candidate succeeds,
-check full original native35 old/new/old and all strict negatives, scoped fmt /
-Clippy(no new diagnostics), land necessary report repair separately on latest
-work. Then rerun genuine full batch corpus on repaired source: Equal only;
+Next: advance ONLY diagnostic tree to latest canonical work plus full9 switched
+perf files. /tmp/perf-latest-repaired-workflow.py is prepared but NOT started.
+It waits original server cleanup, runs latest complete controls opt0, preserves
+the exact unit ELF privately, then runs FULL102+15+synthetics/PackSet opt1 using
+--isolate-inputs. After corpus and SpecTcl cleanup it runs original compiler
+filters/nonUTF8 control both modes, unchanged1000-depth case alone BOTH; strict
+inventory failures stay failed and all private artifacts are removed. Latest
+builds use CPUs2,3; BOTH SpecTcl modes inherit reserved CPUs0,1 (receipt
+current-b6ea6dc5/spec-cpu-reservation.json). No shared targets/assertion/budget
+changes or paused runtime. Then assess the genuine latest-source full proof: Equal only;
 Unavailable/Different fail. No report substitution, source/owner guard waiver,
 field dropping, assertion/budget weakening or global equality change. API repair
 is not a six-file perf commit. Complete requested crate checks and all inputs.

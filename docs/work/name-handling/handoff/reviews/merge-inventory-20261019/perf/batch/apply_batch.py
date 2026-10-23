@@ -534,9 +534,9 @@ def realm(s, p):
     pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {""",
         p,
     )
+    s = rep(s, "            query_memo: Default::default(),",
+            "            query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),", p)
     if not zz:
-        s = rep(s, "            query_memo: Default::default(),",
-                "            query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),", p)
         inventory_doc = """    /// Borrow the retained inventory for syntax navigation in the same source
     /// root. Reconstructed/entered sources must select their own origin first.
 """

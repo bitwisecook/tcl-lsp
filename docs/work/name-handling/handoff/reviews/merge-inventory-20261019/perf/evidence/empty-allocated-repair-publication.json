@@ -1,0 +1,13 @@
+{
+  "base": "7eaebcad5e7d0ec4a5dd2915e7866b10c601cb77",
+  "scope": "Report-only complete current empty ALLOCATED declaration admission. Original Installed guard, all assertions and ordinary/global/runtime/cache equality unchanged.",
+  "files": [
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs"
+  ],
+  "patch_sha256": "ffa66d940f24a1738a9ec21ceb6ba89af2b47245d3f910c64a411a267c9aa887",
+  "frozen_candidate_controls": "current-b6ea6dc5-empty-allocated-controls-quiet",
+  "controls": "19/19 BOTH, zero Rust warnings, complete source seal unchanged, unit executable removed",
+  "original_and_compact_threeway": "current-b6ea6dc5-allocated-acceptance; all3 Equal pairs BOTH old-only/mixed; strict runtime Eq separately false",
+  "latest_canonical_validation": "Scoped fmt/apply clean; latest source build, all controls including3 existing original fixture controls, full corpus and crate checks pending. Development publication authorised in AGENTS."
+}

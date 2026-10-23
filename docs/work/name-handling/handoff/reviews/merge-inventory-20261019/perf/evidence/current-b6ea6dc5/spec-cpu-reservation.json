@@ -1,0 +1,17 @@
+{
+  "time_unix": 1792794401.5946553,
+  "driver": 42380,
+  "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py /workspace/tcl-lsp-perf-latest --stage spectcl --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5/crate-tests-opt1 --wait-before-tests /tmp/perf-b6-spec-quiet-ready ",
+  "old_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "new_affinity": [
+    0,
+    1
+  ],
+  "policy": "SpecTcl runs inherit dedicated CPUs0,1 for both modes. Latest proof build/test processes may use CPUs2,3 after server cleanup. Cgroup quota4 CPUs, unchanged test threads/assertions/budgets. No runtime paused. Historical globally quiet observations remain separately scoped."
+}
