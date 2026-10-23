@@ -373,12 +373,12 @@ pub(crate) fn original_source_taint_read_operands(
         Arc::new(parent.clone())
     };
     Some(OriginalSourceTaintReadOperands {
-        reads,
-        script_layout,
         point_tokens,
         actual_tokens,
         original,
         config,
+        reads,
+        script_layout,
     })
 }
 

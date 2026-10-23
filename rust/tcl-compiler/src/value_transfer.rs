@@ -487,7 +487,7 @@ pub(crate) struct CatchEndRecord {
 pub(crate) struct LatticeDriver<'a> {
     registry: &'a CommandRegistry,
     /// Terminal unavailable, explicit standalone, or the actual retained generation.
-    metadata_context: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    metadata_context: Option<crate::registry_invocation::InvocationMetadataSelection<'a>>,
     source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     folds: Option<BuiltinFoldInputs<'a>>,
     policy: FoldPolicy,
@@ -1266,12 +1266,15 @@ impl<'a> LatticeDriver<'a> {
             .source_metadata_input
             .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
             .or_else(|| registry.profile());
-        let metadata_context = trace.source_metadata_input.map_or(Some(None), |input| {
-            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                registry, input,
-            )
-            .map(Some)
-        });
+        let metadata_context = trace.source_metadata_input.map_or(
+            Some(crate::registry_invocation::InvocationMetadataSelection::Standalone),
+            |input| {
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )
+                .map(crate::registry_invocation::InvocationMetadataSelection::Retained)
+            },
+        );
         let lexer_config = trace.source_metadata_input.map_or_else(
             || LexerConfig::for_profile(profile),
             crate::analyser::ResolvedAnalysisInput::lexer_config,
@@ -1346,9 +1349,7 @@ impl<'a> LatticeDriver<'a> {
         mut self,
         owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
     ) -> Self {
-        self.metadata_context = owner
-            .metadata_context(self.registry)
-            .map(crate::registry_invocation::InvocationMetadataSelection::context);
+        self.metadata_context = owner.metadata_context(self.registry);
         if let Some(input) = owner.source_analysis_input() {
             let agrees = self.source_metadata_input.is_some_and(|trace| {
                 std::ptr::eq(
@@ -2704,7 +2705,7 @@ impl<'a> LatticeDriver<'a> {
     where
         'a: 'w,
     {
-        match self.metadata_context? {
+        match self.metadata_context?.context() {
             Some(context) => {
                 tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
                     self.registry,

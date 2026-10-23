@@ -118,10 +118,10 @@ pub(crate) fn retained_registry_for_cfg(cfg: &crate::cfg::Function) -> Option<&C
         data.statements
             .iter()
             .enumerate()
-            .filter_map(move |(index, statement)| {
-                (statement.is_executable_invocation() && statement.synthetic_marker().is_none())
-                    .then(|| cfg.source_tokens_at(*block, index))
+            .filter(|(_, statement)| {
+                statement.is_executable_invocation() && statement.synthetic_marker().is_none()
             })
+            .map(move |(index, _)| cfg.source_tokens_at(*block, index))
     });
     let conditions = cfg
         .condition_binding_sites
@@ -262,7 +262,7 @@ pub(crate) fn original_substitution_invocations(
             site.offset,
             config,
         )?;
-        let calls = if let Some(metadata) =
+        if let Some(metadata) =
             metadata.filter(|metadata| metadata.source_analysis_input().is_some())
         {
             crate::word_subst::checked_original_lifted_calls_with_metadata_context(
@@ -286,8 +286,7 @@ pub(crate) fn original_substitution_invocations(
                 }
             }
             calls
-        };
-        calls
+        }
     };
     let calls = calls
         .into_iter()

@@ -291,10 +291,7 @@ fn bound_defs(
                 context,
                 after,
                 registry,
-                points
-                    .source_metadata_owner()
-                    .metadata_context(registry)
-                    .map(crate::registry_invocation::InvocationMetadataSelection::context),
+                points.source_metadata_owner().metadata_context(registry),
             )
             .into_iter()
             .map(|(key, _)| key),
@@ -7995,7 +7992,7 @@ impl<'a> RenameWalk<'a> {
         for (name, _) in raw_classified {
             if let Some(bound) = canonical_variable_key(name, context, registry) {
                 source_symbols.insert(name.clone(), self.interner.intern(&bound));
-            } else if !authored.as_ref().is_some_and(|(_, held, _)| held == name) {
+            } else if authored.as_ref().is_none_or(|(_, held, _)| held != name) {
                 self.unknown_source_names.insert(name.clone());
             }
         }
@@ -8334,8 +8331,7 @@ impl<'a> RenameWalk<'a> {
             registry,
             self.points
                 .source_metadata_owner()
-                .metadata_context(registry)
-                .map(crate::registry_invocation::InvocationMetadataSelection::context),
+                .metadata_context(registry),
         );
         let switch_may = bound_names(
             switch_may_defs_in_context(stmt, self.invocation_context(registry)),

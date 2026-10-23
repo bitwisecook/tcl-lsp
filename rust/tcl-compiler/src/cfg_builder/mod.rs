@@ -826,6 +826,7 @@ impl<'a> CfgBuilder<'a> {
         let Some(metadata) = self.command_classes.metadata_context() else {
             return true;
         };
+        let metadata = metadata.context();
         let state = std::cell::RefCell::new(bindings);
         let barrier = std::cell::Cell::new(false);
         let resolve = |head: &str| {
@@ -2049,7 +2050,10 @@ impl<'a> CfgBuilder<'a> {
             .and_then(|timeline| timeline.before_substitutions(span))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
-        let metadata = self.command_classes.metadata_context().flatten();
+        let metadata = self
+            .command_classes
+            .metadata_context()
+            .and_then(crate::registry_invocation::InvocationMetadataSelection::context);
         let writes = crate::ir_helpers::expression_possible_writes_with_metadata_context(
             condition,
             self.registry,
@@ -4408,10 +4412,8 @@ impl CfgCommandClasses {
 
     fn metadata_context(
         &self,
-    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
-        self.metadata
-            .metadata_context(self.registry.registry())
-            .map(crate::registry_invocation::InvocationMetadataSelection::context)
+    ) -> Option<crate::registry_invocation::InvocationMetadataSelection<'_>> {
+        self.metadata.metadata_context(self.registry.registry())
     }
 
     /// Source numeral grammar is independent of catalogue availability.
@@ -4439,7 +4441,7 @@ impl CfgCommandClasses {
     ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
             self.registry.registry(),
-            self.metadata_context()?,
+            self.metadata_context()?.context(),
             tokens,
         )
     }
@@ -4486,6 +4488,7 @@ impl CfgCommandClasses {
         let registry = self.registry.registry();
         let metadata = self
             .metadata_context()?
+            .context()
             .filter(|context| context.source_analysis_input().is_some())?;
         if let Some(route) =
             crate::registry_invocation::original_native_source_conditional_completion(
@@ -4511,6 +4514,7 @@ impl CfgCommandClasses {
             self.registry.registry(),
             resolve,
             self.metadata_context()?
+                .context()
                 .map(|context| context.context().authoring_query()),
         )
     }

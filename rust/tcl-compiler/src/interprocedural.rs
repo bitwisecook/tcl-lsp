@@ -2611,8 +2611,8 @@ fn original_parameter_expression_config(
                 }
                 | Statement::ExprEval {
                     expr, expr_base, ..
-                } => original(expr, *expr_base),
-                Statement::Return {
+                }
+                | Statement::Return {
                     expr: Some(expr),
                     expr_base,
                     ..
@@ -2641,7 +2641,7 @@ fn original_parameter_expression_config(
         scope.matches_module(ctx.source_module).then_some(())?;
         let base = base?;
         let mut operands = words.iter().filter(|word| {
-            word.content_span().ok().is_some_and(|span| {
+            word.content_span().is_ok_and(|span| {
                 span.start() == base
                     && tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some_and(
                         |value| word.image().bytes().get(span.as_range()) == Some(value.as_slice()),

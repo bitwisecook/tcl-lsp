@@ -747,9 +747,9 @@ fn terminator_barrier_with_commands(
 struct Commands<'a> {
     registry: &'a CommandRegistry,
     declared: &'a DeclaredFrameEffects,
-    // Outer None is terminal supplied refusal; inner None is the explicit
+    // None is terminal supplied refusal; Standalone explicitly selects the
     // profile-less standalone mode.
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'a>>,
     standalone: bool,
 }
 
@@ -758,7 +758,7 @@ impl<'a> Commands<'a> {
         Self {
             registry,
             declared,
-            metadata: Some(None),
+            metadata: Some(crate::registry_invocation::InvocationMetadataSelection::Standalone),
             standalone: true,
         }
     }
@@ -771,9 +771,7 @@ impl<'a> Commands<'a> {
         {
             None
         } else {
-            owner
-                .metadata_context(registry)
-                .map(crate::registry_invocation::InvocationMetadataSelection::context)
+            owner.metadata_context(registry)
         };
         Self {
             registry,
@@ -800,6 +798,7 @@ fn scan_call(
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     };
+    let metadata = metadata.context();
     if let Some(tokens) = tokens {
         if !commands.standalone && tokens.carries_proved_names() {
             // A definition point whose producer proved every name it writes
@@ -928,7 +927,9 @@ fn scan_materialized_names(
             tokens,
             source,
             commands.registry,
-            commands.metadata.flatten(),
+            commands
+                .metadata
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         )?;
         Some(footprint.invocation_footprint())
     })();
@@ -948,6 +949,7 @@ fn scan_original_substitutions(
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     };
+    let metadata = metadata.context();
     let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;

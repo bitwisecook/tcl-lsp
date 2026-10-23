@@ -133,11 +133,13 @@ impl<'a> GlobalWriteSemantics<'a> {
         if self.logical_source() {
             return tokens
                 .and_then(|tokens| self.logical_footprint(tokens))
-                .map(|(writes, _)| writes)
-                .unwrap_or(tcl_registry::VariableWriteProjection {
-                    opaque_variable_frame: true,
-                    ..Default::default()
-                });
+                .map_or(
+                    tcl_registry::VariableWriteProjection {
+                        opaque_variable_frame: true,
+                        ..Default::default()
+                    },
+                    |(writes, _)| writes,
+                );
         }
         if !self.standalone() {
             return self

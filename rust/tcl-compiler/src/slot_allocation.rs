@@ -105,9 +105,9 @@ fn terminator_read_symbols(
             let Some(symbol) = ssa.var_symbol(&name) else {
                 return all_symbols();
             };
-            if !ssa
+            if ssa
                 .cell_key(symbol)
-                .is_some_and(|key| key.authored_spelling().is_some())
+                .is_none_or(|key| key.authored_spelling().is_none())
             {
                 return all_symbols();
             }
