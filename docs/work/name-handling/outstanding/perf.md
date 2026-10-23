@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 23:23 UTC
+Last updated: 2026-10-23 23:49 UTC
 
 ## Resume
 
@@ -46,9 +46,12 @@ compiler filter runs. It is not a missing API owner/capture refusal.
 
 The first pipeline stopped at its strict23-case assertion before corpus;
 its raw failure, source seal and private ELF cleanup remain recorded. Clean6
-then exited with zero builds/tests. Existing first837 server helper still
-builds/runs its independent server proof; preserve it and let it finish.
-Its builder/all threads were pinned CPUs0,1 BEFORE its first runtime. First837
+then exited with zero builds/tests. First837 server proof is COMPLETE,0warnings/zeroP2F but failed gates:
+startup first assertion0vs1 BOTH (6.026/5.468s), later reindex unreached;
+workspace timeout180 BOTH (180.103/180.215s), artifacts removed. The queued
+final quiet all4-core server repeat retains original budgets to check those
+unresolved absolute timeouts after all other corpus/build/test cleanup.
+That first837 builder/all threads were pinned CPUs0,1 BEFORE its first runtime. First837
 Clippy idle waiter was stopped BEFORE any check/build to avoid racing the
 fresh pipeline, with a superseded receipt; no test/compiler was interrupted.
 
@@ -60,8 +63,11 @@ relabelled as a pass. No report field or test assertion is weakened. Fresh
 pipeline evidence directories have suffix-api22:
 current-83774d43-repaired-workflow-api22/ and
 current-83774d43-clean6-workflow-api22/. Source HEAD and full Rust diff are
-IDENTICAL to first837. Fresh22-control compiler build currently waits for the
-same-tree first server Cargo build lock; do not restart it.
+IDENTICAL to first837. Fresh22 controls now PASS BOTH (128.571/117.964s),0Rust warnings, complete
+source seal unchanged, executable removed. Full normal1 corpus library/probes
+are BUILDING; all original117 text fixture hashes pass preflight. Clean6
+lexer586/586 PASS BOTH (2.716/2.197s),0warnings/removed, ignored old ENV. Its
+normal compiler0 library finished; j1 unit build dependencies continue.
 
 Active logs /tmp/perf-83774d43-api22-{repaired,clean6}-workflow.log,
 /tmp/perf-83774d43-api22-client-{spectcl,server}.log and
@@ -77,7 +83,9 @@ Prepared scripts (also saved as tools/*.py.txt):
   FULL102 Tcl+15iRules+7 synthetics old-only/mixed and ordered PackSet opt1.
   --isolate-inputs keeps ALL3 analyses/comparisons inside each original input's
   process, retaining every byte/hash/assertion and all child receipts. Only
-  Equal passes. After corpus AND fresh SpecTcl cleanup, original compiler
+  Equal passes. Fresh switched lexer BOTH is separately queued after normal1 corpus build
+  (/tmp/perf-837-api22-switched-lexer.py), with original586 inventory/profile0.
+  After corpus AND fresh SpecTcl cleanup, original compiler
   filters/nonUTF8 control BOTH and unchanged1000-depth case ALONE BOTH.
 - /tmp/perf-latest-clean6-workflow.py: full-workflow prefix is83774d43 with suffix-api22. Wait successful current report controls,
   run no-switch lexer BOTH, build clean6 compiler0, preserve exact private ELF,
@@ -93,8 +101,10 @@ Both main scripts and both client helpers are LAUNCHED. Source
 has changed in56 core/server files and3 SpecTcl files since b6; prior client
 results are interim evidence, not current-source substitutes.
 
-Resource policy: SpecTcl BOTH modes inherit CPUs0,1; latest builders/controls/
-corpus CPUs2,3. Cgroup quota4CPU/16GiB. Clean6 idle waiter was restarted BEFORE any build/test
+Resource policy: SpecTcl BOTH modes inherit CPUs0,1; full builders/controls/corpus CPUs2,3. After first837 server cleanup, the
+clean6 COMPILER BUILD temporarily borrows idle CPUs0,1; guard restores it to
+2,3 when fresh SpecTcl build starts. No test paused or test thread/budget/input
+changed. Receipt: clean6-api22/cpu-borrow-ordering.json. Cgroup quota4CPU/16GiB. Clean6 idle waiter was restarted BEFORE any build/test
 to use cargo-j1, preventing concurrent normal/unit rustc alongside full normal1.
 Receipt: current-83774d43-clean6-workflow/waiter-memory-ordering.json. No
 runtime paused and no inputs/assertions/thread counts changed. Latest deep
@@ -143,14 +153,18 @@ source/context limits and required owner proofs are in residual-routing.md.
 Current b6 contended opt1 wall (capture included, comparison excluded): calls80
 old26815/new2721/old15968ms; upvar30 old73450/new15071/old46401ms;
 load_embedded old14514/new2964/old16003ms, ordered full PackSet equal. Origin
-same load API4665ms is separate; no cross-API/release claim. Final current
-before/after timings in perf-NOTES.md remain required before stopping. The
+same load API4665ms is separate; no cross-API/release claim. Actual origin timing inputs are audited:117 work-checkout text files match
+current proof/recorded hashes; all8 .tclspec sources match; executing both
+actual extracted synthetic generators proves all7 emitted Tcl strings byte
+identical. The19 absent origin-tree fixtures were read from work, not skipped.
+Origin ordinary analyse and report-capture boundaries stay separately labelled.
+Final current before/after timings in perf-NOTES.md remain required before stopping. The
 queued /tmp/perf-837-clippy-after-clients.py waits final server cleanup, then
 runs scoped fmt and compiler all-target Clippy without changing source or
 suppressing any lint; preserve/classify every baseline/new diagnostic.
 
 Publish own evidence/NOTES/this file at most30min apart from publisher root.
-Own checkpoint in this update at2026-10-23 23:23 UTC; next push within30min. Fetch origin work
+Own checkpoint in this update at2026-10-23 23:49 UTC; next push within30min. Fetch origin work
 and rebase before every normal push, retry rejection; no force/PR. Footer:
 Co-Authored-By: Codex <noreply@openai.com>.
 

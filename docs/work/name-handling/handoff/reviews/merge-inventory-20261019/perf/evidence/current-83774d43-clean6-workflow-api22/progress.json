@@ -3,5 +3,10 @@
   "pid": 86059,
   "started_unix": 1792797675.4287577,
   "scope": "Exactly six owned files, no switch or realm/interprocedural. Old ENV is ignored. Complete source diff recorded. Original filters/inputs/assertions/threads unchanged; both runs keep original resource failures.",
-  "runs": []
+  "runs": [
+    {
+      "stage": "lexer",
+      "exit": 0
+    }
+  ]
 }

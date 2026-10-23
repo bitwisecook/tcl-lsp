@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+fn origin_generate(kind: &str, n: usize) -> String {
+    let mut s = String::new();
+    match kind {
+        "calls" => {
+            s.push_str("proc p {a} {return $a}\n");
+            for _ in 0..n {
+                s.push_str("p 1\n");
+            }
+        }
+        "procs" => {
+            for i in 0..n {
+                s.push_str(&format!("proc capped_{i} {{}} {{}}\n"));
+            }
+        }
+        "sets" => {
+            for i in 0..n {
+                s.push_str(&format!("set v{i} {i}\n"));
+            }
+        }
+        "upvar" => {
+            s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
+            for i in 0..n {
+                s.push_str(&format!("proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"));
+            }
+        }
+        _ => panic!("kind"),
+    }
+    s
+}
+fn current_generate(kind: &str, n: usize) -> String {
+    let mut s = String::new();
+    match kind {
+        "calls" => {
+            s.push_str("proc p {a} {return $a}\n");
+            for _ in 0..n {
+                s.push_str("p 1\n");
+            }
+        }
+        "procs" => {
+            for i in 0..n {
+                s.push_str(&format!("proc capped_{i} {{}} {{}}\n"));
+            }
+        }
+        "sets" => {
+            for i in 0..n {
+                s.push_str(&format!("set v{i} {i}\n"));
+            }
+        }
+        "upvar" => {
+            s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
+            for i in 0..n {
+                s.push_str(&format!(
+                    "proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"
+                ));
+            }
+        }
+        _ => panic!("kind"),
+    }
+    s
+}
+
+fn main() {
+    for (kind, sizes) in [("calls", &[10, 20, 40, 80][..]), ("procs", &[41][..]), ("upvar", &[10, 30][..])] {
+        for &n in sizes {
+            let original = origin_generate(kind, n);
+            let current = current_generate(kind, n);
+            assert_eq!(original.as_bytes(), current.as_bytes());
+            println!("{kind}:{n} {original:?}");
+        }
+    }
+}

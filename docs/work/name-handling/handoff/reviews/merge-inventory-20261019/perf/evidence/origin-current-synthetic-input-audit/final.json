@@ -1,0 +1,46 @@
+{
+  "started_unix": 1792799127.8017595,
+  "scope": "Execute actual extracted origin/current synthetic generation functions; only Rust function names change, fixture generation bodies unchanged. Runtime byte equality for every requested size.",
+  "origin_code_base": "fcb7927f",
+  "work_proof_base": "83774d43",
+  "raw_generator_text_equal": false,
+  "note": "Only upvar Rust formatting differs; emitted Tcl equality is asserted at runtime.",
+  "origin_generator_sha256": "4af21c6b2cb74146d3211a9ae8cfe8020c1be0569c917f665dbd4c2e33a5bad7",
+  "current_generator_sha256": "4de59871e848d90ebf5e0e1153e079dbb9671a7d1eef10a21b1b730002e11621",
+  "compile_exit": 0,
+  "run_exit": 0,
+  "cases": {
+    "calls:10": {
+      "bytes": 63,
+      "sha256": "d89438c8c297e88d0812169c164e63bbeaa6057dc4c847e0d28a96bf612d1dd9"
+    },
+    "calls:20": {
+      "bytes": 103,
+      "sha256": "a9e4b33acaafe77cec832bdbcdf51cd55184bb0d60a9bb1e3261a019049d3523"
+    },
+    "calls:40": {
+      "bytes": 183,
+      "sha256": "4fca3f960e9c652c483dce681225654e8112e3a255a7012261f3d1edbd5e5dec"
+    },
+    "calls:80": {
+      "bytes": 343,
+      "sha256": "695e0f2d9315210c3e7ff743ed47f967578cd69a0eb542d58d3efb4ead7a3e8d"
+    },
+    "procs:41": {
+      "bytes": 851,
+      "sha256": "0344bcdaa715701fb104bf8d9b5edaa8edd6a885a550390ec7d9f57b58759f33"
+    },
+    "upvar:10": {
+      "bytes": 492,
+      "sha256": "78473105a5450a0722e5bd63114c9c3413e8370fea2eed0f177e489bdfce4c57"
+    },
+    "upvar:30": {
+      "bytes": 1492,
+      "sha256": "12a79520afe168e78cf402c8e13925de77d6d6cf78e214a9644fe64255ace5a1"
+    }
+  },
+  "all_emitted_bytes_equal": true,
+  "finished_unix": 1792799128.3279903,
+  "source_removed": true,
+  "executable_removed": true
+}

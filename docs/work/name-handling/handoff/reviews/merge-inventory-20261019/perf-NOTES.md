@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 23:23 UTC
+Last updated: 2026-10-23 23:49 UTC
 
 **API report blocker repaired; current full perf acceptance remains pending.**
 ce6facfb admits genuine current empty ALLOCATED declaration bodies through the
@@ -12,8 +12,11 @@ runtime/global/cache equality is unchanged and separately false.
 Latest-source build then failed an upstream SegmentedCommand.words typo before
 any tests,0warnings. The one-line WordExpr source-span typing correction is
 published separately in this update; corrected cargo check passes0warnings.
-The failed first accessor draft remains uncommitted evidence. Fresh current
-controls/full corpus/crates/client suites are queued; see outstanding/perf.md.
+The failed first accessor draft remains uncommitted evidence. Fresh837 strict22 API controls PASS BOTH0warnings/source unchanged. The
+normal1 complete-corpus library build and clean6 compiler0 build are active;
+clean6 lexer586/586 PASS BOTH0warnings. First837 server proof is complete
+zeroP2F, same role assertion and180s timeouts BOTH; quiet final repeat remains
+queued. See outstanding/perf.md for current exact jobs and limits.
 
 Frozen b6 interim: lexer586/586 BOTH switched and clean6; completed compiler
 outcomes match but original1000-depth test OOMs BOTH even alone. Named server

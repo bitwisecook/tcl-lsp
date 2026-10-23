@@ -1,0 +1,87 @@
+{
+  "checked_unix": 1792798990.5915425,
+  "origin_code_base": "fcb7927f",
+  "work_proof_base": "83774d43",
+  "scope": "102 complete UTF8 Tcl including added classes fixture +15 complete iRules. Original nonUTF8 native fixture stays in separate compiler control. Timing-only origin rows are not equality proofs.",
+  "inputs": 117,
+  "differences": [
+    {
+      "path": "rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_signature_scope.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/name-consumers/variables.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_double_completion/source.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_deep_array_source.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_alias_target_context.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/native_itcl/protocols.tcl",
+      "missing": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/data/name-consumers/classes.tcl",
+      "missing": true
+    }
+  ],
+  "verdict": "Origin checkout presence only; not an audit of actual timing inputs",
+  "explanation": "The timing binary read absolute work-checkout paths. The19 paths absent from origin are new migration fixtures, not skipped inputs. See corrected origin-current-corpus-byte-audit.json: all117 actual files match current proof and recorded hashes."
+}

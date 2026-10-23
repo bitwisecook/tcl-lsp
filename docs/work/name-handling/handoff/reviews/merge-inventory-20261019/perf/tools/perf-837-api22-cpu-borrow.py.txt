@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import json,os,time
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence');full=base/'current-83774d43-repaired-workflow-api22';clean=base/'current-83774d43-clean6-workflow-api22';record={'started_unix':time.time(),'policy':'After current first server cleanup, clean6 compiler-only build temporarily borrows idle CPUs0,1 while full normal1 build uses2,3. Restore clean6 to2,3 as soon as fresh SpecTcl build starts; SpecTcl tests retain0,1. No source/flags/assertion/thread/budget change, no runtime paused.'}
+def write():(clean/'cpu-borrow-ordering.json').write_text(json.dumps(record,indent=2)+'\n')
+def pin_tree(pid,cpus):
+ affected=set()
+ for _ in range(2):
+  rows={}
+  for p in Path('/proc').iterdir():
+   if not p.name.isdigit():continue
+   try:s=(p/'stat').read_text();rows[int(p.name)]=int(s[s.rfind(')')+2:].split()[1])
+   except OSError:pass
+  selected={pid}
+  while True:
+   new=selected|{p for p,pp in rows.items() if pp in selected}
+   if new==selected:break
+   selected=new
+  for p in selected:
+   try:
+    for tid in (Path('/proc')/str(p)/'task').iterdir():
+     try:os.sched_setaffinity(int(tid.name),cpus);affected.add(p)
+     except ProcessLookupError:pass
+   except FileNotFoundError:pass
+ return sorted(affected)
+write()
+while not (base/'current-83774d43-repaired-workflow/server-run-final.json').exists() or not (clean/'compiler-build.jsonl').exists():
+ if (clean/'final.json').exists():raise SystemExit('Clean build never started; preserve dependency failure')
+ time.sleep(2)
+pid=json.loads((clean/'progress.json').read_text())['pid'];assert b'perf-latest-clean6-workflow.py' in (Path('/proc')/str(pid)/'cmdline').read_bytes();record.update(clean_pid=pid,borrowed_unix=time.time(),borrowed_tree=pin_tree(pid,{0,1}));write()
+try:
+ while True:
+  p=full/'spectcl-run-progress.json';s=json.loads(p.read_text()) if p.exists() else {}
+  if 'build_started_unix' in s or (full/'spectcl-run-final.json').exists() or (full/'final.json').exists():break
+  time.sleep(.25)
+finally:
+ record.update(restored_unix=time.time(),restored_tree=pin_tree(pid,{2,3}));write()

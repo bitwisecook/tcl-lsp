@@ -1,0 +1,10 @@
+{
+  "started_unix": 1792798480.1073248,
+  "policy": "After current first server cleanup, clean6 compiler-only build temporarily borrows idle CPUs0,1 while full normal1 build uses2,3. Restore clean6 to2,3 as soon as fresh SpecTcl build starts; SpecTcl tests retain0,1. No source/flags/assertion/thread/budget change, no runtime paused.",
+  "clean_pid": 86059,
+  "borrowed_unix": 1792798628.8248746,
+  "borrowed_tree": [
+    86059,
+    88018
+  ]
+}

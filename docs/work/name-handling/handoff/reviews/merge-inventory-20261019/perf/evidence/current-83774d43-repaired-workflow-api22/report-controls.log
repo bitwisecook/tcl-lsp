@@ -1,0 +1,5 @@
+build-controls exit 0 warnings 0
+{"label": "controls-list", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "--list"], "extra_env": {}, "exit": 0, "wall_s": 0.044779300689697266}
+{"label": "controls-new", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "--test-threads=2"], "extra_env": {}, "exit": 0, "wall_s": 128.57133412361145}
+{"label": "controls-old", "argv": ["/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f", "authenticated_report", "full_report_candidates_require_the_actual_diagnostic_output_realm", "--test-threads=2"], "extra_env": {"ZZ_OLD_ENV": "1"}, "exit": 0, "wall_s": 117.91599655151367}
+FINISHED source_unchanged True

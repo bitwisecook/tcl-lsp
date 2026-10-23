@@ -45,7 +45,7 @@ command, and re-segmentation per query (`evidence/idx253.stacks`).
 | old | 7.3-10.4 s |
 | new, with full-chain debug_assert in in_body | 6.9 s |
 | new, with inductive parent-link debug_assert | 7.0 s |
-| new, root assert in in_document only (landed shape) | 1.9-3.1 s |
+| new, root assert in in_document only (clean candidate shape) | 1.9-3.1 s |
 
 Equality: the sorted `{:#?}` lines of the PackSet are identical old vs new
 (484,936 lines), in-process.
@@ -281,3 +281,18 @@ tail recovery after resource kill. Original failed run remains failed. Both
 15-input iRules and all7 synthetic sizes pass in both old-only/mixed. Overall
 source diff unchanged and executables/probes removed. Allocated-empty capture
 repair and complete crate/resource checks remain pending.
+
+## Same-input audit for origin timing observations
+
+The origin/rust fcb7927f timing binary read absolute fixture paths from the work
+checkout; its19 missing origin-tree migration fixtures were not skipped. Raw
+timing rows cover101 original text cases plus the added class case and15
+iRules. All117 actual input files match current837 proof inputs and recorded
+hashes byte for byte (origin-current-corpus-byte-audit.json). All8 embedded
+.tclspec sources also match between code bases (origin-work-spec-input-audit.json).
+The actual extracted old/current synthetic generators were compiled together;
+all7 requested emitted Tcl inputs compare byte-identical, with temporary source/
+executable removed (origin-current-synthetic-input-audit/final.json). Only Rust
+formatting differs in the upvar generator. These are input audits, not equality
+claims across the migration. Origin analyse timings exclude authenticated report
+capture; current report timings include capture. Do not infer a cross-API ratio.

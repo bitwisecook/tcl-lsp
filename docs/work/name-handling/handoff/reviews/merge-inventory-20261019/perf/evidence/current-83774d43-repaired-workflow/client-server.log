@@ -5,3 +5,8 @@ RUN server/startup/old
 {"returncode": 101, "seconds": 5.468, "passed": 0, "failed": 1, "ignored": 0, "timed_out": [], "declared_count": 1, "missing_tests": [], "inventory_complete": true, "log": "tests-server-startup-old.out"}
 PASS zero pass-to-fail server/startup
 RUN server/workspace_symbol/new
+{"returncode": "timeout180", "seconds": 180.103, "passed": 0, "failed": 0, "ignored": 0, "timed_out": ["tests::workspace_symbol_caps_its_answer"], "declared_count": 1, "missing_tests": [], "inventory_complete": true, "log": "tests-server-workspace_symbol-new.out"}
+RUN server/workspace_symbol/old
+{"returncode": "timeout180", "seconds": 180.215, "passed": 0, "failed": 0, "ignored": 0, "timed_out": ["tests::workspace_symbol_caps_its_answer"], "declared_count": 1, "missing_tests": [], "inventory_complete": true, "log": "tests-server-workspace_symbol-old.out"}
+PASS zero pass-to-fail server/workspace_symbol
+One or more test runs failed; inspect the complete saved output
