@@ -2,11 +2,21 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T16:20:17.987783+00:00 (f62 heavy complete355:318PASS37FAIL;16P2F/21addedFAIL heavy-only; env10 unrun)
+Last updated: 2026-10-23T16:49:27.999011+00:00 (SSA6 helper drafts frozen pending peer; runtime heavy actual355closed, env10 unrun)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root disjoint SSA6 assistance prepared four immutable v2 components under
+/workspace/naming-proof-storage/: vm-ssa-length-boundaries-v2 47872056,
+vm-ssa-length-phases-v2 1eb977ff, vm-ssa-definition-length-v2 54d4e2dc,
+vm-ssa-rename-length-v2 2f740f16. Exact currentpublisher SSA before2a26cae1;
+pinnedfmt2024/copyapply0-nooffset/exactfinals PASS. CompilerClippy substantive
+peer pending, no typing/Clippy/runtime claim. Earlier v1s held incompletecuts.
+Allsix original sites covered; no Eq/Hash/authority/assertion changes; caller
+key-owner cohorts and original earlyexit/refusal/publication order preserved.
+Runtime primary resumes on new actual shared13/ordinaryCI data; no VM build.
 
 Fresh f62 heavy120500263098 complete355selected/355unique terminal:318PASS,
 37FAIL, nextest100/capture_validtrue; no timeout/crash/missing terminal status.

@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T16:30:15.808062+00:00
+Last updated: 2026-10-23T17:00:02.760837+00:00
 
 ## In progress
 
@@ -47,17 +47,12 @@ Last updated: 2026-10-23T16:30:15.808062+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (16:25 UTC)
+### Current cycle and routing (16:55 UTC)
 
-- Normal push a3a4b181f preserves concurrent external19936eb90 and publishes reviewed compiler representation fixes, WORK-only startupphaseobserver, complete shipping/Context failure receipts and first full heavy shard classification.
-- Actual native shipping pair: baseline completed alloriginal checks; candidatecoldtokens550.1ms thenunchanged30s workspace scan barrier failed. Candidate latersemantic/edit/cancel/churn checks unreached. Onepair is diagnostic, not accepted latencyratio.
-- Actual twofolderContext reproduction timedoutinitialize30s with noresponse; allContext assertions unreached. Owned worker/group andfinalsource/provider/artifact/GOsealsclosedstable.
-- Fresh complete heavy f62 shard355/355 closed:318PASS37FAIL; heavy-only exactbaseline16PASS-to-FAIL,21newFAIL and1absentbaselineidentity. All37 F5CLI/iRuleharness cases routed to separateBIGIP owner and proven sharedcompiler/VM owners, not waivedbyperformanceexemption.
-- Nativefutureallocationtrace-absence proof and genuine Nativefive-table regression fixture arepublishedonwork andcarried tocleanrelease4c9d, retaining original assertions andphysicalNativeguards; actualpositive/runtime unrun.
-- Additionalcompiler privateargument/variant7 andfunctionlength groups areindependentlyreviewed off-tree;61oldcompilerlintsites intendedrepaired, noobservedpostpatchClippy result.
-- A partialcloneGitfetchrepack ingested borrowed objects into3.8GBpublisherpack, exhaustingworkspace. No Cargo/testbuild running. Root holdsallbuilds andlargecopies, reconstructingGitcacheonly after proving complete object coverage; no targets or executables removed.
-- External15:58perf remainsactive/unproven; BIGIP13:17completedhandoff isstale andusernotifiedwithnewheavyblockers. No duplicate externalroles.
-
-Recovery closed16:30: full55,050object coverage verified before/after removing duplicatepublisherGitpack, refs/HEAD/shallow/alternates unchanged.3.6GiBfree, no target/exe changes; build HOLD lifted. Active product synchronized exactly to canonicala3a4 as source3707923f8/tree5af9bd10 for shared13 diagnostics.
-
-External BIG-IP priority: fresh complete355row heavy shard has16baselinePASS-to-FAIL,21new failures and1missingbaselineidentity. Exact keys and retained rawlog: [heavy classification](../handoff/reviews/merge-inventory-20261019/coordinator-20261023/f62-heavy-first-complete-shard/classification.json). Separate owner must triage its F5CLI7+iRuleharness30 rows and route proven sharedcompiler/VM causes; performancewaiver does not waivecorrectness. Last13:17completehandoff isstale/usernotified; no takeover.
+- Published work34191 contains reviewed privateargument/Box7 follow-ups. Clean release next7c7964 prepared; release88a0 ordinary CI39988230252 queued, no PR.
+- Closed shared13 first compiler build: Cargo101 with six Rust typing errors and zero observed warnings; all13 runtime tests UNRUN. All final source/provider/artifact/GO seals stable; launcher/lock closed. Narrow repairs independently reviewed before next source snapshot.
+- Fresh f62 heavy shard318PASS37FAIL/355; exact scoped baseline16PASS-to-FAIL,21addedFAIL and1absentbaselineidentity remain blocking and routed to externalBIGIP/shared owners. f62Rustshard1 terminal capture absent after cancellednextest, so full baseline comparison remains unknown.
+- Actualf62 editorlogs confirm Context diagnostic refusals and later document/liveness timeouts. LSProle resumed firstcause triage with unchanged client budgets and fail-closed guards.
+- Externalperf16:38 reports frozen SpecTcl comparisonFAILED: every_shipped_pack newFAIL oldPASS at unchanged30min interpretededa_xilinx budget. Currentcanonical full controls/corpus proof pending; no optimization accepted or forwarded.
+- Lossless Gitcache repair restored disk and normal shallowfetch config; all55050 duplicate-pack objects proved available without candidatepack before removal, source/history/refs/targets/executables untouched. Activecapture continued without ENOSPC.
+- BIGIP13:17 completedhandoff remains stale>60min and newheavy regressions routed, useralreadyinformed; reviewtriage completedstale timestamp remains visible. No duplicate externalroles.
