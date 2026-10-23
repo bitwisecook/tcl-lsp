@@ -1540,45 +1540,7 @@ impl DocumentRecords {
                     )
                 }))
                 .collect(),
-            original_publications: self
-                .original_command_world
-                .iter()
-                .flat_map(
-                    tcl_compiler::command_binding::OriginalCompletedCommandWorld::declarations,
-                )
-                .map(|publication| {
-                    let site = publication
-                        .definition()
-                        .map(|definition| &definition.allocation().site);
-                    let origin = self
-                        .original_procs
-                        .iter()
-                        .find(|declaration| Some(declaration.declaration_site()) == site)
-                        .map(|declaration| {
-                            (
-                                declaration.name().slot().clone(),
-                                declaration.name().policy(),
-                            )
-                        })
-                        .or_else(|| {
-                            self.original_classes
-                                .iter()
-                                .find(|declaration| Some(declaration.declaration_site()) == site)
-                                .map(|declaration| {
-                                    (
-                                        declaration.name().slot().clone(),
-                                        declaration.name().policy(),
-                                    )
-                                })
-                        });
-                    OriginalPublicationDependency {
-                        slot: publication.slot().clone(),
-                        policy: publication.policy(),
-                        kind: publication.kind(),
-                        definition: origin,
-                    }
-                })
-                .collect(),
+            original_publications: self.original_publication_dependencies(),
             original_world_closed: self.original_command_world.is_some(),
             original_source_procedure_candidates: self
                 .original_procedure_source_candidates()
@@ -1613,6 +1575,45 @@ impl DocumentRecords {
             command_deletions: self.command_deletions.clone(),
             command_retirements: self.command_retirements.clone(),
         }
+    }
+
+    fn original_publication_dependencies(&self) -> Vec<OriginalPublicationDependency> {
+        self.original_command_world
+            .iter()
+            .flat_map(tcl_compiler::command_binding::OriginalCompletedCommandWorld::declarations)
+            .map(|publication| {
+                let site = publication
+                    .definition()
+                    .map(|definition| &definition.allocation().site);
+                let origin = self
+                    .original_procs
+                    .iter()
+                    .find(|declaration| Some(declaration.declaration_site()) == site)
+                    .map(|declaration| {
+                        (
+                            declaration.name().slot().clone(),
+                            declaration.name().policy(),
+                        )
+                    })
+                    .or_else(|| {
+                        self.original_classes
+                            .iter()
+                            .find(|declaration| Some(declaration.declaration_site()) == site)
+                            .map(|declaration| {
+                                (
+                                    declaration.name().slot().clone(),
+                                    declaration.name().policy(),
+                                )
+                            })
+                    });
+                OriginalPublicationDependency {
+                    slot: publication.slot().clone(),
+                    policy: publication.policy(),
+                    kind: publication.kind(),
+                    definition: origin,
+                }
+            })
+            .collect()
     }
 
     fn original_procedure_source_candidates(
@@ -1833,18 +1834,7 @@ impl DocumentRecords {
             return;
         };
         if context.uses_original_names() {
-            for symbol in &self.original_symbols {
-                if out.len() >= limit {
-                    return;
-                }
-                if matches_query(&symbol.name, lower_query)
-                    || symbol.container_name.as_ref().is_some_and(|container| {
-                        matches_query(&format!("{container}::{}", symbol.name), lower_query)
-                    })
-                {
-                    out.push(symbol.clone());
-                }
-            }
+            self.collect_original_symbols_matching(lower_query, limit, out);
             return;
         }
         for proc_def in &self.procs {
@@ -1951,6 +1941,26 @@ impl DocumentRecords {
         }
     }
 
+    fn collect_original_symbols_matching(
+        &self,
+        lower_query: &str,
+        limit: usize,
+        out: &mut Vec<IndexedWorkspaceSymbol>,
+    ) {
+        for symbol in &self.original_symbols {
+            if out.len() >= limit {
+                return;
+            }
+            if matches_query(&symbol.name, lower_query)
+                || symbol.container_name.as_ref().is_some_and(|container| {
+                    matches_query(&format!("{container}::{}", symbol.name), lower_query)
+                })
+            {
+                out.push(symbol.clone());
+            }
+        }
+    }
+
     /// Lift one document's analysis into this record set.
     ///
     /// The caller ([`WorkspaceIndex::add_document`]) has already cleared the
@@ -2027,6 +2037,16 @@ impl DocumentRecords {
             .extend(analysis.original_procedure_declarations().cloned());
         self.original_classes
             .extend(analysis.original_class_declarations().cloned());
+        self.index_document_declarations(uri, analysis);
+        self.index_document_invocations(uri, analysis);
+        self.index_sources(uri, analysis);
+        self.index_package_declarations(uri, analysis);
+        self.index_namespace_exports(uri, analysis);
+        self.index_import_lifecycle(uri, analysis);
+        self.index_command_links(uri, analysis);
+    }
+
+    fn index_document_declarations(&mut self, uri: &str, analysis: &AnalysisResult) {
         // `all_procs` / `all_classes` / a class's `methods` are `HashMap`s, so
         // iterating them directly would order this document's index entries by
         // the process's random hash seed — and consumers that answer with the
@@ -2081,6 +2101,9 @@ impl DocumentRecords {
         }
         self.index_variables(uri, analysis);
         self.index_namespace_refs(uri, analysis);
+    }
+
+    fn index_document_invocations(&mut self, uri: &str, analysis: &AnalysisResult) {
         let bodies = WorkspaceIndex::enclosing_body_spans(
             analysis,
             &analysis
@@ -2110,7 +2133,9 @@ impl DocumentRecords {
                 enclosing_body,
             });
         }
-        self.index_sources(uri, analysis);
+    }
+
+    fn index_package_declarations(&mut self, uri: &str, analysis: &AnalysisResult) {
         for pr in &analysis.package_requires {
             self.package_requires.push(WorkspacePackageRequire {
                 original_name: pr.original_name.as_ref().map(|name| name.key().clone()),
@@ -2159,6 +2184,9 @@ impl DocumentRecords {
                 enclosing_body: analysis.innermost_definition_body_span(prefer.range.start()),
             });
         }
+    }
+
+    fn index_namespace_exports(&mut self, uri: &str, analysis: &AnalysisResult) {
         for exp in analysis.original_namespace_exports() {
             self.namespace_exports.push(WorkspaceNamespaceExport {
                 original: Some(exp.clone()),
@@ -2199,8 +2227,6 @@ impl DocumentRecords {
                 });
             }
         }
-        self.index_import_lifecycle(uri, analysis);
-        self.index_command_links(uri, analysis);
     }
 
     /// The document's `source` rows, plus the raw path-constant candidates
@@ -2547,6 +2573,10 @@ impl DocumentRecords {
                 import_gate,
             });
         }
+        self.index_alias_and_rename_links(uri, analysis);
+    }
+
+    fn index_alias_and_rename_links(&mut self, uri: &str, analysis: &AnalysisResult) {
         // `interp alias {} a {} ::mod::helper` binds `a` to `::mod::helper`;
         // the alias target resolves from `::` at call time, so root it there.
         // The `TARGET` word itself is already a first-class command invocation
@@ -8294,6 +8324,10 @@ struct WildcardImportIndex<'a> {
     observable: HashSet<&'a str>,
 }
 
+type CommandDeletionsByName<'a> =
+    std::collections::HashMap<&'a str, Vec<&'a WorkspaceCommandDeletion>>;
+type DeclarationSitesByName<'a> = std::collections::HashMap<&'a str, Vec<(&'a str, u32)>>;
+
 impl<'a> WildcardImportIndex<'a> {
     fn build(index: &'a WorkspaceIndex) -> Self {
         Self::build_for_purpose(
@@ -8378,38 +8412,8 @@ impl<'a> WildcardImportIndex<'a> {
         for fgt in index.namespace_forgets() {
             forgets_by_ns.entry(fgt.ns.as_str()).or_default().push(fgt);
         }
-        let mut deletions_by_name: std::collections::HashMap<&str, Vec<&WorkspaceCommandDeletion>> =
-            std::collections::HashMap::new();
-        for del in index.command_deletions() {
-            deletions_by_name
-                .entry(del.qualified_name.as_str())
-                .or_default()
-                .push(del);
-        }
-        let mut declarations_by_qname: std::collections::HashMap<&str, Vec<(&str, u32)>> =
-            std::collections::HashMap::new();
-        for (qname, uri, at) in index
-            .procs()
-            .map(|p| {
-                (
-                    p.qualified_name.as_str(),
-                    p.uri.as_str(),
-                    p.name_span.start(),
-                )
-            })
-            .chain(index.classes().map(|c| {
-                (
-                    c.qualified_name.as_str(),
-                    c.uri.as_str(),
-                    c.name_span.start(),
-                )
-            }))
-        {
-            declarations_by_qname
-                .entry(qname)
-                .or_default()
-                .push((uri, at));
-        }
+        let deletions_by_name = Self::deletions_by_name(index);
+        let declarations_by_qname = Self::declaration_sites_by_name(index);
         let imports_by_ns = rows_by_ns
             .into_iter()
             .map(|(ns, rows)| (ns, NamespaceImports::index(rows)))
@@ -8436,6 +8440,46 @@ impl<'a> WildcardImportIndex<'a> {
             order,
             observable: index.observable_namespaces(),
         }
+    }
+
+    fn deletions_by_name(index: &'a WorkspaceIndex) -> CommandDeletionsByName<'a> {
+        let mut deletions_by_name: std::collections::HashMap<&str, Vec<&WorkspaceCommandDeletion>> =
+            std::collections::HashMap::new();
+        for del in index.command_deletions() {
+            deletions_by_name
+                .entry(del.qualified_name.as_str())
+                .or_default()
+                .push(del);
+        }
+        deletions_by_name
+    }
+
+    fn declaration_sites_by_name(index: &'a WorkspaceIndex) -> DeclarationSitesByName<'a> {
+        let mut declarations_by_qname: std::collections::HashMap<&str, Vec<(&str, u32)>> =
+            std::collections::HashMap::new();
+        for (qname, uri, at) in index
+            .procs()
+            .map(|p| {
+                (
+                    p.qualified_name.as_str(),
+                    p.uri.as_str(),
+                    p.name_span.start(),
+                )
+            })
+            .chain(index.classes().map(|c| {
+                (
+                    c.qualified_name.as_str(),
+                    c.uri.as_str(),
+                    c.name_span.start(),
+                )
+            }))
+        {
+            declarations_by_qname
+                .entry(qname)
+                .or_default()
+                .push((uri, at));
+        }
+        declarations_by_qname
     }
 
     /// Whether a live `namespace import -force` in `ns` has taken `name` away
