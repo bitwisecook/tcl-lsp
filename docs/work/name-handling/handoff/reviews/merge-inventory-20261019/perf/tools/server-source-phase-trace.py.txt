@@ -1,0 +1,27 @@
+from pathlib import Path
+import hashlib,json,os,shutil,subprocess,tempfile,time
+root=Path('/workspace/tcl-lsp-perf-latest')
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a')
+build=base/'crate-tests-default';out=base/'workspace-symbol-source-phase-trace';out.mkdir(exist_ok=True)
+exes=[]
+for line in (build/'tests-server-build.jsonl').read_text().splitlines():
+ r=json.loads(line)
+ if r.get('reason')=='compiler-artifact' and r.get('executable'):exes.append(Path(r['executable']))
+assert len(exes)==1;original=exes[0]
+with tempfile.TemporaryDirectory(prefix='perf-server-trace-') as td:
+ exe=Path(td)/original.name;shutil.copy2(original,exe)
+ digest=hashlib.sha256(exe.read_bytes()).hexdigest();assert digest==hashlib.sha256(original.read_bytes()).hexdigest()
+ receipt={'original_build_inputs':json.loads((build/'tests-server-build-inputs.json').read_text()),'original':str(original),'copy':str(exe),'sha256':digest,'purpose':'diagnostic existing source-phase trace, not a latency or old/new equality proof','assertions_unchanged':True}
+ (out/'inputs.json').write_text(json.dumps(receipt,indent=2)+'\n')
+ while True:
+  window=json.loads((build/'server-quiet-window.json').read_text())
+  if 'finished_unix' in window:break
+  time.sleep(5)
+ argv=[str(exe),'tests::workspace_symbol_caps_its_answer','--exact','--nocapture','--test-threads=1']
+ env=os.environ.copy();env.pop('ZZ_OLD_ENV',None);env['TCL_LSP_TRACE_SOURCE_PHASES']='1';env['CARGO_MANIFEST_DIR']=str(root/'rust/tcl-lsp-server')
+ start=time.monotonic()
+ with (out/'trace.out').open('w') as f:
+  try:code=subprocess.run(argv,cwd=root/'rust/tcl-lsp-server',env=env,stdout=f,stderr=subprocess.STDOUT,timeout=180).returncode
+  except subprocess.TimeoutExpired:code='timeout180'
+ (out/'result.json').write_text(json.dumps({'argv':argv,'exit':code,'wall_s':time.monotonic()-start,'scope':'trace only; all assertions unchanged; no timing acceptance claim','copy_deleted_on_scope_exit':True},indent=2)+'\n')
+print('Trace finished and private executable removed',flush=True)

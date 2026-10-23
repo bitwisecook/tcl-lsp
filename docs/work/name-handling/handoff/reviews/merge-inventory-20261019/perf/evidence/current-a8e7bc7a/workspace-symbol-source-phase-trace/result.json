@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/tmp/perf-server-trace-t0bvqcmp/tcl_lsp_server-29ebe020d9d5010f",
+    "tests::workspace_symbol_caps_its_answer",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": "timeout180",
+  "wall_s": 180.11449376100063,
+  "scope": "trace only; all assertions unchanged; no timing acceptance claim",
+  "copy_deleted_on_scope_exit": true
+}

@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='perf-compiler-checks-') as td:
  package=root/'rust/tcl-compiler'
  env=os.environ.copy();env['CARGO_MANIFEST_DIR']=str(package);env.pop('ZZ_OLD_ENV',None)
  summaries={}
- for kind,selected,extra in [('filters',filters,{}),('report-trace',['authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm'],{'TCL_LSP_TRACE_AUTHENTICATED_REPORT':'1'})]:
+ for kind,selected,extra in [('report-trace',['authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm'],{'TCL_LSP_TRACE_AUTHENTICATED_REPORT':'1'}),('filters',filters,{})]:
   listed=subprocess.check_output([str(exe),*selected,'--list'],cwd=package,env=env,text=True)
   (out/(kind+'-list.out')).write_text(listed)
   expected=set(re.findall(r'^(.+): test$',listed,re.M)); assert expected

@@ -1,0 +1,1692 @@
+
+running 1 test
+test tests::workspace_symbol_caps_its_answer ... ANALYSER_PHASE bytes=851 stage=initial ms=0
+ANALYSER_PHASE bytes=851 stage=realm-start ms=477
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=initial ms=498 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=657 us=44938
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=41 us=89693
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=41 us=67707
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=41 us=1390
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=1 us=6862
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=41 us=24868
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=41 us=1174
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=41 us=372788
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=41 us=194283
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=41 us=529833
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=41 us=7157
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=41 us=4629118
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=1 us=8
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=410 us=424705
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=205 us=340563
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=walk ms=6440 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=walk retained_owners=1 requests=410 captures=205 reuses=205 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=command-key scope=cumulative-inclusive calls=3690 ms=440 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=slot-paths scope=cumulative-inclusive calls=1927 ms=751 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=namespace scope=cumulative-inclusive calls=164 ms=25 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=metadata-advice scope=cumulative-inclusive calls=205 ms=440 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=lookup-key scope=cumulative-inclusive calls=2337 ms=299 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=baseline scope=cumulative-inclusive calls=4059 ms=392 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=851 stage=walk calls=4059 ms=381
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=41
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=5 roots=41 bytes=0 offset=18 outcomes=0 layouts=41
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=branch scope=thread-cumulative-inclusive calls=657 us=44938
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=layout scope=thread-cumulative-inclusive calls=41 us=89693
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body scope=thread-cumulative-inclusive calls=41 us=67707
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=receiver-body scope=thread-cumulative-inclusive calls=41 us=1390
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-segmentation scope=thread-cumulative-inclusive calls=1 us=6862
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-word-tokens scope=thread-cumulative-inclusive calls=41 us=24868
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=compiler-selection scope=thread-cumulative-inclusive calls=41 us=1174
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-arguments scope=thread-cumulative-inclusive calls=41 us=372788
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=native-invocation-preparation scope=thread-cumulative-inclusive calls=41 us=194283
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=point-capture scope=thread-cumulative-inclusive calls=41 us=529833
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=continuation-capture scope=thread-cumulative-inclusive calls=41 us=7157
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=selected-command scope=thread-cumulative-inclusive calls=41 us=4629118
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-publication scope=thread-cumulative-inclusive calls=1 us=8
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-memo scope=thread-cumulative-inclusive calls=410 us=424705
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-capture scope=thread-cumulative-inclusive calls=205 us=340563
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_DEFERRED_PHASE stage=entries ms=411 roots=41 outcomes=41 layouts=41
+SOURCE_DEFERRED_PHASE stage=called ms=419 roots=41 outcomes=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=963 visits=0 pending=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=5191 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=3 visits=0 pending=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=103 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=103 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=5296 visits=0 pending=0 layouts=41
+SOURCE_DEFERRED_PHASE stage=layouts ms=5716 roots=41 outcomes=41 layouts=41
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=780 us=64078
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=41 us=78883
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=41 us=11281
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=41 us=41108
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=41 us=89693
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=82 us=157162
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=41 us=1390
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=41 us=394749
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=42 us=14120
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=123 us=52579
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=41 us=1174
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=41 us=372788
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=41 us=194283
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=41 us=529833
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=41 us=7157
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=41 us=4629118
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=41 us=2971
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=42 us=11219
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=533 us=448582
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=205 us=340563
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=deferred ms=12157 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=deferred retained_owners=1 requests=533 captures=205 reuses=328 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=deferred requests=3 builds=1 reuses=2 scanned_rows=41 scanned_alternatives=41
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=command-key scope=cumulative-inclusive calls=4100 ms=495 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=slot-paths scope=cumulative-inclusive calls=2091 ms=889 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=namespace scope=cumulative-inclusive calls=164 ms=25 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=205 ms=440 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=lookup-key scope=cumulative-inclusive calls=2583 ms=324 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=baseline scope=cumulative-inclusive calls=4387 ms=463 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=851 stage=deferred calls=4387 ms=449
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=780 us=64078
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=41 us=78883
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=41 us=11281
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=41 us=41108
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=41 us=89693
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=82 us=157162
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=41 us=1390
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=41 us=394749
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=42 us=14120
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=164 us=55230
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=41 us=1174
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=41 us=372788
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=41 us=194283
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=41 us=529833
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=41 us=7157
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=41 us=4629118
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=41 us=2971
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=42 us=11219
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=615 us=450557
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=205 us=340563
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=complete ms=12283 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=complete retained_owners=1 requests=615 captures=205 reuses=410 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=complete requests=3 builds=1 reuses=2 scanned_rows=41 scanned_alternatives=41
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=command-key scope=cumulative-inclusive calls=4305 ms=503 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=slot-paths scope=cumulative-inclusive calls=2173 ms=896 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=namespace scope=cumulative-inclusive calls=164 ms=25 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=metadata-advice scope=cumulative-inclusive calls=205 ms=440 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=lookup-key scope=cumulative-inclusive calls=2706 ms=329 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=baseline scope=cumulative-inclusive calls=4551 ms=466 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+ANALYSER_PHASE bytes=851 stage=realm-complete ms=12769
+ANALYSER_PHASE bytes=851 stage=retained-inventory ms=12772
+ANALYSER_PHASE bytes=851 stage=segmented ms=12777
+ANALYSER_PHASE bytes=851 stage=walk-start ms=12778
+SOURCE_INVOCATION_PROJECT site=0 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=20 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=40 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=60 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=80 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=100 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=120 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=140 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=160 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=180 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=200 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=221 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=242 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=263 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=284 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=305 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=326 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=347 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=368 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=389 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=410 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=431 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=452 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=473 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=494 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=515 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=536 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=557 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=578 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=599 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=620 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=641 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=662 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=683 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=704 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=725 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=746 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=767 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=788 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=809 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=830 ms=0 targets=1 unknown=false
+ANALYSER_TOKEN_PREPARE bytes=851 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=scoped-bodies ms=67
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=variable-receivers ms=863
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=direct-invocations ms=1113
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=nested-invocations ms=1214
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=callback-invocations ms=1383
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=command-name-invocations ms=1446
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=namespace-role-facts ms=2329
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=nested-diagnostics ms=4581
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=variable-command-sites ms=4583
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=procedure-resolution ms=5795
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=expression-diagnostics ms=5806
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=dispatch-diagnostics ms=5955
+ANALYSER_COMMAND_PHASE bytes=851 site=0 stage=handlers-complete ms=6037
+ANALYSER_TOKEN_PREPARE bytes=851 site=20 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=original-names ms=42
+ANALYSER_TOKEN_PREPARE bytes=851 site=20 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=scoped-bodies ms=87
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=variable-receivers ms=104
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=direct-invocations ms=160
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=nested-invocations ms=164
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=callback-invocations ms=171
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=command-name-invocations ms=172
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=namespace-role-facts ms=177
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=nested-diagnostics ms=190
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=variable-command-sites ms=194
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=procedure-resolution ms=242
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=expression-diagnostics ms=263
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=dispatch-diagnostics ms=297
+ANALYSER_COMMAND_PHASE bytes=851 site=20 stage=handlers-complete ms=302
+ANALYSER_TOKEN_PREPARE bytes=851 site=40 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=40 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=scoped-bodies ms=20
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=variable-receivers ms=28
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=direct-invocations ms=33
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=nested-invocations ms=35
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=callback-invocations ms=87
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=command-name-invocations ms=91
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=namespace-role-facts ms=111
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=nested-diagnostics ms=118
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=variable-command-sites ms=119
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=procedure-resolution ms=132
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=expression-diagnostics ms=142
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=dispatch-diagnostics ms=228
+ANALYSER_COMMAND_PHASE bytes=851 site=40 stage=handlers-complete ms=234
+ANALYSER_TOKEN_PREPARE bytes=851 site=60 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=851 site=60 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=scoped-bodies ms=31
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=variable-receivers ms=41
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=direct-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=nested-invocations ms=48
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=callback-invocations ms=52
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=command-name-invocations ms=65
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=namespace-role-facts ms=71
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=nested-diagnostics ms=88
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=variable-command-sites ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=procedure-resolution ms=103
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=expression-diagnostics ms=110
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=dispatch-diagnostics ms=139
+ANALYSER_COMMAND_PHASE bytes=851 site=60 stage=handlers-complete ms=155
+ANALYSER_TOKEN_PREPARE bytes=851 site=80 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=original-names ms=6
+ANALYSER_TOKEN_PREPARE bytes=851 site=80 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=scoped-bodies ms=21
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=variable-receivers ms=31
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=direct-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=nested-invocations ms=42
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=callback-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=command-name-invocations ms=71
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=namespace-role-facts ms=79
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=nested-diagnostics ms=86
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=variable-command-sites ms=87
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=procedure-resolution ms=100
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=expression-diagnostics ms=107
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=dispatch-diagnostics ms=129
+ANALYSER_COMMAND_PHASE bytes=851 site=80 stage=handlers-complete ms=134
+ANALYSER_TOKEN_PREPARE bytes=851 site=100 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=100 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=scoped-bodies ms=26
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=variable-receivers ms=38
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=direct-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=nested-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=callback-invocations ms=52
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=command-name-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=namespace-role-facts ms=59
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=nested-diagnostics ms=63
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=variable-command-sites ms=64
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=procedure-resolution ms=72
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=expression-diagnostics ms=100
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=dispatch-diagnostics ms=131
+ANALYSER_COMMAND_PHASE bytes=851 site=100 stage=handlers-complete ms=135
+ANALYSER_TOKEN_PREPARE bytes=851 site=120 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=120 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=scoped-bodies ms=30
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=variable-receivers ms=37
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=direct-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=nested-invocations ms=62
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=callback-invocations ms=67
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=command-name-invocations ms=69
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=namespace-role-facts ms=98
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=nested-diagnostics ms=116
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=variable-command-sites ms=117
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=procedure-resolution ms=130
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=expression-diagnostics ms=135
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=dispatch-diagnostics ms=266
+ANALYSER_COMMAND_PHASE bytes=851 site=120 stage=handlers-complete ms=299
+ANALYSER_TOKEN_PREPARE bytes=851 site=140 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=original-names ms=1
+ANALYSER_TOKEN_PREPARE bytes=851 site=140 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=scoped-bodies ms=47
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=variable-receivers ms=101
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=direct-invocations ms=128
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=nested-invocations ms=132
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=callback-invocations ms=140
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=command-name-invocations ms=142
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=namespace-role-facts ms=148
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=nested-diagnostics ms=159
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=variable-command-sites ms=161
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=procedure-resolution ms=190
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=expression-diagnostics ms=205
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=dispatch-diagnostics ms=262
+ANALYSER_COMMAND_PHASE bytes=851 site=140 stage=handlers-complete ms=345
+ANALYSER_TOKEN_PREPARE bytes=851 site=160 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=851 site=160 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=scoped-bodies ms=61
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=variable-receivers ms=69
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=direct-invocations ms=80
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=nested-invocations ms=85
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=callback-invocations ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=command-name-invocations ms=101
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=namespace-role-facts ms=489
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=nested-diagnostics ms=507
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=variable-command-sites ms=509
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=procedure-resolution ms=550
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=expression-diagnostics ms=575
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=dispatch-diagnostics ms=604
+ANALYSER_COMMAND_PHASE bytes=851 site=160 stage=handlers-complete ms=641
+ANALYSER_TOKEN_PREPARE bytes=851 site=180 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=851 site=180 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=scoped-bodies ms=42
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=variable-receivers ms=58
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=direct-invocations ms=68
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=nested-invocations ms=75
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=callback-invocations ms=201
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=command-name-invocations ms=205
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=namespace-role-facts ms=234
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=nested-diagnostics ms=248
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=variable-command-sites ms=253
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=procedure-resolution ms=290
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=expression-diagnostics ms=312
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=dispatch-diagnostics ms=448
+ANALYSER_COMMAND_PHASE bytes=851 site=180 stage=handlers-complete ms=500
+ANALYSER_TOKEN_PREPARE bytes=851 site=200 ms=6 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=original-names ms=20
+ANALYSER_TOKEN_PREPARE bytes=851 site=200 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=scoped-bodies ms=104
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=variable-receivers ms=120
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=direct-invocations ms=129
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=nested-invocations ms=132
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=callback-invocations ms=138
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=command-name-invocations ms=140
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=namespace-role-facts ms=193
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=nested-diagnostics ms=208
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=variable-command-sites ms=209
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=procedure-resolution ms=220
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=expression-diagnostics ms=224
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=dispatch-diagnostics ms=247
+ANALYSER_COMMAND_PHASE bytes=851 site=200 stage=handlers-complete ms=254
+ANALYSER_TOKEN_PREPARE bytes=851 site=221 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=original-names ms=1
+ANALYSER_TOKEN_PREPARE bytes=851 site=221 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=scoped-bodies ms=21
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=variable-receivers ms=28
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=direct-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=nested-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=callback-invocations ms=64
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=command-name-invocations ms=66
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=namespace-role-facts ms=72
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=nested-diagnostics ms=79
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=variable-command-sites ms=80
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=procedure-resolution ms=94
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=expression-diagnostics ms=111
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=dispatch-diagnostics ms=186
+ANALYSER_COMMAND_PHASE bytes=851 site=221 stage=handlers-complete ms=194
+ANALYSER_TOKEN_PREPARE bytes=851 site=242 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=original-names ms=49
+ANALYSER_TOKEN_PREPARE bytes=851 site=242 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=scoped-bodies ms=66
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=variable-receivers ms=73
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=direct-invocations ms=80
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=nested-invocations ms=83
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=callback-invocations ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=command-name-invocations ms=91
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=namespace-role-facts ms=99
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=nested-diagnostics ms=112
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=variable-command-sites ms=113
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=procedure-resolution ms=124
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=expression-diagnostics ms=131
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=dispatch-diagnostics ms=171
+ANALYSER_COMMAND_PHASE bytes=851 site=242 stage=handlers-complete ms=185
+ANALYSER_TOKEN_PREPARE bytes=851 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=original-names ms=1
+ANALYSER_TOKEN_PREPARE bytes=851 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=scoped-bodies ms=17
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=variable-receivers ms=22
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=direct-invocations ms=51
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=nested-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=callback-invocations ms=58
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=command-name-invocations ms=60
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=namespace-role-facts ms=64
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=nested-diagnostics ms=69
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=variable-command-sites ms=70
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=procedure-resolution ms=83
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=expression-diagnostics ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=dispatch-diagnostics ms=271
+ANALYSER_COMMAND_PHASE bytes=851 site=263 stage=handlers-complete ms=287
+ANALYSER_TOKEN_PREPARE bytes=851 site=284 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=851 site=284 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=scoped-bodies ms=55
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=variable-receivers ms=60
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=direct-invocations ms=64
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=nested-invocations ms=80
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=callback-invocations ms=90
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=command-name-invocations ms=93
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=namespace-role-facts ms=98
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=nested-diagnostics ms=104
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=variable-command-sites ms=104
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=procedure-resolution ms=112
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=expression-diagnostics ms=119
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=dispatch-diagnostics ms=177
+ANALYSER_COMMAND_PHASE bytes=851 site=284 stage=handlers-complete ms=187
+ANALYSER_TOKEN_PREPARE bytes=851 site=305 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=original-names ms=1
+ANALYSER_TOKEN_PREPARE bytes=851 site=305 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=scoped-bodies ms=37
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=variable-receivers ms=44
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=direct-invocations ms=50
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=nested-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=callback-invocations ms=58
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=command-name-invocations ms=60
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=namespace-role-facts ms=65
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=nested-diagnostics ms=72
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=variable-command-sites ms=73
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=procedure-resolution ms=85
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=expression-diagnostics ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=dispatch-diagnostics ms=136
+ANALYSER_COMMAND_PHASE bytes=851 site=305 stage=handlers-complete ms=156
+ANALYSER_TOKEN_PREPARE bytes=851 site=326 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=851 site=326 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=scoped-bodies ms=66
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=variable-receivers ms=77
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=direct-invocations ms=95
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=nested-invocations ms=99
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=callback-invocations ms=112
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=command-name-invocations ms=114
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=namespace-role-facts ms=120
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=nested-diagnostics ms=127
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=variable-command-sites ms=128
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=procedure-resolution ms=152
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=expression-diagnostics ms=157
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=dispatch-diagnostics ms=181
+ANALYSER_COMMAND_PHASE bytes=851 site=326 stage=handlers-complete ms=187
+ANALYSER_TOKEN_PREPARE bytes=851 site=347 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=851 site=347 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=scoped-bodies ms=60
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=variable-receivers ms=82
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=direct-invocations ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=nested-invocations ms=91
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=callback-invocations ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=command-name-invocations ms=100
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=namespace-role-facts ms=110
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=nested-diagnostics ms=123
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=variable-command-sites ms=142
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=procedure-resolution ms=173
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=expression-diagnostics ms=230
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=dispatch-diagnostics ms=377
+ANALYSER_COMMAND_PHASE bytes=851 site=347 stage=handlers-complete ms=382
+ANALYSER_TOKEN_PREPARE bytes=851 site=368 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=original-names ms=8
+ANALYSER_TOKEN_PREPARE bytes=851 site=368 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=scoped-bodies ms=195
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=variable-receivers ms=211
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=direct-invocations ms=218
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=nested-invocations ms=299
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=callback-invocations ms=409
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=command-name-invocations ms=418
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=namespace-role-facts ms=473
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=nested-diagnostics ms=496
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=variable-command-sites ms=502
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=procedure-resolution ms=575
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=expression-diagnostics ms=605
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=dispatch-diagnostics ms=829
+ANALYSER_COMMAND_PHASE bytes=851 site=368 stage=handlers-complete ms=917
+ANALYSER_TOKEN_PREPARE bytes=851 site=389 ms=6 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=851 site=389 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=scoped-bodies ms=135
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=variable-receivers ms=178
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=direct-invocations ms=215
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=nested-invocations ms=221
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=callback-invocations ms=298
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=command-name-invocations ms=307
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=namespace-role-facts ms=359
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=nested-diagnostics ms=383
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=variable-command-sites ms=388
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=procedure-resolution ms=426
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=expression-diagnostics ms=445
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=dispatch-diagnostics ms=516
+ANALYSER_COMMAND_PHASE bytes=851 site=389 stage=handlers-complete ms=546
+ANALYSER_TOKEN_PREPARE bytes=851 site=410 ms=3 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=851 site=410 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=scoped-bodies ms=33
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=variable-receivers ms=41
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=direct-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=nested-invocations ms=57
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=callback-invocations ms=76
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=command-name-invocations ms=83
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=namespace-role-facts ms=112
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=nested-diagnostics ms=119
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=variable-command-sites ms=124
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=procedure-resolution ms=144
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=expression-diagnostics ms=152
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=dispatch-diagnostics ms=179
+ANALYSER_COMMAND_PHASE bytes=851 site=410 stage=handlers-complete ms=220
+ANALYSER_TOKEN_PREPARE bytes=851 site=431 ms=9 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=original-names ms=17
+ANALYSER_TOKEN_PREPARE bytes=851 site=431 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=scoped-bodies ms=101
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=variable-receivers ms=129
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=direct-invocations ms=148
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=nested-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=callback-invocations ms=167
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=command-name-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=namespace-role-facts ms=182
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=nested-diagnostics ms=195
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=variable-command-sites ms=199
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=procedure-resolution ms=216
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=expression-diagnostics ms=246
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=dispatch-diagnostics ms=332
+ANALYSER_COMMAND_PHASE bytes=851 site=431 stage=handlers-complete ms=759
+ANALYSER_TOKEN_PREPARE bytes=851 site=452 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=452 ms=37 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=scoped-bodies ms=2308
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=variable-receivers ms=2545
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=direct-invocations ms=2733
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=nested-invocations ms=2744
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=callback-invocations ms=2817
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=command-name-invocations ms=2840
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=namespace-role-facts ms=2967
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=nested-diagnostics ms=3020
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=variable-command-sites ms=3022
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=procedure-resolution ms=3624
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=expression-diagnostics ms=3823
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=dispatch-diagnostics ms=4406
+ANALYSER_COMMAND_PHASE bytes=851 site=452 stage=handlers-complete ms=4536
+ANALYSER_TOKEN_PREPARE bytes=851 site=473 ms=8 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=original-names ms=30
+ANALYSER_TOKEN_PREPARE bytes=851 site=473 ms=3 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=scoped-bodies ms=1113
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=variable-receivers ms=1349
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=direct-invocations ms=1397
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=nested-invocations ms=1401
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=callback-invocations ms=1439
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=command-name-invocations ms=1585
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=namespace-role-facts ms=2666
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=nested-diagnostics ms=2804
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=variable-command-sites ms=2816
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=procedure-resolution ms=3024
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=expression-diagnostics ms=3127
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=dispatch-diagnostics ms=3694
+ANALYSER_COMMAND_PHASE bytes=851 site=473 stage=handlers-complete ms=3760
+ANALYSER_TOKEN_PREPARE bytes=851 site=494 ms=5 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=original-names ms=18
+ANALYSER_TOKEN_PREPARE bytes=851 site=494 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=scoped-bodies ms=215
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=variable-receivers ms=256
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=direct-invocations ms=302
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=nested-invocations ms=318
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=callback-invocations ms=396
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=command-name-invocations ms=428
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=namespace-role-facts ms=472
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=nested-diagnostics ms=536
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=variable-command-sites ms=549
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=procedure-resolution ms=675
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=expression-diagnostics ms=723
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=dispatch-diagnostics ms=1030
+ANALYSER_COMMAND_PHASE bytes=851 site=494 stage=handlers-complete ms=1097
+ANALYSER_TOKEN_PREPARE bytes=851 site=515 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=original-names ms=14
+ANALYSER_TOKEN_PREPARE bytes=851 site=515 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=scoped-bodies ms=187
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=variable-receivers ms=220
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=direct-invocations ms=251
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=nested-invocations ms=259
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=callback-invocations ms=348
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=command-name-invocations ms=386
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=namespace-role-facts ms=435
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=nested-diagnostics ms=478
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=variable-command-sites ms=484
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=procedure-resolution ms=581
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=expression-diagnostics ms=664
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=dispatch-diagnostics ms=965
+ANALYSER_COMMAND_PHASE bytes=851 site=515 stage=handlers-complete ms=1009
+ANALYSER_TOKEN_PREPARE bytes=851 site=536 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=original-names ms=9
+ANALYSER_TOKEN_PREPARE bytes=851 site=536 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=scoped-bodies ms=135
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=variable-receivers ms=226
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=direct-invocations ms=510
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=nested-invocations ms=536
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=callback-invocations ms=589
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=command-name-invocations ms=602
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=namespace-role-facts ms=781
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=nested-diagnostics ms=1038
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=variable-command-sites ms=1212
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=procedure-resolution ms=1353
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=expression-diagnostics ms=1363
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=dispatch-diagnostics ms=1402
+ANALYSER_COMMAND_PHASE bytes=851 site=536 stage=handlers-complete ms=1423
+ANALYSER_TOKEN_PREPARE bytes=851 site=557 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=851 site=557 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=scoped-bodies ms=32
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=variable-receivers ms=46
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=direct-invocations ms=60
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=nested-invocations ms=63
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=callback-invocations ms=72
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=command-name-invocations ms=75
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=namespace-role-facts ms=93
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=nested-diagnostics ms=114
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=variable-command-sites ms=115
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=procedure-resolution ms=136
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=expression-diagnostics ms=148
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=dispatch-diagnostics ms=259
+ANALYSER_COMMAND_PHASE bytes=851 site=557 stage=handlers-complete ms=367
+ANALYSER_TOKEN_PREPARE bytes=851 site=578 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=original-names ms=11
+ANALYSER_TOKEN_PREPARE bytes=851 site=578 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=scoped-bodies ms=54
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=variable-receivers ms=73
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=direct-invocations ms=89
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=nested-invocations ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=callback-invocations ms=121
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=command-name-invocations ms=123
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=namespace-role-facts ms=134
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=nested-diagnostics ms=150
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=variable-command-sites ms=161
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=procedure-resolution ms=289
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=expression-diagnostics ms=322
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=dispatch-diagnostics ms=380
+ANALYSER_COMMAND_PHASE bytes=851 site=578 stage=handlers-complete ms=406
+ANALYSER_TOKEN_PREPARE bytes=851 site=599 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=851 site=599 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=variable-receivers ms=35
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=direct-invocations ms=42
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=nested-invocations ms=46
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=callback-invocations ms=56
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=command-name-invocations ms=61
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=namespace-role-facts ms=72
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=nested-diagnostics ms=82
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=variable-command-sites ms=83
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=procedure-resolution ms=98
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=expression-diagnostics ms=108
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=dispatch-diagnostics ms=188
+ANALYSER_COMMAND_PHASE bytes=851 site=599 stage=handlers-complete ms=218
+ANALYSER_TOKEN_PREPARE bytes=851 site=620 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=851 site=620 ms=7 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=scoped-bodies ms=50
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=variable-receivers ms=66
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=direct-invocations ms=73
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=nested-invocations ms=75
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=callback-invocations ms=81
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=command-name-invocations ms=84
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=namespace-role-facts ms=91
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=nested-diagnostics ms=96
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=variable-command-sites ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=procedure-resolution ms=6898
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=expression-diagnostics ms=6903
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=dispatch-diagnostics ms=7095
+ANALYSER_COMMAND_PHASE bytes=851 site=620 stage=handlers-complete ms=7189
+ANALYSER_TOKEN_PREPARE bytes=851 site=641 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=original-names ms=6
+ANALYSER_TOKEN_PREPARE bytes=851 site=641 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=scoped-bodies ms=100
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=variable-receivers ms=126
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=direct-invocations ms=142
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=nested-invocations ms=143
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=callback-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=command-name-invocations ms=165
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=namespace-role-facts ms=181
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=nested-diagnostics ms=203
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=variable-command-sites ms=209
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=procedure-resolution ms=238
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=expression-diagnostics ms=253
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=dispatch-diagnostics ms=581
+ANALYSER_COMMAND_PHASE bytes=851 site=641 stage=handlers-complete ms=661
+ANALYSER_TOKEN_PREPARE bytes=851 site=662 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=original-names ms=18
+ANALYSER_TOKEN_PREPARE bytes=851 site=662 ms=39 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=scoped-bodies ms=2421
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=variable-receivers ms=2811
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=direct-invocations ms=2958
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=nested-invocations ms=2969
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=callback-invocations ms=3098
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=command-name-invocations ms=3147
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=namespace-role-facts ms=3237
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=nested-diagnostics ms=3311
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=variable-command-sites ms=3347
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=procedure-resolution ms=3545
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=expression-diagnostics ms=3661
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=dispatch-diagnostics ms=4040
+ANALYSER_COMMAND_PHASE bytes=851 site=662 stage=handlers-complete ms=4078
+ANALYSER_TOKEN_PREPARE bytes=851 site=683 ms=3 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=original-names ms=9
+ANALYSER_TOKEN_PREPARE bytes=851 site=683 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=scoped-bodies ms=80
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=variable-receivers ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=direct-invocations ms=122
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=nested-invocations ms=126
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=callback-invocations ms=162
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=command-name-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=namespace-role-facts ms=195
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=nested-diagnostics ms=226
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=variable-command-sites ms=237
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=procedure-resolution ms=288
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=expression-diagnostics ms=309
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=dispatch-diagnostics ms=702
+ANALYSER_COMMAND_PHASE bytes=851 site=683 stage=handlers-complete ms=788
+ANALYSER_TOKEN_PREPARE bytes=851 site=704 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=851 site=704 ms=1 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=scoped-bodies ms=191
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=variable-receivers ms=221
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=direct-invocations ms=238
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=nested-invocations ms=243
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=callback-invocations ms=456
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=command-name-invocations ms=461
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=namespace-role-facts ms=475
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=nested-diagnostics ms=505
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=variable-command-sites ms=508
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=procedure-resolution ms=574
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=expression-diagnostics ms=601
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=dispatch-diagnostics ms=11286
+ANALYSER_COMMAND_PHASE bytes=851 site=704 stage=handlers-complete ms=19126
+ANALYSER_TOKEN_PREPARE bytes=851 site=725 ms=14 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=original-names ms=26
+ANALYSER_TOKEN_PREPARE bytes=851 site=725 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=scoped-bodies ms=95
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=variable-receivers ms=134
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=direct-invocations ms=171
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=nested-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=callback-invocations ms=211
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=command-name-invocations ms=222
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=namespace-role-facts ms=307
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=nested-diagnostics ms=390
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=variable-command-sites ms=395
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=procedure-resolution ms=459
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=expression-diagnostics ms=475
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=dispatch-diagnostics ms=566
+ANALYSER_COMMAND_PHASE bytes=851 site=725 stage=handlers-complete ms=589
+ANALYSER_TOKEN_PREPARE bytes=851 site=746 ms=3 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=851 site=746 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=scoped-bodies ms=25
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=variable-receivers ms=31
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=direct-invocations ms=36
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=nested-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=callback-invocations ms=42
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=command-name-invocations ms=43
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=namespace-role-facts ms=93
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=nested-diagnostics ms=115
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=variable-command-sites ms=117
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=procedure-resolution ms=141
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=expression-diagnostics ms=150
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=dispatch-diagnostics ms=191
+ANALYSER_COMMAND_PHASE bytes=851 site=746 stage=handlers-complete ms=198
+ANALYSER_TOKEN_PREPARE bytes=851 site=767 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=original-names ms=1
+ANALYSER_TOKEN_PREPARE bytes=851 site=767 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=scoped-bodies ms=32
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=variable-receivers ms=41
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=direct-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=nested-invocations ms=48
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=callback-invocations ms=76
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=command-name-invocations ms=77
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=namespace-role-facts ms=88
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=nested-diagnostics ms=103
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=variable-command-sites ms=104
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=procedure-resolution ms=130
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=expression-diagnostics ms=136
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=dispatch-diagnostics ms=292
+ANALYSER_COMMAND_PHASE bytes=851 site=767 stage=handlers-complete ms=305
+ANALYSER_TOKEN_PREPARE bytes=851 site=788 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=original-names ms=47
+ANALYSER_TOKEN_PREPARE bytes=851 site=788 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=scoped-bodies ms=90
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=variable-receivers ms=165
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=direct-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=nested-invocations ms=186
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=callback-invocations ms=196
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=command-name-invocations ms=197
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=namespace-role-facts ms=207
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=nested-diagnostics ms=216
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=variable-command-sites ms=218
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=procedure-resolution ms=304
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=expression-diagnostics ms=321
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=dispatch-diagnostics ms=753
+ANALYSER_COMMAND_PHASE bytes=851 site=788 stage=handlers-complete ms=803
+ANALYSER_TOKEN_PREPARE bytes=851 site=809 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=original-names ms=8
+ANALYSER_TOKEN_PREPARE bytes=851 site=809 ms=2 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=scoped-bodies ms=98
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=variable-receivers ms=108
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=direct-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=nested-invocations ms=165
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=callback-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=command-name-invocations ms=180
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=namespace-role-facts ms=187
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=nested-diagnostics ms=193
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=variable-command-sites ms=193
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=procedure-resolution ms=208
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=expression-diagnostics ms=212
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=dispatch-diagnostics ms=249
+ANALYSER_COMMAND_PHASE bytes=851 site=809 stage=handlers-complete ms=262
+ANALYSER_TOKEN_PREPARE bytes=851 site=830 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=851 site=830 ms=4 nested=0
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=scoped-bodies ms=74
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=variable-receivers ms=97
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=direct-invocations ms=108
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=nested-invocations ms=122
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=callback-invocations ms=138
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=command-name-invocations ms=143
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=namespace-role-facts ms=155
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=nested-diagnostics ms=169
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=variable-command-sites ms=174
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=procedure-resolution ms=195
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=expression-diagnostics ms=224
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=dispatch-diagnostics ms=302
+ANALYSER_COMMAND_PHASE bytes=851 site=830 stage=handlers-complete ms=414
+ANALYSER_PHASE bytes=851 stage=walk-complete ms=79839
+ANALYSER_PHASE bytes=851 stage=parameter-definitions ms=79839
+DIAGNOSTIC_PHASE bytes=851 stage=initial ms=0
+DIAGNOSTIC_PHASE bytes=851 stage=invocations ms=34
+DIAGNOSTIC_PHASE bytes=851 stage=variable-references ms=34
+DIAGNOSTIC_PHASE bytes=851 stage=command-diagnostics ms=1979
+DIAGNOSTIC_PHASE bytes=851 stage=variable-usage ms=1979
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=initial us=364
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=initial us=1
+LOWER_SOURCE_PHASE bytes=851 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=851 phase=configured ms=0 statements=0 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=780 us=64078
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=41 us=78883
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=41 us=11281
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=41 us=41108
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=41 us=89693
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=82 us=157162
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=41 us=1390
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=41 us=394749
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=42 us=14120
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=164 us=55230
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=41 us=1174
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=41 us=372788
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=41 us=194283
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=41 us=529833
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=41 us=7157
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=41 us=4629118
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=41 us=2971
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=42 us=11219
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=9685 us=1634941
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=205 us=340563
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=initial ms=190 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=1437 us=135526
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=41 us=78883
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=41 us=11281
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=41 us=41108
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=82 us=154964
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=123 us=217162
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=82 us=1554
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=41 us=394749
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=43 us=17369
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=205 us=62886
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=82 us=3618
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=82 us=563191
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=82 us=964650
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=82 us=794705
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=82 us=10203
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=82 us=11773351
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=41 us=2971
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=43 us=11226
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=10095 us=1935985
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=410 us=559385
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=walk ms=8064 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=walk retained_owners=1 requests=410 captures=205 reuses=205 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=command-key scope=cumulative-inclusive calls=3690 ms=416 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=slot-paths scope=cumulative-inclusive calls=1927 ms=1196 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=namespace scope=cumulative-inclusive calls=164 ms=19 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=metadata-advice scope=cumulative-inclusive calls=205 ms=1418 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=lookup-key scope=cumulative-inclusive calls=2337 ms=342 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=baseline scope=cumulative-inclusive calls=4059 ms=165 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=851 stage=walk calls=4059 ms=161
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=41
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=2 roots=41 bytes=0 offset=18 outcomes=0 layouts=41
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=branch scope=thread-cumulative-inclusive calls=1437 us=135526
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=frame scope=thread-cumulative-inclusive calls=41 us=78883
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=snapshot scope=thread-cumulative-inclusive calls=41 us=11281
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight scope=thread-cumulative-inclusive calls=41 us=41108
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=layout scope=thread-cumulative-inclusive calls=82 us=154964
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body scope=thread-cumulative-inclusive calls=123 us=217162
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=receiver-body scope=thread-cumulative-inclusive calls=82 us=1554
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=deferred-entry scope=thread-cumulative-inclusive calls=41 us=394749
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-segmentation scope=thread-cumulative-inclusive calls=43 us=17369
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-word-tokens scope=thread-cumulative-inclusive calls=205 us=62886
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=compiler-selection scope=thread-cumulative-inclusive calls=82 us=3618
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-arguments scope=thread-cumulative-inclusive calls=82 us=563191
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=native-invocation-preparation scope=thread-cumulative-inclusive calls=82 us=964650
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=point-capture scope=thread-cumulative-inclusive calls=82 us=794705
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=continuation-capture scope=thread-cumulative-inclusive calls=82 us=10203
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=selected-command scope=thread-cumulative-inclusive calls=82 us=11773351
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight-publication scope=thread-cumulative-inclusive calls=41 us=2971
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-publication scope=thread-cumulative-inclusive calls=43 us=11226
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-memo scope=thread-cumulative-inclusive calls=10095 us=1935985
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-capture scope=thread-cumulative-inclusive calls=410 us=559385
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_DEFERRED_PHASE stage=entries ms=194 roots=41 outcomes=41 layouts=41
+SOURCE_DEFERRED_PHASE stage=called ms=196 roots=41 outcomes=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=7 visits=0 pending=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=339 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=2 visits=0 pending=41 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=162 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=162 visits=0 pending=0 layouts=41
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=502 visits=0 pending=0 layouts=41
+SOURCE_DEFERRED_PHASE stage=layouts ms=698 roots=41 outcomes=41 layouts=41
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=1560 us=142182
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=82 us=138787
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=82 us=20026
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=82 us=63299
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=82 us=154964
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=164 us=218759
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=82 us=1554
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=82 us=578848
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=84 us=18662
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=287 us=76587
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=82 us=3618
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=82 us=563191
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=82 us=964650
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=82 us=794705
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=82 us=10203
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=82 us=11773351
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=82 us=3745
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=84 us=15138
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=10218 us=1944366
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=410 us=559385
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=deferred ms=8766 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=deferred retained_owners=1 requests=533 captures=205 reuses=328 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=deferred requests=3 builds=1 reuses=2 scanned_rows=41 scanned_alternatives=41
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=command-key scope=cumulative-inclusive calls=4100 ms=446 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=slot-paths scope=cumulative-inclusive calls=2091 ms=1238 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=namespace scope=cumulative-inclusive calls=164 ms=19 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=205 ms=1418 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=lookup-key scope=cumulative-inclusive calls=2583 ms=365 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=baseline scope=cumulative-inclusive calls=4387 ms=176 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=851 stage=deferred calls=4387 ms=172
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=1560 us=142182
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=82 us=138787
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=82 us=20026
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=82 us=63299
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=82 us=154964
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=164 us=218759
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=82 us=1554
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=82 us=578848
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=84 us=18662
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=328 us=86738
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=82 us=3618
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=82 us=563191
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=82 us=964650
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=82 us=794705
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=82 us=10203
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=82 us=11773351
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=82 us=3745
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=84 us=15138
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=10300 us=1946316
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=410 us=559385
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=851 stage=complete ms=9130 points=82 layouts=41
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=851 stage=complete retained_owners=1 requests=615 captures=205 reuses=410 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=851 stage=complete requests=3 builds=1 reuses=2 scanned_rows=41 scanned_alternatives=41
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=851 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=command-key scope=cumulative-inclusive calls=4305 ms=452 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=slot-paths scope=cumulative-inclusive calls=2173 ms=1251 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=namespace scope=cumulative-inclusive calls=164 ms=19 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=metadata-advice scope=cumulative-inclusive calls=205 ms=1418 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=lookup-key scope=cumulative-inclusive calls=2706 ms=367 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=baseline scope=cumulative-inclusive calls=4551 ms=181 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=851 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=binding-analysis ms=9130 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=segmented ms=4 commands=41 statements=0
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=commands ms=6467 commands=41 statements=41
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=admission ms=6479 commands=41 statements=41
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=source ms=9980 commands=41 statements=41
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=script ms=19112 commands=0 statements=41
+LOWER_SCRIPT_PHASE bytes=851 depth=1 phase=restore ms=19122 commands=0 statements=41
+LOWER_SOURCE_PHASE bytes=851 phase=lowered ms=19122 statements=41 procedures=0
+SOURCE_BODY_PROJECTION requests=1 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=18 phase=selected-projection scope=body-inclusive ms=1
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=18 phase=math-inventory scope=body-inclusive ms=1
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=18 phase=expression-inventory scope=body-inclusive ms=1
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=1 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=18 phase=lowered scope=body-inclusive ms=2
+SOURCE_BODY_PROJECTION requests=2 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=38 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=38 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=38 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=6 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=38 phase=lowered scope=body-inclusive ms=7
+SOURCE_BODY_PROJECTION requests=3 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=58 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=58 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=58 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=4 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=4 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=58 phase=lowered scope=body-inclusive ms=5
+SOURCE_BODY_PROJECTION requests=4 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=78 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=78 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=78 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=4 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=78 phase=lowered scope=body-inclusive ms=4
+SOURCE_BODY_PROJECTION requests=5 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=98 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=98 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=98 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=98 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=6 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=118 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=118 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=118 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=1 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=118 phase=lowered scope=body-inclusive ms=1
+SOURCE_BODY_PROJECTION requests=7 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=138 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=138 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=138 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=138 phase=lowered scope=body-inclusive ms=2
+SOURCE_BODY_PROJECTION requests=8 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=158 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=158 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=158 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=158 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=9 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=178 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=178 phase=math-inventory scope=body-inclusive ms=1
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=178 phase=expression-inventory scope=body-inclusive ms=1
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=178 phase=lowered scope=body-inclusive ms=2
+SOURCE_BODY_PROJECTION requests=10 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=198 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=198 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=198 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=198 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=11 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=219 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=219 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=219 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=219 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=12 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=240 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=240 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=240 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=240 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=13 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=261 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=261 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=261 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=261 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=14 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=282 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=282 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=282 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=282 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=15 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=303 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=303 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=303 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=303 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=16 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=324 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=324 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=324 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=3 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=3 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=324 phase=lowered scope=body-inclusive ms=3
+SOURCE_BODY_PROJECTION requests=17 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=345 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=345 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=345 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=345 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=18 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=366 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=366 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=366 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=366 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=19 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=387 phase=selected-projection scope=body-inclusive ms=80
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=387 phase=math-inventory scope=body-inclusive ms=80
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=387 phase=expression-inventory scope=body-inclusive ms=80
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=387 phase=lowered scope=body-inclusive ms=80
+SOURCE_BODY_PROJECTION requests=20 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=408 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=408 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=408 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=408 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=21 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=429 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=429 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=429 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=429 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=22 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=450 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=450 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=450 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=450 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=23 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=471 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=471 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=471 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=471 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=24 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=492 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=492 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=492 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=492 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=25 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=513 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=513 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=513 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=513 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=26 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=534 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=534 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=534 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=1 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=534 phase=lowered scope=body-inclusive ms=9
+SOURCE_BODY_PROJECTION requests=27 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=555 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=555 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=555 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=555 phase=lowered scope=body-inclusive ms=1
+SOURCE_BODY_PROJECTION requests=28 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=576 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=576 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=576 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=576 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=29 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=597 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=597 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=597 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=597 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=30 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=618 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=618 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=618 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=618 phase=lowered scope=body-inclusive ms=1
+SOURCE_BODY_PROJECTION requests=31 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=639 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=639 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=639 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=639 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=32 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=660 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=660 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=660 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=660 phase=lowered scope=body-inclusive ms=1
+SOURCE_BODY_PROJECTION requests=33 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=681 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=681 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=681 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=681 phase=lowered scope=body-inclusive ms=1
+SOURCE_BODY_PROJECTION requests=34 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=702 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=702 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=702 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=702 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=35 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=723 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=723 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=723 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=723 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=36 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=744 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=744 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=744 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=744 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=37 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=765 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=765 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=765 phase=expression-inventory scope=body-inclusive ms=1
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=765 phase=lowered scope=body-inclusive ms=2
+SOURCE_BODY_PROJECTION requests=38 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=786 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=786 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=786 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=786 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=39 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=807 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=807 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=807 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=807 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=40 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=828 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=828 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=828 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=828 phase=lowered scope=body-inclusive ms=0
+SOURCE_BODY_PROJECTION requests=41 captures=1 points=82 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=849 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=849 phase=math-inventory scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=849 phase=expression-inventory scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_ORIGINAL_BODY_PHASE bytes=0 base=849 phase=lowered scope=body-inclusive ms=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=2 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=1 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=segmented ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=commands ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=admission ms=0 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=0 depth=1 phase=source ms=0 commands=0 statements=0
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=lowered us=52182912
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=factories us=52183944
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=inline-uplevel us=52184280
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=prepared us=53254966
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=cfg-built us=59525019
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=851 procedures=0 stage=enriched us=68927378
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=lower-and-cfg us=68928173
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=module-context us=69179473
+SOURCE_INVOCATION_PROJECT site=0 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=20 ms=20 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=40 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=60 ms=11 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=80 ms=20 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=100 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=120 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=140 ms=8 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=160 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=180 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=200 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=221 ms=9 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=242 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=263 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=284 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=305 ms=7 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=326 ms=104 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=347 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=368 ms=8 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=389 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=410 ms=15 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=431 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=452 ms=6 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=473 ms=18 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=494 ms=8 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=515 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=536 ms=5 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=557 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=578 ms=10 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=599 ms=15 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=620 ms=5 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=641 ms=5 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=662 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=683 ms=12 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=704 ms=40 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=725 ms=11 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=746 ms=16 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=767 ms=13 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=788 ms=19 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=809 ms=3 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=830 ms=3 targets=1 unknown=false
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=unit-scope us=78873629
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=module-facts us=79221095
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=procedure-transfers us=79253247
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=top-level-lattice us=81164744
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=procedure-lattices us=81164807
+COMPILER_FUNCTION_PHASE_TOTALS pipeline=unit final=false functions=64 blocks=128 statements=41 prepare_us=5626 ssa_us=1218362 def_use_us=3077 dynamic_names_us=77853 sccp_us=456583 existence_us=3203 types_us=87098 rendered_us=5536 instance_classes_us=349474 taint_us=15085
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=method-and-body-lattices us=82079745
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=851 procedures=0 stage=connection-scope us=82079836
+COMPILER_FUNCTION_PHASE_TOTALS pipeline=unit final=true functions=83 blocks=166 statements=41 prepare_us=8595 ssa_us=1273606 def_use_us=3596 dynamic_names_us=77933 sccp_us=640332 existence_us=3661 types_us=93424 rendered_us=6371 instance_classes_us=350265 taint_us=19903
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=initial us=13
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=object-types us=72711
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=original-realm us=73041
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=analysis us=3034629
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=top-level-taint us=3462901
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=851 procedures=0 stage=procedure-taints us=3481290
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=initial us=3
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=object-facts us=55059
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=command-binding us=303500
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=module-suppression us=367195
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=top-level us=3136554
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=procedures us=3136591
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=fresh-bodies us=3137966
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=variable-command us=3138015
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=abstract-factory us=3158817
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=constant-dispatch-and-template us=3159172
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=851 procedures=0 methods=0 body_units=82 stage=complete us=3159181
+DIAGNOSTIC_PHASE bytes=851 stage=cfg-ssa ms=91530
+DIAGNOSTIC_PHASE bytes=851 stage=complete ms=91531
+ANALYSER_PHASE bytes=851 stage=diagnostics-complete ms=171371
+ANALYSER_PHASE bytes=851 stage=complete ms=171372

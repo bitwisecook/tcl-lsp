@@ -59,5 +59,59 @@
       "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name aho_corasick --edition=2021 /workspace/.cargo/registry/src/raw.githubusercontent.com-1fd8571475c8f238/aho-corasick-1.1.5/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg feature=\"perf-literal\" --cfg feature=\"std\" --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values(\"default\", \"logging\", \"perf-literal\", \"std\")) -C metadata=85ab9b5ad32c6732 -C extra-filename=-82a504d3de39eb53 --out-dir /workspace/tcl-lsp-owned/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-owned/target/debug/deps --extern memchr=/workspace/tcl-lsp-owned/target/debug/deps/libmemchr-48baebea031d4a80.rmeta --cap-lints allow "
     }
   ],
-  "all_workers_stopped_unix": 1792764065.1242793
+  "all_workers_stopped_unix": 1792764065.1242793,
+  "server_summary": {
+    "server/startup/new": {
+      "returncode": 101,
+      "seconds": 10.412,
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-server-startup-new.out"
+    },
+    "server/startup/old": {
+      "returncode": 101,
+      "seconds": 21.355,
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-server-startup-old.out"
+    },
+    "server/workspace_symbol/new": {
+      "returncode": "timeout180",
+      "seconds": 181.069,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [
+        "tests::workspace_symbol_caps_its_answer"
+      ],
+      "log": "tests-server-workspace_symbol-new.out"
+    },
+    "server/workspace_symbol/old": {
+      "returncode": "timeout180",
+      "seconds": 180.329,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [
+        "tests::workspace_symbol_caps_its_answer"
+      ],
+      "log": "tests-server-workspace_symbol-old.out"
+    }
+  },
+  "server_tests_and_cleanup_finished_unix": 1792764461.3830707,
+  "resumed": [
+    25591,
+    25545,
+    25501,
+    25478,
+    21695,
+    24248,
+    21594,
+    21559
+  ],
+  "finished_unix": 1792764461.430831
 }

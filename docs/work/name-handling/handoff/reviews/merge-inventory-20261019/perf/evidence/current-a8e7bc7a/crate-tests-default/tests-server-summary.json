@@ -18,10 +18,25 @@
     "log": "tests-server-startup-old.out"
   },
   "server/workspace_symbol/new": {
-    "status": "running",
+    "returncode": "timeout180",
+    "seconds": 181.069,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [
+      "tests::workspace_symbol_caps_its_answer"
+    ],
     "log": "tests-server-workspace_symbol-new.out"
   },
   "server/workspace_symbol/old": {
-    "status": "pending"
+    "returncode": "timeout180",
+    "seconds": 180.329,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [
+      "tests::workspace_symbol_caps_its_answer"
+    ],
+    "log": "tests-server-workspace_symbol-old.out"
   }
 }

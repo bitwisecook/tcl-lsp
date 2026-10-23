@@ -1,0 +1,14 @@
+{
+  "original_build_inputs": {
+    "head": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+    "rust_diff_sha256": "a08ab4ae11f480c1b740cf2db4136a9bd55d31b129f9cfbc06405146c5ec07fe",
+    "profile": "test opt-level=0 debug=0 incremental=0; debug/overflow assertions enabled",
+    "target_dir": "/workspace/tcl-lsp-perf-latest/target",
+    "server_timeout_seconds_both_modes": 180
+  },
+  "original": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_lsp_server-29ebe020d9d5010f",
+  "copy": "/tmp/perf-server-trace-t0bvqcmp/tcl_lsp_server-29ebe020d9d5010f",
+  "sha256": "6daa5e14ade5bf36b643748a618f5cbbcd850f90883fec4961c3f38888b4453b",
+  "purpose": "diagnostic existing source-phase trace, not a latency or old/new equality proof",
+  "assertions_unchanged": true
+}

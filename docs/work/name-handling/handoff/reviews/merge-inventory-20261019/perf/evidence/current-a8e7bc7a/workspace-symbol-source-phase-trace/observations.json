@@ -1,0 +1,28 @@
+{
+  "raw_trace_sha256": "44dbdd5160c6e09e45685df14dbe45308da31d8f7aa04355bea86628057405d6",
+  "observed_cumulative_phase_ms": {
+    "ANALYSER_PHASE/realm-start": 477,
+    "ANALYSER_PHASE/realm-complete": 12769,
+    "ANALYSER_PHASE/retained-inventory": 12772,
+    "ANALYSER_PHASE/segmented": 12777,
+    "ANALYSER_PHASE/walk-start": 12778,
+    "ANALYSER_PHASE/walk-complete": 79839,
+    "ANALYSER_PHASE/parameter-definitions": 79839,
+    "DIAGNOSTIC_PHASE/initial": 0,
+    "DIAGNOSTIC_PHASE/invocations": 34,
+    "DIAGNOSTIC_PHASE/variable-references": 34,
+    "DIAGNOSTIC_PHASE/command-diagnostics": 1979,
+    "DIAGNOSTIC_PHASE/variable-usage": 1979,
+    "DIAGNOSTIC_PHASE/cfg-ssa": 91530,
+    "DIAGNOSTIC_PHASE/complete": 91531,
+    "ANALYSER_PHASE/diagnostics-complete": 171371,
+    "ANALYSER_PHASE/complete": 171372
+  },
+  "analysis_completed": true,
+  "analysis_total_ms": 171372,
+  "walk_complete_ms": 79839,
+  "diagnostics_complete_ms": 171371,
+  "diagnostic_total_ms": 91531,
+  "budget_seconds": 180,
+  "scope": "Existing trace on unchanged private test executable; contended while compiler builds resumed. Inclusive/cumulative timings are not summed. No attribution of the quiet original timeout to a particular index/query phase and no acceptance latency claim."
+}

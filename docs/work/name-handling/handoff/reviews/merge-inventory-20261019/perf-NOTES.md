@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 14:02 UTC
+Last updated: 2026-10-23 14:17 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -128,7 +128,7 @@ the actual retained editing-input path. Source-chain controls pass at
 
 ## Patches and next owner actions
 
-Main artifacts are refreshed against 39b39296 and apply byte for byte;
+Main artifacts are refreshed against94c7f61e and apply byte for byte;
 `patch-inputs.json` / `patch-refresh-validation.json` record that limited check.
 `perf-owned.patch` contains exactly six files, with no switch: lexer parse_cut.rs
 and source_map.rs; compiler original_word.rs, original_name_value.rs,
@@ -197,3 +197,18 @@ head and remains unproven. Its builder and the a8 control builder/watcher
 are temporarily paused while all4 named server180s runs execute quietly;
 the window resumes exact owned processes in finally after server cleanup.
 SpecTcl opt1 tests remain queued; no new runtime result is implied.
+
+Quiet a8 default0 server comparison is COMPLETE, zero build warnings and
+zero P2F but FAILED gates: startup first retained-read assertion0 vs1 BOTH
+(new10.412s, old21.355s), later factory reindex UNREACHED; workspace-symbol
+timeout180 BOTH (wall181.069/180.329s). Compiler builds/watcher were paused
+for all4 runs, resumed afterward; server executable removed. Exact receipts
+are current-a8e7bc7a/crate-tests-default/.
+
+A separate SHA-identical private server copy, unchanged fixture/assertions,
+ran the existing source-phase trace and timed out180, then was removed.
+Analysis completed at171.372s: walk79.839s, diagnostics91.531s; child timings
+are inclusive and must not be summed again. This trace was contended after
+builders resumed, so it is diagnostic only and does not locate the quiet
+original timeout in index/query. Full raw trace/source/artifact/cleanup and
+observations are current-a8e7bc7a/workspace-symbol-source-phase-trace/.
