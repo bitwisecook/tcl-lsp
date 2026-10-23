@@ -4932,7 +4932,6 @@ mod tests {
     }
     #[test]
     fn http_request_availability_keeps_its_documented_prebaseline_introduction() {
-        // experiments/irules/event-availability/http-request-20261015/README.md
         let registry = EventRegistry::build();
         assert!(!registry.event_available_at("HTTP_REQUEST", "8.4.0"));
         for version in ["9.0.0", "9.4.0", "16.1.0"] {

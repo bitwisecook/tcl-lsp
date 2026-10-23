@@ -20,7 +20,6 @@ use crate::interp::{Code, Interp};
 use crate::obj::{self, Owned, TclObj};
 use tcl_syntax::value::ValueOps;
 
-// Original Jim capture: experiments/name-handling/results/namespace-helper-original-selector.
 const EVIDENCE: &str =
     include_str!("../../tests/data/native_jim_helper_literal_head/prefix-selection-20261015.tsv");
 fn row(kind: &str, phase: &str) -> Vec<&'static str> {

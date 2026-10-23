@@ -7396,9 +7396,7 @@ mod tests {
     #[test]
     fn snit_self_call_resolves() {
         // `$self method …` inside a snit method body resolves against the
-        // enclosing snit type — snit's analogue of `TclOO`'s `my`, and by far
-        // the dominant unresolved receiver on real corpora (`$self` alone is
-        // ~12.6% of the unresolved `$var` dispatches; see experiments/tcloo_diag).
+        // enclosing snit type, as `TclOO`'s `my` does.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = reg();

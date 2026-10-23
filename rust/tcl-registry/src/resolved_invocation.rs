@@ -12369,7 +12369,6 @@ mod scope_alias_metadata_tests {
 mod logical_source_alias_projection_tests {
     #[test]
     fn logical_alias_source_layout_keeps_original_operands_without_native_transition_grants() {
-        // experiments/name-handling/results/logical-frame-alias-projection-20261014/oracles/observations.json
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = crate::model::ingress::context_for_profile(profile);
         for arguments in [
