@@ -1,15 +1,12 @@
 {
-  "base": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
-  "status": "clean application, exact snapshot bytes and rustfmt PASS; semantic proof still pending",
-  "patches": {
-    "perf-owned.patch": {
-      "sha256": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a"
-    },
-    "perf-realm-interprocedural.patch": {
-      "sha256": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3"
-    }
+  "base": "94c7f61e86aa95cb4f403d2da129812026d89682",
+  "clean_ordered_apply": true,
+  "exact_generated_snapshot": true,
+  "scoped_rustfmt": true,
+  "patch_sha256": {
+    "perf-owned.patch": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a",
+    "perf-realm-interprocedural.patch": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3",
+    "perf.patch": "cc88700feb3b5a21b65d56c5dc080eb10e005686834382912a6e0e8f0dca4d7a"
   },
-  "owned_count": 6,
-  "routed_count": 2,
-  "temporary_switches": false
+  "semantic_proof": false
 }

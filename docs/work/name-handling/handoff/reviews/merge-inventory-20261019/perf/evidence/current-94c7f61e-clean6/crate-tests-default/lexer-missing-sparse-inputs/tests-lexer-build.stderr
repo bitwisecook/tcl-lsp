@@ -1,0 +1,12 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-dialect)
+   Compiling thiserror v2.0.21
+   Compiling syn v3.0.9
+   Compiling bitflags v2.13.2
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-core-types)
+   Compiling bytecount v0.6.9
+   Compiling thiserror-impl v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lexer)
+error: could not compile `tcl-lexer` (lib test) due to 6 previous errors

@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 13:34 UTC
+Last updated: 2026-10-23 13:53 UTC
 
 ## Resume
 
@@ -14,8 +14,9 @@ interruption/cleanup and partial receipts remain in current-0322d9cd/.
 
 Frozen proof source is now a8e7bc7a0d368bbaab5bd1676a0383ad2b837130 in
 /workspace/tcl-lsp-perf-latest. The FULL batch remains applied in nine
-experimental Rust files, including switches. Both clean split patches are
-refreshed against this head and byte-exact switch reconstruction/fmt passes.
+experimental Rust files, including switches. The combined proof batch was reconstructed exactly against a8. Both clean
+split patches are additionally refreshed against current94c7f61e, unchanged
+byte for byte; ordered application and eight-file scoped rustfmt pass.
 Never commit realm/interprocedural or switches; neither patch is proven yet.
 
 The owner repair changes actual procedure visitation and hosted source-word
@@ -48,6 +49,18 @@ executables/sources removed. normal-artifact-audit.json confirms current
 Cargo fresh:false and a different compiler hash from0322; no stale reuse
 is inferred. Exact37-byte control fixture/provenance is retained.
 
+Current clean-six proof checkout is /workspace/tcl-lsp-owned at94c7f61e.
+Exactly six files are dirty; no switch or compiler-owned two-file patch.
+All117 text fixture hashes match baseline. Default0 clean lexer586/586 PASS
+in both environment executions, zero warnings, executable removed. Because
+this build has no switch, the old environment variable is intentionally
+ignored; the genuine switched lexer comparison is separately a8
+586/586 BOTH. An older sparse pattern excluded six checked-in registry
+oracle captures; failed attempts executed zero tests/warnings. All captures
+are now restored byte-exactly, and raw failed-build receipts are retained.
+Clean six-file metadata check and original selected compiler filters are
+building, sessions22046/47607, /tmp/perf-owned-latest-{check.stderr,compiler.log}.
+
 Current jobs:
 - /tmp/perf-run-a8e7-test-slice.log, session70544: compiler controls retry
   including the published test-only correction; build then both16 controls,
@@ -55,14 +68,14 @@ Current jobs:
 - /tmp/perf-watch-compiler-checks.log, session58557 waits for that exact
   compiler binary, makes a SHA-verified private copy, runs all original
   compiler filters both modes plus the existing report trace, then deletes it.
-- /tmp/perf-server-a8e7.log, session19381: default0 server build; tests wait
+- /tmp/perf-server-a8e7.log, session19381: default0 server build COMPLETE/zero warnings; tests wait
   for /tmp/perf-a8e7-heavy-tests-finished.
 - /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
   control build; zero tests, source unchanged and cleanup complete.
 - /tmp/perf-lexer-a8e7.log, session39041 COMPLETE: default0 lexer586/586 both modes,
   zero warnings; isolated target-lexer-controls, executable removed.
 - /tmp/perf-spectcl-a8e7.log, session2241: isolated target-spectcl-opt1,
-  debug/overflow assertions on; tests wait for /tmp/perf-a8e7-server-finished.
+  build COMPLETE/zero warnings, debug/overflow assertions on; tests wait for /tmp/perf-a8e7-server-finished.
 
 Compiler filters use a private exact copy while the main command owns its
 original test binary. Server uses the /tmp/perf-a8e7-heavy-tests-finished

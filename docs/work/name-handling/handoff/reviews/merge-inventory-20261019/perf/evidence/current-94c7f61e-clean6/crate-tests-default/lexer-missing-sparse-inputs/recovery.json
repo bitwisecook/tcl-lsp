@@ -1,0 +1,11 @@
+{
+  "cause": "tracked registry oracle fixtures excluded by this older checkout sparse pattern; failed build executed zero tests and emitted zero warnings; no source or assertion change",
+  "materialized": {
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.5.19/execute.stdout": "589be99702f02813192d089246e3bb9866f1a956fc3f300b955de23431802760",
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/9.0.4/execute.stdout": "168aee78d1306246c2546e08039545a63023631c1930e810dabac478be63c4fd",
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/9.1.0/execute.stdout": "c0a1c2f394174ba3063fda30a2f22a87b1bd33b081f7339a2e917191a621c836",
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.4.20/execute.stdout": "dc2c4cf4327dd335615b52863e29cb37ffe487f76a73b20e695430a8af5fb1d3",
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/jim/execute.stdout": "94b1067b61b60faabf341c59e74fc3d2159d0162ce08432189d4ea88f97422f1",
+    "rust/tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.6.18/execute.stdout": "1f4add2260851c0ab7dd4d7dc85f32f32089b0f66aabff8f13e5b0e10f7c92bc"
+  }
+}

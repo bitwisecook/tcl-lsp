@@ -1,0 +1,2 @@
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lexer)
+error: could not compile `tcl-lexer` (lib test) due to 6 previous errors

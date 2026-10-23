@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 13:34 UTC
+Last updated: 2026-10-23 13:53 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -177,3 +177,14 @@ The source_graph.rs byte-slice test typing correction is pushed separately as
 compiler retry now includes this exact test-only diff; its fresh receipts
 will be current-a8e7bc7a-test-slice/. Default0 server and opt1 SpecTcl builds
 continue independently. Neither patch is semantically proven or accepted.
+
+Current94c7f61e clean-six snapshot: exactly six files, no switch, all117
+fixture bytes match baseline; lexer586/586 PASS in both environment executions
+with zero warnings and executable cleanup. The variable has no effect in
+this no-switch build; the independent a8 switched lexer comparison also
+passes586/586 BOTH. Initial missing sparse oracle input failures are archived,
+then exact tracked captures restored. Clean-six metadata/compiler-filter
+checks continue. Both split patches are unchanged byte for byte on94c7f61e;
+ordered apply/snapshot/fmt checks pass. Neither is semantically proven.
+The a8 server default0 and SpecTcl opt1 binaries have completed zero-warning
+builds and wait for quiet resources; no runtime verdict is claimed.

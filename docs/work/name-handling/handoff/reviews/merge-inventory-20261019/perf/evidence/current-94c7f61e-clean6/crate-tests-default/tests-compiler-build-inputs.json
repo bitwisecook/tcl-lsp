@@ -1,0 +1,7 @@
+{
+  "head": "94c7f61e86aa95cb4f403d2da129812026d89682",
+  "rust_diff_sha256": "dcf5f9d59ca71096917d01fa0a17b3e8532760b35b867528efbcd05c6f5ea3ab",
+  "profile": "test opt-level=0 debug=0 incremental=0; debug/overflow assertions enabled",
+  "target_dir": "/workspace/tcl-lsp-owned/target",
+  "server_timeout_seconds_both_modes": 180
+}
