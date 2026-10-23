@@ -3287,7 +3287,6 @@ fn semantic_operation_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// one `member` row per member — each with its `-effect`, and a wrapper's
 /// `-shift` — one `member_option` row per accepted optional word, and the
 /// object-model rows a class family declares.
-#[allow(clippy::too_many_lines)]
 fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     let Some(value) = draft
         .get("definition_body")
@@ -3356,50 +3355,7 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         body.row(&row, "-detail");
     }
     list_row(&mut body, &mut lost, value, "builtin_terminating_methods");
-    for command in as_array(&value["member_body_commands"]) {
-        let mut row = vec![
-            "member_body_command".to_owned(),
-            name_word(str_of(&command["name"])),
-        ];
-        push_flag(
-            &mut row,
-            &mut lost,
-            "-detail",
-            braced(str_of(&command["detail"])),
-        );
-        if let Some(expr) = command["binds_handle"].as_str() {
-            push_flag(
-                &mut row,
-                &mut lost,
-                "-binds-handle",
-                binds_handle_word(expr),
-            );
-        }
-        body.row(&row, "-binds-handle");
-    }
-    if value["bare_word_construction"].as_bool() == Some(true) {
-        let mut row = vec!["bare_word_construction".to_owned()];
-        if let Some(hint) = value
-            .get("bare_word_construction_source_hint")
-            .filter(|hint| !hint.is_null())
-        {
-            for (key, flag) in [("values", "-hint-values"), ("prefixes", "-hint-prefixes")] {
-                row.push(flag.to_owned());
-                let values = as_array(&hint[key]);
-                let rendered: Option<Vec<_>> = values
-                    .iter()
-                    .map(|value| value.as_str().and_then(word))
-                    .collect();
-                if let Some(values) = rendered {
-                    row.push(format!("{{{}}}", values.join(" ")));
-                } else {
-                    lost = true;
-                    row.push("{}".to_owned());
-                }
-            }
-        }
-        body.row(&row, "");
-    }
+    definition_body_command_rows(&mut body, &mut lost, value);
     if value["dynamic_method_dispatch"].as_bool() == Some(true) {
         body.line("dynamic_method_dispatch");
     }
@@ -3419,6 +3375,48 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.line("definition_body {");
     out.block(&body);
     out.line("}");
+}
+
+fn definition_body_command_rows(body: &mut Out, lost: &mut bool, value: &Value) {
+    for command in as_array(&value["member_body_commands"]) {
+        let mut row = vec![
+            "member_body_command".to_owned(),
+            name_word(str_of(&command["name"])),
+        ];
+        push_flag(
+            &mut row,
+            lost,
+            "-detail",
+            braced(str_of(&command["detail"])),
+        );
+        if let Some(expr) = command["binds_handle"].as_str() {
+            push_flag(&mut row, lost, "-binds-handle", binds_handle_word(expr));
+        }
+        body.row(&row, "-binds-handle");
+    }
+    if value["bare_word_construction"].as_bool() == Some(true) {
+        let mut row = vec!["bare_word_construction".to_owned()];
+        if let Some(hint) = value
+            .get("bare_word_construction_source_hint")
+            .filter(|hint| !hint.is_null())
+        {
+            for (key, flag) in [("values", "-hint-values"), ("prefixes", "-hint-prefixes")] {
+                row.push(flag.to_owned());
+                let values = as_array(&hint[key]);
+                let rendered: Option<Vec<_>> = values
+                    .iter()
+                    .map(|value| value.as_str().and_then(word))
+                    .collect();
+                if let Some(values) = rendered {
+                    row.push(format!("{{{}}}", values.join(" ")));
+                } else {
+                    *lost = true;
+                    row.push("{}".to_owned());
+                }
+            }
+        }
+        body.row(&row, "");
+    }
 }
 
 /// A `KEY {word …}` row for a non-empty name list of a definition body.
