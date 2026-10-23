@@ -273,6 +273,7 @@ enum OriginalNativeProcedureRecipe {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OriginalNativeProcedureReadFlow {
+    analysis_owner: std::sync::Arc<super::OriginalSourceAnalysisOwner>,
     declaration: super::declaration_preview::DeclaredProcedureBody,
     read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
 }
@@ -375,7 +376,7 @@ impl OriginalNativeProcedureBody {
     ) -> bool {
         matches!(&self.recipe, OriginalNativeProcedureRecipe::Source(source) if std::sync::Arc::ptr_eq(source, declaration))
     }
-    /// Original read-flow geometry only; the caller retains current body membership.
+    /// Original read-flow syntax and analysis owner; the caller retains current body membership.
     pub(crate) fn owns_original_read_tokens(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -397,6 +398,11 @@ impl OriginalNativeProcedureBody {
         self.matches_source(self.site().source.source_image(), input, registry)
             .then_some(())?;
         let binding = tokens.source_binding.as_ref()?;
+        std::sync::Arc::ptr_eq(
+            binding.original_analysis_owner.as_ref()?,
+            &flow.analysis_owner,
+        )
+        .then_some(())?;
         binding.original_invocation_metadata_for_input(tokens, input, registry)?;
         let site = binding.invocation_site()?;
         let (command, original) = binding.original_recorded_command()?;
@@ -543,6 +549,8 @@ impl SourceCommandBindings {
                 if &site.source != origin {
                     return None;
                 }
+                let analysis_owner = self.original_analysis_owner()?;
+                analysis_owner.matches(self, input).then_some(())?;
                 let declaration = self.original_declared_procedure_at(site, registry)?;
                 declaration.original_parameters.as_ref()?;
                 let binding = self.invocation_at_source("", site.offset);
@@ -556,6 +564,7 @@ impl SourceCommandBindings {
                 let card = OriginalNativeProcedureBody {
                     recipe: OriginalNativeProcedureRecipe::ReadFlow(Box::new(
                         OriginalNativeProcedureReadFlow {
+                            analysis_owner: std::sync::Arc::clone(analysis_owner),
                             declaration,
                             read_flow,
                         },
