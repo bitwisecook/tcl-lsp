@@ -7884,6 +7884,13 @@ fn assemble_ssa_blocks(
     ssa_blocks
 }
 
+type StatementSourceMayMaps<'a> = (
+    &'a mut HashMap<Symbol, Version>,
+    &'a mut HashSet<Symbol>,
+    &'a mut HashSet<Symbol>,
+    &'a mut HashMap<Symbol, Version>,
+);
+
 /// Mutable state threaded through the dominator-tree rename walk: the live
 /// version stacks / counters keyed by variable identity, the use-scanner and
 /// name interner, and the accumulated per-block [`RenameOutputs`].
@@ -8449,12 +8456,7 @@ impl<'a> RenameWalk<'a> {
         frame: &mut RenameFrame,
         registry: &CommandRegistry,
         index: usize,
-        (uses_map, quoted_uses, may_defs, defs_map): (
-            &mut HashMap<Symbol, Version>,
-            &mut HashSet<Symbol>,
-            &mut HashSet<Symbol>,
-            &mut HashMap<Symbol, Version>,
-        ),
+        (uses_map, quoted_uses, may_defs, defs_map): StatementSourceMayMaps<'_>,
     ) {
         if self
             .metadata

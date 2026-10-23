@@ -246,7 +246,7 @@ impl SourceFreshProcedureTraceAbsence {
             && state
                 .ordinary_literal_pool
                 .as_ref()
-                .is_some_and(|pool| pool.effects_current())
+                .is_some_and(super::literal_object_pool::SourceOrdinaryLiteralPool::effects_current)
             && self
                 .entry
                 .empty_literal_world
