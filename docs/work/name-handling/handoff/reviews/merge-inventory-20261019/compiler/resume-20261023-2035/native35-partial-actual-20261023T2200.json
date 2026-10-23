@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T21:58:41.004231+00:00",
+  "actual_assessment": "/tmp/compiler-original61-40027200925/assessment.json",
+  "assessment_sha256": "bc4ec9714b4e036c61f2a3c3654ef91893f9cb2d7b58103da9e3c780e478f067",
+  "source": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "original58": {
+    "PASS": 44,
+    "FAIL": 6,
+    "capture_interrupted": 1,
+    "UNRUN": 7
+  },
+  "separate_native35": {
+    "UNRUN": 3
+  },
+  "current_native35_private_stage": "UNRUN; original58 case50 exhausted aggregate log budget before supplements. No invented capture result.",
+  "external_perf_first_refusal": "Actual empty Allocated OriginalDeclaration body, owns=true duplicate=false emptyspan. Current push Installed helper excludes this role by purpose. Separate full-current-original-card admission candidate remains external diagnostic-only/unaccepted.",
+  "no_production_carrier_change": true,
+  "no_guard_or_assertion_relaxation": true,
+  "full229_performance": "Incomplete, both original1000depth resourcefailures preserved. No accepted perf result."
+}

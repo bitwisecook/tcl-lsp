@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T22:28:08.923519+00:00",
+  "scheduled_report_utc": "2026-10-23T22:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T22:55:37+00:00",
+  "change_since_previous_report": [
+    "Published reviewed functional and mechanical cohort WORK2aa5346904f477e09bdc4b05a03adcd3e8b549ae and clean c67c04c9c8a094cb87d563216a0a9f40bc1b9e76 at22:15; depth1fetch/rebase preserved external0a8b8da65. No PR/merge/tag/publish.",
+    "Six exact2aa hosted runs dispatched: startup40032445657, fullTom40032449490, Jim40032452785, compiler40032455876, Spec40032459416, scopedClippy40032463145. Source/testing outcomes remain mode-specific; no success inferred from static reviews.",
+    "Actual2aa startup artifact12535862876 ZIP6348a01f6e4eafc57070682c8d7e3ebf08295446eb5308cc64a576aa07ff7e60 strict build101 after156s: generated_procedures.rs407 E0609 command.words unavailable on SegmentedCommand. No selected server/cases/workers; scan stages and Context UNREACHED. Compiler63 actual ZIPdd116776 also same compiler build blocker/all58+3+2UNRUN/no ELF. Compiler owns narrow real-span fix, codegen coordinates; no run-time verdict.",
+    "Integrated independently reviewed functional O129v6 plus ReadFlowv2 authentic retained source/body/card owner correction, uncached Jim family-core projectionV3, typed DB overlay2, Core10 helper extractions, metadata1/diagnostics borrowed helper. Existing guards/assertions remain, all require fresh actual validation. No claim new source passes.",
+    "Integrated WORK-only opt-in scan stages, dedicated append constructor stages V2, Jim issuer/body V2, compiler bounded-table-trace protocol V5 and separate Native3/SH2 groups. No observers/protocol/evidence carried to release. Original ALL10, original58,1035rows/180s/30s barriers and assertions preserved.",
+    "NativeNormaladapterV5 received independent deep staticCLEAR6f4a6f840334e240ed50a8e0ac7fa4080bd86ee63786d94dc4ba38e31be970f8. Explicit original AnalysisBody/currentSSApoint/canonicalreceiver/bodycard joins, actual target/handler/normal arguments and existing effect-free evaluator required. Not integrated yet; new native_normal_store target must be explicit. Potential quadratic scan risk remains no corpus-performance proof.",
+    "Earlier full scoped696 census139unique remains last actual lint verdict: Core14 length, DB2overlay assertions, Server78largefuture44length1borrow. Static repair counts are not validated reductions. LSP Core4 proposal frozen pending peer. Earlier Spec8P3F/11, Jim3P4F/7 and compiler58partial44P6F1cap7UNRUN remain recorded actual execution outcomes.",
+    "External perf22:00 update0a8 preserved: mixed102101Equal1Unavailable, emptyAllocated declaration reportcandidateunproven. Original resource failures remain failed; isolation recovery227nondeep BOTH identical zeroP2F, unchanged1000deep running. No production perf patch proven/forwarded. Full Tclperformance acceptance and complete24312baselinePASSjoin remain open; dedicated iRulesperformance alone waived.",
+    "Release prior scoped11012path process scan zero known refs remains bounded, full semantic documentation/comments/chaff audit and allformat/rust-check/prep-pr/fullCI/sectionF not complete. Runtimeformat previousPASS, wholeformat previousINCOMPLETE. BothFSbelow2GiB no builds/targetdeletions/young-executabledeletions. BIGIP13:17 header remains >60minstale/usernotified, completedreviewtriage no takeover. Numeric fixture and Instructionflag questions still pending."
+  ],
+  "committed": [
+    "d0aac830787fea021163ceb13c1fadae780901e0"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish22:25 WIP/report and rearm22:55 reminder.",
+    "Repair real shared SegmentedCommand span compile blocker WORKfirst/CLEAN; then NativeV5 and explicit new-target validation.",
+    "Authenticate current six results; preserve originals, actual FAIL/UNRUN/UNKNOWN and all guards.",
+    "Fix actual compiler/Jim/Spec/runtime/startup/lint failures, finish broadCI/native/browser/WASI/editor/sectionF and fullbaseline comparison.",
+    "Finish accepted Tclcorpus performance and releaseformat/docs/comments/chaffaudit before cleanPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 22:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "New actual build FAIL/UNRUN recorded, no admissions or verified count advance. Fresh current source execution/performance/fullbaseline gates remain open.",
+  "disk_free_bytes": 1961291776,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

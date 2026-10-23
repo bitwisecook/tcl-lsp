@@ -2,24 +2,35 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T21:40:52.831487+00:00
+Last updated: 2026-10-23T22:18:40.721623+00:00
 
 ## Resume
 
-APPEND constructor-stage diagnostics frozen WORK-only, pending independent Names
-peer/root integration: /tmp/vm-runtime-constructor-stage-diagnostics-v1/, patch
-2c6c90f1a2d544097ba5709812cf30b5165358d0dfb8e1a220f444e50aec66ef,
-manifest9a692286b12b1dd0399208b33de85453373e6da3e184d30c91d28ea29bf9037b,
-exact bb1b9e0d Git beforepins. cfg(test) Rust Instant stages host/bootstrap/
-identity sweep/profile install; existingflag runtime-constructor-v1 onlyfocused
-and explicit originalappend-test TLS scope. Numeric/publicC do not envread/clock/
-log. First8/every32 invocation perkind;1024lines+one truncationmarker; timings
-include observeroverhead/nested overlap and are NOT performanceacceptance.
-AlloriginalInterp nonemptylines retainedinorder; oneappendactivationinverseexact;
-1035freshconstructors/default/filters/assertions180s unchanged. Copyboth0fuzz/
-nooffset/exactfinal,fmt2021/YAMLotherjobs/bash/whitespacePASS. UNCOMPILED/UNRUN;
-no localbuild/newCcallback/oracle/cache/provider/guard/assertion changes; no clean
-carry. Authorreview.json mapsstages/limits; root alone builds/dispatches.
+APPEND constructor-stage diagnostics V2 root independent STATICCLEAR4d7c250d,
+WORK-integrated/pushed2aa5346904f477e09bdc4b05a03adcd3e8b549ae: /tmp/vm-runtime-constructor-stage-diagnostics-v2/, patch
+20ff1c09a6ed6cd7ecc21f8c1a741043e9a46c9d69ed5ee40a292df4ac9c4f5c,
+manifest3b763776b7b1796a5c5035f8875f63c8a8e9fada57e679c39fc8d21fb2f606e3,
+exact70e27ad Git beforepins3b3f/56e4/30ee. Dedicated private cfg(test) flag
+TCL_LSP_RUNTIME_CONSTRUCTOR_DIAGNOSTIC=1 read only AppendScope::enter at original
+append-test entry; focused workflow exports only this flag. Existing Native
+Admission flag stays unset as before. V1 immutable HELD: reusing its existing
+flag would change unrelated first-decline env reads Err→Ok(Stringallocation),
+including errno-sensitive numeric paths. V2 sole successor changes helper flag/
+value+fmt and focusedexport; hooks/TLS/sampling/stages/allassertions unchanged.
+Rust Instant stages host/bootstrap/identity sweep/profile install, first8/every32
+perkind,1024lines+one truncationmarker. Timings include observeroverhead/nested
+overlap and are NOT performanceacceptance. AlloriginalInterp nonemptylines stay
+inorder; append body singleactivationinverseexact;1035fresh/default/filters/
+assertions180s unchanged. Copyboth0/nooffset/exact,fmt2021/YAMLotherjobs/bash/
+whitespacePASS. Successor-review2785d9d2. UNCOMPILED/UNRUN; no localbuild/Ccallback/
+oracle/cache/provider/guard/assertion changes; no clean carry. Root alone builds/
+dispatches. NEW actual runtime focused run40032449490/job120683752715 on exact2aa,
+created22:15:43, API22:18:21 inprogress checkout, no outcome/artifact yet. Parent
+confirms focused input despite shared jobname runtime-fulltom-diagnostics. Own
+read-only monitor and ZIP-only fullguard/3outcome/appendstage classification.
+Timing parser /tmp/vm-analyse-constructor-stage-timings-v1.py SHA11b1cd964db7c4697ced029a0edae2d5d50600c41d07903b284b8d7e8daa46a9;
+post-hoc Rustmarker analysis only, no native process/build. All previous actual
+failures retained until this new run closes; numeric policy USERPENDING unchanged.
 
 Root alone owns Git, Cargo, GO, product integration, release carry and dispatch.
 This role prepares exact-blob off-tree proposals and read-only evidence. No local
