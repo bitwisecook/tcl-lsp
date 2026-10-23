@@ -546,6 +546,58 @@ mod event_function_owner_tests {
         )
     }
 
+    #[test]
+    fn genuine_rule_loader_events_retain_only_their_current_original_operands() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source = "when HTTP_REQUEST {}; when CLIENT_ACCEPTED {}";
+        let unit = build_unit(source, context.clone());
+        let module = &unit.ir_module;
+        assert_eq!(module.irules_event_bodies.len(), 2);
+        assert!(module.source_entry.native_entry.is_none());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let stale = tcl_lexer::SourceImage::from_bytes(b"changed source", module.source.channel());
+        let changed_config = tcl_lexer::LexerConfig {
+            strict_quoting: !module.lexer_config.strict_quoting,
+            ..module.lexer_config
+        };
+        for (id, procedure) in &module.procedures {
+            let event = event_body_for_procedure(module, id, procedure, context.commands())
+                .expect("genuine retained declaration body");
+            let word = event
+                .event_word(&module.source, module.lexer_config, context.commands())
+                .expect("original event operand is source geometry");
+            assert_eq!(
+                module.source.bytes().get(word.span().as_range()),
+                Some(event.event().as_bytes())
+            );
+            assert!(
+                event
+                    .event_word(&stale, module.lexer_config, context.commands())
+                    .is_none()
+            );
+            assert!(
+                event
+                    .event_word(&module.source, changed_config, context.commands())
+                    .is_none()
+            );
+            assert!(
+                event
+                    .event_word(&module.source, module.lexer_config, foreign.commands())
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn shadowed_event_command_cannot_borrow_the_registry_event_operand() {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let unit = build_unit("proc when args {}; when HTTP_REQUEST {}", context);
+        assert!(unit.ir_module.irules_event_bodies.is_empty());
+    }
+
     fn ordinary_reporting_name_diagnostics(body: &str) -> Vec<crate::analyser::types::Diagnostic> {
         let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
             .default_context_registry();

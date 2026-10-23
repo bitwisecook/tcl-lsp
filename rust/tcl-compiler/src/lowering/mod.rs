@@ -4805,25 +4805,50 @@ impl<'r> Lowerer<'r> {
                 .source_analysis_input()
                 .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
         {
-            let metadata = Self::trace_report_event_option(
-                crate::registry_invocation::original_hosted_source_registry_metadata(
-                    self.registry,
-                    context,
-                    &tokens,
-                ),
-                "hosted-metadata",
-            )?;
-            if metadata.shape().original_words() != words.as_slice()
-                || !candidates
-                    .iter()
-                    .any(|candidate| candidate.target.command == metadata.shape().command())
+            let input = context.source_analysis_input()?;
+            let owner = bindings.original_analysis_owner()?;
+            let root = bindings.source_origin()?;
+            let binding = tokens.source_binding.as_ref()?;
+            let site = binding.invocation_site()?;
+            if tokens.synthetic.is_some()
+                || !tokens.original_words_match_argv_text()
+                || words.iter().any(|word| word.group().expand)
+                || site.offset != seg.span.start()
+                || !std::sync::Arc::ptr_eq(&site.source, root)
+                || !owner.matches(bindings, input)
+                || bindings.source_origin()?.source_image() != image
+                || input.lexer_config() != self.config
+                || !context.matches_registry(self.registry)
+            {
+                return None;
+            }
+            // The retained declaration owns source geometry, not a current
+            // dispatch cell or installation of this event handler.
+            let policy = input.vendor_source_policy().or_else(|| {
+                let hosted = tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+                    &input.borrowed_context_registry().context().environment.id,
+                )?;
+                tcl_syntax::naming::VendorSourceNamePolicy::authored(hosted)
+            })?;
+            let head =
+                crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
+                    words.first()?,
+                    policy,
+                );
+            let written = std::str::from_utf8(
+                head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead)?,
+            )
+            .ok()?;
+            let command = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
+            if candidates
+                .iter()
+                .any(|candidate| candidate.target.command != command)
             {
                 return None;
             }
             let input =
                 crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
-                    word,
-                    metadata.shape().original_head().policy(),
+                    word, policy,
                 );
             let literal = Self::trace_report_event_option(
                 input.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName),
