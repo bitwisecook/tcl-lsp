@@ -1588,7 +1588,7 @@ fn selected_alias_layout(
 ) -> Option<(tcl_registry::frame_effect::FrameLevel, usize)> {
     use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution, FrameLevel};
     if let Some(layout) = view.conditional_parameter_source_alias_layout(selected) {
-        return layout;
+        return layout.into_option();
     }
     let namespace_alias = selected
         .facts

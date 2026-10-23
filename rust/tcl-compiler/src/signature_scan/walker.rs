@@ -112,29 +112,7 @@ pub(super) fn scan(
         }
         let original_words = ctx.original_command_words(&cmd).unwrap_or_default();
         let previous_words = std::mem::replace(&mut ctx.original_words, original_words);
-        // Argument count for cross-file arity (Task 6): words after the head, or
-        // `None` when any argument is `{*}`-expanded (runtime count unknown).
-        let arg_count = if cmd
-            .expand_word
-            .as_deref()
-            .unwrap_or(&[])
-            .iter()
-            .skip(1)
-            .copied()
-            .any(|e| e)
-        {
-            None
-        } else {
-            Some(cmd.argv.len().saturating_sub(1))
-        };
-        ctx.result
-            .command_invocations
-            .push(SignatureCommandInvocation {
-                original_name_input: ctx
-                    .original_name_key(cmd.argv[0].span)
-                    .map(super::scope::SignatureSourceNameInput::OriginalWord),
-                ..SignatureCommandInvocation::written(head.to_owned(), cmd.argv[0].span, arg_count)
-            });
+        record_written_command_invocation(&cmd, head, ctx);
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
         // feed find-references / call-hierarchy / usage counts / callback
@@ -187,25 +165,53 @@ pub(super) fn scan(
                 )
             });
         if !handled && !definer {
-            if let Some(namespace) = ctx
-                .current_namespace(ns_prefix)
-                .and_then(|scope| scope.source_spelling(ctx.name_policy()))
-            {
-                handlers::maybe_handle_import_wrapper(
-                    head,
-                    texts,
-                    argv,
-                    &namespace,
-                    &mut ctx.result,
-                );
-            }
-            handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+            record_unhandled_command(head, texts, argv, ns_prefix, ctx);
         }
         ctx.original_words = previous_words;
     }
     if owns_image {
         ctx.original_image = None;
     }
+}
+
+fn record_unhandled_command(
+    head: &str,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx<'_>,
+) {
+    if let Some(namespace) = ctx
+        .current_namespace(ns_prefix)
+        .and_then(|scope| scope.source_spelling(ctx.name_policy()))
+    {
+        handlers::maybe_handle_import_wrapper(head, texts, argv, &namespace, &mut ctx.result);
+    }
+    handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+}
+
+fn record_written_command_invocation(cmd: &SegmentedCommand, head: &str, ctx: &mut ScanCtx<'_>) {
+    let arg_count = if cmd
+        .expand_word
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .skip(1)
+        .copied()
+        .any(|expanded| expanded)
+    {
+        None
+    } else {
+        Some(cmd.argv.len().saturating_sub(1))
+    };
+    ctx.result
+        .command_invocations
+        .push(SignatureCommandInvocation {
+            original_name_input: ctx
+                .original_name_key(cmd.argv[0].span)
+                .map(super::scope::SignatureSourceNameInput::OriginalWord),
+            ..SignatureCommandInvocation::written(head.to_owned(), cmd.argv[0].span, arg_count)
+        });
 }
 
 fn record_selected_alias(

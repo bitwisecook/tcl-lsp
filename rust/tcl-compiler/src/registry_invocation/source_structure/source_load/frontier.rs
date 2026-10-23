@@ -24,8 +24,8 @@ pub enum OriginalProjectSourceFrontier {
 /// Physical publication, path selection and child input remain host obligations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalProjectSourceCurrentCut {
-    load: OriginalProjectSourceLoad,
-    kernel: crate::command_binding::OriginalSourceFiniteCut,
+    load: Box<OriginalProjectSourceLoad>,
+    kernel: Box<crate::command_binding::OriginalSourceFiniteCut>,
     region: Option<crate::command_binding::OriginalSourceConditionalRegion>,
 }
 impl OriginalProjectSourceCurrentCut {
@@ -165,8 +165,8 @@ impl OriginalProjectSourceLoad {
             })
         {
             return OriginalProjectSourceFrontier::CurrentCut(OriginalProjectSourceCurrentCut {
-                load: self.clone(),
-                kernel,
+                load: Box::new(self.clone()),
+                kernel: Box::new(kernel),
                 region: parent.original_source_region.clone(),
             });
         }

@@ -6397,6 +6397,20 @@ struct ConditionalBodyInvocation {
     invocation: ResolvedStatementInvocation,
 }
 
+pub(crate) enum ConditionalParameterSourceAliasLayout {
+    Unavailable,
+    Available((tcl_registry::FrameLevel, usize)),
+}
+
+impl ConditionalParameterSourceAliasLayout {
+    pub(crate) fn into_option(self) -> Option<(tcl_registry::FrameLevel, usize)> {
+        match self {
+            Self::Unavailable => None,
+            Self::Available(layout) => Some(layout),
+        }
+    }
+}
+
 impl InvocationBodyAssistance {
     /// Conditional roles from the authentic enclosing Logical lambda source.
     /// This projection never populates ordinary parameter advice.
@@ -6639,12 +6653,12 @@ impl InvocationBodyAssistance {
     }
 
     /// Conditional source alias layout from the same retained Registry source
-    /// schema. Outer None means this is not that purpose; inner None preserves
-    /// an unavailable layout without falling through to Native success rules.
+    /// schema. None means this is not that purpose; Unavailable preserves a
+    /// missing layout without falling through to Native success rules.
     pub(crate) fn conditional_parameter_source_alias_layout(
         &self,
         selected: &ResolvedStatementInvocation,
-    ) -> Option<Option<(tcl_registry::FrameLevel, usize)>> {
+    ) -> Option<ConditionalParameterSourceAliasLayout> {
         let owned = self.conditional_parameter_source()?;
         std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected).then_some(())?;
         Some(
@@ -6677,7 +6691,11 @@ impl InvocationBodyAssistance {
                         | tcl_registry::frame_effect::FrameArgumentResolution::Invalid => None,
                     }
                 })
-                .flatten(),
+                .flatten()
+                .map_or(
+                    ConditionalParameterSourceAliasLayout::Unavailable,
+                    ConditionalParameterSourceAliasLayout::Available,
+                ),
         )
     }
 

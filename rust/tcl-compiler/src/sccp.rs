@@ -1097,6 +1097,30 @@ enum Solved {
     Contradicted(HashSet<BlockId>),
 }
 
+fn solve_grammar(trace: TraceInputs<'_>) -> tcl_dialect::LexerGrammar {
+    trace.source_metadata_input.map_or_else(
+        || {
+            trace
+                .registry
+                .profile()
+                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+        },
+        |input| input.unit_profile().grammar,
+    )
+}
+
+fn solve_lexer_config(trace: TraceInputs<'_>) -> tcl_lexer::LexerConfig {
+    trace.existence.map_or_else(
+        || {
+            trace.source_metadata_input.map_or_else(
+                || crate::dynamic_names::lexer_config_for(trace.registry),
+                crate::analyser::ResolvedAnalysisInput::lexer_config,
+            )
+        },
+        |entry| entry.config,
+    )
+}
+
 /// One run of the solver ([`sccp_with_builtin_folds`]).
 fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let SolveInputs {
@@ -1112,15 +1136,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let preds = compute_predecessors(cfg);
     let mut values = seeded_values(ssa, param_constants);
 
-    let grammar = trace.source_metadata_input.map_or_else(
-        || {
-            trace
-                .registry
-                .profile()
-                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
-        },
-        |input| input.unit_profile().grammar,
-    );
+    let grammar = solve_grammar(trace);
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
     let escaping = escaping_names(cfg, &trace, extra_escaping, inputs.module.owned);
@@ -1131,15 +1147,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     driver.catch_ends(cfg);
     // What every branch edge's condition proves, in every domain, read
     // under the document's grammar.
-    let config = trace.existence.map_or_else(
-        || {
-            trace.source_metadata_input.map_or_else(
-                || crate::dynamic_names::lexer_config_for(trace.registry),
-                crate::analyser::ResolvedAnalysisInput::lexer_config,
-            )
-        },
-        |entry| entry.config,
-    );
+    let config = solve_lexer_config(trace);
     let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.

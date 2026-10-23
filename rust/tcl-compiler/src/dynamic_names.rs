@@ -786,6 +786,120 @@ impl<'a> Commands<'a> {
     }
 }
 
+fn scan_call_with_tokens(
+    command: &str,
+    args: &[String],
+    tokens: &crate::ir::CommandTokens,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+    config: LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) {
+    if !commands.standalone && tokens.carries_proved_names() {
+        // A definition point whose producer proved every name it writes
+        // (`CommandTokens::carries_proved_names`): iteration bindings,
+        // `[…]` word effects, condition kill-sets, upvar invalidation and
+        // arm writes. It runs no command of its own; the commands that
+        // produce its effects are scanned at their own statements.
+        return;
+    }
+    if !commands.standalone
+        && tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+    {
+        // A structured command's argument evaluation: its own head and
+        // bodies are separate statements and phases, so what it can do
+        // to names is what its written words' substitutions do, read
+        // under the argument-evaluation word owner.
+        if tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_argument_lexer_config(tokens))
+            .is_none_or(|original| original.normalized() != config.normalized())
+        {
+            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            return;
+        }
+        scan_original_substitutions(tokens, commands, barrier, config);
+        return;
+    }
+    if !commands.standalone
+        && tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
+            .is_none_or(|original| original.normalized() != config.normalized())
+    {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    }
+    let names = crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+        commands.registry,
+        metadata,
+        tokens,
+    );
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        commands.registry,
+        metadata,
+        tokens,
+    );
+    if let Some(names) = &names {
+        scan_possible_variable_names(names, barrier);
+    }
+    if let Some(invocation) = &invocation {
+        scan_retained_name_effects(invocation, barrier);
+    }
+    if commands.standalone {
+        scan_standalone_template(command, args, tokens, commands, barrier, config);
+    } else {
+        if invocation.as_ref().is_some_and(|invocation| {
+            invocation
+                .facts
+                .traits
+                .contains(Traits::PERFORMS_SUBSTITUTION)
+        }) {
+            scan_materialized_names(tokens, commands, barrier);
+        }
+        if invocation.is_none()
+            && names.as_ref().is_none_or(
+                crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+            )
+        {
+            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        }
+    }
+    scan_original_substitutions(tokens, commands, barrier, config);
+}
+
+fn scan_standalone_template(
+    command: &str,
+    args: &[String],
+    tokens: &crate::ir::CommandTokens,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+    config: LexerConfig,
+) {
+    // Template plans are source advice; only explicit standalone scans reparse them.
+    let braced: Vec<bool> = (0..args.len())
+        .map(|index| tokens.arg_is_braced_literal(index))
+        .collect();
+    let head_dynamic = tokens
+        .argv_kinds
+        .first()
+        .is_some_and(|kind| matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd));
+    if !head_dynamic {
+        scan_command(
+            command,
+            &CommandWords {
+                args,
+                braced: Some(&braced),
+            },
+            commands,
+            barrier,
+            (0, config),
+        );
+    }
+}
+
 fn scan_call(
     command: &str,
     args: &[String],
@@ -800,100 +914,7 @@ fn scan_call(
     };
     let metadata = metadata.context();
     if let Some(tokens) = tokens {
-        if !commands.standalone && tokens.carries_proved_names() {
-            // A definition point whose producer proved every name it writes
-            // (`CommandTokens::carries_proved_names`): iteration bindings,
-            // `[…]` word effects, condition kill-sets, upvar invalidation and
-            // arm writes. It runs no command of its own; the commands that
-            // produce its effects are scanned at their own statements.
-            return;
-        }
-        if !commands.standalone
-            && tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
-        {
-            // A structured command's argument evaluation: its own head and
-            // bodies are separate statements and phases, so what it can do
-            // to names is what its written words' substitutions do, read
-            // under the argument-evaluation word owner.
-            if tokens
-                .source_binding
-                .as_ref()
-                .and_then(|binding| binding.original_argument_lexer_config(tokens))
-                .is_none_or(|original| original.normalized() != config.normalized())
-            {
-                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                return;
-            }
-            scan_original_substitutions(tokens, commands, barrier, config);
-            return;
-        }
-        if !commands.standalone
-            && tokens
-                .source_binding
-                .as_ref()
-                .and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
-                .is_none_or(|original| original.normalized() != config.normalized())
-        {
-            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-            return;
-        }
-        let names =
-            crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
-                commands.registry,
-                metadata,
-                tokens,
-            );
-        let invocation =
-            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
-                commands.registry,
-                metadata,
-                tokens,
-            );
-        if let Some(names) = &names {
-            scan_possible_variable_names(names, barrier);
-        }
-        if let Some(invocation) = &invocation {
-            scan_retained_name_effects(invocation, barrier);
-        }
-        if commands.standalone {
-            // The template plan is source advice, independent of strict
-            // reached handler facts. Only explicit standalone scans reparse it.
-            let braced: Vec<bool> = (0..args.len())
-                .map(|i| tokens.arg_is_braced_literal(i))
-                .collect();
-            let head_dynamic = tokens.argv_kinds.first().is_some_and(|kind| {
-                matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
-            });
-            if !head_dynamic {
-                scan_command(
-                    command,
-                    &CommandWords {
-                        args,
-                        braced: Some(&braced),
-                    },
-                    commands,
-                    barrier,
-                    (0, config),
-                );
-            }
-        } else {
-            if invocation.as_ref().is_some_and(|invocation| {
-                invocation
-                    .facts
-                    .traits
-                    .contains(Traits::PERFORMS_SUBSTITUTION)
-            }) {
-                scan_materialized_names(tokens, commands, barrier);
-            }
-            if invocation.is_none()
-                && names.as_ref().is_none_or(
-                    crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
-                )
-            {
-                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-            }
-        }
-        scan_original_substitutions(tokens, commands, barrier, config);
+        scan_call_with_tokens(command, args, tokens, commands, barrier, config, metadata);
     } else if commands.standalone {
         scan_command(
             command,

@@ -3261,34 +3261,7 @@ impl<'a> LatticeDriver<'a> {
         lattice: Lattice<'_, S1, S2>,
     ) -> Option<EmbeddedAnswer> {
         let original = self.original_expression_parent(&host.statement);
-        let ordered = match &host.statement {
-            Statement::AssignExpr {
-                expr,
-                command_binding,
-                expr_base,
-                ..
-            } => self.ordered_expression(
-                expr,
-                command_binding.as_ref(),
-                original.as_ref().zip(*expr_base),
-                lattice,
-            )?,
-            Statement::ExprEval {
-                expr,
-                command_binding,
-                expr_base,
-                ..
-            } => self.ordered_expression(
-                expr,
-                Some(command_binding),
-                original.as_ref().zip(*expr_base),
-                lattice,
-            )?,
-            Statement::AssignValue { value, .. } => {
-                self.ordered_script(value, &host.statement, lattice)?
-            }
-            _ => return None,
-        };
+        let ordered = self.ordered_embedded_host(&host.statement, original.as_ref(), lattice)?;
         let defs = named_defs(call, lattice.2);
         let outcomes = match ordered.answer {
             LiftedAnswer::Pending => {
@@ -3365,6 +3338,42 @@ impl<'a> LatticeDriver<'a> {
             call: joined?,
             host: DefValues::Each(value, folded),
             raised: None,
+        })
+    }
+
+    fn ordered_embedded_host<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        statement: &Statement,
+        original: Option<&CommandTokens>,
+        lattice: Lattice<'_, S1, S2>,
+    ) -> Option<Ordered> {
+        Some(match statement {
+            Statement::AssignExpr {
+                expr,
+                command_binding,
+                expr_base,
+                ..
+            } => self.ordered_expression(
+                expr,
+                command_binding.as_ref(),
+                original.zip(*expr_base),
+                lattice,
+            )?,
+            Statement::ExprEval {
+                expr,
+                command_binding,
+                expr_base,
+                ..
+            } => self.ordered_expression(
+                expr,
+                Some(command_binding),
+                original.zip(*expr_base),
+                lattice,
+            )?,
+            Statement::AssignValue { value, .. } => {
+                self.ordered_script(value, statement, lattice)?
+            }
+            _ => return None,
         })
     }
 
@@ -3904,8 +3913,13 @@ impl<'a> LatticeDriver<'a> {
         let Some(items) = elements.filter(|items| !items.is_empty()) else {
             return (Vec::new(), existence);
         };
+        let bound = Self::loop_binder_values(&binders, &items);
+        (bound, existence)
+    }
+
+    fn loop_binder_values(binders: &[&str], items: &[String]) -> Vec<(String, LatticeValue)> {
         let stride = binders.len();
-        let bound = binders
+        binders
             .iter()
             .enumerate()
             .map(|(at, name)| {
@@ -3929,8 +3943,7 @@ impl<'a> LatticeDriver<'a> {
                 };
                 ((*name).to_owned(), value)
             })
-            .collect();
-        (bound, existence)
+            .collect()
     }
 
     /// A call in its source layout, its arguments read as source words: the

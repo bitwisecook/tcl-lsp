@@ -1016,14 +1016,21 @@ pub(super) fn select_invocation(
             &mut result,
         );
     }
+    finish_compiler_invocation_selection(&mut result, closed_singleton);
+    result
+}
+
+fn finish_compiler_invocation_selection(
+    result: &mut CompiledInvocationSelection,
+    closed_singleton: bool,
+) {
     if !closed_singleton {
         result.operand_layout = None;
         result.namespace_bindings = None;
         result.switch = None;
         result.admitted = None;
     }
-    close_execution_certainty(&mut result);
-    result
+    close_execution_certainty(result);
 }
 
 fn initial_compilation_selection(

@@ -160,12 +160,7 @@ fn runs_a_command_by_name(
             amount,
             amount_braced,
             ..
-        } => {
-            !amount_braced
-                && amount
-                    .as_deref()
-                    .is_some_and(|amount| substitutes(amount, config))
-        }
+        } => increment_substitutes(amount.as_deref(), *amount_braced, config),
         Statement::Call {
             command,
             args,
@@ -179,15 +174,7 @@ fn runs_a_command_by_name(
             expr,
             braced,
             ..
-        } => match expr {
-            Some(expr) => expression_substitutes(expr, config, 0),
-            None => {
-                !braced
-                    && value
-                        .as_deref()
-                        .is_some_and(|value| substitutes(value, config))
-            }
-        },
+        } => return_substitutes(value.as_deref(), expr.as_ref(), *braced, config),
         Statement::Block { body, .. } | Statement::Catch { body, .. } => {
             script_substitutes(body, heads, config, next)
         }
@@ -247,24 +234,52 @@ fn runs_a_command_by_name(
             arms,
             default_body,
             ..
-        } => {
-            (!subject_braced && substitutes(subject, config))
-                || arms.iter().any(|arm| {
-                    (!arm.pattern_braced && substitutes(&arm.pattern, config))
-                        || arm
-                            .body
-                            .as_ref()
-                            .is_some_and(|body| script_substitutes(body, heads, config, next))
-                })
-                || default_body
-                    .as_ref()
-                    .is_some_and(|body| script_substitutes(body, heads, config, next))
-        }
+        } => switch_substitutes(
+            subject,
+            *subject_braced,
+            arms,
+            default_body.as_ref(),
+            (heads, config, next),
+        ),
         // Neither is read by the inliner's eligibility; a body with one is not spelled.
         Statement::UpFrame { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
             true
         }
     }
+}
+
+fn increment_substitutes(amount: Option<&str>, amount_braced: bool, config: LexerConfig) -> bool {
+    !amount_braced && amount.is_some_and(|amount| substitutes(amount, config))
+}
+
+fn return_substitutes(
+    value: Option<&str>,
+    expr: Option<&ExprNode>,
+    braced: bool,
+    config: LexerConfig,
+) -> bool {
+    match expr {
+        Some(expr) => expression_substitutes(expr, config, 0),
+        None => !braced && value.is_some_and(|value| substitutes(value, config)),
+    }
+}
+
+fn switch_substitutes(
+    subject: &str,
+    subject_braced: bool,
+    arms: &[crate::ir::SwitchArm],
+    default_body: Option<&Script>,
+    (heads, config, next): (bool, LexerConfig, u32),
+) -> bool {
+    (!subject_braced && substitutes(subject, config))
+        || arms.iter().any(|arm| {
+            (!arm.pattern_braced && substitutes(&arm.pattern, config))
+                || arm
+                    .body
+                    .as_ref()
+                    .is_some_and(|body| script_substitutes(body, heads, config, next))
+        })
+        || default_body.is_some_and(|body| script_substitutes(body, heads, config, next))
 }
 
 fn rooted_script(script: &mut Script, depth: u32) {

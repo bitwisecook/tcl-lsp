@@ -1203,60 +1203,76 @@ fn record_invocation_body_evidence(
         return;
     };
     for body in bodies {
-        let Some(commands) = body.original_commands(&context) else {
+        record_nested_body_invocation_evidence(out, ctx, caller, tokens, &body, &context, depth);
+    }
+}
+
+fn record_nested_body_invocation_evidence(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+    caller: &CallerFrame<'_>,
+    tokens: &crate::ir::CommandTokens,
+    body: &crate::registry_invocation::OriginalSourceScriptBody,
+    context: &tcl_registry::model::ContextRegistry,
+    depth: u32,
+) {
+    let Some(commands) = body.original_commands(context) else {
+        record_unenumerable_targets(out, ctx);
+        return;
+    };
+    for command in commands {
+        let Some(binding) = unique_nested_binding(tokens, command.span.start()) else {
             record_unenumerable_targets(out, ctx);
             continue;
         };
-        for command in commands {
-            let mut children = tokens
-                .nested_bindings
-                .iter()
-                .filter(|(offset, _)| *offset == command.span.start())
-                .map(|(_, binding)| binding);
-            let Some(binding) = children.next() else {
-                record_unenumerable_targets(out, ctx);
-                continue;
-            };
-            if children.any(|other| other != binding) {
-                record_unenumerable_targets(out, ctx);
-                continue;
-            }
-            let Some(site) = binding.invocation_site() else {
-                record_unenumerable_targets(out, ctx);
-                continue;
-            };
-            let Some((segment, mut original)) = binding.original_recorded_command() else {
-                record_unenumerable_targets(out, ctx);
-                continue;
-            };
-            let config = binding.original_lexer_config_for_tokens(&original);
-            if site.offset != command.span.start()
-                || site.source.source_image() != body.original_container().image()
-                || config != Some(body.original_container().config())
-                || crate::registry_invocation::original_native_compiler_words(
-                    site.source.source_image(),
-                    original.words(),
-                    site.offset,
-                    body.original_container().config(),
-                )
-                .as_deref()
-                    != Some(command.words.as_slice())
-            {
-                record_unenumerable_targets(out, ctx);
-                continue;
-            }
-            original.inherit_nested_bindings(tokens);
-            record_call_site_evidence(
-                out,
-                ctx,
-                caller,
-                segment.name(),
-                segment.args(),
-                Some(&original),
-                depth + 1,
-            );
+        let Some(site) = binding.invocation_site() else {
+            record_unenumerable_targets(out, ctx);
+            continue;
+        };
+        let Some((segment, mut original)) = binding.original_recorded_command() else {
+            record_unenumerable_targets(out, ctx);
+            continue;
+        };
+        let config = binding.original_lexer_config_for_tokens(&original);
+        if site.offset != command.span.start()
+            || site.source.source_image() != body.original_container().image()
+            || config != Some(body.original_container().config())
+            || crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                original.words(),
+                site.offset,
+                body.original_container().config(),
+            )
+            .as_deref()
+                != Some(command.words.as_slice())
+        {
+            record_unenumerable_targets(out, ctx);
+            continue;
         }
+        original.inherit_nested_bindings(tokens);
+        record_call_site_evidence(
+            out,
+            ctx,
+            caller,
+            segment.name(),
+            segment.args(),
+            Some(&original),
+            depth + 1,
+        );
     }
+}
+
+fn unique_nested_binding(
+    tokens: &crate::ir::CommandTokens,
+    offset: u32,
+) -> Option<&crate::command_binding::SourceInvocationBinding> {
+    let mut children = tokens
+        .nested_bindings
+        .iter()
+        .filter(|(nested_offset, _)| *nested_offset == offset)
+        .map(|(_, binding)| binding);
+    let binding = children.next()?;
+    children.all(|other| other == binding).then_some(binding)
 }
 
 /// Scalar lexical compatibility under independently explicit Standalone ownership.
@@ -2213,81 +2229,97 @@ fn collect_original_scope_var_facts(
                 out.cross_frame_write = true;
                 continue;
             };
-            match stmt {
-                Statement::AssignConst { name, value, .. } => {
-                    out.note_assignment(name, Some(value));
-                }
-                Statement::AssignValue {
-                    name,
-                    value,
-                    value_needs_backsubst,
-                    ..
-                } => {
-                    let value = (!*value_needs_backsubst && !is_dynamic_word(value))
-                        .then_some(value.as_str());
-                    out.note_assignment(name, value);
-                }
-                Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
-                    out.note_write_word(name);
-                }
-                Statement::UpFrame { .. } => out.cross_frame_write = true,
-                Statement::Call { .. } | Statement::Barrier { .. } => {
-                    let Some(words) = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(identities, input, tokens) else {
-                        out.dynamic_name_write = true;
-                        out.cross_frame_write = true;
-                        continue;
-                    };
-                    let context = input.context_registry();
-                    let selected = words
-                        .with_source_schema(&context, |schema| {
-                            let (_, complete) = schema.authored_source_argument_roles();
-                            complete.then(|| {
-                                (
-                                    schema.authored_source_variable_name_arguments(),
-                                    schema.semantics.traits,
-                                )
-                            })
-                        })
-                        .flatten();
-                    let Some((roles, traits)) = selected else {
-                        out.dynamic_name_write = true;
-                        out.cross_frame_write = true;
-                        continue;
-                    };
-                    for (ordinal, role) in roles {
-                        if role != ArgRole::VarWrite {
-                            continue;
-                        }
-                        if let Some(name) = words
-                            .arguments()
-                            .get(ordinal)
-                            .and_then(|word| word.literal_bytes())
-                            .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                        {
-                            out.note_unknown(name);
-                        } else {
-                            out.dynamic_name_write = true;
-                        }
-                    }
-                    // Alias destinations and a shifted/unavailable body are
-                    // independently possible writes, never literal evidence.
-                    if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
-                        out.dynamic_name_write = true;
-                    }
-                    if traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
-                        || (traits.contains(Traits::EVALUATES_CODE)
-                            && words
-                                .source_script_bodies_for_mutation_coverage(&context)
-                                .is_none())
-                    {
-                        out.cross_frame_write = true;
-                    }
-                }
-                _ => {}
+            if note_original_scope_var_statement(stmt, &mut out) {
+                continue;
             }
+            record_original_scope_call_facts(tokens, identities, input, &mut out);
         }
     }
     out
+}
+
+fn record_original_scope_call_facts(
+    tokens: &crate::ir::CommandTokens,
+    identities: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    out: &mut ScopeVars,
+) {
+    let Some(words) =
+        crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
+            identities, input, tokens,
+        )
+    else {
+        out.dynamic_name_write = true;
+        out.cross_frame_write = true;
+        return;
+    };
+    let context = input.context_registry();
+    let selected = words
+        .with_source_schema(&context, |schema| {
+            let (_, complete) = schema.authored_source_argument_roles();
+            complete.then(|| {
+                (
+                    schema.authored_source_variable_name_arguments(),
+                    schema.semantics.traits,
+                )
+            })
+        })
+        .flatten();
+    let Some((roles, traits)) = selected else {
+        out.dynamic_name_write = true;
+        out.cross_frame_write = true;
+        return;
+    };
+    for (ordinal, role) in roles {
+        if role != ArgRole::VarWrite {
+            continue;
+        }
+        if let Some(name) = words
+            .arguments()
+            .get(ordinal)
+            .and_then(|word| word.literal_bytes())
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        {
+            out.note_unknown(name);
+        } else {
+            out.dynamic_name_write = true;
+        }
+    }
+    // Alias destinations and a shifted/unavailable body are independently possible writes.
+    if traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+        out.dynamic_name_write = true;
+    }
+    if traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
+        || (traits.contains(Traits::EVALUATES_CODE)
+            && words
+                .source_script_bodies_for_mutation_coverage(&context)
+                .is_none())
+    {
+        out.cross_frame_write = true;
+    }
+}
+
+fn note_original_scope_var_statement(stmt: &Statement, out: &mut ScopeVars) -> bool {
+    match stmt {
+        Statement::AssignConst { name, value, .. } => out.note_assignment(name, Some(value)),
+        Statement::AssignValue {
+            name,
+            value,
+            value_needs_backsubst,
+            ..
+        } => {
+            let value =
+                (!*value_needs_backsubst && !is_dynamic_word(value)).then_some(value.as_str());
+            out.note_assignment(name, value);
+        }
+        Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
+            out.note_write_word(name);
+        }
+        Statement::UpFrame { .. } => out.cross_frame_write = true,
+        Statement::Call { .. } | Statement::Barrier { .. } => return false,
+        _ => return true,
+    }
+    true
 }
 
 /// Withdraw every parameter seed reachable from an extra body whose command

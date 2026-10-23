@@ -716,6 +716,47 @@ impl AdviceInvocationContext<'_> {
         class
     }
 
+    fn source_class_slot(
+        &self,
+        graph: &AdviceGraph,
+        family: DefinerFamily,
+        name: &[u8],
+    ) -> Option<ByteCommandSlot> {
+        let slot = if family == DefinerFamily::TclOo {
+            match self.policy {
+                AdviceNamingPolicy::Native(policy) => {
+                    // Source namespace geometry supplies no entered Native context.
+                    let context = if !graph.native_baseline
+                        && graph.procedure_namespace.is_none()
+                        && let Some(namespace) = graph.c_source_namespace.as_ref()
+                    {
+                        tcl_syntax::naming::NativeNameContext::new(namespace)
+                    } else {
+                        graph.native_source_context()?
+                    };
+                    policy
+                        .recipe()
+                        .oo_object_publication_slot(context, name)
+                        .ok()?
+                }
+                AdviceNamingPolicy::Logical(_) => {
+                    graph.publication_key(name, AdvicePublicationPurpose::Define)?
+                }
+            }
+        } else {
+            graph.publication_key(name, AdvicePublicationPurpose::Define)?
+        };
+        if !graph.namespaces.contains(&slot.namespace)
+            || graph
+                .cells
+                .get(&slot)
+                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+        {
+            return None;
+        }
+        Some(slot)
+    }
+
     fn source_class_declaration_attempt(
         &self,
         graph: &AdviceGraph,
@@ -794,38 +835,7 @@ impl AdviceInvocationContext<'_> {
             if name.bytes().is_empty() || name.bytes().contains(&0) {
                 return None;
             }
-            let slot = if grammar.family == DefinerFamily::TclOo {
-                match self.policy {
-                    AdviceNamingPolicy::Native(policy) => {
-                        // Source namespace geometry supplies no entered Native context.
-                        let context = if !graph.native_baseline
-                            && graph.procedure_namespace.is_none()
-                            && let Some(namespace) = graph.c_source_namespace.as_ref()
-                        {
-                            tcl_syntax::naming::NativeNameContext::new(namespace)
-                        } else {
-                            graph.native_source_context()?
-                        };
-                        policy
-                            .recipe()
-                            .oo_object_publication_slot(context, name.bytes())
-                            .ok()?
-                    }
-                    AdviceNamingPolicy::Logical(_) => {
-                        graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
-                    }
-                }
-            } else {
-                graph.publication_key(name.bytes(), AdvicePublicationPurpose::Define)?
-            };
-            if !graph.namespaces.contains(&slot.namespace)
-                || graph
-                    .cells
-                    .get(&slot)
-                    .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
-            {
-                return None;
-            }
+            let slot = self.source_class_slot(graph, grammar.family, name.bytes())?;
             Some(Arc::new(OriginalSourceClassDeclaration {
                 factory: Arc::clone(&factory),
                 name,

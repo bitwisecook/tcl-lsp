@@ -560,44 +560,49 @@ fn transition_alias_pairs_with_metadata_context(
                 let Some(variable) = literal_subject(variable) else {
                     continue;
                 };
-                let is_global = matches!(
-                    frame,
-                    CallerFrameSelection::Explicit(level)
-                        if literal_subject(level)
-                            .and_then(|word| {
-                                original_alias_frame(word, stmt, context)
-                            })
-                            .is_some_and(FrameLevel::is_global_frame)
-                );
-                let is_current = matches!(frame, CallerFrameSelection::Explicit(level)
-                    if literal_subject(level).and_then(|word| original_alias_frame(word, stmt, context)).is_some_and(FrameLevel::is_current_frame));
-                if is_current {
-                    pairs.push(RegistryAliasPair {
-                        target: MemoryLocation::new(MemoryLocationKind::Local, variable),
-                        local: MemoryLocation::new(MemoryLocationKind::Local, local),
-                        reason: "current-frame-cell",
-                    });
-                } else if is_global {
-                    pairs.push(RegistryAliasPair {
-                        target: MemoryLocation::new(MemoryLocationKind::Global, variable),
-                        local: MemoryLocation::new(MemoryLocationKind::Local, local),
-                        reason: "global-frame-cell",
-                    });
-                } else {
-                    pairs.push(RegistryAliasPair {
-                        target: MemoryLocation::new(MemoryLocationKind::Upvar, variable),
-                        local: MemoryLocation::with_qualifier(
-                            MemoryLocationKind::Upvar,
-                            local,
-                            variable,
-                        ),
-                        reason: "caller-frame-cell",
-                    });
-                }
+                push_caller_frame_alias_pair(&mut pairs, (frame, variable, local), stmt, context);
             }
         }
     }
     pairs
+}
+
+fn push_caller_frame_alias_pair(
+    pairs: &mut Vec<RegistryAliasPair>,
+    (frame, variable, local): (&CallerFrameSelection, &str, &str),
+    stmt: &Statement,
+    context: Option<InvocationMetadataContext<'_>>,
+) {
+    let is_global = matches!(
+        frame,
+        CallerFrameSelection::Explicit(level)
+            if literal_subject(level)
+                .and_then(|word| {
+                    original_alias_frame(word, stmt, context)
+                })
+                .is_some_and(FrameLevel::is_global_frame)
+    );
+    let is_current = matches!(frame, CallerFrameSelection::Explicit(level)
+                    if literal_subject(level).and_then(|word| original_alias_frame(word, stmt, context)).is_some_and(FrameLevel::is_current_frame));
+    if is_current {
+        pairs.push(RegistryAliasPair {
+            target: MemoryLocation::new(MemoryLocationKind::Local, variable),
+            local: MemoryLocation::new(MemoryLocationKind::Local, local),
+            reason: "current-frame-cell",
+        });
+    } else if is_global {
+        pairs.push(RegistryAliasPair {
+            target: MemoryLocation::new(MemoryLocationKind::Global, variable),
+            local: MemoryLocation::new(MemoryLocationKind::Local, local),
+            reason: "global-frame-cell",
+        });
+    } else {
+        pairs.push(RegistryAliasPair {
+            target: MemoryLocation::new(MemoryLocationKind::Upvar, variable),
+            local: MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, local, variable),
+            reason: "caller-frame-cell",
+        });
+    }
 }
 
 fn has_projected_boundary_effects(

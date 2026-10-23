@@ -29,12 +29,12 @@ enum PathPart {
 /// receipt supplies no native object, entered body, cell or execution grant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourcePathExpression {
-    input: ResolvedAnalysisInput,
+    input: Box<ResolvedAnalysisInput>,
     image: SourceImage,
     realm: Arc<CommandBindingRealm>,
     span: tcl_lexer::Span,
     words: Vec<Vec<PathPart>>,
-    file_reference: Option<OriginalSourceFileReference>,
+    file_reference: Option<Box<OriginalSourceFileReference>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,7 +132,7 @@ impl OriginalSourcePathExpression {
     /// correspondence supplies no runtime value or file evaluation.
     #[must_use]
     pub fn matches_analysis(&self, analysis: &AnalysisResult) -> bool {
-        analysis.resolved_input.as_ref() == Some(&self.input)
+        analysis.resolved_input.as_ref() == Some(self.input.as_ref())
             && analysis.body_lexer_config == Some(self.input.lexer_config())
             && analysis.matches_original_source_image(&self.image, self.input.lexer_config())
             && analysis
@@ -350,7 +350,7 @@ pub fn capture_source_path_expression(
     };
     builder.add_word(word.clone());
     Some(OriginalSourcePathExpression {
-        input: input.clone(),
+        input: Box::new(input.clone()),
         image,
         realm: Arc::clone(realm),
         span: word.word_span(),
@@ -432,13 +432,13 @@ pub fn capture_source_target_path_expression(
         && let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&word)
         && let Ok(value) = String::from_utf8(value)
     {
-        expression.file_reference = Some(OriginalSourceFileReference {
+        expression.file_reference = Some(Box::new(OriginalSourceFileReference {
             head,
             argument,
             invocation: words,
             word,
             value,
-        });
+        }));
     }
     Some(expression)
 }

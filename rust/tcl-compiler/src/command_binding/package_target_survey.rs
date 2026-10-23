@@ -31,6 +31,28 @@ impl OriginalPackageIndexSourceModel {
     }
 }
 
+fn package_index_source_tokens(
+    input: &crate::analyser::ResolvedAnalysisInput,
+    image: &tcl_lexer::SourceImage,
+    command: &tcl_lexer::NativeScriptCommandWords,
+) -> Option<crate::ir::CommandTokens> {
+    let source = image.try_text().ok()?;
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        source.get(command.span.as_range())?,
+        command.span.start(),
+        input.lexer_config().nested(),
+    );
+    let [segment] = segments.as_slice() else {
+        return None;
+    };
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(image),
+        input.lexer_config(),
+        segment,
+    );
+    Some(tokens)
+}
+
 impl SourceCommandBindings {
     /// Reborrow actual Logical dispatch points and original whole vectors.
     /// This models the declared initial source world only, with all prior
@@ -63,20 +85,7 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let source = image.try_text().ok()?;
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
-            source.get(command.span.as_range())?,
-            command.span.start(),
-            input.lexer_config().nested(),
-        );
-        let [segment] = segments.as_slice() else {
-            return None;
-        };
-        let tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::from_image(image),
-            input.lexer_config(),
-            segment,
-        );
+        let tokens = package_index_source_tokens(input, image, command)?;
         let site = CommandAllocationSite {
             source: Arc::clone(origin),
             offset,
