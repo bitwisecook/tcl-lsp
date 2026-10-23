@@ -2585,6 +2585,14 @@ Literal child commands still run through their declared Direct or
 Implementation route, and their actual normal outcome and closed effects are
 required before a result reaches the parent's ordered store.
 
+Ordinary fresh-document analysis has no runtime entry. Its distinct
+`FreshNativeSourceAnalysis` borrows the actual original source interpreter and
+complete Native-axis input, recognises the existing supplied-document contract,
+and rejects unknown history, foreign or changed inputs and other source
+purposes. The module's purpose and entry remain unchanged. This source owner
+permits only conditional value analysis; the same per-command invocation,
+handler, completion, effect and receiver checks still apply.
+
 The Native parent bridge admits one unobserved bounded scalar receiver at the
 handler's `AfterArguments` binding phase. Its canonical cell key must equal
 the sole SSA definition's cell key at the unique original statement in the
