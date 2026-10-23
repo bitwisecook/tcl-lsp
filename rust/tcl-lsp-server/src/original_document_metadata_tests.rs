@@ -808,6 +808,79 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     );
 }
 
+fn assert_analysis_registry(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    assert_eq!(
+        analysis
+            .resolved_registry()
+            .unwrap()
+            .snapshot()
+            .semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+}
+
+fn assert_retained_reference(analysis: &tcl_compiler::analyser::AnalysisResult) {
+    assert!(
+        analysis
+            .qualified_var_refs
+            .iter()
+            .any(|row| row.qualified_name == "::retained")
+    );
+}
+
+fn assert_outline_input_registry(
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    assert_eq!(
+        input
+            .borrowed_context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+}
+
+fn assert_older_formatter_analysis(older: &tcl_compiler::analyser::AnalysisResult) {
+    assert!(
+        older
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+    assert_ne!(older.command_invocations.len(), 0);
+}
+
+fn assert_current_formatter_analysis(
+    current: &tcl_compiler::analyser::AnalysisResult,
+    current_input: &Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    older_input: &Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
+) {
+    assert_ne!(current_input, older_input);
+    assert!(Arc::ptr_eq(
+        current_input.borrowed_context_registry().commands(),
+        older_input.borrowed_context_registry().commands(),
+    ));
+    assert!(
+        !current
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+    assert_eq!(
+        current.body_lexer_config,
+        Some(current_input.lexer_config())
+    );
+}
+
+fn assert_formatter_document_source(document: &DocumentState, source: &str) {
+    assert_eq!(document.raw(), source);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input() {
     // naming.compiler.original-analysis-metadata-context
@@ -831,12 +904,7 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
         .await
         .unwrap();
-    assert!(
-        analysis
-            .qualified_var_refs
-            .iter()
-            .any(|row| row.qualified_name == "::retained")
-    );
+    assert_retained_reference(&analysis);
     let mut policy = tcl_lsp_core::diagnostic_policy::PolicyBuilder::new().build();
     policy.optimiser = tcl_lsp_core::diagnostic_policy::OptimiserPolicy::all_on();
     let typed =
@@ -846,14 +914,7 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .iter()
         .find(|row| row.code == DiagCode::O100)
         .expect("the actual pack-backed input produces a source branch rewrite");
-    assert_eq!(
-        analysis
-            .resolved_registry()
-            .unwrap()
-            .snapshot()
-            .semantic_key(),
-        registry.snapshot().semantic_key()
-    );
+    assert_analysis_registry(&analysis, &registry);
     assert!(analysis.matches_original_source_image(
         &tcl_lexer::SourceImage::from(source),
         analysis.body_lexer_config.unwrap()
@@ -883,12 +944,7 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .fresh_analysis_for(&uri, Arc::from(rewritten), "tcl".to_owned())
         .await
         .unwrap();
-    assert!(
-        rebuilt
-            .qualified_var_refs
-            .iter()
-            .any(|row| row.qualified_name == "::retained")
-    );
+    assert_retained_reference(&rebuilt);
     assert_eq!(rebuilt.resolved_input, analysis.resolved_input);
     assert!(!rebuilt.matches_original_source_image(
         &tcl_lexer::SourceImage::from(source),
@@ -902,14 +958,7 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .await
         .unwrap();
     assert_ne!(changed.resolved_input, analysis.resolved_input);
-    assert_eq!(
-        changed
-            .resolved_registry()
-            .unwrap()
-            .snapshot()
-            .semantic_key(),
-        changed_registry.snapshot().semantic_key()
-    );
+    assert_analysis_registry(&changed, &changed_registry);
     assert!(
         !changed
             .qualified_var_refs
@@ -972,14 +1021,7 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
     let valid_pack_key = {
         let snapshot = backend.db.snapshot("outline_resource_input392").await;
         let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, resource_config).unwrap();
-        assert_eq!(
-            input
-                .borrowed_context_registry()
-                .commands()
-                .snapshot()
-                .semantic_key(),
-            registry.snapshot().semantic_key()
-        );
+        assert_outline_input_registry(&input, &registry);
         resource_config.spec_pack_key(&*snapshot)
     };
     {
@@ -1614,13 +1656,7 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         .resolved_input
         .as_ref()
         .expect("the actual older document input exists");
-    assert!(
-        older
-            .diagnostics
-            .iter()
-            .any(|row| row.code == DiagCode::W150)
-    );
-    assert_ne!(older.command_invocations.len(), 0);
+    assert_older_formatter_analysis(&older);
     let [full, range, save] = formatter_request_edits(&backend, &uri).await;
     assert_formatter_request_edit(full, "\r\n");
     assert_formatter_request_edit(range, "\r\n");
@@ -1640,29 +1676,10 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         .await
         .unwrap();
     let current_input = current.resolved_input.as_ref().unwrap();
-    assert_ne!(current_input, older_input);
-    assert!(Arc::ptr_eq(
-        current_input.borrowed_context_registry().commands(),
-        older_input.borrowed_context_registry().commands(),
-    ));
-    assert!(
-        !current
-            .diagnostics
-            .iter()
-            .any(|row| row.code == DiagCode::W150)
-    );
-    assert_eq!(
-        current.body_lexer_config,
-        Some(current_input.lexer_config())
-    );
-    assert_eq!(
-        backend
-            .read_local_document(&uri)
-            .await
-            .unwrap()
-            .unwrap()
-            .raw(),
-        source
+    assert_current_formatter_analysis(&current, current_input, older_input);
+    assert_formatter_document_source(
+        &backend.read_local_document(&uri).await.unwrap().unwrap(),
+        source,
     );
     for edits in formatter_request_edits(&backend, &uri).await {
         assert_formatter_request_edit(edits, "\r\n");
@@ -1678,14 +1695,9 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     for edits in formatter_request_edits(&backend, &uri).await {
         assert_formatter_request_edit(edits, "\n");
     }
-    assert_eq!(
-        backend
-            .read_local_document(&uri)
-            .await
-            .unwrap()
-            .unwrap()
-            .raw(),
-        source
+    assert_formatter_document_source(
+        &backend.read_local_document(&uri).await.unwrap().unwrap(),
+        source,
     );
 
     // Withdraw the actual generation through its DB input. Previously retained
