@@ -836,22 +836,7 @@ fn survey_index_entries(
     if lines.first().map(SignatureSourceNameValue::bytes)
         == Some(b"# Tcl autoload index file: each line identifies a Tcl".as_slice())
     {
-        for value in lines.into_iter().skip(1) {
-            if value.bytes().starts_with(b"#") || value.list_length() != Some(2) {
-                continue;
-            }
-            let Some(input) = value.list_element(0) else {
-                continue;
-            };
-            let Some(filename) = value.list_element(1) else {
-                continue;
-            };
-            let Some(filename) = filename.display() else {
-                continue;
-            };
-            let file = index_dir.join(filename);
-            entries.push(OriginalAutoIndexRegistration { input, file });
-        }
+        append_legacy_index_registrations(lines, index_dir, &mut entries);
         return entries;
     }
     let Some(length) = u32::try_from(content.len()).ok() else {
@@ -928,6 +913,29 @@ fn survey_index_entries(
         entries.push(OriginalAutoIndexRegistration { input, file });
     }
     entries
+}
+
+fn append_legacy_index_registrations(
+    lines: Vec<SignatureSourceNameValue>,
+    index_dir: &Path,
+    entries: &mut Vec<OriginalAutoIndexRegistration>,
+) {
+    for value in lines.into_iter().skip(1) {
+        if value.bytes().starts_with(b"#") || value.list_length() != Some(2) {
+            continue;
+        }
+        let Some(input) = value.list_element(0) else {
+            continue;
+        };
+        let Some(filename) = value.list_element(1) else {
+            continue;
+        };
+        let Some(filename) = filename.display() else {
+            continue;
+        };
+        let file = index_dir.join(filename);
+        entries.push(OriginalAutoIndexRegistration { input, file });
+    }
 }
 
 #[cfg(test)]
