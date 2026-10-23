@@ -2,11 +2,17 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T10:25:40.796457+00:00 (ACTIVE; reviewed candidate-only cleanup applied, work instrumented)
+Last updated: 2026-10-23T10:54:02.316810+00:00 (ACTIVE; candidate cleanup14+37+4 applied/CLEAR; Work instrumented; typingv13 RUNNING)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Current actual execution status, 2026-10-23T10:54:02.316810+00:00:** Work committed capturetypingfix+exact run-docrelocation at root1dd; actualtypev13 GO4eed/root62473 **RUNNING**, no PASS/0W/runtime-green claim. Focused5 builderv2 remains ready/count-dynamic, no newmandatoryprotocolversion; rootlaunch waits actualPASS0W and explicitactualidentity/final/launcher/process/fullsource/provider evidence review. No firstcause5 result yet.
+
+Candidate-only cleanup own14+residue,37childfiles,final4 all **APPLIED after independent peerCLEAR+exactbeforepins**, Work fullyinstrumented/HOLD. Own14peer20ba/rootcarryPASS→initialreceiptbe78 thenpureidentityclosure residuefinalreceipt60dc; own37v2 e2cbbd9e peer18912915→applyreceipta60e2ce3; final4 b56345f8 peer142df7ce→applyreceiptd6b7e7fb. Every corresponding Workpin before/after exact; all originalassertions/productiveguards/queryonce/shortcircuit/returns preserved. Frozenv1own37 was HELD beforeapply for emptydiagnosticloops anddanglingG4calls; correctedv2 onlyapplied. Final4 removes remaining2G4callers and Wasm/inlining/native_lowering envdebugwalks, retains Wasm actualfailurepanic and allproductivequeries/assertions. Candidate root `/workspace/naming-lsp-release/tcl-lsp`; no Worksource/Cargo/Git mutation byrole.
+
+Wholecompiler selected root_owner_work/JimOptionBool/G4/BODY/phase/reporterhelper danglingreference census **ZERO**; entirecommand_bindingchild envread/eprintln census **ZERO**, receipt `/tmp/ccg-candidate-final-observer-callers-v2/final-reference-census.json` SHA365a888d. Names independently confirms broader BODY/remote/G4helper ZERO after its reviewed21+store1 applications. Compiler finalnonguarded10 stillclosing; fullcandidatefmt/actualtyping/perf/rootGit remain next/unrun by this role. No further CCGcandidatewrites planned. V13typing is separate from candidatevalidation and doesnotvalidate strippedcandidate by itself.
 
 **Actual candidate-only cleanup, 2026-10-23T10:25:40.796457+00:00:** Root carryv16 PASS/CLOSED0 session85800, functionaldbc42; root explicitly authorised candidate-only db405 after Names semantic peer20ba3292/exactbeforepins. Applied only `/workspace/naming-lsp-release/tcl-lsp`14 ownedpaths (13retained/1diagnostichelperdeleted). Frozen patch `/tmp/ccg-candidate-probe-removal-v2/proposal.patch` db405f66 / manifest63d6a5e7; initial applyreceiptbe78a924 contains everybefore/afterpin and work14exactunchanged. Assertion preservationproof78932b83 verifies complete original pack_source nonblank lines exact after removing diagnostic module+reportcall only; helper had noassertions. Same actualguards/queryonce/?/shortcircuit/cache/budget/refusal ordering independently reviewed. Work remains instrumented/HOLD for actualtypev12/firstcause.
 

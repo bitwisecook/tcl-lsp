@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T10:49:23.182095+00:00",
+  "status": "FROZEN static readiness; actual successful typing and explicit root GO required",
+  "materializer_manifest_sha256": "3d25edfc563c8a03de86b49cf51e7b9a589ffbbe8dc3d432702d0a0a1b5039dc",
+  "loop_provider_peer": {
+    "path": "/tmp/vm26-latebound-materializer-v2/ccg-loop-provider-group-peer.json",
+    "sha256": "03e35e140cb0029cb5eba2802607c0cd851f969b8ed5977860d235ee1214b41b"
+  },
+  "shared_typing_peer": {
+    "path": "/tmp/lsp-startup-upf-latebound-materializer-v5/names-static-peer.json",
+    "sha256": "54385b625a34a537744add6baa1d9a9b24c2b9f43eaebb96489525935abb021a"
+  },
+  "shared_helper_sha256": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2",
+  "runtime_started": false,
+  "root_go_created": false
+}

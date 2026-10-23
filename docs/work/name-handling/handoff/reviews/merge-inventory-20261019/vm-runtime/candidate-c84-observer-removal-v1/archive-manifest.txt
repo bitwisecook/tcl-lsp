@@ -1,0 +1,3 @@
+bc0cb3d9b1bfb029c0cc62f994ab31db12722506f1217297f1c5f85aed1def19  candidate-application-receipt.json
+1e5884327e36b1ca44d6dc0d309a21ba9a22b9b81a8010cf429bbcce1d5e5484  manifest.json
+561f9f5c06592384c513cae22e374930460d9b3b893b2978ebd0707e49d5297f  proposal.patch

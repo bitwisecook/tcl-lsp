@@ -1,0 +1,208 @@
+--- a/runtime/rust/src/interp.rs
++++ b/runtime/rust/src/interp.rs
+@@ -12427,8 +12427,6 @@
+     /// the first frame, truncates the command to 150 bytes (`...` on overflow),
+     /// and sets `already_logged`.
+     fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("log.command_info_enter", None);
+         // The same guard [`log_command_bytes`] applies. Repeated here so the
+         // already-logged path — the common one on a deep unwind — skips the
+         // newline scan `line_of` costs.
+@@ -12463,8 +12461,6 @@
+     }
+ 
+     pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("log.command_bytes_enter", None);
+         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+             return;
+         };
+@@ -12502,12 +12498,8 @@
+         self.error_line.set(line);
+         let started = self.exc.borrow().info.is_some();
+         if self.seed_error_info_checked(scope.currency()).is_err() {
+-            #[cfg(test)]
+-            self.observe_c84_error_episode("log.seed_error", Some(false));
+             return;
+         }
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("log.seed_success", Some(true));
+ 
+         let verb: &[u8] = if started {
+             b"invoked from within"
+@@ -13628,8 +13620,6 @@
+ 
+     /// Publish and consume the accumulated exception at a native result reset.
+     fn publish_error(&mut self) {
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("publish.enter", None);
+         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+             return;
+         };
+@@ -13653,8 +13643,6 @@
+                     return;
+                 }
+             } else if !self.uses_c84_global_error_info() || !self.exc.borrow().native.legacy_copy {
+-                #[cfg(test)]
+-                self.observe_c84_error_episode("publish.compatibility_globals", None);
+                 let info = match self.completion_error_info_bytes_checked() {
+                     Ok(info) => info,
+                     Err(_) => return,
+@@ -14680,8 +14668,6 @@
+     /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
+     /// body's TIP 280 source location.
+     fn dispatch_list_obj(&mut self, original: *mut TclObj, mut frame: CmdFrame) -> Code {
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("body.list_dispatch_enter", None);
+         let owner = obj::Owned::retain(original);
+         let Some(backing) = crate::list::native_list_backing(owner.as_ptr()) else {
+             return self.report_cmd_error(
+@@ -14704,11 +14690,6 @@
+         frame.line = frame.line_base + 1;
+         self.cmd_frames.borrow_mut().push(frame);
+         let code = self.dispatch(&elements);
+-        #[cfg(test)]
+-        self.observe_c84_error_episode(
+-            "body.list_dispatch_return_error",
+-            Some(code == Code::Error),
+-        );
+         self.cmd_frames.borrow_mut().pop();
+         code
+     }
+--- a/runtime/rust/src/cmd_error.rs
++++ b/runtime/rust/src/cmd_error.rs
+@@ -55,8 +55,6 @@
+ /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
+ /// completion code, and return it as an integer (0=ok … 4=continue).
+ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+-    #[cfg(test)]
+-    interp.observe_c84_error_episode("catch.enter", None);
+     let dialect = interp.native_invocation_dialect();
+     let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
+     if dialect.return_options_protocol()
+@@ -113,8 +111,6 @@
+         } else {
+             b"catch script ?resultVarName? ?optionVarName?"
+         };
+-        #[cfg(test)]
+-        interp.observe_c84_error_episode("catch.invalid_arity", None);
+         return interp.wrong_args(synopsis);
+     };
+     // The caught body is a fresh completion scope. Commands within it retain
+@@ -144,8 +140,6 @@
+         }
+     }
+     let mut code = interp.eval_control_body(argv[selected.script_at + 1]);
+-    #[cfg(test)]
+-    interp.observe_c84_error_episode("catch.body_return_error", Some(code == Code::Error));
+     if let Some(original) = &jim_original {
+         if let Err(error) = original.check_for(interp) {
+             return interp.report_cmd_error(error);
+@@ -282,11 +276,7 @@
+     // `::errorInfo`/`::errorCode` globals (so a later `set ::errorInfo` reads it)
+     // and reset the accumulator for the next error.
+     if code == Code::Error {
+-        #[cfg(test)]
+-        interp.observe_c84_error_episode("catch.before_publish", None);
+         interp.publish_and_reset_error();
+-        #[cfg(test)]
+-        interp.observe_c84_error_episode("catch.after_publish", None);
+         if interp.host_refusal_pending() {
+             return Code::Error;
+         }
+--- a/runtime/rust/src/interp/native_error_variables.rs
++++ b/runtime/rust/src/interp/native_error_variables.rs
+@@ -114,36 +114,6 @@
+ }
+ 
+ impl Interp {
+-    /// Temporary opt-in test observer. Reads retained fields only, never variables or objects.
+-    #[cfg(test)]
+-    pub(crate) fn observe_c84_error_episode(&self, stage: &str, outcome: Option<bool>) {
+-        if std::env::var("TCL_LSP_RUNTIME_C84_EPISODE_DIAGNOSTIC").as_deref()
+-            != Ok("c84-episode-v1")
+-        {
+-            return;
+-        }
+-        let Ok(exc) = self.exc.try_borrow() else {
+-            eprintln!("\nZZ_C84_EPISODE stage={stage} exception_borrow_unavailable=true");
+-            return;
+-        };
+-        eprintln!(
+-            "\nZZ_C84_EPISODE stage={stage} owner={:p} epoch={:?} runtime={:?} result={:p} info_present={} info_len={:?} code={:?} legacy_copy={} global_code_set={} already_logged={} private_info={} private_code={} native_cells={:?} outcome={outcome:?}",
+-            std::rc::Rc::as_ptr(&self.0),
+-            self.native_operation_context_epoch.get(),
+-            self.runtime_version.get(),
+-            self.result.get(),
+-            exc.info.is_some(),
+-            exc.info.as_ref().map(Vec::len),
+-            exc.code,
+-            exc.native.legacy_copy,
+-            exc.native.global_code_set,
+-            exc.already_logged,
+-            exc.native.info.is_some(),
+-            exc.native.code.is_some(),
+-            self.native_error_cells.try_borrow().ok().map(|cells| cells.len()),
+-        );
+-    }
+-
+     pub(crate) fn capture_original_jim_error_code(
+         &mut self,
+     ) -> Result<OriginalJimErrorCodeCapture, tcl_cmd_core::CmdError> {
+@@ -1217,8 +1187,6 @@
+         &mut self,
+         currency: &super::native_operation_currency::NativeOperationCurrency,
+     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+-        #[cfg(test)]
+-        self.observe_c84_error_episode("c84.append_enter", None);
+         currency.ensure_current_or_refuse()?;
+         let Some(bytes) = self.exc.borrow().info.clone() else {
+             return Ok(());
+@@ -1244,27 +1212,16 @@
+                 )
+             })?;
+             if starting {
+-                #[cfg(test)]
+-                self.observe_c84_error_episode("c84.first_episode", None);
+                 // ERR_IN_PROGRESS is reached before the initial setter callback.
+                 {
+                     let mut exc = self.exc.borrow_mut();
+                     exc.native.info_len = length;
+                     exc.native.legacy_copy = true;
+                 }
+-                #[cfg(not(test))]
+                 let _ = self.var_set(
+                     Variable::ErrorInfo.global_name().as_bytes(),
+                     original.as_ptr(),
+                 );
+-                #[cfg(test)]
+-                {
+-                    let stored = self.var_set(
+-                        Variable::ErrorInfo.global_name().as_bytes(),
+-                        original.as_ptr(),
+-                    );
+-                    self.observe_c84_error_episode("c84.store_error_info_ok", Some(stored.is_ok()));
+-                }
+                 // Rearm the reached flags before classifying callback cleanup.
+                 {
+                     let mut exc = self.exc.borrow_mut();
+@@ -1274,18 +1231,8 @@
+                 self.check_c84_error_info_result(currency, &original)?;
+                 if !self.exc.borrow().native.global_code_set {
+                     let code = obj::Owned::fresh(new_string(b"NONE"));
+-                    #[cfg(not(test))]
+                     let _ =
+                         self.var_set(Variable::ErrorCode.global_name().as_bytes(), code.as_ptr());
+-                    #[cfg(test)]
+-                    {
+-                        let stored = self
+-                            .var_set(Variable::ErrorCode.global_name().as_bytes(), code.as_ptr());
+-                        self.observe_c84_error_episode(
+-                            "c84.store_error_code_ok",
+-                            Some(stored.is_ok()),
+-                        );
+-                    }
+                     drop(code);
+                     self.check_c84_error_info_result(currency, &original)?;
+                 }

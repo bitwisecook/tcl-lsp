@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T10:30:45.340310+00:00",
+  "checks": [
+    {
+      "optimized": false,
+      "exit": 1,
+      "output_absent": true,
+      "reason": "RuntimeError: STOP: actual typecheck not completed PASS0"
+    },
+    {
+      "optimized": true,
+      "exit": 1,
+      "output_absent": true,
+      "reason": "RuntimeError: STOP: actual typecheck not completed PASS0"
+    }
+  ],
+  "scope": "actual closed FAIL only; no fake PASS or Cargo"
+}

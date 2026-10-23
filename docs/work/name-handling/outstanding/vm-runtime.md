@@ -2,11 +2,34 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T10:06:13.057968+00:00 (actual bfa5/source122 v11 typing errors compiler-owned; VM16 latebound preparation; held6 static CLEAR)
+Last updated: 2026-10-23T10:53:53.819453+00:00 (VM26 frozen staticCLEAR; NoTom runtime successor peer pending; actual v13 typing RUNNING)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual v13 source135 typing root session62473 remains RUNNING (no closure
+or PASS inferred). VM26 frozen materializer-v2 manifest3d25edfc is ready for
+actual successful typing: Codegen loop/provider/group peer03e35e14 and shared
+helperv5 Names peer54385b62 CLEAR; noGO/runtime. Root received exact four
+identity/typeplan/typefinal/launcher path+SHA CLI. It refuses closedFAIL/open
+proof before output; actual v10 failure normal/-O refusal preserved.
+
+Standalone NoTom executable successor preparation now exists, replacing the
+plan-only blocker: `/tmp/vm-notom16-runtime-materializer-v1/` and runtime
+-template-v1 manifest3e51c361, Codegen bounded peer pending. Reuses reviewed
+source_view/typinghelper/provider/executor88125; original16 selectors/default
+features/buildargv, actual sameOUT_DIR4 transitions each rearmed intentional
+absence, final fresh0W noTom artifact before runtime. Unexpected-warning and
+invalid/present/full transitions separate diagnostics, never release0W proof.
+Fullsource/provider group start/final only; all16 provisional. Actual source
+pins7match; AST/Bash/direct noGO refusal checked. No Cargo/GO/source changes.
+
+Candidate-only C84 observer cleanup applied under root independent semantic
+CLEAR and explicit authority after exact3 beforepins: application receipt
+bc0cb3d9; all candidateafterpins exact, canonicalwork before/after unchanged.
+No functional/runtime acceptance from cleanup. Root alone owns current
+Cargo/Git/source/GO; NoTom/VM runtime both UNRUN on current source135.
 
 Expanded VM26 draft `/tmp/vm26-latebound-template-v2/` plus materializer-v2
 manifest3d25edfc adds exact existing10 stack/trace/reentry/oracle controls to

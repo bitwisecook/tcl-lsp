@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-23T10:52:14.103563+00:00",
+  "archive_sha256": "57f76fde79653f32f006179b19c4ec48f7240546a2b95b426e53db83fc582f11",
+  "payloads": [
+    {
+      "path": "after/rust/tcl-compiler/src/registry_invocation/store_advice.rs",
+      "sha256": "eedca67bc2b730c1533f7050f2f64bde176613a7dfdb4d0d2952afbeec3b1942"
+    },
+    {
+      "path": "before/rust/tcl-compiler/src/registry_invocation/store_advice.rs",
+      "sha256": "f9fb901ddca0d2c635de7cf720638ca91a1a932a56f8c50224b6ca71595772c5"
+    },
+    {
+      "path": "candidate-application-receipt.json",
+      "sha256": "40a8928d240566338cc28ea7cd35a2c21d831436d9ab904077cad2494024cbf5"
+    },
+    {
+      "path": "compiler-static-peer.json",
+      "sha256": "ab90dba99fcd559141d78183ac5d591ef0098e417b80a32c0856ae84ad2c4577"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "a4d9969bd0f13e18577cef48388ed8d40dd33095aaced608e0330c7886265a77"
+    },
+    {
+      "path": "proposal.patch",
+      "sha256": "c5a4a3171e6a49e7cce93c18b720c66d671d85ec98f0fdf91727c2a1c1cec3ef"
+    }
+  ],
+  "limits": "Candidate-only testprint cleanup, real assertions retained; no typing/runtime/perf claim"
+}

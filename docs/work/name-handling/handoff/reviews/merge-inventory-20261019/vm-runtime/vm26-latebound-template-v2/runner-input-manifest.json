@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "/tmp/vm16-latebound-template-v1/plan.json": "cb7740c46b9e41c86a6871e2c37a452b49e244905a00b1628e4fa0e7812af98f",
+    "/tmp/vm16-latebound-template-v1/suite.py": "d807f692ca267a88ce604b1198e7d5c539e5950e155f9b42aaa59569d6ba92bd",
+    "/tmp/vm16-latebound-template-v1/launch.py": "4065b6b4116ab9a40aa8ad09f6415862bfc6ff83212d5dca924e8ebfdd3e8430",
+    "/tmp/vm16-latebound-template-v1/run.sh": "3f8e71419f99dc02d24e7b3153148a8c767e49f6fa556490ba8a27843b142863",
+    "/tmp/vm16-latebound-template-v1/providers.py": "30649f292e79550cffa30b711cb2654b667f0d007d8012689577b64e2780f4a5",
+    "/tmp/vm16-latebound-template-v1/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/vm16-latebound-template-v1/provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9"
+  },
+  "status": "template only; no GO"
+}

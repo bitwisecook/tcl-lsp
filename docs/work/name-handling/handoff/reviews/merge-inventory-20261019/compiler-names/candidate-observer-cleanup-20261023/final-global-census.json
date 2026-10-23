@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T10:55:19.707313+00:00",
+  "status": "Final candidate compiler observer/helper census ZERO; candidate edits frozen",
+  "candidate_root": "/workspace/naming-lsp-release/tcl-lsp",
+  "patterns": [
+    "TCL_LSP_TRACE",
+    "TCL_LSP_.*DIAGNOSTIC",
+    "ZZ_",
+    "root_owner_work",
+    "trace_jim_source_option",
+    "trace_remote_source_(flag|option)",
+    "trace_compiler_syntax",
+    "trace_body_syntax",
+    "trace_original_body_compiler_census",
+    "trace_original_g4_owner",
+    "trace_g4_normal_frame_facts"
+  ],
+  "observer_census_exit": 1,
+  "remaining_eprintln": "rust/tcl-compiler/src/codegen/wasm/ir.rs:1388:            eprintln!(\"skipping WAT parse: wasmtime CLI is unavailable\");",
+  "limits": "Existing supported WAT-test missing-tool message retained. No Cargo/Git/typing/runtime/perf claim; work remains instrumented."
+}

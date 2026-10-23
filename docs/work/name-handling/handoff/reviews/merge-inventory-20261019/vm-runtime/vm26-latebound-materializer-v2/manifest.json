@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T10:01:03.431063+00:00",
+  "status": "DRAFT static review pending; no GO/runtime",
+  "files": {
+    "materialize.py": "5007652ed368dbe1dfe2d27c381dcfdd412dd9a5abc5d82f0f04cb2d58aa5439",
+    "typing-proof.py": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2"
+  },
+  "template_inputs": {
+    "plan.json": "f13410f6061391f59974bf8a8d2da2a6865871d3137c9b57d64412d271af265f",
+    "suite.py": "9434b306e2c50288eadea6fe7646008901e17836e5c657fe9ba556e6dfea730a",
+    "launch.py": "c111ede1273d35625644cb773ba9b255685f74c98cd236f4fade6509630ca193",
+    "run.sh": "b1c7ac348138a04ae362e034c4816ef9f2a6ee14b7acc8918ad6b65daae91a65",
+    "providers.py": "30649f292e79550cffa30b711cb2654b667f0d007d8012689577b64e2780f4a5",
+    "provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  }
+}

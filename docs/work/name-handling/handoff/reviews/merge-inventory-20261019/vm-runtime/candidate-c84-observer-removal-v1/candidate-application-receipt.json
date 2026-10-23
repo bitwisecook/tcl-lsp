@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-23T10:31:55.562506+00:00",
+  "authority": "root independent whole3file semantic CLEAR and candidate-only apply instruction",
+  "patch_sha256": "561f9f5c06592384c513cae22e374930460d9b3b893b2978ebd0707e49d5297f",
+  "candidate_root": "/workspace/naming-lsp-release/tcl-lsp",
+  "paths": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "before_sha256": "6f76aaaf74ff46328658d00d368efbbc0dbcbbaf6387c75d1e32ffc34f56dd83",
+      "after_sha256": "b913ba70dd92f725a38f9477445a3ecb6b8b1d0cd83daf9aa88d1a5d7012fa18",
+      "observer_calls_removed": 8,
+      "var_set_count_before": 6,
+      "var_set_count_after": 6
+    },
+    {
+      "path": "runtime/rust/src/cmd_error.rs",
+      "before_sha256": "3ad4334430e55b50de3b0d0a119adb2d75f23da09ad0846127e070d27b86c328",
+      "after_sha256": "8f53b0919b81dd9d4038bef637abaedea8f0163e3d02e8e77866dd2ca8b3a895",
+      "observer_calls_removed": 5,
+      "var_set_count_before": 1,
+      "var_set_count_after": 1
+    },
+    {
+      "path": "runtime/rust/src/interp/native_error_variables.rs",
+      "before_sha256": "de83ecb9a91a57a58489091b420a9e3672fbfe665953f7bd4bb330eb77ee1d90",
+      "after_sha256": "7c4393f83c1b17301d2f41bfa2dff1e1d0b9ea11f86b5525a90d986b04b0d3e0",
+      "observer_calls_removed": 2,
+      "var_set_count_before": 9,
+      "var_set_count_after": 7
+    }
+  ],
+  "work_before_after": {
+    "runtime/rust/src/interp.rs": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+    "runtime/rust/src/cmd_error.rs": "ac849810947a15d1ad789459151bab2b034c60bcdf4f4f52f9fcbca9d7e58c0e",
+    "runtime/rust/src/interp/native_error_variables.rs": "91d70ce66ffa1d0016851cf0209f80c14df294492e6d6ca2abbb96b572c67605"
+  },
+  "work_unchanged": true,
+  "candidate_after_exact": true,
+  "runtime_or_typing_claim": false
+}
