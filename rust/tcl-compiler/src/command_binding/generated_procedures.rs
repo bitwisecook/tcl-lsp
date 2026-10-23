@@ -335,6 +335,12 @@ impl OriginalNativeProcedureBody {
             OriginalNativeProcedureRecipe::Source(source) => source.parameters_text(),
         }
     }
+    pub(crate) fn source_declaration_span(&self) -> Option<tcl_lexer::Span> {
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::Source(source) => source.declaration_span(),
+            OriginalNativeProcedureRecipe::ReadFlow(_) => None,
+        }
+    }
     pub(crate) fn body_span(&self) -> Option<tcl_lexer::Span> {
         match &self.recipe {
             OriginalNativeProcedureRecipe::ReadFlow(flow) => {
