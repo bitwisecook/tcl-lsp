@@ -27838,7 +27838,15 @@ impl Backend {
             .await;
     }
 
-    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
+    fn reload_spec_packs(
+        &self,
+        trigger: ReloadTrigger,
+    ) -> std::pin::Pin<Box<impl std::future::Future<Output = DocumentSourceResult<bool>> + '_>>
+    {
+        Box::pin(self.reload_spec_packs_inner(trigger))
+    }
+
+    async fn reload_spec_packs_inner(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
