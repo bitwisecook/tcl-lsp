@@ -44,7 +44,7 @@ pub(crate) fn assess_increment_rewrite(
     };
     use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
     let tokens = script.retained_source_tokens_for_statement(statement)?;
-    let metadata = original_increment_metadata(tokens, module, registry)?;
+    let metadata = original_increment_metadata(tokens, module, registry)?.context();
     let setter = resolved_tokens_invocation_with_metadata_context(registry, metadata, tokens)?;
     if setter.facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
         || !setter.effective.binding_prefix.is_empty()
@@ -73,7 +73,7 @@ pub(crate) fn assess_increment_rewrite(
         return None;
     }
     let expression = nested.remove(0);
-    let expression_metadata = original_increment_metadata(&expression, module, registry)?;
+    let expression_metadata = original_increment_metadata(&expression, module, registry)?.context();
     let selected = resolved_tokens_invocation_with_metadata_context(
         registry,
         expression_metadata,
@@ -134,7 +134,7 @@ fn original_increment_metadata<'a>(
     tokens: &'a CommandTokens,
     module: &'a Module,
     registry: &CommandRegistry,
-) -> Option<Option<InvocationMetadataContext<'a>>> {
+) -> Option<crate::registry_invocation::InvocationMetadataSelection<'a>> {
     let owner = module.retained_source_bindings.as_deref()?;
     if !owner.matches_module(module, registry) {
         return None;
@@ -153,12 +153,13 @@ fn original_increment_metadata<'a>(
         return module
             .source_entry
             .metadata_context
-            .metadata_context(registry)
-            .map(crate::registry_invocation::InvocationMetadataSelection::context);
+            .metadata_context(registry);
     }
-    Some(Some(binding.original_invocation_metadata_for_module(
-        tokens, module, registry,
-    )?))
+    Some(
+        crate::registry_invocation::InvocationMetadataSelection::Retained(
+            binding.original_invocation_metadata_for_module(tokens, module, registry)?,
+        ),
+    )
 }
 
 /// A single retained read and the original setter select the same physical
@@ -445,6 +446,7 @@ mod tests {
             .unwrap();
         let metadata = original_increment_metadata(tokens, module, current.commands())
             .unwrap()
+            .context()
             .unwrap();
         assert!(std::ptr::eq(metadata.context(), current.context()));
         assert_eq!(
@@ -476,6 +478,7 @@ mod tests {
                 .unwrap();
             let metadata = original_increment_metadata(tokens, &unit.ir_module, context.commands())
                 .unwrap()
+                .context()
                 .unwrap();
             assert_eq!(
                 metadata
@@ -496,6 +499,7 @@ mod tests {
                 .remove(0);
         let child = original_increment_metadata(&expression, module, current.commands())
             .unwrap()
+            .context()
             .unwrap();
         assert!(std::ptr::eq(child.context(), current.context()));
         assert_eq!(

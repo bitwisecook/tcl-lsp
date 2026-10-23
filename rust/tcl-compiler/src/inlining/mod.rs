@@ -209,7 +209,7 @@ fn procedure_definition(proc: &Procedure) -> Option<ProcedureDefinitionIdentity>
             .namespace_context
             .as_ref()?
             .advisory_key()?
-            .to_owned(),
+            .clone(),
         parameters: proc.params_raw.clone(),
         body: proc.body_source.clone()?,
     })

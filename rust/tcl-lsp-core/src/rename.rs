@@ -453,7 +453,7 @@ pub fn rename_with_diagnosis(
 /// this entry point at [`rename_with_diagnosis`]'s arity.
 ///
 /// A call whose `-force` shadow only the whole-program view decides is never
-/// edited (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`):
+/// edited:
 /// [`references_in_program`](crate::references::references_in_program) omits
 /// it, so a rename whose edit set would touch it is refused as a whole.
 pub fn rename_in_program(

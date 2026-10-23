@@ -420,8 +420,8 @@ mod tests {
         let profile = environment.unit_profile();
         assert!(registry.profile().is_some());
         let source = "proc subject {} {set value 1; return OK}";
-        // A profiled default build is a fresh-interpreter document (user
-        // decision 2026-10-19T14:20Z) and publishes `::subject` as tclsh8.6
+        // A profiled default build is a fresh-interpreter document and
+        // publishes `::subject` as tclsh8.6
         // does; the dialect-blind build keeps explicit Standalone authoring,
         // still profiled through its Registry.
         let fresh = crate::compilation_unit::CompilationUnit::build_for_profile(

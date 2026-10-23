@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A variable reference in a pack ends where Tcl's scanner ends it (review
-//! naming-migration-review-20261022, N17).
+//! A variable reference in a pack ends where Tcl's scanner ends it.
 //!
 //! For `$a:b` C Tcl substitutes `a` and appends the literal `:b`; a lone colon
 //! is literal and a run of two or more is a namespace separator. A pack's

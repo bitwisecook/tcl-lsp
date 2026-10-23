@@ -199,8 +199,7 @@
 
 // Retained analysis receipts require deeper auto-trait evaluation.
 #![recursion_limit = "256"]
-// Long linear fail-closed guard chains and scenario tests; splitting them is
-// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+// Long fail-closed guard chains and scenario tests retain their checks in order.
 #![allow(clippy::too_many_lines)]
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -3158,15 +3157,6 @@ fn build_unit_with_keys_and_input<'db>(
             epoch,
         );
         lattice_keys.insert(req.body_id, key);
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
-            eprintln!(
-                "ORIGINAL_FUNCTION_LATTICE qname={} event={} untouched={}",
-                req.qname,
-                req.irules_event_body.is_some(),
-                req.command_trust.agrees_with_untouched_bindings()
-            );
-        }
         let unit = (*function_lattice(db, key)).clone();
         returned_candidates.insert(req.body_id, unit.clone());
         unit
@@ -11789,11 +11779,11 @@ mod readonly_source_optimisation_owner_tests {
     #[test]
     fn source_optimisation_certificates_retain_unknown_world_hazards() {
         let source = "proc a {} {puts VALUE}\nproc b {} {puts OTHER}\n";
-        // Test-input correction (user decision 2026-10-19T14:20Z): a document
+        // A document
         // with no explicit entry is analysed as a fresh interpreter, so the
         // unknown runtime history this test is about must be supplied as an
         // explicit unknown entry. The unit is otherwise built exactly as the
-        // document driver builds it; every assertion below is unchanged.
+        // document driver builds it.
         let unit = {
             let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
             let context = environment.default_context_registry();
@@ -11941,10 +11931,9 @@ mod original_optimiser_memo_transport_tests {
         let unit = document_compilation_unit_for(&db, file, config).unwrap();
         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
         let registry = input.borrowed_context_registry().commands();
-        // Test-input correction (user decision 2026-10-19T14:20Z, fresh
-        // interpreter): a document with no explicit entry runs `proc sample`,
+        // A document with no explicit entry runs `proc sample`,
         // so its body is the installed procedure, not a declaration-only
-        // native body unit. The memo assertions below are unchanged.
+        // native body unit.
         let body_ids: Vec<_> = unit.ir_module.procedures.keys().copied().collect();
         assert_eq!(body_ids.len(), 1, "{body_ids:?}");
         let body_id = body_ids[0];

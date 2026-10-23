@@ -761,8 +761,7 @@ pub(super) struct OriginalAutoIndexRegistration {
 ///
 /// The survey itself (a full analysis of the index) is a pure function of the
 /// index bytes, its directory and the selected grammar and naming policy, so
-/// it is memoised across rescans (user decision 2026-10-19T11:00Z
-/// `product_fixes`: "host Tcl install rescan cache"): a folder add or
+/// it is memoised across rescans: a folder add or
 /// workspace rescan re-surveys the same installed indexes. Only the extracted
 /// registrations are retained, never the analysis; existence is checked on
 /// every call. The memo is per thread (scans run on blocking workers), bounded

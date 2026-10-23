@@ -96,11 +96,9 @@ fn fp_inj_02_eval_string_concat_still_w101() {
 
 // FP-INJ-03 — T102 suppression for HTTP::uri / HTTP::path (PATH_PREFIXED).
 //
-// Test-input correction (fresh rule load, user decision 2026-10-21T00:10Z):
-// the negative fixtures run inside `when HTTP_REQUEST`. Executable commands
+// Negative fixtures run inside `when HTTP_REQUEST`. Executable commands
 // at iRules top level are rejected (KCS IRULE5007: the top level is a
-// declaration surface), and HTTP:: commands only exist in an event body;
-// the assertions are unchanged.
+// declaration surface), and HTTP:: commands only exist in an event body.
 
 #[test]
 fn fp_inj_03_http_uri_no_t102() {

@@ -949,8 +949,7 @@ pub fn references(
 /// answer that the same way go-to-definition does.
 ///
 /// A call whose `-force` shadow only that view decides is not a proven
-/// occurrence of either definition (user decision 2026-10-22T07:18Z,
-/// `force_import_shadow_direction`), so it is never reported.
+/// occurrence of either definition, so it is never reported.
 #[must_use]
 pub fn references_in_program(
     source: &str,

@@ -503,8 +503,7 @@ fn references_classmethod_decl_resolves_to_member() {
     //   is a runnable invocation is covered by the BUG tests below).
     let src =
         "oo::class create C {\n    classmethod build {} {}\n    classmethod make {} { build }\n}\n";
-    // Test-input correction (user decision 2026-10-17T20:30Z, `non_tcl_tests`:
-    // classmethod under tcl8.6 follows tclsh). tclsh 8.6.18 rejects this body
+    // Tclsh 8.6.18 rejects this body
     // with `invalid command name "classmethod"`; tclsh 9.0.4 accepts it and
     // `C build` returns. The fixture runs under tcl9.0; the assertion is
     // unchanged.

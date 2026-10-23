@@ -437,14 +437,6 @@ fn bindings_from_call(
         let declared =
             ctx.analysis
                 .original_declared_self_method_template(ctx.source, cmd, ctx.read_offset);
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
-            eprintln!(
-                "ORIGINAL_DECLARED_MY offset={} template={}",
-                head.span.start(),
-                declared.is_some(),
-            );
-        }
         if let Some(template) = declared
             && template.invocation().matches_registry(registry)
         {
@@ -620,14 +612,6 @@ fn scan_self_method_body<'a>(
         original_logical_body: None,
     };
     let targets = caller_frame_literal_targets(body, env);
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
-        eprintln!(
-            "ORIGINAL_DECLARED_MY body={} source_base={} literal_targets={targets:?}",
-            body.len(),
-            script.base(),
-        );
-    }
     if let Some(written) = targets.get(ctx.name) {
         out.push(CallerFrameBinding {
             callee: callee.to_owned(),
@@ -1558,57 +1542,6 @@ oo::class create Widget {
 
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
-        if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
-            let config = analysis.body_lexer_config.unwrap();
-            let realm = analysis.retained_command_realm().unwrap();
-            let registry = analysis.resolved_registry().unwrap();
-            let structure = crate::source_structure::SourceStructure::capture(
-                MIXIN_SRC,
-                Some(&analysis),
-                config,
-            )
-            .unwrap();
-            eprintln!(
-                "CALLER_METHOD_SOURCE heads={:?}",
-                structure
-                    .commands
-                    .iter()
-                    .map(|command| (command.span.start(), command.name()))
-                    .collect::<Vec<_>>()
-            );
-            for command in &structure.commands {
-                if command.name() != "my" {
-                    continue;
-                }
-                let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
-                    &tcl_lexer::SourceMap::new(MIXIN_SRC),
-                    config,
-                    command,
-                );
-                realm.stamp_original_tokens(&mut tokens);
-                eprintln!(
-                    "CALLER_METHOD_BINDING offset={} binding={} info={:?} template={}",
-                    command.span.start(),
-                    tokens.source_binding.is_some(),
-                    tokens.source_binding.as_ref().map(|binding| (
-                        &binding.variable_frame,
-                        binding.variable_context.dynamic_bindings,
-                        binding.unknown,
-                        binding
-                            .targets
-                            .iter()
-                            .map(|target| (&target.command, target.registry_backed, target.kind))
-                            .collect::<Vec<_>>(),
-                        binding
-                            .receiver_self_method_entry(registry)
-                            .map(|(_, entry, _)| (entry.name(), entry.declaration().offset)),
-                    )),
-                    realm
-                        .caller_frame_invocation_template_at(&tokens, read, registry)
-                        .is_some()
-                );
-            }
-        }
         let bindings = caller_frame_bindings(
             &analysis,
             MIXIN_SRC,

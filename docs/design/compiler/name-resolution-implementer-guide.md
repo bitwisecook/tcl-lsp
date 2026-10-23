@@ -1338,7 +1338,7 @@ an incremental cache key.
 
 `SourceCommandBindings` and `CommandBindingRealm` compare retained semantic state, including source origins, deferred/future bodies, compiler visits, variable continuations and runtime coverage. Only the derived unpositioned projection cache and per-point `OnceLock` lookup cache are excluded. Consumers may retain the exact realm across analysis results without reconstructing a dialect or treating a pointer as semantic equality. Immutable `SourceLookupSnapshot` carriers retain the complete original state and realm without computing a fingerprint during ordinary lookup. Hashing initializes its derived memo on demand. Equality compares the complete state and realm directly, allowing unchanged immutable fields to share their existing storage without hashing the whole world. Equal independently allocated states still hash equally; neither allocation identity nor a derived fingerprint replaces semantic equality. Joining a retained point invalidates the detached snapshot's memo and preserves the predecessor snapshot. The memo grants no command, compiler, frame or object authority.
 
-The conditional procedure and declared receiver-body workers select innermost source intervals through `DeferredBodyIndexCache`. Reuse requires the exact live retained deferred inventory; a copy-on-write change replaces that derived index. Its weak inventory observation retains no earlier body-table payloads. All equal-span candidates still reach the existing conflict, original source, execution frame, event, future, formal and namespace checks. Collector clones begin with an empty derived cache. Optional `TCL_LSP_TRACE_SOURCE_PHASES` timings measure reached owner work only and participate in no semantic equality, source proof or admission.
+The conditional procedure and declared receiver-body workers select innermost source intervals through `DeferredBodyIndexCache`. Reuse requires the exact live retained deferred inventory; a copy-on-write change replaces that derived index. Its weak inventory observation retains no earlier body-table payloads. All equal-span candidates still reach the existing conflict, original source, execution frame, event, future, formal and namespace checks. Collector clones begin with an empty derived cache.
 
 Original declared and catalogue metadata maps share immutable rows. `RegistryAdviceSlotMemo` projects fixed descriptors through the existing `original_registry_metadata_slot` owner under the exact live map allocation and complete `NamePolicyProtocol`. Distinct names that collide in one slot remain ambiguous; a declared collision still blocks catalogue advice. Weak map observations force copy-on-write edits to use a new map birth, and dead indexes are discarded. Bounded or external maps use the same uncached projection. Index warmth is excluded from semantic equality and hashing. Current original input, namespace/path geometry, live bindings and tombstones, Native entry absence, compiler world, point, frame, Registry and realm checks remain with their original callers; the index grants no selected target, native token, compiler admission or effects.
 
@@ -1568,11 +1568,6 @@ semantic equality nor Debug output. Event, receiver and future-frame roots keep
 their direct entry rules. Incoming and completion-outcome worlds retain their
 own frame, metadata and lookup evidence; namespace indexing does not replace
 those worlds or completion alternatives.
-
-`TCL_LSP_TRACE_SOURCE_PHASES=1` reports lexical requests/captures and namespace
-index builds/scanned rows from the shared owners. Use the unchanged alias
-lifecycle and large multi-procedure controls to measure complete analyses;
-derived-cache counters alone do not establish execution facts or tractability.
 
 Executable word consumers use `NativeWord::executable_parts()`. Its arena owns
 one immutable source image and flat ordered lists; a variable index selects a

@@ -2611,8 +2611,8 @@ fn original_parameter_expression_config(
                 }
                 | Statement::ExprEval {
                     expr, expr_base, ..
-                } => original(expr, *expr_base),
-                Statement::Return {
+                }
+                | Statement::Return {
                     expr: Some(expr),
                     expr_base,
                     ..
@@ -2641,7 +2641,7 @@ fn original_parameter_expression_config(
         scope.matches_module(ctx.source_module).then_some(())?;
         let base = base?;
         let mut operands = words.iter().filter(|word| {
-            word.content_span().ok().is_some_and(|span| {
+            word.content_span().is_ok_and(|span| {
                 span.start() == base
                     && tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some_and(
                         |value| word.image().bytes().get(span.as_range()) == Some(value.as_slice()),
@@ -5632,7 +5632,7 @@ mod tests {
         );
         let source = "proc p {} {return ORIGINAL}";
         // Unentered declaration cards need explicit unknown history; with no
-        // entry a fresh interpreter defines `::p` (user decision 2026-10-19T14:20Z).
+        // entry a fresh interpreter defines `::p`.
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
             .with_resolved_analysis_input(input)
             .with_explicit_unknown_entry();

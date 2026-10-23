@@ -30,8 +30,7 @@
 #![recursion_limit = "256"]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
-// Long linear fail-closed guard chains and scenario tests; splitting them is
-// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+// Long fail-closed guard chains and scenario tests retain their checks in order.
 #![allow(clippy::too_many_lines)]
 
 /// The INI parse and the three-layer merge, shared with every surface
@@ -40034,48 +40033,6 @@ info exists ::N::v\uD800";
         let symbol = Backend::original_namespace_symbol(source, &analysis, Position::new(0, 16))
             .expect("actual namespace operand");
         let position = Position::new(4, 14);
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_INDEXED_LOCATION").is_some() {
-            let rows = analysis
-                .original_variable_symbols
-                .iter()
-                .map(|row| {
-                    (
-                        row.span(),
-                        row.is_declaration(),
-                        row.symbol().is_namespace(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            eprintln!(
-                "ORIGINAL_INDEXED rows={rows:?} selected={}",
-                matches!(
-                    tcl_lsp_core::variable_symbol::select(
-                        source,
-                        &analysis,
-                        position.line,
-                        position.character
-                    ),
-                    std::ops::ControlFlow::Break(Some(_))
-                )
-            );
-            let current = backend
-                .analysis_for(&second, std::sync::Arc::from(source), "tcl8.6".to_owned())
-                .await
-                .unwrap();
-            let context =
-                core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&analysis)
-                    .unwrap();
-            for row in &analysis.original_variable_symbols {
-                let owner =
-                    OriginalIndexedSourceLocation::from_variable(second.as_str(), &context, row)
-                        .unwrap();
-                eprintln!(
-                    "ORIGINAL_INDEXED span={:?} current={}",
-                    row.span(),
-                    owner.validated_span(source, &current).is_some()
-                );
-            }
-        }
         assert_eq!(
             backend
                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
@@ -41546,52 +41503,6 @@ info exists ::N::v\uD800";
                 .map(|(uri, analysis)| (uri.as_str(), analysis)),
         );
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        if std::env::var_os("TCL_LSP_TRACE_LOGICAL_SETTLEMENT130").is_some() {
-            eprintln!(
-                "logical130 caller={caller_src:?} lexical={} unresolved={:?}",
-                analysis.allows_lexical_declaration_advice(),
-                analysis.unresolved_command_sites
-            );
-            eprintln!(
-                "logical130 providers={:?} live={:?}",
-                providers
-                    .iter()
-                    .map(|(uri, analysis)| (
-                        uri,
-                        analysis.allows_lexical_declaration_advice(),
-                        analysis.all_procs.keys().collect::<Vec<_>>()
-                    ))
-                    .collect::<Vec<_>>(),
-                index
-                    .live_procs()
-                    .map(|proc| (&proc.qualified_name, proc.arity))
-                    .collect::<Vec<_>>()
-            );
-            for invocation in &analysis.command_invocations {
-                let binding = analysis
-                    .retained_command_realm()
-                    .unwrap()
-                    .invocation_at_source("", invocation.range.start());
-                eprintln!(
-                    "logical130 invocation={:?} lookup={:?} candidates={:?} logical={} presence={:?} diagnostic={:?} original={} index={:?}",
-                    invocation.name,
-                    invocation.lookup,
-                    invocation.resolution_candidates,
-                    binding.logical_source_name_advice_input().is_some(),
-                    binding.selected_slot_presence(),
-                    binding.selected_slot_diagnostic_presence(),
-                    binding.original_recorded_head_name_input().is_some(),
-                    invocation
-                        .resolution_candidates
-                        .iter()
-                        .map(|candidate| (
-                            candidate,
-                            index.workspace_command_exists_for_call(candidate, false)
-                        ))
-                        .collect::<Vec<_>>()
-                );
-            }
-        }
         let settled = settle_cross_file_calls(&index, &analysis, registry, caller_uri.as_str());
         (analysis, settled)
     }
@@ -46101,8 +46012,7 @@ info exists ::N::v\uD800";
     }
 
     /// The discovered-installation leg of the workspace scan, exercised over a
-    /// pinned fixture install (the harness never surveys the host's own Tcl,
-    /// user decision 2026-10-19T11:00Z `product_fixes`): a package under the
+    /// fixture installation rather than the host Tcl: a package under the
     /// installation's `auto_path` and a `tclIndex` autoload entry both reach
     /// the resolver, and a rescan reuses the memoised index survey.
     #[tokio::test]

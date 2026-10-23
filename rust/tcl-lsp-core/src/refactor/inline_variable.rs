@@ -558,14 +558,6 @@ fn original_inline_binding(
             function.invocation_metadata_context_for_module(context.registry, &unit.ir_module);
         let opaque = function.cfg.has_opaque_native_accesses();
         let barrier = function.dynamic_barrier_blocks_value_motion();
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
-            eprintln!(
-                "ORIGINAL_INLINE_FUNCTION offset={} opaque={opaque} barrier={barrier} blocks={}",
-                context.offset,
-                function.ssa.blocks.len()
-            );
-        }
         if opaque || barrier {
             continue;
         }
@@ -606,23 +598,6 @@ fn point_inline_binding(
             Some(context.metadata?),
             tokens,
         );
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
-        eprintln!(
-            "ORIGINAL_INLINE_POINT offset={} normal={} binding={} handler={} continuation={}",
-            context.offset,
-            normal.is_some(),
-            tokens.source_binding.is_some(),
-            tokens
-                .source_binding
-                .as_ref()
-                .is_some_and(|binding| binding.proved_handler_target().is_some()),
-            tokens
-                .source_binding
-                .as_ref()
-                .is_some_and(|binding| binding.normal_variable_continuation().is_some())
-        );
-    }
     let normal = normal?;
     let value_index = normal
         .written_argument(normal.stored_value_argument()?)?

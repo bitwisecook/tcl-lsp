@@ -201,19 +201,6 @@ fn requests(
                 .span()
                 .start();
             let tokens = walk.tokens(document.source, &command);
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                eprintln!(
-                    "ORIGINAL_MEMBER_RENAME site={command_offset} command={} region={start}..{end} original_members={:?}",
-                    command.name(),
-                    class
-                        .metadata()
-                        .original_members
-                        .declarations()
-                        .map(|row| (row.declaration().site().offset, row.metadata().body_span))
-                        .collect::<Vec<_>>()
-                );
-            }
             // The independently retained definition worker supplies source
             // body geometry. It does not supply an ordinary runtime call.
             if let Some(declaration) = class
@@ -291,27 +278,13 @@ fn requests(
             let selected = walk
                 .structure(document.source, &command)
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-            registry_coverage(&selected).inspect_err(|&refusal| {
-                #[cfg(test)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                    eprintln!("ORIGINAL_MEMBER_RENAME_REFUSAL site={command_offset} facts={:?} refusal={refusal:?}", selected.facts);
-                }
-                // Read only by the test-build trace above.
-                let _ = refusal;
-            })?;
+            registry_coverage(&selected)?;
             for (a, b) in walk
                 .same_frame_regions(document.source, &command)
                 .into_iter()
                 .chain(walk.frame_shifted_regions(document.source, &command))
             {
                 pending.push((a, b, depth + 1));
-            }
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                eprintln!(
-                    "ORIGINAL_MEMBER_RENAME_REGIONS site={command_offset} complete={} pending={pending:?}",
-                    walk.complete()
-                );
             }
             if !walk.complete() {
                 return Err(OriginalMemberRenameRefusal::IncompleteCoverage);

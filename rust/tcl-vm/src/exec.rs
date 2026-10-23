@@ -652,6 +652,16 @@ impl Frame {
         }
     }
 
+    fn jim_evaluation_script_location(
+        has_jim_script: bool,
+        source_location: Option<&tcl_runtime_api::script_source_location::ScriptSourceLocation>,
+    ) -> Option<tcl_runtime_api::jim_error_stack::JimScriptLocation> {
+        (!has_jim_script).then(|| tcl_runtime_api::jim_error_stack::JimScriptLocation {
+            file: Value::string(source_location.map_or("", |location| location.file.as_str())),
+            line: source_location.map_or(1, |location| location.line),
+        })
+    }
+
     pub(crate) fn new(unit: crate::compiled::CompiledUnit, is_proc: bool) -> Self {
         if unit.jim_script.is_none() {
             unit.asm
@@ -687,16 +697,7 @@ impl Frame {
         let compiler_generation = (compiler != crate::compiled::CompilerProvenance::NativeScript)
             .then(|| compiler.generation());
         let jim_evaluation_script =
-            jim_script
-                .is_none()
-                .then(|| tcl_runtime_api::jim_error_stack::JimScriptLocation {
-                    file: Value::string(
-                        source_location
-                            .as_ref()
-                            .map_or("", |location| location.file.as_str()),
-                    ),
-                    line: source_location.as_ref().map_or(1, |location| location.line),
-                });
+            Self::jim_evaluation_script_location(jim_script.is_some(), source_location.as_ref());
         Self {
             jim_script_entry: jim_script,
             jim_script: None,
@@ -9921,11 +9922,6 @@ impl Vm {
             // Jim's evaluation frame borrows argv only while this command is
             // active. Completed diagnostic views must not keep arguments shared.
             f.jim_evaluation.invocation = Value::empty();
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some() {
-                res.options
-                    .report_native_compound_ownership("deliver-sync-options");
-            }
             let protocol = self
                 .actual_native_invocation_dialect()
                 .native_string_protocol();

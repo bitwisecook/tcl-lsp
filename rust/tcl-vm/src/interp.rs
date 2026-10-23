@@ -24322,14 +24322,6 @@ impl Vm {
         if !self.supports_error_stack() {
             return;
         }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let Some(frame) = self.frames.last()
-        {
-            for (index, value) in frame.call_argv.iter().enumerate() {
-                value.report_native_compound_ownership(&format!("call-argv-before-inner-{index}"));
-            }
-        }
         if let Err(error) = self
             .native_errors
             .error_stack
@@ -24337,14 +24329,6 @@ impl Vm {
         {
             let _ = crate::command::completion_from_tcl_error(self, error.into());
             return;
-        }
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let Some(frame) = self.frames.last()
-        {
-            for (index, value) in frame.call_argv.iter().enumerate() {
-                value.report_native_compound_ownership(&format!("call-argv-after-inner-{index}"));
-            }
         }
         let frame = if let Some(original) = self
             .native_errors
@@ -24371,12 +24355,6 @@ impl Vm {
         } else {
             ErrorStackFrame::Unreported
         };
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some()
-            && let ErrorStackFrame::Call(value) = &frame
-        {
-            value.report_native_compound_ownership("call-argv-captured-list");
-        }
         let _ = self
             .native_errors
             .error_stack

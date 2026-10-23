@@ -5081,7 +5081,7 @@ mod tests {
         );
         let registry = context.commands();
         // Unknown history is an explicit entry; with none supplied the
-        // document runs in a fresh interpreter (user decision 2026-10-19T14:20Z).
+        // document runs in a fresh interpreter.
         let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
         let source = "proc helper {} {}; $command unknown";
         let (module, cfg, _) = lower_source_callers(

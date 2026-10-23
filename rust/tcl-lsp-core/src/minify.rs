@@ -5010,9 +5010,8 @@ mod tests {
 
     #[test]
     fn keeps_word_operator_spacing() {
-        // User decision 2026-10-22T13:17Z: remove every safe gap. Pinned
-        // C8.4-9.1/Jim controls (wordop-manual-oracle-20261022.json) prove
-        // the space before eq is required here while eq->$b is removable.
+        // Remove every safe gap. The space before eq is required here,
+        // while the gap between eq and $b is removable.
         check(
             "if {$a eq $b} {\n    puts hi\n}\n",
             "if {$a eq$b} {puts hi}",

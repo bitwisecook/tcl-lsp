@@ -789,9 +789,9 @@ fn core_commands_are_advertised() {
 
 #[test]
 fn minify_compact_reports_naming_refusal_and_preserves_result() {
-    // Review N15 and decision 2026-10-22T13:17Z preserve the unsupported
+    // Preserve the unsupported
     // public-name refusal. Isolation cannot authorize a partial rename.
-    // The added puts makes the old callable fixture's result observable to C Tcl.
+    // The puts call makes the procedure result observable to Tcl.
     let original_source =
         "proc addNumbers {a b} { return [expr {$a + $b}] }\nputs [addNumbers 1 2]\n";
     let mut lsp = Lsp::tcl();

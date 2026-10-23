@@ -325,7 +325,7 @@ fn class_and_method_collisions_are_atomic_typed_protocol_refusals() {
 
 #[test]
 fn import_and_alias_rename_is_complete_or_returns_an_atomic_typed_refusal() {
-    // Review N04 permits a complete transactional plan or a refusal. A
+    // A rename requires a complete transactional plan or a refusal. A
     // declaration-only edit must never escape as a successful WorkspaceEdit.
     let source = concat!(
         "namespace eval ::space {\n",

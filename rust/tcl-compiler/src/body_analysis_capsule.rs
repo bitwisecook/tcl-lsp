@@ -1334,7 +1334,7 @@ mod tests {
 mod native_source_lattice_tests {
     // Unentered native declaration cards exist only under explicitly supplied
     // unknown runtime history; with no entry a fresh interpreter defines each
-    // procedure (user decision 2026-10-19T14:20Z).
+    // procedure.
     use super::*;
     use crate::compilation_unit::{FunctionLatticeInputs, LatticeRequest, UnitDialect};
 

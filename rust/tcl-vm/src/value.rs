@@ -1285,13 +1285,6 @@ impl Value {
         if self.native_object_is_live() {
             Ok(())
         } else {
-            #[cfg(any(test, feature = "test-support"))]
-            if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
-                eprintln!(
-                    "retired-native-header-access: {}",
-                    std::backtrace::Backtrace::force_capture()
-                );
-            }
             Err(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "retired native object header",
@@ -1303,13 +1296,6 @@ impl Value {
     fn retire_native_header(&self) {
         if self.0.retired.replace(true) {
             return;
-        }
-        #[cfg(any(test, feature = "test-support"))]
-        if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
-            eprintln!(
-                "retired-native-header-release: {}",
-                std::backtrace::Backtrace::force_capture()
-            );
         }
         #[cfg(test)]
         observe_native_retirement(self);
@@ -2790,8 +2776,6 @@ impl Value {
     ) -> Result<Rc<[u8]>, E> {
         self.native_string_stage_check(check)?;
         if !self.native_object_is_live() {
-            #[cfg(test)]
-            self.report_native_string_unavailable(protocol, "retired-header");
             return Err(failure(
                 tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
             ));
@@ -3016,68 +3000,9 @@ impl Value {
                 | IntRep::JimScriptLine { .. }
                 | IntRep::Expression(_)
         ) {
-            #[cfg(test)]
-            self.report_native_string_unavailable(protocol, "primary-has-no-updater");
             return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
         }
         self.materialize_native_bytearray_string(protocol)
-    }
-
-    #[cfg(test)]
-    fn report_native_string_unavailable(&self, protocol: NativeStringProtocol, reason: &str) {
-        // Failure context observes only the original header. No getter, object
-        // clone, payload, address or result storage is produced by this report.
-        eprintln!(
-            "native-string-unavailable reason={reason} protocol={protocol:?} primary={} live={} references={} resident={}",
-            self.native_object_type_name(),
-            self.native_object_is_live(),
-            self.native_object_reference_count(),
-            self.0.string.borrow().is_some(),
-        );
-    }
-
-    #[cfg(test)]
-    pub(crate) fn report_native_compound_ownership(&self, label: &str) {
-        fn visit(value: &Value, label: &str, path: &mut Vec<usize>, remaining: &mut usize) {
-            if *remaining == 0 || path.len() > 16 {
-                return;
-            }
-            *remaining -= 1;
-            let primary = value.0.intrep.borrow();
-            let list = match &*primary {
-                IntRep::List { items, .. } => Some(items),
-                _ => None,
-            };
-            eprintln!(
-                "native-compound-ownership label={label} path={path:?} primary={} live={} references={} lifetime_only={} resident={} list_owner={:?} list_backing={:?} list_headers={:?}",
-                value.native_object_type_name(),
-                value.native_object_is_live(),
-                value.native_object_reference_count(),
-                value.1 == NativeValueHandleOwnership::LifetimeOnly,
-                value.resident_string_bytes().is_some(),
-                list.map(crate::NativeListItems::owns_native_header),
-                list.map(crate::NativeListItems::is_whole_backing),
-                list.map(crate::NativeListItems::native_header_reference_count),
-            );
-            if let Some(items) = list {
-                for (index, member) in items.iter().enumerate() {
-                    path.push(index);
-                    visit(member, label, path, remaining);
-                    path.pop();
-                }
-            } else if let IntRep::Dict(dictionary) = &*primary {
-                dictionary.with_pairs(|pairs| {
-                    for (index, (key, member)) in pairs.iter().enumerate() {
-                        path.push(index * 2);
-                        visit(key, label, path, remaining);
-                        *path.last_mut().expect("dictionary member path") += 1;
-                        visit(member, label, path, remaining);
-                        path.pop();
-                    }
-                });
-            }
-        }
-        visit(self, label, &mut Vec::new(), &mut 80);
     }
 
     fn materialize_native_bytearray_string(

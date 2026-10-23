@@ -721,7 +721,7 @@ fn retain_source_tokens(
                     let statement = &block.statements[index];
                     statement
                         .tokens()
-                        .map_or(true, crate::place_bridge::evaluates_arguments)
+                        .is_none_or(crate::place_bridge::evaluates_arguments)
                 };
                 if missing_arguments {
                     result.unknown_argument_points.insert((block_id, index));
@@ -2544,7 +2544,8 @@ pub fn namespace_destruction_places(
             registry
                 .profile()
                 .map(SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
+                .map(crate::registry_invocation::InvocationMetadataContext::from)
+                .into(),
         ),
     )
 }
@@ -2555,14 +2556,16 @@ pub(crate) fn namespace_destruction_places_with_metadata_context(
     statement: &Statement,
     state: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<Place> {
     let Some(metadata) = metadata else {
         return Vec::new();
     };
     let Some(invocation) =
         crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-            registry, metadata, statement,
+            registry,
+            metadata.context(),
+            statement,
         )
     else {
         return Vec::new();

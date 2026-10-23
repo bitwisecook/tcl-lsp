@@ -2444,7 +2444,9 @@ impl CfgBuilder<'_> {
                 crate::ssa::defs_of_with_metadata_context(
                     last,
                     self.registry,
-                    self.command_classes.metadata_context().flatten(),
+                    self.command_classes
+                        .metadata_context()
+                        .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
                 )
             };
             self.alias_observed_vars.extend(observed);

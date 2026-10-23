@@ -766,24 +766,15 @@ impl Vm {
         self.create_native_literal_table_pool(asm, &asm.literals, source_namespace)
     }
 
-    fn create_native_literal_table_pool(
+    fn retire_discarded_native_literal_passes(
         &mut self,
         asm: &FunctionAsm,
         table: &tcl_bytecode::LiteralTable,
         source_namespace: &NamespacePath,
-    ) -> crate::literal_pool::NativeLiteralPoolReceipt {
-        use crate::literal_pool::{NativeLiteralPool, NativeLiteralUnavailable as Error};
-        let target = super::native_operation_currency::SavedExecutionTarget::capture(self);
-        let frame = (
-            self.frames.len(),
-            Rc::downgrade(
-                &self
-                    .frames
-                    .last()
-                    .expect("compiler physical frame")
-                    .activation,
-            ),
-        );
+        target: &super::native_operation_currency::SavedExecutionTarget,
+        frame: &(usize, std::rc::Weak<crate::frame::ActivationIdentity>),
+    ) -> Result<(), crate::literal_pool::NativeLiteralUnavailable> {
+        use crate::literal_pool::NativeLiteralUnavailable as Error;
         for first_pass in table.discarded_native_passes() {
             let discarded =
                 self.create_native_literal_table_pool(asm, first_pass, source_namespace)?;
@@ -807,19 +798,13 @@ impl Vm {
                 return Err(Error::unavailable("original literal discarded-pass frame"));
             }
         }
-        if let Some(planned) = table.compiler_replay_environment() {
-            let current = self.capture_native_compiler_pass_environment(None);
-            if !planned.is_current_for(self.native_interpreter_identity())
-                || !planned.is_root()
-                || planned.has_enabled_limits()
-                || current.as_ref() != Some(&planned.without_procedure())
-            {
-                return Err(Error::unavailable(
-                    "native compiler replay environment changed during first-pass publication",
-                ));
-            }
-        }
-        let context: Option<&NativeLiteralContext> = table
+        Ok(())
+    }
+
+    fn native_literal_table_context(
+        table: &tcl_bytecode::LiteralTable,
+    ) -> Option<&NativeLiteralContext> {
+        table
             .entries()
             .iter()
             .find_map(|literal| match literal.allocation() {
@@ -838,7 +823,50 @@ impl Vm {
                         }
                         _ => None,
                     })
-            });
+            })
+    }
+
+    fn check_native_literal_replay_environment(
+        &mut self,
+        table: &tcl_bytecode::LiteralTable,
+    ) -> Result<(), crate::literal_pool::NativeLiteralUnavailable> {
+        use crate::literal_pool::NativeLiteralUnavailable as Error;
+        if let Some(planned) = table.compiler_replay_environment() {
+            let current = self.capture_native_compiler_pass_environment(None);
+            if !planned.is_current_for(self.native_interpreter_identity())
+                || !planned.is_root()
+                || planned.has_enabled_limits()
+                || current.as_ref() != Some(&planned.without_procedure())
+            {
+                return Err(Error::unavailable(
+                    "native compiler replay environment changed during first-pass publication",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn create_native_literal_table_pool(
+        &mut self,
+        asm: &FunctionAsm,
+        table: &tcl_bytecode::LiteralTable,
+        source_namespace: &NamespacePath,
+    ) -> crate::literal_pool::NativeLiteralPoolReceipt {
+        use crate::literal_pool::{NativeLiteralPool, NativeLiteralUnavailable as Error};
+        let target = super::native_operation_currency::SavedExecutionTarget::capture(self);
+        let frame = (
+            self.frames.len(),
+            Rc::downgrade(
+                &self
+                    .frames
+                    .last()
+                    .expect("compiler physical frame")
+                    .activation,
+            ),
+        );
+        self.retire_discarded_native_literal_passes(asm, table, source_namespace, &target, &frame)?;
+        self.check_native_literal_replay_environment(table)?;
+        let context = Self::native_literal_table_context(table);
         let namespace = if let Some(context) = context {
             let token = NsId(u32::try_from(context.namespace_token).map_err(|_| {
                 Error::unavailable("native literal namespace token width is unavailable")

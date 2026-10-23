@@ -130,32 +130,6 @@ fn reference_candidates(
     }
     let frame = analysis.original_variable_frame_in_source(&image, config, cursor);
     let namespace = analysis.original_namespace_scope_at(cursor);
-    #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
-        let mut locals = 0;
-        let mut matching_locals = 0;
-        let mut aliases = 0;
-        let mut matching_aliases = 0;
-        for occurrence in &analysis.original_variable_symbols {
-            if let SignatureSourceVariableSlot::Local { frame: owner, .. } =
-                occurrence.symbol().slot()
-            {
-                locals += 1;
-                matching_locals += usize::from(Some(owner) == frame.as_ref());
-            }
-            if let Some((owner, _)) = occurrence.original_local_alias() {
-                aliases += 1;
-                matching_aliases += usize::from(Some(owner) == frame.as_ref());
-            }
-        }
-        eprintln!(
-            "ORIGINAL_VARIABLE_COMPLETION cursor={cursor} frame={} namespace={} symbols={} locals={locals} matching_locals={matching_locals} aliases={aliases} matching_aliases={matching_aliases} write_advice={}",
-            frame.is_some(),
-            namespace.is_some(),
-            analysis.original_variable_symbols.len(),
-            analysis.original_variable_write_advice.len()
-        );
-    }
     if analysis.has_original_vendor_source_names() {
         let home = analysis.original_vendor_variable_body_in_source(&image, config, cursor);
         let mut candidates = Vec::new();

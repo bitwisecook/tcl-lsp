@@ -413,6 +413,171 @@ fn channel_operand(
     reached
 }
 
+fn native_read_leading_option(
+    original: &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
+    selected: NativeNumericCommandProtocol,
+    value: &Value,
+    policy: NativeReadCountProtocol,
+    string: &impl Fn() -> Result<std::rc::Rc<[u8]>, CmdError>,
+) -> Result<Option<(Option<i64>, bool)>, CmdError> {
+    if matches!(
+        policy,
+        NativeReadCountProtocol::LeadingDigitOrSuffix | NativeReadCountProtocol::JimAio
+    ) {
+        let spelling = string()?;
+        let spelling = tcl_core_types::c_string_extent(&spelling);
+        if policy == NativeReadCountProtocol::LeadingDigitOrSuffix
+            && !spelling.first().is_some_and(u8::is_ascii_digit)
+        {
+            if spelling == b"nonewline" {
+                return Ok(Some((None, true)));
+            }
+            let mut message = b"bad argument \"".to_vec();
+            message.extend_from_slice(spelling);
+            message.extend_from_slice(b"\": should be \"nonewline\"");
+            return Err(CmdError::with_error_code_bytes(message, b"NONE".to_vec()));
+        }
+        if policy == NativeReadCountProtocol::JimAio && spelling.first() == Some(&b'-') {
+            let options = selected.read_leading_options().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "read leading option purpose",
+                ),
+            )?;
+            let index = original.with_vm_for_value(value, |vm| {
+                vm.native_static_option_index_checked(value, options, true, "option")
+            })?;
+            return Ok(Some((
+                None,
+                selected.read_option_suppresses_newline(index).ok_or(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "read leading option selection",
+                    ),
+                )?,
+            )));
+        }
+    }
+    Ok(None)
+}
+
+fn quiet_native_read_count(
+    original: &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
+    selected: NativeNumericCommandProtocol,
+    value: &Value,
+    string: &impl Fn() -> Result<std::rc::Rc<[u8]>, CmdError>,
+) -> Result<(Option<i64>, bool), CmdError> {
+    match original.probe(value, selected.getter_kind())? {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(count)) if count >= 0 => {
+            Ok((Some(count), false))
+        }
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_)) | Err(_) => {
+            let spelling = string()?;
+            let error = selected.negative_read_error(&spelling).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "nonnegative read diagnostic",
+                ),
+            )?;
+            Err(CmdError::with_error_code_bytes(
+                error.message,
+                error.error_code,
+            ))
+        }
+        Ok(_) => Err(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("read Wide output").into(),
+        ),
+    }
+}
+
+fn native_read_count_operand(
+    original: &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
+    selected: NativeNumericCommandProtocol,
+    value: &Value,
+) -> Result<(Option<i64>, bool), CmdError> {
+    let policy =
+        selected
+            .read_count()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "read count purpose",
+            ))?;
+    let string = || {
+        original.string(
+            value,
+            original
+                .dialect()
+                .native_string_protocol()
+                .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?,
+        )
+    };
+    if let Some(option) = native_read_leading_option(original, selected, value, policy, &string)? {
+        return Ok(option);
+    }
+    if policy == NativeReadCountProtocol::QuietNonnegativeWide {
+        return quiet_native_read_count(original, selected, value, &string);
+    }
+    let reached = original.getter(value, selected.getter_kind());
+    original.current_for_value(value)?;
+    match reached {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(count))
+            if count >= 0 || policy == NativeReadCountProtocol::LeadingDigitOrSuffix =>
+        {
+            Ok((Some(count), false))
+        }
+        Err(error)
+            if error.native_access_refusal().is_some()
+                || error.native_execution_refusal().is_some() =>
+        {
+            Err(error)
+        }
+        Err(error) if policy == NativeReadCountProtocol::IntOrSuffix => {
+            if tcl_core_types::c_string_extent(&string()?) == b"nonewline" {
+                drop(error);
+                original.current_for_value(value)?;
+                Ok((None, true))
+            } else {
+                Err(error)
+            }
+        }
+        Err(error) if policy == NativeReadCountProtocol::NonnegativeIntOrSuffix => {
+            drop(error);
+            original.current_for_value(value)?;
+            let spelling = string()?;
+            if tcl_core_types::c_string_extent(&spelling) == b"nonewline" {
+                return Ok((None, true));
+            }
+            let error = selected.negative_read_error(&spelling).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "nonnegative read diagnostic",
+                ),
+            )?;
+            Err(CmdError::with_error_code_bytes(
+                error.message,
+                error.error_code,
+            ))
+        }
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_)) => {
+            let spelling = string()?;
+            if policy == NativeReadCountProtocol::NonnegativeIntOrSuffix
+                && tcl_core_types::c_string_extent(&spelling) == b"nonewline"
+            {
+                return Ok((None, true));
+            }
+            let error = selected.negative_read_error(&spelling).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "nonnegative read diagnostic",
+                ),
+            )?;
+            Err(CmdError::with_error_code_bytes(
+                error.message,
+                error.error_code,
+            ))
+        }
+        Err(error) => Err(error),
+        Ok(_) => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "read integer output",
+        )
+        .into()),
+    }
+}
+
 fn read_count_operand(
     vm: &mut Vm,
     value: &Value,
@@ -433,144 +598,7 @@ fn read_count_operand(
         vm,
         context,
         NativeNumericCommandPurpose::ReadCount,
-        |original, selected| {
-            let policy = selected.read_count().ok_or(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable("read count purpose"),
-            )?;
-            let string = || {
-                original.string(
-                    value,
-                    original
-                        .dialect()
-                        .native_string_protocol()
-                        .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?,
-                )
-            };
-            if matches!(
-                policy,
-                NativeReadCountProtocol::LeadingDigitOrSuffix | NativeReadCountProtocol::JimAio
-            ) {
-                let spelling = string()?;
-                let spelling = tcl_core_types::c_string_extent(&spelling);
-                if policy == NativeReadCountProtocol::LeadingDigitOrSuffix
-                    && !spelling.first().is_some_and(u8::is_ascii_digit)
-                {
-                    if spelling == b"nonewline" {
-                        return Ok((None, true));
-                    }
-                    let mut message = b"bad argument \"".to_vec();
-                    message.extend_from_slice(spelling);
-                    message.extend_from_slice(b"\": should be \"nonewline\"");
-                    return Err(CmdError::with_error_code_bytes(message, b"NONE".to_vec()));
-                }
-                if policy == NativeReadCountProtocol::JimAio && spelling.first() == Some(&b'-') {
-                    let options = selected.read_leading_options().ok_or(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "read leading option purpose",
-                        ),
-                    )?;
-                    let index = original.with_vm_for_value(value, |vm| {
-                        vm.native_static_option_index_checked(value, options, true, "option")
-                    })?;
-                    return Ok((
-                        None,
-                        selected.read_option_suppresses_newline(index).ok_or(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "read leading option selection",
-                            ),
-                        )?,
-                    ));
-                }
-            }
-            if policy == NativeReadCountProtocol::QuietNonnegativeWide {
-                return match original.probe(value, selected.getter_kind())? {
-                    Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(count))
-                        if count >= 0 =>
-                    {
-                        Ok((Some(count), false))
-                    }
-                    Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_)) | Err(_) => {
-                        let spelling = string()?;
-                        let error = selected.negative_read_error(&spelling).ok_or(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "nonnegative read diagnostic",
-                            ),
-                        )?;
-                        Err(CmdError::with_error_code_bytes(
-                            error.message,
-                            error.error_code,
-                        ))
-                    }
-                    Ok(_) => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "read Wide output",
-                    )
-                    .into()),
-                };
-            }
-            let reached = original.getter(value, selected.getter_kind());
-            original.current_for_value(value)?;
-            match reached {
-                Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(count))
-                    if count >= 0 || policy == NativeReadCountProtocol::LeadingDigitOrSuffix =>
-                {
-                    Ok((Some(count), false))
-                }
-                Err(error)
-                    if error.native_access_refusal().is_some()
-                        || error.native_execution_refusal().is_some() =>
-                {
-                    Err(error)
-                }
-                Err(error) if policy == NativeReadCountProtocol::IntOrSuffix => {
-                    if tcl_core_types::c_string_extent(&string()?) == b"nonewline" {
-                        drop(error);
-                        original.current_for_value(value)?;
-                        Ok((None, true))
-                    } else {
-                        Err(error)
-                    }
-                }
-                Err(error) if policy == NativeReadCountProtocol::NonnegativeIntOrSuffix => {
-                    drop(error);
-                    original.current_for_value(value)?;
-                    let spelling = string()?;
-                    if tcl_core_types::c_string_extent(&spelling) == b"nonewline" {
-                        return Ok((None, true));
-                    }
-                    let error = selected.negative_read_error(&spelling).ok_or(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "nonnegative read diagnostic",
-                        ),
-                    )?;
-                    Err(CmdError::with_error_code_bytes(
-                        error.message,
-                        error.error_code,
-                    ))
-                }
-                Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_)) => {
-                    let spelling = string()?;
-                    if policy == NativeReadCountProtocol::NonnegativeIntOrSuffix
-                        && tcl_core_types::c_string_extent(&spelling) == b"nonewline"
-                    {
-                        return Ok((None, true));
-                    }
-                    let error = selected.negative_read_error(&spelling).ok_or(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "nonnegative read diagnostic",
-                        ),
-                    )?;
-                    Err(CmdError::with_error_code_bytes(
-                        error.message,
-                        error.error_code,
-                    ))
-                }
-                Err(error) => Err(error),
-                Ok(_) => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "read integer output",
-                )
-                .into()),
-            }
-        },
+        |original, selected| native_read_count_operand(original, selected, value),
     );
     context
         .current(vm)

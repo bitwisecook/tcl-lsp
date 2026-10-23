@@ -112,23 +112,6 @@ impl EscapeSummaries {
         if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
             return tcl_core_types::BodyFrameId::Top(module.procedure_ids.module_id());
         }
-        if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some() {
-            for (id, body) in module.procedures.iter().chain(module.body_lowerings()) {
-                let original = match &self.source {
-                    EscapeSource::Unit(unit) => unit.original_procedure_for_body(*id).is_some(),
-                    EscapeSource::Ir(_) => module.procedures.contains_key(id),
-                };
-                eprintln!(
-                    "ESCAPE_BODY_OWNER id={id:?} kind={:?} label={:?} span={:?} original={} summary={}",
-                    body.body_kind,
-                    body.qualified_name,
-                    body.span,
-                    original,
-                    self.by_body
-                        .contains_key(&tcl_core_types::BodyFrameId::Body(*id)),
-                );
-            }
-        }
         let mut bodies = module
             .procedures
             .iter()

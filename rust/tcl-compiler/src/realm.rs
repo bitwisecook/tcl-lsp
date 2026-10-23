@@ -940,9 +940,8 @@ fn logical_source_options(
 /// catalogue's C-compatible name recipe. Runtime entry and storage remain
 /// separate from this source-only domain.
 ///
-/// A document supplied without an execution entry is a freshly loaded rule
-/// (user decision 2026-10-21T00:10Z, "realm-aware command world"): when the
-/// dialect admits the authored F5 naming simulation, the document realm takes
+/// A document supplied without an execution entry is a freshly loaded rule.
+/// When the dialect admits the authored F5 naming simulation, the document realm takes
 /// the rule-loader entry every other supplied-source consumer takes
 /// ([`crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source`]),
 /// so the loader's own `proc` is an original lookup.

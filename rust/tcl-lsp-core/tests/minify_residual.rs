@@ -724,7 +724,7 @@ fn isolated_compact_renames_global_and_round_trips_value() {
     );
 }
 
-// Review N15 (naming-migration-review-20261022.md): compact / aggressive
+// Compact / aggressive
 // minification must not run its own unsafe naming transformation. Until the
 // shared transactional rename planner exists both the native and the lexical
 // ("tcl") paths refuse alpha renaming explicitly, and the emitted source keeps

@@ -135,7 +135,7 @@ impl MinifyRefusal {
 /// Eligibility of each name/effect-changing purpose is independent of syntax.
 /// Scalar body equivalence is supplied independently from its edit geometry.
 /// Isolation does not grant public procedure/global renaming or insertion.
-/// Review N15 (naming-migration-review-20261022.md): the lexical
+/// The lexical
 /// compatibility naming passes (`compact_names`, alias insertion) allocate
 /// names without the shared transactional rename planner — occupied command
 /// slots are not reserved and per-occurrence qualification is not preserved,

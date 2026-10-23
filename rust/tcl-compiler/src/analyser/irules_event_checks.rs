@@ -1226,8 +1226,7 @@ mod tests {
         codes(source).iter().any(|(c, _)| c == code)
     }
 
-    /// User decision 2026-10-21T00:10Z ("realm-aware command world"): the
-    /// rule loader defines a rule's `proc` at load time, so a document
+    /// The rule loader defines a rule's `proc` at load time, so a document
     /// supplied without an execution entry publishes it as an original
     /// procedure declaration, which editor references and rename select.
     #[test]

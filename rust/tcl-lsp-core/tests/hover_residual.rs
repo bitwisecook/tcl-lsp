@@ -490,8 +490,7 @@ fn residual_hover_class_lists_class_methods() {
         "    method use {} {}\n",
         "}\n",
     );
-    // Test-input correction (user decision 2026-10-17T20:30Z, `non_tcl_tests`:
-    // classmethod under tcl8.6 follows tclsh). tclsh 8.6.18 rejects this body
+    // Tclsh 8.6.18 rejects this body
     // with `invalid command name "classmethod"` and creates no `Factory`
     // (`info object isa class Factory` -> 0); tclsh 9.0.4 creates it and
     // `info class methods Factory` lists `use make`. The fixture therefore

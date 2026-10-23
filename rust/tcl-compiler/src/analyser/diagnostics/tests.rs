@@ -13301,7 +13301,7 @@ fn issue_703_no_false_w210_on_fallthrough_group_var() {
     let reads_target_var =
         "proc p {} {\n    try {set v ok} on ok x - on error y {\n        return $y\n    }\n}\n";
     assert_eq!(count_code(reads_fallthrough_var, "W210"), 0);
-    // Narrow correction (Sol-42, 2026-10-19): a literal `try` in a procedure
+    // A literal `try` in a procedure
     // is byte-compiled, which binds the matching `on ok x` handler's var, and
     // `set v ok` cannot raise, so only the `ok` arm reaches the shared body.
     // tclsh 8.6.18, 9.0.4 and 9.1.0 all fail `p` with `can't read "y": no

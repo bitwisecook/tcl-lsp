@@ -994,8 +994,7 @@ impl BindingBaseline {
     }
 
     /// Fresh F5 rule-loader world: hosted source entered from a known entry in
-    /// the rule loader's realm (user decision 2026-10-21T00:10Z;
-    /// [`SourceAnalysisEntry::for_fresh_hosted_source`]).
+    /// the rule loader's realm; see [`SourceAnalysisEntry::for_fresh_hosted_source`].
     fn hosted_rule_loader_world(&self) -> bool {
         self.native_entry.is_none()
             && !self.unknown_entry

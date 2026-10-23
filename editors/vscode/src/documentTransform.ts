@@ -4,7 +4,6 @@
 
 // naming.lsp.original-document-transform-currency
 
-
 import * as vscode from "vscode";
 import {
   DocumentSourceSnapshot,

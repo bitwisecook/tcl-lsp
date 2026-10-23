@@ -30,8 +30,7 @@
 #![cfg_attr(test, recursion_limit = "256")]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
-// Long linear fail-closed guard chains and scenario tests; splitting them is
-// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+// Long fail-closed guard chains and scenario tests retain their checks in order.
 #![allow(clippy::too_many_lines)]
 
 #[cfg(test)]

@@ -2990,13 +2990,13 @@ pub fn forced_import_shadows_call(
 }
 
 /// Whether the original-name providers abstain at the call whose head covers
-/// `offset` (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`).
+/// `offset`.
 ///
 /// A `namespace import -force` that the document alone shows binding nothing
 /// leaves the fresh-interpreter answer (the local command) in place. When
 /// only the caller's whole-program export view says a sibling exports the
 /// name, the shadow depends on cross-document execution order, which stays
-/// conditional (decision 2026-10-17T20:30Z `export_order`): neither the
+/// conditional: neither the
 /// local definition nor the sibling's export is proven, so no provider
 /// answers for that call.
 #[must_use]
@@ -3154,15 +3154,6 @@ fn export_verdict_for_slot_in(
     let scope =
         tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(slot.namespace.clone());
     let observable = namespace_exports_observable(analysis, &scope, policy);
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
-        eprintln!(
-            "ORIGINAL_EXPORT_SOURCE_QUERY at={import_at} scope={scope:?} tail={:?} local={local:?} observable={observable} exports={} unknown={}",
-            slot.simple.as_bytes(),
-            analysis.original_namespace_exports().count(),
-            analysis.original_namespace_export_unknowns().len()
-        );
-    }
     if observable {
         local
     } else {
@@ -3663,20 +3654,6 @@ fn slot_events<'a>(
     order: &DocumentOrderCell,
 ) -> Vec<SlotEvent<'a>> {
     let mut events: Vec<SlotEvent<'a>> = Vec::new();
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
-        eprintln!(
-            "ORIGINAL_IMPORT_SOURCE_QUERY ns={importing_ns} word={word} at={call_off} imports={} patterns={} exports={} unknown={}",
-            analysis
-                .namespace_imports
-                .iter()
-                .filter(|imp| imp.ns == importing_ns)
-                .count(),
-            analysis.original_namespace_patterns().count(),
-            analysis.original_namespace_exports().count(),
-            analysis.original_namespace_export_unknowns().len()
-        );
-    }
     for imp in analysis
         .namespace_imports
         .iter()
@@ -3774,14 +3751,6 @@ fn slot_events<'a>(
             }
             export_verdict(analysis, ctx, source_ns, word, at, order)
         };
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
-            eprintln!(
-                "ORIGINAL_IMPORT_SOURCE_PATTERN ns={importing_ns} source={source_ns} at={at} original={} call_inputs={} verdict={verdict:?}",
-                original.is_some(),
-                input.len()
-            );
-        }
         if !query.installs(verdict) {
             continue;
         }
@@ -6078,10 +6047,7 @@ c\uD800";
 
     /// Byte offset of the head word of the last call written on its own
     /// indented line as `    word`. A call-site query sits on the call's own
-    /// head word, which is what the original declaration selection reads
-    /// (test-input correction, user decision 2026-10-18T16:00Z
-    /// `forced_import_sibling_offsets`; fixtures and expected values are
-    /// unchanged).
+    /// head word, which is what the original declaration selection reads.
     fn last_call_head(src: &str, word: &str) -> u32 {
         let line = format!("    {word}\n");
         u32::try_from(src.rfind(&line).expect("call line present") + 4).expect("tiny test source")

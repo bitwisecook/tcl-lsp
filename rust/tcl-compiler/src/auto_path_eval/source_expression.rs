@@ -139,7 +139,7 @@ impl OriginalSourcePathExpression {
                 .retained_command_realm_arc()
                 .is_some_and(|realm| Arc::ptr_eq(realm, &self.realm))
             && self.file_reference.as_ref().is_none_or(|reference| {
-                self.image.try_text().ok().is_some_and(|source| {
+                self.image.try_text().is_ok_and(|source| {
                     source_registry_words_at(source, analysis, reference.head).is_some_and(
                         |current| {
                             current == reference.invocation

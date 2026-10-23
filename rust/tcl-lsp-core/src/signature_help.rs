@@ -348,17 +348,6 @@ fn command_context_with_args(
         );
         identities.stamp_original_tokens(&mut original);
         let effective = tcl_compiler::registry_invocation::effective_command_words(&original);
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-            eprintln!(
-                "SIGNATURE_HEADER cursor={} stage=command site={} written={} effective={} binding={}",
-                cursor_offset,
-                head_offset,
-                segment.argv.len(),
-                effective.is_some(),
-                original.source_binding.is_some()
-            );
-        }
         if let Some(effective) = effective {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter = crate::original_invocation::effective_argument_at(
@@ -374,15 +363,6 @@ fn command_context_with_args(
             })?;
         }
         let selected = crate::original_invocation::source_registry_words(source, analysis, segment);
-        #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-            eprintln!(
-                "SIGNATURE_HEADER cursor={} stage=selected site={} available={}",
-                cursor_offset,
-                head_offset,
-                selected.is_some()
-            );
-        }
         if let Some(selected) = selected {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter =

@@ -3259,7 +3259,7 @@ fn the_parameter_declaration_hovers_as_a_variable_not_the_file_command() {
     );
 }
 
-// Review N05 (naming-migration-review-20261022.md): rename and find-references
+// Rename and find-references
 // settle every occurrence once. A rename may refuse, but it never edits an
 // occurrence find-references does not report for the same binding, and an
 // accepted rename keeps the program's observable output (tclsh 8.6.18 /

@@ -436,8 +436,7 @@ impl SourceAnalysisEntry {
     }
 
     /// Fresh F5 rule-loader entry for hosted source supplied without an explicit
-    /// execution entry (user decision 2026-10-21T00:10Z, "realm-aware command
-    /// world"). BIG-IP loads a rule, then runs each `when` body in a fresh TMM
+    /// execution entry. BIG-IP loads a rule, then runs each `when` body in a fresh TMM
     /// event context; neither phase inherits unknown interpreter history.
     ///
     /// - The load phase is the `RuleLoader` realm: the loader dispatches its
@@ -580,7 +579,7 @@ mod source_entry_tests {
         assert!(entry.execution_name_policy.is_none());
         assert!(entry.logical_source_input.is_none());
         // No supplied entry: the document runs in a fresh tclsh, not after
-        // unknown history (user decision 2026-10-19T14:20Z).
+        // unknown history.
         assert!(!entry.unknown_entry);
         assert_eq!(
             entry.options().execution_name_policy(),

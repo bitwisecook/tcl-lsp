@@ -350,7 +350,7 @@ impl BytecodeCompileService {
         }
         // A whole module compiled with no explicit entry is a document a
         // fresh interpreter of its profile runs, as `tclsh file.tcl` does
-        // (user decision 2026-10-19T14:20Z): it takes the supplied-source
+        // and takes the supplied-source
         // entry whole-document analysis takes, over the profile's complete
         // input; a profile-less module is compiled for the engine the VM
         // runs it under. A supplied runtime
@@ -3636,8 +3636,8 @@ mod tests {
         }
     }
 
-    /// A variable reference ends where the release's scanner ends it
-    /// (review N17): `$a:b` substitutes `a` and appends `:b`, a lone colon is
+    /// A variable reference ends where the release's scanner ends it:
+    /// `$a:b` substitutes `a` and appends `:b`, a lone colon is
     /// literal, a run of two or more colons is a namespace separator, and a
     /// braced `${a}` is the control. Every release agrees (tclsh 8.4.20,
     /// 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print the expected line for this

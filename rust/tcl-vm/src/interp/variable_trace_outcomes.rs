@@ -93,7 +93,7 @@ impl Vm {
 
     pub(super) fn retain_variable_trace_value_error(
         &mut self,
-        error: tcl_syntax::value::ValueError,
+        error: &tcl_syntax::value::ValueError,
     ) -> NativeExecutionError {
         match error.native_access_refusal() {
             Some(first) => {

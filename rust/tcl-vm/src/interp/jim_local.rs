@@ -260,7 +260,8 @@ impl Vm {
                 }
             }
             // After a refusal, only the already captured cleanup role remains available.
-            if let Err(error) = self.clean_captured_jim_local_command(record, current_name) {
+            if let Err(error) = self.clean_captured_jim_local_command(record, current_name.as_ref())
+            {
                 let _ = crate::command::completion_from_cmd_error(self, error.clone());
                 first.get_or_insert(error);
             }
@@ -291,7 +292,7 @@ impl Vm {
     fn clean_captured_jim_local_command(
         &mut self,
         record: OriginalJimLocalCommand,
-        current_name: Option<super::NameBytes>,
+        current_name: Option<&super::NameBytes>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         if self.st_of(record.interpreter).is_none() {
             let error =
@@ -320,7 +321,7 @@ impl Vm {
                 let current_entry = owner_current
                     && vm.execution_refusal.is_none()
                     && record.slot.namespace == super::ROOT_NS
-                    && current_name.as_ref() == Some(&record.slot.simple)
+                    && current_name == Some(&record.slot.simple)
                     && vm
                         .name_world
                         .borrow()

@@ -690,11 +690,7 @@ impl Producer<'_> {
             )?;
         (input.policy() == self.policy).then_some(input)
     }
-    fn literal_installer(
-        &self,
-        words: &[NativeWord],
-        checkpoint: &mut &'static str,
-    ) -> Option<LiteralInstaller> {
+    fn literal_installer(&self, words: &[NativeWord]) -> Option<LiteralInstaller> {
         let head = self.key(words.first()?)?;
         let binding = self
             .bindings
@@ -702,35 +698,27 @@ impl Producer<'_> {
         // The source definition walk retains a conditional installer schema;
         // runtime uncertainty does not become a selected handler or execution.
         // The shared catalogue owner independently keeps known shadow barriers.
-        *checkpoint = "registry";
         let registry = self.registry?;
-        *checkpoint = "recorded-command";
         let (command, mut original_tokens) = binding.original_recorded_command()?;
         if command.span.start() != head.original_word().group().span.start() {
             return None;
         }
         original_tokens.source_binding = Some(binding.clone());
-        *checkpoint = "head-occurrence";
         let occurrence =
             SourceOriginalNameOccurrence::new(binding.invocation_site()?, head.clone())?;
-        *checkpoint = "catalogue-schema";
         let installer = binding.original_catalogue_source_candidate(
             &original_tokens,
             &occurrence,
             self.caller_scope.as_ref(),
             registry,
         )?;
-        *checkpoint = "vector-correspondence";
         if installer.original_words() != words {
             return None;
         }
-        *checkpoint = "descriptor";
         let spec = registry.get_for_surface(&installer.candidate().name, self.dialect.surface)?;
         let installer = Arc::new(installer);
-        *checkpoint = "loop-layout";
         let (variable, list, body) =
             super::oo::loop_installer_pair(spec, words.len().checked_sub(1)?)?;
-        *checkpoint = "variable-list";
         let variable = self.key(words.get(variable + 1)?)?;
         let variable = SignatureSourceNameValue::from_original_static_word(
             variable.original_word(),
@@ -750,7 +738,6 @@ impl Producer<'_> {
         {
             return None;
         }
-        *checkpoint = "value-list";
         let list = self.key(words.get(list + 1)?)?;
         let list = SignatureSourceNameValue::from_original_static_word(
             list.original_word(),
@@ -758,7 +745,6 @@ impl Producer<'_> {
             self.policy,
         )?;
         let names = list.list_elements()?;
-        *checkpoint = "body-source";
         let body = self.key(words.get(body + 1)?)?;
         Some(LiteralInstaller {
             installer,
@@ -774,9 +760,7 @@ impl Producer<'_> {
         variable: &SignatureSourceNameValue,
         image: &SourceImage,
         arguments: &[String],
-        checkpoint: &mut &'static str,
     ) -> Option<&'a NativeWord> {
-        *checkpoint = "worker-layout";
         let member = self.grammar.member(self.key(native.first()?)?.display()?)?;
         member
             .indices_for_call_in(arguments, self.dialect.surface, ArgRole::Body)
@@ -785,7 +769,6 @@ impl Producer<'_> {
             .indices_for_call_in(arguments, self.dialect.surface, ArgRole::Name)
             .next()?
             .checked_add(1)?;
-        *checkpoint = "variable-reference";
         let name_word = native.get(ordinal)?;
         let arena = name_word.executable_parts();
         let [part] = arena.list(arena.root()) else {
@@ -819,74 +802,62 @@ impl Producer<'_> {
             texts,
             tokens,
         } = command;
-        let mut checkpoint = "head";
-        let retained = (|| {
-            let LiteralInstaller {
-                installer,
-                variable,
-                names,
-                body,
-            } = self.literal_installer(words, &mut checkpoint)?;
-            let region = body.original_word().content_span().ok()?;
-            let image = self.origin.source_image();
-            if image.bytes().get(region.as_range())? != body.bytes() {
-                return None;
-            }
-            let selected = SourceImage::from_bytes(body.bytes(), image.channel());
-            checkpoint = "body-segmentation";
-            let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
-                &selected,
-                region.start(),
-                body.lexer_config().nested(),
-            )?;
-            let [command] = commands.as_slice() else {
-                return None;
-            };
-            if command.is_partial {
-                return None;
-            }
-            let command_tokens = CommandTokens::from_segmented(
-                &SourceMap::from_image(image),
-                body.lexer_config(),
-                command,
+        let LiteralInstaller {
+            installer,
+            variable,
+            names,
+            body,
+        } = self.literal_installer(words)?;
+        let region = body.original_word().content_span().ok()?;
+        let image = self.origin.source_image();
+        if image.bytes().get(region.as_range())? != body.bytes() {
+            return None;
+        }
+        let selected = SourceImage::from_bytes(body.bytes(), image.channel());
+        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &selected,
+            region.start(),
+            body.lexer_config().nested(),
+        )?;
+        let [command] = commands.as_slice() else {
+            return None;
+        };
+        if command.is_partial {
+            return None;
+        }
+        let command_tokens = CommandTokens::from_segmented(
+            &SourceMap::from_image(image),
+            body.lexer_config(),
+            command,
+        );
+        let native = crate::registry_invocation::original_native_compiler_words(
+            image,
+            command_tokens.words(),
+            command.span.start(),
+            body.lexer_config(),
+        )?;
+        let name_word =
+            self.loop_member_name(&native, &variable, image, command.texts.get(1..)?)?;
+        let before = self.readonly_names.len();
+        for name in names {
+            self.readonly_names.push((
+                name_word.span(),
+                SignatureSourceNameInput::OriginalValue(name),
+            ));
+            let previous = self.source_installer.replace(Arc::clone(&installer));
+            let retained = self.member(
+                MemberCommand::new(&native, &command.texts, &command.argv),
+                side,
+                visibility,
+                class,
+                depth + 1,
             );
-            checkpoint = "worker-vector";
-            let native = crate::registry_invocation::original_native_compiler_words(
-                image,
-                command_tokens.words(),
-                command.span.start(),
-                body.lexer_config(),
-            )?;
-            let name_word = self.loop_member_name(
-                &native,
-                &variable,
-                image,
-                command.texts.get(1..)?,
-                &mut checkpoint,
-            )?;
-            checkpoint = "readonly-member";
-            let before = self.readonly_names.len();
-            for name in names {
-                self.readonly_names.push((
-                    name_word.span(),
-                    SignatureSourceNameInput::OriginalValue(name),
-                ));
-                let previous = self.source_installer.replace(Arc::clone(&installer));
-                let retained = self.member(
-                    MemberCommand::new(&native, &command.texts, &command.argv),
-                    side,
-                    visibility,
-                    class,
-                    depth + 1,
-                );
-                self.source_installer = previous;
-                self.readonly_names.truncate(before);
-                retained?;
-            }
-            // Whole vector lengths remain an independent source-layout obligation.
-            (words.len() == texts.len() && words.len() == tokens.len()).then_some(())
-        })();
-        retained
+            self.source_installer = previous;
+            self.readonly_names.truncate(before);
+            retained?;
+        }
+        // Whole vector lengths remain an independent source-layout obligation.
+        (words.len() == texts.len() && words.len() == tokens.len()).then_some(())
     }
 
     fn member(

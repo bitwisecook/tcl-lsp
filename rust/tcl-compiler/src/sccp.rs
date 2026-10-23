@@ -1901,8 +1901,7 @@ impl ExistenceRun {
             .enumerate()
             .map(|(slot, name)| {
                 u32::try_from(slot)
-                    .ok()
-                    .is_some_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
+                    .is_ok_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
                     || entry.dynamic_trace
                     || name.contains("::")
                     || escaping.contains(name.as_str())

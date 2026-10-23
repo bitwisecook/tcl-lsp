@@ -6264,7 +6264,7 @@ mod tests {
         };
         let source = "proc local {value} {set result $value; return $result}";
         // A dialect-bearing default build is a whole document in a fresh
-        // interpreter of that dialect (user decision 2026-10-19T14:20Z):
+        // interpreter of that dialect:
         // `tclsh8.6` defines `::local`, so the unit publishes it.
         let fresh = CompilationUnit::build_with_options(source, options);
         assert!(fresh.ir_module.source_metadata_input.is_some());
@@ -6479,9 +6479,8 @@ mod tests {
             assert!(entry.native_entry.is_none());
             assert!(entry.logical_source_input.is_none());
             assert!(entry.hosted_execution_context.is_none());
-            // Documented correction (user decision 2026-10-21T00:10Z,
-            // "realm-aware command world"): a hosted document supplied without
-            // an entry is a fresh rule load where the dialect admits the
+            // A hosted document supplied without an entry is a fresh rule load
+            // where the dialect admits the
             // authored F5 naming simulation; elsewhere history stays unknown.
             match crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(&input)
                 .filter(|fresh| !fresh.unknown_entry)

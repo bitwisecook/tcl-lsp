@@ -2091,8 +2091,7 @@ fn procedure_plan<'a>(
     top_idx: u32,
 ) -> ProcedurePlan<'a> {
     let procs: Vec<_> = module
-        .procedures
-        .iter()
+        .native_source_procedure_bodies_for_compilation()
         .filter(|(_, procedure)| {
             !procedure.namespace_scoped
                 && !crate::native_compilation_admission::script_requires_admission(&procedure.body)
@@ -2517,7 +2516,7 @@ fn codegen(
         .iter()
         .map(|(id, proc)| {
             let tier = native?;
-            let unit = tier.unit.procedures.get(id)?;
+            let unit = tier.unit.function_for_body(Some(*id))?;
             Some(match tier.lower(unit, false, proc.body_offset) {
                 Ok((function, report)) => LoweredProc::Lowered {
                     decline: native_emit::proc_entry_decline(&function),
@@ -2703,8 +2702,7 @@ fn codegen(
         emitter.frame_local = emitter.code_local.saturating_add(1);
         emitter.facts = analysis
             .and_then(|(unit, registry)| {
-                unit.procedures
-                    .get(id)
+                unit.function_for_body(Some(*id))
                     .map(|fu| function_facts(fu, module, registry, &unit.command_mutations, false))
             })
             .unwrap_or_default();
@@ -3102,6 +3100,35 @@ mod tests {
         missing.retained_source_bindings = None;
         assert!(OriginalProcedureNames::capture(&missing, registry).is_none());
         assert!(procedure_shadow_obligations(&missing, registry, false).is_none());
+    }
+
+    #[test]
+    fn original_native_body_compilation_keeps_publication_and_direct_authority_separate() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(
+            "proc p {x} {return $x}\nset answer [p 42]\n",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.ir_module.procedures.is_empty());
+        let plan = procedure_plan(&unit.ir_module, Some((&unit, &registry)), 0);
+        assert_eq!(plan.procs.len(), 1);
+        assert!(plan.direct.is_empty());
+        let (id, procedure) = plan.procs[0];
+        assert_eq!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(procedure.publication.is_none());
+        assert_eq!(unit.function_for_body(Some(id)).unwrap().body_id, Some(id));
+        let mut missing = unit.ir_module.clone();
+        missing.original_native_declaration_body_units.clear();
+        assert!(procedure_plan(&missing, None, 0).procs.is_empty());
+        let mut stale = unit.ir_module.clone();
+        stale.source = tcl_lexer::SourceImage::document("changed source");
+        assert!(procedure_plan(&stale, None, 0).procs.is_empty());
     }
 
     #[test]

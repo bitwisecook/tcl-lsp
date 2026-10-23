@@ -256,26 +256,6 @@ pub(crate) fn reject_link_obligations(
     Ok(())
 }
 
-fn coverage_trace(offset: u32, stage: &'static str) {
-    #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_RENAME").is_some() {
-        eprintln!("ORIGINAL_COMMAND_RENAME offset={offset} stage={stage}");
-    }
-    #[cfg(not(test))]
-    let _ = (offset, stage);
-}
-
-fn require_coverage<T>(
-    value: Option<T>,
-    offset: u32,
-    stage: &'static str,
-) -> Result<T, OriginalCommandRenameRefusal> {
-    value.ok_or_else(|| {
-        coverage_trace(offset, stage);
-        OriginalCommandRenameRefusal::IncompleteCoverage
-    })
-}
-
 fn document_requests(
     document: OriginalDeclarationDocument<'_>,
     documents: &[OriginalDeclarationDocument<'_>],
@@ -308,31 +288,20 @@ fn document_requests(
         } else {
             walk.segment_nested(region, offset)
         } {
-            let command_offset = command
-                .argv
-                .first()
-                .map_or(offset, |word| word.span.start());
-            let words = require_coverage(
-                walk.native_words(document.source, &command),
-                command_offset,
-                "native-words",
-            )?;
+            let words = walk
+                .native_words(document.source, &command)
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
             let tokens = walk.tokens(document.source, &command);
-            let binding = require_coverage(
-                tokens.source_binding.as_ref(),
-                command_offset,
-                "source-binding",
-            )?;
-            let input = require_coverage(
-                binding.original_head_name_input(&tokens),
-                command_offset,
-                "original-head-input",
-            )?;
-            let lookup = require_coverage(
-                binding.original_command_lookup(&tokens, &input),
-                command_offset,
-                "original-lookup",
-            )?;
+            let binding = tokens
+                .source_binding
+                .as_ref()
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+            let input = binding
+                .original_head_name_input(&tokens)
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+            let lookup = binding
+                .original_command_lookup(&tokens, &input)
+                .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
             let image = SourceImage::document(document.source);
             if lookup.name_input() != &input || lookup.site().source.source_image() != &image {
                 return Err(OriginalCommandRenameRefusal::StaleSource);
@@ -356,19 +325,7 @@ fn document_requests(
                 }
             }
             if let Some(selected) = walk.structure(document.source, &command) {
-                reject_link_obligations(&selected).inspect_err(|refusal| {
-                    coverage_trace(command_offset, "registry-name-link-or-effect-coverage");
-                    #[cfg(test)]
-                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_RENAME").is_some() {
-                        eprintln!("ORIGINAL_COMMAND_RENAME_FACTS offset={command_offset} command={} operation={:?} traits={:?} roles_complete={} roles={:?} transitions={:?} effects={:?} refusal={refusal:?}",
-                            selected.facts.canonical_command, selected.facts.operation,
-                            selected.facts.traits, selected.facts.arg_roles_complete,
-                            selected.written_argument_roles(), selected.facts.state_transitions,
-                            selected.facts.effects);
-                    }
-                    // Read only by the test-build trace above.
-                    let _ = refusal;
-                })?;
+                reject_link_obligations(&selected)?;
                 for (a, b) in walk
                     .same_frame_regions(document.source, &command)
                     .into_iter()
@@ -377,18 +334,15 @@ fn document_requests(
                     pending.push((a, b, depth + 1));
                 }
                 if !walk.complete() {
-                    coverage_trace(command_offset, "executable-regions");
                     return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
                 }
             } else {
                 // A genuine direct source procedure with static argv has no
                 // Registry-defined executable argument regions. Its own body
                 // is visited at the separately selected declaration worker.
-                let reference = require_coverage(
-                    reference.as_ref(),
-                    command_offset,
-                    "unselected-registry-or-source-reference",
-                )?;
+                let reference = reference
+                    .as_ref()
+                    .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
                 if !reference.is_direct_definition()
                     || !document
                         .analysis
@@ -399,7 +353,6 @@ fn document_requests(
                             )
                         })
                 {
-                    coverage_trace(command_offset, "direct-procedure-owner");
                     return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
                 }
                 let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(

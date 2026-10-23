@@ -193,7 +193,7 @@ mod tests {
     }
 
     /// With no entry and no unknown history the compile is a fresh
-    /// interpreter of the profile (user decision 2026-10-19T14:20Z): its own
+    /// interpreter of the profile: its own
     /// compiler rejects the command exactly as a captured fresh 8.4 entry's
     /// does, so the rejection is presented, not left to a provider.
     #[test]

@@ -5035,7 +5035,7 @@ mod original_collection_source_tests {
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
         // Unknown effects need unknown prior history, which a supplied
         // document no longer implies: a fresh rule load resolves
-        // `HTTP::release` (user decision 2026-10-21T00:10Z). The explicit
+        // `HTTP::release`. The explicit
         // unknown-history entry keeps this contract's premise.
         let (mut unit, context) =
             supplied_with_history("when HTTP_REQUEST {HTTP::release}", config, true);

@@ -212,8 +212,7 @@ fn workspace_symbols_empty_document_is_empty_and_does_not_panic() {
 
 #[test]
 fn workspace_symbols_classmethod_surfaces_as_method() {
-    // Fixture-profile correction authorised by decision 2026-10-17T20:30Z,
-    // non_tcl_tests: classmethod under tcl8.6 follows C Tcl. The exact script
+    // The classmethod fixture requires Tcl 9.0. The exact script
     // below fails in pinned 8.6.18 with `invalid command name "classmethod"`;
     // pinned 9.0.4 and 9.1.0 accept it and `info class methods C` reports make.
     // Keep the member/kind assertions and analyse the genuine 9.0 declaration.
@@ -360,7 +359,7 @@ fn minify_is_idempotent_on_already_minified_source() {
     assert_eq!(once, twice, "minify must be idempotent");
 }
 
-// Review N15 and decision 2026-10-22T13:17Z retain the alpha-renaming refusal;
+// Alpha renaming remains unsupported;
 // independently supported whitespace compaction still preserves execution.
 fn isolated_compact_refusal(source: &str) -> tcl_lsp_core::minify::MinifyResult {
     use tcl_lsp_core::minify::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_profile};

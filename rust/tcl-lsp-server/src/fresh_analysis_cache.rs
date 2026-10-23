@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Reuse of per-document fresh analyses keyed on their complete input
-//! revision (user decision 2026-10-18T16:00Z, `Server108`; closed documents
-//! included in a size-bounded LRU, decision 2026-10-19T11:00Z
-//! `closed_document_analysis_cache`).
+//! revision, including closed documents in a size-bounded LRU.
 //!
 //! A fresh analysis is a pure function of the document's bytes and dialect,
 //! its checked path admission (which fixes the analyser's file path), and the

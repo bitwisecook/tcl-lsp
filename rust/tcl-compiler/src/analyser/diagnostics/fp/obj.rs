@@ -1373,7 +1373,7 @@ fn mixin_method_inventory_withdraws_after_original_base_mutation() {
         "{unknown}: {:?}",
         codes(&unknown, D)
     );
-    // Narrow correction (Sol-42, 2026-10-19): a mixin names the class object,
+    // A mixin names the class object,
     // not its command name, so renaming `::Observable` and creating a new
     // empty class under that name leaves `Reactive` mixing in the original
     // (now `::Retired`). tclsh 8.6.18, 9.0.4 and 9.1.0 all report `unknown

@@ -300,8 +300,8 @@ pub(super) fn preflight_image(
             failure.math_table_prerequisite = Some(required.clone());
         }
     }
-    // An entry-less compile is a fresh interpreter of its profile (user
-    // decision 2026-10-19T14:20Z): its compiler table is the profile's own,
+    // An entry-less compile is a fresh interpreter of its profile:
+    // its compiler table is the profile's own,
     // which the module's command bindings guard at run time. Only an
     // explicit unknown entry leaves the chunk's compiler provider unresolved.
     let native_entry_unavailable =

@@ -77,8 +77,7 @@ fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
 
 /// Reference lines for a fixture that declares a `TclOO` `classmethod`.
 ///
-/// Test-input correction (user decision 2026-10-17T20:30Z, `non_tcl_tests`:
-/// classmethod under tcl8.6 follows tclsh). `classmethod` is a Tcl 9.0
+/// `classmethod` is a Tcl 9.0
 /// definition command: tclsh 8.6.18 rejects the class body with
 /// `invalid command name "classmethod"`, while tclsh 9.0.4 and 9.1.0 install
 /// the class-object method (`Factory make` returns a new object). These
@@ -1410,7 +1409,7 @@ mod namespace_scoped_class_dispatch {
 
 #[test]
 fn class_commands_follow_each_invocations_namespace_path_before_kind_selection() {
-    // Review N10: a class command uses ordinary site-level command lookup.
+    // A class command uses ordinary site-level command lookup.
     // A nearer procedure remains an occupant even though it is not a class.
     let source = concat!(
         "namespace eval left {oo::class create C {}}\n",

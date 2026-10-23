@@ -1458,8 +1458,7 @@ impl Analyser {
             })
         {
             // A hosted document supplied without an entry is a fresh rule
-            // load (user decision 2026-10-21T00:10Z, "realm-aware command
-            // world"): its loader defines each `proc` at load time under the
+            // load: its loader defines each `proc` at load time under the
             // authored naming recipe of that entry.
             if self.source_analysis_entry.is_some() {
                 return None;

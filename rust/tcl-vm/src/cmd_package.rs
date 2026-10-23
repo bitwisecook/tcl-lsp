@@ -436,6 +436,34 @@ fn jim_provide(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value
     ok(Value::empty())
 }
 
+fn evaluate_jim_package_file(
+    vm: &mut OriginalPackage<'_>,
+    candidate: &tcl_dialect::DirectPackageFileBytes,
+    contents: Vec<u8>,
+) -> Completion<Value> {
+    match candidate.kind {
+        tcl_dialect::DirectPackageFileKind::Script => {
+            let label = std::str::from_utf8(&candidate.path).ok();
+            if let Some(label) = label {
+                vm.push_script(label.to_owned());
+            }
+            let completion = vm.eval_script(&Value::from_native_string_bytes(contents));
+            if label.is_some()
+                && let Err(error) = vm.cleanup(Vm::pop_script)
+            {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let completion = vm.settle_callback(completion);
+            vm.settle_package_source_completion(completion)
+        }
+        tcl_dialect::DirectPackageFileKind::Native => {
+            let mut script = b"load ".to_vec();
+            tcl_syntax::list::append_list_element(&mut script, &candidate.path, true);
+            vm.eval_script(&Value::from_native_string_bytes(script))
+        }
+    }
+}
+
 fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Value> {
     if let Some(version) = vm.package_version_bytes(name) {
         return ok(Value::from_native_string_bytes(version.as_bytes()));
@@ -487,27 +515,7 @@ fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Val
                 Some(Err(_)) => continue,
             };
             vm.provide_package(name, "");
-            let completion = match candidate.kind {
-                tcl_dialect::DirectPackageFileKind::Script => {
-                    let label = std::str::from_utf8(&candidate.path).ok();
-                    if let Some(label) = label {
-                        vm.push_script(label.to_owned());
-                    }
-                    let completion = vm.eval_script(&Value::from_native_string_bytes(contents));
-                    if label.is_some()
-                        && let Err(error) = vm.cleanup(Vm::pop_script)
-                    {
-                        return crate::command::completion_from_cmd_error(vm, error);
-                    }
-                    let completion = vm.settle_callback(completion);
-                    vm.settle_package_source_completion(completion)
-                }
-                tcl_dialect::DirectPackageFileKind::Native => {
-                    let mut script = b"load ".to_vec();
-                    tcl_syntax::list::append_list_element(&mut script, &candidate.path, true);
-                    vm.eval_script(&Value::from_native_string_bytes(script))
-                }
-            };
+            let completion = evaluate_jim_package_file(vm, &candidate, contents);
             if !completion.code.is_ok() || vm.check().is_err() {
                 if let Err(error) = vm.cleanup(|vm| vm.forget_package_completely(name)) {
                     return crate::command::completion_from_cmd_error(vm, error);
@@ -1327,11 +1335,10 @@ fn selected_loader(
         })
 }
 
-fn bad_return_code(
+fn restore_pending_package_error(
     vm: &mut OriginalPackage<'_>,
     completion: &Completion<Value>,
-    loader: Option<(&NameBytes, &NameBytes)>,
-) -> Completion<Value> {
+) -> Result<bool, Completion<Value>> {
     // Only an explicit pending error return carries its trace into the newly
     // generated BADRESULT episode. Break/continue/custom traces are discarded.
     let pending_error = completion.code == Code::Return
@@ -1339,14 +1346,14 @@ fn bad_return_code(
             crate::command::option_code_checked(vm, &completion.options, Code::Ok)
         }) {
             Ok(code) => code == Code::Error,
-            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+            Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error)),
         };
     let carried = if pending_error {
         match vm.checked_tcl(|vm| {
             crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo")
         }) {
             Ok(value) => value,
-            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+            Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error)),
         }
     } else {
         None
@@ -1355,7 +1362,7 @@ fn bad_return_code(
     if let Some(info) = carried {
         let bytes = match package_operand_bytes(vm, &info) {
             Ok(bytes) => bytes,
-            Err(refused) => return refused,
+            Err(refused) => return Err(refused),
         };
         if !bytes.is_empty() {
             vm.seed_error_info_original(&info, &bytes);
@@ -1367,13 +1374,25 @@ fn bad_return_code(
         }) {
             Ok(Some(stack)) => {
                 if let Err(error) = vm.checked_tcl(|vm| vm.seed_error_stack(&stack)) {
-                    return crate::command::completion_from_tcl_error(vm, error);
+                    return Err(crate::command::completion_from_tcl_error(vm, error));
                 }
             }
             Ok(None) => {}
-            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+            Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error)),
         }
     }
+    Ok(pending_error)
+}
+
+fn bad_return_code(
+    vm: &mut OriginalPackage<'_>,
+    completion: &Completion<Value>,
+    loader: Option<(&NameBytes, &NameBytes)>,
+) -> Completion<Value> {
+    let pending_error = match restore_pending_package_error(vm, completion) {
+        Ok(pending_error) => pending_error,
+        Err(error) => return error,
+    };
     let message = match loader {
         Some((name, version)) => tcl_dialect::PackageProtocol::Tcl
             .ifneeded_completion_error_bytes(

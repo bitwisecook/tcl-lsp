@@ -92,7 +92,8 @@ pub fn statement_mutation_places(
             registry
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
+                .map(crate::registry_invocation::InvocationMetadataContext::from)
+                .into(),
         ),
     )
 }
@@ -101,7 +102,7 @@ fn statement_mutation_places_with_metadata_context(
     statement: &Statement,
     context: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<Place> {
     if statement.has_opaque_native_accesses() {
         return vec![place::unknown_top()];
@@ -133,7 +134,7 @@ fn statement_mutation_places_with_metadata_context(
     }
     crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         registry,
-        metadata.flatten(),
+        metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         tokens,
     )
     .map_or_else(
@@ -160,7 +161,8 @@ pub fn statement_mutation_places_with_continuation(
             registry
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
+                .map(crate::registry_invocation::InvocationMetadataContext::from)
+                .into(),
         ),
     )
 }
@@ -170,7 +172,7 @@ fn statement_mutation_places_with_continuation_with_metadata_context(
     before: &ResolveContext,
     after: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<Place> {
     if let Some(effects) =
         crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
@@ -188,7 +190,7 @@ fn statement_mutation_places_with_continuation_with_metadata_context(
     let context = match variable_operand_binding_phase_with_metadata_context(
         statement,
         registry,
-        metadata.flatten(),
+        metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
     ) {
         tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
         tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => after,
@@ -217,7 +219,8 @@ pub fn statement_destruction_places_with_continuation(
             registry
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
+                .map(crate::registry_invocation::InvocationMetadataContext::from)
+                .into(),
         ),
     )
 }
@@ -227,7 +230,7 @@ fn statement_destruction_places_with_continuation_with_metadata_context(
     before: &ResolveContext,
     after: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<Place> {
     if let Some(effects) =
         crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
@@ -245,7 +248,7 @@ fn statement_destruction_places_with_continuation_with_metadata_context(
     };
     if crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         registry,
-        metadata.flatten(),
+        metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         tokens,
     )
     .is_some_and(|invocation| {
@@ -288,7 +291,7 @@ pub(crate) fn ssa_destruction_keys(
     before: &ResolveContext,
     after: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<(crate::var_resolve::VariableCellKey, bool)> {
     let actual: Vec<_> = statement_destruction_places_with_continuation_with_metadata_context(
         statement, before, after, registry, metadata,
@@ -304,7 +307,7 @@ pub(crate) fn ssa_destruction_keys(
         return actual;
     };
     if !metadata.is_some_and(|metadata| {
-        metadata.is_none_or(|metadata| {
+        metadata.context().is_none_or(|metadata| {
             metadata.is_standalone()
                 || tokens.source_binding.as_ref().is_some_and(|binding| {
                     binding
@@ -363,10 +366,7 @@ pub(crate) fn statement_destruction_places_at(
         points.before_statement(block, index),
         points.after_statement(block, index),
         registry,
-        points
-            .source_metadata_owner()
-            .metadata_context(registry)
-            .map(crate::registry_invocation::InvocationMetadataSelection::context),
+        points.source_metadata_owner().metadata_context(registry),
     )
 }
 
@@ -533,7 +533,8 @@ pub fn def_places_with_continuation(
             registry
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
+                .map(crate::registry_invocation::InvocationMetadataContext::from)
+                .into(),
         ),
     )
 }
@@ -543,7 +544,7 @@ fn def_places_with_continuation_with_metadata_context(
     before: &ResolveContext,
     after: &ResolveContext,
     registry: &CommandRegistry,
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
 ) -> Vec<Place> {
     if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, before, registry)
     {
@@ -552,8 +553,11 @@ fn def_places_with_continuation_with_metadata_context(
     if metadata.is_none() {
         return Vec::new();
     }
-    if variable_operand_binding_phase_with_metadata_context(stmt, registry, metadata.flatten())
-        == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
+    if variable_operand_binding_phase_with_metadata_context(
+        stmt,
+        registry,
+        metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+    ) == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
     {
         return def_places(stmt, after, registry);
     }
@@ -595,10 +599,7 @@ pub fn def_places_at(
     registry: &CommandRegistry,
 ) -> Vec<Place> {
     use tcl_registry::native_compilation::VariableOperandBindingPhase;
-    let metadata = points
-        .source_metadata_owner()
-        .metadata_context(registry)
-        .map(crate::registry_invocation::InvocationMetadataSelection::context);
+    let metadata = points.source_metadata_owner().metadata_context(registry);
     let before = points.before_statement(block, index);
     let after = points.after_statement(block, index);
     if let Some(store) = points.conditional_logical_scalar_store_at(block, index, registry) {
@@ -644,7 +645,7 @@ pub fn def_places_at(
     let Some(invocation) =
         crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
             registry,
-            metadata.flatten(),
+            metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
             tokens,
         )
     else {
