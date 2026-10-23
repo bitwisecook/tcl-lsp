@@ -5096,8 +5096,7 @@ mod original_collection_source_tests {
     }
 
     /// `unknown_history` supplies the explicit unknown-history entry; without
-    /// it a supplied document is a fresh rule load (user decision
-    /// 2026-10-21T00:10Z).
+    /// it a supplied document is a fresh rule load.
     fn supplied_with_history(
         source: &str,
         config: tcl_lexer::LexerConfig,

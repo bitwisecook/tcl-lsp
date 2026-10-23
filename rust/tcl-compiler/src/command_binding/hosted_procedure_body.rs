@@ -378,8 +378,7 @@ mod tests {
     }
 
     /// `unknown_history` supplies the explicit unknown-history entry; without
-    /// it a supplied document is a fresh rule load (user decision
-    /// 2026-10-21T00:10Z), whose loader `proc` is resolved.
+    /// it a supplied document is a fresh rule load, whose loader `proc` is resolved.
     fn fixture_with_history(
         source: &str,
         unknown_history: bool,

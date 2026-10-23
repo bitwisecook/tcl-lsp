@@ -1712,7 +1712,7 @@ impl ModuleCommandBindings {
         bytes: &[u8],
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
-        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
+        use tcl_syntax::naming::NativeNameProtocol;
         let query = self.original_command_world.query_view(self);
         if query.selected_policy()? != policy || self.has_opaque_domain() {
             return None;

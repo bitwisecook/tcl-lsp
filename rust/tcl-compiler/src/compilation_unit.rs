@@ -6344,8 +6344,7 @@ mod tests {
                 .original_authored_declaration_body_units
                 .is_empty()
         );
-        // No supplied entry: a fresh tclsh defines `::original` (user decision
-        // 2026-10-19T14:20Z); an unentered card needs explicit unknown history.
+        // No supplied entry: a fresh tclsh defines `::original`; an unentered card needs explicit unknown history.
         assert!(supplied.function("::original").is_some());
         let unknown_supplied = CompilationUnit::build_with_analysis_input(
             source,

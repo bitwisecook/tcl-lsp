@@ -337,8 +337,7 @@ mod classmethod_dispatch {
         assert_eq!(classmethod_refs_at(src, 1, 16), vec![1], "declaration only");
     }
 
-    /// tclsh 8.6 control for the classmethod fixtures above (user decision
-    /// 2026-10-17T20:30Z): tclsh 8.6.18 raises `invalid command name
+    /// tclsh 8.6 control for the classmethod fixtures above: tclsh 8.6.18 raises `invalid command name
     /// "classmethod"` while creating `Factory`, so the class body installs no
     /// class-object method and `Factory make` reaches nothing. Under tcl8.6
     /// the declaration is not a method, and find-references stays empty.

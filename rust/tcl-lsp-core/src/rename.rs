@@ -488,7 +488,7 @@ pub fn rename_in_program(
             range: Some(edit.range),
         });
     }
-    // One settlement for both providers (review N05): a rename never edits an
+    // One settlement for both providers: a rename never edits an
     // occurrence that find-references from the same cursor does not report as
     // the same binding — e.g. a call a later `namespace import -force`
     // retargets. Any such edit refuses the whole rename.

@@ -11450,8 +11450,7 @@ mod tests {
             std::sync::Arc::clone(&context),
             tcl_lexer::LexerConfig::for_file_grammar(native_profile.grammar),
         );
-        // No supplied entry: a fresh tclsh defines `::subject` (user decision
-        // 2026-10-19T14:20Z). Explicit unknown history still withholds it.
+        // No supplied entry: a fresh tclsh defines `::subject`. Explicit unknown history still withholds it.
         let mut fresh = Lowerer::with_config(context.commands(), native.lexer_config())
             .with_resolved_analysis_input(native.clone());
         let module = fresh.lower(source);

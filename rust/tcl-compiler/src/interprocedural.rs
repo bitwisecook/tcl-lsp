@@ -7178,8 +7178,7 @@ mod tests {
         let profile = context.commands().profile().unwrap();
         // These fixtures pin explicit Standalone authoring (the retained
         // `original_authored_declaration_body_units`). A profiled default
-        // build is a fresh-interpreter document (user decision
-        // 2026-10-19T14:20Z); Standalone authoring is the dialect-blind
+        // build is a fresh-interpreter document; Standalone authoring is the dialect-blind
         // build, still profiled through its Registry and grammar.
         let unit = CompilationUnit::build_with_options(
             source,

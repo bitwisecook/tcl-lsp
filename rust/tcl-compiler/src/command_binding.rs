@@ -6428,7 +6428,8 @@ impl SourceConditionalHandlerNormal {
     ) -> bool {
         state.baseline.source_point_entry.as_ref() == Some(&self.entry)
             && context.body_entry == SourceBodyEntryPurpose::Conditional
-            && context.compilation == NativeCompilationContext::default()
+            && context.compilation
+                == tcl_registry::native_compilation::NativeCompilationContext::default()
             && self.config == context.config
             && self.words == native.words
             && self.operation == facts.operation
@@ -6544,7 +6545,8 @@ impl SourceOutcomes {
             return;
         };
         if context.body_entry != SourceBodyEntryPurpose::Conditional
-            || context.compilation != NativeCompilationContext::default()
+            || context.compilation
+                != tcl_registry::native_compilation::NativeCompilationContext::default()
             || normal.baseline.native_entry.is_some()
             || normal.source_step_observed()
             || normal.source_execution_observed(None)
@@ -7388,8 +7390,7 @@ impl SourceCommandBindings {
     }
 
     /// An uncalled procedure body is analysed as if called after the
-    /// document finished running at top level (user decision
-    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+    /// document finished running at top level: its commands resolve in the
     /// procedure's namespace against the command world at the end of the
     /// script. That needs a normal completion of the whole document and this
     /// very end-of-script state; event handlers, receiver methods, future

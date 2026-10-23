@@ -9185,8 +9185,7 @@ mod tests {
                 },
                 // Hosted catalogue advice answers where prior history is
                 // unknown. A supplied document is a fresh rule load whose
-                // original table answers first (user decision
-                // 2026-10-21T00:10Z), so this contract supplies the explicit
+                // original table answers first, so this contract supplies the explicit
                 // unknown-history entry.
                 Some(
                     &crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input),

@@ -47424,9 +47424,7 @@ info exists ::N::v\uD800";
             original_source_views: Arc::new(std::sync::Mutex::new(Default::default())),
             // The test harness never surveys the machine's own Tcl
             // installation: what is installed varies by host and its index
-            // survey dominated server test time (user decision
-            // 2026-10-19T11:00Z `product_fixes`: "test backend not scanning
-            // the host install"). Tests that exercise discovered installations
+            // survey dominated server test time. Tests that exercise discovered installations
             // supply a pinned fixture install explicitly.
             discovered_tcl: Arc::new(std::sync::OnceLock::from(Vec::new())),
             editor_library_paths: Mutex::new(Vec::new()),

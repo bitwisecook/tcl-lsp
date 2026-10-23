@@ -173,7 +173,7 @@ pub(super) fn capture_prefixes(
             break;
         };
         if !source_parameter_prefix_advice_is_complete(
-            tape, offset, advice, command, body, input, context,
+            tape, offset, advice, &command, body, input, context,
         ) {
             break;
         }

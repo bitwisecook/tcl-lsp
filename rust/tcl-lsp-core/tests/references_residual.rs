@@ -449,7 +449,7 @@ fn references_external_obj_method_inside_proc_body_without_global_is_not_a_site(
     // The original fixture: inside `run`, `d` is an unset proc-local, so
     // `[$d bark]` never dispatches (tclsh 8.6.18 / 9.0.4: `can't read "d": no
     // such variable`). An unlinked proc-local never resolves to the global
-    // object (review N07).
+    // object.
     let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc run {} {\n    puts [$d bark]\n}\n";
     let analysis = analyse(src);
     let refs = references(
