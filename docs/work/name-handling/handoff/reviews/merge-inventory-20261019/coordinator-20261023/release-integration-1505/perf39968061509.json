@@ -1,0 +1,56 @@
+{
+  "observed_utc": "2026-10-23T15:00:00Z",
+  "candidate": "095f399bcad375bf66458a2d6673500916ec8cd4",
+  "jobs": [
+    {
+      "id": 120463067078,
+      "name": "Paired small / linux",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463067414,
+      "name": "Paired medium / linux",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463067509,
+      "name": "Paired small / macos",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463067533,
+      "name": "Paired full / macos",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463067603,
+      "name": "Paired full / linux",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463067840,
+      "name": "Paired medium / macos",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463069381,
+      "name": "benchmark",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120463069772,
+      "name": "graphs-current",
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "total_count": 8,
+  "admission": false
+}

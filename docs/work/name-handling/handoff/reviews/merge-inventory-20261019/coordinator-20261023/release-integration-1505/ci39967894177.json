@@ -1,0 +1,356 @@
+{
+  "observed_utc": "2026-10-23T15:00:00Z",
+  "candidate": "095f399bcad375bf66458a2d6673500916ec8cd4",
+  "jobs": [
+    {
+      "id": 120462913491,
+      "name": "cargo-deny",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120462913852,
+      "name": "channel",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463033781,
+      "name": "lsp-server-wasm",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463033836,
+      "name": "rust-check",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463033878,
+      "name": "lsp-e2e archive",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463033887,
+      "name": "rust-tests-heavy",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463033897,
+      "name": "web-frontends",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463033907,
+      "name": "rust-tests-doctest",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463033914,
+      "name": "spectcl-compat",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463033919,
+      "name": "build-tcl-lsp-server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463033968,
+      "name": "wasm-real-link",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463033984,
+      "name": "test-ext-web",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463034074,
+      "name": "python",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463034154,
+      "name": "runtime-rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034428,
+      "name": "rust-tests-shard (4/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034457,
+      "name": "rust-tests-shard (1/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034505,
+      "name": "rust-tests-shard (3/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034517,
+      "name": "rust-tests-shard (2/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034548,
+      "name": "lsp-server-wasi",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034578,
+      "name": "rust-tests-shard (5/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120463034824,
+      "name": "native darwin-arm64 / f5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463034942,
+      "name": "native linux-x64 / f5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463034947,
+      "name": "native darwin-arm64 / mcp",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 120463035006,
+      "name": "native linux-arm64 / f5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035020,
+      "name": "native linux-riscv64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035039,
+      "name": "native darwin-arm64 / server",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035059,
+      "name": "native darwin-x64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035071,
+      "name": "native linux-x64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035072,
+      "name": "native win32-arm64 / f5",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035086,
+      "name": "native win32-x64 / server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035095,
+      "name": "native linux-x64 / server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035131,
+      "name": "native linux-arm64 / mcp",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035143,
+      "name": "native darwin-arm64 / tcl",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 120463035157,
+      "name": "native linux-riscv64 / server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035181,
+      "name": "native linux-arm64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035187,
+      "name": "native linux-arm64 / server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035226,
+      "name": "native linux-x64 / mcp",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035232,
+      "name": "native darwin-x64 / f5",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 120463035274,
+      "name": "native win32-x64 / mcp",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035284,
+      "name": "native darwin-x64 / mcp",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035313,
+      "name": "native win32-arm64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035327,
+      "name": "native win32-x64 / f5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035338,
+      "name": "native win32-arm64 / server",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035364,
+      "name": "native linux-riscv64 / mcp",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035381,
+      "name": "native linux-riscv64 / f5",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035444,
+      "name": "native win32-x64 / tcl",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120463035468,
+      "name": "native darwin-x64 / server",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 120463035745,
+      "name": "native win32-arm64 / mcp",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120463035802,
+      "name": "macos-wasm-check",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120465266202,
+      "name": "lsp-e2e-partition (3/3)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120465266289,
+      "name": "lsp-e2e-partition (2/3)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120465266414,
+      "name": "lsp-e2e-partition (1/3)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120469022293,
+      "name": "test-ext-multi-folder",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120469022427,
+      "name": "test-ext-partition (2, two)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120469022483,
+      "name": "test-ext-partition (3, three)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120469022688,
+      "name": "test-ext-partition (1, one)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120469624336,
+      "name": "rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120475963199,
+      "name": "pr-gate",
+      "status": "completed",
+      "conclusion": "failure"
+    }
+  ],
+  "total_count": 58,
+  "admission": false
+}

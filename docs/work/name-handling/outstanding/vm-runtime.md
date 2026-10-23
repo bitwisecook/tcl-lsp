@@ -2,11 +2,38 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T14:47:08.009991+00:00 (combined2NoTomfixtures LSP STATIC CLEAR; VM43 safev3/storagev2/valuev3 peer CLEAR; runtime pending)
+Last updated: 2026-10-23T15:19:39.173934+00:00 (actual347 NoTom capabilityPASS/fullTomrunning; compilerlength role active off-tree; no roleCargo)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root reports fresh347 strictNoTom capability SUCCESS and real Tcl9.0.4 source
+fetch SUCCESS; fullTom standalone semantic suite still running, notaccepted.
+Role temporarily reassigned compiler length-only helpers against exact publisher
+e2ae2c2571b; ACTIVE/source untouched. First3 dc544982 ownerSTATICCLEAR92a39ae5;
+SCCP2 95ca212c CLEAR1d85ec18; bounds1 6b3adbe CLEAR5de56c44. Additional
+valueTransfer2 dddfe34a, valuefactsfinish1 a69282fd, SCCPsource1 v2 227cfbf4
+frozen ownerpeer pending; earlier sourceMayv1 held for incomplete lengthcut.
+Allcopyapply0/finals/pinnedfmt verified, no measured Clippy reduction or typing.
+Compiler10file5component407f composition STATICCLEARd3f2fc3a on declarede2ae;
+integration held explicit347fix successor. SSAfullidentitybucket2f6207db VM
+STATICCLEAR6248c7ab, no newEq/authority/projection or measuredperfclaim.
+NamesVM347 actualtype4fix8cc7f717 VM STATICCLEAR59a9bb9e, exacttypes/ownership,
+bothWORK/candidatepin/copyapply/fmt checked; root integrates/retries alone.
+
+VM43 exact8component/25path WORKunion46230ebc independently STATIC COMPOSITION
+CLEARd68669dc; releaseprojectionc5194652 independently STATIC CLEARa27e3ca5.
+Allactualpins/originaleditfragments/sharedfile disjointness/componentpeerpins/
+copyapply0/finals/fmt verified; candidatecleanup preserved. No typing/Clippy or
+runtime acceptance inferred. Abortloop commandtemplate d87903e9 is unrun/noGO:
+fresh compilerartifact, original reservedruntime prewarm, exactoriginaltest180s
+includingfailure-only witness; originalassertions/caps/wholelock/finalseals kept.
+Fresh SpecTclCI120463033914 actual28eval+3golden+1realTclPASS; pack_source_e2e
+7PASS3FAIL (DSL1[]vs5/referenceNonevs42/release8.6Nonevsxy). Rawlogs/triage
+cb5d5b74 stored proof-storage; no firstproducertrace in ordinaryCI, same3N17
+existingCCGWIP4 controls required. DSL2/laterrows/releases unreached unknown.
+Root active cold diagnostic93242 owns buildslot/HOLD; no rolelaunch/sourceedits.
 
 Combined two actualNoTom fixture corrections frozen at
 `/workspace/naming-proof-storage/vm-notom-capability-fixtures-v1/`:

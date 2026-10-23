@@ -1,0 +1,6 @@
+{
+  "utc": "2026-10-23T15:19:54.974123+00:00",
+  "proposal_patch_sha256": "084cf61b1398850fb5fdd19895b43119584f292df5eb8155ad20762c1783789b",
+  "archive_sha256": "dc18e95c0fc784173867eda99cf08d51b19a1b4a79c3bb3659d77dc387ef6a86",
+  "scope": "Names static TYPE/API/AUTHORITY CLEAR only; no typing/runtime/application by LSP; current-snapshot fresh recomputation, exact retained source guards and finalpublication unchanged; v3 held for siblingSOURCE testcompilebug correctedv4"
+}

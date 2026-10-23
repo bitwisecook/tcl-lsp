@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T15:00:05.883282+00:00",
+  "scheduled": "2026-10-23T14:55:37+00:00",
+  "source_snapshot": "4f12f96db693cb9aa7fa46faaa251a0941fc874d",
+  "published_snapshot": "a63b88956d266d3af2a2433bf182e63d27436bc8",
+  "source_commits": [
+    "4f12f96db693cb9aa7fa46faaa251a0941fc874d"
+  ],
+  "product_tree_diff": [
+    "docs/design/contracts/test-tiers-and-ci-gates.md",
+    "runtime/rust/README.md",
+    "runtime/rust/src/typed_value.rs",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs",
+    "rust/tcl-compiler/src/compilation_unit.rs",
+    "rust/tcl-compiler/src/ir.rs",
+    "rust/tcl-compiler/src/unit_scope.rs"
+  ],
+  "external_product_base": "e067ee96826d148734335aebd11acae9999512a7",
+  "external_changes_preserved_not_validated": true,
+  "remote_confirmed": "a63b88956d266d3af2a2433bf182e63d27436bc8",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

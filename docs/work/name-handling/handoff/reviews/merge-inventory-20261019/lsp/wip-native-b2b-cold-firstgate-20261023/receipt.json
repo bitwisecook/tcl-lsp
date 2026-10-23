@@ -1,0 +1,151 @@
+{
+  "utc": "2026-10-23T15:15:17.525586+00:00",
+  "run": "/workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T150049.718710Z",
+  "root_tool_session_id": 93242,
+  "scope": "actual valid WIP diagnostic failure, no shipping admission",
+  "verdict": "Selected development server compile0W; coldrequest2 fails -32801 after3690.827656ms; source/provider/artifact/GO finalseals true; lockreleased15:12:38.895695Z. Onlyonecapture occurred, outerseed1/0 equal. Helper currentepoch/factory transaction true then heldopen_snapshotfalse so nosecondcapture; finalpublisher later epoch/factoryfalse. Exact open_snapshot field notobserved; static unconditional configpull dialectreresolve generation writer exists but attribution remains unproven. Later worker phases UNREACHED.",
+  "archive_sha256": "e437947f870ba0e2c85a3f4e57a90dc6d1d922051d7e12ccb1d2521899701c7f",
+  "roundtrip": true,
+  "files": [
+    {
+      "path": "build-command.json",
+      "bytes": 225,
+      "sha256": "93de4c5eabb093cb44aee11881d9502f47bf6f7c01ca5a4123f7d5ad7c76f580"
+    },
+    {
+      "path": "build.process.json",
+      "bytes": 2469,
+      "sha256": "a858fc6913ed69a86d53a9fb1bcae7d5bcd54d6a322d63fdcec4625217ec9754"
+    },
+    {
+      "path": "build.stderr",
+      "bytes": 255,
+      "sha256": "b74bda80eced1cd6b253ea9ca14caa23e5e3195f6176c746682bdf696a6aea10"
+    },
+    {
+      "path": "build.stdout",
+      "bytes": 180543,
+      "sha256": "45892f78defb991d615223bca6ad392c9813155151af65b72827b099d5fff929"
+    },
+    {
+      "path": "final.json",
+      "bytes": 13606,
+      "sha256": "9ebd762a4425eef5de320c65e705b85e2a1424d415542669ee6a4ac5e372785f"
+    },
+    {
+      "path": "lock-released.json",
+      "bytes": 65,
+      "sha256": "6551604d315d931b264aa560a5750cf71f531382d5a5efa00e0262e9e5003cf7"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 3082,
+      "sha256": "56d8d8b2be3487d2506271b1aae371c9491b44554132f7f8e85fe2e68c54837f"
+    },
+    {
+      "path": "providers-after.json",
+      "bytes": 31165,
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "providers-after.process.json",
+      "bytes": 2439,
+      "sha256": "08d0a7d42d8a352299d7ba60b29e6799f0d34835047bae3aaeef3b1867c71984"
+    },
+    {
+      "path": "providers-after.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-after.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-before.json",
+      "bytes": 31165,
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "providers-before.process.json",
+      "bytes": 2443,
+      "sha256": "faa344be8afd42b47bd7f7324583415ae2b57dacbb531c435a1e1c2ca39792cc"
+    },
+    {
+      "path": "providers-before.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-before.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "root-go.json",
+      "bytes": 931,
+      "sha256": "8b7f892c0135f71a41a1d4dca1d234e5518da842c4ccfe8db66eaaca2a2ff79f"
+    },
+    {
+      "path": "server-artifact.json",
+      "bytes": 1207,
+      "sha256": "67188396a7911ea1eb4c3fb8eb94da85a1bdddba03107f82c9fa2e48c0f4b92c"
+    },
+    {
+      "path": "source-after.json",
+      "bytes": 12765577,
+      "sha256": "1afaae8801bf08dc1b091df6383b9ccebf48f7fd7ffea71a8d20d5d026c7a535"
+    },
+    {
+      "path": "source-before.json",
+      "bytes": 12765577,
+      "sha256": "1afaae8801bf08dc1b091df6383b9ccebf48f7fd7ffea71a8d20d5d026c7a535"
+    },
+    {
+      "path": "worker/measurement.json",
+      "bytes": 4573,
+      "sha256": "b0afa5dcfcaf3053cebdd6ab977b88ef1184d4669f7647ffa28be1633cce9794"
+    },
+    {
+      "path": "worker/server.stderr",
+      "bytes": 4231,
+      "sha256": "fdd98eec67bf946a8b75530fdb7e5e2bc0101f4fd71b3fe424c8b9a14cd2c384"
+    },
+    {
+      "path": "worker/server.stdout.frames",
+      "bytes": 5510,
+      "sha256": "f5094bcdd18792b6f400ff9c4abf764cb470bf9835d885572fecf3bb14203e90"
+    },
+    {
+      "path": "worker/workspace/main.tcl",
+      "bytes": 40,
+      "sha256": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b"
+    },
+    {
+      "path": "worker-command.json",
+      "bytes": 598,
+      "sha256": "9dd8a4fb9b4fa719e8f654e7749ffd23187c2f51dd808cc493ff918c2e6c3e3f"
+    },
+    {
+      "path": "worker-environment.json",
+      "bytes": 127,
+      "sha256": "cd4c5b76eb5cc90cd9a6a5b95dfd70d78bc6012f52fa871ba2ee0729ce017935"
+    },
+    {
+      "path": "worker.process.json",
+      "bytes": 2850,
+      "sha256": "7c8fa07db7857a69349c0d638ab324dff969e3c9135a13b7151c60ca8180b672"
+    },
+    {
+      "path": "worker.stderr",
+      "bytes": 835,
+      "sha256": "366063488132e65359fe22ce7d5e59682cd7cae1f0068743809c32d6ed89f08e"
+    },
+    {
+      "path": "worker.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

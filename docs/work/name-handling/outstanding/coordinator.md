@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T14:59:22.179424+00:00
+Last updated: 2026-10-23T15:27:24.757080+00:00
 
 ## In progress
 
@@ -47,10 +47,12 @@ Last updated: 2026-10-23T14:59:22.179424+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (14:55 UTC)
+### Current cycle and routing (15:25 UTC)
 
-- Published Native declaration geometry fix, two runtime capability fixture corrections and durable capability gate docs on work; selectively carried to release branch.
-- Actual current server DEV compilation passed with zero warnings. Cold semanticTokens failed ContentModified at final epoch/factory gate despite unchanged document; preserved complete sealed run. Published bounded recapture/recompute fix for fresh client rerun.
-- Independent review caught eight real trace test setup calls removed by release cleanup; restored exact calls and original mutable setup. Additional cleanup removes only unused pure observers and addresses lint warnings.
-- Compiler 55-file batch and VM 25-file batch independently composed and ready for controlled integration; actual typing, lint and runtime results still pending.
-- Six-hour deadline passed without a clean PR. Required CI, exact baseline comparison, Tcl corpus performance and section F remain open. No PR opened.
+- Published the compiler and VM lint batches to work and carried all 80 affected files to the release branch, preserving cleanup and original assertions.
+- Fresh release CI39975195569 on34798afd8 caught compiler and VM helper type errors introduced by those refactors. Minimal independently reviewed repairs are published on canonical work795c39c10 and carried locally to release.
+- Fresh CI strict no-TomMath capability passed. Actual full-TomMath semantic suite then reported many assertions and aborted with a stack overflow; complete raw log preserved and routed to VM/runtime for immediate first-cause diagnosis. No full semantic admission.
+- The unchanged cold-client rerun on b2b compiled with zero warnings but failed cold semantic tokens in3690.83ms. All final source/provider/artifact/GO seals passed. Actual helper rejected the held open snapshot and performed no second capture; later final epoch/factory validation also rejected.
+- A reviewed current-document recapture successor preserves exact source, configuration, provider and URI eligibility, fully resolves the current dialect generation, and recomputes under fresh ownership. Its next actual client run remains pending.
+- The next45a selectedserver diagnostic caught a WORK-only Context observer Uri formatting type error before runtime; exact observer-only one-line fix is prepared. Original failed run will finish all final seals before source changes.
+- External perf owner updated15:13 and remains active; no optimisation proof or corpus acceptance. BIGIP13:17 completed handoff remains over60minutes and user is notified; no duplicate or takeover.

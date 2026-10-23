@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-23T15:22:45Z",
+  "patch_sha256": "dc7658967e7ba0272c2a84da88d916737c1e5f7fe9a7487d534a295f5323e8e8",
+  "archive_sha256": "4b52b066faa1cee5f86895e00805ee394f8d744ecf616eddfedf3a0637a7e066",
+  "root_integrated_head": "45a852828783f77c6822c012447d4043616f16fb",
+  "scope": "WORK functional+observer; no typing/runtime yet; candidate mustexcludeobserver"
+}

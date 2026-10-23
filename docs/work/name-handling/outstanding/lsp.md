@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T14:52:02Z: actual90581 diagnostic141535 CLOSED with full final source/provider/artifact/GO guards true, selected development server PASS0W, cold first semantic token request FAIL -32801 after1441.95ms. Earliest actual gate final epoch/factory OR false; capture outer==seed1/0, exact changed writer unknown. All later worker phases unreached. Minimal server-only off-tree recapture v2 44bc8b09 Names+CCG static-CLEAR; root integration/actual build pending; one fresh computation conditioned on unchanged original document/config/provider/URI and all final publication guards retained. No shipping/performance/host acceptance.
+Current status 2026-10-23T15:24:49Z: root55746 actual45a852/d5c71cc v5 RUNNING /workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T152322.481573Z, selectedserverbuildactive/noresult yet. Root integrated current-snapshot recapture084cf61b+WORK Contextobserver466dd178 as exactuniondc765896 NamesCLEAR. Candidate functional-onlycc33 appliedroot401a374d, observerexcluded. Separate nativeoriginalproj-a Context repro2282361d CCGstaticCLEAR95c37133 awaitsroot88125/currentcoldworkergroupclosure; no runtime/editorhost acceptance. Priorb2b validFAIL3690.83ms/allfinalsealstrue archived; exactopenfield unknown. Current095multi-folder4ContextFAIL/WASIlocaldef146empty/browserrename147UnknownWorld remainopen. No allgreen/F/zeroP2F claim.
 
 
 
@@ -63,15 +63,15 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T14:52:02Z
+Last updated: 2026-10-23T15:24:49Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Current status 2026-10-23T14:52:02Z: actual90581 diagnostic141535 CLOSED with full final source/provider/artifact/GO guards true, selected development server PASS0W, cold first semantic token request FAIL -32801 after1441.95ms. Earliest actual gate final epoch/factory OR false; capture outer==seed1/0, exact changed writer unknown. All later worker phases unreached. Minimal server-only off-tree recapture v2 44bc8b09 Names+CCG static-CLEAR; root integration/actual build pending; one fresh computation conditioned on unchanged original document/config/provider/URI and all final publication guards retained. No shipping/performance/host acceptance.
+Current status 2026-10-23T15:24:49Z: root55746 actual45a852/d5c71cc v5 RUNNING /workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T152322.481573Z, selectedserverbuildactive/noresult yet. Root integrated current-snapshot recapture084cf61b+WORK Contextobserver466dd178 as exactuniondc765896 NamesCLEAR. Candidate functional-onlycc33 appliedroot401a374d, observerexcluded. Separate nativeoriginalproj-a Context repro2282361d CCGstaticCLEAR95c37133 awaitsroot88125/currentcoldworkergroupclosure; no runtime/editorhost acceptance. Priorb2b validFAIL3690.83ms/allfinalsealstrue archived; exactopenfield unknown. Current095multi-folder4ContextFAIL/WASIlocaldef146empty/browserrename147UnknownWorld remainopen. No allgreen/F/zeroP2F claim.
 
-Next: Root-only integration of Names+CCG static-CLEAR /tmp/lsp-coarse-invalidation-recapture-v2, then selected server build and unchanged worker. Evidence lsp/wip-native-cold-firstgate-20261023/receipt.json. No Cargo, source edit or GO by LSP.
+Next: read-only monitor actualroot55746 firstcoldrequest andfinalseals; neverTERM. Onlyafterclosure rootcanallocate exactContextrepro withfreshinstrumentedexe+SHA. No ownCargo/GO/sourcewrites.
 
 ## In progress
 

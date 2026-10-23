@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T15:27:27.324560+00:00",
+  "scheduled_report_utc": "2026-10-23T15:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T15:55:37+00:00",
+  "change_since_previous_report": [
+    "Published the compiler and VM lint batches to work and carried all 80 affected files to the release branch, preserving cleanup and original assertions.",
+    "Fresh release CI39975195569 on34798afd8 caught compiler and VM helper type errors introduced by those refactors. Minimal independently reviewed repairs are published on canonical work795c39c10 and carried locally to release.",
+    "Fresh CI strict no-TomMath capability passed. Actual full-TomMath semantic suite then reported many assertions and aborted with a stack overflow; complete raw log preserved and routed to VM/runtime for immediate first-cause diagnosis. No full semantic admission.",
+    "The unchanged cold-client rerun on b2b compiled with zero warnings but failed cold semantic tokens in3690.83ms. All final source/provider/artifact/GO seals passed. Actual helper rejected the held open snapshot and performed no second capture; later final epoch/factory validation also rejected.",
+    "A reviewed current-document recapture successor preserves exact source, configuration, provider and URI eligibility, fully resolves the current dialect generation, and recomputes under fresh ownership. Its next actual client run remains pending.",
+    "The next45a selectedserver diagnostic caught a WORK-only Context observer Uri formatting type error before runtime; exact observer-only one-line fix is prepared. Original failed run will finish all final seals before source changes.",
+    "External perf owner updated15:13 and remains active; no optimisation proof or corpus acceptance. BIGIP13:17 completed handoff remains over60minutes and user is notified; no duplicate or takeover."
+  ],
+  "committed": [
+    "45a852828783f77c6822c012447d4043616f16fb"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Rerun the unchanged client after the current-document recapture fix; diagnose actual diagnostics/provider refusal rather than bypassing guards.",
+    "Integrate the next independently reviewed compiler lint batches, fix new actual typing failures and rerun CI on the final clean candidate.",
+    "Complete SpecTcl live-hook, WASM/native trace, shipped-host, exact baseline and Tcl corpus performance gates before opening any PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T15:13:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or validated-count changes. Strict no-TomMath capability passed on347; actual fullTom semantic suite failed and aborted with stack overflow. Current45a selected build has observer formatting E0277, runtime unreached. All complete shipping/sectionF/baseline/performance gates remain open; no PR.",
+  "disk_free_bytes": 3336548352,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

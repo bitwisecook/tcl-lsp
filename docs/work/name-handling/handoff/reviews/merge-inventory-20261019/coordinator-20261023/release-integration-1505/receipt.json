@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T15:05:20.951414+00:00",
+  "canonical_work": "e2ae2c2571b0275c0d2228d5c54228f5f07e4edd",
+  "compiler98_independent_peer": "5179b5f006aca01ecd7a52876f3287b326d717cd385a511d01136b12e33dc047",
+  "vm43_independent_peer": "d68669dcb86feab2f507d9277fda904c2f28a5d2483996d762ececaf39baf245",
+  "batches": {
+    "compiler98": {
+      "archive_sha256": "0cc500760999a29d597e28a9313020be003195dbb7c5efe58e982671e8555a72",
+      "source": "/workspace/naming-proof-storage/compiler-clippy/fresh98-composed-v2"
+    },
+    "vm43": {
+      "archive_sha256": "02395c2933154311c12717779437ce7b9716dfc91ff6a434792ffe1c6b7b7733",
+      "source": "/workspace/naming-proof-storage/names-vm43-composed-v3"
+    }
+  },
+  "actual_clippy_typing_runtime": "pending",
+  "active_diagnostic_source": "b2b012fab9afe1451a3757ba32f1190ce31044f2",
+  "no_release_admissions": true
+}

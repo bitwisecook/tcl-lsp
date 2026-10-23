@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-23T15:07:05.433777+00:00",
+  "capture": "exact connector structuredContent.content UTF8 via base64, no added LF; gh local token invalid",
+  "logs": [
+    {
+      "job": "120463033781",
+      "bytes": 57619,
+      "sha256": "ccc9fdeeeb9a12e5449b48b5ec705f6ee4eb77dea56ec66ed2de1610c51cb60b",
+      "gzip_sha256": "24519b1ab2b3baab1c599357ea9f13a772032abd19e8a2e2e510ae522048a371"
+    },
+    {
+      "job": "120463034548",
+      "bytes": 84424,
+      "sha256": "b99d1698c40218fb7bfac1b30da599f2b56d33063ddf3df80d930f76698c3b3c",
+      "gzip_sha256": "a524cd2c50b3b4c1c3b4bb75edc0f62756ab22fc095600e26adb601d2a72eee4"
+    },
+    {
+      "job": "120469022293",
+      "bytes": 120658,
+      "sha256": "a28e95c0c90f11be03b1bc0e49b05c9da00b02d33150466cd2f98d33cad228ff",
+      "gzip_sha256": "796b81b5aba02c2e4127eb5436c369e376391ba9a81a252089359035b0e9a6ff"
+    }
+  ],
+  "multi_folder": {
+    "passed": 10,
+    "failed": 4,
+    "first_cause": "CurrentDiagnosticsUnavailableError context; exact subgate not exposed in job log or sole Mocha artifact; no causal fix asserted",
+    "artifact_id": 12509294993,
+    "artifact_sha256": "513917ee7a02fd1aefb266bd9ad1151e996b9e058ae9f63b12225273bcae62bc"
+  },
+  "wasi": "22 unit passes then initial unprompted diagnostics missing, sourced definition empty, sibling hover empty; broken-document push/documentSymbols/tokens pass; naming local definition146 empty, rename unreached",
+  "browser": "pack-property hover empty, sourced/auto-loaded definitions empty, workspace symbol0, then naming rename147 UnknownWorld; compiler owner routed",
+  "scope": "actual current095 CI failures; independent host scopes; no assertion weakening, source change or runtime replay"
+}
