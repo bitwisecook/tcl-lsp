@@ -1723,7 +1723,7 @@ enum RetainedDeclaration {
         identity: OriginalDeclarationIdentity,
         publication: OriginalSourceViewPublication,
     },
-    LogicalClass(crate::type_hierarchy::LogicalHierarchyClass),
+    LogicalClass(Box<crate::type_hierarchy::LogicalHierarchyClass>),
     LogicalCall {
         identity: crate::call_hierarchy::LogicalCallIdentity,
         publication: LogicalCallHostPublication,
@@ -1834,7 +1834,7 @@ impl OriginalDeclarationRegistry {
         &mut self,
         identity: crate::type_hierarchy::LogicalHierarchyClass,
     ) -> Option<OriginalDeclarationHandle> {
-        self.issue_retained(RetainedDeclaration::LogicalClass(identity), 2)
+        self.issue_retained(RetainedDeclaration::LogicalClass(Box::new(identity)), 2)
     }
     /// Retain a genuine Logical CALL selection under its own wire kind.
     #[must_use]
@@ -1934,7 +1934,7 @@ impl OriginalDeclarationRegistry {
         };
         identity
             .is_current(uri, source, analysis)
-            .then(|| identity.clone())
+            .then(|| identity.as_ref().clone())
     }
     /// Session allocation is a transport discriminator, independent of source
     /// equality and genuine publication revalidation. Missing entropy refuses
