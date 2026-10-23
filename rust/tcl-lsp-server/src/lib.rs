@@ -15327,26 +15327,33 @@ impl Backend {
             }
         }
 
-        let source = self
-            .capture_coarse_semantic_source(uri, doc)
-            .await?
-            .ok_or_else(coarse_semantic_source_changed)?;
-        let analysis = Arc::new(
-            readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source).clone(),
-        );
-        let text = Arc::clone(&doc.text);
-        let data =
-            crate::rt::spawn_blocking(move || configured_coarse_semantic_tokens(&text, &analysis))
-                .await
-                .map_err(|err| jsonrpc::Error {
-                    code: jsonrpc::ErrorCode::InternalError,
-                    message: format!("semantic_tokens worker panicked: {err}").into(),
-                    data: None,
-                })??;
-        Ok(SemanticTokenCoreData {
-            data,
-            coarse_source: Some(source),
-        })
+        for attempt in 0..2 {
+            let source = self
+                .capture_coarse_semantic_source(uri, doc)
+                .await?
+                .ok_or_else(coarse_semantic_source_changed)?;
+            let analysis = Arc::new(
+                readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source).clone(),
+            );
+            let text = Arc::clone(&doc.text);
+            let data = crate::rt::spawn_blocking(move || {
+                configured_coarse_semantic_tokens(&text, &analysis)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            })??;
+            if attempt == 0 && self.coarse_source_needs_recompute(&source).await? {
+                continue;
+            }
+            return Ok(SemanticTokenCoreData {
+                data,
+                coarse_source: Some(source),
+            });
+        }
+        Err(coarse_semantic_source_changed())
     }
 
     /// Deterministically select both sides of the semantic-token budget race

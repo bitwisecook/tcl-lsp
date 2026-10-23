@@ -683,6 +683,41 @@ impl Backend {
         .await
     }
 
+    /// An invalidated computation may be recomputed once only while its exact
+    /// document, configured input, provider admission and URI generation survive.
+    /// This check authorizes fresh computation, never publication of old data.
+    pub(super) async fn coarse_source_needs_recompute(
+        &self,
+        source: &CoarseSemanticTokenSource,
+    ) -> DocumentSourceResult<bool> {
+        let epoch = self.diag_inputs_epoch();
+        let generation = *self.class_factory_generation.read().await;
+        if epoch == source.inputs_epoch && generation == source.factory_generation {
+            return Ok(false);
+        }
+        let admissions = [source.analysis.admission()];
+        Ok(self
+            .with_current_readonly_source_state(
+                epoch,
+                generation,
+                &admissions,
+                None,
+                |state| {
+                    source
+                        .analysis
+                        .matches_current_state(
+                            state,
+                            source.inputs_epoch,
+                            source.factory_generation,
+                        )
+                        .then_some(())
+                },
+                |_, ()| Some(()),
+            )
+            .await?
+            .is_some())
+    }
+
     pub(super) async fn capture_code_action_source(
         &self,
         uri: &Uri,
@@ -4196,6 +4231,52 @@ mod coarse_semantic_source_tests {
                 .is_none()
         );
         assert_eq!(backend.last_semantic_tokens.lock().await[&uri].1, original);
+    }
+
+    #[tokio::test]
+    async fn coarse_recompute_requires_unchanged_document_after_invalidation() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///coarse-recompute.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let source = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            !backend
+                .coarse_source_needs_recompute(&source)
+                .await
+                .unwrap()
+        );
+        backend.invalidate_diag_inputs();
+        assert!(!coarse_source_is_current(&backend, &source).await);
+        assert!(
+            backend
+                .coarse_source_needs_recompute(&source)
+                .await
+                .unwrap()
+        );
+        let fresh = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &fresh).await);
+        backend
+            .documents
+            .lock("changed coarse recompute document")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .version = Some(99);
+        assert!(
+            !backend
+                .coarse_source_needs_recompute(&source)
+                .await
+                .unwrap()
+        );
+        assert!(!coarse_source_is_current(&backend, &fresh).await);
     }
 
     #[tokio::test]
