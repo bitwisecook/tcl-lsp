@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1264,3 +1264,44 @@ jobs:
             ${{ runner.temp }}/compiler58-output/*.stderr
           if-no-files-found: error
           retention-days: 30
+
+  c84-formatter-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'c84-formatter-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    steps:
+      - name: Bound original formatter experiment lifetime
+        timeout-minutes: 1
+        run: echo "C84_FORMATTER_DEADLINE=$(( $(date +%s) + 2100 ))" >> "$GITHUB_ENV"
+
+      - name: Checkout exact WORK source
+        timeout-minutes: 8
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+
+      - name: Replay unchanged original812 archive and independently loaded image experiment
+        timeout-minutes: 35
+        env:
+          REQUESTED_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          python3 docs/work/name-handling/validation-tools/c84-formatter-diagnostics.py \
+            --sha "$REQUESTED_SHA" --out "$RUNNER_TEMP/c84-formatter-original812"
+
+      - name: Upload bounded original formatter experiment evidence
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: c84-formatter-original812-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/c84-formatter-original812/*.json
+            ${{ runner.temp }}/c84-formatter-original812/*.stdout
+            ${{ runner.temp }}/c84-formatter-original812/*.stderr
+            ${{ runner.temp }}/c84-formatter-original812/native/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
