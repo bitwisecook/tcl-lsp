@@ -394,8 +394,7 @@ fn trace_signature_command_header(
 ) {
     if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
-            "SIGNATURE_HEADER cursor={} stage=command site={} written={} effective={} binding={}",
-            cursor_offset, head_offset, written, effective, binding
+            "SIGNATURE_HEADER cursor={cursor_offset} stage=command site={head_offset} written={written} effective={effective} binding={binding}"
         );
     }
 }
@@ -404,8 +403,7 @@ fn trace_signature_command_header(
 fn trace_signature_selected_header(cursor_offset: u32, head_offset: u32, available: bool) {
     if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
-            "SIGNATURE_HEADER cursor={} stage=selected site={} available={}",
-            cursor_offset, head_offset, available
+            "SIGNATURE_HEADER cursor={cursor_offset} stage=selected site={head_offset} available={available}"
         );
     }
 }

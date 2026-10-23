@@ -2535,15 +2535,10 @@ fn bootstrap_collect_choices(
         {
             return None;
         }
-        let Some(setup) = events
+        let setup = events
             .get_props(event)
-            .and_then(|properties| properties.setup_event)
-        else {
-            return None;
-        };
-        let Some((protocols, _)) = events.data_collect_requirement(event) else {
-            return None;
-        };
+            .and_then(|properties| properties.setup_event)?;
+        let (protocols, _) = events.data_collect_requirement(event)?;
         protocols
             .iter()
             .filter_map(|protocol| {
@@ -2562,15 +2557,11 @@ fn bootstrap_collect_choices(
             })
             .filter_map(|command| registry.data_collection_operation(&command.canonical))
             .filter(|operation| operation.action == DataCollectionAction::Payload);
-        let Some(operation) = operations.next() else {
-            return None;
-        };
+        let operation = operations.next()?;
         if operations.next().is_some() {
             return None;
         }
-        let Some(setup) = operation.protocol.bootstrap_event_for(event) else {
-            return None;
-        };
+        let setup = operation.protocol.bootstrap_event_for(event)?;
         registry
             .data_collection_collect_command(operation.protocol.name)
             .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
