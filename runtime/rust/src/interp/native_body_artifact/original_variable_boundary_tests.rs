@@ -109,7 +109,12 @@ extern "C" fn free_namespace(original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
     if MODE.get() == 4 {
-        obj::change_type(original, &MARKER, 0);
+        // This callback already owns retirement of the old primary. Replace
+        // its fields directly rather than recursively freeing that primary.
+        unsafe {
+            (*original).type_ptr = &MARKER;
+            (*original).internal_rep = 0;
+        }
     } else {
         withdraw();
     }
