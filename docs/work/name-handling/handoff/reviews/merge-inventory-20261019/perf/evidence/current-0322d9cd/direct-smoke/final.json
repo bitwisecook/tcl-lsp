@@ -1,0 +1,93 @@
+{
+  "head": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "argv": [
+    "rustc",
+    "--edition",
+    "2024",
+    "--crate-name",
+    "zz_authenticated_direct_perfprobe",
+    "-C",
+    "opt-level=0",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "debug-assertions=on",
+    "-C",
+    "overflow-checks=on",
+    "-L",
+    "dependency=/workspace/tcl-lsp-perf-latest/target/debug/deps",
+    "--extern",
+    "tcl_compiler=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-e1d5cac931c54ee4.rlib",
+    "--extern",
+    "tcl_lexer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/tcl-host-c-abi-a743493def30a82f/out",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/ring-837e1730851bfe0c/out",
+    "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/examples/zz_authenticated_perfprobe.rs",
+    "-o",
+    "/tmp/zz_authenticated_direct_perfprobe"
+  ],
+  "probe_source_sha256": "c8fea9f3df182412a134a4b4f07b51307e541733100e37731a6871b5ac84f137",
+  "libraries": {
+    "tcl_compiler": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-e1d5cac931c54ee4.rlib",
+      "sha256": "fd7b3e506d99e34684031d977ba5f72bcbdbbf79a8f2c73ddbd6c4573ec7110d"
+    },
+    "tcl_lexer": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+      "sha256": "fdf419f7809568fbcad35e5a3d776e16528432406661bb1d84f3fb276c27b102"
+    }
+  },
+  "status": "direct public API smoke; not full corpus/control acceptance",
+  "results": [
+    {
+      "label": "tcl-old",
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "paths": [
+        "samples/diagnostics/E003_proc_call_arity/example.tcl",
+        "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+      ],
+      "exit": 0,
+      "wall_s": 408.51581358909607
+    },
+    {
+      "label": "tcl-mixed",
+      "extra_env": {},
+      "paths": [
+        "samples/diagnostics/E003_proc_call_arity/example.tcl",
+        "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+      ],
+      "exit": 0,
+      "wall_s": 177.49153399467468
+    },
+    {
+      "label": "hosted-old",
+      "extra_env": {
+        "ZZ_OLD_ENV": "1",
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "paths": [
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "exit": 101,
+      "wall_s": 349.38111639022827
+    },
+    {
+      "label": "hosted-mixed",
+      "extra_env": {
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "paths": [
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "exit": 101,
+      "wall_s": 341.61491894721985
+    }
+  ],
+  "build_exit": 0,
+  "binary_sha256": "93cf6c955bc4e123f5fd1b9231efbfae6e447a70a7680ff3289e340eaec2b2c4",
+  "executable_removed": true
+}

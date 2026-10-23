@@ -1,0 +1,9 @@
+{
+  "base": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "file": "rust/tcl-compiler/src/lowering/mod.rs",
+  "before_sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8",
+  "after_sha256": "3e74d2dae97580745316d4e253053125f247626ba9c0e7d5243e99f7ef07058d",
+  "status": "Blocked/routed compiler; pure diagnostic only; off-tree, uncompiled/unrun, no functional repair",
+  "preservation": "each original boolean evaluated exactly once, original OR short-circuit and all returns/assertions unchanged",
+  "observed": "raw original-event-word and hosted-metadata Some; no hosted-event-units trace; later capture bodies.event-word None; unlogged combined guard refuses, subcomparison not observed"
+}

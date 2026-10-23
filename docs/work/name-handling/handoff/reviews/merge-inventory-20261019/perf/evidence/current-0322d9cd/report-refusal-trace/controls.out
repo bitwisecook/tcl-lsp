@@ -1,0 +1,255 @@
+
+running 3 tests
+test analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration ... REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=false vendor_input_matches=false native_entry=false
+REPORT_BODY_INVENTORY named=0 units=3 hosted_cards=0 events=0 definitions=0 hosted_input=false
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 1, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 241, end: 256 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 227 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 1, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 1, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { start: 546, end: 566 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 531 }) allocated=true native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 1, ordinal: 1 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 1, ordinal: 2 } role=unit kind=OriginalDeclaration declaration=Span { start: 227, end: 256 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 227 }) allocated=false native=true logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 1, ordinal: 2 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=capture.bodies available=true
+REPORT_CAPTURE stage=capture.analysis-context refuses=false
+REPORT_CAPTURE stage=capture.source-region refuses=false
+REPORT_CAPTURE stage=capture.realm-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-image refuses=false
+REPORT_CAPTURE stage=capture.unit-source refuses=false
+REPORT_CAPTURE stage=capture.module-input refuses=false
+REPORT_CAPTURE stage=capture.analysis-image refuses=false
+REPORT_CAPTURE stage=capture.registry refuses=false
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=false vendor_input_matches=false native_entry=false
+REPORT_BODY_INVENTORY named=0 units=3 hosted_cards=0 events=0 definitions=0 hosted_input=false
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 7, ordinal: 0 } role=unit kind=Installed declaration=Span { start: 241, end: 256 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 227 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 7, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 7, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { start: 546, end: 566 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 531 }) allocated=true native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 7, ordinal: 1 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 7, ordinal: 2 } role=unit kind=OriginalDeclaration declaration=Span { start: 227, end: 256 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 99, 117, 114, 114, 101, 110, 116, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 110, 115, 58, 58, 32, 123, 125, 32, 108, 105, 115, 116, 32, 101, 109, 112, 116, 121, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 110, 115, 32, 123, 112, 105, 99, 107, 125, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 112, 105, 99, 107, 93, 10, 112, 117, 116, 115, 32, 91, 58, 58, 110, 115, 58, 58, 58, 93, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 114, 111, 99, 32, 112, 105, 99, 107, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 125, 125, 10, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 111, 116, 104, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 105, 102, 32, 123, 91, 112, 97, 99, 107, 97, 103, 101, 32, 118, 99, 111, 109, 112, 97, 114, 101, 32, 91, 105, 110, 102, 111, 32, 116, 99, 108, 118, 101, 114, 115, 105, 111, 110, 93, 32, 56, 46, 53, 93, 32, 62, 61, 32, 48, 125, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 116, 104, 32, 58, 58, 118, 105, 97, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 118, 105, 97, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 108, 105, 115, 116, 32, 112, 97, 116, 104, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 112, 105, 99, 107, 125, 93, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 118, 105, 97, 32, 123, 112, 114, 111, 99, 32, 108, 111, 99, 97, 108, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 111, 114, 100, 105, 110, 97, 114, 121, 95, 112, 97, 116, 104, 125, 125, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 108, 111, 99, 97, 108, 32, 123, 125, 32, 108, 105, 115, 116, 32, 103, 108, 111, 98, 97, 108, 95, 97, 108, 105, 97, 115, 10, 32, 32, 32, 32, 112, 117, 116, 115, 32, 91, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 99, 97, 108, 108, 101, 114, 32, 123, 108, 111, 99, 97, 108, 125, 93, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3367657299916531475, line_index: Some(LineIndex { line_starts: [0, 21, 59, 102, 139, 171, 190, 205, 259, 294, 347, 373, 422, 467, 507, 569, 618, 659, 661] }) } }), fingerprint: 4493221025676987539, activation_key: 1 }, offset: 227 }) allocated=false native=true logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 7, ordinal: 2 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=capture.bodies available=true
+REPORT_CAPTURE stage=capture.analysis-context refuses=false
+REPORT_CAPTURE stage=capture.source-region refuses=false
+REPORT_CAPTURE stage=capture.realm-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-image refuses=false
+REPORT_CAPTURE stage=capture.unit-source refuses=false
+REPORT_CAPTURE stage=capture.module-input refuses=false
+REPORT_CAPTURE stage=capture.analysis-image refuses=false
+REPORT_CAPTURE stage=capture.registry refuses=false
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+
+thread 'analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration' (11522) panicked at rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:813:14:
+actual Named and NamespaceScript owners at one original declaration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration ... REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=false vendor_input_matches=false native_entry=false
+REPORT_BODY_INVENTORY named=0 units=2 hosted_cards=0 events=0 definitions=0 hosted_input=false
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 13, ordinal: 0 } role=unit kind=NamespaceScript declaration=Span { start: 24, end: 55 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 58, 58, 111, 119, 110, 101, 100, 32, 123, 112, 114, 111, 99, 32, 114, 101, 116, 97, 105, 110, 101, 100, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 86, 65, 76, 85, 69, 125, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 58, 58, 111, 119, 110, 101, 100, 58, 58, 114, 101, 116, 97, 105, 110, 101, 100, 10, 112, 105, 99, 107], channel: Document, geometry: SourceImageGeometry { byte_hash: 7865331284825767517, line_index: Some(LineIndex { line_starts: [0, 57, 101] }) } }), fingerprint: 15617082297809883578, activation_key: 7 }, offset: 24 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 13, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 13, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { start: 42, end: 54 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 58, 58, 111, 119, 110, 101, 100, 32, 123, 112, 114, 111, 99, 32, 114, 101, 116, 97, 105, 110, 101, 100, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 86, 65, 76, 85, 69, 125, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 58, 58, 111, 119, 110, 101, 100, 58, 58, 114, 101, 116, 97, 105, 110, 101, 100, 10, 112, 105, 99, 107], channel: Document, geometry: SourceImageGeometry { byte_hash: 7865331284825767517, line_index: Some(LineIndex { line_starts: [0, 57, 101] }) } }), fingerprint: 15617082297809883578, activation_key: 7 }, offset: 24 }) allocated=false native=false logical=true authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 13, ordinal: 1 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=capture.bodies available=true
+REPORT_CAPTURE stage=capture.analysis-context refuses=false
+REPORT_CAPTURE stage=capture.source-region refuses=false
+REPORT_CAPTURE stage=capture.realm-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-image refuses=false
+REPORT_CAPTURE stage=capture.unit-source refuses=false
+REPORT_CAPTURE stage=capture.module-input refuses=false
+REPORT_CAPTURE stage=capture.analysis-image refuses=false
+REPORT_CAPTURE stage=capture.registry refuses=false
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=false vendor_input_matches=false native_entry=false
+REPORT_BODY_INVENTORY named=0 units=2 hosted_cards=0 events=0 definitions=0 hosted_input=false
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 14, ordinal: 0 } role=unit kind=NamespaceScript declaration=Span { start: 24, end: 55 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 58, 58, 111, 119, 110, 101, 100, 32, 123, 112, 114, 111, 99, 32, 114, 101, 116, 97, 105, 110, 101, 100, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 86, 65, 76, 85, 69, 125, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 58, 58, 111, 119, 110, 101, 100, 58, 58, 114, 101, 116, 97, 105, 110, 101, 100, 10, 112, 105, 99, 107], channel: Document, geometry: SourceImageGeometry { byte_hash: 7865331284825767517, line_index: Some(LineIndex { line_starts: [0, 57, 101] }) } }), fingerprint: 15617082297809883578, activation_key: 7 }, offset: 24 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 14, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 14, ordinal: 1 } role=unit kind=OriginalDeclaration declaration=Span { start: 42, end: 54 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 58, 58, 111, 119, 110, 101, 100, 32, 123, 112, 114, 111, 99, 32, 114, 101, 116, 97, 105, 110, 101, 100, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 86, 65, 76, 85, 69, 125, 125, 10, 105, 110, 116, 101, 114, 112, 32, 97, 108, 105, 97, 115, 32, 123, 125, 32, 58, 58, 112, 105, 99, 107, 32, 123, 125, 32, 58, 58, 111, 119, 110, 101, 100, 58, 58, 114, 101, 116, 97, 105, 110, 101, 100, 10, 112, 105, 99, 107], channel: Document, geometry: SourceImageGeometry { byte_hash: 7865331284825767517, line_index: Some(LineIndex { line_starts: [0, 57, 101] }) } }), fingerprint: 15617082297809883578, activation_key: 7 }, offset: 24 }) allocated=false native=false logical=true authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 14, ordinal: 1 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=capture.bodies available=true
+REPORT_CAPTURE stage=capture.analysis-context refuses=false
+REPORT_CAPTURE stage=capture.source-region refuses=false
+REPORT_CAPTURE stage=capture.realm-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-owner-match refuses=false
+REPORT_CAPTURE stage=capture.module-image refuses=false
+REPORT_CAPTURE stage=capture.unit-source refuses=false
+REPORT_CAPTURE stage=capture.module-input refuses=false
+REPORT_CAPTURE stage=capture.analysis-image refuses=false
+REPORT_CAPTURE stage=capture.registry refuses=false
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+REPORT_CAPTURE stage=output.input refuses=false
+REPORT_CAPTURE stage=output.registry refuses=false
+REPORT_CAPTURE stage=output.origin-allocation refuses=false
+REPORT_CAPTURE stage=output.body-request refuses=false
+REPORT_CAPTURE stage=output.realm-allocation refuses=false
+REPORT_CAPTURE stage=output.realm-match refuses=false
+REPORT_CAPTURE stage=output.image refuses=false
+REPORT_CAPTURE stage=current-output result=Ok(())
+
+thread 'analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration' (11783) panicked at rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:884:14:
+actual Named and NamespaceScript owners at one original declaration
+FAILED
+test analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain ... REPORT_EVENT_SOURCE stage=source-bindings available=true
+REPORT_EVENT_SOURCE stage=deferred-candidates available=true
+REPORT_EVENT_SOURCE stage=event-indices available=true
+REPORT_EVENT_SOURCE stage=event-index available=true
+REPORT_EVENT_SOURCE stage=original-words available=true
+REPORT_EVENT_SOURCE stage=original-event-word available=true
+REPORT_EVENT_SOURCE stage=metadata-context available=true
+REPORT_EVENT_SOURCE stage=hosted-metadata available=true
+REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=true vendor_input_matches=true native_entry=false
+REPORT_BODY_INVENTORY named=1 units=0 hosted_cards=0 events=1 definitions=0 hosted_input=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 15, ordinal: 0 } role=named kind=Event declaration=Span { start: 0, end: 37 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [119, 104, 101, 110, 32, 72, 84, 84, 80, 95, 82, 69, 81, 85, 69, 83, 84, 32, 123, 32, 115, 101, 116, 32, 118, 97, 108, 117, 101, 32, 86, 65, 76, 85, 69, 32, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 2080577543581733403, line_index: Some(LineIndex { line_starts: [0] }) } }), fingerprint: 3304965892823877931, activation_key: 8 }, offset: 0 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 15, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=bodies.event-procedure available=true
+REPORT_CAPTURE stage=bodies.event-procedure-match refuses=false
+REPORT_CAPTURE stage=bodies.event-row available=true
+REPORT_CAPTURE stage=bodies.event-duplicate-word refuses=false
+REPORT_CAPTURE stage=bodies.event-word available=false
+REPORT_CAPTURE stage=capture.bodies available=false
+
+thread 'analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain' (11829) panicked at rust/tcl-compiler/src/analyser/authenticated_report.rs:500:14:
+actual hosted diagnostics CU: CurrentOwnerUnavailable
+FAILED
+
+failures:
+
+failures:
+    analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration
+    analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration
+    analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 10581 filtered out; finished in 134.81s

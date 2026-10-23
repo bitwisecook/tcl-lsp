@@ -1,0 +1,39 @@
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -4744,6 +4744,16 @@
+         value
+     }
+
++    fn trace_report_event_gate(value: bool, stage: &str) -> bool {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
++            eprintln!("REPORT_EVENT_SOURCE stage={stage} refuses={value}");
++        }
++        #[cfg(not(test))]
++        let _ = stage;
++        value
++    }
++
+     /// Event geometry comes from the retained declaration and original words.
+     /// A captured/derived argument cannot borrow a displayed event spelling.
+     fn original_when_event_word(
+@@ -4813,11 +4823,15 @@
+                 ),
+                 "hosted-metadata",
+             )?;
+-            if metadata.shape().original_words() != words.as_slice()
+-                || !candidates
++            if Self::trace_report_event_gate(
++                metadata.shape().original_words() != words.as_slice(),
++                "hosted-shape-words",
++            ) || Self::trace_report_event_gate(
++                !candidates
+                     .iter()
+-                    .any(|candidate| candidate.target.command == metadata.shape().command())
+-            {
++                    .any(|candidate| candidate.target.command == metadata.shape().command()),
++                "hosted-selected-command",
++            ) {
+                 return None;
+             }
+             let input =

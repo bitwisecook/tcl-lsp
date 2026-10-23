@@ -129,3 +129,20 @@ provides no permission to accept Unavailable, omit any field or release the
 realm/interprocedural patch. Hosted full actual correspondence remains a
 blocking owner task. Perf continues only independent regression checks until
 the complete original controls can admit the full proof.
+
+Current unchanged-control tracing narrows hosted capture further. Raw original
+word and hosted metadata are Some, then no hosted-event-units trace appears.
+The intervening original-word-vector / selected-command OR guard refuses;
+which boolean is true remains unobserved. The later bodies.event-word None
+is downstream, so do not infer a stored word was successfully retained.
+`perf-hosted-event-refusal-trace.patch` preserves the original comparisons,
+single evaluation, OR short-circuit and return paths while exposing those two
+refusals under the existing cfg(test) trace flag. It is an off-tree, uncompiled,
+unrun diagnostic proposal routed to compiler, never a semantic repair.
+
+The genuine Logical alias control captures named0/unit2: NamespaceScript and
+OriginalDeclaration at site24, declaration extents24..55 versus42..54. Its
+original Named+NamespaceScript same-declaration assertion still fails. Full
+raw current trace and compact observations are in report-refusal-trace/.
+Neither this observation nor the successful actual native smoke authorizes
+changing the role expectation, dropping any body or forwarding the perf patch.

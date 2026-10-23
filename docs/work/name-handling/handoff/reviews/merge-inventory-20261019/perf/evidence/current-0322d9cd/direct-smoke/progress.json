@@ -62,6 +62,29 @@
       ],
       "exit": 0,
       "wall_s": 177.49153399467468
+    },
+    {
+      "label": "hosted-old",
+      "extra_env": {
+        "ZZ_OLD_ENV": "1",
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "paths": [
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "exit": 101,
+      "wall_s": 349.38111639022827
+    },
+    {
+      "label": "hosted-mixed",
+      "extra_env": {
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "paths": [
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "exit": 101,
+      "wall_s": 341.61491894721985
     }
   ],
   "build_exit": 0,

@@ -1,0 +1,22 @@
+{
+  "head": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "artifact": {
+    "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "sha256": "926794a218d9458cc190001228ee24437c32b69dfebe5243473758fb1790d8de"
+  },
+  "argv": [
+    "/tmp/perf-traced-controls-cj2u8h8t/tcl_compiler-ef22ef87d0bd65a7",
+    "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+    "analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration",
+    "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "env": {
+    "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+  },
+  "exit": 101,
+  "wall_s": 135.0267517566681,
+  "status": "diagnostic only; same original three assertions, no source edits, not latency evidence",
+  "private_executable_removed": true
+}

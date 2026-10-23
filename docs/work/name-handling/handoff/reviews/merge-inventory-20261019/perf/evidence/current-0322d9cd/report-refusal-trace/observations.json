@@ -1,0 +1,172 @@
+{
+  "source": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
+  "raw_sha256": "2790437ccb6ff26579b516e030e0aec2323759d9248b06f694469436ef3e672b",
+  "status": "read-only diagnostic projection; full raw trace retained; never used as equivalence verdict",
+  "tests": {
+    "unknown": {
+      "inventories": [],
+      "bodies": [],
+      "event_stages": []
+    },
+    "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration": {
+      "inventories": [
+        "named=0 units=3 hosted_cards=0 events=0 definitions=0 hosted_input=false",
+        "named=0 units=3 hosted_cards=0 events=0 definitions=0 hosted_input=false"
+      ],
+      "bodies": [
+        {
+          "scope": 1,
+          "ordinal": 0,
+          "role": "unit",
+          "kind": "Installed",
+          "declaration": [
+            241,
+            256
+          ],
+          "site_offset": 227
+        },
+        {
+          "scope": 1,
+          "ordinal": 1,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            546,
+            566
+          ],
+          "site_offset": 531
+        },
+        {
+          "scope": 1,
+          "ordinal": 2,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            227,
+            256
+          ],
+          "site_offset": 227
+        },
+        {
+          "scope": 7,
+          "ordinal": 0,
+          "role": "unit",
+          "kind": "Installed",
+          "declaration": [
+            241,
+            256
+          ],
+          "site_offset": 227
+        },
+        {
+          "scope": 7,
+          "ordinal": 1,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            546,
+            566
+          ],
+          "site_offset": 531
+        },
+        {
+          "scope": 7,
+          "ordinal": 2,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            227,
+            256
+          ],
+          "site_offset": 227
+        }
+      ],
+      "event_stages": []
+    },
+    "analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration": {
+      "inventories": [
+        "named=0 units=2 hosted_cards=0 events=0 definitions=0 hosted_input=false",
+        "named=0 units=2 hosted_cards=0 events=0 definitions=0 hosted_input=false"
+      ],
+      "bodies": [
+        {
+          "scope": 13,
+          "ordinal": 0,
+          "role": "unit",
+          "kind": "NamespaceScript",
+          "declaration": [
+            24,
+            55
+          ],
+          "site_offset": 24
+        },
+        {
+          "scope": 13,
+          "ordinal": 1,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            42,
+            54
+          ],
+          "site_offset": 24
+        },
+        {
+          "scope": 14,
+          "ordinal": 0,
+          "role": "unit",
+          "kind": "NamespaceScript",
+          "declaration": [
+            24,
+            55
+          ],
+          "site_offset": 24
+        },
+        {
+          "scope": 14,
+          "ordinal": 1,
+          "role": "unit",
+          "kind": "OriginalDeclaration",
+          "declaration": [
+            42,
+            54
+          ],
+          "site_offset": 24
+        }
+      ],
+      "event_stages": []
+    },
+    "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain": {
+      "inventories": [
+        "named=1 units=0 hosted_cards=0 events=1 definitions=0 hosted_input=true"
+      ],
+      "bodies": [
+        {
+          "scope": 15,
+          "ordinal": 0,
+          "role": "named",
+          "kind": "Event",
+          "declaration": [
+            0,
+            37
+          ],
+          "site_offset": 0
+        }
+      ],
+      "event_stages": [
+        "stage=source-bindings available=true",
+        "stage=deferred-candidates available=true",
+        "stage=event-indices available=true",
+        "stage=event-index available=true",
+        "stage=original-words available=true",
+        "stage=original-event-word available=true",
+        "stage=metadata-context available=true",
+        "stage=hosted-metadata available=true",
+        "REPORT_CAPTURE stage=bodies.event-word available=false"
+      ]
+    }
+  },
+  "hosted_first_refusal": "Lowerer::original_when_event_word returns after hosted-metadata Some and before hosted-event-units; intervening original_words/candidate-command OR guard refuses; failing subcomparison not observed. Later bodies.event-word None is downstream, not proof that a retained word existed.",
+  "raw_filename": "controls.out.raw.gz",
+  "text_view": "controls.out: EOF blank lines trimmed only"
+}

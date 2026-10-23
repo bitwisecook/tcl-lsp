@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 11:28 UTC
+Last updated: 2026-10-23 11:50 UTC
 
 **Blocked on current compiler report controls; regression checks continue. No production code landed.** The independent
 0322d9cd checkout contains the full switched batch. Clean six/two-file patches
@@ -157,3 +157,11 @@ Next: resolve the current all-old/report blocker with its owner, then rerun the
 complete proof on latest work, preserve zero pass-to-fail and clean-switch
 gates, and commit only the six owned production files as one commit. Only after
 full proof may the routed compiler patch be marked ready. Never open a PR.
+
+Current hosted public-API smoke is complete: forced-old AND mixed each give
+Unavailable(CurrentOwnerUnavailable) for all3 pairs; the private executable
+is removed. Existing unchanged-control tracing narrows the first refusal to
+the unlogged word-vector/selected-command guard in original_when_event_word;
+which comparison fails is not observed. The routed pure diagnostic draft is
+uncompiled/unrun, outside the batch. See analysis-equality-routing.md and
+current-0322d9cd/report-refusal-trace/; current regression suites continue.

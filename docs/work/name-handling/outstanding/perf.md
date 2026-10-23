@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 11:28 UTC
+Last updated: 2026-10-23 11:50 UTC
 
 ## Resume
 
@@ -24,7 +24,8 @@ report-controls-summary.json records the two unchanged alias-role assertions
 and hosted CurrentOwnerUnavailable failure. E003 positive/foreign controls
 pass. The separate direct-artifact smoke returns complete Equal triples for
 E003 and aliases in forced-old AND mixed modes; strict runtime Eq remains
-false and was not altered. Direct hosted smoke is still pending.
+false and was not altered. Direct hosted all-old AND mixed each fail all3 pairs with
+Unavailable(CurrentOwnerUnavailable); executable removed.
 
 Full corpus acceptance remains BLOCKED until the original report controls and
 the separate diagnostic-output realm control pass in both modes. Different
@@ -34,9 +35,9 @@ report and actual-realm controls, exact source/batch and all117 fixture bytes.
 Evidence is under perf/evidence/current-0322d9cd/.
 
 Runner PID/status: inspect /tmp/perf-run-retry.log and evidence progress.json.
-Build/run/delete happen in the same command. All new targets are isolated at
-/workspace/tcl-lsp-perf-latest/target, built from source without local artifact
-reuse. Source-before/after and artifact hashes will be retained. Use
+Build/run/delete happen in the same command. Targets are isolated under /workspace/tcl-lsp-perf-latest. The first target
+started empty; retries reuse matching dependencies from this same checkout.
+Cargo receipts record freshness. No cross-worktree build artifacts are reused. Source-before/after and artifact hashes will be retained. Use
 source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh; preserved oracles
 are available through the proof checkout's tmp symlink.
 
@@ -180,3 +181,24 @@ commands build/run/delete their executables in the same command. Temporary
 probe .rs files must be removed after the main command; never commit them.
 The LSP inventory draft is an additional uncompiled/unproven route, not part
 of either perf batch patch and not a fix for all review4.1 scaling shapes.
+
+## Current hosted refusal diagnostic
+
+Three original failing controls were rerun unchanged with their existing trace
+flag, using a byte-identical private copy of the known control binary. All3
+fail, copy removed; this is diagnostic only. report-refusal-trace/ retains full
+raw compressed stdout and observed stage/body inventory, not latency evidence.
+
+The raw event NativeWord and hosted metadata exist, but lowering returns before
+hosted-event-units: the unlogged original-word-vector / selected-command OR
+check in Lowerer::original_when_event_word refuses. The failing subcomparison
+is not observed. Later bodies.event-word None is downstream; do not claim a
+retained event word existed. perf-hosted-event-refusal-trace.patch is a narrow
+OFF-TREE/uncompiled/unrun compiler-owned diagnostic proposal that logs each
+original boolean exactly once and preserves OR short-circuit/order/returns.
+It is not a functional fix, part of the batch, or proof of readiness.
+
+Logical alias observations: named0/unit2, NamespaceScript and OriginalDeclaration
+share source site24 but have distinct declaration extents24..55 and42..54.
+The unchanged Named+NamespaceScript same-declaration expectation is unmet. No
+producer cause or permission to weaken it is inferred from these observations.
