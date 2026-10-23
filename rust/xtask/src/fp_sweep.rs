@@ -468,7 +468,6 @@ fn shape_key(message: &str) -> String {
 ///
 /// Both compilation units use the document's resolved dialect grammar and
 /// stub declarations. The checks and optimiser share an interprocedural summary.
-#[allow(clippy::too_many_lines)]
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
     // ingress seam, in the `find`-shaped validator form: an override that
@@ -578,12 +577,22 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // report and therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
+    append_style_firings(doc, &result, dialect, wanted, out);
+}
+
+fn append_style_firings(
+    doc: &SweepDocument,
+    result: &tcl_compiler::analyser::types::AnalysisResult,
+    dialect: &str,
+    wanted: &[DiagCode],
+    out: &mut Vec<Firing>,
+) {
     for d in style_facts_from_analysis(
         &doc.input.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
         Some(&doc.input.decode),
-        &result,
+        result,
     ) {
         let code = d.code;
         if !wanted.contains(&code) {
