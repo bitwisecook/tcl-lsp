@@ -26,7 +26,6 @@ fn require_protocol<O: ValueOps>(ops: &O, version: TclVersion) -> Result<(), Cmd
 ///
 /// # Errors
 /// Returns actual original getter or selected native-protocol failures.
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 
 pub fn compiled_find<O: NativeIndexOps>(
     ops: &mut O,
@@ -92,7 +91,6 @@ fn reached_range<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Declines a missing original Unicode representation or an invalid index.
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 
 pub fn compiled_range<O: NativeIndexOps>(
     ops: &mut O,
@@ -115,7 +113,6 @@ pub fn compiled_range<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Propagates original getter, range and native result-constructor failures.
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 
 pub fn compiled_tail<O: NativeIndexOps>(
     ops: &mut O,
@@ -148,7 +145,6 @@ pub fn compiled_tail<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Declines unreached Unicode, foreign protocol or an invalid selected index.
-// Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
 
 pub fn compiled_index<O: NativeIndexOps>(
     ops: &mut O,
@@ -186,7 +182,6 @@ pub fn compiled_index<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Propagates the original search, backing and range result-constructor refusal.
-// Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
 
 pub fn compiled_qualifiers<O: NativeIndexOps>(
     ops: &mut O,

@@ -313,8 +313,6 @@ fn public_arithmetic_length_and_single_index_do_not_materialize_huge_series() {
 
 #[test]
 fn finite_arithmetic_index_paths_preserve_or_convert_the_original_primary() {
-    // Native proof: naming.list.arithseries-original-multiple-index-conversion
-
     // These selected call fragments compare public results and the same type
     // distinction measured by the proof's type-only observer. This Rust
     // descriptor assertion supplies no native refcount or member identity.

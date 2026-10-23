@@ -2434,8 +2434,6 @@ mod tests {
 
     #[test]
     fn physical_list_length_matches_all_204_native_storage_rows() {
-        // Native proof: naming.list.stock-length-same-original-storage
-
         use crate::obj;
         use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
         use tcl_syntax::value::ValueOps;

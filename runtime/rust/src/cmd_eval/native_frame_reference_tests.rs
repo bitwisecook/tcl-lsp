@@ -42,8 +42,6 @@ fn pop_frame(interp: &mut Interp) {
     interp.leave_namespace_activation(namespace);
 }
 
-// Native proof: naming.variable.absolute-level-cache-reselects-current-frame
-
 #[test]
 fn level_reference_reselects_current_frames_in_thirty_native_windows() {
     let mut compared = 0;

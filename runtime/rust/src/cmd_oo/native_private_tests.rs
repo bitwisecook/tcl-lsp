@@ -5,10 +5,6 @@ use crate::obj::Owned;
 
 #[test]
 fn private_query_and_opaque_original_bodies_match_native_c9_controls() {
-    // Native proof: naming.tcloo.private-definition-mode
-
-    // Native proof: naming.tcloo.private-original-script-bytes
-
     for engine in ["tcl9.0", "tcl9.1"] {
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
@@ -62,10 +58,6 @@ fn assert_row(interp: &Interp, code: Code, rows: &str, label: &str) {
 
 #[test]
 fn method_option_layout_and_private_scope_match_original_native_controls() {
-    // Native proof: naming.tcloo.method-original-option-layout
-
-    // Native proof: naming.tcloo.true-private-provider-scope
-
     for (engine, rows) in [
         (
             "tcl8.6",

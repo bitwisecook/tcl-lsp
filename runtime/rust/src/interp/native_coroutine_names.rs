@@ -89,8 +89,6 @@ mod tests {
     }
     #[test]
     fn original_coroutine_names_match_native_publication_controls() {
-        // Native proof: naming.coroutine.original-publication-boundaries
-
         let mut comparisons = 0;
         for (engine, rows) in [
             (

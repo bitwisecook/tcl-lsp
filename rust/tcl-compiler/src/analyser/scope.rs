@@ -5375,8 +5375,6 @@ info exists ::N::v\uD800";
 
     #[test]
     fn caught_caller_rebinding_cannot_retain_the_original_formal_symbol() {
-        // Native proof: naming.variable.catch-result-alias-continuity
-
         // Native ASCII controls independently show catch's result reaching the
         // rebound root slot. These assertions test source identity withdrawal.
         let source = "proc mutate {} {uplevel 1 {unset name; upvar #0 ::destination name}; error BOOM}\nproc probe {name} {catch {mutate} name; return $name}";
@@ -5726,8 +5724,6 @@ info exists ::N::v\uD800";
         }
     }
 
-    // Native proof: naming.variable.namespace-store-frame-and-fallback
-
     #[test]
     fn original_namespace_store_symbols_use_the_selected_activation_and_fallback() {
         use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
@@ -5873,14 +5869,6 @@ info exists ::N::v\uD800";
             ));
         }
     }
-
-    // Native proof: naming.array-source.combined-set-receiver
-
-    // Native proof: naming.array-source.scalar-element-storage
-
-    // Native proof: naming.array-source.combined-read-enumeration
-
-    // Native proof: naming.array-source.combined-unset
 
     #[test]
     fn original_array_receiver_symbols_keep_combined_names_and_guest_error_independent() {

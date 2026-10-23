@@ -4583,8 +4583,6 @@ mod tests {
         trace.clone()
     }
 
-    // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
-
     #[test]
     fn original_variable_trace_copies_producers_and_removes_by_selected_native_purpose() {
         use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
@@ -4649,8 +4647,6 @@ mod tests {
     }
 
     #[test]
-    // Native proof: naming.variable.trace-subject-counted-zero-address
-
     fn original_trace_subject_keeps_cstring_purpose_separate_from_counted_runtime_lookup() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();

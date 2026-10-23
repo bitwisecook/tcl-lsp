@@ -1225,8 +1225,6 @@ mod tests {
     }
     #[test]
     fn opaque_property_lookup_uses_original_accessor_members() {
-        // Native proof: naming.property.opaque-name-custom-getter-option-cache
-
         let mut vm = instance();
         let class = resolve_object_value(&mut vm, &Value::string("C"))
             .unwrap()
@@ -1262,8 +1260,6 @@ mod tests {
     }
     #[test]
     fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
-        // Native proof: naming.property.original-accessor-clientdata
-
         let mut vm = instance();
         let class = resolve_object_value(&mut vm, &Value::string("C"))
             .unwrap()
@@ -1342,8 +1338,6 @@ mod tests {
     }
     #[test]
     fn property_epochs_follow_mutations_before_definition_failure() {
-        // Native proof: naming.property.original-foundation-epoch-and-cache
-
         let mut vm = instance();
         let id = resolve_object_value(&mut vm, &Value::string("o"))
             .unwrap()

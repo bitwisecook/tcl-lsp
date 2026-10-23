@@ -482,8 +482,6 @@ mod tests {
 
     #[test]
     fn original_document_words_match_native_character_channel_values() {
-        // Native proof: naming.source.document-native-utf-ingress
-
         let source = include_bytes!("../../tcl-syntax/tests/data/native_source_ingress/source.tcl");
         let observations =
             include_str!("../../tcl-syntax/tests/data/native_source_ingress/observations.tsv");

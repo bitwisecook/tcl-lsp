@@ -858,16 +858,6 @@ mod tests {
 
     #[test]
     fn original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references() {
-        // Native proof: naming.procedure.borrowed-slot-duplicate-original-formals
-
-        // Native proof: naming.procedure.borrowed-slot-counted-zero-length
-
-        // Native proof: naming.procedure.borrowed-slot-modified-zero-and-opaque-bytes
-
-        // Native proof: naming.procedure.borrowed-slot-qualified-formal-boundary
-
-        // Native proof: naming.procedure.borrowed-slot-array-shaped-formal-boundary
-
         let names = borrowed_source_names();
         let body =
             unhex(include_str!("../../tests/data/native_borrowed_frame_slots/body.hex").trim());
@@ -965,8 +955,6 @@ mod tests {
         }
         assert_eq!(compared, 240);
     }
-
-    // Native proof: naming.variable.counted-formal-foreach-slot-execution-frontier
 
     #[test]
     fn compiled_foreach_matches_twelve_original_native_slot_records() {

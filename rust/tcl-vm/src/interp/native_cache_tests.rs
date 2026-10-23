@@ -264,10 +264,6 @@ fn imported_source_ensemble(
 
 #[test]
 fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
-    // Native proof: naming.import.compiler-hook-copy
-
-    // Native proof: naming.import.compiler-hook-mutation-epoch
-
     let engines = IMPORTED_COMPILER_FIXTURES;
     let mut completed = 0;
     for (engine, reports) in engines {

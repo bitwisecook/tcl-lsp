@@ -460,8 +460,6 @@ mod tests {
 
     #[test]
     fn legacy_operation_extent_preserves_counted_empty_and_opaque_errors() {
-        // Native proof: naming.variable.legacy-trace-operation-cstring
-
         assert_eq!(parse_legacy_variable_ops(b"w\0bad").unwrap(), ["write"]);
         for input in [b"w\xc0\x80bad".as_slice(), b"w\xff"] {
             let mut expected = b"bad operations \"".to_vec();

@@ -138,8 +138,6 @@ fn row(label: &str) -> Vec<&'static str> {
 }
 #[test]
 fn original_coroutine_probe_and_injection_match_counted_object_controls() {
-    // Native proof: naming.coroutine.original-probe-and-injection-object-identity
-
     let mut comparisons = 0;
     for arbitrary in [false, true] {
         for case in ["RAW_ZERO", "ENCODED_ZERO", "OPAQUE_FF", "SURROGATE_D800"] {
@@ -236,8 +234,6 @@ fn original_coroutine_probe_and_injection_match_counted_object_controls() {
 }
 #[test]
 fn original_injection_order_and_error_continuation_match_native_callbacks() {
-    // Native proof: naming.coroutine.original-injection-order-and-completion
-
     for arbitrary in [false, true] {
         for fail_b in [false, true] {
             let prefix = format!(

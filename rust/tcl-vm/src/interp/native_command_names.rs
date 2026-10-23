@@ -1156,10 +1156,6 @@ mod tests {
 
     #[test]
     fn ordered_literal_actions_match_sixty_original_native_observations() {
-        // Native proof: naming.literal.command-action.ordered-primary
-
-        // Native proof: naming.literal.command-action.replacement-primary
-
         use crate::literal_pool::NativeLiteralPool;
         let fixtures = COMMAND_ACTION_FIXTURES;
         let mut checked = 0;

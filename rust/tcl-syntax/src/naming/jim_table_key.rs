@@ -101,8 +101,6 @@ mod tests {
     }
     #[test]
     fn original_jim_table_key_rejects_lookup_and_other_engine_projections() {
-        // Native proof: naming.jim.original-command-table-key-publication
-
         let c = NativeNameProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_6);
         assert!(
             NativeJimCommandTableKey::from_projection(

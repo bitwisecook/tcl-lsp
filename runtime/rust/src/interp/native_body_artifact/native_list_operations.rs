@@ -636,12 +636,6 @@ mod tests {
     }
     #[test]
     fn original_range_and_assignment_match_84_native_completion_and_original_header_pairs() {
-        // Native proof: naming.list.assignment-interleaved-target-effects
-
-        // Native proof: naming.list.original-assign-objects-and-instructions
-
-        // Native proof: naming.list.original-range-objects-and-instructions
-
         let mut windows = 0;
         for &(engine, list, order) in LIST_TABLES {
             for (rows, bodies, cases) in [

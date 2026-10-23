@@ -183,8 +183,6 @@ mod tests {
         }
     }
     #[test]
-    // Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
-
     fn original_namespace_qualifiers_recipe_retains_dynamic_and_counted_operands() {
         // naming.namespace.original-counted-qualifiers-compiler-and-runtime
 

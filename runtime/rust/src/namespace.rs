@@ -4723,8 +4723,6 @@ mod original_variable_geometry_tests {
 
     #[test]
     fn namespace_variable_roots_keep_qualification_before_zero_and_counted_simple_keys() {
-        // Native proof: naming.tcloo.explicit-variable-link-counted-target
-
         for version in tcl_dialect::TclVersion::ALL {
             let mut namespaces = Namespaces::new();
             namespaces.variable_name_protocol =

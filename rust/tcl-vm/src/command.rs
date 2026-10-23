@@ -4680,8 +4680,6 @@ mod tests {
 
     #[test]
     fn physical_procedure_capture_and_header_remain_separate_from_authored_names() {
-        // Native proof: naming.procedure.counted-body-header-selection
-
         use super::{Value, Vm};
         use std::rc::Rc;
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
@@ -4744,14 +4742,6 @@ mod tests {
 
     #[test]
     fn c84_procedure_parse_failures_match_7_native_original_object_completions() {
-        // Native proof: naming.procedure-error.original-name-context
-
-        // Native proof: naming.procedure-error.counted-zero-name-context
-
-        // Native proof: naming.procedure-error.long-name-and-argv-context
-
-        // Native proof: naming.procedure-error.body-line-context
-
         use super::{Value, Vm};
         let decode = |text: &str| {
             assert_eq!(text.len() % 2, 0);
@@ -4826,10 +4816,6 @@ mod tests {
 
     #[test]
     fn procedure_body_capture_matches_58_native_definition_windows() {
-        // Native proof: naming.procedure.original-string-body-capture
-
-        // Native proof: naming.procedure.original-list-bytearray-body-capture
-
         use super::{Command, Value, Vm};
         let engines = [
             (
@@ -4934,10 +4920,6 @@ mod tests {
 
     #[test]
     fn procedure_definition_and_activation_match_42_native_observations() {
-        // Native proof: naming.procedure.original-malformed-body-arity-order
-
-        // Native proof: naming.procedure.original-wrong-arity-body-withdrawal
-
         use super::{Command, Value, Vm};
         let engines = [
             (
@@ -5032,8 +5014,6 @@ mod tests {
         }
         assert_eq!(compared, 42);
     }
-
-    // Native proof: naming.variable.original-level-object-conversion-and-selection
 
     #[test]
     fn original_frame_selectors_match_native_cache_and_failure_order() {

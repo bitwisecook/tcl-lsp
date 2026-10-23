@@ -806,8 +806,6 @@ mod compiler_tests {
 
     #[test]
     fn dictionary_variable_ordinal_matches_current_native_key_values() {
-        // Native proof: naming.dictionary-variable.original-counted-values
-
         let jim = crate::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         );

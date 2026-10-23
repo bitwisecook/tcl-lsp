@@ -18,12 +18,6 @@ fn actual(engine: &str) -> Interp {
 
 #[test]
 fn original_procedure_colon_names_match_all_18_native_home_and_error_controls() {
-    // Native proof: naming.procedure-source.colon-namespace-home
-
-    // Native proof: naming.procedure-source.colon-local-name
-
-    // Native proof: naming.procedure-source.name-before-malformed-formals
-
     let rows =
         include_str!("../../../../rust/tcl-syntax/tests/data/native_procedure_name/rows.txt");
     let decode = |text: &str| {

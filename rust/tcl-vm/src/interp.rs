@@ -33418,8 +33418,6 @@ mod native_namespace_variable_fixture_tests {
             .collect()
     }
 
-    // Native proof: naming.variable.namespace-which-variable-original-object-and-storage-state
-
     #[test]
     fn namespace_queries_match_660_fixed_native_original_and_short_results() {
         let engines = [
@@ -33996,8 +33994,6 @@ mod native_oo_bootstrap_inventory_tests {
     #[test]
     fn original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency() {
         // Implementation contract: naming.runtime.native-tcloo-class-capability
-
-        // Native proof: naming.tcloo.bootstrap-factory-and-support-allocations
 
         for version in [
             tcl_dialect::TclVersion::V8_6,

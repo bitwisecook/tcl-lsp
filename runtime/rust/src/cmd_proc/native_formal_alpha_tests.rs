@@ -50,10 +50,6 @@ fn assert_row(
 
 #[test]
 fn counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries() {
-    // Native proof: naming.formal.whole-object-return-renaming
-
-    // Native proof: naming.formal.raw-zero-list-and-binding-renaming
-
     for (engine, rows) in [
         (
             "tcl8.4",

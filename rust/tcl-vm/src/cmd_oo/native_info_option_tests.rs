@@ -98,8 +98,6 @@ fn variable_info_validates_original_options_before_target_lookup() {
 
 #[test]
 fn variable_info_matches_original_native_option_and_target_failures() {
-    // Native proof: naming.tcloo.variable-info-original-option-boundaries
-
     for (engine, captured) in [
         (
             "tcl8.6",

@@ -1031,8 +1031,6 @@ mod tests {
 
     #[test]
     fn variable_name_patterns_keep_original_counted_keys_and_native_scan_units() {
-        // Native proof: naming.tcloo.explicit-variable-link-counted-target
-
         use tcl_dialect::TclVersion;
         use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
         let names = [

@@ -8,8 +8,6 @@ use crate::{Value, Vm};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::value::ValueOps;
 
-// Native proof: naming.variable.absolute-level-cache-reselects-current-frame
-
 #[test]
 fn level_reference_reselects_current_frames_in_thirty_native_windows() {
     let mut compared = 0;
@@ -121,8 +119,6 @@ fn script(case: usize) -> Value {
         _ => Value::new_native_string_bytes(b"list [info level] [info exists local]".as_slice()),
     }
 }
-
-// Native proof: naming.variable.explicit-uplevel-level-body-cache-and-frame-restoration
 
 #[test]
 fn explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows() {

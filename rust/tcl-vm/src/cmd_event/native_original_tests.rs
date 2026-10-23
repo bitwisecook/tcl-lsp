@@ -142,8 +142,6 @@ fn original_event_scripts_global_waits_and_timer_turns_match_native_controls() {
 
 #[test]
 fn original_list_event_scripts_retain_counted_name_objects() {
-    // Native proof: naming.event.original-list-script-byte-boundaries
-
     use crate::Value;
     use tcl_syntax::value::ValueOps;
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {

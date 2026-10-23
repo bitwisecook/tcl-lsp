@@ -385,8 +385,6 @@ mod tests {
 
     #[test]
     fn original_index_flags_and_offsets_match_all_native_31_windows() {
-        // Native proof: naming.index.original-temporary-table-flag
-
         use tcl_core_types::NativeIndexLookupFlags as Flags;
         const FIELDS: &[&str] = &["provide", "padding", "present"];
         const FLAGS_WORDS: &[&str] = &["provide", "present", ""];

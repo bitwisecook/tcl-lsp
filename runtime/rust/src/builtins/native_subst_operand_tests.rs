@@ -83,8 +83,6 @@ fn actual(engine: &str) -> Interp {
 
 #[test]
 fn original_subst_options_match_counted_native_families() {
-    // Native proof: naming.substitution.original-options-and-flag-families
-
     for (engine, captured) in rows() {
         for (label, options) in [
             (
@@ -116,8 +114,6 @@ fn original_subst_options_match_counted_native_families() {
 
 #[test]
 fn catch_original_output_names_match_counted_native_controls() {
-    // Native proof: naming.variable.catch-original-output-name
-
     for (engine, captured) in rows() {
         for (label, name) in [
             ("CATCH_NAME_FF", b"r\xff".as_slice()),

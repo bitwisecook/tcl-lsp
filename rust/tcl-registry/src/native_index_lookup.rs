@@ -365,8 +365,6 @@ mod tests {
 
     #[test]
     fn selected_trace_type_bytes_keep_raw_and_encoded_zero_distinct() {
-        // Native proof: naming.trace.original-type-wrong-arity-inputs
-
         for version in tcl_dialect::TclVersion::ALL {
             let protocol = crate::InvocationDialect::for_version(version)
                 .native_index_lookup_protocol()

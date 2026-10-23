@@ -973,8 +973,6 @@ mod tests {
 
     #[test]
     fn local_array_lease_preserves_global_cache_and_retires_registration_before_guest_object() {
-        // Native proof: naming.literal.numeric-registration-sharing
-
         let world = Rc::new(RefCell::new(NativeLiteralWorld::default()));
         let mut table = LiteralTable::new();
         table.intern_bytes(b"17");
@@ -1037,8 +1035,6 @@ mod tests {
 
     #[test]
     fn private_constant_list_retains_distinct_original_members_and_declines_older_compiler() {
-        // Native proof: naming.literal.static-and-dynamic-list-identity
-
         let world = Rc::new(RefCell::new(NativeLiteralWorld::default()));
         let mut table = LiteralTable::new();
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
@@ -1069,8 +1065,6 @@ mod tests {
 
     #[test]
     fn command_registration_partitions_match_the_five_native_engines() {
-        // Native proof: naming.literal.command-registration.namespace-and-role-sharing
-
         for version in [
             tcl_dialect::TclVersion::V8_4,
             tcl_dialect::TclVersion::V8_5,
@@ -1150,10 +1144,6 @@ mod tests {
 
     #[test]
     fn native_opaque_literal_bytes_and_c84_initial_cache_match_captured_producers() {
-        // Native proof: naming.literal.counted-opaque-source-object
-
-        // Native proof: naming.literal.initial-number-primary
-
         let world = Rc::new(RefCell::new(NativeLiteralWorld::default()));
         for (version, expected) in [
             (tcl_dialect::TclVersion::V8_4, true),

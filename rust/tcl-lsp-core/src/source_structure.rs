@@ -2929,8 +2929,6 @@ mod syntax_compaction_tests {
     fn original_syntax_regions_reject_body_roles_when_arguments_replace_the_head() {
         // Implementation contract: naming.source.closed-syntax-script-regions
 
-        // Native proof: naming.source.argument-replacement-body-data
-
         let source = concat!(
             "if [eval {rename if saved; proc if {condition body} ",
             "{set ::custom_ran CUSTOM; set ::custom_body $body; return $body}; list 1}] ",

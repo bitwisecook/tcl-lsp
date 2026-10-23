@@ -49,7 +49,6 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // "it is not allowed to combine positive and negated options" in one call.
 // Direct counted-object probes on the pinned C8.4-C9.1 and Jim providers
 // independently reconfirm both families and the mixed-family rejection.
-// Native proof: naming.substitution.original-options-and-flag-families
 
 pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {

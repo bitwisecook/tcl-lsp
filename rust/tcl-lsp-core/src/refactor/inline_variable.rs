@@ -1025,8 +1025,6 @@ mod tests {
     fn original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps() {
         // Implementation contract: naming.refactor.original-variable-inline-permission
 
-        // Native proof: naming.refactor.variable-inline-literal-source-values
-
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let source = "set café 7\nputs ${café}";
             let mut analysis = Analyser::new().analyse(source, dialect);
@@ -1045,14 +1043,6 @@ mod tests {
     #[test]
     fn original_inline_variable_rejects_reassigned_cells_observers_and_value_effect_movement() {
         // Implementation contract: naming.refactor.original-variable-inline-permission
-
-        // Native proof: naming.refactor.variable-inline-reassignment-read
-
-        // Native proof: naming.refactor.variable-inline-callee-upvar-read
-
-        // Native proof: naming.refactor.variable-inline-modern-read-observer
-
-        // Native proof: naming.refactor.variable-inline-legacy-read-observer
 
         for source in [
             "set x 1; set x 2; puts $x",

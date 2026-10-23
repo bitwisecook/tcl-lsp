@@ -552,8 +552,6 @@ mod tests {
 
     #[test]
     fn method_argc_and_visibility_keep_private_separate_from_unexported() {
-        // Native proof: naming.tcloo.method-original-option-layout
-
         for version in TclVersion::ALL {
             let selected = NativeTclooMethodDefinitionProtocol::select(
                 InvocationDialect::for_version(version),

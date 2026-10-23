@@ -3831,8 +3831,6 @@ impl NativeCompilationSpec {
             }
             NativeCompilationGrammar::ListLength => shapes.len() == 1,
             NativeCompilationGrammar::ListAssignment => {
-                // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
-
                 // This compiler inspects token count and shape; opaque static
                 // target bytes do not need a Unicode argument projection.
                 return Some(list_assignment_grammar(shapes, version, self.operation));
@@ -6728,8 +6726,6 @@ mod tests {
 
     #[test]
     fn original_assignment_selection_keeps_opaque_target_bytes_and_modes_separate() {
-        // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
-
         let spec = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::ListAssignment,
             operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::ListAssign),

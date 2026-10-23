@@ -387,8 +387,6 @@ mod trace_source_tests {
 
     #[test]
     fn copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation() {
-        // Native proof: naming.variable.trace-callback-direct-source
-
         for version in TclVersion::ALL {
             let selected = InvocationDialect::for_version(version)
                 .native_eval_object_protocol()

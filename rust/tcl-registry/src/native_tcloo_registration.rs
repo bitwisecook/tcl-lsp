@@ -230,8 +230,6 @@ mod tests {
 
     #[test]
     fn private_dispatch_registration_keeps_null_hooks_separate_from_helper_compilers() {
-        // Native proof: naming.tcloo.private-dispatch-null-compiler
-
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);

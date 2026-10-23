@@ -311,8 +311,6 @@ unsafe extern "C" fn original_getter_init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn callback_getters_preserve_aliases_and_publish_original_failure_caches() {
-    // Native proof: naming.native-abi.original-object-callback-getters
-
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: the initializer exclusively uses the shim ABI.
     unsafe { interp.load_static(original_getter_init) }.unwrap();

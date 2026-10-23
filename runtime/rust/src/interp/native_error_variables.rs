@@ -1529,8 +1529,6 @@ mod tests {
         );
     }
 
-    // Native proof: naming.variable.error-reset-distinct-episodes
-
     #[test]
     fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
         use super::super::Code;
@@ -1943,8 +1941,6 @@ mod tests {
         }
     }
 
-    // Native proof: naming.variable.error-globals-bootstrap-and-legacy-copy
-
     #[test]
     fn hidden_error_reads_and_unsets_match_original_native_objects() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -2057,10 +2053,6 @@ mod tests {
         };
         (count("explicit-error\t"), count("after-reset\t"))
     }
-
-    // Native proof: naming.variable.error-producer-reset-callback-order
-
-    // Native proof: naming.variable.error-producer-script-trace-reset-order
 
     #[test]
     fn original_private_error_primaries_and_script_reset_match_native_producers() {
@@ -2197,8 +2189,6 @@ mod tests {
             assert_eq!(counters::finalize(), 0, "{profile}");
         }
     }
-
-    // Native proof: naming.variable.error-info-append-original-object
 
     #[test]
     fn error_info_byte_append_preserves_seed_primary_until_nonempty_mutation() {

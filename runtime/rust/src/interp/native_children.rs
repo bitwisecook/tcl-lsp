@@ -557,8 +557,6 @@ mod tests {
 
     #[test]
     fn child_constructor_uses_the_explicit_parent_profile_recipe() {
-        // Native proof: naming.bootstrap.original-root-cells
-
         // The constructor fixture establishes the native core's root-cell
         // presence. The logical-child control checks only embedding behavior.
         let mut logical = Interp::new();
@@ -697,8 +695,6 @@ mod tests {
 
     #[test]
     fn child_commands_keep_namespace_and_allocation_through_rename_and_recreation() {
-        // Native proof: naming.interpreter.child-command-allocation-lifetime
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut parent = parent(engine);
             let namespace = parent
@@ -746,8 +742,6 @@ mod tests {
 
     #[test]
     fn replacing_or_deleting_child_command_retires_only_its_actual_interpreter() {
-        // Native proof: naming.interpreter.child-command-allocation-lifetime
-
         fn replacement(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"replacement");
             Code::Ok
@@ -844,12 +838,6 @@ mod tests {
 
     #[test]
     fn child_source_controls_match_native_creation_and_retirement_windows() {
-        // Native proof: naming.interpreter.child-command-root-and-qualified-publication
-
-        // Native proof: naming.interpreter.child-command-rename-replacement-deletion
-
-        // Native proof: naming.interpreter.deleted-child-evaluation-and-recreation
-
         let providers = [
             (
                 "tcl8.4",

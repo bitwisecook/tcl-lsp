@@ -57,10 +57,6 @@ const CASES: &[(&str, &[u8])] = &[
 
 #[test]
 fn explicit_variable_links_and_varname_match_original_counted_controls() {
-    // Native proof: naming.tcloo.explicit-variable-link-counted-target
-
-    // Native proof: naming.tcloo.varname-cell-creation-and-reporting
-
     for (engine, rows) in [
         (
             "tcl8.6",

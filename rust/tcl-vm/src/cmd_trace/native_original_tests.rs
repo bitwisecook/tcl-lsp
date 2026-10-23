@@ -73,8 +73,6 @@ fn check_original_source(source: &[u8], expected: impl Fn(TclVersion) -> &'stati
 
 #[test]
 fn opaque_command_trace_operands_match_all_five_direct_native_engines() {
-    // Native proof: naming.command-trace.opaque-prefix-report-and-removal
-
     check_original_source(
         include_bytes!("../../../tcl-syntax/tests/data/native_command_trace/opaque.tcl"),
         |_| b"6362ff\n6362ff\n0\n1\n0\nenter leave rename delete\n",
@@ -83,10 +81,6 @@ fn opaque_command_trace_operands_match_all_five_direct_native_engines() {
 
 #[test]
 fn counted_nul_command_trace_prefixes_preserve_native_storage_and_eval_extents() {
-    // Native proof: naming.command-trace.counted-zero-prefix-storage-removal
-
-    // Native proof: naming.command-trace.counted-zero-callback-evaluation
-
     check_original_source(
         include_bytes!("../../../tcl-syntax/tests/data/native_command_trace/counted_nul.tcl"),
         |version| {
@@ -121,10 +115,6 @@ fn opaque_missing_trace_command_reports_original_bytes_without_panicking() {
 
 #[test]
 fn trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand() {
-    // Native proof: naming.trace.selected-type-wrong-arity
-
-    // Native proof: naming.trace.original-type-wrong-arity-inputs
-
     for (version, rows) in [
         (
             TclVersion::V8_4,
@@ -192,8 +182,6 @@ fn trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand
 
 #[test]
 fn legacy_operation_objects_match_native_counted_and_cstring_controls() {
-    // Native proof: naming.variable.legacy-trace-operation-cstring
-
     let cases = [
         ("LEGACY_PLAIN", b"w".as_slice()),
         ("LEGACY_RAW_ZERO", b"w\0bad"),
@@ -313,8 +301,6 @@ fn unavailable_trace_prefix_refuses_before_materializing_original_name() {
 
 #[test]
 fn variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls() {
-    // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
-
     for version in TclVersion::ALL {
         for (removal, remains) in [
             (b"watch A\0Y".as_slice(), false),

@@ -171,8 +171,6 @@ mod tests {
 
     #[test]
     fn original_jim_info_parser_reports_match_all_native_info_rows() {
-        // Native proof: naming.info.jim-original-selector-table
-
         for &(id, selector, rest) in CASES {
             let mut words = vec![b"info".as_slice(), selector];
             words.extend_from_slice(rest);

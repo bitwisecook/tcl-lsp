@@ -2441,8 +2441,6 @@ mod tests {
 
     #[test]
     fn original_namespace_origin_matches_five_native_import_chains() {
-        // Native proof: naming.namespace-origin.script-import-chain
-
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
                 .as_chunks::<2>()
@@ -3885,7 +3883,6 @@ namespace eval ::caller {
         // A redefinition inside the delete callback unlinks the dying token's
         // entry itself (Tcl_DeleteCommandFromToken's CMD_DYING branch), so the
         // replacement is a distinct token the current snapshot no longer names.
-        // Native proof: naming.namespace.original-command-holder-routing
 
         // The original C86, C90 and C91 controls complete with this order.
         assert_eq!(
@@ -4305,8 +4302,6 @@ namespace eval ::caller {
 
     #[test]
     fn retained_object_teardown_preserves_recreated_method_dispatch() {
-        // Native proof: naming.namespace.original-command-holder-routing
-
         // The original public control reports no private dispatcher command,
         // while the recreated object's method still invokes my successfully.
         pins(

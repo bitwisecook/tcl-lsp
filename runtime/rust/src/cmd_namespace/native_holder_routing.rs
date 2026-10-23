@@ -116,8 +116,6 @@ fn assert_phase(
 
 #[test]
 fn original_command_holder_source_controls_match_all_native_providers() {
-    // Native proof: naming.namespace.original-command-holder-routing
-
     // These are original public source completions; no private token or table
     // identity is inferred from reported command spellings or enumeration.
     crate::counters::reset();
@@ -189,8 +187,6 @@ macro_rules! ensemble_rows {
 
 #[test]
 fn original_ensemble_holder_source_controls_match_all_native_providers() {
-    // Native proof: naming.ensemble.original-command-holder-routing
-
     // Original source, prelude and query evaluations remain independent. Public
     // completions grant no private namespace token or registration-table identity.
     crate::counters::reset();
@@ -280,8 +276,6 @@ macro_rules! jim_library_rows {
 
 #[test]
 fn original_jim_namespace_library_sources_match_all_native_provider_results() {
-    // Native proof: naming.namespace.jim-original-scripted-helper-availability-and-forwarding
-
     // These whole original sources compare public results, including actual
     // helper availability. They grant no native core inventory, private token,
     // frame identity or compiler admission from stored library source.
@@ -353,8 +347,6 @@ macro_rules! rooted_factory_rows {
 
 #[test]
 fn original_jim_ensemble_sources_match_all_native_rooted_public_results() {
-    // Native proof: naming.namespace.jim-original-scripted-ensemble-publication-with-rooted-result
-
     // Exact originals expose only callable publication and selector/option results.
     // They retain the explicit rooted result variable and literal trailing-space
     // command-name prefix, without private mapping or compiler authority.

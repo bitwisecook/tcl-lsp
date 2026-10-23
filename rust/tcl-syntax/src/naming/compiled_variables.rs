@@ -285,8 +285,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Native proof: naming.variable.compiled-versus-runtime-root-purpose
-
     fn compiler_and_dynamic_frame_comparisons_keep_separate_extents() {
         let controls: &[(&[u8], &[u8], bool, bool)] = &[
             (b"k\0a", b"k\0b", true, true),

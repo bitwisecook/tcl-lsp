@@ -297,7 +297,7 @@ impl RemoteBodyScan<'_> {
             return None;
         }
         for command in plan.commands {
-            let _offset = command.words.first()?.span().start();
+            let offset = command.words.first()?.span().start();
             if self.analysis.original_vendor_variable_body_in_source(
                 self.image,
                 self.config,

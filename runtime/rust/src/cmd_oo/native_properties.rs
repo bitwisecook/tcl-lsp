@@ -1487,8 +1487,6 @@ mod tests {
     }
     #[test]
     fn opaque_property_lookup_uses_original_accessor_members() {
-        // Native proof: naming.property.opaque-name-custom-getter-option-cache
-
         let mut interp = instance();
         let target = interp.oo_resolve_object(b"o");
         for name in [b"x\xff".as_slice(), b"x\0tail".as_slice()] {
@@ -1535,8 +1533,6 @@ mod tests {
     }
     #[test]
     fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
-        // Native proof: naming.property.original-accessor-clientdata
-
         let mut interp = instance();
         let class = interp.oo_resolve_object(b"C");
         let target = interp.oo_resolve_object(b"o");
@@ -1612,8 +1608,6 @@ mod tests {
     }
     #[test]
     fn property_epochs_follow_mutations_before_definition_failure() {
-        // Native proof: naming.property.original-foundation-epoch-and-cache
-
         let mut interp = instance();
         let id = interp.oo_resolve_object(b"o");
         let class = interp.oo_resolve_object(b"C");

@@ -395,8 +395,6 @@ mod tests {
 
     #[test]
     fn ensemble_default_parent_and_explicit_current_routing_remain_distinct() {
-        // Native proof: naming.ensemble.original-command-holder-routing
-
         // These assertions test recipe geometry only; Runtime and VM source
         // controls compare the separate public native completion columns.
         let path = ByteNamespacePath::from_segments([b"P".as_slice(), b"N"]);

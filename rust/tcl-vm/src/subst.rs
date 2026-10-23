@@ -691,8 +691,6 @@ mod tests {
 
     #[test]
     fn compiled_word_parts_match_original_native_concatenation_windows() {
-        // Native proof: naming.word-and-subst.original-concatenation
-
         // This owner consumes compiled-word components, not the independently
         // cached subst command. Observe headers before requesting result bytes.
         let rows = include_str!(

@@ -399,14 +399,6 @@ mod tests {
     }
     #[test]
     fn original_list_operations_match_150_native_compile_windows() {
-        // Native proof: naming.list.original-set-objects-and-instructions
-
-        // Native proof: naming.list.original-assign-objects-and-instructions
-
-        // Native proof: naming.list.original-insert-objects-and-instructions
-
-        // Native proof: naming.list.original-range-objects-and-instructions
-
         let mut count = 0;
         for (version, rows) in [
             (
@@ -478,8 +470,6 @@ mod tests {
     }
     #[test]
     fn list_assignment_retains_interleaved_original_target_geometry() {
-        // Native proof: naming.list.assignment-interleaved-target-effects
-
         let NativeListOperationInstruction::Assign { list, targets } = recipe(
             b"lassign $list [first] a([second])",
             TclVersion::V8_6,

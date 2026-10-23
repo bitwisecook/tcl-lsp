@@ -1315,8 +1315,6 @@ mod template_policy_tests {
     fn c_template_retains_disabled_sigil_and_escape_token_boundaries() {
         // Source proof: naming.substitution.template-token-and-index-source
 
-        // Native proof: naming.substitution.counted-template-completions
-
         // v6 source0/flags5 has four native pushes before strcat, so C9
         // returns a String rather than one unchanged literal with no primary.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1395,8 +1393,6 @@ mod template_policy_tests {
 
     #[test]
     fn jim_expression_components_retain_parentheses_and_native_token_sites() {
-        // Native proof: naming.variable.empty-array-root-lexical-reference
-
         let source = b"pre$(1+(2))post";
         let jim = LexerConfig::for_dialect("jim");
         let parts = decompose_spanned(source, SubstFlags::default(), jim);
@@ -1544,8 +1540,6 @@ mod tests {
     #[test]
     fn outer_substitution_mask_does_not_disable_array_index_commands() {
         // Source proof: naming.substitution.template-token-and-index-source
-
-        // Native proof: naming.substitution.counted-template-completions
 
         // The C v6 array-index control runs its command with outer commands
         // disabled. JimExpandDictSugar separately selects JIM_NONE.

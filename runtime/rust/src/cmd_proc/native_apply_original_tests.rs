@@ -51,8 +51,6 @@ fn assert_row(
 
 #[test]
 fn apply_returns_original_counted_argument_objects() {
-    // Native proof: naming.lambda.original-argument-object-return
-
     let mut comparisons = 0;
     for (engine, rows) in [
         (
@@ -108,8 +106,6 @@ fn apply_returns_original_counted_argument_objects() {
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler() {
-    // Native proof: naming.lambda.original-coroutine-call-and-shadowing
-
     let mut comparisons = 0;
     for (engine, rows) in [
         (

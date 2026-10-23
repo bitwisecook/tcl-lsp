@@ -2521,14 +2521,6 @@ mod tests {
 
     #[test]
     fn package_error_publication_matches_all_21_original_native_controls() {
-        // Native proof: naming.package.error-publication-bad-member
-
-        // Native proof: naming.package.error-publication-bad-preference
-
-        // Native proof: naming.package.error-publication-unknown-completion
-
-        // Native proof: naming.package.error-publication-loader-completion
-
         fn decode(text: &str) -> Vec<u8> {
             assert!(text.len().is_multiple_of(2));
             text.as_bytes()

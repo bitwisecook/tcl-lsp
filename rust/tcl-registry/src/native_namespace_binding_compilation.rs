@@ -396,22 +396,6 @@ mod tests {
 
     #[test]
     fn namespace_binding_recipes_match_all_100_original_native_windows() {
-        // Native proof: naming.namespace-compiler.plain-name
-
-        // Native proof: naming.namespace-compiler.empty-and-separator-tail
-
-        // Native proof: naming.namespace-compiler.unmatched-closing-tail
-
-        // Native proof: naming.namespace-compiler.interleaved-values
-
-        // Native proof: naming.namespace-compiler.declined-prefix-residual
-
-        // Native proof: naming.namespace-compiler.dynamic-final-text
-
-        // Native proof: naming.namespace-compiler.mixed-dynamic-prefix
-
-        // Native proof: naming.namespace-compiler.literal-expansion-and-empty-call
-
         for (version, fixture) in [
             (
                 TclVersion::V8_4,
@@ -512,8 +496,6 @@ mod tests {
 
     #[test]
     fn namespace_dynamic_tails_follow_original_variable_token_children() {
-        // Native proof: naming.namespace-parser.final-original-token
-
         let controls: [(&[u8], Option<&[u8]>); 8] = [
             (b"global $::name", Some(b"name")),
             (b"global ${::name}", Some(b"name")),

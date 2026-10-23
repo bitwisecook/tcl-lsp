@@ -1614,8 +1614,6 @@ list $root $nsresult $rootdict(k)
     }
 
     #[test]
-    // Native proof: naming.variable.qualified-declaration-frame-target
-
     fn variable_qualified_target() {
         leak_free(|i| {
             i.eval_str(b"namespace eval a {}");

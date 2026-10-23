@@ -1250,10 +1250,6 @@ mod tests {
 
     #[test]
     fn opaque_children_match_20_native_query_and_primary_windows() {
-        // Native proof: naming.namespace-native.opaque-child-enumeration
-
-        // Native proof: naming.namespace-native.opaque-child-pattern-selection
-
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Snapshot;
         let observations = include_str!(
             "../../../tcl-syntax/tests/data/native_namespace_name/opaque_children.txt"
@@ -1325,10 +1321,6 @@ mod tests {
 
     #[test]
     fn native_deletion_validates_all_names_then_relooks_dependent_targets() {
-        // Native proof: naming.namespace-native.delete-validates-later
-
-        // Native proof: naming.namespace-native.delete-dependent-child-duplicate
-
         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut vm = actual_vm(release);
             let parent = declare(&mut vm, &[b"P"]);
@@ -1371,8 +1363,6 @@ mod tests {
 
     #[test]
     fn deletion_second_pass_observes_callback_deleted_and_recreated_incarnations() {
-        // Native proof: naming.namespace-native.delete-command-callback-removes-later
-
         use crate::command::NativeCommand;
         use std::{cell::Cell, rc::Rc};
         use tcl_cmd_core::namespace::NamespaceDeleteBackend;

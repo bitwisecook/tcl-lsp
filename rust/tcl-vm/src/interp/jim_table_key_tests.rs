@@ -48,8 +48,6 @@ const CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources() {
-    // Native proof: naming.jim.original-command-table-key-publication
-
     // Complete original public output does not establish private original key/header identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;

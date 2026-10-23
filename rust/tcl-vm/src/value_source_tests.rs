@@ -292,8 +292,6 @@ fn last_list_header_retires_source_filename_before_lifetime_view() {
 
 #[test]
 fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
-    // Native proof: naming.list.original-jim-source-length-conversion
-
     use tcl_syntax::value::ValueOps;
     let mut vm = crate::Vm::with_native_core(
         Box::new(Vec::<u8>::new()),
@@ -357,8 +355,6 @@ fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
 
 #[test]
 fn original_source_length_and_concat_channels_match_all_native_providers() {
-    // Native proof: naming.list.original-jim-source-length-conversion
-
     macro_rules! fixture {
         ($file:literal) => {
             include_bytes!(concat!(

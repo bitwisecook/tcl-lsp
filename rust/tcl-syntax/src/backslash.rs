@@ -1262,8 +1262,6 @@ mod tests {
 
     #[test]
     fn document_native_ingress_matches_readchars_and_preserves_counted_source() {
-        // Native proof: naming.source.document-native-utf-ingress
-
         use tcl_lexer::SourceChannel::{Document, NativeValue};
         let source = include_bytes!("../tests/data/native_source_ingress/source.tcl");
         for version in tcl_dialect::TclVersion::ALL {
@@ -1344,8 +1342,6 @@ mod tests {
     #[test]
     fn literal_text_inverse_roundtrips_actual_document_ingress_units() {
         // Implementation contract: naming.source.literal-text-source-inversion
-
-        // Native proof: naming.source.document-native-utf-ingress
 
         // The retained guest observations provide the units. This separately
         // asserts source-renderer inversion, without an execution/name grant.

@@ -414,8 +414,6 @@ mod tests {
 
     #[test]
     fn native_runtime_option_declaration_matches_registry_surface_and_family_fold() {
-        // Native proof: naming.substitution.original-options-and-flag-families
-
         use super::{
             NativeSubstitutionOptions, SubstitutionOptionError,
             SubstitutionTemplateSelection as Selection,

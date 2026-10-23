@@ -143,10 +143,6 @@ const CASES: &[(&str, &[&[u8]], bool)] = &[
 
 #[test]
 fn method_info_matches_original_counted_option_and_scope_controls() {
-    // Native proof: naming.tcloo.method-info-option-selection
-
-    // Native proof: naming.tcloo.method-info-scope-ordering
-
     for (engine, rows) in [
         (
             "tcl8.6",

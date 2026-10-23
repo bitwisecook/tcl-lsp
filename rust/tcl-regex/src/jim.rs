@@ -1150,8 +1150,6 @@ mod tests {
     }
     #[test]
     fn original_jim_programs_and_ranges_match_all_150_native_controls() {
-        // Native proof: naming.regex.jim-engine-program-range-matrix
-
         let subjects: [&[u8]; 8] = [
             b"a",
             b"\xff",

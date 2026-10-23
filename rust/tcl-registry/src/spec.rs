@@ -5457,8 +5457,6 @@ mod tests {
 
     #[test]
     fn byte_subcommand_resolution_retains_dialect_and_operand_boundaries() {
-        // Native proof: naming.selector.selected-byte-descriptor-lookup
-
         let registry = CommandRegistry::build_default();
         let spec = registry.get("string").expect("registered string");
         let old = Some(SurfaceQuery::core(Family::Tcl, "8.6"));

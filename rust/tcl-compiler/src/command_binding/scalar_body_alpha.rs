@@ -860,8 +860,6 @@ mod tests {
     }
 
     #[test]
-    // Native proof: naming.formal.raw-zero-list-and-binding-renaming
-
     fn original_scalar_alpha_raw_zero_requires_selected_formal_and_body_correspondence() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap();

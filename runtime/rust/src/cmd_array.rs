@@ -1074,8 +1074,6 @@ mod tests {
         assert_eq!(count, 16);
     }
 
-    // Native proof: naming.variable.original-eval-container-storage-columns
-
     #[test]
     fn variable_container_storage_matches_all_native_columns() {
         use tcl_test_support::variable_containers::{
@@ -1116,8 +1114,6 @@ mod tests {
             }
         }
     }
-
-    // Native proof: naming.jim.dictionary-core-versus-stdlib-bootstrap
 
     #[test]
     fn jim_dictionary_worker_requires_explicit_distribution_initialisation() {
@@ -1163,8 +1159,6 @@ mod tests {
             );
         });
     }
-
-    // Native proof: naming.variable.jim-dict-update-reference-controls
 
     #[test]
     fn dictionary_update_first_original_mapping_reaches_caller_storage() {

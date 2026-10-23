@@ -537,8 +537,6 @@ mod tests {
 
     #[test]
     fn property_temporary_lookup_and_mutation_axes_are_independent() {
-        // Native proof: naming.property.original-foundation-epoch-and-cache
-
         let recipe =
             crate::InvocationDialect::of_profile(crate::native_test_provider::profile("tcl9.1"))
                 .native_property_lookup_protocol()

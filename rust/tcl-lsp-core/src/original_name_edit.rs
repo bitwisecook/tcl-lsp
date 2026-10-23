@@ -797,8 +797,6 @@ mod original_variable_root_edit_tests {
     }
     #[test]
     fn original_c_empty_array_root_edit_preserves_the_independent_index() {
-        // Native proof: naming.variable.empty-array-root-lexical-reference
-
         // The native observation establishes the C lexical spelling; this
         // assertion separately verifies this editor's exact geometry.
         let image = SourceImage::document("$::old::a(k)");

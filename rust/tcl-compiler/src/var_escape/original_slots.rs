@@ -547,8 +547,6 @@ mod tests {
     }
 
     #[test]
-    // Native proof: naming.variable.compiled-versus-runtime-root-purpose
-
     fn original_argument_primary_collision_matches_retained_native_compiled_results() {
         // Only the C8.6+ equal-count comparison/result is borrowed from this
         // capture. The separate receipt tests do not infer native layout data.

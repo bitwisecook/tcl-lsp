@@ -239,8 +239,6 @@ mod tests {
 
     #[test]
     fn equivalent_glob_matches_actual_counted_converter_rows() {
-        // Native proof: naming.regex.c-equivalent-glob-counted-conversion
-
         let patterns: [&[u8]; 14] = [
             b"",
             b"foo",

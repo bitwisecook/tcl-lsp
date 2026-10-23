@@ -20,10 +20,6 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
 
 #[test]
 fn original_oo_publication_preserves_constructed_holder_and_collision_results() {
-    // Native proof: naming.class.original-unaddressable-holder-publication
-
-    // Native proof: naming.class.original-command-slot-collision
-
     // The VM creation interface is measured independently; no oo::copy entry
     // is installed or inferred from these creation and collision observations.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];

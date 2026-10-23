@@ -26,8 +26,6 @@ fn unhex(bytes: &str) -> Vec<u8> {
 }
 
 #[test]
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
 fn original_namespace_tail_matches_one_hundred_counted_native_windows() {
     let mut windows = 0;
     for (engine, table) in [
@@ -187,8 +185,6 @@ const QUALIFIERS_INPUTS: [&[u8]; 20] = [
 ];
 
 #[test]
-// Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
-
 fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows() {
     // naming.namespace.original-counted-qualifiers-compiler-and-runtime
 
@@ -302,8 +298,6 @@ fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_window
 }
 
 #[test]
-// Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
-
 fn original_compiled_index_preserves_counted_single_bytes_and_native_units() {
     // naming.namespace.original-counted-qualifiers-compiler-and-runtime
 
@@ -357,8 +351,6 @@ fn original_compiled_index_preserves_counted_single_bytes_and_native_units() {
 }
 
 #[test]
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
 fn original_empty_counted_append_preserves_the_reached_release_conversion() {
     use tcl_dialect::TclVersion;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot;
@@ -416,8 +408,6 @@ fn original_empty_counted_append_preserves_the_reached_release_conversion() {
 
 #[test]
 fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
-    // Native proof: naming.object.original-empty-counted-append
-
     use tcl_syntax::native_object::NativeObjectCacheSnapshot;
 
     fn primary(cache: &NativeObjectCacheSnapshot) -> &'static str {

@@ -10746,8 +10746,6 @@ impl Interp {
             return;
         }
 
-        // Native proof: naming.namespace.original-command-holder-routing
-
         // The public callback rows and pinned C teardown traversal stay separate.
         let traversal = self
             .name_policy_protocol()
@@ -21495,8 +21493,6 @@ mod tests {
     #[test]
     #[cfg(have_tommath)]
     fn c84_direct_invalid_expression_preserves_code_until_eval() {
-        // Native proof: naming.expression.original-direct-arithmetic-error-stage
-
         leak_free(|interp| {
             interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
             for source in [b"\"bad\" + 1".as_slice(), b"\"bad\" ? 1 : 0".as_slice()] {
@@ -23933,8 +23929,6 @@ mod tests {
     /// This host boundary is separate from the original native completions.
     #[test]
     fn deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit() {
-        // Native proof: naming.runtime.original-nested-foreach-source-completion
-
         // The identical 300-body source completes in all six native providers.
         // These assertions exercise this Runtime's separately bounded host path.
         leak_free(|i| {

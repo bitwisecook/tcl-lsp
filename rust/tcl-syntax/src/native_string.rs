@@ -249,8 +249,6 @@ mod tests {
 
     #[test]
     fn legacy_eval_result_extent_keeps_encoded_zero_separate_from_counted_zero() {
-        // Native proof: naming.interpreter.legacy-eval-object-result-boundary
-
         for version in TclVersion::ALL {
             let protocol = NativeStringProtocol::C(version);
             let original = b"k\0tail";

@@ -11,8 +11,6 @@ use tcl_host_c_abi::LoadedNativeIntegerFormatter;
 
 static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-// Native proof: naming.numeric.c84-integer-updater-build-pair
-
 // Each exact archive/header pair has its own original updater observations.
 const REFERENCE_BUILDS: [(&str, &str); 2] = [
     (
@@ -126,8 +124,6 @@ mod tests {
 
     #[test]
     fn formatter_admission_requires_a_complete_verified_build_pair() {
-        // Native proof: naming.numeric.c84-integer-updater-build-pair
-
         // This is only an admission check; the native record owns both812-row runs.
         for (archive, header) in REFERENCE_BUILDS {
             assert!(admitted_reference_build(archive, header));
@@ -139,8 +135,6 @@ mod tests {
 
     #[test]
     fn loaded_c84_updater_matches_812_original_archive_and_image_windows() {
-        // Native proof: naming.numeric.c84-integer-updater-build-pair
-
         // Native216 admits only the verified complete archive/header pair and
         // its independently loaded image; all 812 original rows remain exact.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

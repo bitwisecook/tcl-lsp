@@ -113,12 +113,6 @@ fn verify_line(index: usize, line: &str, seeded: bool) {
 
 #[test]
 fn primitive_failures_keep_cache_origin_and_existing_error_state() {
-    // Native proof: naming.numeric.seeded-wide-frontier
-
-    // Native proof: naming.numeric.seeded-double-frontier
-
-    // Native proof: naming.numeric.seeded-boolean-frontier
-
     let mut count = 0;
     for (index, fixture) in STATE.iter().enumerate() {
         for line in fixture.lines() {
@@ -137,18 +131,6 @@ fn primitive_failures_keep_cache_origin_and_existing_error_state() {
 
 #[test]
 fn invalid_octal_and_native_character_units_match_actual_releases() {
-    // Native proof: naming.numeric.units-wide-frontier
-
-    // Native proof: naming.numeric.units-double-frontier
-
-    // Native proof: naming.numeric.units-boolean-frontier
-
-    // Native proof: naming.numeric.octal-wide-frontier
-
-    // Native proof: naming.numeric.octal-double-frontier
-
-    // Native proof: naming.numeric.octal-boolean-frontier
-
     let mut count = 0;
     for fixtures in [OCTAL, UNITS] {
         for (index, fixture) in fixtures.iter().enumerate() {

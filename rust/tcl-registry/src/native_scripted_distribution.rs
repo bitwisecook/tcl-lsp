@@ -170,8 +170,6 @@ mod tests {
 
     #[test]
     fn original_namespace_info_library_matches_public_declaration() {
-        // Native proof: naming.info.original-namespace-helper-declaration-and-current-forwarding
-
         let captured = include_str!(
             "../tests/data/native_jim_info_helper_forwarding258/jim/original-helper-formals-and-body/stdout"
         );
@@ -215,8 +213,6 @@ mod tests {
 
     #[test]
     fn original_namespace_library_metadata_matches_public_formals_and_bodies() {
-        // Native proof: naming.namespace.jim-original-scripted-helper-availability-and-forwarding
-
         // The exact public declarations establish source assets, not their
         // continued live binding or native core/compiler capabilities.
         let stdout = include_str!(

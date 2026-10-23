@@ -92,8 +92,6 @@ fn compare(
 
 #[test]
 fn interp_subcommand_words_resolve_like_original_native_option_tables() {
-    // Native proof: naming.interpreter.original-option-table-diagnostics
-
     // Counted source and independent child prelude match original public
     // diagnostics. Jim's unavailable C child API is not substituted.
     crate::counters::reset();

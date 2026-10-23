@@ -1660,8 +1660,6 @@ impl crate::InvocationDialect {
 mod native_bootstrap_tests {
     use super::*;
 
-    // Native proof: naming.bootstrap.original-root-cells
-
     #[test]
     fn constructor_root_order_and_undefined_cells_match_native_capture() {
         let fixture = include_str!("../tests/data/native_bootstrap/core-roots.tsv");

@@ -93,8 +93,6 @@ mod tests {
 
     #[test]
     fn selected_handler_floor_and_usage_preserve_measured_native_rows() {
-        // Native proof: naming.list.original-lassign-target-arity
-
         for (version, minimum, usage) in [
             (
                 tcl_dialect::TclVersion::V8_5,
@@ -150,8 +148,6 @@ mod tests {
 
     #[test]
     fn selected_and_legacy_signature_views_share_operation_arity() {
-        // Native proof: naming.list.original-lassign-target-arity
-
         // This is Rust metadata coverage; renamed labels do not grant native lookup.
         let mut registry = crate::CommandRegistry::build_default();
         registry.insert(crate::CommandSpec {

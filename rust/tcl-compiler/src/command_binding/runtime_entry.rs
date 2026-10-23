@@ -1332,8 +1332,6 @@ mod tests {
         snapshot
     }
 
-    // Native proof: naming.namespace.unknown-compile-dispatch
-
     #[test]
     fn native_namespace_unknown_lookup_fixture_separates_compile_and_dispatch() {
         let expected = "existing KNOWN 0\ncompiler OK 0\nfallback FALLBACK 1\nrootedExisting KNOWN 1\nrootedFallback FALLBACK 2\n";

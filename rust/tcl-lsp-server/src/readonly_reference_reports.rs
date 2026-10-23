@@ -2259,13 +2259,12 @@ mod tests {
         );
         assert_eq!(report.locations.len(), 2);
         assert!(report.locations.iter().all(|location| location.uri == uri));
-        assert_eq!(
+        assert!(
             backend
                 .original_declaration_reference_locations(&identity, &uri, false)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let lenses = backend
             .code_lens(CodeLensParams {
@@ -2462,7 +2461,7 @@ mod tests {
                 Position::new(0, 0),
             );
             assert_eq!(command.title, "References unavailable");
-            assert_eq!(command.command.len(), 0);
+            assert!(command.command.is_empty());
             assert!(command.arguments.is_none());
         }
         let report = OriginalReadonlyReferenceReport {
@@ -2544,35 +2543,32 @@ mod logical_hierarchy_tests {
         assert_eq!(children[0].uri, child);
         let mut unissued = item.clone();
         unissued.data = None;
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(unissued, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let mut foreign = item.clone();
         foreign.uri = base.clone();
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(foreign, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         register(&backend, &child, &format!("{child_source}\n# changed")).await;
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(item, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 
@@ -2631,13 +2627,12 @@ mod logical_hierarchy_tests {
                 .into_items();
         assert_eq!(items.len(), 1);
         register(&backend, &child, "oo::class create Child {}").await;
-        assert_eq!(
+        assert!(
             backend
                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 }
@@ -2708,13 +2703,12 @@ mod conditional_navigation_publication_tests {
             "oo::class create Base {}; oo::class create Child {}",
         )
         .await;
-        assert_eq!(
+        assert!(
             backend
                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 

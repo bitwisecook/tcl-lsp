@@ -33,8 +33,6 @@ impl Builder<'_> {
 }
 
 impl Interp {
-    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
     pub(super) fn execute_body_namespace_string(
         &mut self,
         artifact: &NativeBodyArtifact,
@@ -114,8 +112,6 @@ mod tests {
         }
     }
     #[test]
-    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
     fn original_namespace_tail_matches_one_hundred_counted_native_windows() {
         let mut windows = 0;
         for (engine, table) in [
@@ -246,8 +242,6 @@ mod tests {
     ];
 
     #[test]
-    // Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
-
     fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows() {
         // naming.namespace.original-counted-qualifiers-compiler-and-runtime
 

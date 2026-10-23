@@ -733,8 +733,6 @@ mod configuration_surface_tests {
 
     #[test]
     fn actual_namespace_lifetime_policy_matches_pinned_ensemble_entry() {
-        // Native proof: naming.ensemble.original-command-holder-routing
-
         // Pinned C source entry checks complement the original public source
         // controls; no namespace lifetime is inferred from a reporting name.
         use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle as State;

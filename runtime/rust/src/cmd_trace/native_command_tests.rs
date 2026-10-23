@@ -71,8 +71,6 @@ fn command_trace_reaches_original_prefix_before_a_refused_name() {
 
 #[test]
 fn legacy_operation_objects_match_native_counted_and_cstring_controls() {
-    // Native proof: naming.variable.legacy-trace-operation-cstring
-
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6"] {
         for (input, expected_code, expected) in [
             (b"w\0bad".as_slice(), Code::Ok, b"".as_slice()),
@@ -140,12 +138,6 @@ fn command_trace_info_refuses_a_stringless_original_name() {
 
 #[test]
 fn original_command_traces_match_ten_native_byte_windows() {
-    // Native proof: naming.command-trace.opaque-prefix-report-and-removal
-
-    // Native proof: naming.command-trace.counted-zero-prefix-storage-removal
-
-    // Native proof: naming.command-trace.counted-zero-callback-evaluation
-
     fn decode(hex: &str) -> Vec<u8> {
         hex.as_bytes()
             .as_chunks::<2>()
@@ -181,8 +173,6 @@ fn original_command_traces_match_ten_native_byte_windows() {
 
 #[test]
 fn variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls() {
-    // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
-
     for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for (removal, remains) in [
             (b"watch A\0Y".as_slice(), false),

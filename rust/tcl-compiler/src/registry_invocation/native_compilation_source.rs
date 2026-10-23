@@ -445,8 +445,6 @@ mod tests {
 
     #[test]
     fn original_list_preparations_keep_selected_target_evaluation_order() {
-        // Native proof: naming.list.assignment-literal-versus-alias-target-evaluation
-
         use tcl_registry::native_compilation::{NativeBodyCompilation, NativeCompilationGrammar};
         use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
         use tcl_registry::native_instruction_plan::NativeInstructionPlan;

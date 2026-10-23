@@ -76,7 +76,6 @@ mod original_missing_command;
 mod original_source_projection;
 pub(crate) use original_missing_command::OriginalMissingCommandContext;
 mod pre_handler_failure;
-#[cfg(any(test, debug_assertions))]
 mod source_arguments;
 mod source_name_lookup;
 mod source_unavailability_advice;

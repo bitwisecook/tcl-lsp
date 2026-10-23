@@ -22,8 +22,6 @@ impl Write for Output {
 
 #[test]
 fn caught_callback_result_follows_replaced_formal_alias_native_controls() {
-    // Native proof: naming.variable.catch-result-alias-continuity
-
     const SOURCE: &[u8] = include_bytes!("../../tests/data/native_catch_formal_alias/cases.tcl");
     for (engine, observed) in [
         (

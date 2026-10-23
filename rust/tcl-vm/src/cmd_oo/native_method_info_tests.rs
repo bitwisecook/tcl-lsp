@@ -143,8 +143,6 @@ const CASES: &[(&str, &[&[u8]], bool)] = &[
 
 #[test]
 fn stock_destroy_allocation_controls_reflection_and_dispatch() {
-    // Native proof: naming.tcloo.stock-destroy-method-allocation
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         let mut vm = crate::native_fixture::interpreter(profile);
@@ -171,10 +169,6 @@ fn stock_destroy_allocation_controls_reflection_and_dispatch() {
 
 #[test]
 fn method_info_matches_original_counted_option_and_scope_controls() {
-    // Native proof: naming.tcloo.method-info-option-selection
-
-    // Native proof: naming.tcloo.method-info-scope-ordering
-
     for (engine, rows) in [
         (
             "tcl8.6",

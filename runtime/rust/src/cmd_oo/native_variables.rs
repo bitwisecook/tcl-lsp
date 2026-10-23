@@ -205,12 +205,6 @@ mod tests {
 
     #[test]
     fn compiled_and_dynamic_declared_variables_match_original_native_controls() {
-        // Native proof: naming.interpreter.legacy-eval-object-result-boundary
-
-        // Native proof: naming.tcloo.resident-variable-public-api-counted-keys
-
-        // Native proof: naming.tcloo.declared-variable-compiled-and-runtime-resolver
-
         for (engine, rows, counted_rows) in [
             (
                 "tcl8.6",

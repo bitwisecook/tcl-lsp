@@ -90,8 +90,6 @@ mod tests {
     use super::*;
     #[test]
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
-        // Native proof: naming.property.original-accessor-name-cache-children
-
         let dialect = tcl_registry::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );

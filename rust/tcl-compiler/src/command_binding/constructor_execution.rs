@@ -631,8 +631,6 @@ mod tests {
         )
     }
 
-    // Native proof: naming.tcloo.inherited-constructor-provider
-
     #[test]
     fn inherited_lifecycle_uses_declaring_provider_and_actual_receiver() {
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -676,8 +674,6 @@ mod tests {
             }
         }
     }
-
-    // Native proof: naming.tcloo.inherited-destructor-cleanup
 
     #[test]
     fn inherited_constructor_failure_uses_inherited_destructor() {

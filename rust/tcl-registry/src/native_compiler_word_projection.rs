@@ -203,8 +203,6 @@ mod tests {
 
     #[test]
     fn document_expansion_preserves_source_spans_and_native_produced_units() {
-        // Native proof: naming.source.document-native-utf-ingress
-
         let source = "variable {*}{A\0😀}";
         let observations =
             include_str!("../../tcl-syntax/tests/data/native_source_ingress/observations.tsv");

@@ -22,12 +22,6 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
 
 #[test]
 fn original_oo_publication_preserves_constructed_holder_and_collision_results() {
-    // Native proof: naming.class.original-unaddressable-holder-publication
-
-    // Native proof: naming.class.original-command-slot-collision
-
-    // Native proof: naming.class.original-copy-holder-and-collision
-
     // Original failed setup controls remain whole observations, independent from
     // the uniquely named source controls which actually reach oo::copy.
     crate::counters::reset();

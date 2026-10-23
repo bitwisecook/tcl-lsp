@@ -31,10 +31,6 @@ fn call(vm: &mut Vm, original: &Value, flags: u8) -> Completion<Value> {
 }
 #[test]
 fn original_compiled_substitution_matches_counted_native_flags_and_completions() {
-    // Native proof: naming.substitution.counted-template-completions
-
-    // Native proof: naming.substitution.original-cache-fields
-
     let inputs: Vec<_> =
         include_str!("../../../tcl-registry/tests/data/native_substitution_owner/inputs.json")
             .lines()
@@ -156,8 +152,6 @@ fn original_compiled_substitution_matches_counted_native_flags_and_completions()
 }
 #[test]
 fn original_substitution_changes_namespace_and_borrowed_local_cache_without_proc_header() {
-    // Native proof: naming.substitution.namespace-and-local-context
-
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = actual(engine);
         let original = Value::new_native_string_bytes(b"$x".as_slice());

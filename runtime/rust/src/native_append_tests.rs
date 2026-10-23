@@ -55,8 +55,6 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn native_append_preserves_every_measured_primary_storage_and_identity_window() {
-    // Native proof: naming.append.original-storage-and-identity
-
     let fixtures = [
         (
             "tcl8.4",
@@ -396,8 +394,6 @@ fn compare_cat_windows(fixtures: [(&str, &str); 2], kinds: &[[i32; 3]]) -> usize
 
 #[test]
 fn native_cat_preserves_all_original_cache_and_identity_windows() {
-    // Native proof: naming.cat.original-cache-and-sharing
-
     let fixtures = [
         (
             "tcl9.0",
@@ -413,8 +409,6 @@ fn native_cat_preserves_all_original_cache_and_identity_windows() {
 
 #[test]
 fn native_cat_preserves_raw_nul_invalid_bytes_and_surrogate_windows() {
-    // Native proof: naming.cat.original-counted-bytes-and-surrogates
-
     let fixtures = [
         (
             "tcl9.0",

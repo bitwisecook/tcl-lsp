@@ -11099,14 +11099,6 @@ fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offset
 // Implementation contract: naming.variable.registry-receiver-authoring-parity
 
 fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separate() {
-    // Native proof: naming.array-source.combined-set-receiver
-
-    // Native proof: naming.array-source.scalar-element-storage
-
-    // Native proof: naming.array-source.combined-read-enumeration
-
-    // Native proof: naming.array-source.combined-unset
-
     let registry = crate::CommandRegistry::build_default();
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
         let dialect = crate::InvocationDialect::of_profile(
@@ -11370,8 +11362,6 @@ fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() 
 
 #[test]
 fn original_trace_subject_extent_preserves_counted_original_and_independent_array_form() {
-    // Native proof: naming.variable.trace-subject-counted-zero-address
-
     use tcl_syntax::naming::{NativeNameProtocol, NativeVariableInputForm};
     for version in tcl_dialect::TclVersion::ALL {
         let protocol = NativeNameProtocol::C(version);

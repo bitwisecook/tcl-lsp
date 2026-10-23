@@ -620,8 +620,6 @@ fn primitive_int_retains_native_width_cache_and_error_stage() {
 
 #[test]
 fn jim_decimal_string_switch_keeps_its_own_native_stage() {
-    // Native proof: naming.numeric.jim-decimal-string-switch
-
     let protocol = NativeScalarGetterProtocol {
         engine: Engine::Jim084,
     };
@@ -667,8 +665,6 @@ fn jim_decimal_string_switch_keeps_its_own_native_stage() {
 
 #[test]
 fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
-    // Native proof: naming.numeric.c84-long-wide-original-primary
-
     let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
     let fixture = include_str!("../../tests/data/native_scalar_getters/long84/8.4.20.tsv");
     let mut count = 0;

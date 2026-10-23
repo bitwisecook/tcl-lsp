@@ -340,7 +340,6 @@ impl Interp {
                     ),
                 )
             })?;
-            // Native proof: naming.error.c84-publication-order
 
             // C84 TclPtrSetVar (tclVar.c 1652--1677): the actual message owns
             // its caller reference, a missing cell adopts it, and COW publishes

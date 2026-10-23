@@ -234,8 +234,6 @@ fn last_list_header_retires_source_filename_before_lifetime_view() {
 
 #[test]
 fn original_jim_source_length_preserves_resident_bytes_and_child_source() {
-    // Native proof: naming.list.original-jim-source-length-conversion
-
     use tcl_syntax::value::ValueOps;
     crate::counters::reset();
     {

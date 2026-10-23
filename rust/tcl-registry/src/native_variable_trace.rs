@@ -54,8 +54,6 @@ mod tests {
 
     #[test]
     fn variable_prefix_copy_remove_report_and_counted_eval_keep_independent_extents() {
-        // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
-
         for version in TclVersion::ALL {
             let protocol = NativeVariableTraceProtocol { version };
             let original = b"watch A\0X";

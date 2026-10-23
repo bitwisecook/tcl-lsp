@@ -9,8 +9,6 @@ const BOGUS: &[&str] = &["bogus"];
 
 #[test]
 fn original_static_option_facade_keeps_jim_counted_enum_currency() {
-    // Native proof: naming.interpreter.selector-and-property-index-currency
-
     let backend = crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     );

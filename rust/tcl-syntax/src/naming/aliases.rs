@@ -142,8 +142,6 @@ mod tests {
         );
     }
 
-    // Native proof: naming.variable.global-and-variable-local-alias-tail-purpose
-
     #[test]
     fn local_alias_names_match_original_native_declarations() {
         use std::fmt::Write as _;

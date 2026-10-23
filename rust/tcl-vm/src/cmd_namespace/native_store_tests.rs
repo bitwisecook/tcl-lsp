@@ -12,8 +12,6 @@ fn decode(bytes: &str) -> Vec<u8> {
 
 #[test]
 fn namespace_stores_match_native_existing_root_fresh_and_declared_controls() {
-    // Native proof: naming.variable.namespace-store-frame-and-fallback
-
     let cases = [
         (
             "EXISTING_ROOT",

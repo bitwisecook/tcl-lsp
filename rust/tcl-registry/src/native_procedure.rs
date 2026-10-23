@@ -1014,12 +1014,6 @@ mod tests {
 
     #[test]
     fn procedure_creation_name_policy_matches_18_native_slots_without_header_grants() {
-        // Native proof: naming.procedure.local-colon-creation-result
-
-        // Native proof: naming.procedure.root-colon-creation-result
-
-        // Native proof: naming.procedure.ordinary-local-creation-result
-
         fn bytes(hex: &str) -> Vec<u8> {
             hex.as_bytes()
                 .as_chunks::<2>()
@@ -1161,10 +1155,6 @@ mod tests {
 
     #[test]
     fn byte_header_selection_matches_original_native_storage() {
-        // Native proof: naming.procedure.counted-formal-header-selection
-
-        // Native proof: naming.procedure.counted-body-header-selection
-
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
         let fixtures = [
             (
@@ -1611,14 +1601,6 @@ mod recompilation_ownership_tests {
 
     #[test]
     fn recompilation_matches_all_20_native_declaration_identity_controls() {
-        // Native proof: naming.procedure.recompile-sole-declaration
-
-        // Native proof: naming.procedure.recompile-retained-procbody
-
-        // Native proof: naming.procedure.recompile-active-recursive-frame
-
-        // Native proof: naming.procedure.recompile-original-local-name-owner
-
         let engines = [
             (TclVersion::V8_4, engine_cases!("8.4.20")),
             (TclVersion::V8_5, engine_cases!("8.5.19")),

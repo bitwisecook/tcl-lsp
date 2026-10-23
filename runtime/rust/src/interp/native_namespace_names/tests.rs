@@ -89,10 +89,6 @@ fn parent(interp: &mut Interp, version: &str, phase: &str, original: *mut TclObj
 
 #[test]
 fn opaque_children_match_20_native_query_and_primary_windows() {
-    // Native proof: naming.namespace-native.opaque-child-enumeration
-
-    // Native proof: naming.namespace-native.opaque-child-pattern-selection
-
     let observations = include_str!(
         "../../../../../rust/tcl-syntax/tests/data/native_namespace_name/opaque_children.txt"
     );
@@ -148,20 +144,6 @@ fn opaque_children_match_20_native_query_and_primary_windows() {
 
 #[test]
 fn original_namespace_objects_match_100_native_c_producer_and_getter_windows() {
-    // Native proof: naming.namespace-native.current-root-primary
-
-    // Native proof: naming.namespace-native.terminal-colon-original-versus-text
-
-    // Native proof: naming.namespace-native.deleted-current-object-recreation
-
-    // Native proof: naming.namespace-native.raw-zero-bytearray-parent
-
-    // Native proof: naming.namespace-native.opaque-original-parent
-
-    // Native proof: naming.namespace-native.active-retirement-cache
-
-    // Native proof: naming.namespace-native.missing-parent-cache
-
     for (version, release) in [
         (tcl_dialect::TclVersion::V8_4, "8.4.20"),
         (tcl_dialect::TclVersion::V8_5, "8.5.19"),
@@ -356,10 +338,6 @@ fn native_namespace_cache_cannot_authenticate_a_same_number_replacement() {
 
 #[test]
 fn current_namespace_results_match_current_jim_original_producers() {
-    // Native proof: naming.namespace-native.current-root-primary
-
-    // Native proof: naming.namespace-native.jim-nested-current-primary
-
     let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
         "jim",
         &[],
@@ -438,12 +416,6 @@ fn original_namespace_lifetime_survives_retirement_without_owning_the_interprete
 
 #[test]
 fn namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks() {
-    // Native proof: naming.namespace-native.delete-validates-later
-
-    // Native proof: naming.namespace-native.delete-dependent-child-duplicate
-
-    // Native proof: naming.namespace-native.delete-unset-trace-later-effects
-
     for version in tcl_dialect::TclVersion::ALL {
         let mut interp = Interp::new();
         interp.set_runtime_version(version);

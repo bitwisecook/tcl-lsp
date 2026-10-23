@@ -20,8 +20,6 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
 
 #[test]
 fn original_coroutine_holder_lifecycle_matches_all_native_public_results() {
-    // Native proof: naming.coroutine.original-constructed-holder-lifecycle
-
     // The complete originals preserve independent relative resumes/rename/delete;
     // equality of info coroutine reports supplies no physical token identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];

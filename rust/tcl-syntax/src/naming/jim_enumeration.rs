@@ -173,8 +173,6 @@ mod tests {
     use super::*;
     #[test]
     fn original_jim_core_inventory_matches_comparison_keys_but_retains_original_reports() {
-        // Native proof: naming.info.original-root-and-explicit-nons-command-inventory
-
         // These supplied keys are premises; this pure operation does not allocate a table entry.
         let names = [
             b"::r2286_global".to_vec(),

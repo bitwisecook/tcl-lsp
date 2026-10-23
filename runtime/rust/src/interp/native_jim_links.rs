@@ -265,8 +265,6 @@ mod tests {
             .collect()
     }
 
-    // Native proof: naming.variable.alias-target-read-diagnostic-and-completion
-
     #[test]
     fn original_alias_read_errors_match_thirty_six_native_results() {
         let cases =

@@ -3669,8 +3669,6 @@ mod tests {
     }
     #[test]
     fn dynamic_global_uses_original_compiler_token_tail_and_name_cache() {
-        // Native proof: naming.variable.original-global-cache-token
-
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -3726,8 +3724,6 @@ mod tests {
 
     #[test]
     fn alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners() {
-        // Native proof: naming.alias.original-local-name-object
-
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -3895,8 +3891,6 @@ mod tests {
 
     #[test]
     fn active_read_unset_retires_old_registrations_matches_five_native_source_controls() {
-        // Native proof: naming.variable.unset-active-read-callback-retirement
-
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -3929,8 +3923,6 @@ mod tests {
 
     #[test]
     fn active_read_unset_probe_preserves_actual_jim_unsupported_setup() {
-        // Native proof: naming.variable.unset-active-read-callback-retirement
-
         // Jim's recorded setup failure supplies no read/unset callback answer.
         jim_trace_setup_observation(
             include_bytes!("../../tests/data/native_active_read_unset/source.tcl"),
@@ -3940,8 +3932,6 @@ mod tests {
 
     #[test]
     fn recreated_element_read_trace_matches_five_original_source_controls() {
-        // Native proof: naming.variable.recreated-element-independent-read-trace
-
         for (engine, expected) in [
             (
                 "tcl8.4",
@@ -3979,8 +3969,6 @@ mod tests {
 
     #[test]
     fn recreated_element_trace_probe_preserves_actual_jim_unsupported_setup() {
-        // Native proof: naming.variable.recreated-element-independent-read-trace
-
         // The captured Jim setup failure supplies no independent callback answer.
         jim_trace_setup_observation(
             include_bytes!("../../tests/data/native_recreated_element_trace/source.tcl"),
@@ -4051,8 +4039,6 @@ mod tests {
             assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
         }
     }
-
-    // Native proof: naming.variable.namespace-alias-settlement-after-store
 
     #[test]
     fn namespace_alias_settlement_matches_all_15_native_callback_and_error_results() {
@@ -4397,10 +4383,6 @@ mod tests {
 
     #[test]
     fn original_local_cache_getter_order_matches_all_25_native_paths() {
-        // Native proof: naming.variable.original-local-cache-before-getter
-
-        // Native proof: naming.variable.original-local-cache-unavailable-updater
-
         use super::*;
         let expected = include_str!(
             "../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt"
@@ -4477,8 +4459,6 @@ mod tests {
 
     #[test]
     fn element_table_and_var_roles_match_all_25_actual_callback_windows() {
-        // Native proof: naming.variable.original-element-unset-callback-roles
-
         use super::*;
         use crate::frame::NativeElementEntryObserver;
         use crate::namespace::GLOBAL;
@@ -4617,10 +4597,6 @@ mod tests {
 
     #[test]
     fn element_entry_lifecycle_matches_all_70_actual_c_windows() {
-        // Native proof: naming.variable.original-element-alias-recreation
-
-        // Native proof: naming.variable.original-element-alias-header-roles
-
         use super::*;
         use crate::namespace::GLOBAL;
         let mut rows = Vec::new();
@@ -4721,8 +4697,6 @@ mod tests {
 
     #[test]
     fn search_free_slots_match_all_20_actual_c_windows() {
-        // Native proof: naming.variable.array-search-free-slot-retirement
-
         use super::*;
         use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
         let mut rows = Vec::new();
@@ -4807,10 +4781,6 @@ mod tests {
 
     #[test]
     fn scalar_alias_entries_and_array_parts_match_all_95_native_windows() {
-        // Native proof: naming.variable.original-scalar-alias-entry-lifetime
-
-        // Native proof: naming.variable.original-parsed-array-child-references
-
         use crate::namespace::GLOBAL;
         let mut rows = Vec::new();
         for (environment, version) in [
@@ -4959,10 +4929,6 @@ mod tests {
 
     #[test]
     fn original_parsed_headers_match_all_150_actual_c_windows() {
-        // Native proof: naming.variable.original-scalar-parsed-header
-
-        // Native proof: naming.variable.original-counted-array-parsed-header
-
         let mut rows = Vec::new();
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
@@ -5040,8 +5006,6 @@ mod tests {
     }
     #[test]
     fn list_assignment_arity_matches_five_original_source_controls() {
-        // Native proof: naming.list.original-lassign-target-arity
-
         // Literal, dynamic and proc source entry are observations, not admission proofs.
         for (engine, expected) in [
             (
@@ -5080,8 +5044,6 @@ mod tests {
 
     #[test]
     fn list_assignment_arity_matches_current_jim_original_source_controls() {
-        // Native proof: naming.list.original-lassign-target-arity
-
         trace_source_observation(
             "jim",
             include_bytes!("../../tests/data/native_list_assignment_arity/source.tcl"),
@@ -5090,8 +5052,6 @@ mod tests {
     }
     #[test]
     fn variable_read_diagnostics_match_five_original_source_controls() {
-        // Native proof: naming.variable.original-read-diagnostic-input
-
         // These source-entry outcomes grant no private layout or compiler admission.
         for (engine, expected) in [
             (
@@ -5125,8 +5085,6 @@ mod tests {
 
     #[test]
     fn variable_read_input_preserves_current_jim_dictionary_results() {
-        // Native proof: naming.variable.original-read-diagnostic-input
-
         // Jim's array-valued root reads succeed; its scalar element reads fail.
         trace_source_observation(
             "jim",
@@ -5263,8 +5221,6 @@ mod tests {
 
     #[test]
     fn array_root_write_diagnostics_match_five_original_source_controls() {
-        // Native proof: naming.variable.original-array-root-write-diagnostic
-
         // Full source output is compared; no private receiver or compiler admission is inferred.
         for (engine, expected) in [
             (
@@ -5301,8 +5257,6 @@ mod tests {
 
     #[test]
     fn array_root_write_preserves_current_jim_dictionary_replacement() {
-        // Native proof: naming.variable.original-array-root-write-diagnostic
-
         // Jim replaces its dictionary-valued root with the scalar result.
         trace_source_observation(
             "jim",

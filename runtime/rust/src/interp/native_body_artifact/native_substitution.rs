@@ -396,10 +396,6 @@ mod tests {
     }
     #[test]
     fn original_compiled_substitution_matches_native_template_windows() {
-        // Native proof: naming.substitution.counted-template-completions
-
-        // Native proof: naming.substitution.original-cache-fields
-
         let inputs: Vec<_> = include_str!(
             "../../../../../rust/tcl-registry/tests/data/native_substitution_owner/inputs.json"
         )

@@ -202,12 +202,6 @@ mod tests {
 
     #[test]
     fn original_interpreter_paths_keep_counted_objects_and_child_cstring_keys() {
-        // Native proof: naming.interpreter.counted-list-path-cstring-child-keys
-
-        // Native proof: naming.interpreter.singleton-create-original-spelling
-
-        // Native proof: naming.interpreter.malformed-path-list-error
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut vm =
                 crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));

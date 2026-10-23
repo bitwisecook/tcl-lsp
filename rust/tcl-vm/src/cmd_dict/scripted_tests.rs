@@ -22,8 +22,6 @@ fn unhex(input: &str) -> Vec<u8> {
 
 #[test]
 fn original_jim_dictionary_library_bodies_and_formals_are_real_procedures() {
-    // Native proof: naming.jim.scripted-dictionary-worker-body-and-dispatch
-
     // The fixture proves public body/formal bytes. Header equality below checks
     // this backend's retained declaration ownership, independently of that proof.
     let mut vm = jim();
@@ -147,8 +145,6 @@ fn repinning_keeps_replacement_and_deletion_of_actual_library_generations() {
 
 #[test]
 fn native_jim_dictionary_worker_requires_explicit_distribution_initialisation() {
-    // Native proof: naming.jim.dictionary-core-versus-stdlib-bootstrap
-
     // The actual same interpreter's invocation/caller-value fields are tested;
     // the independent enumeration field grants no worker-availability evidence.
     let profile = crate::environment::profile_for_dialect("jim");

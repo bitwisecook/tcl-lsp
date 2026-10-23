@@ -64,8 +64,6 @@ fn resident_bytes(row: &str) -> Option<&'static [u8]> {
 
 #[test]
 fn stock_length_native_same_object_matrix() {
-    // Native proof: naming.list.stock-length-same-original-storage
-
     let fixtures = [
         (
             "tcl8.4",
@@ -176,8 +174,6 @@ fn unknown_stock_cache_and_empty_preservation_do_not_mint_list() {
 
 #[test]
 fn empty_list_root_provider_requires_generic_normal_result() {
-    // Native proof: naming.list.empty-result-compiled-pool-reuse
-
     use crate::list_object_methods::NativeListMethod;
     let operands = [];
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -265,8 +261,6 @@ fn object_length_dispatch_requires_actual_storage_and_distinct_logical_origin() 
 
 #[test]
 fn original_jim_source_length_requires_its_own_dialect_and_physical_class() {
-    // Native proof: naming.list.original-jim-source-length-conversion
-
     // This pure policy selects conversion; it does not supply a Source object or context.
     use NativeObjectLengthAction as Action;
     use NativeStockListCacheDisposition as Cache;

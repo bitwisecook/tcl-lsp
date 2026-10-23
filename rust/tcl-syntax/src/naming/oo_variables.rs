@@ -355,8 +355,6 @@ mod tests {
     use super::*;
 
     #[test]
-    // Native proof: naming.tcloo.declared-variable-compiled-and-runtime-resolver
-
     fn declared_variable_resolver_selects_counted_primary_and_runtime_cstring_independently() {
         use NativeOoVariableResolverPurpose::{CompiledPrimary, RuntimeRoot};
         for release in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {

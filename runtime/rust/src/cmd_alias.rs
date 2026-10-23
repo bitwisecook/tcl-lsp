@@ -2061,8 +2061,6 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
-    // Native proof: naming.alias.c-current-namespace-publication-holder
-
     #[test]
     fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() {
         let source = include_bytes!(
@@ -2116,8 +2114,6 @@ mod tests {
         }
     }
 
-    // Native proof: naming.alias.original-child-interpreter-publication
-
     #[test]
     fn jim_child_alias_result_is_born_in_the_actual_parent_allocator() {
         use crate::interp::native_arguments::OriginalArguments;
@@ -2160,8 +2156,6 @@ mod tests {
         assert!(!receiver.host_refusal_pending());
     }
 
-    // Native proof: naming.alias.original-child-interpreter-publication
-
     #[test]
     fn child_alias_publication_matches_original_supported_provider_apis() {
         let source = include_bytes!(
@@ -2178,8 +2172,6 @@ mod tests {
             compare_alias_publication_fixture(engine, source, native);
         }
     }
-
-    // Native proof: naming.jim.rooted-alias-publication-and-lookup
 
     #[test]
     fn jim_alias_owner_replaces_canonical_root_slots_and_keeps_local_competition() {
@@ -2496,12 +2488,6 @@ mod tests {
 
     #[test]
     fn original_interpreter_paths_preserve_child_keys_and_create_result_objects() {
-        // Native proof: naming.interpreter.counted-list-path-cstring-child-keys
-
-        // Native proof: naming.interpreter.singleton-create-original-spelling
-
-        // Native proof: naming.interpreter.malformed-path-list-error
-
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),

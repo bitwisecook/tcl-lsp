@@ -619,8 +619,6 @@ mod tests {
     fn template_masks_leave_array_index_substitutions_enabled() {
         // Source proof: naming.substitution.template-token-and-index-source
 
-        // Native proof: naming.substitution.counted-template-completions
-
         // C v6 template2/flags6 evaluates [set k k] in the index. Jim's
         // independent JimExpandDictSugar source selects JIM_NONE there.
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {

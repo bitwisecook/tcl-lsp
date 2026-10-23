@@ -1463,8 +1463,6 @@ impl NativeNameProtocol {
     /// C8.4 uses counted append; later C releases use a fresh byte object. Jim's
     /// unpaired Tail returns the original object and never reconstructs it.
     #[must_use]
-    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
     pub fn namespace_text_result(
         self,
         original: &[u8],
@@ -3412,8 +3410,6 @@ mod tests {
 
     #[test]
     fn trace_subject_registration_keeps_escaped_zero_distinct_from_raw_zero() {
-        // Native proof: naming.variable.trace-subject-counted-zero-address
-
         let raw = b"v\0tail(k)";
         let escaped = b"v\xc0\x80tail(k)";
         for version in VERSIONS {
@@ -4022,8 +4018,6 @@ mod tests {
 
     #[test]
     fn c_array_root_write_failure_uses_the_measured_value_store_tuple() {
-        // Native proof: naming.variable.original-array-root-write-diagnostic
-
         // The source observations identify output; this checks the selected Rust site.
         use NativeVariableDiagnosticOperation::{Read, Write};
         use NativeVariableDiagnosticReason::IsArray;
@@ -5248,8 +5242,6 @@ mod coroutine_publication_tests {
 
     #[test]
     fn coroutine_slots_keep_current_holders_and_native_byte_extents() {
-        // Native proof: naming.coroutine.original-publication-boundaries
-
         let current = ByteNamespacePath::from_segments([b"N".as_slice()]);
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             let protocol = NativeNameProtocol::C(version);
@@ -5298,8 +5290,6 @@ mod coroutine_publication_tests {
     }
     #[test]
     fn c_value_report_name_keeps_original_compound_parts() {
-        // Native proof: naming.variable.recreated-element-independent-read-trace
-
         // The native source proves the ::a(k) name; extent controls are Rust ownership coverage.
         for version in [
             TclVersion::V8_4,

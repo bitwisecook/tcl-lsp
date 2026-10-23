@@ -6,8 +6,6 @@ use tcl_syntax::native_object::NativeObjectCacheSnapshot;
 
 #[test]
 fn original_missing_lmap_lookup_publishes_the_same_native_result_header() {
-    // Native proof: naming.each-loop.original-lmap-collection
-
     // Original native_each_loop case4 records the result String window after
     // this absent command; no loop body is entered on these two providers.
     for engine in ["tcl8.4", "tcl8.5"] {

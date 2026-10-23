@@ -76,8 +76,6 @@ fn procedure(interp: &Interp, name: &[u8]) -> (u64, NativeProcedureCommand) {
 }
 #[test]
 fn relocation_retains_native_binding_and_declaration_with_separate_active_namespace() {
-    // Native proof: naming.procedure.original-relocation-namespace-and-identity
-
     let mut matched = 0;
     for (profile, native) in [
         ("tcl8.4", "8.4.20"),
@@ -201,8 +199,6 @@ fn relocation_retains_native_binding_and_declaration_with_separate_active_namesp
 
 #[test]
 fn relocation_of_original_counted_names_matches_native_binding_identity() {
-    // Native proof: naming.procedure.original-counted-relocation-identity
-
     let original_names: &[&[u8]] = &[
         b"::A::p\xff",
         b"::A::p\0tail",

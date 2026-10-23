@@ -209,14 +209,6 @@ const CONTROLS: &[OriginalControl] = &[
 
 #[test]
 fn original_jim_inventory_and_current_helper_sources_match_all_native_columns() {
-    // Native proof: naming.info.original-command-inventory-option-and-scope
-
-    // Native proof: naming.info.original-rooted-core-command-inventory-option-and-scope
-
-    // Native proof: naming.info.original-root-and-explicit-nons-command-inventory
-
-    // Native proof: naming.info.original-namespace-helper-declaration-and-current-forwarding
-
     // Complete public source results are independent of private table/cache identity.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
     let mut comparisons = 0;

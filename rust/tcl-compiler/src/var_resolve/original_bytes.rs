@@ -674,8 +674,6 @@ mod tests {
         context
     }
 
-    // Native proof: naming.variable.namespace-store-frame-and-fallback
-
     fn assert_opaque_namespace_root_membership(
         state: &mut ResolveContext,
         namespace: &SourceNamespaceKey,

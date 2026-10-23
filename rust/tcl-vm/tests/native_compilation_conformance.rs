@@ -661,8 +661,6 @@ fn jim_alias_retains_root_slot_and_caller_lookup_and_frame() {
     }
 }
 
-// Native proof: naming.jim.rooted-alias-publication-and-lookup
-
 #[test]
 fn jim_rooted_alias_publication_matches_original_native_source_and_values() {
     compare_alias_publication_fixture(
@@ -714,8 +712,6 @@ fn compare_alias_publication_fixture(engine: &str, source: &str, native: &[u8]) 
     );
 }
 
-// Native proof: naming.alias.c-current-namespace-publication-holder
-
 #[test]
 fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() {
     let source = include_str!("../../tcl-registry/tests/data/native_c_alias_holder197/probe.tcl");
@@ -754,8 +750,6 @@ fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() 
         compare_alias_publication_fixture(engine, source, native);
     }
 }
-
-// Native proof: naming.alias.original-child-interpreter-publication
 
 #[test]
 fn child_alias_publication_matches_original_supported_provider_apis() {

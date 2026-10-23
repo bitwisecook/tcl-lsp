@@ -1796,8 +1796,6 @@ mod native_rmw_fixture_tests {
 
     #[test]
     fn c85_dictionary_write_error_retains_defined_host_storage() {
-        // Native proof: naming.dictionary.c85-original-update-write-error-object-lifetime
-
         // Current-build private counters and public bytes are separate evidence.
         // These live-header/value assertions test the VM's safe ownership policy;
         // they do not reproduce or certify native freed-object content.
@@ -1982,8 +1980,6 @@ mod native_rmw_fixture_tests {
         assert!(member.native_object_is_live());
         assert_eq!(vm.native_string_bytes(&member).unwrap().as_ref(), b"BASE");
     }
-
-    // Native proof: naming.variable.dictionary-rmw-command-versus-selected-local-cell
 
     #[test]
     fn dictionary_command_and_local_cell_publication_match_345_complete_native_processes() {

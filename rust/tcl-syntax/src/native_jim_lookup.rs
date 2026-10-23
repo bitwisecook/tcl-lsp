@@ -325,8 +325,6 @@ mod tests {
         );
     }
 
-    // Native proof: naming.jim.original-lookup-currency
-
     #[test]
     fn original_native_lookup_outcomes_match_retained_cache_guards() {
         let protocol = NativeJimLookupProtocol::jim084();

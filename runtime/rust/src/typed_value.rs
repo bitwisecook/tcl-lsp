@@ -948,18 +948,6 @@ mod tests {
 
     #[test]
     fn command_cache_getters_match_all_native_original_object_rows() {
-        // Native proof: naming.command-cache.original-wide-getter
-
-        // Native proof: naming.command-cache.original-double-getter
-
-        // Native proof: naming.command-cache.original-boolean-getter
-
-        // Native proof: naming.command-cache.original-list-length-getter
-
-        // Native proof: naming.command-cache.original-dictionary-size-getter
-
-        // Native proof: naming.command-cache.original-character-length-getter
-
         use tcl_syntax::native_object::NativeObjectCacheSnapshot;
         use tcl_syntax::value::ValueOps;
         const INPUTS: [&[u8]; 6] = [b"1", b"1.0", b"true", b"1 2", b"1 x", b"bad"];
@@ -1083,8 +1071,6 @@ mod tests {
 
     #[test]
     fn command_cache_priming_matches_every_native_original_object_row() {
-        // Native proof: naming.command-cache.original-compiler-priming
-
         const FIXTURES: [&str; 5] = [
             include_str!("../tests/data/native_command_cache_priming/8.4.20.tsv"),
             include_str!("../tests/data/native_command_cache_priming/8.5.19.tsv"),
@@ -1447,8 +1433,6 @@ mod tests {
 
     #[test]
     fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
-        // Native proof: naming.numeric.primitive-int-original-width-cache
-
         use tcl_syntax::scalar_getter::NativeScalarGetterErrorCode;
         const FIXTURES: [&str; 5] = [
             include_str!(

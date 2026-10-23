@@ -227,8 +227,6 @@ mod tests {
     use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
     include!("../tests/data/native_scalar_compilation/cases.rs");
 
-    // Native proof: naming.variable.scalar-original-argv-compiler-and-result-windows
-
     #[test]
     #[allow(clippy::too_many_lines)]
     fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {

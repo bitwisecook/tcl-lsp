@@ -55,8 +55,6 @@ impl NativeObjectAppendProtocol {
     /// C8.4/8.5 convert the receiver before a counted zero-length append returns.
     /// Later releases return before reaching its primary representation.
     #[must_use]
-    // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-
     pub const fn converts_empty_counted_receiver(self) -> bool {
         // naming.object.original-empty-counted-append
 

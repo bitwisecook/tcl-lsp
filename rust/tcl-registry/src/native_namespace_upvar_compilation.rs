@@ -255,8 +255,6 @@ mod tests {
         }
     }
 
-    // Native proof: naming.variable.namespace-upvar-original-compiler-frontiers
-
     #[test]
     fn original_c85_namespace_upvar_matches_15_native_compiler_frontiers() {
         let mut count = 0;
@@ -323,7 +321,6 @@ mod tests {
         assert_eq!(direct.outcome, NativeNamespaceBindingOutcome::Generic);
         assert!(direct.namespace.is_none());
     }
-    // Native proof: naming.variable.namespace-upvar-original-compiler-frontiers
 
     #[test]
     fn original_modern_namespace_upvar_matches_45_native_compiler_frontiers() {

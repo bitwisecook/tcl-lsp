@@ -118,12 +118,6 @@ fn expected_code(options: &str, protocol: NativeStringProtocol) -> Vec<u8> {
 
 #[test]
 fn original_number_bignum_and_increment_match_all_192_native_windows() {
-    // Native proof: naming.numeric.get-number-null
-
-    // Native proof: naming.numeric.get-bignum-interpreter
-
-    // Native proof: naming.numeric.increment-original-object
-
     let fixtures = [
         (
             TclVersion::V8_5,

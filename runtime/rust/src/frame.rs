@@ -2836,8 +2836,6 @@ mod native_inventory_tests {
 
     #[test]
     fn declared_undefined_namespace_cells_remain_visible_without_becoming_defined() {
-        // Native proof: naming.tcloo.explicit-variable-link-counted-target
-
         let mut table = VarTable::default();
         let key = b"k\0tail";
         let alias = table.retain_native_scalar_alias(key);

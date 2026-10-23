@@ -44,10 +44,6 @@ fn assert_row(vm: &Vm, result: &Completion<Value>, rows: &str, label: &str) {
 
 #[test]
 fn private_query_and_opaque_original_bodies_match_native_c9_controls() {
-    // Native proof: naming.tcloo.private-definition-mode
-
-    // Native proof: naming.tcloo.private-original-script-bytes
-
     for (engine, rows) in [
         (
             "tcl9.0",
@@ -107,10 +103,6 @@ fn private_query_and_opaque_original_bodies_match_native_c9_controls() {
 
 #[test]
 fn method_option_layout_and_private_scope_match_original_native_controls() {
-    // Native proof: naming.tcloo.method-original-option-layout
-
-    // Native proof: naming.tcloo.true-private-provider-scope
-
     for (engine, rows) in [
         (
             "tcl8.6",

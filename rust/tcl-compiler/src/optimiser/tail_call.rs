@@ -1162,12 +1162,6 @@ mod tests {
 
     #[test]
     fn original_frame_observation_and_release_obligations_withdraw_tail_rewrites() {
-        // Native proof: naming.optimiser.recursive-frame-level
-
-        // Native proof: naming.optimiser.recursive-parent-cell
-
-        // Native proof: naming.optimiser.recursive-unset-observer-frame
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(name)
                 .commands()
@@ -1193,8 +1187,6 @@ mod tests {
 
     #[test]
     fn original_changed_formal_objects_require_complete_release_evidence() {
-        // Native proof: naming.optimiser.recursive-argument-release-order
-
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::static_context_for(name)
                 .commands()

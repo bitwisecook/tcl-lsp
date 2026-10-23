@@ -1543,8 +1543,6 @@ mod tests {
         }
     }
 
-    // Native proof: naming.variable.uplevel-original-compilation-opcode-and-concat-frontier
-
     #[test]
     fn original_uplevel_instruction_keeps_level_and_script_stack_geometry() {
         for row in include_str!("../tests/data/native_uplevel_compilation/instructions.tsv")

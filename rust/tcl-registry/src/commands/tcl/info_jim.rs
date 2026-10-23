@@ -783,8 +783,6 @@ mod tests {
 
     #[test]
     fn original_jim_inventory_keeps_core_options_and_namespace_forwarding_separate() {
-        // Native proof: naming.info.original-root-and-explicit-nons-command-inventory
-
         // Pure selection is separate from actual table-key ownership and helper execution.
         use NativeJimCommandInventory::{Flat, NamespaceHelper, WrongArguments};
         use NativeJimInfoScope::{DirectCore, NamespaceAware};
@@ -958,8 +956,6 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn original_jim_info_inventory_and_arities_match_native_rows() {
-        // Native proof: naming.info.jim-original-selector-table
-
         let context = crate::model::static_context_for("jim");
         let selected = context.resolve_command("info").unwrap();
         assert_eq!(selected.subcommands.len(), 27);

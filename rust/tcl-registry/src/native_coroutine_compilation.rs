@@ -458,8 +458,6 @@ mod injection_tests {
 
     #[test]
     fn original_injection_chronology_replaces_errors_and_retains_suspend_kind() {
-        // Native proof: naming.coroutine.original-injection-order-and-completion
-
         let dialect =
             crate::InvocationDialect::of_profile(crate::native_test_provider::profile("tcl9.1"));
         let selected = NativeCoroutineInjectionProtocol::select(dialect).unwrap();

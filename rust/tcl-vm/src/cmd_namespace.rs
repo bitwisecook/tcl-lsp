@@ -2726,8 +2726,6 @@ mod native_upvar_fixture_tests {
             .collect()
     }
 
-    // Native proof: naming.variable.namespace-upvar-target-and-empty-pair-grammar
-
     #[test]
     fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
         const CASES: &str = include_str!("../tests/data/native_namespace_upvar/cases.tsv");

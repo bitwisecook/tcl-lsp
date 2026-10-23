@@ -394,8 +394,6 @@ mod tests {
 
     #[test]
     fn byte_keywords_preserve_selected_extent_and_do_not_repair_unicode() {
-        // Native proof: naming.selector.selected-byte-descriptor-lookup
-
         let table = KeywordTable::new(["exists", "export", "�"], PrefixMatching::Enabled);
         assert_eq!(
             table.resolve_bytes(b"exists"),

@@ -1156,8 +1156,6 @@ mod tests {
 
     #[test]
     fn native_concat_preserves_selected_engine_and_object_representation() {
-        // Native proof: naming.list.original-jim-source-length-conversion
-
         // These three source channels share one interpreter, as in the native driver.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             leak_free(|interp| {

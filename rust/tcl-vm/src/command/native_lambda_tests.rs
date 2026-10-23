@@ -19,10 +19,6 @@ fn row<'a>(rows: &'a str, label: &str) -> Vec<&'a str> {
 
 #[test]
 fn lambda_conversion_errors_match_original_counted_values_and_parameter_frames() {
-    // Native proof: naming.lambda.original-conversion-diagnostic
-
-    // Native proof: naming.lambda.original-parameter-error-frame
-
     for (engine, captured) in [
         (
             "tcl8.5",

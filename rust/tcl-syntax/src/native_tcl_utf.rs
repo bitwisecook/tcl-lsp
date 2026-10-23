@@ -434,8 +434,6 @@ const CP1252: [u32; 32] = [
 mod tests {
     #[test]
     fn encoding_matches_every_selected_native_unit_control() {
-        // Native proof: naming.native-utf.unit-encoding
-
         use super::*;
         let fixtures = [
             include_str!("../tests/data/native_tcl_utf/unicode_encoder/8.4.20.tsv"),
@@ -637,12 +635,6 @@ mod tests {
 
     #[test]
     fn canonical_native_units_encoding_and_previous_boundaries_match_five_releases() {
-        // Native proof: naming.utf.native-unit-decode
-
-        // Native proof: naming.utf.native-isolated-unit-encode
-
-        // Native proof: naming.utf.native-previous-boundary
-
         let mut count = 0;
         for (version, fixture) in FIXTURES {
             let policy = NativeTclUtf::for_version(version);

@@ -65,10 +65,6 @@ mod tests {
 
     #[test]
     fn lambda_diagnostics_keep_conversion_and_parameter_frame_purposes_separate() {
-        // Native proof: naming.lambda.original-conversion-diagnostic
-
-        // Native proof: naming.lambda.original-parameter-error-frame
-
         for version in TclVersion::ALL {
             let selected =
                 NativeLambdaDiagnosticProtocol::select(InvocationDialect::for_version(version));

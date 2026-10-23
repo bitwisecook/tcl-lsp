@@ -3835,8 +3835,6 @@ mod tests {
 
     #[test]
     fn original_body_word_parts_match_native_concatenation_windows() {
-        // Native proof: naming.word-and-subst.original-concatenation
-
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
         fn primary(value: *mut TclObj) -> &'static str {
             match obj::native_object_snapshot(value).unwrap().cache {
