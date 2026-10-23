@@ -1174,7 +1174,7 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
 
     let ClassLinearisationMaps {
         mro_map,
-        errors,
+        mut errors,
         spine_map,
     } = build_class_linearisation_maps(&classes, &supers_map, &mixins_map);
 
