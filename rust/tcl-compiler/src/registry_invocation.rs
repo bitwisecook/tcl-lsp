@@ -749,9 +749,7 @@ fn original_declared_structured_invocation<'a>(
     if !context.matches_registry(registry) {
         return None;
     }
-    let Some(binding) = tokens.source_binding.as_ref() else {
-        return None;
-    };
+    let binding = tokens.source_binding.as_ref()?;
     let context = if logical_source {
         binding.original_invocation_metadata_for_input(
             tokens,
