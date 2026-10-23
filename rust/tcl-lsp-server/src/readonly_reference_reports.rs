@@ -978,11 +978,11 @@ impl Backend {
             .lock("readonly_reference_final_snapshot")
             .await;
         let Ok(db) = self.db.try_lock() else {
-            trace_coarse_source_check("final.db_lock", false);
+            trace_coarse_transaction_check("final.db_lock", false, admissions);
             return Ok(None);
         };
         let Ok(files) = self.db_files.try_lock() else {
-            trace_coarse_source_check("final.files_lock", false);
+            trace_coarse_transaction_check("final.files_lock", false, admissions);
             return Ok(None);
         };
         let published = self
@@ -993,9 +993,10 @@ impl Backend {
             .live_publication_uri_generations
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !trace_coarse_source_check(
+        if !trace_coarse_transaction_check(
             "final.epoch_factory",
             self.diag_inputs_epoch() == inputs_epoch && *generation == factory_generation,
+            admissions,
         ) {
             return Ok(None);
         }
@@ -2026,6 +2027,21 @@ fn original_readonly_analysis_matches_input(
         && analysis
             .retained_command_realm()
             .is_some_and(|realm| realm.matches_resolved_analysis_input(input))
+}
+
+fn trace_coarse_transaction_check(
+    stage: &str,
+    accepted: bool,
+    admissions: &[&DocumentPathAdmission],
+) -> bool {
+    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
+        let owners: Vec<_> = admissions
+            .iter()
+            .map(|admission| admission.uri().as_str())
+            .collect();
+        eprintln!("COARSE_SOURCE transaction stage={stage} accepted={accepted} owners={owners:?}");
+    }
+    accepted
 }
 
 /// Identity-only diagnosis of the actual reached coarse-source rejection.
