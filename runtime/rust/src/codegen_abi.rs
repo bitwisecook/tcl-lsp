@@ -2927,6 +2927,20 @@ mod tests {
                 )
             );
             tcl_completion_release(&mut completion);
+            // A retained Host refusal stays on its original interpreter. Start
+            // the independent C8.6 success control on a fresh actual owner.
+            let refused_interp = interp;
+            let interp = tcl_runtime_create_interp();
+            (*interp).set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(
+                (*refused_interp).native_access_refusal(),
+                Some(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "native string count cache origin",
+                    ),
+                )
+            );
             assert_eq!((*interp).eval_str(b""), Code::Ok);
             let c86_words = [
                 owned_word(b"string"),
@@ -2941,6 +2955,7 @@ mod tests {
             release_words(&c86_words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+            tcl_runtime_delete_interp(refused_interp);
         });
     }
 

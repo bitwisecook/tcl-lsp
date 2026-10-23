@@ -5907,11 +5907,21 @@ impl Interp {
                 self.oo.borrow_mut().names.insert(object, name.to_vec());
             }
             None => {
+                // A dismantling owner already fired its semantic role walk.
+                // Final token retirement must not replay newly attached traces.
+                let dismantling = self
+                    .oo
+                    .borrow()
+                    .objects
+                    .get(&object)
+                    .is_some_and(|owner| owner.torn_down);
                 // Deletion completes original cleanup even when the name callback refused.
-                if self.oo.borrow().classes.contains_key(&object) {
-                    self.oo_destroy_class(object);
-                } else if self.oo.borrow().objects.contains_key(&object) {
-                    self.oo_destroy_bg(object);
+                if !dismantling {
+                    if self.oo.borrow().classes.contains_key(&object) {
+                        self.oo_destroy_class(object);
+                    } else if self.oo.borrow().objects.contains_key(&object) {
+                        self.oo_destroy_bg(object);
+                    }
                 }
             }
         }
