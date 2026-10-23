@@ -1,0 +1,9 @@
+{
+  "compiled_base": "ed680fd2320ea810fb61afb6683bd255be68f430",
+  "compiled_patch_sha256": "9f3059c76fa03cb922ce3a384bdf9f53cd39cc86965227f73bb04cfcab091f08",
+  "committed_equivalent": "d392eb63",
+  "exact_patch_match": true,
+  "runtime_rust_diff_empty": true,
+  "captured_at_utc": "2026-10-23T12:05:21.278276+00:00",
+  "scope": "Recorded before follow-up source edits. Remaining tests execute the initial pinned binaries. Later source edits are XC recursion limit, IO documentation, and CLI fixture operands/format; runtime fixture files are unchanged. This is not a whole-run source-seal claim."
+}

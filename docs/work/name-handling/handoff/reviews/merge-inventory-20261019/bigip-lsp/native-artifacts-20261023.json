@@ -1,0 +1,68 @@
+{
+  "/workspace/bigip-lsp/target/debug/deps/cli-771127b450a32a50": {
+    "target": "cli",
+    "test": true,
+    "sha256": "46cb2be1d5e7192435ee276863f72f70fba5e9145833b61abe9daf98c71d0595",
+    "size": 1911824
+  },
+  "/workspace/bigip-lsp/target/debug/f5-query": {
+    "target": "f5-query",
+    "test": false,
+    "sha256": "7e40425b3459ee62e202bbfbc5737086a6374b70189b915f7fd8f7038fd2d613",
+    "size": 240803480
+  },
+  "/workspace/bigip-lsp/target/debug/deps/explain_flow-13122ccb7c6fa4ee": {
+    "target": "explain_flow",
+    "test": true,
+    "sha256": "4de0baee2d36215195998b44e701e496a104d8b03848a33f8fff86110f7b454a",
+    "size": 1175656
+  },
+  "/workspace/bigip-lsp/target/debug/deps/f5_query-7603d365e2cd844c": {
+    "target": "f5-query",
+    "test": true,
+    "sha256": "f26de4e46a1d765abe8016f3fd63277f36cf6e05982fd72968a9332ebbbcc5d1",
+    "size": 1074960
+  },
+  "/workspace/bigip-lsp/target/debug/deps/irule-7facb715a1d761d4": {
+    "target": "irule",
+    "test": true,
+    "sha256": "75664e9bd97617dcc56ec64744e844b35c0ac70770ccc558da072e08d8c01cb3",
+    "size": 1206512
+  },
+  "/workspace/bigip-lsp/target/debug/deps/f5_cli-7c871320e368b123": {
+    "target": "f5_cli",
+    "test": true,
+    "sha256": "ffb173c4d034aa0aedd687cc10431e3ea4db8cd3dee4cd054f68736ebb7b0f4f",
+    "size": 163647960
+  },
+  "/workspace/bigip-lsp/target/debug/tcl-lsp-server": {
+    "target": "tcl-lsp-server",
+    "test": false,
+    "sha256": "c71b315730ba38be2cff2ba4e7a484f84e5bcc5a923f9722f8b04013e8db4c9f",
+    "size": 336369000
+  },
+  "/workspace/bigip-lsp/target/debug/deps/e2e-4d97b7a75addda23": {
+    "target": "e2e",
+    "test": true,
+    "sha256": "c85da265497cd888f555964b02a5092f514db6c76d8a00acdfd5cd570debb393",
+    "size": 187073520
+  },
+  "/workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-e12fdda66dd83315": {
+    "target": "tcl_lsp_server",
+    "test": true,
+    "sha256": "ac0a4f1325c214b13a67901926bb979c983133a63331b194bfbe1e3fe31f771f",
+    "size": 369266392
+  },
+  "/workspace/bigip-lsp/target/debug/deps/tcl_lsp_core-9ed12f32e0d6daa4": {
+    "target": "tcl_lsp_core",
+    "test": true,
+    "sha256": "23601357ed1609f4a7fc807e127cd147870e0f123732c0d02866e4b8f4d91275",
+    "size": 259283920
+  },
+  "/workspace/bigip-lsp/target/debug/deps/tcl_compiler-00e18bb6c9ef06d2": {
+    "target": "tcl_compiler",
+    "test": true,
+    "sha256": "d481b1a3d3cea80a9dda7bfe533f8a1a397b82d5843b5c8aa239b64242a57c51",
+    "size": 263853040
+  }
+}

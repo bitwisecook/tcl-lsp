@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T12:14Z
+Last updated: 2026-10-23T12:22Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -46,6 +46,11 @@ prior receipts below describe their original source, not the new integrated tip.
    repro and contract; finish owned code/evidence and update final notes.
 
 ## Blocked (on whom, and what is needed)
+
+- Generic minifier/compiler/performance owner: unchanged500-level aggressive
+  minifier case did not return in634s; child externally stopped, classification
+  incomplete, not a natural semantic failure. Original depth/assertion retained.
+  Exact input, command and clean0/refusal2 contract: bigip-lsp/minify-repro-20261023.md.
 
 - VM/compiler/performance host startup: current isolated LiveSession::new
   does not return within60s after materialising its embedded framework; actual
@@ -259,3 +264,10 @@ CI5206 product3b1 heavy job120175508112 completed: 354 exact outcomes,312PASS42F
   exact three editor comparison tests build99672 active; no test artifact
   overlaps with the remaining original run. Do not rebuild f5-query until its
   original irule/explain-flow consumers finish.
+
+- Completed original irule14:11PASS/2actual trace FAIL/1externally interrupted
+  minifier. Harness says11/3 because interruption fails its original clean-exit
+  assertion. Trace failures reproduce the missing event-word blocker. Original
+  explain-flow5 now active; do not rebuild its f5-query binary yet. Closed raw
+  Compiler/Core/CLI prefixes, all11 artifact hashes and source equivalence are
+  archived via bigip-lsp/native-partial-20261023.json.

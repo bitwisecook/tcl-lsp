@@ -1,0 +1,15 @@
+{
+  "date_utc": "2026-10-23T12:19:43Z",
+  "pid": 13804,
+  "command": "/workspace/bigip-lsp/target/debug/f5-query irule minify --aggressive /tmp/f5-irule-issue996-deepnest-13612.irule",
+  "elapsed_seconds_before_termination": 634,
+  "signal": "SIGTERM",
+  "classification": "Incomplete external interruption, not a semantic assertion failure; no passing result or whole-suite validation",
+  "source": "d392eb63 initial binary snapshot",
+  "test": "minify_aggressive_survives_deeply_nested_irule",
+  "depth": 500,
+  "source_sha256": "ad28a388685c2b0220db4d443fe6694b63c4a5997fcc0f7e0ef8f7a7880f5584",
+  "binary_sha256": "7e40425b3459ee62e202bbfbc5737086a6374b70189b915f7fd8f7038fd2d613",
+  "core_call": "tcl_lsp_core::minify::minify_with_profile(source, profile, registry, MinifyOptions { tier: Aggressive, ..Default::default() })",
+  "contract": "Original unchanged test requires clean0 or reported2. Preserve depth500 and assertion; generic minifier/compiler owner must restore bounded analysis or an honest refusal without bypassing owner/admission guards."
+}

@@ -1,0 +1,38 @@
+{
+  "source": "d392eb63 product equivalence, see source receipt",
+  "compiler_first_operand_controls": {
+    "passed": 4,
+    "failed": 1,
+    "seconds": 71.96,
+    "failure": "first_remote_operand_preserves_supported_true_same_frame_source_body:0 versus1"
+  },
+  "core_ilx": {
+    "passed": 19,
+    "failed": 0,
+    "seconds": 104.55
+  },
+  "initial_cli17": {
+    "passed": 13,
+    "failed": 4,
+    "seconds": 27.87,
+    "note": "Two event-inventory golden failures; two pre-admission fixture errors corrected in d71e826d, final rerun pending."
+  },
+  "initial_provider_filters": {
+    "selected_tests": 0,
+    "reason": "Thin binary has0tests; actual library f5_cli selected in final plan, not yet run."
+  },
+  "irule14": {
+    "passed": 11,
+    "semantic_failures": 2,
+    "external_interruption": 1,
+    "seconds": 852.71,
+    "semantic_failures_selectors": [
+      "trace_keeps_data_group_from_braced_expression_command",
+      "trace_uses_the_event_closure_not_the_first_handler_body"
+    ],
+    "interrupted_selector": "minify_aggressive_survives_deeply_nested_irule",
+    "note": "Harness reports11/3 after SIGTERM634s. Count interruption separately; do not treat as a naturally observed semantic failure."
+  },
+  "raw_closed_prefix_sha256": "8eba6816a0961af2cf0bb89094f689a21ef9398c718d80e54b0b62187d912426",
+  "scope": "Partial native run: Compiler/Core/CLI sections closed; simulation/server/e2e still active. No whole-run source-seal or shipping acceptance claim."
+}
