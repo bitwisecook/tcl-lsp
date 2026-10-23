@@ -1699,6 +1699,35 @@ impl DiagnosticPass {
     }
 }
 
+fn direct_diagnostic_analyser_path(inputs: &DiagInputs) -> AnalyserPathInputs<'_> {
+    AnalyserPathInputs {
+        registry: Arc::clone(&inputs.registry),
+        extra_commands: &inputs.extra_commands,
+        generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
+        non_ascii_mode: inputs.non_ascii_mode,
+        db_project: &inputs.db_project,
+        workspace_index: &inputs.workspace_index,
+        rehomed_source_seeds: &inputs.rehomed_source_seeds,
+        rehoming_gate: &inputs.rehoming_gate,
+        package_resolver: &inputs.package_resolver,
+        package_prefer: inputs.package_prefer,
+        provider_capture: provider_source::ProviderCaptureInputs {
+            db: &inputs.db,
+            files: &inputs.db_files,
+            global: &inputs.db_config,
+            folders: &inputs.folder_db_configs,
+            store: &inputs.store,
+            source_path_admissions: &inputs.source_path_admissions,
+            dialects: &inputs.provider_dialects,
+            proposal: None,
+        },
+        recovery_names: &inputs.recovery_names,
+        entry_points: &inputs.entry_points,
+        folder_root: inputs.folder_root.as_deref(),
+        cross_file_resolution: inputs.toggles.xc.cross_file_resolution,
+    }
+}
+
 impl Backend {
     /// Execute the existing checked provider computation for the direct report
     /// purpose. This never enqueues a push or issues a Delivered receipt.
@@ -1760,103 +1789,8 @@ impl Backend {
                     diagnostics,
                 });
             }
-            let analysis_text = tcl_lexer::normalise_lone_cr(&job.text);
-            let profile = tcl_lsp_core::profile_for_dialect(&job.dialect);
-            let salsa_ctx = SalsaAnalysisCtx {
-                db: &inputs.db,
-                uri,
-                file: job.file,
-                config: job.config,
-                text: &analysis_text,
-                dialect: profile,
-            };
-            let lift = LiftInputs {
-                rewrite_source: Some(rewrite_wire::RewriteWireSource::Document(Arc::clone(
-                    source,
-                ))),
-                text: &job.text,
-                decode_report: job.decode_report,
-                dialect: profile,
-                disabled: &inputs.disabled,
-                policy_layers: &inputs.policy_layers,
-                style_line_length: inputs.style_line_length,
-                xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
-            };
-            let path = AnalyserPathInputs {
-                registry: Arc::clone(&inputs.registry),
-                extra_commands: &inputs.extra_commands,
-                generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
-                non_ascii_mode: inputs.non_ascii_mode,
-                db_project: &inputs.db_project,
-                workspace_index: &inputs.workspace_index,
-                rehomed_source_seeds: &inputs.rehomed_source_seeds,
-                rehoming_gate: &inputs.rehoming_gate,
-                package_resolver: &inputs.package_resolver,
-                package_prefer: inputs.package_prefer,
-                provider_capture: provider_source::ProviderCaptureInputs {
-                    db: &inputs.db,
-                    files: &inputs.db_files,
-                    global: &inputs.db_config,
-                    folders: &inputs.folder_db_configs,
-                    store: &inputs.store,
-                    source_path_admissions: &inputs.source_path_admissions,
-                    dialects: &inputs.provider_dialects,
-                    proposal: None,
-                },
-                recovery_names: &inputs.recovery_names,
-                entry_points: &inputs.entry_points,
-                folder_root: inputs.folder_root.as_deref(),
-                cross_file_resolution: inputs.toggles.xc.cross_file_resolution,
-            };
-            let recovery = RecoveryWidenCtx {
-                cache: path.recovery_names,
-                registry: &path.registry,
-                workspace_index: path.workspace_index,
-                package_resolver: path.package_resolver,
-                provider_capture: &path.provider_capture,
-                prefer: path.package_prefer,
-            };
-            let base = Box::pin(compute_base_analysis(
-                &inputs.client,
-                &salsa_ctx,
-                &inputs.disabled,
-                &inputs.extra_commands,
-                inputs.non_ascii_mode,
-                &recovery,
-            ));
-            let project = if path.cross_file_resolution {
-                *path.db_project.lock().await
-            } else {
-                None
-            };
-            let produced = match Box::pin(compute_deep_diagnostic_report(
-                uri,
-                &self.documents,
-                &salsa_ctx,
-                &lift,
-                &path,
-                project,
-                base,
-            ))
-            .await
-            {
-                ControlFlow::Continue(produced) => produced,
-                ControlFlow::Break((_, reason)) => return Err(reason),
-            };
-            produced.provider_completion?;
-            if !produced
-                .provider_sources
-                .is_current(&*inputs.package_resolver.read().await)
-            {
-                return Err(DiagnosticUnavailable::Stale);
-            }
-            if !source.matches_completed_analysis(&produced.analysis) {
-                return Err(DiagnosticUnavailable::Context);
-            }
-            workspace_sources = Some(Arc::clone(&produced.workspace_sources));
-            produced
-                .result
-                .map_err(|_| DiagnosticUnavailable::ProviderError)?
+            self.produce_direct_tcl_diagnostics(uri, &inputs, &job, source, &mut workspace_sources)
+                .await?
         };
         Ok(ProducedDirectDiagnosticReport {
             receipt: DiagnosticCacheReceipt {
@@ -1876,6 +1810,88 @@ impl Backend {
                 diagnostics,
             ),
         })
+    }
+
+    async fn produce_direct_tcl_diagnostics(
+        &self,
+        uri: &Uri,
+        inputs: &DiagInputs,
+        job: &DiagJob,
+        source: &Arc<DiagnosticPass>,
+        workspace_sources: &mut Option<Arc<WorkspaceDiagnosticSources>>,
+    ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DiagnosticUnavailable> {
+        let analysis_text = tcl_lexer::normalise_lone_cr(&job.text);
+        let profile = tcl_lsp_core::profile_for_dialect(&job.dialect);
+        let salsa_ctx = SalsaAnalysisCtx {
+            db: &inputs.db,
+            uri,
+            file: job.file,
+            config: job.config,
+            text: &analysis_text,
+            dialect: profile,
+        };
+        let lift = LiftInputs {
+            rewrite_source: Some(rewrite_wire::RewriteWireSource::Document(Arc::clone(
+                source,
+            ))),
+            text: &job.text,
+            decode_report: job.decode_report,
+            dialect: profile,
+            disabled: &inputs.disabled,
+            policy_layers: &inputs.policy_layers,
+            style_line_length: inputs.style_line_length,
+            xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
+        };
+        let path = direct_diagnostic_analyser_path(inputs);
+        let recovery = RecoveryWidenCtx {
+            cache: path.recovery_names,
+            registry: &path.registry,
+            workspace_index: path.workspace_index,
+            package_resolver: path.package_resolver,
+            provider_capture: &path.provider_capture,
+            prefer: path.package_prefer,
+        };
+        let base = Box::pin(compute_base_analysis(
+            &inputs.client,
+            &salsa_ctx,
+            &inputs.disabled,
+            &inputs.extra_commands,
+            inputs.non_ascii_mode,
+            &recovery,
+        ));
+        let project = if path.cross_file_resolution {
+            *path.db_project.lock().await
+        } else {
+            None
+        };
+        let produced = match Box::pin(compute_deep_diagnostic_report(
+            uri,
+            &self.documents,
+            &salsa_ctx,
+            &lift,
+            &path,
+            project,
+            base,
+        ))
+        .await
+        {
+            ControlFlow::Continue(produced) => produced,
+            ControlFlow::Break((_, reason)) => return Err(reason),
+        };
+        produced.provider_completion?;
+        if !produced
+            .provider_sources
+            .is_current(&*inputs.package_resolver.read().await)
+        {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        if !source.matches_completed_analysis(&produced.analysis) {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        *workspace_sources = Some(Arc::clone(&produced.workspace_sources));
+        produced
+            .result
+            .map_err(|_| DiagnosticUnavailable::ProviderError)
     }
 }
 
