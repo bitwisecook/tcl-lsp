@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-23T01:18:09Z",
+  "verdict": "CLEAR bounded static successor v3",
+  "patch_sha256": "b23e060b06893c0f597213d11b4d5defc5facbe3e6a7afe234d6fc1a5af80acd",
+  "scope": "test-only wasm_real_link.rs; no canonical apply/build",
+  "review_corrections": [
+    "Initial candidate lacked explicit unique exported top selection; successor requires exactly1 ::top, exported, emptyparams and exact plan result shape",
+    "Initial candidate trapped before result/options release; successor stores triple, releases both handles then checks saved code",
+    "Second candidate retained tuple other_abi typing mismatch; successor destructures and asserts top ABI equality while preserving AbiVersion refusal"
+  ],
+  "findings": [
+    "Original set x42 source and set x query unchanged; C Tcl9.0 oracle reports42/code0",
+    "Documented contract wasm-codegen.md Relationship to whole-function GenericInvoke: sole literal command legitimately exports triple; previous General-only test helper assertion contradicted that contract",
+    "First case now requires exact GenericInvoke plan and exact actual exported three-i32 signature, then linked compiled ::top invocation before query",
+    "Backend SemanticInvoke uses finish_semantic_invoke with actual invoke_argv and retained output handles; test does not replace program with eval query",
+    "All remaining multistatement cases retain unchanged strict compile_general assertion and original expected results; compile_argv_analysed actual call assertions unchanged",
+    "Manifest test uses actual selected plan and emitted export signature before manifest edit; honest result42 and intrinsic hash, foreign table differing hashes, AbiVersion refusal and missing manifest refusal retained",
+    "No fallback acceptance of arbitrary plan or signature; code nonzero traps after cleanup; General remains void"
+  ],
+  "limits": [
+    "No Rust/WAT/WASM typing or linked execution run",
+    "C Tcl result is semantic oracle only; no WASM acceptance",
+    "CCG owns formatting/apply-check receipts; root owns integration after fixedproduct49"
+  ]
+}

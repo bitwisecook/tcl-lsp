@@ -1,0 +1,19 @@
+VM CI5206 no-TomMath exact16 successor: independent static review, 2026-10-23.
+
+Reviewed immutable v2 at /tmp/vm-runtime-ci5206-notommath16-v2:
+plan SHA-256 8c1bd5045d6bafc6fa61c5300ae463e69e7c393db89a33387252df20b5079ab2
+runner SHA-256 ea9cf1e71c1000b55080b8748760fba35ef1bcd3f2ae6a942846806697600af2
+provider helper SHA-256 a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9
+semantic patch SHA-256 c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8
+v1 plan SHA-256 41bf53c593c78b895488bfa8f14b2e45dc6ac7e6eb77563c01f9c44b9551aac5
+v1 runner SHA-256 8ece8a4924a60204f1f9519a030c6c92f40160e348e8f7488bffa7b94c5e3b98
+
+Verdict: no remaining static blocker identified for v2; v1 MUST NOT RUN. V1 incorrectly reset zero_warning_claim to True after recording the intentional no-TomMath warning. V2 removes only that line, changes immutable BASE/plan identity, and labels the supersession. Its plan retains the same exact selectors, guards and feature contract.
+
+Variant: actual CI Makefile target runtime-rust-test-no-tommath invokes cargo test --locked with no engine feature after unsetting TCL_TOMMATH_DIR and hiding its local libtommath tree. V2 uses the dedicated standalone mirror with absent mirror/tmp, removes TCL_TOMMATH_DIR, and builds cargo test --locked --lib --no-run without --features engine. The target's default feature list is empty. Historical Cargo JSON from the same standalone mirror yielded exactly one executable for tcl_runtime with target kind [rlib,cdylib,staticlib], test profile true, features [], and one build-script-executed cfg list [runtime_c_tests], without have_tommath. Its stderr had the intentional libtommath-disabled warning. V2 requires these facts from its OWN newly captured Cargo JSON and stderr; there is no historical-artifact fallback or zero-warning claim.
+
+Selectors: all 16 are unique and exactly equal, in order, to pass_to_fail_selectors in coordinator-20261023/ci5206-log-triage/classification.json SHA-256 7a489b33cbb57718430bafd67820b4740db16bc36ed15ae0198c43205f8cfa88. Baseline is the same no-TomMath Makefile command in CI run 39816429638, job 119956196088. No selector overlaps representative19 or finite11. The first seven are diagnostic sampling only, not acceptance of the full 16. The baseline-absent alias-abort control is excluded.
+
+Guards: root Cargo.toml/Cargo.lock mirror links must resolve to canonical roots and match bytes; rust/experiments bindings and mirror/runtime source bytes are checked. The plan pins cmd_error.rs ac849810, native_error_variables.rs 91d70ce6, and semantic-only interp.rs 580d73c0. Current interp.rs is still base abe76cef, so executing v2 before root's integration must refuse before Cargo. New observer be669111 is excluded. Source/provider snapshots surround the entire build and all selectors. The runner holds the shared lock, accepts one fresh current Cargo JSON executable with exact manifest/name/kind/test-profile/features, hashes it before and after tests, checks exact roster and one completed nonignored test per selector, and retains receipts. Aggregate output cap is 20 MiB, per-selector timeout 180 seconds, and actual-mount disk floor 2 GiB covers root, /tmp, mirror, target and output. Provider-chain helper matches previously reviewed a647bf86.
+
+Limits: AST and static source inspection only. No source apply, mirror preparation, Cargo, lock, provider capture, test or runtime acceptance was performed. Current CI raw terminal list lacks assertion bodies for the 16 failures; no common cause is inferred.

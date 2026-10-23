@@ -2,11 +2,45 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T01:14:01Z (semantic-only finite4 prepared; review pending; no Cargo/queue)
+Last updated: 2026-10-23T01:25:10.866837+00:00 (exact16 v2 receipt fix; v1 MUST NOT RUN; review pending)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Exact16 v1 MUST NOT RUN: independent CCG review found inherited final
+zero_warning_claim=True overriding the preceding False despite the intentional
+noTommath notice. No runner/Cargo/test executed. Immutable v2 at
+`/tmp/vm-runtime-ci5206-notommath16-v2/` corrects only that assignment plus
+BASE/plan identity metadata: plan8c1bd504, runnerea9cf1e7, helpera647bf86.
+AST passes; original16, default-feature/noengine/noTommath variant, assertions,
+limits and guards unchanged. v1 preserved. Updated independent v2 review
+requested; no execution/queue/source writes.
+
+
+CI5206 noTommath exact16 baseline-PASS/current-FAIL rows have zero overlap
+with representative19 and finite11. Raw log emits their FAILED terminal lines
+but no per-failure assertion bodies before baseline-absent alias SIGABRT;
+causes remain unknown except separately scoped earlier catch evidence. Groups
+are catch1/OO1/regex1/trace1/ABI2/env10. Minimum first diagnostic7 samples
+those lanes but cannot close16 or the other9 env tests. No shared admission
+cause is established; Interp construction/version switching is a hypothesis
+only until actual first refusal/assertion capture. No fallback redesign.
+
+Immutable exact16 successor `/tmp/vm-runtime-ci5206-notommath16-v1/`: plan
+41bf53c5, runner8ece8a49, helpera647bf86; AST only, independent review pending.
+This matches actual CI default features/NO engine/NO Tommath, rather than
+full4's engine-enabled backend. Actual Cargo cfg must omit have_tommath and
+artifact features must be empty; only intentional noTommath build notice is
+allowed, so no zero-warning claim. Original16 assertions/selectors retained,
+alias-abort selector excluded. Full source/provider/artifact/roster180s20MiB
+actual-mount2GiB guards and v4 rootCargo symlinks retained. Predicted post-fix
+interp580d73c0 remains a prerequisite, root owns source finalization/typing/GO.
+No runner, lock, provider capture, Cargo, test, source write or queue occurred.
+
+Finite4 protocol independently reviewed clear (`1d177008`); its full Tommath
+engine-enabled acceptance stays separate and also unrun.
+
 
 Root accepted semantic candidate c12f266e for a post49 reviewed batch, preferring
 no new producer observer. Finite4 preparation is immutable at

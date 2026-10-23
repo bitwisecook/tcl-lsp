@@ -1,0 +1,81 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T01:25:37.338278+00:00",
+  "scheduled_report_utc": "2026-10-23T01:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T01:55:37+00:00",
+  "change_since_previous_report": [
+    "Delayed00:55 cycle actual01:01:11 normal-pushed8d43bc761, mappedactive7cef7, freshdepth1workfetch and productdiff0; reportprogress-report-20261023T0100Z; next reminder92050 due01:25:37.",
+    "CI5206 exactpublished5a418 active. Complete26-job roster at lastrootread6success7failure11in_progress2skip. Full decoded connector logs obtained for6 failed jobs; exactnamed outcomes/causes under routing. Browser2jobs same E0277 TUnpin; SpecTcl E0275 testcrate auto-traitsolver depth; strictClippy and runtime abort real.",
+    "Bounded peer-clear off-tree WASM763f9c9d oneprivate+Unpin and SpecTcl735d71b4 consumerrecursion_limit256 compilefixes; no canonicalapplication/typing/execution yet.",
+    "Compiler reportv7 static peer-clear and report14 guarded successor complete, off-tree/untyped/unrun; strictglobal/runtimeEq/caches/countguards unchanged. Existing externalperf routed frozenAPI for off-treeharnessprep only; fullold/mixedproofstillrequired before realm/interproceduralpatchacceptance.",
+    "VM C84 compilefailure exact91-byteinfo lead matches actualmissingglobal publication. Narrow no-explicit-code correction c12f266e reuses genuine checkedC84 AddErrorInfo route, independentb31f344bstaticclear; noapply/typing/runtime yet. Explicit compiler codes unchanged/residual.",
+    "Nextfixedproduct3b1 compiler49 preserves36filters49tests/fullseals/180sperexecutablerealwatchdog; unqueued untilLSP20actualclosure. Integrate report/build/runtime corrections onlyafter49 to preserve its exactbaseline.",
+    "ExternalBIGIP18:08/perf21:00/completedtriage19:57 headers remainstale over60minutes; usernotified, no duplicates/takeover/headerrefresh.",
+    "Cycle mustfreshdepth1fetch/FF, updateofficialwriter/agenttable/freshness/fullWIPexcludingzzprobes, freshfetch/rebase/normalpushproductequality, checkactualtarget/tmpdisk, rearm01:55:37. All8sectionF/verified0unchanged; noPR/merge/tag/release/targetcleanup.",
+    "01:22:01 adhoc normal-pushed7b53d50568fa66989a81d1feb145026743893d1b, mappingactive57a7acd, freshdepth1fetch/rebase/productdiff0. It includesexactcurrentCIscopedjoins,partialLSPgroup, reportv7 handoff/buildfixproposals; regular01:25 timerunchanged. No productchange/admission.",
+    "CI5206 logs nowdecoded8jobs: noTommath1091raw observations/1090unique=982PASS108FAIL, exact16baselineP2F/1057of2147withoutterminal; onesame-PASSduplicate child reconciled/provenancepreserved. WASMreal-link16/9 exact7P2F+2unmatcheFAIL; WASI22unitPASS then6/3 host/exact3P2F; shutdown12unreached. Keepseparateledgers nooverlapaggregate.",
+    "Main4testandlisting E0275 blocks allnamedoutcomes; SpecTclcompat sameconsumertraitdepth. Twobrowsergates E0277 sameTUnpin; peer-clearedminimalsource/testcompilefixes stilloff-tree. CurrentrustcheckCargo713summaryerrorinstances19cmdcore182VM512Compiler, notunique census; mechanicalownertriage active, noallows.",
+    "FirstactualLSP20servergroupfoldercontextPASS1/1 at01:13:59,15.71s; build0/0, freshartifact2054dc36before/after/archivehash stable. Completepartialgroupreceiptsinclinitialsource/providerseals published, finalwhole20sealsandremaining19pending.Corelibcompilationactive; do notclaimfullacceptance.",
+    "CCG newhostedABItestonlyv3b23e independentnamesa1602ea7CLEAR afterexportuniqueness/completioncleanup/tuplefix. ExistingdocumentedABI topGenericInvoke=3i32, Generalvoid; originalset/query42 C Tcl9.0.4PASS; strictotherGeneral/compiledargv/manifestnegativeassertions retained. No shippingemitterchange, nointegration/type/link yet.",
+    "VMsemantic-onlycandidatec12f independentb31fCLEAR (C84/noexplicitcodeonly), post-fixoriginalcatch+boundary3 plan0a255221 helperreview1d177008CLEAR. Newobserverbe669 remainsunapplied. Current16noTommath baselineP2Fs needexactdefaultfeature/noengineflavor, notolderenginefull5 orrepresentative19 substitute.",
+    "Rootsource/test/provider HOLD; nextfixedproduct49beforepost49candidatebatch(reportAPI,2compilefixes,VMsemanticfix,CCGtestABI). No newCargobuildqueues/manualtargetcleanup. Actualmetadata0W scopedtyping; allreleaseF andverified0 stayopen.",
+    "01:24:20 CI5206 connectorfirstpage30jobs7success13failure8in_progress2skip; completenessnotproved bywrapper. Main1/2/3/5,heavy,e2epartitionsactive; main4compileblocked. Latestfreshdepth1workfetchconfirms7b53d5056remote, publisherFFnext.",
+    "Current18cmdcoremechanical lintfixesinprep; compiler512currentprimarydiagnosticsconfirmedfromactualANSIlog, mechanicalonlysubsetinprep. No codeintegration/Cargoqueue. VM16protocolreviewcaughtfalsezero-warningclaim inheritedoverwrite; v1notauthorizedforrun, immutablecorrectedv2required."
+  ],
+  "committed": [
+    "57a7acd3332555f73d96c08f4c9c196d931ff5ff"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish surviving finite LSP20 guarded run, then assign native protocol15 and compiler49/CCG diagnostics under sole build lock.",
+    "Diagnose exact Tcl8.4 catch regression at actual producer, and complete typed authenticated report API before external perf full old/mixed proof.",
+    "Resolve exact current origin/rust regressions and sectionF host/SpecTcl/transformation/performance/strict repository gates before any user-requested PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Refresh actual01:25 LSP/CI/head/freshness/disk status before writer. Lastclosedmetadata0W andFull5 4/1; LSP20partial1/20, currentCI exactscoped16/7/3regressions separateledgers, main4compileblocked. AllsectionF/strict/fullcurrentbaselinecomparison/perfopen.",
+  "disk_free_bytes": 10832277504,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

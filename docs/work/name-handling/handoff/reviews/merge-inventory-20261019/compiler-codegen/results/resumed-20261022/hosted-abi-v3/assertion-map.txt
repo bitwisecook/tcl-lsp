@@ -1,0 +1,13 @@
+Hosted ABI v3 original fixture and assertion map; static review only.
+
+Contract: docs/design/compiler/wasm-codegen.md, "Relationship to the whole-function GenericInvoke". A whole-function all-literal GenericInvoke exports ::top with three i32 completion fields. A per-statement General plan exports void ::top. backend.rs finish_semantic_invoke and guarded_intrinsic_function produce the completion triple; finish_function produces the General void form. The existing semantic_invoke_bootstrap_wat already consumes and releases the triple.
+
+emitted_modules_run_against_the_real_runtime:
+  Original first source "set x 42\n", query "set x", expected "42" remain unchanged. Before v3, compile_general required General and refused before link when the current selector produced GenericInvoke(Set). V3 requires that exact selected plan, checks one exported ::top with triple result ABI, runs the completion bootstrap, checks success code, releases both returned completion objects, and queries the same interpreter for 42. The two original multi-statement rows retain their original source/query/expected values, strict General plan assertion, and void bootstrap. The real runtime/manifest checks remain.
+
+a_module_with_a_foreign_intrinsic_table_is_refused:
+  Original source/query/42 and honest, foreign intrinsic-table hash, ABI-version and no-manifest assertions remain. Before v3, the honest control used a void import against the current triple export and failed during instantiation, before reaching the foreign-manifest refusal. V3 checks the selected plan and unique exported ::top ABI; honest control bootstraps with that ABI. Foreign and ABI-version variants assert the same top ABI as the honest variant, retaining the actual differing manifest field and refusal assertions. No foreign user module execution is newly permitted.
+
+Original C Tcl oracle: Tcl 9.0.4 /workspace/naming-toolchains/bin/tclsh9.0, wrapper SHA-256 deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c. Running the equivalent original "set x 42\n" then querying "set x" returned 42, exit 0. Exact structured receipt is native-oracle.txt.
+
+V3 preserves all other real-link test selectors and the default void helper. Its completion helper releases result and options before branching on saved completion code. Independent names peer review cleared the static proposal only; type checking, Wasm linking, semantic execution and CI acceptance are unrun.

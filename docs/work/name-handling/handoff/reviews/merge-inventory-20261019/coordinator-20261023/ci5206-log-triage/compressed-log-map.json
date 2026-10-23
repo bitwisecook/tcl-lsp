@@ -1,0 +1,87 @@
+{
+  "created_utc": "2026-10-23T01:18:00Z",
+  "purpose": "Preserve exact logical connector-log bytes in compressed physical files so raw log whitespace cannot trip staged diff checks.",
+  "source_manifest": "hash-manifest.json",
+  "logs": [
+    {
+      "logical_file": "ci5206-job-120175507888-connector.log",
+      "logical_bytes": 104411,
+      "logical_sha256": "995a60659a335c5d9aa956bd6913e10f65410c372f8064bfd1205acc0c1815f8",
+      "physical_file": "ci5206-job-120175507888-connector.log.gz",
+      "physical_bytes": 21688,
+      "physical_sha256": "179aa8f99958f817d501c1a045b81f080a6c8bd11daabde1406defd0a5b54492",
+      "decompressed_sha256": "995a60659a335c5d9aa956bd6913e10f65410c372f8064bfd1205acc0c1815f8",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175507991-connector.log",
+      "logical_bytes": 1078658,
+      "logical_sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+      "physical_file": "ci5206-job-120175507991-connector.log.gz",
+      "physical_bytes": 153631,
+      "physical_sha256": "6edfd3ac1d752b5a87575d4e223b11f92d7523e5b42deb43125629124c8b4f19",
+      "decompressed_sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508114-connector.log",
+      "logical_bytes": 98349,
+      "logical_sha256": "dc203a0d3bd6688ab6cb57f57589dc780ac4f76e8ba90e619ba60132d29a798b",
+      "physical_file": "ci5206-job-120175508114-connector.log.gz",
+      "physical_bytes": 18977,
+      "physical_sha256": "9361e8e0a10dad466386a9719ecf08637bf0fbe0f278c40f4bd893f99f90a989",
+      "decompressed_sha256": "dc203a0d3bd6688ab6cb57f57589dc780ac4f76e8ba90e619ba60132d29a798b",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508284-connector.log",
+      "logical_bytes": 153244,
+      "logical_sha256": "d81f58be2ed9a21f7bf127a86f3f3f90bc3e9bee23734c1a494aac727bb5e45c",
+      "physical_file": "ci5206-job-120175508284-connector.log.gz",
+      "physical_bytes": 24020,
+      "physical_sha256": "fc8c99935312b3f848b6adaa68e2bfb134857d2402f06846ec3a95f365775eee",
+      "decompressed_sha256": "d81f58be2ed9a21f7bf127a86f3f3f90bc3e9bee23734c1a494aac727bb5e45c",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508339-connector.log",
+      "logical_bytes": 216231,
+      "logical_sha256": "6538ace18ce720aabb808ab5a2c02cbff2b44bc08f4f5ec6d36689a84f3ecd7d",
+      "physical_file": "ci5206-job-120175508339-connector.log.gz",
+      "physical_bytes": 47836,
+      "physical_sha256": "391ea9d99c4c8d10aa8009ba334a326ff4593ada0a6b45f235287c9e27c47871",
+      "decompressed_sha256": "6538ace18ce720aabb808ab5a2c02cbff2b44bc08f4f5ec6d36689a84f3ecd7d",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508422-connector.log",
+      "logical_bytes": 63592,
+      "logical_sha256": "d9ef95c4bdc5369670adf68f242d5f9ede72b2219b71847de1de016573da80c7",
+      "physical_file": "ci5206-job-120175508422-connector.log.gz",
+      "physical_bytes": 14600,
+      "physical_sha256": "49f9a8343e594ec44623c1fb5deb1109dc3ef896d0e875ef2c38a522da1db3a7",
+      "decompressed_sha256": "d9ef95c4bdc5369670adf68f242d5f9ede72b2219b71847de1de016573da80c7",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508425-connector.log",
+      "logical_bytes": 80205,
+      "logical_sha256": "addbaaace0458d038a89622544111b65af51250a57cfb6f4d2cc3782ea77e02f",
+      "physical_file": "ci5206-job-120175508425-connector.log.gz",
+      "physical_bytes": 18238,
+      "physical_sha256": "d87a397e33b4b1f79fef92b92edaa5666d5e2e79d6ead967801e48fde42cc06e",
+      "decompressed_sha256": "addbaaace0458d038a89622544111b65af51250a57cfb6f4d2cc3782ea77e02f",
+      "byte_identical_after_decompression": true
+    },
+    {
+      "logical_file": "ci5206-job-120175508634-connector.log",
+      "logical_bytes": 169778,
+      "logical_sha256": "f1efa7b3470472fd263a1880a2e509aa47d274d7778ee23ccfe8eb4cdd2b6ebf",
+      "physical_file": "ci5206-job-120175508634-connector.log.gz",
+      "physical_bytes": 31924,
+      "physical_sha256": "3d97a6f60d35bc512406f61380d4da2717d1b8f82f471d87e4d9b323f272233c",
+      "decompressed_sha256": "f1efa7b3470472fd263a1880a2e509aa47d274d7778ee23ccfe8eb4cdd2b6ebf",
+      "byte_identical_after_decompression": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+  "sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+  "program": "set x 42\n",
+  "query": "set x",
+  "stdout": "42\n",
+  "stderr": "",
+  "exit": 0,
+  "scope": "C Tcl9.0 program/query oracle only; no WASM execution"
+}

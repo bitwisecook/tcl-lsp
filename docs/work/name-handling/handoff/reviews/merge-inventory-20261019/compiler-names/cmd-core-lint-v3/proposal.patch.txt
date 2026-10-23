@@ -1,0 +1,484 @@
+--- a/rust/tcl-cmd-core/src/clock.rs
++++ b/rust/tcl-cmd-core/src/clock.rs
+@@ -1844,15 +1844,15 @@
+             if !row.starts_with("ROW ") { continue; }
+             let words = tcl_syntax::list::split_native_list_bytes(row.as_bytes(), protocol).unwrap();
+             if words[3].as_ref() != b"0" || words[1].as_ref() == b"empty-tzdata" { continue; }
+-            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(|word| word.into_owned()).collect::<Vec<_>>();
+-            let value = |key: &[u8]| expected.chunks_exact(2).find(|pair| pair[0] == key).unwrap()[1].clone();
++            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(std::borrow::Cow::into_owned).collect::<Vec<_>>();
++            let value = |key: &[u8]| expected.as_chunks::<2>().0.iter().find(|pair| pair[0] == key).unwrap()[1].clone();
+             let integer = |key: &[u8]| std::str::from_utf8(&value(key)).unwrap().parse::<i64>().unwrap();
+             let changeover = match words[1].as_ref() {
+                 b"julian-calendar" => i32::MAX,
+                 b"gregorian-forced" => 0,
+-                b"changeover-before" | b"changeover-at" => 2299161,
++                b"changeover-before" | b"changeover-at" => 2_299_161,
+                 b"changeover-unsigned" => -1,
+-                _ => 2361222,
++                _ => 2_361_222,
+             };
+             let fields = c86_calendar_fields(integer(b"seconds"), i32::try_from(integer(b"tzOffset")).unwrap(), changeover).unwrap();
+             let actual = C86_DATE_FIELD_KEYS.into_iter().zip(c86_date_values(&fields,&value(b"tzName"),&literals))
+@@ -1864,7 +1864,7 @@
+                     };
+                     [key.to_vec(), bytes]
+                 }).collect::<Vec<_>>();
+-            assert_eq!(actual, expected, "{}", row);
++            assert_eq!(actual, expected, "{row}");
+             compared += 1;
+         }
+         assert_eq!(compared, 16);
+@@ -1874,7 +1874,7 @@
+     fn unmeasured_native_calendar_overflow_refuses() {
+         for (seconds, offset) in [(i64::MAX, 1), (i64::MAX, 0)] {
+             assert!(matches!(
+-                c86_calendar_fields(seconds, offset, 2361222),
++                c86_calendar_fields(seconds, offset, 2_361_222),
+                 Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(_))
+             ));
+         }
+--- a/rust/tcl-cmd-core/src/list.rs
++++ b/rust/tcl-cmd-core/src/list.rs
+@@ -919,7 +919,7 @@
+         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
++        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+         fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+@@ -1078,7 +1078,9 @@
+     fn hex(value: &str) -> Vec<u8> {
+         value
+             .as_bytes()
+-            .chunks_exact(2)
++            .as_chunks::<2>()
++            .0
++            .iter()
+             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+             .collect()
+     }
+--- a/rust/tcl-cmd-core/src/lsearch.rs
++++ b/rust/tcl-cmd-core/src/lsearch.rs
+@@ -1303,7 +1303,7 @@
+         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
++        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+         fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+--- a/rust/tcl-cmd-core/src/native_boolean_truth.rs
++++ b/rust/tcl-cmd-core/src/native_boolean_truth.rs
+@@ -405,177 +405,6 @@
+     Err(unavailable())
+ }
+ 
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-    use std::collections::VecDeque;
+-    use tcl_dialect::model::{DialectPoint, Release};
+-    use tcl_runtime_api::NativeExecutionError;
+-    use tcl_syntax::{
+-        native_boolean_truth::NativeBooleanTruthPurpose, raw_string::NativeValueAccessRefusal,
+-        scalar_getter::NativeScalarGetterProtocol,
+-    };
+-
+-    struct PublicationOwner {
+-        calls: Vec<&'static str>,
+-        outcomes: VecDeque<Result<NativeScalarGetterValue, NativeScalarGetterFailure>>,
+-        result: Vec<u8>,
+-        first: Option<NativeExecutionError>,
+-        refuse_publication: bool,
+-        refuse_rendering: bool,
+-    }
+-
+-    impl NativeBooleanTruthOps for PublicationOwner {
+-        type Value = ();
+-        fn check_host_refusal(&mut self) -> Result<(), CmdError> {
+-            self.first
+-                .clone()
+-                .map_or(Ok(()), |first| Err(CmdError::from_execution_refusal(first)))
+-        }
+-        fn inspect_original(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-        ) -> Result<(Option<NativeScalarCache>, bool), CmdError> {
+-            Ok((None, true))
+-        }
+-        fn publish_original_operand(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-        ) -> Result<(), CmdError> {
+-            self.calls.push("term");
+-            self.result = b"original operand".to_vec();
+-            Ok(())
+-        }
+-        fn original_string(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-        ) -> Result<Vec<u8>, CmdError> {
+-            panic!("this stage has no String selection obligation")
+-        }
+-        fn probe(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-            stage: NativeBooleanTruthProbe,
+-        ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, CmdError> {
+-            self.calls.push(match stage {
+-                NativeBooleanTruthProbe::Scalar {
+-                    kind: NativeScalarGetterKind::Long,
+-                    ..
+-                } => "long",
+-                NativeBooleanTruthProbe::Scalar {
+-                    kind: NativeScalarGetterKind::Double,
+-                    ..
+-                } => "double",
+-                _ => panic!("unexpected reached primitive"),
+-            });
+-            Ok(self
+-                .outcomes
+-                .pop_front()
+-                .expect("each reached probe has a supplied outcome"))
+-        }
+-        fn getter_failure(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-            _: NativeScalarGetterKind,
+-            _: NativeScalarGetterFailure,
+-        ) -> Result<CmdError, CmdError> {
+-            if self.refuse_rendering {
+-                self.first = Some(original_cause());
+-            }
+-            Ok(CmdError::new_bytes(
+-                b"retained primitive diagnostic".to_vec(),
+-            ))
+-        }
+-        fn publish_intermediate_failure(&mut self, error: CmdError) -> Result<(), CmdError> {
+-            self.calls.push("publish");
+-            self.result = error.message_bytes().to_vec();
+-            if self.refuse_publication {
+-                self.first = Some(original_cause());
+-            }
+-            Ok(())
+-        }
+-        fn logical_operand_failure(
+-            &mut self,
+-            _: &(),
+-            _: NativeBooleanTruthProtocol,
+-            _: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
+-        ) -> Result<CmdError, CmdError> {
+-            panic!("Jim stages retain their actual primitive failure")
+-        }
+-    }
+-
+-    fn original_cause() -> NativeExecutionError {
+-        NativeExecutionError::ValueAccessRefusal(
+-            NativeValueAccessRefusal::CommandProtocolUnavailable("original publication callback"),
+-        )
+-    }
+-    fn owner() -> PublicationOwner {
+-        PublicationOwner {
+-            calls: Vec::new(),
+-            outcomes: [
+-                Err(NativeScalarGetterFailure::CachedNonInteger),
+-                Ok(NativeScalarGetterValue::Double(17.0)),
+-            ]
+-            .into(),
+-            result: b"prior result".to_vec(),
+-            first: None,
+-            refuse_publication: false,
+-            refuse_rendering: false,
+-        }
+-    }
+-    fn protocol() -> NativeBooleanTruthProtocol {
+-        NativeBooleanTruthProtocol::for_scalar_getter(
+-            NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))
+-                .unwrap(),
+-            NativeBooleanTruthPurpose::ConditionalJump,
+-        )
+-    }
+-
+-    #[test]
+-    fn intermediate_failure_is_published_before_success_and_remains_observable() {
+-        // Source/API control only: supplied stage outcomes are not original Jim objects.
+-        // naming.numeric.original-primitive-boolean-vs-expression-truth
+-        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+-        let mut owner = owner();
+-        assert!(original_boolean_truth(&(), protocol(), &mut owner).unwrap());
+-        assert_eq!(owner.calls, ["term", "long", "publish", "double"]);
+-        assert_eq!(owner.result, b"retained primitive diagnostic");
+-        assert!(owner.first.is_none());
+-    }
+-
+-    #[test]
+-    fn first_host_from_publication_stops_every_later_probe() {
+-        // Source/API control; this tests the shared settlement owner, not native conversion.
+-        // naming.numeric.original-primitive-boolean-vs-expression-truth
+-        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+-        let mut owner = owner();
+-        owner.refuse_publication = true;
+-        let error = original_boolean_truth(&(), protocol(), &mut owner).unwrap_err();
+-        assert_eq!(error.native_execution_refusal(), Some(&original_cause()));
+-        assert_eq!(owner.calls, ["term", "long", "publish"]);
+-        assert_eq!(owner.outcomes.len(), 1);
+-        assert_eq!(owner.result, b"retained primitive diagnostic");
+-    }
+-
+-    #[test]
+-    fn first_host_from_rendering_wins_over_a_returned_guest_record() {
+-        // Source/API control; no original external provider outcome is inferred.
+-        // naming.numeric.original-primitive-boolean-vs-expression-truth
+-        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+-        let mut owner = owner();
+-        owner.refuse_rendering = true;
+-        let error = original_boolean_truth(&(), protocol(), &mut owner).unwrap_err();
+-        assert_eq!(error.native_execution_refusal(), Some(&original_cause()));
+-        assert_eq!(owner.calls, ["term", "long"]);
+-        assert_eq!(owner.result, b"original operand");
+-    }
+-}
+-
+ /// Physical operations for the actual expression-result producer. The shared
+ /// executor owns probe selection, numeric COW, failure order and API copying;
+ /// adapters supply only their checked original object operations.
+@@ -764,3 +593,174 @@
+         Ok(output)
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::collections::VecDeque;
++    use tcl_dialect::model::{DialectPoint, Release};
++    use tcl_runtime_api::NativeExecutionError;
++    use tcl_syntax::{
++        native_boolean_truth::NativeBooleanTruthPurpose, raw_string::NativeValueAccessRefusal,
++        scalar_getter::NativeScalarGetterProtocol,
++    };
++
++    struct PublicationOwner {
++        calls: Vec<&'static str>,
++        outcomes: VecDeque<Result<NativeScalarGetterValue, NativeScalarGetterFailure>>,
++        result: Vec<u8>,
++        first: Option<NativeExecutionError>,
++        refuse_publication: bool,
++        refuse_rendering: bool,
++    }
++
++    impl NativeBooleanTruthOps for PublicationOwner {
++        type Value = ();
++        fn check_host_refusal(&mut self) -> Result<(), CmdError> {
++            self.first
++                .clone()
++                .map_or(Ok(()), |first| Err(CmdError::from_execution_refusal(first)))
++        }
++        fn inspect_original(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++        ) -> Result<(Option<NativeScalarCache>, bool), CmdError> {
++            Ok((None, true))
++        }
++        fn publish_original_operand(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++        ) -> Result<(), CmdError> {
++            self.calls.push("term");
++            self.result = b"original operand".to_vec();
++            Ok(())
++        }
++        fn original_string(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++        ) -> Result<Vec<u8>, CmdError> {
++            panic!("this stage has no String selection obligation")
++        }
++        fn probe(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++            stage: NativeBooleanTruthProbe,
++        ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, CmdError> {
++            self.calls.push(match stage {
++                NativeBooleanTruthProbe::Scalar {
++                    kind: NativeScalarGetterKind::Long,
++                    ..
++                } => "long",
++                NativeBooleanTruthProbe::Scalar {
++                    kind: NativeScalarGetterKind::Double,
++                    ..
++                } => "double",
++                _ => panic!("unexpected reached primitive"),
++            });
++            Ok(self
++                .outcomes
++                .pop_front()
++                .expect("each reached probe has a supplied outcome"))
++        }
++        fn getter_failure(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++            _: NativeScalarGetterKind,
++            _: NativeScalarGetterFailure,
++        ) -> Result<CmdError, CmdError> {
++            if self.refuse_rendering {
++                self.first = Some(original_cause());
++            }
++            Ok(CmdError::new_bytes(
++                b"retained primitive diagnostic".to_vec(),
++            ))
++        }
++        fn publish_intermediate_failure(&mut self, error: CmdError) -> Result<(), CmdError> {
++            self.calls.push("publish");
++            self.result = error.message_bytes().to_vec();
++            if self.refuse_publication {
++                self.first = Some(original_cause());
++            }
++            Ok(())
++        }
++        fn logical_operand_failure(
++            &mut self,
++            (): &(),
++            _: NativeBooleanTruthProtocol,
++            _: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
++        ) -> Result<CmdError, CmdError> {
++            panic!("Jim stages retain their actual primitive failure")
++        }
++    }
++
++    fn original_cause() -> NativeExecutionError {
++        NativeExecutionError::ValueAccessRefusal(
++            NativeValueAccessRefusal::CommandProtocolUnavailable("original publication callback"),
++        )
++    }
++    fn owner() -> PublicationOwner {
++        PublicationOwner {
++            calls: Vec::new(),
++            outcomes: [
++                Err(NativeScalarGetterFailure::CachedNonInteger),
++                Ok(NativeScalarGetterValue::Double(17.0)),
++            ]
++            .into(),
++            result: b"prior result".to_vec(),
++            first: None,
++            refuse_publication: false,
++            refuse_rendering: false,
++        }
++    }
++    fn protocol() -> NativeBooleanTruthProtocol {
++        NativeBooleanTruthProtocol::for_scalar_getter(
++            NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))
++                .unwrap(),
++            NativeBooleanTruthPurpose::ConditionalJump,
++        )
++    }
++
++    #[test]
++    fn intermediate_failure_is_published_before_success_and_remains_observable() {
++        // Source/API control only: supplied stage outcomes are not original Jim objects.
++        // naming.numeric.original-primitive-boolean-vs-expression-truth
++        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
++        let mut owner = owner();
++        assert!(original_boolean_truth(&(), protocol(), &mut owner).unwrap());
++        assert_eq!(owner.calls, ["term", "long", "publish", "double"]);
++        assert_eq!(owner.result, b"retained primitive diagnostic");
++        assert!(owner.first.is_none());
++    }
++
++    #[test]
++    fn first_host_from_publication_stops_every_later_probe() {
++        // Source/API control; this tests the shared settlement owner, not native conversion.
++        // naming.numeric.original-primitive-boolean-vs-expression-truth
++        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
++        let mut owner = owner();
++        owner.refuse_publication = true;
++        let error = original_boolean_truth(&(), protocol(), &mut owner).unwrap_err();
++        assert_eq!(error.native_execution_refusal(), Some(&original_cause()));
++        assert_eq!(owner.calls, ["term", "long", "publish"]);
++        assert_eq!(owner.outcomes.len(), 1);
++        assert_eq!(owner.result, b"retained primitive diagnostic");
++    }
++
++    #[test]
++    fn first_host_from_rendering_wins_over_a_returned_guest_record() {
++        // Source/API control; no original external provider outcome is inferred.
++        // naming.numeric.original-primitive-boolean-vs-expression-truth
++        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
++        let mut owner = owner();
++        owner.refuse_rendering = true;
++        let error = original_boolean_truth(&(), protocol(), &mut owner).unwrap_err();
++        assert_eq!(error.native_execution_refusal(), Some(&original_cause()));
++        assert_eq!(owner.calls, ["term", "long"]);
++        assert_eq!(owner.result, b"original operand");
++    }
++}
+--- a/rust/tcl-cmd-core/src/regex.rs
++++ b/rust/tcl-cmd-core/src/regex.rs
+@@ -3979,7 +3979,7 @@
+         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
++        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+         fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+--- a/rust/tcl-cmd-core/src/string.rs
++++ b/rust/tcl-cmd-core/src/string.rs
+@@ -1816,7 +1816,7 @@
+         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
++        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
+             Ok(())
+         }
+         fn retain_index_failure(&mut self, _error: &crate::CmdError) {
+--- a/rust/tcl-cmd-core/src/native_numeric_float_tests.rs
++++ b/rust/tcl-cmd-core/src/native_numeric_float_tests.rs
+@@ -313,6 +313,15 @@
+     assert_eq!(environment.state().unwrap().errno, 0);
+ }
+ 
++fn field(line: &str, key: &str) -> String {
++    line.split('\t')
++        .find_map(|part| {
++            let (name, value) = part.split_once('=')?;
++            (name == key).then(|| value.to_owned())
++        })
++        .unwrap()
++}
++
+ #[test]
+ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and_errno() {
+     // naming.numeric.original-capi-scalar-publication-width
+@@ -350,14 +359,7 @@
+         b"1.0",
+         b"1\0X",
+     ];
+-    let field = |line: &str, key: &str| -> String {
+-        line.split('\t')
+-            .find_map(|part| {
+-                let (name, value) = part.split_once('=')?;
+-                (name == key).then(|| value.to_owned())
+-            })
+-            .unwrap()
+-    };
++
+     let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+     let environment = tcl_host_c_abi::NativeNumericEnvironment;
+     let mut count = 0;

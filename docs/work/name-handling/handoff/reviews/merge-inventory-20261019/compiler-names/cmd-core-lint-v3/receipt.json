@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-23T01:22:27.618758+00:00",
+  "status": "offtree draft19 lint corrections; v1mechanical18 plus pure fixture-field helper extraction; no Cargo/typecheck/Clippy",
+  "paths": [
+    {
+      "path": "rust/tcl-cmd-core/src/clock.rs",
+      "before_sha256": "0117f2b7d08905dda3d36a9445473b958736b9b494085cce8bdfefd1e4f8960e",
+      "after_sha256": "26dd3c11e11120cb26078dfa710526dd5be292ba029d4cb17d3c91d9863ccb08"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/list.rs",
+      "before_sha256": "01e3ef11cb6d289cf0792cf6bbd2c5ba64928ee4b576bb58e5fa43570ad5fdeb",
+      "after_sha256": "2410d577c3590d84e2e708696f56068d837ec3cc08e95b6571fd9dc4bba6abcd"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/lsearch.rs",
+      "before_sha256": "dc5a3e2524e1ece732dab0c7504b45427e838389c5e814c47551c553e139e00d",
+      "after_sha256": "100761e3434e640d160cc10fafcf5ea3681708d30467eb4dc89e1f4a65a8cb86"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/native_boolean_truth.rs",
+      "before_sha256": "369b19f85d6bf9a669967e89b26ed07bb2156371052172b0981d59cefedcd589",
+      "after_sha256": "b35820a925ae9659dee3267bfa72d6b5d4578f01d393ef61de9aa4c613d4494a"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/regex.rs",
+      "before_sha256": "c97883022ec6f2d64f3da497527db961530f5c0217a931b2e8c30c95e50cc299",
+      "after_sha256": "794c70bac5dd7172ddd35b21ab77d06e88631777ae2d63a1782196e7768f6c53"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/string.rs",
+      "before_sha256": "c4d71ed1fc25154d0dbc8a52ea875612b5cc081456e615acf473914ef7f5f490",
+      "after_sha256": "de6a03260b8fc08baa3e78d5f484d507cc4d2b40871418bc638c4b6724ca4e0f"
+    },
+    {
+      "path": "rust/tcl-cmd-core/src/native_numeric_float_tests.rs",
+      "before_sha256": "a7561f9e14c5d345ca6d0da8d7034c8d98c4acbc4f12d529d9806f82d0f0cd29",
+      "after_sha256": "7864dc779ebe45ba056a95ac9f28c584f85ede79536bbb81a1e9c4e4dcccbea6"
+    }
+  ],
+  "addressed": 19,
+  "remaining": "none of19 locally confirmed by Clippy; authored candidate only",
+  "preserved": [
+    "Every numeric value, fixture, assertion, runtime function body and policy",
+    "chunks_exact2 to as_chunks2.0.iter retains dropped remainder semantics",
+    "unit references pattern equivalence",
+    "test module move only; cfg and test bodies retained",
+    "Float test field closure moved to private helper, identical split/find_map/unwrap and all11call positions retained; assertions/inputs/count44 unchanged"
+  ],
+  "patch_sha256": "a1f2097308f86592a765ddfa4961505b74736cdb75767e9064b2a86f61ec79c6",
+  "rustfmt": "1.99.1 edition2024 skip_children=true syntax/format completed; no compiler typecheck",
+  "successor_reason": "v2longhelpername increased formatter wrapping; v3short private helper preserves all original callsite bytes",
+  "current_pins_match": true,
+  "peer_review": "requested compiler_resume; pending",
+  "too_many_lines_static": "CI108 body lines minus8 moved closure executable lines =>100 at existing threshold; actual Clippy unrun",
+  "v1": "f8bf6efa8c632aa743bfe0b5866388f0ea251417bdd78bc9c797a4a7ffbc8be4 mechanical18 only",
+  "v2": "44898cf7 held: longer helper name reformatted assertions and risked too_many_lines"
+}

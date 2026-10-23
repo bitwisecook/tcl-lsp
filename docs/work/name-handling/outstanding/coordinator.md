@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T01:00:41.940669+00:00
+Last updated: 2026-10-23T01:25:37.178502+00:00
 
 ## In progress
 
@@ -393,3 +393,23 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - Lost role bindings required restarting five implementation roles and a read-only coordination checker in shared tree. No duplicated external roles or Cargo queues. Overdue00:55 checkpoint records actual publication time separately; next cycle remains01:25:37UTC.
 - CI5206 exact5a418 is active;00:54 complete22-job roster3success17in_progress2skip, no named test verdict. CI5205 terminal7success20failure3skip remains older-source evidence; missing named logs unknown. No cancel/rerun or duplicate dispatch.
 - External owner headers BIG-IP18:08/perf21:00/completed triage19:57:30 remain over60minutes old; user notified, root routes blockers without taking over or refreshing their headers.
+
+### Current cycle and routing (01:25 UTC)
+
+- Delayed00:55 cycle actual01:01:11 normal-pushed8d43bc761, mappedactive7cef7, freshdepth1workfetch and productdiff0; reportprogress-report-20261023T0100Z; next reminder92050 due01:25:37.
+- CI5206 exactpublished5a418 active. Complete26-job roster at lastrootread6success7failure11in_progress2skip. Full decoded connector logs obtained for6 failed jobs; exactnamed outcomes/causes under routing. Browser2jobs same E0277 TUnpin; SpecTcl E0275 testcrate auto-traitsolver depth; strictClippy and runtime abort real.
+- Bounded peer-clear off-tree WASM763f9c9d oneprivate+Unpin and SpecTcl735d71b4 consumerrecursion_limit256 compilefixes; no canonicalapplication/typing/execution yet.
+- Compiler reportv7 static peer-clear and report14 guarded successor complete, off-tree/untyped/unrun; strictglobal/runtimeEq/caches/countguards unchanged. Existing externalperf routed frozenAPI for off-treeharnessprep only; fullold/mixedproofstillrequired before realm/interproceduralpatchacceptance.
+- VM C84 compilefailure exact91-byteinfo lead matches actualmissingglobal publication. Narrow no-explicit-code correction c12f266e reuses genuine checkedC84 AddErrorInfo route, independentb31f344bstaticclear; noapply/typing/runtime yet. Explicit compiler codes unchanged/residual.
+- Nextfixedproduct3b1 compiler49 preserves36filters49tests/fullseals/180sperexecutablerealwatchdog; unqueued untilLSP20actualclosure. Integrate report/build/runtime corrections onlyafter49 to preserve its exactbaseline.
+- ExternalBIGIP18:08/perf21:00/completedtriage19:57 headers remainstale over60minutes; usernotified, no duplicates/takeover/headerrefresh.
+- Cycle mustfreshdepth1fetch/FF, updateofficialwriter/agenttable/freshness/fullWIPexcludingzzprobes, freshfetch/rebase/normalpushproductequality, checkactualtarget/tmpdisk, rearm01:55:37. All8sectionF/verified0unchanged; noPR/merge/tag/release/targetcleanup.
+- 01:22:01 adhoc normal-pushed7b53d50568fa66989a81d1feb145026743893d1b, mappingactive57a7acd, freshdepth1fetch/rebase/productdiff0. It includesexactcurrentCIscopedjoins,partialLSPgroup, reportv7 handoff/buildfixproposals; regular01:25 timerunchanged. No productchange/admission.
+- CI5206 logs nowdecoded8jobs: noTommath1091raw observations/1090unique=982PASS108FAIL, exact16baselineP2F/1057of2147withoutterminal; onesame-PASSduplicate child reconciled/provenancepreserved. WASMreal-link16/9 exact7P2F+2unmatcheFAIL; WASI22unitPASS then6/3 host/exact3P2F; shutdown12unreached. Keepseparateledgers nooverlapaggregate.
+- Main4testandlisting E0275 blocks allnamedoutcomes; SpecTclcompat sameconsumertraitdepth. Twobrowsergates E0277 sameTUnpin; peer-clearedminimalsource/testcompilefixes stilloff-tree. CurrentrustcheckCargo713summaryerrorinstances19cmdcore182VM512Compiler, notunique census; mechanicalownertriage active, noallows.
+- FirstactualLSP20servergroupfoldercontextPASS1/1 at01:13:59,15.71s; build0/0, freshartifact2054dc36before/after/archivehash stable. Completepartialgroupreceiptsinclinitialsource/providerseals published, finalwhole20sealsandremaining19pending.Corelibcompilationactive; do notclaimfullacceptance.
+- CCG newhostedABItestonlyv3b23e independentnamesa1602ea7CLEAR afterexportuniqueness/completioncleanup/tuplefix. ExistingdocumentedABI topGenericInvoke=3i32, Generalvoid; originalset/query42 C Tcl9.0.4PASS; strictotherGeneral/compiledargv/manifestnegativeassertions retained. No shippingemitterchange, nointegration/type/link yet.
+- VMsemantic-onlycandidatec12f independentb31fCLEAR (C84/noexplicitcodeonly), post-fixoriginalcatch+boundary3 plan0a255221 helperreview1d177008CLEAR. Newobserverbe669 remainsunapplied. Current16noTommath baselineP2Fs needexactdefaultfeature/noengineflavor, notolderenginefull5 orrepresentative19 substitute.
+- Rootsource/test/provider HOLD; nextfixedproduct49beforepost49candidatebatch(reportAPI,2compilefixes,VMsemanticfix,CCGtestABI). No newCargobuildqueues/manualtargetcleanup. Actualmetadata0W scopedtyping; allreleaseF andverified0 stayopen.
+- 01:24:20 CI5206 connectorfirstpage30jobs7success13failure8in_progress2skip; completenessnotproved bywrapper. Main1/2/3/5,heavy,e2epartitionsactive; main4compileblocked. Latestfreshdepth1workfetchconfirms7b53d5056remote, publisherFFnext.
+- Current18cmdcoremechanical lintfixesinprep; compiler512currentprimarydiagnosticsconfirmedfromactualANSIlog, mechanicalonlysubsetinprep. No codeintegration/Cargoqueue. VM16protocolreviewcaughtfalsezero-warningclaim inheritedoverwrite; v1notauthorizedforrun, immutablecorrectedv2required.
