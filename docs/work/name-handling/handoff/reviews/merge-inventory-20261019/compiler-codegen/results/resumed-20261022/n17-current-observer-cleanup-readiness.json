@@ -1,0 +1,28 @@
+{
+  "check_only_output": {
+    "module_removed": false,
+    "other_paths_mutated": false,
+    "status": "check-only, no mutation",
+    "target_restored_sha256": "a46e9deccdc44e9014b053069130bf3eb7e85a92e836705c0ef7385eaa0a8ff1"
+  },
+  "current_preconditions": {
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1"
+  },
+  "exact_future_mutation_scope": [
+    "remove one owned module declaration and one report call from pack_source_e2e.rs, restoring exact original SHA a46e9de...",
+    "delete only owned support/derived_first_decline.rs; no production source, test assertions or other files"
+  ],
+  "limits": "No cleanup apply, Cargo, Git or source mutation; valid measurement does not imply tests passed. Historical untoggle.py is unrelated and stale.",
+  "original_cleanup_receipt_sha256": "6461476cbc711133b6761ea806d4aa26a9a48f83954a5cd30c796ebc1575b2d6",
+  "proposal_patch_sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+  "script_path": "/tmp/ccg-derived-first-decline-v4/cleanup.py",
+  "script_sha256": "9675615646fc0d96839fd6437b4a9e9e91db238057c49ca1ef2f4c1e99f712da",
+  "status": "EXISTING_IMMUTABLE_INVERSE_CHECK_ONLY_CURRENT; APPLY_HELD",
+  "utc": "2026-10-23T06:27:40+00:00",
+  "wait_for": [
+    "root-authorized guarded direct3 v6 actual exact3 receipt: both original N17 selectors each one selected/start/summary/name, source/provider/artifact/owner lifecycle and warning gates valid; retain full N17G2 parent/child first-decline and known SSA route traces plus actual original test outcomes",
+    "root-authorized guarded separate pack-hook exact2 v1 actual exact2 receipt: live const-fold/O129 and no-host negative each one selected/start/summary/name with same guards; record outcomes",
+    "root review of measured facts and assigned source window; source46 successor pins and any original51 obligations assessed before apply"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T06:33:06.532307+00:00",
+  "scope": "Exact original diagnostic11 completed subgroup10PASS1FAIL only; whole58 still running",
+  "archive_sha256": "a83602b482420236ebb52bd378c8eb51c9030ab167a0f4caba19b22273710bdc",
+  "archive_members_verified": 80,
+  "current_live_payloads_verified": 77,
+  "aggregate_sha256": "3c162d7e8b646ed8879c0b03372745a13cc134313eeefc488d563c81cb35a1aa",
+  "live_rows_exact": true,
+  "historical_raw_pins_verified": true,
+  "observed_guards_valid": true,
+  "warnings": 0,
+  "historical_exact_selector_transitions": {
+    "FAIL->PASS": 9,
+    "PASS->PASS": 1,
+    "FAIL->FAIL": 1
+  },
+  "test_change_caveat": "Selectors are exactly joined; G4 source46 includes root-authorized source-Normal/asserted authored-target corrections and separate genuine Conditional fixture, so transition is observed test outcome, not unchanged-test production-only causal attribution. No baseline/regression acceptance donated.",
+  "release_admissions": []
+}

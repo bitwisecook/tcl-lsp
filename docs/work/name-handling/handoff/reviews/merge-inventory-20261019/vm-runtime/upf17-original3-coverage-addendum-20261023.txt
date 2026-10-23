@@ -1,0 +1,36 @@
+UPF17 existing-test audit: original3 coverage addendum
+Recorded 2026-10-23T06:25:46Z. Static inspection only; no Cargo, source, GO or Git action.
+
+Existing acceptance map: /tmp/vm-runtime-c1-c2-acceptance-map.json, target
+ tcl-spectcl/upf_hooks. This map records the exact existing two selectors; it
+ is not itself an authorized executable lifecycle protocol.
+Existing original3 protocol: /tmp/vm-spectcl-original3-v2/{plan.json,suite.py,
+ run.sh,launch.py}; v1 is preserved. Both remain unrun and select no UPF target.
+
+Original3 exact tests and scope:
+* rust/tcl-spectcl/tests/workspace_packs.rs:211
+  a_warm_cache_produces_the_identical_load: cold/warm pack-command-notice shape
+  and cache-key equality, followed by cache-deletion/rebuild shape equality.
+* rust/tcl-spectcl/tests/workspace_packs.rs:796
+  a_manifest_that_places_nothing_does_not_lift_its_pack: malformed or unplacing
+  manifest retains Transitive tier, alias_of None and RuntimeBacking::None,
+  with the required capability-narrowing notice.
+* rust/tcl-spec-studio/tests/spectcl_ports.rs:407
+  every_port_loads_and_matches_its_shipped_spec: authored example port loading
+  and declared-versus-shipped specification parity.
+These are cache disposability, package capability and authoring parity checks;
+none establishes filesystem watcher/server reload or worker host lifecycle.
+
+UPF2 executes 97 actual production-host hook calls over all 17 programs but
+uses explicit host installation and direct slot invocation in a fixed Tcl8.6
+context. Current guarded Spec66 omitted UPF2. Current-product finite UPF2
+measurement remains a release gap; historical 2/2 and metadata EDA tests do not
+close it. Automatic registry/thread-worker installation, LSP option/role
+consumer routing, reload/generation/trust/target/environment changes,
+cross-worker and open/closed/source/class contexts remain separate obligations.
+Root will schedule finite UPF2 after current108/source decision using reviewed
+executor guards. No duplicate runner prepared or positive runtime proof claimed.
+
+Original scheduling/audit receipt remains immutable:
+upf17-existing-test-audit-next-plan-20261023.txt
+SHA256 efa5cb534da5902cc9669dffe8a3627dda6f1785f410f0e871c9b8304b4ffdc7

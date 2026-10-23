@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T06:27:41.735456+00:00",
+  "status": "STATIC SOURCE-ROLE ROUTE; original assertion preserved, no policy inferred from missing roles",
+  "actual": "Both aliases report captures current-outputOk. Module named0/bodyunits3; actual roles Installed(site227,value241..256), AllocatedSource OriginalDeclaration(site531,value546..566), NativeSource OriginalDeclaration(site227,span227..256).",
+  "production_route": [
+    "analyser diagnostics builds with supplied ResolvedAnalysisInput/entry. CompilationUnit lower_and_build_cfg uses Lowerer::with_config with source metadata, CompileTarget::Analysis, not standalone authoring constructor.",
+    "Lowerer::logical_structured_invocation tries actual Logical/source alternatives, then original_native_source_structured_invocation for nonLogical/nonHosted retained inputs.",
+    "registry_invocation/hosted_structure.rs original_native_source_structured_invocation explicitly limits hooks to Set/Return/Expr/If/Switch/While/For/Foreach/Lmap/Catch/Try; Proc and NamespaceEval excluded.",
+    "Named and NamespaceScript constructors live in lower_proc/lower_namespace_eval or admitted bytecode enterednamespace path; source-only declaration coverage is retained independently by installed/native/allocated body unit issuers.",
+    "Report inventory loops actual module.procedures plus complete body_lowerings; actual capture fully succeeded, no evidence collector omitted an issued body."
+  ],
+  "blocked_choice": "Determine intended2256 full actual-role contract and existing source-body policy before restoring missing production role or correcting fixture. Adding excluded hooks/promoting source-only units is not a routine ID correspondence fix. No assertion update or Native/Logical/frame/activation fallback authorized here.",
+  "source_pins": {
+    "rust/tcl-compiler/src/lowering/mod.rs": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351",
+    "rust/tcl-compiler/src/registry_invocation/hosted_structure.rs": "1f24a7162408b4d879bf260d66578bb9741f2171bdf17f145ee746216132cdc2",
+    "rust/tcl-compiler/src/compilation_unit.rs": "7eb7a987c0c1b9fc56e7b5b1c456b7e9a1988a910c102837cdb1844a35697a83"
+  },
+  "next_hosted_measurement": "Prepared cfgtestREPORT puretrace0d761360, NamesstaticCLEARdc285d8c, parkeduntilcurrent58closure/newvalidatedproduct; distinguishes eventcard owns_procedure from event_word originalproducer Option. No hosted semantic repair from coarse firstrow evidence."
+}

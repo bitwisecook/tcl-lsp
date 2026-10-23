@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T06:24:20.624625+00:00",
+  "status": "OFFTREE pure hosted-event first-refusal trace only; no semantic repair/integration",
+  "patch_sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662",
+  "files": {
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": {
+      "before": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "final": "df35c8a771b88f7e5f92aa29b6eeca69ed99be691b61ca39d75cdecfbb480a62"
+    },
+    "rust/tcl-compiler/src/lowering/mod.rs": {
+      "before": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351",
+      "final": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8"
+    }
+  },
+  "env": {
+    "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+  },
+  "actual_gap": "Current hosted report trace authenticdomain+eventpushpasses then capture.bodiesfalse. Need distinguish exact eventcard/body join vs actualoriginal-eventword issuer. No existing trace covers both.",
+  "policy": "Each original Option evaluated once in same order; existing if/OR shortcircuit and clones retained. cfgtest+env logging only, no new getters/observer/fields/roles/authority/assertions changed. Original13 selector unchanged, later genuinehosted exactselector sufficient with existingguards.",
+  "checks": "Currentpins/dryrun0/pinnedfmtPASS; Rusttyping/runtimeUNRUN; no source/Cargo/Git/GO."
+}

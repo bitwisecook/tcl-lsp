@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-23T06:25:44.006421+00:00",
+  "verdict": "CLEAR bounded pure trace static review; untyped/unrun",
+  "patch_sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662",
+  "files": {
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": {
+      "before": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "final": "df35c8a771b88f7e5f92aa29b6eeca69ed99be691b61ca39d75cdecfbb480a62"
+    },
+    "rust/tcl-compiler/src/lowering/mod.rs": {
+      "before": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351",
+      "final": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8"
+    }
+  },
+  "checks": [
+    "Independent exact current before/final pins, zero-fuzz/no-offset shadow apply and pinned1.99.1 edition2024 fmt check PASS.",
+    "Report event-loop helper wrappers pass original Option/bool exactly once and return it unchanged; original get/or_else/query/if shortcircuit/clone order retained.",
+    "Lowerer helper returns generic Option<T> unchanged; only cfgtest plus dedicated existing REPORT env prints availability. No production log/env access and stage consumed under nottest.",
+    "Original candidate iteration/map/collect Option order unchanged; original metadata context let-chain remains conditional; original words/index/value computations and sole admitted clone unchanged.",
+    "No extra owner/selection/observer query, permissions, runtime authority, assertion, source role, count, or guard changes.",
+    "Two hunks remain independent of Installed candidate ede9ac69; no union/integration performed."
+  ],
+  "limits": [
+    "Actual hosted firstdeclining producer stage still needs fresh trace. New build/runtime not run, source HOLD.",
+    "Current compiler58 report13 9PASS4FAIL is measured separately; no claim trace change fixes failures."
+  ],
+  "shadow": "/tmp/names-hosted-trace-peer-17tq2hn8"
+}

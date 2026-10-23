@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T06:19:50Z: repaired897b source46 eight-package v9 actual PASS0errors/0warnings/allguards remains compilation only; LSP23v5/Native15v14 are frozen and prerequisites satisfied, own GOs absent in last observed state. Root owns compiler58/current allocation. Read-only editor check historical TS6133 not reproduced, nameGeneration.ts Prettier PASS; full tsc FAIL only missing canonical JSON+dependent implicit-any. Both JSON sources already exist; exact two Makefile destination targets are mkdir/cp only, no xtask needed. Nonexecuting pinned plan prepared; no copy/generation/Cargo/source/Git byLSP. All editor/runtime/host claims remain open.
+Current status 2026-10-23T06:30:14Z: repaired897b source46 eight-package v9 actual PASS0errors/0warnings/allguards remains compilation only. Root compiler58 active; LSP23v5/Native15v14 frozen/v9 prerequisites satisfied, root alone allocates. OFFTREE exact editor source/config plus only two existing-origin canonical JSON copies passes direct noEmit/incrementalfalse TypeScript at06:29:30 with451 actual input hashes; all12800 canonical editor/dependency inputs unchanged. Historical TS6133 not reproduced, nameGeneration Prettier PASS. Canonical source generated layout and full editor/browser/runtime/shipping acceptance remain open. No canonical copy/generation/Cargo/Git/GO byLSP; ILX producer follow-up belongs compiler.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T06:19:50Z
+Last updated: 2026-10-23T06:30:14Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T06:19:50Z: read `lsp/editor-ts-readonly-20261023/canonical-json-prerequisite-plan.json` for the two exact existing copy-only Makefile targets and pinned noEmit retry; DO NOT execute during root HOLD. Actual v9 compilation PASS remains scoped. Frozen repaired LSP23v5/Native15v14 own allocation remains root-only; remain available for actual first-gate results, preserve assertions/source-purpose and user2231 opaque stop. No new protocol or full host green claim.
+Latest resume pointer 2026-10-23T06:30:14Z: read `lsp/editor-ts-offtree-json-20261023/receipt.json` for scoped OFFTREE TypeScript PASS0 and exact451 inputs; original12800 canonical inputs unchanged. `lsp/editor-ts-readonly-20261023/canonical-json-prerequisite-plan.json` has future exact copy-only Makefile targets; no canonical copies executed. Full host acceptance remains open. Await root-owned LSP23 actual allocation/results after compiler58; compiler owns ILX row12 producer. Preserve original assertions/source-purpose/user2231 stop; no new protocol/Cargo/Git/source actions.
 
 
 

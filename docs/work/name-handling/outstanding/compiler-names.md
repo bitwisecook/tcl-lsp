@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T06:24:42.038459Z
+Last updated: 2026-10-23T06:32:30.377880Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**ACTUAL original diagnostic11 source46 closed10PASS1FAIL:** G4 four/N13 three/intrinsic override one allPASS, ILX stop-at-call+opaque/observer/write/foreign-body testsPASS, sole ILX supported-body test fails thirdproc at registry-words16 after first2when fixtures pass. Exact11 current selectors/counts/process/source/provider/artifact guards valid, zero warnings; whole58 still open. Complete77 rowpayloads plus group aggregate+historical source30 results/final archived losslessly80files at `source46-diagnostic11-actual/` archivea83602b4/aggregate3c162d7e/receipt54419e0a. Exact selector bijection proves9F→P/1F→F/1P→P versus source30; G4 authorized assertion corrections recorded, no unchanged-test causality/fullbaseline/regression acceptance. Separate new genuineConditional scoped-positive row14 PASS1/1, authentic fixture premise+refusals preserved, archived separately under `source46-g4-actual4/genuine-conditional-positive-*`. Compiler owns ILX producer followup; Names Installed E003 ede9ac69 remains staticpeerCLEAR, off-tree/untyped/unrun. Source/provider HOLD.
 
 **ACTUAL original G4 source46 PASS4/4:** compiler58 rows3–6 each exact1 PASS/exit0, complete process and artifact/source/provider/no-warning guards valid, actual artifactdf72eea9. Existing actual source46 assertions preserved; no postrun expectation edits. Lossless28file archive+rows/current pins `source46-g4-actual4/` (receiptf329a20e/archive1c0e2e6c). Separate new genuineConditional scoped positive still pending; diagnostic11/N13/ILX and whole58 remain open. Names Installed E003 ede9ac69 remains off-tree staticpeerCLEAR ef7db97f, untyped/unrun; full candidate/source before+after/peer lossless archive d1eae4cc/receiptf2f1306f under `source46-report13-e003-first-gate/`.
 
@@ -238,6 +240,9 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+Current 2026-10-23T06:32:30.377880Z: original diagnostic11 CLOSED10PASS1FAIL, all per-row guards/0W; exact old-source selector transitions9F→P/1F→F/1P→P. Genuine Conditional scoped-positive row14 separatelyPASS. Sole ILX thirdproc word-carrier refusal compiler-owned. Installed E003 ede9ac69 staticpeerCLEAR/untyped/unrun; full evidence+candidate archived. Whole58 still running, v9 compilationPASS0W only, source/provider HOLD.
+
 
 Current 2026-10-23T06:21:30.392575Z: report13 actual9PASS4FAIL; Names E003 first refusal UnitInstalled empty18..18 proven, candidate ede9ac69 off-tree peer CLEAR ef7db97f; old a9c4 inapplicable. Alias+hosted compiler-owned. Compiler58 still running, rows2+3 PASS; monitor G4/N13/ILX as they close. Compilation v9 PASS0W only, source/provider HOLD.
 

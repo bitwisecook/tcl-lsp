@@ -1,0 +1,164 @@
+{
+  "utc": "2026-10-23T06:32:30.374202+00:00",
+  "status": "ACTUAL new genuine Conditional scoped-positive PASS1/1; separate from original4G4 and diagnostic11 counts",
+  "row": {
+    "actual_selected": 1,
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "mtime_ns": 1792735417040703725,
+      "package": "tcl-compiler",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "size": 263431912,
+      "stderr_sha256": "fc0ec9f7a82c4fd769d6a426dedbe952130d4140bd3aa216e8de51810ee51802",
+      "stdout_sha256": "ddf30c006dfa2ed763bbc11c17394667840c2440426fae0791acdaff7cbb42ec",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler"
+    },
+    "artifact_stable": true,
+    "exit_code": 0,
+    "expected_selected": 1,
+    "index": 14,
+    "label": "14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+    "log_at_cap": false,
+    "package": "tcl-compiler",
+    "process": {
+      "argv": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "artifact_sha256_after": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_sha256_before": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_unchanged": true,
+      "cap_bytes": 20971520,
+      "cleanup_signals": [],
+      "complete": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "disk_floor_bytes": 2147483648,
+      "disk_paths": [
+        "/workspace",
+        "/tmp",
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z"
+      ],
+      "elapsed_seconds": 1.636305444,
+      "ended_utc": "2026-10-23T06:30:26.387079+00:00",
+      "exit_code": 0,
+      "group_empty_before_parent_reap": true,
+      "group_scan_attempts": 2,
+      "last_group_scan": {
+        "complete": true,
+        "members": [],
+        "vanished_pids": []
+      },
+      "minimum_free_bytes": 3742081024,
+      "owned_live_group_members": [],
+      "parent_exit_observed_monotonic_ns": 61685533788253,
+      "parent_waitid_wnowait": {
+        "si_code": 1,
+        "si_pid": 293785,
+        "si_status": 0
+      },
+      "pid": 293785,
+      "pid_start_ticks": 6168453,
+      "process_group": 293785,
+      "retained_bytes": 1845,
+      "spawn_return_monotonic_ns": 61684533593020,
+      "spawn_return_utc": "2026-10-23T06:30:24.752522+00:00",
+      "stderr": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.stderr",
+      "stderr_bytes": 1610,
+      "stdout": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.stdout",
+      "stdout_bytes": 235,
+      "stop_reason": null,
+      "timer_armed_before_spawn": true,
+      "timer_armed_monotonic_ns": 61684531874540,
+      "timer_armed_utc": "2026-10-23T06:30:24.750806+00:00"
+    },
+    "providers_stable": true,
+    "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+    "source_stable": true,
+    "started_counts": [
+      1
+    ],
+    "stderr_sha256": "25cf4439bce5375516e62d9c6ff28acbbc20fbefd90d5452641bff39c35aaf6b",
+    "stdout_sha256": "0f4d738b0d87607c411ea49ff067029dffc1f783ada3bce44dc64040e5052df4",
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": false
+  },
+  "files": {
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.command": "705d12a894a4bd957ef7be4ee01822f904a1ec70f40f815d7b785aed8d881acd",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.process.json": "c85d1926f9e6b8de780d07342a1023180aaba1868fb369468417d09903503951",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.result.json": "4f3855983ed979f99632511db763cb9d19c3443f95acb375af318fdfb73de086",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.sha256.json": "84f8c000c9726abde61415345e930c61f4b56e7e5c4d3d8f63a431f292792cd0",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.stderr": "25cf4439bce5375516e62d9c6ff28acbbc20fbefd90d5452641bff39c35aaf6b",
+    "14-14-new-owner-controls4-scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry.stdout": "0f4d738b0d87607c411ea49ff067029dffc1f783ada3bce44dc64040e5052df4"
+  },
+  "archive_sha256": "7d52debdf671af54e5f986706161400e12d68837a9eef09169bed3feff6e9e8b",
+  "scope": "Authentic runtime fixture premise required by assertions; no synthetic reachability/expectation inversion. Whole58 still open."
+}

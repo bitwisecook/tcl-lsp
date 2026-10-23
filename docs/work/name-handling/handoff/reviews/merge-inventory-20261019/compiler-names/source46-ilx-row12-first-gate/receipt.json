@@ -1,0 +1,166 @@
+{
+  "utc": "2026-10-23T06:29:46.793670+00:00",
+  "status": "ACTUAL completed ILX row12 FAIL0/1; first2 when positive loops proceed, third proc loop refuses exact original word carrier; no aggregate result",
+  "row": {
+    "actual_selected": 1,
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "mtime_ns": 1792735417040703725,
+      "package": "tcl-compiler",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "size": 263431912,
+      "stderr_sha256": "fc0ec9f7a82c4fd769d6a426dedbe952130d4140bd3aa216e8de51810ee51802",
+      "stdout_sha256": "ddf30c006dfa2ed763bbc11c17394667840c2440426fae0791acdaff7cbb42ec",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler"
+    },
+    "artifact_stable": true,
+    "exit_code": 101,
+    "expected_selected": 1,
+    "index": 12,
+    "label": "12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body",
+    "log_at_cap": false,
+    "package": "tcl-compiler",
+    "process": {
+      "argv": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "artifact_sha256_after": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_sha256_before": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_unchanged": true,
+      "cap_bytes": 20971520,
+      "cleanup_signals": [],
+      "complete": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "disk_floor_bytes": 2147483648,
+      "disk_paths": [
+        "/workspace",
+        "/tmp",
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z"
+      ],
+      "elapsed_seconds": 7.532726439,
+      "ended_utc": "2026-10-23T06:28:16.231726+00:00",
+      "exit_code": 101,
+      "group_empty_before_parent_reap": true,
+      "group_scan_attempts": 2,
+      "last_group_scan": {
+        "complete": true,
+        "members": [],
+        "vanished_pids": []
+      },
+      "minimum_free_bytes": 3749138432,
+      "owned_live_group_members": [],
+      "parent_exit_observed_monotonic_ns": 61555309212834,
+      "parent_waitid_wnowait": {
+        "si_code": 1,
+        "si_pid": 292675,
+        "si_status": 101
+      },
+      "pid": 292675,
+      "pid_start_ticks": 6154848,
+      "process_group": 292675,
+      "retained_bytes": 1185,
+      "spawn_return_monotonic_ns": 61548491095355,
+      "spawn_return_utc": "2026-10-23T06:28:08.710026+00:00",
+      "stderr": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.stderr",
+      "stderr_bytes": 771,
+      "stdout": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.stdout",
+      "stdout_bytes": 414,
+      "stop_reason": null,
+      "timer_armed_before_spawn": true,
+      "timer_armed_monotonic_ns": 61548480108019,
+      "timer_armed_utc": "2026-10-23T06:28:08.699168+00:00"
+    },
+    "providers_stable": true,
+    "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+    "source_stable": true,
+    "started_counts": [
+      1
+    ],
+    "stderr_sha256": "8b091043a63cca8dcbe98a24b25fc4d192b4a4e10313bab2fff8d143ee534481",
+    "stdout_sha256": "840350db3945e202082709567805aaf3d4164336d4e22edcbf58ee11ca02a45a",
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": false
+  },
+  "files": {
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.command": "118df506d667569bf9204d6085efaa73a0b06b18fe305788a23b7995f8f22736",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.env.json": "e85b50e197a2aab3a4c3a7e855d52d81ab470502bc008b684fd063b13f679190",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.process.json": "c007b841112c9e9628f42dbf9d7ff240440b1bf2ad763acaa94b00f1bc30a967",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.result.json": "2c369cb40f8e32f69d98e9f601d84feb2ba45db302cf100bc7e7a4593a4ced52",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.sha256.json": "429a42d12fc18955464a1b805100aa47c9d2d49662bf6c9fd9addc020f827734",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.stderr": "8b091043a63cca8dcbe98a24b25fc4d192b4a4e10313bab2fff8d143ee534481",
+    "12-12-diagnostic11-original-first_remote_operand_preserves_supported_true_same_frame_source_body.stdout": "840350db3945e202082709567805aaf3d4164336d4e22edcbf58ee11ca02a45a"
+  },
+  "archive_sha256": "b5e4c57ce14e923cb0461e2bafa0ecafc77da91034eeb66f180ef2b9c88ca897",
+  "source": "proc invoke {} {set h [ILX::init p e]; ILX::call $h m}",
+  "trace": "body-inventory count1 then registry-words offsetSome(16), command-words16, calls0!=1 source_remote_first_operand.rs1021",
+  "ownership": "Routed existing LSP owner via followup_task, no duplicate repair/source/Cargo/Git/GO; opaque-stop/assertions preserved."
+}

@@ -2,11 +2,14 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T05:56:31+00:00 (ACTIVE; actual v9 typing PASS, runtime pending)
+Last updated: 2026-10-23T06:27:40+00:00 (ACTIVE; current observer inverse check-only)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Exact N17 observer cleanup candidate reused, 06:27Z:** immutable `/tmp/ccg-derived-first-decline-v4/cleanup.py` SHA `96756156` already supplies inverse of `041eb0e4`; original dry-copy receipt SHA `6461476c`. Current **check-only** invocation against canonical source passes: `pack_source_e2e.rs` observer SHA `e1ed4fb2`, owned support SHA `6f430e9f`, predicted restored original target SHA `a46e9dec`, and no mutation. It removes only one owned module declaration, one report call and the owned support file, preserving production code and all original test assertions. Readiness receipt `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/n17-current-observer-cleanup-readiness.json` SHA `193c5686` records exact scope and wait conditions. Apply remains **HELD** for actual guarded direct3 exact3 N17G2 traces/original outcomes and separate hook2 exact2 live-fold/O129/no-host outcomes, followed by root source-window decision and new source/protocol pins. Historical `untoggle.py` is unrelated/stale and must not run. No source, Git, Cargo, provider or GO action by this role.
+
 
 **Actual repaired-source eight-package v9 typing, 05:41:37Z:** root reports closed **PASS, 0 errors, 0 warnings, all guards valid** for current product HEAD `897b4f9b...` / tree `0b11e3a0...`, plan `983d3418`. Final receipt SHA `60341231`, launcher receipt SHA `22360c89`, full36 archive SHA `ea964488`; root verified these. This satisfies the typing prerequisite for codegen exact3 v6 and separate live pack-fold exact2 v1. It does **not** establish either runtime result. Compiler focused58 has the assigned build window (05:43:55 launch, parent 77511); both codegen GOs remain absent and no codegen suite has run. Retain current N17 observer until guarded diagnostic proof; historical `untoggle.py` is stale against the current absence of ZZ_CCG_ toggles and **must not be run**. Current observer cleanup, after measurement, is the separate exact inverse of `041eb0e4` in `pack_source_e2e.rs` and its owned support file. No GO, Cargo, Git, source edit or cleanup by this role.
 

@@ -1,0 +1,8 @@
+{
+  "actual-inputs-after.json.gz": "8bbc3e7ed9406416aa362a5cd5bce980a91ffd8b81bbcad6a9d3f5e316cfb57d",
+  "actual-inputs-before.json.gz": "8bbc3e7ed9406416aa362a5cd5bce980a91ffd8b81bbcad6a9d3f5e316cfb57d",
+  "offtree.py": "1c8c62ef3274404f76f3027d1ad54a3ac2b91740333808b417693efcd168cde3",
+  "receipt.json": "9b4ac71b1300d204cf803039e06944715c5dd09063c8b651d1b12de6fc862483",
+  "tsc-actual-inputs.json": "96dc48e9a07f1007c7d653ce3f1b3cbdc0440f73e8fa2a40db2fec354a5df058",
+  "typescript.log": "c0dbf5460bd0ddae426a3ff1e4037133460b94e7f1c459452224dd5e1171e841"
+}

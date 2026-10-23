@@ -1,0 +1,39 @@
+{
+  "actual_utc": "2026-10-23T06:29:30.107007+00:00",
+  "scope": "OFFTREE proposed two-generated-JSON layout TypeScript check only; no shipping/editor/browser/runtime admission",
+  "started_utc": "2026-10-23T06:29:23.367452+00:00",
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "/workspace/naming-migration-active/tcl-lsp/editors/vscode/node_modules/typescript/bin/tsc",
+    "--noEmit",
+    "--incremental",
+    "false",
+    "--pretty",
+    "false",
+    "--project",
+    "tsconfig.json",
+    "--listFiles"
+  ],
+  "cwd": "/tmp/lsp-editor-ts-offtree-json-20261023/vscode",
+  "exit_code": 0,
+  "budget_exceeded": false,
+  "log_bytes": 44425,
+  "log_sha256": "c0dbf5460bd0ddae426a3ff1e4037133460b94e7f1c459452224dd5e1171e841",
+  "tsc_input_count": 451,
+  "non_input_output": [],
+  "canonical_input_count": 12800,
+  "canonical_inputs_unchanged": true,
+  "shadow_source_config_exact_except": {
+    "src/chat/canonical/diagnostics.json": {
+      "origin": "/workspace/naming-migration-active/tcl-lsp/ai/shared/diagnostics.json",
+      "sha256": "17168a9ce3c8f9b58fc1a93db78e543e34e265d36aca8a219e90f4dd0b12121b"
+    },
+    "src/chat/canonical/manifest.json": {
+      "origin": "/workspace/naming-migration-active/tcl-lsp/ai/prompts/manifest.json",
+      "sha256": "12447e3bc7664bfe06ca9e705f29d207d48a906665e232ed1b87eddb08a465e8"
+    }
+  },
+  "default_discovered_typescript_outside_src": false,
+  "shadow_inputs_unchanged": true,
+  "node_executable_sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+}

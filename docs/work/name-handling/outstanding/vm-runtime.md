@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T06:23:59.712874+00:00 (UPF17 existing2 execute97fixedhostcalls staticallyverified; currentguardedmeasurementmissing; reusedschedulingplan only/no duplicate runner)
+Last updated: 2026-10-23T06:25:46Z (UPF17 exact2/97-call static audit; original3 scope clarified; current guarded UPF2 remains unrun)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -22,6 +22,12 @@ Actionable gap is currentproduct guarded exact2 runtime measurement. These
 tests invoke productionhostslots directly, not automaticregistry/threadworker/
 LSP option-role consumption; reload/context/generation/multiworker coverage
 remains separate. Historical2/2 and EDAmetadataPASS are not current17 proof.
+Original3 covers cache cold/warm/rebuild equivalence, manifest capability/tier
+narrowing and authored-versus-shipped port parity; it does not establish live
+server reload or worker host lifecycle. Exact paths/selectors and remaining
+C1–C2 limits are recorded in
+`vm-runtime/upf17-original3-coverage-addendum-20261023.txt`.
+No duplicate runner: root schedules UPF2 after current108/source decision.
 Source/providerHOLD; rootcompiler58run77511 remains active, Jim7 afterLSP23
 unrun; v4ownsurface staticCLEAR only. No Cargo/Git/source/GO or budget changes.
 
