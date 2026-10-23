@@ -128,48 +128,10 @@ pub fn prepare(
             .into_iter()
             .collect();
     }
-    if let ControlFlow::Break(query) =
-        crate::method_symbol::select(document.source, document.analysis, line, character)
+    if let ControlFlow::Break(items) =
+        prepare_method_item(uri, document, (line, character), documents, workspace)
     {
-        let Some(query) = query else {
-            return Vec::new();
-        };
-        let selected = if let Some(index) = workspace {
-            crate::method_symbol::candidate(index, uri, &query)
-        } else {
-            crate::method_symbol::local_candidate(
-                document.source,
-                document.analysis,
-                line,
-                character,
-            )
-        };
-        let ControlFlow::Break(Some(candidate)) = selected else {
-            return Vec::new();
-        };
-        let mut targets = documents
-            .iter()
-            .filter(|owner| candidate.uri().is_empty() || owner.uri == candidate.uri())
-            .filter_map(|owner| {
-                OriginalDeclarationIdentity::for_member_candidate(
-                    owner.uri,
-                    owner.source,
-                    owner.analysis,
-                    &candidate,
-                )
-            });
-        let Some(target) = targets.next() else {
-            return Vec::new();
-        };
-        if targets.next().is_some() {
-            return Vec::new();
-        }
-        return documents
-            .iter()
-            .find(|owner| owner.uri == target.uri())
-            .and_then(|owner| item(&target, owner))
-            .into_iter()
-            .collect();
+        return items;
     }
     if crate::definition::original_variable_cursor_retained(
         document.source,
@@ -223,6 +185,58 @@ pub fn prepare(
         .and_then(|owner| item(&target, owner))
         .into_iter()
         .collect()
+}
+
+fn prepare_method_item(
+    uri: &str,
+    document: &OriginalCallDocument<'_>,
+    position: (u32, u32),
+    documents: &[OriginalCallDocument<'_>],
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+) -> ControlFlow<Vec<CallHierarchyItem>> {
+    let (line, character) = position;
+    let ControlFlow::Break(query) =
+        crate::method_symbol::select(document.source, document.analysis, line, character)
+    else {
+        return ControlFlow::Continue(());
+    };
+
+    let Some(query) = query else {
+        return ControlFlow::Break(Vec::new());
+    };
+    let selected = if let Some(index) = workspace {
+        crate::method_symbol::candidate(index, uri, &query)
+    } else {
+        crate::method_symbol::local_candidate(document.source, document.analysis, line, character)
+    };
+    let ControlFlow::Break(Some(candidate)) = selected else {
+        return ControlFlow::Break(Vec::new());
+    };
+    let mut targets = documents
+        .iter()
+        .filter(|owner| candidate.uri().is_empty() || owner.uri == candidate.uri())
+        .filter_map(|owner| {
+            OriginalDeclarationIdentity::for_member_candidate(
+                owner.uri,
+                owner.source,
+                owner.analysis,
+                &candidate,
+            )
+        });
+    let Some(target) = targets.next() else {
+        return ControlFlow::Break(Vec::new());
+    };
+    if targets.next().is_some() {
+        return ControlFlow::Break(Vec::new());
+    }
+    ControlFlow::Break(
+        documents
+            .iter()
+            .find(|owner| owner.uri == target.uri())
+            .and_then(|owner| item(&target, owner))
+            .into_iter()
+            .collect(),
+    )
 }
 
 fn body_span(identity: &OriginalDeclarationIdentity, analysis: &AnalysisResult) -> Option<Span> {
@@ -343,33 +357,7 @@ fn procedure_target(
         return None;
     }
     if invocation.resolved_command_reference.is_some() {
-        let mut matches = documents.iter().flat_map(|document| {
-            document
-                .analysis
-                .original_procedure_declarations()
-                .filter_map(move |row| {
-                    original_declaration::invocation_targets_declaration_in(
-                        consumer.source,
-                        consumer.analysis,
-                        document.source,
-                        document.analysis,
-                        invocation,
-                        row,
-                        true,
-                    )
-                    .then(|| {
-                        OriginalDeclarationIdentity::for_procedure(
-                            document.uri,
-                            document.source,
-                            document.analysis,
-                            row,
-                        )
-                    })
-                    .flatten()
-                })
-        });
-        let first = matches.next()?;
-        return matches.next().is_none().then_some(first);
+        return resolved_procedure_target(documents, consumer, invocation);
     }
     // Positioned source advice preserves occupants and unknown observations.
     // Header coordinates alone cannot supply the missing reference.
@@ -426,6 +414,40 @@ fn procedure_target(
         [one] if one.role() == OriginalDeclarationRole::Procedure => Some(one.clone()),
         _ => None,
     }
+}
+
+fn resolved_procedure_target(
+    documents: &[OriginalCallDocument<'_>],
+    consumer: &OriginalCallDocument<'_>,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Option<OriginalDeclarationIdentity> {
+    let mut matches = documents.iter().flat_map(|document| {
+        document
+            .analysis
+            .original_procedure_declarations()
+            .filter_map(move |row| {
+                original_declaration::invocation_targets_declaration_in(
+                    consumer.source,
+                    consumer.analysis,
+                    document.source,
+                    document.analysis,
+                    invocation,
+                    row,
+                    true,
+                )
+                .then(|| {
+                    OriginalDeclarationIdentity::for_procedure(
+                        document.uri,
+                        document.source,
+                        document.analysis,
+                        row,
+                    )
+                })
+                .flatten()
+            })
+    });
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
 }
 
 fn math_target(
