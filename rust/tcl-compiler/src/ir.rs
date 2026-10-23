@@ -3256,6 +3256,50 @@ impl Module {
             )
     }
 
+    /// Bodies available for compiling a definition-time runtime entry. Original
+    /// Native cards retain source syntax only: the allocating invocation still
+    /// performs publication, and direct-call/frame authority is independent.
+    pub(crate) fn native_source_procedure_bodies_for_compilation(
+        &self,
+    ) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        self.procedures
+            .iter()
+            .filter(|(id, _)| self.procedure_ids.owns(**id))
+            .chain(
+                self.original_native_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id) && card.matches_procedure(self, procedure))
+                            .then_some((id, procedure))
+                    }),
+            )
+    }
+
+    /// Select only the exact allocating source instruction before validating
+    /// its retained Native body, so unrelated bodies need no deep comparison.
+    pub(crate) fn native_source_procedure_bodies_for_compilation_at_declaration<'a>(
+        &'a self,
+        site: &'a crate::command_binding::CommandAllocationSite,
+        span: Span,
+    ) -> impl Iterator<Item = (&'a ProcedureId, &'a Procedure)> {
+        self.procedures
+            .at_declaration(site)
+            .filter(move |(id, procedure)| self.procedure_ids.owns(**id) && procedure.span == span)
+            .chain(
+                self.original_native_declaration_body_units
+                    .iter()
+                    .filter_map(move |(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (procedure.declaration_site.as_ref() == Some(site)
+                            && procedure.span == span
+                            && self.procedure_ids.owns(*id)
+                            && card.matches_procedure(self, procedure))
+                        .then_some((id, procedure))
+                    }),
+            )
+    }
+
     /// Report an original body's source label after its actual issued ID and
     /// retained Module source owner agree. Equal labels retain separate IDs;
     /// this projection selects no callable, binding, namespace or Native entry.

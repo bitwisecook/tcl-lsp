@@ -1040,9 +1040,10 @@ impl<'a> Lowerer<'a> {
         let mut matching = self
             .input
             .module
-            .procedures
-            .at_declaration(site)
-            .filter(|(_, procedure)| procedure.span == invoke.source.span);
+            .native_source_procedure_bodies_for_compilation_at_declaration(
+                site,
+                invoke.source.span,
+            );
         let (id, procedure) = matching.next()?;
         if matching.next().is_some() {
             return None;
