@@ -84,6 +84,38 @@ async fn register_packages(backend: &Backend, source: &str) {
         );
 }
 
+fn assert_plain_tcl_has_no_provider(source: &str) {
+    assert!(
+        !Analyser::new()
+            .structure_only()
+            .analyse(source, "tcl")
+            .all_procs
+            .contains_key("::provided")
+    );
+}
+
+fn assert_dependency_available(current: &W120Availability) {
+    assert!(!current.unknowable);
+    assert!(
+        current
+            .original_available
+            .iter()
+            .any(|key| key.matches_ascii("dep"))
+    );
+}
+
+fn refinement_provider_store() -> Arc<vfs::MemoryStore> {
+    let store = Arc::new(vfs::MemoryStore::new());
+    store.upsert(
+        "/library/stable.tcl",
+        b"proc old_command {} {}\npackage prefer latest\npackage require dep 1.0".to_vec(),
+    );
+    store.upsert("/library/beta.tcl", b"proc beta_command {} {}".to_vec());
+    store.upsert("/library/dep-old.tcl", b"proc dep_old {} {}".to_vec());
+    store.upsert("/library/dep-beta.tcl", b"proc dep_beta {} {}".to_vec());
+    store
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() {
     // naming.compiler.original-analysis-metadata-context
@@ -143,13 +175,7 @@ async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() 
     );
     assert!(current.analysis.all_procs.contains_key("::provided"));
     assert!(current.is_current());
-    assert!(
-        !Analyser::new()
-            .structure_only()
-            .analyse(source, "tcl")
-            .all_procs
-            .contains_key("::provided")
-    );
+    assert_plain_tcl_has_no_provider(source);
     drop(resolver);
 
     {
@@ -263,14 +289,7 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
     // naming.server.original-package-consumer-resolution
     // docs/design/analysis/name-resolution-proofs/server-original-package-consumer-resolution.md
     // Source publications refine advice; this does not execute any loader.
-    let store = Arc::new(vfs::MemoryStore::new());
-    store.upsert(
-        "/library/stable.tcl",
-        b"proc old_command {} {}\npackage prefer latest\npackage require dep 1.0".to_vec(),
-    );
-    store.upsert("/library/beta.tcl", b"proc beta_command {} {}".to_vec());
-    store.upsert("/library/dep-old.tcl", b"proc dep_old {} {}".to_vec());
-    store.upsert("/library/dep-beta.tcl", b"proc dep_beta {} {}".to_vec());
+    let store = refinement_provider_store();
     let mut backend = crate::tests::test_backend();
     backend.store = store;
     register_packages(&backend, "package ifneeded w 1.2 {source stable.tcl}\npackage ifneeded w 1.3b1 {source beta.tcl}\npackage ifneeded dep 1.1 {source dep-old.tcl}\npackage ifneeded dep 1.2b1 {source dep-beta.tcl}\npackage ifneeded absent 1.0 {source absent.tcl}").await;
@@ -329,13 +348,7 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
         &sources,
         &registry,
     );
-    assert!(!current.unknowable);
-    assert!(
-        current
-            .original_available
-            .iter()
-            .any(|key| key.matches_ascii("dep"))
-    );
+    assert_dependency_available(&current);
     let absent = Analyser::new()
         .structure_only()
         .analyse("package require absent", "tcl8.6");
