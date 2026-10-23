@@ -1442,6 +1442,158 @@ fn original_authored_analysis_definition_at_unit<'a>(
     selected
 }
 
+fn merge_analysis_definitions<'a>(
+    selected: &mut Option<OriginalAnalysisSsaDefinition<'a>>,
+    function: &'a crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+    definitions: AnalysisDefinitionRows,
+) -> Option<()> {
+    for (definition_span, symbol, version, source_name) in definitions {
+        if definition_span != span {
+            continue;
+        }
+        if selected.as_ref().is_some_and(|old| {
+            !std::ptr::eq(old.function, function)
+                || old.symbol != symbol
+                || old.version != version
+                || old.source_name != source_name
+        }) {
+            return None;
+        }
+        *selected = Some(OriginalAnalysisSsaDefinition {
+            function,
+            span,
+            symbol,
+            version,
+            source_name,
+        });
+    }
+    Some(())
+}
+
+type AnalysisDefinitionRows = Vec<(tcl_lexer::Span, Symbol, Version, Vec<u8>)>;
+
+struct LogicalAnalysisDefinitionContext<'a> {
+    module: &'a crate::ir::Module,
+    function: &'a crate::compilation_unit::FunctionUnit,
+    registry: &'a CommandRegistry,
+    input: &'a crate::analyser::ResolvedAnalysisInput,
+    retained: &'a crate::command_binding::RetainedSourceModuleBindings,
+    positioned: &'a crate::command_binding::SourceCommandBindings,
+    origin: &'a std::sync::Arc<crate::command_binding::SourceOriginId>,
+}
+
+fn logical_analysis_definitions(
+    context: &LogicalAnalysisDefinitionContext<'_>,
+    binding: &crate::command_binding::SourceInvocationBinding,
+    original: &crate::ir::CommandTokens,
+    view: SsaSourceView<'_>,
+    statement: &SsaStatement,
+) -> Option<AnalysisDefinitionRows> {
+    let LogicalAnalysisDefinitionContext {
+        module,
+        function,
+        registry,
+        input,
+        retained,
+        positioned,
+        origin,
+    } = *context;
+    let mut definitions = Vec::new();
+    if binding.has_original_logical_source_advice() {
+        let words = binding.original_logical_source_words(original, input, registry)?;
+        if !matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+            if std::sync::Arc::ptr_eq(&advice.site().source, origin))
+        {
+            return None;
+        }
+        collect_logical_advice_definitions(
+            &words,
+            original,
+            module,
+            view,
+            statement,
+            &mut definitions,
+        );
+    } else {
+        let owned = function.body_id.map_or_else(
+            || retained.owns_original_tokens(original),
+            |body| retained.owns_original_body_tokens(module, body, original, registry),
+        );
+        if !owned {
+            return None;
+        }
+        let metadata = function.invocation_metadata_context_for_module(registry, module)?;
+        let invocation =
+            crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                registry,
+                metadata,
+                original,
+                Some(positioned),
+            )?;
+        for (argument, role) in invocation.written_roles() {
+            if role != tcl_registry::ArgRole::VarWrite {
+                continue;
+            }
+            let Some(word) = original.words().get(argument + 1) else {
+                continue;
+            };
+            let Some(name) = invocation.written_variable_name_operand(argument) else {
+                continue;
+            };
+            let Some(symbol) = view.symbol(&name) else {
+                continue;
+            };
+            let Some(&version) = statement.defs.get(&symbol) else {
+                continue;
+            };
+            if !statement.may_defs.contains(&symbol) {
+                definitions.push((
+                    word.source().span,
+                    symbol,
+                    version,
+                    name.as_bytes().to_vec(),
+                ));
+            }
+        }
+    }
+    Some(definitions)
+}
+
+fn collect_logical_advice_definitions(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    original: &crate::ir::CommandTokens,
+    module: &crate::ir::Module,
+    view: SsaSourceView<'_>,
+    statement: &SsaStatement,
+    definitions: &mut AnalysisDefinitionRows,
+) {
+    for (argument, role) in words.written_argument_roles() {
+        if role != tcl_registry::ArgRole::VarWrite {
+            continue;
+        }
+        let Some(word) = original.words().get(argument + 1) else {
+            continue;
+        };
+        let Some(receiver_span) = word.original_written_span(module.source.bytes()) else {
+            continue;
+        };
+        let Some(name) = original_written_source_variable_name(words, argument, receiver_span)
+        else {
+            continue;
+        };
+        let Some(symbol) = view.symbol(name) else {
+            continue;
+        };
+        let Some(&version) = statement.defs.get(&symbol) else {
+            continue;
+        };
+        if !statement.may_defs.contains(&symbol) {
+            definitions.push((receiver_span, symbol, version, name.as_bytes().to_vec()));
+        }
+    }
+}
+
 /// Select a represented source definition by its exact current written occurrence.
 /// Source body purposes remain separate from physical Native definition receipts.
 #[must_use]
@@ -1495,96 +1647,21 @@ pub fn original_analysis_definition_at_unit<'a>(
                         }
                     }
                 } else if input.has_logical_source_name_context() {
-                    if binding.has_original_logical_source_advice() {
-                        let Some(words) =
-                            binding.original_logical_source_words(&original, input, registry)
-                        else {
-                            continue;
-                        };
-                        if !matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
-                            if std::sync::Arc::ptr_eq(&advice.site().source, origin))
-                        {
-                            continue;
-                        }
-                        for (argument, role) in words.written_argument_roles() {
-                            if role != tcl_registry::ArgRole::VarWrite {
-                                continue;
-                            }
-                            let Some(word) = original.words().get(argument + 1) else {
-                                continue;
-                            };
-                            let Some(receiver_span) =
-                                word.original_written_span(module.source.bytes())
-                            else {
-                                continue;
-                            };
-                            let Some(name) = original_written_source_variable_name(
-                                &words,
-                                argument,
-                                receiver_span,
-                            ) else {
-                                continue;
-                            };
-                            let Some(symbol) = view.symbol(name) else {
-                                continue;
-                            };
-                            let Some(&version) = statement.defs.get(&symbol) else {
-                                continue;
-                            };
-                            if !statement.may_defs.contains(&symbol) {
-                                definitions.push((
-                                    receiver_span,
-                                    symbol,
-                                    version,
-                                    name.as_bytes().to_vec(),
-                                ));
-                            }
-                        }
-                    } else {
-                        let owned = function.body_id.map_or_else(
-                            || retained.owns_original_tokens(&original),
-                            |body| {
-                                retained
-                                    .owns_original_body_tokens(module, body, &original, registry)
-                            },
-                        );
-                        if !owned {
-                            continue;
-                        }
-                        let Some(metadata) =
-                            function.invocation_metadata_context_for_module(registry, module)
-                        else {
-                            continue;
-                        };
-                        let Some(invocation) = crate::registry_invocation::logical_structured_invocation_with_metadata_context(
-                            registry, metadata, &original, Some(positioned)) else { continue; };
-                        for (argument, role) in invocation.written_roles() {
-                            if role != tcl_registry::ArgRole::VarWrite {
-                                continue;
-                            }
-                            let Some(word) = original.words().get(argument + 1) else {
-                                continue;
-                            };
-                            let Some(name) = invocation.written_variable_name_operand(argument)
-                            else {
-                                continue;
-                            };
-                            let Some(symbol) = view.symbol(&name) else {
-                                continue;
-                            };
-                            let Some(&version) = statement.defs.get(&symbol) else {
-                                continue;
-                            };
-                            if !statement.may_defs.contains(&symbol) {
-                                definitions.push((
-                                    word.source().span,
-                                    symbol,
-                                    version,
-                                    name.as_bytes().to_vec(),
-                                ));
-                            }
-                        }
-                    }
+                    let context = LogicalAnalysisDefinitionContext {
+                        module,
+                        function,
+                        registry,
+                        input,
+                        retained,
+                        positioned,
+                        origin,
+                    };
+                    let Some(logical_definitions) =
+                        logical_analysis_definitions(&context, binding, &original, view, statement)
+                    else {
+                        continue;
+                    };
+                    definitions = logical_definitions;
                 } else {
                     let metadata =
                         function.invocation_metadata_context_for_module(registry, module)?;
@@ -1613,26 +1690,7 @@ pub fn original_analysis_definition_at_unit<'a>(
                         }
                     }
                 }
-                for (definition_span, symbol, version, source_name) in definitions {
-                    if definition_span != span {
-                        continue;
-                    }
-                    if selected.as_ref().is_some_and(|old| {
-                        !std::ptr::eq(old.function, function)
-                            || old.symbol != symbol
-                            || old.version != version
-                            || old.source_name != source_name
-                    }) {
-                        return None;
-                    }
-                    selected = Some(OriginalAnalysisSsaDefinition {
-                        function,
-                        span,
-                        symbol,
-                        version,
-                        source_name,
-                    });
-                }
+                merge_analysis_definitions(&mut selected, function, span, definitions)?;
             }
         }
     }
@@ -5107,6 +5165,64 @@ fn authored_scalar_source_variable(
         .scalar_source_variable(registry)
 }
 
+fn record_authored_terminator_use(
+    points: &PointResolveContexts,
+    bn: BlockId,
+    registry: &CommandRegistry,
+    defined_here: &SsaIdentitySet,
+    nonlocal_names: &mut SsaIdentitySet,
+) {
+    if let Some((symbol, _, false)) =
+        authored_scalar_source_variable(points, bn, usize::MAX, registry)
+    {
+        let identity = SsaVariableIdentity::Source(symbol);
+        if !defined_here.contains_key(&identity) {
+            nonlocal_names.or_default(identity);
+        }
+    }
+}
+
+fn nonlocal_terminator_uses(
+    (bn, block): (BlockId, &cfg::Block),
+    selection: SsaInvocationContext<'_>,
+    scanner: &mut VarReferenceScanner,
+    points: &PointResolveContexts,
+) -> Vec<VariableCellKey> {
+    let registry = selection.registry;
+    // Terminator reads are element-qualified like statement reads (a
+    // condition's `$a(k)` must place the element's phi), and a base
+    // read fans over known elements.
+    let mut term_uses: Vec<String> = Vec::new();
+    match &block.terminator {
+        Some(cfg::Terminator::Branch { condition, .. }) => {
+            term_uses.extend(condition.vars_element_qualified_with_config(scanner.lexer_config()));
+        }
+        Some(cfg::Terminator::Return { value, expr, .. }) => {
+            if let Some(v) = value {
+                term_uses.extend(selection.word_reads(scanner, v));
+            }
+            if let Some(e) = expr {
+                term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));
+            }
+        }
+        _ => {}
+    }
+    let mut term_uses = bound_names(term_uses, points.before_terminator(bn), registry);
+    term_uses.extend(
+        source_read_bindings(points, bn, usize::MAX, registry)
+            .into_iter()
+            .map(|(_, bound)| bound),
+    );
+    term_uses.extend(invocation_read_bindings(
+        points,
+        bn,
+        usize::MAX,
+        points.before_terminator(bn),
+        registry,
+    ));
+    term_uses
+}
+
 fn nonlocal_names_and_defsites(
     func: &cfg::Function,
     reachable: &HashSet<BlockId>,
@@ -5198,46 +5314,8 @@ fn nonlocal_names_and_defsites(
                 }
             }
         }
-        if let Some((symbol, _, false)) =
-            authored_scalar_source_variable(points, *bn, usize::MAX, registry)
-        {
-            let identity = SsaVariableIdentity::Source(symbol);
-            if !defined_here.contains_key(&identity) {
-                nonlocal_names.or_default(identity);
-            }
-        }
-        // Terminator reads are element-qualified like statement reads (a
-        // condition's `$a(k)` must place the element's phi), and a base
-        // read fans over known elements.
-        let mut term_uses: Vec<String> = Vec::new();
-        match &block.terminator {
-            Some(cfg::Terminator::Branch { condition, .. }) => {
-                term_uses
-                    .extend(condition.vars_element_qualified_with_config(scanner.lexer_config()));
-            }
-            Some(cfg::Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value {
-                    term_uses.extend(selection.word_reads(&mut scanner, v));
-                }
-                if let Some(e) = expr {
-                    term_uses.extend(e.vars_element_qualified_with_config(scanner.lexer_config()));
-                }
-            }
-            _ => {}
-        }
-        let mut term_uses = bound_names(term_uses, points.before_terminator(*bn), registry);
-        term_uses.extend(
-            source_read_bindings(points, *bn, usize::MAX, registry)
-                .into_iter()
-                .map(|(_, bound)| bound),
-        );
-        term_uses.extend(invocation_read_bindings(
-            points,
-            *bn,
-            usize::MAX,
-            points.before_terminator(*bn),
-            registry,
-        ));
+        record_authored_terminator_use(points, *bn, registry, &defined_here, &mut nonlocal_names);
+        let term_uses = nonlocal_terminator_uses((*bn, block), selection, &mut scanner, points);
         for u in term_uses
             .iter()
             .cloned()
@@ -8136,6 +8214,20 @@ impl<'a> RenameWalk<'a> {
                 }
             }
         }
+        self.retain_source_word_symbols(stmt, point, registry, &mut source_symbols);
+        self.retain_assignment_symbols(stmt, point, registry, &mut source_symbols);
+        self.retain_native_operand_symbols(point, context, registry, &mut source_symbols);
+        self.point_symbols
+            .insert((point.0, point.1), source_symbols);
+    }
+
+    fn retain_source_word_symbols(
+        &mut self,
+        stmt: &Statement,
+        point: (BlockId, usize),
+        registry: &CommandRegistry,
+        source_symbols: &mut HashMap<String, Symbol>,
+    ) {
         if let Some(input) = self
             .metadata
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
@@ -8193,6 +8285,15 @@ impl<'a> RenameWalk<'a> {
                 }
             }
         }
+    }
+
+    fn retain_assignment_symbols(
+        &mut self,
+        stmt: &Statement,
+        point: (BlockId, usize),
+        registry: &CommandRegistry,
+        source_symbols: &mut HashMap<String, Symbol>,
+    ) {
         if let Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
@@ -8242,9 +8343,6 @@ impl<'a> RenameWalk<'a> {
                 }
             }
         }
-        self.retain_native_operand_symbols(point, context, registry, &mut source_symbols);
-        self.point_symbols
-            .insert((point.0, point.1), source_symbols);
     }
 
     fn retain_native_operand_symbols(
@@ -8346,6 +8444,161 @@ impl<'a> RenameWalk<'a> {
         classified
     }
 
+    fn rename_statement_definitions(
+        &mut self,
+        frame: &mut RenameFrame,
+        expanded: Vec<VariableCellKey>,
+        (direct_defs, destructions): (&[VariableCellKey], &[(VariableCellKey, bool)]),
+        (uses_map, name_only_uses): (&mut HashMap<Symbol, Version>, &mut HashSet<Symbol>),
+    ) -> (HashMap<Symbol, Version>, HashSet<Symbol>, HashSet<Symbol>) {
+        let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
+        let mut may_defs: HashSet<Symbol> = HashSet::new();
+        let mut destruction_defs: HashSet<Symbol> = HashSet::new();
+        for var in expanded {
+            let destruction = destructions
+                .iter()
+                .find(|(key, _)| key == &var || var.is_member_of(key));
+            if destruction.is_some() {
+                let symbol = self.interner.intern(&var);
+                record_destruction_predecessor(symbol, self.top(&var), uses_map, name_only_uses);
+            }
+            let ver = self.push_new(&var);
+            frame
+                .pushed_vars
+                .push(SsaVariableIdentity::Location(var.clone()));
+            let sym = self.interner.intern(&var);
+            defs_map.insert(sym, ver);
+            if destruction.is_some() {
+                destruction_defs.insert(sym);
+            }
+            if !direct_defs.contains(&var)
+                || destruction.is_some_and(|(_, conditional)| *conditional)
+            {
+                may_defs.insert(sym);
+            }
+        }
+
+        (defs_map, may_defs, destruction_defs)
+    }
+
+    fn record_statement_read_versions(
+        &mut self,
+        (uses_list, fanned): (&[VariableCellKey], &[VariableCellKey]),
+        class_of: &HashMap<&VariableCellKey, UseClass>,
+        elems: &ArrayElems,
+        (uses_map, quoted_uses, name_only_uses): (
+            &mut HashMap<Symbol, Version>,
+            &mut HashSet<Symbol>,
+            &mut HashSet<Symbol>,
+        ),
+    ) {
+        for var in uses_list.iter().chain(fanned.iter()) {
+            let v = self.top(var);
+            let sym = self.interner.intern(var);
+            if uses_map.insert(sym, v).is_some() {
+                continue;
+            }
+            let class = class_of
+                .get(var)
+                .copied()
+                .or_else(|| class_of.get(elems.root_for_element(var)?).copied());
+            match class {
+                Some(UseClass::Quoted) => {
+                    quoted_uses.insert(sym);
+                }
+                Some(UseClass::Name) => {
+                    name_only_uses.insert(sym);
+                }
+                Some(UseClass::Substituted) | None => {}
+            }
+        }
+    }
+
+    fn record_statement_may_uses(
+        &mut self,
+        switch_may: &[VariableCellKey],
+        uses_map: &mut HashMap<Symbol, Version>,
+        quoted_uses: &mut HashSet<Symbol>,
+    ) {
+        let mut may_bases: Vec<_> = switch_may
+            .iter()
+            .filter_map(|key| {
+                let root = key.root();
+                (root != key && !switch_may.contains(root)).then(|| root.clone())
+            })
+            .collect();
+        may_bases.sort_by_cached_key(|key| format!("{key:?}"));
+        may_bases.dedup();
+        for var in switch_may.iter().cloned().chain(may_bases) {
+            let sym = self.interner.intern(&var);
+            if let std::collections::hash_map::Entry::Vacant(slot) = uses_map.entry(sym) {
+                slot.insert(self.top(&var));
+                quoted_uses.insert(sym);
+            }
+        }
+        for (identity, versions) in &self.stacks {
+            if matches!(identity, SsaVariableIdentity::Source(_))
+                && let Some(&version) = versions.last().filter(|version| **version > 0)
+            {
+                let symbol = self.interner.intern_identity(identity);
+                uses_map.entry(symbol).or_insert(version);
+                quoted_uses.insert(symbol);
+            }
+        }
+    }
+
+    fn retain_statement_source_may_effects(
+        &mut self,
+        stmt: &Statement,
+        frame: &mut RenameFrame,
+        registry: &CommandRegistry,
+        index: usize,
+        (uses_map, quoted_uses, may_defs, defs_map): (
+            &mut HashMap<Symbol, Version>,
+            &mut HashSet<Symbol>,
+            &mut HashSet<Symbol>,
+            &mut HashMap<Symbol, Version>,
+        ),
+    ) {
+        if self
+            .metadata
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
+            && matches!(stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
+        {
+            let original = original_source_may_call_from_inventory(
+                &self.source_may_calls,
+                stmt,
+                self.metadata,
+                registry,
+            );
+            let mut definitions = Vec::new();
+            if let Some(receipt) = &original {
+                for place in receipt.writes() {
+                    let identity = SsaVariableIdentity::Source(place.symbol().clone());
+                    let symbol = self.interner.intern_identity(&identity);
+                    let prior = self.top_identity(&identity);
+                    let version = self.push_identity(&identity);
+                    frame.pushed_vars.push(identity);
+                    uses_map.insert(symbol, prior);
+                    quoted_uses.insert(symbol);
+                    may_defs.insert(symbol);
+                    defs_map.insert(symbol, version);
+                    definitions.push((symbol, version));
+                }
+            }
+            self.out.source_may_effects.insert(
+                (frame.block, index),
+                SourceMaySsaCall {
+                    statement: stmt.clone(),
+                    original,
+                    definitions,
+                    clobber: None,
+                },
+            );
+        }
+    }
+
     /// Rename one statement's uses and defs into SSA form: look up each read's
     /// current version (carrying its [`UseClass`] through to `quoted_uses`),
     /// then push a fresh version for each def. Extracted from
@@ -8377,26 +8630,12 @@ impl<'a> RenameWalk<'a> {
         // through a quoted base mention it is no more definite than that
         // mention.
         let fanned = expand_uses(&uses_list, &[], elems);
-        for var in uses_list.iter().chain(fanned.iter()) {
-            let v = self.top(var);
-            let sym = self.interner.intern(var);
-            if uses_map.insert(sym, v).is_some() {
-                continue;
-            }
-            let class = class_of
-                .get(var)
-                .copied()
-                .or_else(|| class_of.get(elems.root_for_element(var)?).copied());
-            match class {
-                Some(UseClass::Quoted) => {
-                    quoted_uses.insert(sym);
-                }
-                Some(UseClass::Name) => {
-                    name_only_uses.insert(sym);
-                }
-                Some(UseClass::Substituted) | None => {}
-            }
-        }
+        self.record_statement_read_versions(
+            (&uses_list, &fanned),
+            &class_of,
+            elems,
+            (&mut uses_map, &mut quoted_uses, &mut name_only_uses),
+        );
 
         let authored = authored_scalar_source_variable(&self.points, frame.block, index, registry);
         if let Some((symbol, name, definition)) = &authored {
@@ -8454,62 +8693,13 @@ impl<'a> RenameWalk<'a> {
         // same kind: where no arm writes the element, the array — or the
         // scalar the write would have raised on — holds what it held, so the
         // store before it is used too ([`refreshed_bases`]).
-        let mut may_bases: Vec<_> = switch_may
-            .iter()
-            .filter_map(|key| {
-                let root = key.root();
-                (root != key && !switch_may.contains(root)).then(|| root.clone())
-            })
-            .collect();
-        may_bases.sort_by_cached_key(|key| format!("{key:?}"));
-        may_bases.dedup();
-        for var in switch_may.iter().cloned().chain(may_bases) {
-            let sym = self.interner.intern(&var);
-            if let std::collections::hash_map::Entry::Vacant(slot) = uses_map.entry(sym) {
-                slot.insert(self.top(&var));
-                quoted_uses.insert(sym);
-            }
-        }
-        for (identity, versions) in &self.stacks {
-            if matches!(identity, SsaVariableIdentity::Source(_))
-                && let Some(&version) = versions.last().filter(|version| **version > 0)
-            {
-                let symbol = self.interner.intern_identity(identity);
-                uses_map.entry(symbol).or_insert(version);
-                quoted_uses.insert(symbol);
-            }
-        }
-        let mut defs_map: HashMap<Symbol, Version> = HashMap::new();
-        let mut may_defs: HashSet<Symbol> = HashSet::new();
-        let mut destruction_defs: HashSet<Symbol> = HashSet::new();
-        for var in expanded {
-            let destruction = destructions
-                .iter()
-                .find(|(key, _)| key == &var || var.is_member_of(key));
-            if destruction.is_some() {
-                let symbol = self.interner.intern(&var);
-                record_destruction_predecessor(
-                    symbol,
-                    self.top(&var),
-                    &mut uses_map,
-                    &mut name_only_uses,
-                );
-            }
-            let ver = self.push_new(&var);
-            frame
-                .pushed_vars
-                .push(SsaVariableIdentity::Location(var.clone()));
-            let sym = self.interner.intern(&var);
-            defs_map.insert(sym, ver);
-            if destruction.is_some() {
-                destruction_defs.insert(sym);
-            }
-            if !direct_defs.contains(&var)
-                || destruction.is_some_and(|(_, conditional)| *conditional)
-            {
-                may_defs.insert(sym);
-            }
-        }
+        self.record_statement_may_uses(&switch_may, &mut uses_map, &mut quoted_uses);
+        let (mut defs_map, mut may_defs, destruction_defs) = self.rename_statement_definitions(
+            frame,
+            expanded,
+            (&direct_defs, &destructions),
+            (&mut uses_map, &mut name_only_uses),
+        );
 
         if let Some((symbol, _, true)) = authored {
             let identity = SsaVariableIdentity::Source(symbol);
@@ -8519,43 +8709,18 @@ impl<'a> RenameWalk<'a> {
             defs_map.insert(symbol, version);
         }
 
-        if self
-            .metadata
-            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
-            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
-            && matches!(stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
-        {
-            let original = original_source_may_call_from_inventory(
-                &self.source_may_calls,
-                stmt,
-                self.metadata,
-                registry,
-            );
-            let mut definitions = Vec::new();
-            if let Some(receipt) = &original {
-                for place in receipt.writes() {
-                    let identity = SsaVariableIdentity::Source(place.symbol().clone());
-                    let symbol = self.interner.intern_identity(&identity);
-                    let prior = self.top_identity(&identity);
-                    let version = self.push_identity(&identity);
-                    frame.pushed_vars.push(identity);
-                    uses_map.insert(symbol, prior);
-                    quoted_uses.insert(symbol);
-                    may_defs.insert(symbol);
-                    defs_map.insert(symbol, version);
-                    definitions.push((symbol, version));
-                }
-            }
-            self.out.source_may_effects.insert(
-                (frame.block, index),
-                SourceMaySsaCall {
-                    statement: stmt.clone(),
-                    original,
-                    definitions,
-                    clobber: None,
-                },
-            );
-        }
+        self.retain_statement_source_may_effects(
+            stmt,
+            frame,
+            registry,
+            index,
+            (
+                &mut uses_map,
+                &mut quoted_uses,
+                &mut may_defs,
+                &mut defs_map,
+            ),
+        );
 
         SsaStatement {
             statement: stmt.clone(),
@@ -8568,47 +8733,15 @@ impl<'a> RenameWalk<'a> {
         }
     }
 
-    /// Process one block on first visit: assign phi versions, record entry /
-    /// exit versions, rename statement uses/defs, and seed successors' phi
-    /// incoming edges. Extracted from [`build_ssa`]'s rename walk.
-    fn enter_block(
+    fn rename_block_statements(
         &mut self,
         frame: &mut RenameFrame,
         func: &cfg::Function,
-        phi_vars: &HashMap<BlockId, HashSet<SsaVariableIdentity>>,
         registry: &CommandRegistry,
         elems: &ArrayElems,
         clobbers: &RegistryClobberNames,
     ) {
         let bn = frame.block;
-
-        // Process phi nodes — push new versions.
-        let mut phi_var_list: Vec<SsaVariableIdentity> = phi_vars
-            .get(&bn)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
-        phi_var_list.sort_by_cached_key(|key| format!("{key:?}"));
-
-        for var in &phi_var_list {
-            let ver = self.push_identity(var);
-            frame.pushed_vars.push(var.clone());
-            self.out
-                .phi_versions
-                .get_mut(&bn)
-                .unwrap()
-                .insert(var.clone(), ver);
-            self.out
-                .phi_incoming
-                .get_mut(&bn)
-                .unwrap()
-                .entry(var.clone())
-                .or_default();
-        }
-
-        // Record entry versions.
-        let ev = self.visible_versions(bn);
-        *self.out.entry_versions.get_mut(&bn).unwrap() = ev;
-
         // Process statements.
         if let Some(block) = func.blocks.get(&bn) {
             let stmts: Vec<Statement> = block.statements.clone();
@@ -8667,6 +8800,50 @@ impl<'a> RenameWalk<'a> {
                 }
             }
         }
+    }
+
+    /// Process one block on first visit: assign phi versions, record entry /
+    /// exit versions, rename statement uses/defs, and seed successors' phi
+    /// incoming edges. Extracted from [`build_ssa`]'s rename walk.
+    fn enter_block(
+        &mut self,
+        frame: &mut RenameFrame,
+        func: &cfg::Function,
+        phi_vars: &HashMap<BlockId, HashSet<SsaVariableIdentity>>,
+        registry: &CommandRegistry,
+        elems: &ArrayElems,
+        clobbers: &RegistryClobberNames,
+    ) {
+        let bn = frame.block;
+
+        // Process phi nodes — push new versions.
+        let mut phi_var_list: Vec<SsaVariableIdentity> = phi_vars
+            .get(&bn)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
+        phi_var_list.sort_by_cached_key(|key| format!("{key:?}"));
+
+        for var in &phi_var_list {
+            let ver = self.push_identity(var);
+            frame.pushed_vars.push(var.clone());
+            self.out
+                .phi_versions
+                .get_mut(&bn)
+                .unwrap()
+                .insert(var.clone(), ver);
+            self.out
+                .phi_incoming
+                .get_mut(&bn)
+                .unwrap()
+                .entry(var.clone())
+                .or_default();
+        }
+
+        // Record entry versions.
+        let ev = self.visible_versions(bn);
+        *self.out.entry_versions.get_mut(&bn).unwrap() = ev;
+
+        self.rename_block_statements(frame, func, registry, elems, clobbers);
 
         // Preserve the versions visible after statements but before any
         // terminator-only effects. Terminator reads and block exits refer to
@@ -9084,6 +9261,35 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
     }
 }
 
+fn intern_unseen_call_versions(walk: &mut RenameWalk<'_>) -> HashSet<(Symbol, Version)> {
+    std::mem::take(&mut walk.out.unseen_call_versions)
+        .into_iter()
+        .map(|(name, version)| (walk.interner.intern_identity(&name), version))
+        .collect()
+}
+
+fn source_cfg_topology(
+    func: &cfg::Function,
+    interner: &VarInterner,
+) -> HashMap<BlockId, SourceCfgBlockSnapshot> {
+    if interner.source_variables.is_empty() {
+        HashMap::new()
+    } else {
+        func.blocks
+            .iter()
+            .map(|(&block, body)| {
+                (
+                    block,
+                    SourceCfgBlockSnapshot {
+                        terminator: body.terminator.clone(),
+                        successors: func.block_successors(block),
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
 fn build_ssa_inner(
     func: &cfg::Function,
     registry: &CommandRegistry,
@@ -9175,26 +9381,8 @@ fn build_ssa_inner(
     let cell_to_symbol = walk.interner.to_symbol.clone();
     project_ssa_source_names(&mut walk, func);
 
-    let unseen_call_versions = std::mem::take(&mut walk.out.unseen_call_versions)
-        .into_iter()
-        .map(|(name, version)| (walk.interner.intern_identity(&name), version))
-        .collect();
-    let source_topology = if walk.interner.source_variables.is_empty() {
-        HashMap::new()
-    } else {
-        func.blocks
-            .iter()
-            .map(|(&block, body)| {
-                (
-                    block,
-                    SourceCfgBlockSnapshot {
-                        terminator: body.terminator.clone(),
-                        successors: func.block_successors(block),
-                    },
-                )
-            })
-            .collect()
-    };
+    let unseen_call_versions = intern_unseen_call_versions(&mut walk);
+    let source_topology = source_cfg_topology(func, &walk.interner);
     let mut result = SsaFunction {
         name: func.name.clone(),
         entry: func.entry,
