@@ -386,6 +386,16 @@ impl RemoteBodyScan<'_> {
                 bindings.push((key, Arc::new(pending)));
                 continue;
             }
+            // A setter dispatch occurs after its RHS substitution. Query the
+            // genuine nested call's first operand before the outer write, then
+            // stop: neither that call nor the setter preserves later bindings.
+            if let Some(body) = self.selected_setter_rhs_script(&words, &summary) {
+                let mut path = body_path.to_vec();
+                path.push(words.clone());
+                self.scan_commands(body, bindings, calls, &path, depth + 1)?;
+                bindings.clear();
+                break;
+            }
             if let Some(body) = self.selected_true_same_frame_body(&words) {
                 let mut path = body_path.to_vec();
                 path.push(words.clone());
@@ -415,6 +425,80 @@ impl RemoteBodyScan<'_> {
             }
         }
         Some(())
+    }
+
+    fn selected_setter_rhs_script(
+        &self,
+        words: &OriginalRegistryWords,
+        summary: &SourceSummary,
+    ) -> Option<tcl_lexer::Span> {
+        if !summary.admits_source_setter
+            || summary.writes.opaque_variable_frame
+            || summary.writes.literal_names.len() != 1
+            || words.arguments().iter().enumerate().any(|(index, _)| {
+                words
+                    .original_argument_word(index)
+                    .is_none_or(|word| word.group().expand)
+            })
+        {
+            return None;
+        }
+        let layout = words.with_source_schema(self.context, |schema| {
+            schema
+                .authored_source_descriptors()
+                .command
+                .binds_handle
+                .copied()
+        })??;
+        let HandleName::Word(name_at) = layout.name_from else {
+            return None;
+        };
+        let HandleClassSource::ConstructionValue(value_at) = layout.class_from else {
+            return None;
+        };
+        if let Some(keyword) = layout.keyword
+            && words
+                .arguments()
+                .get(usize::from(keyword.at))?
+                .literal_bytes()?
+                != keyword.word.as_bytes()
+        {
+            return None;
+        }
+        let receiver = words
+            .arguments()
+            .get(usize::from(name_at))?
+            .literal_bytes()?;
+        if self.key(receiver)? != self.key(summary.writes.literal_names[0].as_bytes())? {
+            return None;
+        }
+        let operand = words.original_argument_word(usize::from(value_at))?;
+        if words.arguments().iter().enumerate().any(|(index, _)| {
+            words.original_argument_word(index).is_none_or(|word| {
+                word != operand
+                    && !word
+                        .executable_parts()
+                        .all_parts()
+                        .all(|part| matches!(part.part, ExecutablePart::Text(_)))
+            })
+        }) {
+            return None;
+        }
+        let arena = operand.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        let ExecutablePart::Command { body } = part.part else {
+            return None;
+        };
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            self.image.clone(),
+            body,
+            self.config.nested(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        (plan.fatal_tail.is_none() && plan.commands.len() == 1).then_some(body)
     }
 
     fn selected_true_same_frame_body(
@@ -1007,6 +1091,53 @@ mod tests {
             source_remote_first_operand_associations(&source.replace(" p e", " q e"), &analysis)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn first_remote_operand_in_setter_rhs_precedes_outer_store_and_later_opaque_call() {
+        for first in [
+            "ILX::call $h m",
+            "set reply [ILX::call $h m]",
+            "ILX::call $h m [HTTP::uri]",
+            "set reply [ILX::call $h m [HTTP::uri]]",
+        ] {
+            let source = format!(
+                "when HTTP_REQUEST {{set h [ILX::init p e]; {first}; ILX::notify $h later}}"
+            );
+            let analysis = analyse(&source);
+            let calls = source_remote_first_operand_associations(&source, &analysis).unwrap();
+            assert_eq!(calls.len(), 1, "{first}");
+            let first_offset = u32::try_from(source.find("ILX::call").unwrap()).unwrap();
+            let current = super::super::source_structure::source_registry_words_at(
+                &source,
+                &analysis,
+                first_offset,
+            )
+            .unwrap();
+            assert_eq!(calls[0].invocation(), &current);
+            assert!(calls[0].matches_source_analysis(&source, &analysis));
+            assert!(
+                calls[0].handle_operand().span().start()
+                    < u32::try_from(source.find("ILX::notify").unwrap()).unwrap()
+            );
+            assert_eq!(calls[0].obligations().len(), 5);
+        }
+        for middle in [
+            "unknown_command; set reply [ILX::call $h m]",
+            "set reply prefix[ILX::call $h m]",
+            "set reply [unknown_command; ILX::call $h m]",
+            "set $receiver [ILX::call $h m]",
+            "set reply {*}[ILX::call $h m]",
+        ] {
+            let source = format!("when HTTP_REQUEST {{set h [ILX::init p e]; {middle}}}");
+            let analysis = analyse(&source);
+            assert!(
+                source_remote_first_operand_associations(&source, &analysis)
+                    .unwrap()
+                    .is_empty(),
+                "{middle}"
+            );
+        }
     }
 
     #[test]

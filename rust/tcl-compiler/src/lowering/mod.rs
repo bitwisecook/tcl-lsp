@@ -4732,15 +4732,19 @@ impl<'r> Lowerer<'r> {
 
     // Preserve each queried Option; this reports source ownership only.
     fn trace_report_event_option<T>(value: Option<T>, stage: &str) -> Option<T> {
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if std::env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
             eprintln!(
                 "REPORT_EVENT_SOURCE stage={stage} available={}",
                 value.is_some()
             );
         }
-        #[cfg(not(test))]
-        let _ = stage;
+        value
+    }
+
+    fn trace_report_event_refusal(value: bool, stage: &str) -> bool {
+        if std::env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
+            eprintln!("REPORT_EVENT_SOURCE stage={stage} refused={value}");
+        }
         value
     }
 
@@ -4774,10 +4778,12 @@ impl<'r> Lowerer<'r> {
                     {
                         return None;
                     }
-                    let symbol = self
-                        .registry
-                        .get(&candidate.target.command)?
-                        .defines_symbol?;
+                    let spec = Self::trace_report_event_option(
+                        self.registry.get(&candidate.target.command),
+                        "candidate-registry-spec",
+                    )?;
+                    let symbol =
+                        Self::trace_report_event_option(spec.defines_symbol, "candidate-symbol")?;
                     (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
                         .then_some(usize::from(symbol.name_arg) + 1)
                 })
@@ -4805,39 +4811,67 @@ impl<'r> Lowerer<'r> {
                 .source_analysis_input()
                 .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
         {
-            let input = context.source_analysis_input()?;
-            let owner = bindings.original_analysis_owner()?;
-            let root = bindings.source_origin()?;
-            let binding = tokens.source_binding.as_ref()?;
-            let site = binding.invocation_site()?;
-            if tokens.synthetic.is_some()
-                || !tokens.original_words_match_argv_text()
-                || words.iter().any(|word| word.group().expand)
-                || site.offset != seg.span.start()
-                || !std::sync::Arc::ptr_eq(&site.source, root)
-                || !owner.matches(bindings, input)
-                || bindings.source_origin()?.source_image() != image
-                || input.lexer_config() != self.config
-                || !context.matches_registry(self.registry)
+            let input =
+                Self::trace_report_event_option(context.source_analysis_input(), "hosted-input")?;
+            let owner = Self::trace_report_event_option(
+                bindings.original_analysis_owner(),
+                "analysis-owner",
+            )?;
+            let root = Self::trace_report_event_option(bindings.source_origin(), "root-origin")?;
+            let binding =
+                Self::trace_report_event_option(tokens.source_binding.as_ref(), "token-binding")?;
+            let site =
+                Self::trace_report_event_option(binding.invocation_site(), "invocation-site")?;
+            if Self::trace_report_event_refusal(tokens.synthetic.is_some(), "synthetic")
+                || Self::trace_report_event_refusal(
+                    !tokens.original_words_match_argv_text(),
+                    "original-argv",
+                )
+                || Self::trace_report_event_refusal(
+                    words.iter().any(|word| word.group().expand),
+                    "expanded",
+                )
+                || Self::trace_report_event_refusal(site.offset != seg.span.start(), "site-offset")
+                || Self::trace_report_event_refusal(
+                    !std::sync::Arc::ptr_eq(&site.source, root),
+                    "site-root-owner",
+                )
+                || Self::trace_report_event_refusal(
+                    !owner.matches(bindings, input),
+                    "analysis-owner-current",
+                )
+                || Self::trace_report_event_refusal(
+                    bindings.source_origin()?.source_image() != image,
+                    "root-image",
+                )
+                || Self::trace_report_event_refusal(
+                    input.lexer_config() != self.config,
+                    "input-config",
+                )
+                || Self::trace_report_event_refusal(
+                    !context.matches_registry(self.registry),
+                    "registry-current",
+                )
             {
                 return None;
             }
             // The retained declaration owns source geometry, not a current
             // dispatch cell or installation of this event handler.
-            let policy = input.vendor_source_policy().or_else(|| {
+            let policy = Self::trace_report_event_option(input.vendor_source_policy().or_else(|| {
                 let hosted = tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
                     &input.borrowed_context_registry().context().environment.id,
                 )?;
                 tcl_syntax::naming::VendorSourceNamePolicy::authored(hosted)
-            })?;
+            }), "hosted-policy")?;
             let head =
                 crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
                     words.first()?,
                     policy,
                 );
-            let written = std::str::from_utf8(
-                head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead)?,
-            )
+            let written = std::str::from_utf8(Self::trace_report_event_option(
+                head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead),
+                "original-head-units",
+            )?)
             .ok()?;
             let command = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
             if candidates
@@ -4861,7 +4895,8 @@ impl<'r> Lowerer<'r> {
                 "hosted-event-value",
             );
         }
-        let dialect = self.invocation_dialect?;
+        let dialect =
+            Self::trace_report_event_option(self.invocation_dialect, "standalone-dialect")?;
         let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
             word,
             dialect.word_values,
