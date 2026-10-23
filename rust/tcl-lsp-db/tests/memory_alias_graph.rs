@@ -148,7 +148,10 @@ fn actual_document_graphs_keep_native_jim_and_hosted_source_cards() {
         .unwrap();
         let card = source_function_card(&memory).unwrap_or_else(|| panic!("{dialect}: {memory}"));
         assert_eq!(card["has_wildcard_aliasing"], true);
-        assert!(card["alias_sets"].as_array().unwrap().is_empty());
+        assert_eq!(
+            card["alias_sets"].as_array().unwrap().as_slice(),
+            &[] as &[serde_json::Value]
+        );
         let definitions =
             tcl_lsp_core::graphs::def_use_graph_with_source_input(source, registry, Some(input))
                 .unwrap();
@@ -156,7 +159,10 @@ fn actual_document_graphs_keep_native_jim_and_hosted_source_cards() {
             .unwrap_or_else(|| panic!("{dialect}: {definitions}"));
         assert_eq!(card["has_wildcard_aliasing"], true);
         assert!(card["summary"].is_null());
-        assert!(card["nodes"].as_array().unwrap().is_empty());
+        assert_eq!(
+            card["nodes"].as_array().unwrap().as_slice(),
+            &[] as &[serde_json::Value]
+        );
         let effects =
             tcl_lsp_core::graphs::dataflow_graph_with_source_input(source, registry, Some(input))
                 .unwrap();

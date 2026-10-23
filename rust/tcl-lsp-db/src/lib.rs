@@ -6144,9 +6144,9 @@ p\uD801 ordinary";
         }
     }
 
-    fn original_event_test_context_snapshot<'db>(
-        db: &'db dyn TclDb,
-    ) -> (CfgContext<'db>, CompilerMemoSnapshot) {
+    fn original_event_test_context_snapshot(
+        db: &dyn TclDb,
+    ) -> (CfgContext<'_>, CompilerMemoSnapshot) {
         let context = CfgContext::new(
             db,
             Vec::new(),
