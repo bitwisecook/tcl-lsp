@@ -1,0 +1,6 @@
+{
+  "verdict": "BOUNDED STATIC CLEAR: doc-only v4 delta; inherited v3 semanticCLEAR59d686ba",
+  "patch_sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+  "checks": "Independent3before/final/zero-fuzz/pinnedfmtPASS; two productfiles byteidenticalv3; newtest allnon-module-doc lines byte-equivalentv3; original11unchanged",
+  "limits": "Rust typing/test/runtime/ownsurface2 acceptanceUNRUN; no source/Cargo/Git"
+}

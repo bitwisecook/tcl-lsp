@@ -1,0 +1,21 @@
+{
+  "inputs": {
+    "/tmp/lsp-native-protocol-v3/plan.json": "fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+    "/tmp/lsp-native-protocol-v3/immutable-manifest.json": "6db184469d0ad2342f1f5cbb220c2d28d2cfe7cdd94917333aa8d87818e90fcc",
+    "/tmp/lsp-native-protocol-v3/independent-review.json": "c3c94284471d8b2948f890a86b83862019cab6707b631d329de79bc0bc8c4a6a",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "/tmp/five-cleared-candidate-composition-v4-20261023T015223Z/manifest-v4.json": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "/tmp/name-handling-eight-package-check-v9-source46/plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/run.sh": "558d14d3a71579cdd46324be6efbd3dec69a5a37156a0a0039c7906c7fa2cfc4",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/suite.py": "4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/launch.py": "afde92f96e0fee35c4833484a2b51f08932f65feaff3f1bc121a0c8deb61b84c",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+    "/tmp/naming-source46-repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594"
+  },
+  "root_go_contract": "exact actual repairedsource46 product897b4f9b/tree0b11e3a0 and mapf7568b84, exact8v9plan983d3418; actual PASS0W finalreceipt path/SHA only atallocation; no GO or PASS fabricated"
+}

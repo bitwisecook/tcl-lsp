@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T05:25:34.113130Z
+Last updated: 2026-10-23T05:42:58.002113Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**ACTUAL repaired-source v9 eight-package alltarget PASS0W:** closed05:41:37.402572Z, Cargo0/overall0, all6 source/provider/GO/docsHEAD/process/diagnostic guards true, exact897b4f9b/tree0b11e3a0 and8packages; actualHEAD advanced through docs-only descendants. Launcher closedexit0/input+GOstable/LOCK_RELEASED. Full immutable protocol+run+actualGO+launcher lossless archive `source46-typecheck-v9-pass/complete-evidence.tar.gz` with every-fileSHA/roundtrip receipt. Compilation-only; no runtime/acceptance claimed. Oldv8FAIL1E0716/0actualwarnings preserved. Root started reviewed allocatorv2 compiler58 mint+separateactualrun.sh parentcommand05:42:12/session77511, deepallocation initiallyrunning; Names mustnotduplicate/touchGO. Runtimebodyissuer facts remainprimaryfollowup; no Cargo/Git/source byNames.
+
+**Root single-protocol allocator v2 static CLEAR / futureonly:** `/tmp/naming-source46-root-allocator-v2`, manifestb6bd313c/script3ec9559c/configa13d7dd2; LSP independent static CLEAR516b268f. Exact six protocol schemas keeporiginal106 plus optional2separate livefold/nohost controls (VMpeer9ed7pinned), selected oneGOexclusive/nooverwrite/no launch. Deepv9final+launcher/process/raw0W/source/provider/GO/inputpins/all46baseline/current/worktree/docsHEAD and actual49/report context preflights reuse only frozennamedread-only ASTfunctions with in-memoryGO; all6freeglobal/decorator/default audits PASS. V1 held namespaceomission, v2 suppliesexactCARGO/PLAN/MANIFEST. Missing+actualnotclosedv9dryrunrefuse2 beforeGit/provider/lock/GO; no positivepath run. Rootreviewed --mint-reviewed manifestpin+actualv9PASS required; no futureGOs/PASS fabricated. Archive+receipts `root-allocator-v2/`. Actualv9stillRUNNING atpreparation, no Cargo/Git/source byNames.
 
 **Repaired finite23+15 v9-schema focused peer CLEAR:** LSP23v5 96b709ba/cd5d40ff/7209ba50 and Native15v14 7495afcf/4e96d307/71d35489 exactlyrequire actualv9finalreceipt path+SHA, PASS/overall0/Cargo0+all6trueguards, plan983d/mapf756/product897b-tree0b11/same8package vector. Exactrunnerpins and ASTcriteria checked; oldv8FAIL cannot satisfy, noGO/futurePASS fabricated. VM owns separatebroader product/prereq peer; existing selectors/env/process guards unchanged. Receipt `repaired-lsp23-native15-v9-schema-peer.json`. Actualv9stillRUNNING; no runtimeacceptance.
 
@@ -228,6 +232,8 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+Current: actualv9 eight-package compilation PASS0W05:41:37 on repaired897b/0b11; full closure archive source46-typecheck-v9-pass. Root alone owns compiler58first allocation/session77511; do not duplicate GO/build. Await actualruntimebodyissuer/Conditional first-refusal facts. V8FAIL remains preserved; laterstyle13/caseissuer remain separate.
 
 - **Coarse currency + readiness finalv4 peer CLEAR statically:** exactad03b7b390ef3a1a8931a629a4c3f3425f9cc991c3390f7829ff5325d10f68dc supersedes v2/v3. Actual semantic read returns atSalsa; same held revision may advanceIndexed while pure structureworker awaits. Only privateSemanticStructure accepts that exact monotonicadvance plus unrelated globalDBrevision; every source/version/revision/input/config/URI/provider/epoch/factory/dialect/deletion guard remains, otherpurpose strictpublication/revision unchanged. Strong held prepositives, readonly strictafternegative, Pending/downgrade/sourceABA/URIgenretirement controls retained. Review caughtv3test110lines; v4test-onlyhelper preserves5setter actions/assertions/order below100. Receipt `compiler-names-coarse-source-input-currency-v4-review.json`; root/Luna/LSP notified. No typing/runtime/Cargo/apply or causalproof for actual41coarseerrors.
 

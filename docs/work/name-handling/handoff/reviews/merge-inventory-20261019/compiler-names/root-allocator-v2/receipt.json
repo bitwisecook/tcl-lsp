@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T05:41:10.645706+00:00",
+  "status": "CLEAR bounded static LSP peer; root review/future actualPASS0W allocation only",
+  "path": "/tmp/naming-source46-root-allocator-v2",
+  "manifest_sha256": "b6bd313c3917febd6c9751e3c13e91654b9636d9d86cc55d33f41d8cb65bd5c5",
+  "script_sha256": "3ec9559c7bf82a1d206ae8343977743216569f979dfe47d5d699a667b88dd64f",
+  "config_sha256": "a13d7dd222763911b7da66b5fd45478b5231c0508bf28113a46bd67ef6433743",
+  "peer_sha256": "516b268fc9571ccd7008e5e418ac1fcb70d40c2a093607ba1ac4ae2f1e4f8606",
+  "archive_sha256": "0e35cc1c10898778d3a14694cce9c070e93604041e0fbc1e78d20b67e1aa2981",
+  "archive_roundtrip": "PASS5files",
+  "counts": {
+    "original5": 106,
+    "optional_ccg_hook2": 2,
+    "combined_only_if_additional_used": 108
+  },
+  "dryrun_refusals": "missing and actualunclosedv9 both exit2 beforeGit/provider/lock/GO; positivepathunrun",
+  "authority_limits": [
+    "No actual GO, positive preflight, Git/provider/lock/Cargo/test/source execution by Names.",
+    "Root must independently review exactmanifest and wait actualv9final+launcher PASS0W before running --mint-reviewed for one chosen protocol.",
+    "V1 immutableheld on missingnamespaceglobals; v2fixesexact CARGO/PLAN/MANIFEST Paths."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T05:37:45.370482+00:00",
+  "verdict": "HOLD: supported replacement/race can panic",
+  "patch_sha256": "5d1fbc15472eef7084740223cfed0b280afa1a2dc83eea526c5af01ed24c0b4a",
+  "reason": "CoreSurfaceSpecs.identities.clear() on active replacement removes original association while core_surfaces SEEDED stays true. builtin_commands ensure returns without reseeding, then registered_core_surface_specs returns None and expect panics. Replacement can race between ensure and read.",
+  "static_security_notes": "Exact raw pointer lookup is read-only and never calls attach; copied unregistered rows refuse. Existing attach memo lock is acquired before CORE write; no read lock upgrade. These checks do not clear the replacement failure.",
+  "requested_successor": "Persist immutable prepared metadata identity separately from live-generation membership; explicitly deny currentness. Never fallbackraw/empty/resetlive state or attach on read. Preserve sole trusted registration descriptor issuer and canonical idempotency.",
+  "limits": "No Cargo/type/runtime/source/Git; VM preparing immutable v2 with bounded replacement/concurrency controls."
+}

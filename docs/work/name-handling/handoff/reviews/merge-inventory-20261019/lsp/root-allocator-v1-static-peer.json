@@ -1,0 +1,22 @@
+{
+  "actual_utc": "2026-10-23T05:38:18.629027+00:00",
+  "verdict": "BLOCKED: missing LSP guard namespace dependencies",
+  "manifest_sha256": "006937d894163d62bdefb096bbf6bdff4bd6718eaf2254b290bdf33b5c197e74",
+  "blocker": "LSP23 and Native15 AST-loaded source_view references CARGO, PLAN, MANIFEST absent from guard_namespace; first positive-path NameError at CARGO. No positive path executed.",
+  "checks": [
+    "exact manifest hashes and AST parse",
+    "recursive symtable free-global check for all five distinct guard sets; only CARGO/PLAN/MANIFEST missing; providers separately injected",
+    "exact extracted definitions have no executable decorators/defaults/annotations",
+    "actual v9 PASS/zero warnings/all6guards/product/packages/GO/raw/process/source/provider/transcript preserved",
+    "prior49 failed runtime outcomes allowed only with original counts/guards/reconciled status",
+    "six one-choice protocol candidate schemas statically inspected"
+  ],
+  "not_run": [
+    "positive allocator path",
+    "Git",
+    "provider capture",
+    "lock",
+    "GO mint",
+    "Cargo"
+  ]
+}

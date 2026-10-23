@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T05:55:37.402669+00:00",
+  "scheduled_report_utc": "2026-10-23T05:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T06:25:37+00:00",
+  "change_since_previous_report": [
+    "05:25:37 report was on time; normal push898488cee confirmed05:26:12 after fresh depth1 fetch/rebase, exact product equality. Repaired active897b4f9b maps to published33558eb84. Bounded fetch/FF05:51 found work898488cee and rustfcb7927 unchanged.",
+    "Repaired-source eight-package all-target v9 closed PASS05:41:37, Cargo0/zero errors/zero warnings; full source/provider/GO/input/approved tuple/docs-only HEAD/process/launcher guards valid. Root closure independently recorded, all36 archive payloads verified (ea964488). Earlier v8FAIL1test-onlyE0716 stays immutable; repair preserved all5 assertions/production code.",
+    "Reviewed allocatorv2 b6bd313c and LSPpeer516b268f verified actual v9PASS evidence/current46 before minting only compiler58 GO7a28e395. Compiler58v3 actually launched05:43:55; first fresh compiler-lib build running, no runtime outcome observed. Other suiteGOs absent.",
+    "Original compiler58/Jim7/LSP23/Native15/CCG3 protocols total106 fixed cases. N17 audit found those tcl-body fixtures do not exercise a live const_fold hook, so separate original optimiser-fold/no-host exact2 protocol81e279e9 was frozen/VM-peer-cleared, total108. Original assertions/counts/budgets/env/guards unchanged; all runtime remains pending.",
+    "Off-tree Jim canonical-row proposal was refined after root/compiler caught replacement and first-read reset edges. Final v4 eca80f8b is statically peer-cleared: shared registry recipeDATA, private compiled-source normalisation, pure metadata accessor, unchanged original11 plus meaningful purity/foreign/replacement/concurrency control. No source integration, typing/runtime or whole-Jim acceptance.",
+    "CI5206 complete31-job repoll05:54:38 is unchanged from05:25:7success20failure2running2skip on old3b1/5a418, rawSHA7d93a083. Shard5 failed but exact named log remains unavailable (connector closed, bounded REST temporary blob Forbidden). No named outcome/current regression count is inferred; active jobs not duplicated/cancelled.",
+    "Read-only coordination audit confirmed current facts and found obsolete20:52 coordinator Resume. Replaced it with the actual77511 continuation and current guards; prior cycle history stays in Git/evidence. External BIGIP18:08/perf21:00 and completed review-triage19:57:30 headers remain over60 minutes old; no duplicate or takeover."
+  ],
+  "committed": [
+    "2a3eb98503a7b213e904410d972c82cce7232280"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Close actual compiler58 with original assertions/counts/180-second budgets and full guards; route report-owner/alias/G4/N13/ILX/C6/RBS/BPF first refusals from actual evidence.",
+    "After the occupied slot closes, allocate LSP23, Jim7, CCGdirect3, separate live-hook2 and Native15 sequentially on the same repaired product. Keep source/provider HOLD; no source mutation before closed measurements.",
+    "Integrate reviewed functional fixes only with new actual product identity/revalidation. Complete full authenticated all-old/mixed perf proof, current strict Clippy/repository/generated/owner gates, SpecTcl/UPF17/N17/shipped hosts and exact zero-P2F. AllF/audit0; explicit PR request still required."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Current repaired897b product: eight-package all-target v9 PASS0errors0warnings/allguards at05:41:37. Runtime compiler58 allocation in progress; original106+additional live-hook2 remain unexecuted until actual launch. Previousv8FAIL/test-onlyrepair and historical Spec66/report14/diag11/body5 failures retained. No strict lint, whole host, perf, C1C2, zero-P2F or sectionF acceptance.",
+  "disk_free_bytes": 9409433600,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T05:46:00.732703+00:00",
+  "verdict": "HOLD: first-call metadata accessor mutates active registration",
+  "patch_sha256": "5c6958a9098d8d27ad3e9845a1edbf9ec76072cd9c8032fc01b10115766dc136",
+  "independent_checks": "Exact3 before/final hashes, zero-fuzz off-tree application and pinnedfmt PASS. Persistent metadata fixes post-seed replacement/race, pointer lookup read-only, attach memo before COREwrite lock order retained.",
+  "blocking_compatibility": "builtin_commands newlycalls ensure. Supported independent register_core_surface_specs(custom) before SEEDED bootstrap then metadataaccessor callsseed\u2192register_builtin_commands, replacing activecustom set. Old accessor only returned compiled metadata. Root explicitly disallows first-call reset, no userdecision required.",
+  "next_seam": "Private core_surfaces::packs OnceLock evaluates only static include_str CORE_SURFACES; normalize actual compiled loaderrow identity there before active registration, without public arbitraryrow shape issuer or ordinaryloader/overlay changes. VM preparing off-tree route.",
+  "limits": "No Cargo/runtime/source/Git; original11 tests/assertions untouched; candidate not accepted."
+}

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T05:06:28.378132+00:00",
+  "status": "zero overlap exact and substring filters",
+  "LSP_plan_sha256": "28dac95bcfab8f6042e5b16a874d1fa876029ecfdeed2f7aa96c8be4bff16c2b",
+  "frozen_inventory_sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+  "compiler58_plan_sha256": "edb50891f02136342d160d2b7877dbba7f36e112e4151a999f9f680f93f14ea9",
+  "Jim7_plan_sha256": "ea778e6f50b22f3464e533a66b10b72d947e391c5d342a516f2ff6d94263194f",
+  "compiler_filters": 35,
+  "compiler_expected_selected": 58,
+  "LSP_filters_selected": 23,
+  "overlap": [],
+  "runtime": "UNRUN; no GO/Cargo"
+}

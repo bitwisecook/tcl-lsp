@@ -1,0 +1,75 @@
+{
+  "utc": "2026-10-23T05:36:09.948432+00:00",
+  "status": "off-tree static proposal only; compilerpeerpending; actualJim7/11unrun",
+  "selection_path": [
+    "core_surfaces::packs caches raw loader row from unconditional embedded jim-own-surface.tclspec",
+    "builtin_commands currently exposes raw row; register_builtin_commands registers same raw row",
+    "cache::register_core_surface_specs maps raw pointer via native_procedure::attach_builtin_core_definition",
+    "proc matches existing trusted Jim+Proc hook+proceduretraits guard, descriptor-only memoizedclone returned; allotherfields includingfamily unchanged",
+    "familycore store and pack-derived store index canonicalclone; generation resolve uses normal Jim-nearness/ranking; raw pointer is not held",
+    "original ownsurface2 tests compare/require raw pointer, explaining failures without demonstrating Tcl-family/priority defect"
+  ],
+  "contract": "Compiled core sources are unconditional; own rows are same canonical static handles in shared and pack stores. ProcedureDefinitionSpec Core is argv grammar metadata, not Native compilation/command token/source proof. NATIVE_JIM_ROWS alias/exists concerns separate native_compilation rows and must not gain proc.",
+  "candidate": "Registryrecords exactoriginal->canonical associations during alreadytrustedregistration; publicreadonlyidentitylookup issuesnoCoredescriptor. Builtinaccessor ensure/query; private declared_commands feedsregistration to avoidensurecycles. No ordinaryloader/install call to attachment or registryidentityissuance added.",
+  "negative_proof_limits": "Staticcallgraph and proposed localcopiedforeign-negative/idempotence controls; no Rusttype/runtime proof yet. An explicitprivileged register_core_surface_specs call remains existingtrustboundary; this proposal adds no new shape-based grant.",
+  "provider_provenance": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        "Jim_ProcCoreCommand14449",
+        "proc table registration16881 arity3..4"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/core-surfaces/jim-own-surface.tclspec",
+      "sha256": "9f2340faec0778b00d3b66829e0fa3d57e44a96827257ca3065011253ff4d7da",
+      "lines": [
+        "proc226/availableJim0.76/typedroles/analyserProc/loweringProc"
+      ]
+    },
+    {
+      "path": "docs/design/registry/spec-packs.md",
+      "lines": [
+        "938\u2013956 unconditional Jim ownsurface/core registration/generation contract"
+      ]
+    }
+  ],
+  "needed_actual_evidence": [
+    "rootfutureJim7 actual plain/pack rowidentity+family/descriptor diagnostic under matched original source",
+    "after candidateintegration/type, all11 original Jimownsurface controls unchanged and registryidentitynegative/idempotence tests",
+    "generation/roster/reload controls retain originalguards; no family-wide acceptance from two positives"
+  ],
+  "files": [
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v1/proposal.patch",
+      "sha256": "5d1fbc15472eef7084740223cfed0b280afa1a2dc83eea526c5af01ed24c0b4a",
+      "bytes": 6421,
+      "blob": "blobs/5d1fbc15472eef7084740223cfed0b280afa1a2dc83eea526c5af01ed24c0b4a.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v1/receipt.json",
+      "sha256": "9601fd5fa35fed54090d5a4b5e461cf93ff60e230491dfc79a62a671b1a4eed9",
+      "bytes": 2402,
+      "blob": "blobs/9601fd5fa35fed54090d5a4b5e461cf93ff60e230491dfc79a62a671b1a4eed9.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v1/shadow/rust/tcl-registry/src/cache.rs",
+      "sha256": "17bc52e9ff3592ea2b642740f37a11b4c5f60776fe8a11da318bcee245268f66",
+      "bytes": 40002,
+      "blob": "blobs/17bc52e9ff3592ea2b642740f37a11b4c5f60776fe8a11da318bcee245268f66.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v1/shadow/rust/tcl-registry/src/lib.rs",
+      "sha256": "67a87281f39d6c4dfddd569c377e54519760ff1b81003f8f392177738fa9c25f",
+      "bytes": 24661,
+      "blob": "blobs/67a87281f39d6c4dfddd569c377e54519760ff1b81003f8f392177738fa9c25f.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v1/shadow/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "194887dc65997e30ed951f2ccd2bcfe016e5b854d7be9b00e0686daa6e334e44",
+      "bytes": 12266,
+      "blob": "blobs/194887dc65997e30ed951f2ccd2bcfe016e5b854d7be9b00e0686daa6e334e44.gz"
+    }
+  ]
+}

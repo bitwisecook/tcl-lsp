@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T05:23:34.045638+00:00",
+  "status": "frozen repaired actualsource46 PREPARATION only; no GO/Cargo/provider/source/Git",
+  "pins": {
+    "plan.json": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+    "suite.py": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98",
+    "launch.py": "9421b300f0ce47c7a7645a940f3f49ebb946c8a44c99f870b19fcf7050e865ea",
+    "run.sh": "f6a2871658aee61a6baf270c9c68192229cfde4c6a58dbc409efa4e8720c6cea",
+    "runner-input-manifest.json": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "source46_map_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "typecheck9_plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+  "approved_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "delta": "actual product tuple +sole corrected maprow +actual8v9 prerequisite/path/version/pins only; allselectors/assertions/env/Tcl5/toolhash/lifecycle/budget/artifact/provider/docsonlyfinalseals unchanged",
+  "validation": "AST4/Bash/inputmanifest/exactselector+sourcepins+environment equality/absentGO PASS; peer pending; actualtypingretry PENDING no PASSfabricated"
+}

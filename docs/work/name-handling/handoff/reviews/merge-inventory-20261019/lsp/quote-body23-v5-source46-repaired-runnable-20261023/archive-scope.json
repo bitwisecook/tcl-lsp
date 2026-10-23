@@ -1,0 +1,24 @@
+{
+  "actual_utc": "2026-10-23T05:25:59Z",
+  "scope": "Frozen preparation and bounded static peer only; no GO, Cargo, test execution or PASS receipt",
+  "source_directory": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23",
+  "approved_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46_map_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "typecheck_v9_plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+  "vm_peer_sha256": "d957369902acc75f60fbd0bb06ddc82f051e6c33e84bdff4f4becbbf258f1f69",
+  "names_schema_peer": "CLEAR; receipt pending",
+  "files": {
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py": "9421b300f0ce47c7a7645a940f3f49ebb946c8a44c99f870b19fcf7050e865ea",
+    "plan.json": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+    "predecessor-compiler-names-peer-review.json": "15f617690f8bdf55acc7e368188f77cba6db84fe8571316d47446eda6f229a3f",
+    "predecessor-compiler58-Jim7-dedup.json": "f37fa50c3be6aeeaa68ecf3ead5269601abde275f156c2d11a6ca4e30f3bc5b4",
+    "predecessor-launch-preflight-refusal.json": "03d0e391da7b51325ffeab068062da03b4d0cbb224a6d7b71c02cfdcc0e483ae",
+    "preparation-receipt.json": "fab0e14fcb236213de664f10437e198934efd28f4792738f2fc9ae475d488f6d",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "run.sh": "f6a2871658aee61a6baf270c9c68192229cfde4c6a58dbc409efa4e8720c6cea",
+    "runner-input-manifest.json": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73",
+    "suite.py": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98"
+  }
+}

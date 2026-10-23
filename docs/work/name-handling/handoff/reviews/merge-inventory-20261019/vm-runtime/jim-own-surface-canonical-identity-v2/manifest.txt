@@ -1,0 +1,45 @@
+{
+  "utc": "2026-10-23T05:39:09.251421+00:00",
+  "status": "OFFTREE v2 static/syntax only, compilerpeerpending, original11/Jim7unrun",
+  "fix_of_v1": "V1 active-generation identity cache caused publicaccessor expect failure after replacement/race; v1held. V2 metadata associations persist independently of selectedactivegeneration and carry no currentnessauthority.",
+  "authority": "Only existing register_core_surface_specs issues associations after trusted descriptorattachment. Newread only uses exactinputpointer identity; no field/name/provider match, no descriptor creation, no Native/logical/source/frame/header authority.",
+  "replacement": "Active specs and generation stillreplace normally; metadata survives. Publicread never resets/reregisters or returnsraw/emptyfallback. Because seed uses private declared_commands, ensure returns beforemetadata read without recursivemutex/loader call.",
+  "controls_unrun": [
+    "all11 original ownsurface scripts/assertions unchanged; nativeexceptionsaliasexists unchanged",
+    "localactualregister bookkeeping idempotence + replacement keeps active row distinct from persistent metadata",
+    "fixedconcurrent replacement, either read/write lockorder, oldmetadata invariant; no random/fuzz",
+    "unregisteredcopiedrowNone; existing trustednoncore/explicitdescriptor negatives retained"
+  ],
+  "files": [
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v2/proposal.patch",
+      "sha256": "5c6958a9098d8d27ad3e9845a1edbf9ec76072cd9c8032fc01b10115766dc136",
+      "bytes": 9858,
+      "blob": "blobs/5c6958a9098d8d27ad3e9845a1edbf9ec76072cd9c8032fc01b10115766dc136.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v2/receipt.json",
+      "sha256": "fc5e1df203f1398976f441d945d2b507ea02ec2e43bfa080438e878bce2d6364",
+      "bytes": 2524,
+      "blob": "blobs/fc5e1df203f1398976f441d945d2b507ea02ec2e43bfa080438e878bce2d6364.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v2/shadow/rust/tcl-registry/src/cache.rs",
+      "sha256": "078152109733c9b2a52b1605478c0c7caf2a044b8d30fa5f21a2962b85ef0ba3",
+      "bytes": 42767,
+      "blob": "blobs/078152109733c9b2a52b1605478c0c7caf2a044b8d30fa5f21a2962b85ef0ba3.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v2/shadow/rust/tcl-registry/src/lib.rs",
+      "sha256": "f3a544df859fc33f40064682e3749cfab022041a590d59d9806cbf70afa15e6d",
+      "bytes": 24663,
+      "blob": "blobs/f3a544df859fc33f40064682e3749cfab022041a590d59d9806cbf70afa15e6d.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v2/shadow/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "4b0ad6eff2155afe115c1793cb2df9b331e9b46b168caa48ceb08aa32aed1196",
+      "bytes": 12346,
+      "blob": "blobs/4b0ad6eff2155afe115c1793cb2df9b331e9b46b168caa48ceb08aa32aed1196.gz"
+    }
+  ]
+}

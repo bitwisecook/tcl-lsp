@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T05:08:25.713752+00:00",
+  "status": "CLEAR bounded independent final env/tool/actualsource approval/HEAD delta; existing Native15 assertions/process retained",
+  "path": "/tmp/lsp-native-protocol-v13-source46-direct15",
+  "pins": {
+    "plan.json": "a95ce333bf657c023323e532b62efbaf0a06369d2bdd6aa0e5a1fd6c4edb3409",
+    "suite.py": "14cc038e8bae195d7af264c3db92ca4dd0a796ed3018f3517fb4d82ddb88a110",
+    "launch.py": "9250d9163763aa77d8a49d1d1bedd5fe0085456a228506ad710bfca2412e4adc",
+    "run.sh": "e6b476ed8b975e1344af5f37e51a1e496bbe2ef9e459908e3730329bccccbe55",
+    "runner-input-manifest.json": "af169c2a98b850492c5a41bc4264d6aba0bce8f9cac1b515c76d7249a780ee3d",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "scope": "v10\u2192v12 compiler+runtime environment/actualproduct binding and v12\u2192v13 monotonic/finalHEAD fix; existing Native15 lifecycle remains previously reviewed",
+  "checks": [
+    "Exact final runner input pins verified; immutable executor88125 unchanged.",
+    "Exact v8 required compiler env subset/PATH/refusedoverrides/toolpaths+hashes, plus five literal TclSH keys and Jim coverage; launcher sets/direct suite requires beforelock and eachsource_view.",
+    "Both pure override helpers exact10+target-specific refusal and required-env positive tested on v12; unchanged v13.",
+    "Selectors andsourcepins exactv12, fifteen original tests retained; environment/process budgets/count/status/artifact logic unchanged.",
+    "Actual approved product425bd8bd/tree5bc79699 is pinned in plan and GO; every46 committedblob/worktree/sourcepins/typecheckPASS0W receipt rejoined.",
+    "Final source_view AST equals reviewedLSP23v4 apart from preserved hash-only priorreport context evidence. All sampledHEADs monotonic docs-only descendants of approved product.",
+    "Final source_view occurs after fullsource/provider/artifactseals; finalactualHEAD/approvedtuple and intermediateHEAD samples recorded, including failurecase.",
+    "AST4/Bash parse and absentGO launch refusalPASS2 before runner/lock/Cargo."
+  ],
+  "limits": [
+    "No Cargo/build/Git/provider/canonical source/GO by reviewer; no test/runtime/release acceptance.",
+    "Actual8package PASS0W finalreceipt SHA is still required only at rootallocation; no receipt/pendingpass fabricated.",
+    "This verdict does not convert known report14 failures toPASS or certify allD/D6/shippinghosts."
+  ]
+}

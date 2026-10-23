@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T05:49:08.970018+00:00",
+  "verdict": "BOUNDED STATIC CLEAR",
+  "patch_sha256": "6a42e039c3cfaa649e313314ae1cd53209fc3f2e3086b41446f6ae8e351c01ac",
+  "exact_three_before_final_joins": true,
+  "independent_zero_fuzz_apply": true,
+  "pinned_rustfmt_check": true,
+  "original11_and_alias_exists_byte_unchanged": true,
+  "review": [
+    "Old helper acceptance unchanged: already Some returns same original; otherwise exact proc name+Proc hook+DEFINES_PROCEDURE and DEFERS_BODY+any Core(Jim) provider row. Shared descriptor data has exactly one entry and same Core payload; union matches old bitwise traits. Predicate field read order changes only among immutable data, with no callbacks. Memo key/cloning/lock behavior unchanged.",
+    "Private preparation is reached only from static include_str CORE_SURFACES inside private PACKS OnceLock. Loaded Pack owns mutable command vector; only its row reference is replaced with one immutable clone, not the loader cached spec. Ordinary evaluate_pack, even same bytes, receives unchanged raw None row. No public callable attachment/normalizer/registration API added.",
+    "builtin_commands retains original pure metadata path: no ensure, seed, active register, generation read/write, or currentness inference. First custom registration before first accessor and any replacement order cannot be reset by accessor. Canonical descriptor Some is returned unchanged by old register attachment, so consumer and registration retain pointer identity/idempotence.",
+    "No extra lock order: private Pack initialization calls loader then local immutable clone, no registry registration/cache lock. Existing attach memo before CORE writer remains. OnceLock publishes stable rows; replacing active core specs never mutates published packs.",
+    "New isolated single-test integration target exercises first-call custom generation preservation, ordinary same-byte foreign None, no native_compilation, exact canonical pointer/idempotent generation, sequential replacement, and one concurrent writer without active reset. These controls are prepared but not executed."
+  ],
+  "limits": "No Cargo/Rust typecheck/tests/native runtime/actual ownsurface2 acceptance. Later candidate only; source46 runtime runs continue unchanged. V1/v2 HOLD preserved. No Native/Logical/compiler/frame/current-registration proof issued by recipe DATA."
+}

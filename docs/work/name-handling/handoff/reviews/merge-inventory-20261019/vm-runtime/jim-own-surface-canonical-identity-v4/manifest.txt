@@ -1,0 +1,72 @@
+{
+  "utc": "2026-10-23T05:50:20.712290+00:00",
+  "status": "v4 BOUNDED STATIC CLEAR only; no typing/runtime/application; actualJim7 stillneeded",
+  "patch_sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+  "semantic_v3_peer_sha256": "59d686baae48c5a3b730c4b845f7b6966efb14bcb8de36a3508ad30f724a8a48",
+  "doc_v4_peer_sha256": "6824c3f4292aa6516a4394872957a593853244c9bf0ac2ae57dab3e51639e2d3",
+  "exactpaths": [
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "before_sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0",
+      "after_sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/core_surfaces.rs",
+      "before_sha256": "0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b",
+      "after_sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "before_sha256": null,
+      "after_sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11"
+    }
+  ],
+  "original11_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+  "pure_firstcall_replacement_concurrency": "privatefixedcompiledPACKSonlynormalization; accessor noensure/registrywrites, no new grant API or activeassociation/currentness store",
+  "foreign_negative": "ordinarysamebytes evaluate_pack unchangedNone; newisolatedcontrol unrun",
+  "files": [
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/proposal.patch",
+      "sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+      "bytes": 9405,
+      "blob": "blobs/eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/receipt.json",
+      "sha256": "a6c500bae2fdd91973f71dd719359163abc0044644b3dffddd6d381e3fc158e6",
+      "bytes": 3095,
+      "blob": "blobs/a6c500bae2fdd91973f71dd719359163abc0044644b3dffddd6d381e3fc158e6.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/compiler-peer-review.json",
+      "sha256": "6824c3f4292aa6516a4394872957a593853244c9bf0ac2ae57dab3e51639e2d3",
+      "bytes": 440,
+      "blob": "blobs/6824c3f4292aa6516a4394872957a593853244c9bf0ac2ae57dab3e51639e2d3.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/compiler-peer-review.json",
+      "sha256": "59d686baae48c5a3b730c4b845f7b6966efb14bcb8de36a3508ad30f724a8a48",
+      "bytes": 2384,
+      "blob": "blobs/59d686baae48c5a3b730c4b845f7b6966efb14bcb8de36a3508ad30f724a8a48.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/shadow/rust/tcl-registry/src/native_procedure.rs",
+      "sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+      "bytes": 68524,
+      "blob": "blobs/c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/shadow/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7",
+      "bytes": 13294,
+      "blob": "blobs/c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v4/shadow/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11",
+      "bytes": 3799,
+      "blob": "blobs/db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11.gz"
+    }
+  ],
+  "roundtrip_verified": true
+}

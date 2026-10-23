@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-23T05:48:30.414696+00:00",
+  "status": "v3 off-tree static/syntax only; compilerpeerpending; v1/v2held; original11+newcontrolunrun",
+  "files": [
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/proposal.patch",
+      "sha256": "6a42e039c3cfaa649e313314ae1cd53209fc3f2e3086b41446f6ae8e351c01ac",
+      "bytes": 9587,
+      "blob": "blobs/6a42e039c3cfaa649e313314ae1cd53209fc3f2e3086b41446f6ae8e351c01ac.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/receipt.json",
+      "sha256": "24b90817cf130100a6d2da14440d8bfa6c7604823a9df090c0339a7fc1c9c593",
+      "bytes": 2720,
+      "blob": "blobs/24b90817cf130100a6d2da14440d8bfa6c7604823a9df090c0339a7fc1c9c593.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/shadow/rust/tcl-registry/src/native_procedure.rs",
+      "sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+      "bytes": 68524,
+      "blob": "blobs/c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/shadow/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7",
+      "bytes": 13294,
+      "blob": "blobs/c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7.gz"
+    },
+    {
+      "path": "/tmp/vm-jim-core-canonical-identity-v3/shadow/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "sha256": "0b3c5670b3f8f265a99bc240a12bbd4026fa481b4aa92520c305dedc0aa1cc1f",
+      "bytes": 3978,
+      "blob": "blobs/0b3c5670b3f8f265a99bc240a12bbd4026fa481b4aa92520c305dedc0aa1cc1f.gz"
+    }
+  ],
+  "beforeafter_receipt": "/tmp/vm-jim-core-canonical-identity-v3/receipt.json",
+  "authority": "Registry-owned immutable typedrecipe data, no new callable arbitrary-row attachment. Only private compiletime CORE_SURFACES loadernormalizes once; ordinarysamebytes evaluate_pack untouched. Existingtrustedregisterhelper retains oldpredicate/Someidentity/memo behavior.",
+  "purity": "No ensure, registrationcachequery, activewrite/reset/associationstore or fallback in metadataaccessor; privatePACKSOnceLock is same loadercache as before. Source-onlycanonicaldescriptor does notprove Native/currentness.",
+  "meaningful_controls_prepared_unrun": [
+    "fresh isolatedprocess customactive register beforeFIRSTbuiltinaccessor remainsunchanged",
+    "ordinaryevaluate_pack sameactualJimpackbytes retainsrawprocNone, unlike privatecompiledphase",
+    "canonicalpointerregister idempotence and activegeneration unchangedbyread",
+    "replacement+singlefixedconcurrentwriter keep immutablepointers with no active reset"
+  ],
+  "original11_test_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e"
+}

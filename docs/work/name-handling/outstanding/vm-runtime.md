@@ -2,11 +2,102 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T05:22:44.495515+00:00 (actual source46v8 typingFAIL1E0716/0W; repairedtuple897b/0b11 mapf756; v9+dependentprotocolbinding prep only; noCargo/source)
+Last updated: 2026-10-23T05:50:20.712290+00:00 (ownsurfacev4 eca80f8b staticpeerCLEAR6824c3f4/semantic59d686ba; purefirstcall/sharedrecipe, original11unchanged; untyped/unrun)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Ownsurface canonicalidentity v4 final off-tree candidate staticpeerCLEAR:
+`/tmp/vm-jim-core-canonical-identity-v4/proposal.patch` SHAeca80f8b,
+peer6824c3f4 (doc-only delta) inheriting semanticv3 peer59d686ba.3paths:
+registry recipeDATA native_procedure c30a3291, privatecompiled core_surfaces
+c02db70c, newisolatedtest db445c8b. V4 changes only module doc to actual
+metadataidentity/accessorpurity scope; all codebytes exactv3. No newpublic
+callablegrant/ensure/cacheAPI/associationstore/activewrites; firstcallcustom,
+replacement/concurrentwrites retainpureaccessor. Ordinarysamebytesloader
+keepsrawNone; existingtrustedregisterhelper Someidentity/memo/oldpredicate
+unchanged. Alloriginal11source/assertions/[alias,exists] unchangeda62d6bc9.
+Independentzero-fuzz/3joins/fmt/staticsemantic+docreviews only; no Rusttyping,
+runtime, actualownsurface2 or broaderacceptance. Rootawaits actualJim7 before
+integrationdecision; source/providerHOLD/currentcompiler58run untouched.
+Losslesscandidate/peers/beforeafter:
+`vm-runtime/jim-own-surface-canonical-identity-v4/manifest.txt`.
+No canonical/Cargo/Git/source actions; v1/v2held,v3preserved.
+
+
+Actual repairedsource46 eightpackagev9 typing PASS0W05:41:37 per root,
+confirmed finalreceipt status/PASS-warning seal; compiler58 actualbuild is
+rootallocated, no Jim7/ownsurface runtimeyet. Previousv8FAIL preserved.
+Canonicalidentity v1/v2 bothheld: v2 initialensure couldreset independently
+registered customactive rows, violating pure firstcall metadataaccessor.
+V3 frozen `/tmp/vm-jim-core-canonical-identity-v3/proposal.patch`
+SHA6a42e039 has3paths: registry-owned immutable descriptorrecipe DATA reused
+by existingtrustedhelper; privatefixedCORE_SURFACES load normalizes rowonce
+beforePACKSpublish; isolatedfreshprocess purity/foreignsamebytes/replacement/
+concurrency control. No newpublic callablegrant/API/cacheassociation/ensure
+oractivewrites in builtinaccessor. Exactoldpredicate/Someidentity/memo
+preserved; ordinaryloader/overlays neverenterprivatephase, foreignsamebytes
+retainrawNone. All11source/assertions/[alias,exists] byte-unchanged.
+Rustfmt/syntaxonly, compilerpeerpending; no type/runtimeacceptance. Archive
+`vm-runtime/jim-own-surface-canonical-identity-v3/manifest.txt`.
+No source/Cargo/Git actions; actualJim7 and futureunchanged11remainproof.
+
+
+Canonicalidentity v1 held: currentregistration replacement cleared associations
+whileSEEDEDtrue, making accessor expect unsafe under replacement/race.
+V2 off-tree `/tmp/vm-jim-core-canonical-identity-v2/proposal.patch`
+SHA5c6958a9 retains immutable exactorigin→canonical metadata across active
+generation replacement. API canonical_core_surface_metadata explicitly grants
+no current/selected registration authority; only existingtrustedregister can
+issue association after descriptorattachment. No shapegrant/fallback/empty/
+reseed/readsideeffect; activepriority/specset/generation rules retained.
+Private declared_commands feeds registration; ensure returns before readonly
+metadata lookup, attachmutex precedes COREwrite with no upgrades/reentry.
+Prepared meaningful localactualregister replacement/idempotence/unregistered
+copiedforeign controls plus fixed oneconcurrent replacement (either lockorder),
+all unrun. Original11file/assertions/[alias,exists] byte-unchanged. Rustfmt/
+syntaxonly; compilerpeerpending; actualJim7 and futureunchanged11 runtime
+remainproof. Losslesscandidate `vm-runtime/jim-own-surface-canonical-identity-v2/manifest.txt`.
+No canonical/source/Git/Cargo actions; v1 preservedheld, no currentness donation.
+
+
+Ownsurface2 bounded static investigation maps original proc identity mismatch:
+raw embedded Jimrow exposed by builtin_commands, but existing trustedregister
+replaces it with memoized descriptor-only canonicalclone; plain/pack stores
+hold clone. This does not demonstrate wrongTclfamily/priority. Alias/exists
+nativeexceptionlist and all11 originalassertions remain byte-unchanged.
+Off-tree proposal `/tmp/vm-jim-core-canonical-identity-v1/proposal.patch`
+SHA5d1fbc15 has3paths exactbefore/after inreceipt. Registryrecords exact
+originalpointer→canonical associations during existingtrustedregistration;
+new publicAPI only reads association, never attaches or matches shapedname/
+provider. Unregistered copiedforeign row returnsNone, replacementclears old
+associations; original descriptor/rowsetidempotence retained. Publicaccessor
+ensure/query usesprivate declared_commands for registration, avoidingseed
+recursion/heldmutexreentry. Rustfmt/syntaxonly, no typing/runtime. Compiler
+peerpending; actualrootJim7 and unchanged11 controls remain required proof.
+Losslesscandidate/staticselection/providerprovenance/limits:
+`vm-runtime/jim-own-surface-canonical-identity-v1/manifest.txt`.
+No product/source/Git/Cargo edits or Native/Logical/namefallback.
+
+
+Repaired source46 dependent protocols bounded delta peerCLEAR:
+CCGdirect3v6 plan8dba2a61/suite2c278dd1/input10fa392a, receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/ccg-post46-direct3-v6-static-review.txt`
+SHA382ee6e2; all18own/transitive8v9inputs plus46currentafterbytes match,
+exact3/5producerpins/Rust+5Tcl/provider/88125/limits retained. LSP23v5
+plan96b709ba/suitecd5d40ff/input7209ba50 and Native15v14 plan7495afcf/
+suite4e96d307/input71d35489, joint receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/lsp23-v5-native15-v14-repaired-static-review.txt`
+SHAd9573699. All13/16inputs+7/13currentpins+AST/GOabsence checked; scripts
+onlyBASE/version8→9SOURCE46 vs priorfullguard peers. Env5Tcl/tools,
+monotonicdocs-onlyHEAD and finalaftercapture seals remain unchanged.
+All bind exact897b4f9b/tree0b11e3a0/repaired46mapf7568b84 and8v9plan983d3418.
+Actual sameproduct8v9PASS0W fullguard receipt stillmandatory atGO; priorv8
+FAIL not waived. No runtime/sectionD/SpecTcl admission from peer review;
+no launcher/provider/Git/Cargo/lock/source action. OriginalSpec3/noTom16
+remain unrun, actual Spec66source30 51/15 archive separate.
+
 
 Actual source46 eightpackagev8 closed05:14:22 FAIL Cargo101 from exactlyone
 E0716 in newBPFtest `ir/source_bpf_command.rs` temporary registry borrow;

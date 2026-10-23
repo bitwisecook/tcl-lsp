@@ -1,0 +1,18 @@
+{
+  "inputs": {
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "/tmp/name-handling-eight-package-check-v9-source46/plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "/tmp/lsp-nextbatch-quote-body-finite-inventory-v1/inventory.json": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/run.sh": "f6a2871658aee61a6baf270c9c68192229cfde4c6a58dbc409efa4e8720c6cea",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/suite.py": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/launch.py": "9421b300f0ce47c7a7645a940f3f49ebb946c8a44c99f870b19fcf7050e865ea",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/plan.json": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+    "/tmp/naming-source46-repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594"
+  },
+  "root_go_contract": "exact actual repairedsource46 product897b4f9b/tree0b11e3a0 and mapf7568b84, exact8v9plan983d3418; actual PASS0W finalreceipt path/SHA only atallocation; no GO or PASS fabricated"
+}

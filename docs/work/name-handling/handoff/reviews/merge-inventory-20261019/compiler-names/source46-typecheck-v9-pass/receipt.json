@@ -1,0 +1,273 @@
+{
+  "utc": "2026-10-23T05:42:57.983545+00:00",
+  "status": "ACTUAL PASS0W compilation-only, all finalguards; no runtime/test/release acceptance",
+  "base": "/tmp/name-handling-eight-package-check-v9-source46",
+  "run": "/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z",
+  "archive_sha256": "ea9644888ae78b93b98517a87450dc444c43202eaefec56c67c6359176a4d6a6",
+  "archive_bytes": 3008647,
+  "file_count": 36,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "bytes": 3554
+    },
+    {
+      "path": "__pycache__/guarded-exec.cpython-312.pyc",
+      "sha256": "7b4dc735e69f2205840d350bd0dd26392782c1b733360ce402ea18267f1c3a97",
+      "bytes": 16520
+    },
+    {
+      "path": "guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109
+    },
+    {
+      "path": "launch-preflight-refusal.json",
+      "sha256": "7f1971edee8af2967340b50794019f2d46ea2b128b82a2da0d3090b9c8bcdbaa",
+      "bytes": 195
+    },
+    {
+      "path": "launch.py",
+      "sha256": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "bytes": 3403
+    },
+    {
+      "path": "launcher-runs/20261023T052327.120208Z/launcher.json",
+      "sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+      "bytes": 4004
+    },
+    {
+      "path": "launcher-runs/20261023T052327.120208Z/launcher.transcript",
+      "sha256": "4a6aa4f7787f60e69a3169f97efad3f612fd22789a6f1b1272fb8d1a6a499dc7",
+      "bytes": 121
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "f317b523f2853b73b5210ae9f37fd4eee49cd46c615642ad4dec7d80a5df3766",
+      "bytes": 1257
+    },
+    {
+      "path": "plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534
+    },
+    {
+      "path": "preflight-readiness.json",
+      "sha256": "8893f023a03196b1b198658462e2e2605b05a45843ffe77fb6c5ed221fb4a0ef",
+      "bytes": 1373
+    },
+    {
+      "path": "repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "bytes": 435
+    },
+    {
+      "path": "root-go-schema.json",
+      "sha256": "d5190ea8a490c6154b92f8b7f229f8d5e88e90b2646ba8a00cd06109c691705a",
+      "bytes": 1584
+    },
+    {
+      "path": "root-go.json",
+      "sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+      "bytes": 792
+    },
+    {
+      "path": "run.sh",
+      "sha256": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "bytes": 89
+    },
+    {
+      "path": "runner-input-manifest.json",
+      "sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "bytes": 1415
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/command.txt",
+      "sha256": "c962b7c3550588738257740e3e4b51a0d6eae8f79cc383f2df2623744d76f508",
+      "bytes": 329
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/diagnostics.json",
+      "sha256": "9e484753799a0fee631c668737dcf71b4961d539e2a845d10dcc80ef67a92358",
+      "bytes": 195
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/final.json",
+      "sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+      "bytes": 1395
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/head-after-cargo.txt",
+      "sha256": "314c1333446cda122eda0bba452aaa98c073e6503dc731ce60b77595835da6e5",
+      "bytes": 41
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/head-after.txt",
+      "sha256": "314c1333446cda122eda0bba452aaa98c073e6503dc731ce60b77595835da6e5",
+      "bytes": 41
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/head-before.txt",
+      "sha256": "3b340a9e05bb9c148de5aec2e50c7b21119cefae1a64460d9aee97a1f88cdbdc",
+      "bytes": 41
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/head-pre-spawn.txt",
+      "sha256": "3b340a9e05bb9c148de5aec2e50c7b21119cefae1a64460d9aee97a1f88cdbdc",
+      "bytes": 41
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/process.json",
+      "sha256": "bdbf34fc7e40979447fc0f8ffcb1d8bebd895cee34cfe5a3d64d7c478256a221",
+      "bytes": 2620
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/providers-after.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/providers-before.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/providers-pre-spawn.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/root-go-after.json",
+      "sha256": "7dc4c35817507854887fa9ad6e294083592116af27a2f443dc3e20672a394b49",
+      "bytes": 792
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/root-go-before.json",
+      "sha256": "7dc4c35817507854887fa9ad6e294083592116af27a2f443dc3e20672a394b49",
+      "bytes": 792
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/source-after.json",
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "bytes": 12728460
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/source-before.json",
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "bytes": 12728460
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/stderr.bin",
+      "sha256": "fd8e04ba307a65a3a06072cf702ee443be5ffa41c55a9bcddf08d3d5aa73f9f5",
+      "bytes": 1942
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/stdout.bin",
+      "sha256": "29351097901c0422f15ed7241b7233c975954829552de2f070efe2267873e036",
+      "bytes": 437147
+    },
+    {
+      "path": "runs/20261023T052332.886291Z/suite.transcript",
+      "sha256": "4a6aa4f7787f60e69a3169f97efad3f612fd22789a6f1b1272fb8d1a6a499dc7",
+      "bytes": 121
+    },
+    {
+      "path": "source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539
+    },
+    {
+      "path": "suite.py",
+      "sha256": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "bytes": 15756
+    }
+  ],
+  "roundtrip": "PASS every archived file SHA",
+  "final_sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+  "launcher_sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+  "process_sha256": "bdbf34fc7e40979447fc0f8ffcb1d8bebd895cee34cfe5a3d64d7c478256a221",
+  "final": {
+    "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+    "cargo_binary_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "cargo_exit_code": 0,
+    "finished_utc": "2026-10-23T05:41:37.402572+00:00",
+    "guard_valid": true,
+    "head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "head_after": "2a3eb98503a7b213e904410d972c82cce7232280",
+    "head_after_cargo": "2a3eb98503a7b213e904410d972c82cce7232280",
+    "head_before": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "head_docs_descendant_valid": true,
+    "head_pre_spawn": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "head_stable": false,
+    "overall_exit": 0,
+    "plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "process_receipt_sha256": "bdbf34fc7e40979447fc0f8ffcb1d8bebd895cee34cfe5a3d64d7c478256a221",
+    "providers_stable": true,
+    "root_go_sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+    "root_go_stable": true,
+    "scope": "eight-package all-target compile check only; no runtime/test claim",
+    "selected_packages": [
+      "tcl-compiler",
+      "tcl-lsp-core",
+      "tcl-lsp-db",
+      "tcl-lsp-server",
+      "tcl-vm",
+      "tcl-fuzz",
+      "tcl-spectcl",
+      "bpf-tcl-ir"
+    ],
+    "source_stable": true,
+    "status": "PASS",
+    "warning_free_json_stderr_stdout": true
+  },
+  "launcher": {
+    "durable_file_backed_output": true,
+    "exit_code": 0,
+    "finished_utc": "2026-10-23T05:41:37.715815+00:00",
+    "input_pins_after": {
+      "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+      "/tmp/name-handling-eight-package-check-v9-source46/README.md": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "/tmp/name-handling-eight-package-check-v9-source46/launch.py": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "/tmp/name-handling-eight-package-check-v9-source46/plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "/tmp/name-handling-eight-package-check-v9-source46/root-go.json": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+      "/tmp/name-handling-eight-package-check-v9-source46/run.sh": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "/tmp/name-handling-eight-package-check-v9-source46/runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "/tmp/name-handling-eight-package-check-v9-source46/suite.py": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    "input_pins_before": {
+      "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+      "/tmp/name-handling-eight-package-check-v9-source46/README.md": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "/tmp/name-handling-eight-package-check-v9-source46/launch.py": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "/tmp/name-handling-eight-package-check-v9-source46/plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "/tmp/name-handling-eight-package-check-v9-source46/root-go.json": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+      "/tmp/name-handling-eight-package-check-v9-source46/run.sh": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "/tmp/name-handling-eight-package-check-v9-source46/runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "/tmp/name-handling-eight-package-check-v9-source46/suite.py": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    "inputs_stable": true,
+    "manifest_sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+    "plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "root_go_sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+    "root_go_sha256_after": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+    "root_go_stable": true,
+    "started_utc": "2026-10-23T05:23:27.120257+00:00",
+    "transcript": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.transcript"
+  },
+  "old_v8": "FAIL1test-onlyE0716/0actualwarnings preserved immutable, not overwritten",
+  "root_allocation": "Root reported reviewed allocatorv2 compiler58 mint+separatelaunch parentcommand session77511 started05:42:12; Names did not execute allocator/touchGO/Cargo/Git/source."
+}

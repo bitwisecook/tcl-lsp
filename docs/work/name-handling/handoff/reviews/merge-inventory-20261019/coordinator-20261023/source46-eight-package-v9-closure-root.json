@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T05:43:04.976470+00:00",
+  "actual_closed_utc": "2026-10-23T05:41:37.402572+00:00",
+  "scope": "Eight-package all-target compilation only; no runtime/strict-lint/host/perf/baseline or release acceptance.",
+  "status": "PASS",
+  "errors": 0,
+  "warnings": 0,
+  "final_path": "/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json",
+  "final_sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+  "launcher_path": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json",
+  "launcher_sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+  "process_sha256": "bdbf34fc7e40979447fc0f8ffcb1d8bebd895cee34cfe5a3d64d7c478256a221",
+  "source_snapshot_sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+  "provider_snapshot_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+  "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-lsp-server",
+    "tcl-vm",
+    "tcl-fuzz",
+    "tcl-spectcl",
+    "bpf-tcl-ir"
+  ],
+  "all_observed_guards_valid": true,
+  "head_before": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "head_after": "2a3eb98503a7b213e904410d972c82cce7232280",
+  "head_docs_descendant_valid": true,
+  "section_F_or_audit_admissions": 0
+}

@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-23T05:47:41.967580+00:00",
+  "archive_sha256": "ea9644888ae78b93b98517a87450dc444c43202eaefec56c67c6359176a4d6a6",
+  "archive_receipt_sha256": "610641cd4871093eb628a28fabc7dce20655e4dcc7acd4c221a2d41450e9f283",
+  "root_verified_all_payload_count": 36,
+  "scope": "Lossless v9 closed typecheck archive verification, compilation-only PASS0W. No runtime or release claim."
+}

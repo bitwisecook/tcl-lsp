@@ -1,0 +1,24 @@
+{
+  "actual_utc": "2026-10-23T05:40:22.393941+00:00",
+  "verdict": "CLEAR bounded static successor delta/schema/dependency review",
+  "manifest_sha256": "b6bd313c3917febd6c9751e3c13e91654b9636d9d86cc55d33f41d8cb65bd5c5",
+  "script_sha256": "3ec9559c7bf82a1d206ae8343977743216569f979dfe47d5d699a667b88dd64f",
+  "predecessor_review": "root-allocator-v1-static-peer.json",
+  "checks": [
+    "exact manifest and all listed hashes",
+    "config byte-identical v1",
+    "script delta only BASE and exact CARGO/PLAN/MANIFEST bindings",
+    "six recursive guard-set free-global inventories complete",
+    "exact extracted functions no executable decorators/defaults/annotations",
+    "all prior deep actual-v9 PASS0W/receipt/process/source/provider/context/schema guards byte-unchanged"
+  ],
+  "not_run": [
+    "positive allocator path",
+    "Git",
+    "provider capture",
+    "lock",
+    "GO mint",
+    "Cargo"
+  ],
+  "scope": "Root separately reviews and allocates only after real v9 closed PASS; no PASS or GO inferred."
+}

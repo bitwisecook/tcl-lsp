@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T05:27:42.418363+00:00",
+  "job": 120175508624,
+  "run": 39879737945,
+  "observed_status": "completed",
+  "observed_conclusion": "failure",
+  "metadata_evidence": "ci5206-complete-roster-0525.json",
+  "exact_selector_outcomes": "UNAVAILABLE; not inferred from job status",
+  "connector_error": "Transport closed",
+  "bounded_rest_fallback_exit": 1,
+  "rest_redirect_result": "Forbidden from GitHub temporary blob log endpoint; signed URL not retained in this receipt",
+  "source_product": "old CI5206 product3b1 / published5a418",
+  "no_current_product_acceptance": true
+}

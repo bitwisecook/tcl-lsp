@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T05:22:25Z: actual eight-package v8 on425bd8bd CLOSED05:14:22 FAIL cargo101, one E0716 temporary-borrow error, zero warnings; source/provider/GO seals stable and docs-only HEADvalid (guard_validfalse includesCargo101). Tiny test-only repair integrated actual `897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6`/tree `0b11e3a05ee26ca70bbe001244d05c5ab9004f30`; repaired46 mapf7568b84 keeps exact46paths and changes only source_bpf_command.rs after15ee53b3. Retry8v9 preparing/PENDING, no PASS fabricated. LSP preparing immutable23v4/Native15v13 successors on repairedactualtuple/map+v9 prerequisites once Namesfreezes exactplan. Oldrunnables immutable/unrun; all selectors/assertions/budgets/env/Tcl5/tools/fullseals/docsonlyfinalHEAD guards preserved. No GO/Cargo/provider/source/Git byLSP; no runtime/releaseclaim.
+Current status 2026-10-23T05:25:59Z: actual eight-package v8 CLOSED FAIL cargo101/one E0716/zero warnings with stable source/provider/GO seals. Test-only repair actual897b4f9b/tree0b11e3a0/mapf7568b84 retains46paths; eight-package v9 plan983d3418 actually RUNNING since05:23:27, verdict PENDING. Frozen repaired LSP23v5 plan96b709ba and Native15v14 plan7495afcf independently bounded static CLEAR (Names schema and VM identity delta); exact original rosters/assertions/env/tools/Tcl5/lifecycle/fullseals/finalHEAD preserved. Actual PASS0W receipt path/SHA remains future root GO prerequisite. No LSP Cargo/GO/source/provider/Git action or runtime/release claim.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T05:22:25Z
+Last updated: 2026-10-23T05:25:59Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T05:22:25Z: read `lsp/source46-repaired-identity-typing-v8-failure-20261023/scope.json` first. Actualtypingv8FAIL1E0716/0W is preserved, notgreen. Repairedactual897b4f9b/tree0b11e3a0/mapf7568b84 has no newtyping/runtime verdict. Await Names8v9 exactpath/plan before freezing versionedLSP23/Native15 successors; bind actualPASS0W receiptSHA onlyatrootGO afterrealretry. Preserve priorimmutableplan/receipts, alloriginalassertions/guards, user2231 opaque stop; no release/zeroP2Fclaim.
+Latest resume pointer 2026-10-23T05:25:59Z: read `lsp/source46-repaired-identity-typing-v8-failure-20261023/scope.json`, then frozen `lsp/quote-body23-v5-source46-repaired-runnable-20261023/archive-scope.json` and `lsp/native15-v14-source46-repaired-runnable-20261023/archive-scope.json`. Actual v8 FAIL1E0716/0W remains history; repaired actual897b/tree0b11/mapf756 has retry eightv9 RUNNING, no verdict. Both runnable successors static CLEAR; bind actual v9 PASS0W receipt path/SHA only at root allocation. No GO/execution; keep original assertions, source-purpose boundaries and user2231 opaque stop. External plain-Tcl applicable-rewrite failure remains later follow-up, not taken over.
 
 
 

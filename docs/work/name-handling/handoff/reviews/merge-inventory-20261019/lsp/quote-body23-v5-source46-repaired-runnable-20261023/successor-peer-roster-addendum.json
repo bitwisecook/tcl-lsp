@@ -1,0 +1,14 @@
+{
+  "actual_utc": "2026-10-23T05:33:27.114174+00:00",
+  "scope": "Repaired-source successor addendum; predecessor receipts unchanged. Exact and substring package/selector overlap only, no execution.",
+  "lsp_plan_sha256": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+  "compiler_plan_sha256": {
+    "/tmp/compiler-source46-focused58-v3/plan.json": "620a4a21238c6de04b5dd22d875e9a0e43d6971d6afd81510bf99f13e1050b11",
+    "/tmp/compiler-jim7-source46-v3/plan.json": "ed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c"
+  },
+  "overlaps": [],
+  "names_v9_schema_peer": {
+    "path": "compiler-names/repaired-lsp23-native15-v9-schema-peer.json",
+    "sha256": "151fbadaefb9496e1479d4a2b1ed99d46a203724650ba0b898cccb652059c4d8"
+  }
+}

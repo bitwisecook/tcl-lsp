@@ -1,0 +1,59 @@
+{
+  "utc": "2026-10-23T05:30:45.258266+00:00",
+  "protocols": [
+    {
+      "role": "compiler58",
+      "base": "/tmp/compiler-source46-focused58-v3",
+      "plan_sha256": "620a4a21238c6de04b5dd22d875e9a0e43d6971d6afd81510bf99f13e1050b11",
+      "runner_inputs_sha256": "fe1f1517e42f101ab10cc815ca9bcd7b17740ebcdac451d7467778a99e9c2bf0",
+      "expected_selected": 58,
+      "filter_count": 35,
+      "immutable_inputs_verified": 15,
+      "root_go_present": false
+    },
+    {
+      "role": "jim7",
+      "base": "/tmp/compiler-jim7-source46-v3",
+      "plan_sha256": "ed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c",
+      "runner_inputs_sha256": "4ab415b101889ee2401f1d34f80f6d0b2c242742686e4b680ca7b6de662913a5",
+      "expected_selected": 7,
+      "filter_count": 7,
+      "immutable_inputs_verified": 15,
+      "root_go_present": false
+    },
+    {
+      "role": "lsp23",
+      "base": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23",
+      "plan_sha256": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+      "runner_inputs_sha256": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73",
+      "expected_selected": 23,
+      "filter_count": 23,
+      "immutable_inputs_verified": 13,
+      "root_go_present": false
+    },
+    {
+      "role": "native15",
+      "base": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15",
+      "plan_sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+      "runner_inputs_sha256": "71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65",
+      "expected_selected": 15,
+      "filter_count": 15,
+      "immutable_inputs_verified": 16,
+      "root_go_present": false
+    },
+    {
+      "role": "ccg3",
+      "base": "/tmp/ccg-post46-direct3-v6",
+      "plan_sha256": "8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34",
+      "runner_inputs_sha256": "10fa392a3c45b10abc300ff0e253920bf223f1d0452d20d0f629d292f5e77884",
+      "expected_selected": 3,
+      "filter_count": 3,
+      "immutable_inputs_verified": 18,
+      "root_go_present": false
+    }
+  ],
+  "total_expected": 106,
+  "all_pinned_inputs_verified": true,
+  "cross_protocol_exact_and_substring_selector_collisions": [],
+  "scope": "Static finite roster/immutable-input verification only. Actual executable discovery/counts required at runtime. No GO or runtime claim."
+}
