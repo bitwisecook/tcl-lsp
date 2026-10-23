@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T00:25:37.185283+00:00
+Last updated: 2026-10-23T00:41:01.123615+00:00
 
 ## In progress
 
@@ -368,3 +368,7 @@ Last updated: 2026-10-23T00:25:37.185283+00:00
 - Corrected ILX first-operand v3fac707 now naming peer-clear, frozen in compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z with exact consumer API and review. Root routed off-tree adapter preparation to existing BIG-IP outstanding file; compiler API remains unapplied/untyped/unrun, original16 still required, no runtime target/completeness grant. Compiler resumes report90field/12subject/body-role correspondence; old countguard/global Eq unchanged.
 - LSP warning cleanup eeec initial proposal statically codegen-clear on functionality/currentness; small truthful-comment successor requested before final freeze. It remains off-tree/untyped/unrun; no new allows/fake uses or removed live revision/session checks. Native protocol plan requires explicit reviewed pin successor if canonical cleanup later changes lib.rs; no silent source-pin refresh.
 - Cycle start fresh depth1 fetch/fast-forward in isolated publisher performed before WIP snapshot. Active product source remains held during metadata; full staged snapshot and rebase/normal push publication preserve exact product equivalence.
+
+### Typed source and bounded runtime handoff (2026-10-23T00:41Z)
+
+Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source/fullprovider seals unchanged; canonical typecheck-six-20261023T003940Z has full proofs. ILX compiler API still needs its four controls, actual BIG-IP consumer wiring and original16. Runtime Full5 sole guarded command started PID201950, receipt `/tmp/vm-runtime-full5-actual-20261023T0041Z`; no result yet. Source/test/provider HOLD through fixed runtime slots. CI5205 complete7success/20failure/3skip; old main822 exact regressions remain, main5 log transport failed/no bytes. Root will publish typed source without retiming00:55 cycle, then fresh CI dispatch only after proving no active work run. No PR/release or audit admission.

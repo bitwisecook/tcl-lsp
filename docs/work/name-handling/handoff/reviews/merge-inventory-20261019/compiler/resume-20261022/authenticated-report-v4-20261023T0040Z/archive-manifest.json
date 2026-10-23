@@ -1,0 +1,7 @@
+{
+  "status": "Frozen off-tree draft only; source not integrated. All typing/runtime/oldmixed/hosted corpus controls unrun. Names static review pending. No perf/fullproof closure.",
+  "files": {
+    "receipt.json": "7dfe980f4517446918de4108cb539c771ce71b4f7fdffe5cf8c4ca58b54bd3c8",
+    "proposal.patch": "6ff788bf5b7e39970c03fbd156e82545566737e423d1089f7b673effda300bab"
+  }
+}

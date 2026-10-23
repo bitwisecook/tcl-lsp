@@ -1,0 +1,71 @@
+{
+  "prepared_utc": "2026-10-23T00:39:32.862799+00:00",
+  "status": "OFFTREE full comparator draft; untyped/unrun/unreviewed. Not perf-ready/fullproof closure: known E003/hosted corpus coverage needs actual verification; missing nested correspondences fail Unavailable.",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": null,
+      "after_sha256": "ac5437680ea9c3e483d80cdd6fccda4b83e51a40457f4f5341ccd3e0013d64f2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "before_sha256": null,
+      "after_sha256": "bf0882789f7bb9756cb9969f1b5ffeca1c92553555a3cf6aacd54a89ce98bfac"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "before_sha256": null,
+      "after_sha256": "2beb46d2a25c578017ea193dbe535cf7aa9a0fd8ecc74fce3aecc9762f5d3e76"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "before_sha256": "3cc924569d825b4e5b399b6f89384c70e93235068892bd4bcf6156706b358c2e",
+      "after_sha256": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "before_sha256": "058c540c510fd84032265302b50b8bc872c102581a5720de263eb4e04c21c7f1",
+      "after_sha256": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/mod.rs",
+      "before_sha256": "9550ef401ee80f594f253ba736691453649a4c9c0b3b1a6014f56ea7c51f2e53",
+      "after_sha256": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "43883e216d0a50c89ebc568c5b78b3d36f0fc7bfb7ee17e6fbbc8a064ee875ed",
+      "after_sha256": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "before_sha256": "4d34f256a857290482d3b48d064645b41afd93b870dd729c512e49b7f1fba1a6",
+      "after_sha256": "b98a368f62e619ed4d2878843af1c6cbf742f0905af7f07d25569a8135061e74"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "before_sha256": "3e2177ed83ba187555ce1a3711f1759cd075d39cb4f7346b1f7208c16572c697",
+      "after_sha256": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "before_sha256": "97bdc8d2b8da3854bd76c6216598af45416d5b1b0eb639e21a0dadec31156a6b",
+      "after_sha256": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types.rs",
+      "before_sha256": "28ea3229204b2bb3da61a80def8612efb4d07d37bd797cdcab3125e4ebb85abe",
+      "after_sha256": "c52e8bce36f53ac1c61032134cb12726480d3b8aeeae535d50bbda71d6d17439"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "before_sha256": null,
+      "after_sha256": "263214cf4adccaebcb247cc77497a14ae7eb4244e9b1f23061dfaa0732f45ba6"
+    }
+  ],
+  "patch_sha256": "6ff788bf5b7e39970c03fbd156e82545566737e423d1089f7b673effda300bab",
+  "successor_to": "ce81ffc3e1e60ca1f9dd973bc782aafd820145975b63280f2bee5b862438d179",
+  "changes": "All90 exhaustive AnalysisResult inventory, all12 explicit typed diagnostics; conservative strict fields, unknown owner mismatches Unavailable; genuine E003 analysis_owner pair via sealed current complete diagnostic output token; separate actual unit full body/hosted census; advisory object frame/body comparisons use actual bijection, physical/Normal fields strict. Existing global Eq/countguard/cache/Salsa unchanged.",
+  "controls": "7 prior kernel/body controls + real E003 two-result and changed plain value controls; all unrun. No original perf corpus acceptance.",
+  "canonical_unchanged": true
+}

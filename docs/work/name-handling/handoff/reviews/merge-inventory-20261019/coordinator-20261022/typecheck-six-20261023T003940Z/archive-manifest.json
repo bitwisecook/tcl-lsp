@@ -1,0 +1,123 @@
+{
+  "utc": "2026-10-23T00:41:01.120729+00:00",
+  "source": "/tmp/compiler-names-n13-typecheck-six-20261023T0030Z",
+  "summary": {
+    "cargo_exits": [
+      0
+    ],
+    "compiler_errors": 0,
+    "compiler_warnings": 0,
+    "head_after": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "head_before": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "passed": true,
+    "phases_completed": 1,
+    "provider_changes": [],
+    "retained_log_bytes": 417003,
+    "retention_cap_bytes": 20971520,
+    "scope": "Typecheck only, no tests or N13 functional admission. All six packages share one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+    "source_and_providers_unchanged": true,
+    "source_changes": [],
+    "source_count_after": 6542,
+    "source_count_before": 6542,
+    "utc": "2026-10-23T00:39:40.077808+00:00"
+  },
+  "files": [
+    {
+      "original_name": "after-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "after-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "after-source.json",
+      "original_bytes": 873097,
+      "original_sha256": "8e3e119057fbc3f3d49364b64232a0095322c8b05b8ec39a7e8fedb7b3e2a629",
+      "stored": "after-source.json.gz",
+      "stored_bytes": 300291,
+      "stored_sha256": "d025a541d915208aeeebd88bc1617594fcc968b3ece33ca42d4d4c25387e9f84"
+    },
+    {
+      "original_name": "before-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "before-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "before-source.json",
+      "original_bytes": 873097,
+      "original_sha256": "7c3ad493c264c46b42be2816c5107f4bf6c3e28cd80293c6c1e832a5438731bb",
+      "stored": "before-source.json.gz",
+      "stored_bytes": 300290,
+      "stored_sha256": "1ec3d15c7b80b24890810b13c0c6aa3183ffae2fc4cd68f03d8f385e3f26a78b"
+    },
+    {
+      "original_name": "combined-artifacts.json",
+      "original_bytes": 496367,
+      "original_sha256": "9c2d40178f3e272775c6007b0ccde29e28f1d8c710f86a727f059c9d7cf1fb23",
+      "stored": "combined-artifacts.json.gz",
+      "stored_bytes": 38560,
+      "stored_sha256": "53839772a402624cec09ecdf57d45f0a7e7ef4e568e55a334dc39be0f1e4de2a"
+    },
+    {
+      "original_name": "combined-result.json",
+      "original_bytes": 804,
+      "original_sha256": "2f59a0bc96622715b8bc1aa0ed406f650dcd68d988251c06536cf34f4df2991a",
+      "stored": "combined-result.json",
+      "stored_bytes": 804,
+      "stored_sha256": "2f59a0bc96622715b8bc1aa0ed406f650dcd68d988251c06536cf34f4df2991a"
+    },
+    {
+      "original_name": "combined-started.json",
+      "original_bytes": 396,
+      "original_sha256": "1b1e08ea5f2176766091f8b9b03f5115ad14670a81f7622ac9dba5a7be23360f",
+      "stored": "combined-started.json",
+      "stored_bytes": 396,
+      "stored_sha256": "1b1e08ea5f2176766091f8b9b03f5115ad14670a81f7622ac9dba5a7be23360f"
+    },
+    {
+      "original_name": "combined.stderr.log",
+      "original_bytes": 1941,
+      "original_sha256": "e2aad1f824154b09ed39e02344a85849103aa1b31853c405e75b4f5e8c434e88",
+      "stored": "combined.stderr.log",
+      "stored_bytes": 1941,
+      "stored_sha256": "e2aad1f824154b09ed39e02344a85849103aa1b31853c405e75b4f5e8c434e88"
+    },
+    {
+      "original_name": "combined.stdout.jsonl",
+      "original_bytes": 415062,
+      "original_sha256": "686d0e70b9476eb204025960747019d0250a110bcfaa845a437ec485089e9a74",
+      "stored": "combined.stdout.jsonl.gz",
+      "stored_bytes": 25795,
+      "stored_sha256": "568c7f1ab55694bc8f18587a0033cd642ed2c5b1b7001de4fc8a3be83b614423"
+    },
+    {
+      "original_name": "lock-claimed.json",
+      "original_bytes": 930,
+      "original_sha256": "3c1cdd01815d5be57df2c378179d39d659c1c650d4f18a84b66a62430d51f73e",
+      "stored": "lock-claimed.json",
+      "stored_bytes": 930,
+      "stored_sha256": "3c1cdd01815d5be57df2c378179d39d659c1c650d4f18a84b66a62430d51f73e"
+    },
+    {
+      "original_name": "lock-released.json",
+      "original_bytes": 65,
+      "original_sha256": "3381b73ee1adc8f0ee1449d67a64ee8c72c0169e62fcf305b9e4f4dd72704d81",
+      "stored": "lock-released.json",
+      "stored_bytes": 65,
+      "stored_sha256": "3381b73ee1adc8f0ee1449d67a64ee8c72c0169e62fcf305b9e4f4dd72704d81"
+    },
+    {
+      "original_name": "summary.json",
+      "original_bytes": 742,
+      "original_sha256": "56bb454bed4e8bf3cb2e5337552baf2f5533073e4713a5c6559cd2d8d6b816ec",
+      "stored": "summary.json",
+      "stored_bytes": 742,
+      "stored_sha256": "56bb454bed4e8bf3cb2e5337552baf2f5533073e4713a5c6559cd2d8d6b816ec"
+    }
+  ],
+  "acceptance": "PASS six-package all-target typecheck only; no tests, runtime, strictClippy, performance, host or release admission."
+}

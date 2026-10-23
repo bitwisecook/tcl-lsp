@@ -1,0 +1,20 @@
+{
+  "cargo_exits": [
+    0
+  ],
+  "compiler_errors": 0,
+  "compiler_warnings": 0,
+  "head_after": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "head_before": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "passed": true,
+  "phases_completed": 1,
+  "provider_changes": [],
+  "retained_log_bytes": 417003,
+  "retention_cap_bytes": 20971520,
+  "scope": "Typecheck only, no tests or N13 functional admission. All six packages share one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+  "source_and_providers_unchanged": true,
+  "source_changes": [],
+  "source_count_after": 6542,
+  "source_count_before": 6542,
+  "utc": "2026-10-23T00:39:40.077808+00:00"
+}

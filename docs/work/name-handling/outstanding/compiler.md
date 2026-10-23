@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T00:05Z (compiler role; remaining33 closed12PASS21FAIL, alias two-role evidence; source HOLD)
+Last updated: 2026-10-23T00:40Z (compiler role; remaining33 closed12PASS21FAIL; ILX/RBS integrated under root typing, report draft off-tree; source HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -11,6 +11,10 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 ## Resume
 
 **Current source/slot:** replacement compiler shell verified. Run basis active HEAD `daf77ef40635fbf676be454617ee3ed1ca851807`, product `551aa7d7a48ff186d8246b18ecb2585295e35b79`, last push `58b209ab6c23f07231f64d31b07762970936e926`. Canonical product HOLD, docs CLEAR. Root alone integrates canonical product/Git; no PR. Remaining33 is fully reaped, lock released00:03:17.731328Z and independently probed free; no compiler Cargo queued and no cleanup proposed.
+
+**Latest integrated source and report work:** root integrated reviewed AuthoredSimulation RBS `888bbe1a`, nested source-point observer `909d989c` and currentness `b67c` at `ac584008611f8bc86fa0ee15c65d297714d379ca`, then ILX first-operand `fac70719` plus server cleanup at `3b1a750be337993a85ec533d84546e1d827dd9a8`. Root owns active third six-package typecheck `/tmp/compiler-names-n13-typecheck-six-20261023T0030Z`, session22856; no typing/runtime acceptance inferred. Source/test/provider HOLD; own docs JSON/patch/log CLEAR, no archived Rust/C source copies. ILX v3 archive `compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z` contains exact patch/receipt/peer review/API for external BIG-IP owner; original16 and four producer tests remain unrun here.
+
+**Separate authenticated report API, not perf-ready:** frozen v3 actual prepared-unit/body census `/tmp/compiler-authenticated-report-capture-v3/proposal.patch` SHA `ce81ffc3e1e60ca1f9dd973bc782aafd820145975b63280f2bee5b862438d179` remains always Unavailable. Frozen v4 `/tmp/compiler-authenticated-report-capture-v4/proposal.patch` SHA `6ff788bf5b7e39970c03fbd156e82545566737e423d1089f7b673effda300bab` adds exhaustive90-field/12-subject comparator draft and actual E003 analysis-owner pair via sealed current complete diagnostic-output attestation. Complete actual Named/Unit/Carried/Method/Definition census preserves distinct alias roles; event and hosted procedure cards rejoin actual unit, hosted domain retains actual full entry/input. Advisory object frame/body IDs compare through total unique actual pairs; physical read/Normal facets stay strict. Unknown nested issuer/typed subject correspondence returns Unavailable, never a fabricated semantic Difference. Global/runtime Eq, old countguard, cache/Salsa/native eligibility unchanged. Exact current apply-check/rustfmt parse only, peer review pending, untyped/unrun; E003 positive, aliases, full old/mixed and hosted corpus validation outstanding. No perf patch acceptance or fullproof closure.
 
 **Interrupted finite35, exactly2 completed failures:** `/tmp/compiler-postbatch-focused-v2-runs/20261022T232255.302907Z` built cleanly for21m20s, completed only the first2 exact G4 filters (conditional expression and declaration layout), both FAIL1 selected each. Per-filter full source/provider/artifact guards stable; actual artifact SHA `4d7cfbce6589e07bd1cda19a6409591fbb22c32c40880cac1ebfe11a8e2634ba` remains retained. Executor interruption left no `final.json`; watcher closed23:45:33 with exactly2 records and no timeout. Never claim35-test acceptance or a completed35-test suite.
 

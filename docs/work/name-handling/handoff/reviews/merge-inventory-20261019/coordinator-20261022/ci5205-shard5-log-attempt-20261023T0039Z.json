@@ -1,0 +1,15 @@
+{
+  "repository_full_name": "bitwisecook/tcl-lsp",
+  "job_id": 120061100615,
+  "requested_utc": "2026-10-23T00:38:25Z",
+  "attempted_utc": "2026-10-23T00:39:15Z",
+  "tool": "mcp__codex_apps__github_fetch_workflow_job_logs",
+  "attempt_count": 1,
+  "result": "UNAVAILABLE_UNKNOWN",
+  "exact_error": "tool call error: tool call failed for codex_apps/github.fetch_workflow_job_logs; Caused by: Transport closed",
+  "log_bytes_received": 0,
+  "sha256": null,
+  "retry_performed": false,
+  "ci_mutated": false,
+  "parse_status": "NOT_PARSED; no raw log payload available"
+}

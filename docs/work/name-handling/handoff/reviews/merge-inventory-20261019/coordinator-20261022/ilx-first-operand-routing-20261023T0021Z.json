@@ -10,5 +10,13 @@
   "status": "Peer-cleared frozen compiler source API only; not applied, typed, runtime tested or accepted",
   "action": "Prepare off-tree consumer adapter against exact proposed API. Consume authenticated same-analysis invocation cards only; retain conditional debts. Revalidate source+analysis ownership; no standalone/stale recapture, consumer-local walker, runtime target or completeness inference. Original16 tests still required after coherent source integration.",
   "policy": "First remote operand may use a prior genuine constructor/setter/read association; opaque calls end navigation afterwards. No conditional navigation survives earlier opaque call.",
-  "takeover": false
+  "takeover": false,
+  "latest_integration": {
+    "utc": "2026-10-23T00:31:11.334405+00:00",
+    "active_checkpoint": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "source_applied": true,
+    "published_source_at_this_observation": false,
+    "typing": "Six-package all-target check active; no final result",
+    "runtime": "Unrun; original16 and consumer wiring remain required"
+  }
 }
