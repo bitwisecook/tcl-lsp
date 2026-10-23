@@ -1,0 +1,37 @@
+    Finished `test` profile [unoptimized] target(s) in 0.55s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 3 tests
+test command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=true unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=true
+N13_POINT stage=state-or-alternatives offset=Some(0)
+thread 'command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix' (187344) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:926:64:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::conditional_source::region::controls::ordered_namespace_suffixes_restore_the_actual_inner_frame_before_outer_walk ... N13_POINT_STATE offset=20 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH_END offset=20 seen=false refused=false retained=false
+N13_CHILD_ENTRY stage=source-advice-graph offset=20
+
+thread 'command_binding::conditional_source::region::controls::ordered_namespace_suffixes_restore_the_actual_inner_frame_before_outer_walk' (187345) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:844:14:
+called `Option::unwrap()` on a `None` value
+FAILED
+test command_binding::conditional_source::region::controls::suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=33 argv=true native=false hosted=false opaque=true unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=true
+N13_POINT stage=state-or-alternatives offset=Some(33)
+thread 'command_binding::conditional_source::region::controls::suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent' (187354) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:813:9:
+assertion failed: source_load(source, &view,
+            "source second").source_point_entry(&view).is_some()
+FAILED
+
+failures:
+
+failures:
+    command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 10540 filtered out; finished in 5.84s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

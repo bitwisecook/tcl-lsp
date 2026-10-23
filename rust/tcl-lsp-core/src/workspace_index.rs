@@ -721,6 +721,15 @@ pub struct WorkspaceSource {
             tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
         >,
     >,
+    /// Compiler-issued current cut, conditional association or unknown debt
+    /// from this row's actual parent analysis. This retains the full finite
+    /// plan/body issuer, rather than promoting a point alone to a frontier.
+    /// The host independently rejoins the parent's physical publication.
+    pub original_source_frontier: Option<
+        std::sync::Arc<
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceFrontier,
+        >,
+    >,
     /// Sealed conditional expression selected from genuine original words.
     /// It retains the full analysis/context and supplies no actual file load.
     pub original_path_expression:
@@ -1337,6 +1346,7 @@ impl WorkspaceLogicalCommandCall {
 struct DocumentRecords {
     /// Workspace document ownership, independent of equal source images.
     uri: String,
+    original_source_views: Vec<WorkspaceOriginalSourceView>,
     /// Index-wide mutation token for the indexed revision. The server uses it
     /// to prove that a closed file did not reindex while its source was being
     /// loaded for byte-span to LSP-range conversion.
@@ -1722,6 +1732,7 @@ impl DocumentRecords {
     fn clear(&mut self) {
         let Self {
             uri,
+            original_source_views,
             revision: _,
             dialect,
             diagnostic_source,
@@ -1763,6 +1774,7 @@ impl DocumentRecords {
             defined_symbols,
         } = self;
         uri.clear();
+        original_source_views.clear();
         dialect.clear();
         *diagnostic_source = None;
         *source_order_context = None;
@@ -2214,6 +2226,10 @@ impl DocumentRecords {
             }
             self.sources.push(WorkspaceSource {
                 original_project_source_load: target.original_project_source_load.clone(),
+                original_source_frontier: target
+                    .original_project_source_load
+                    .as_ref()
+                    .map(|load| std::sync::Arc::new(load.frontier(analysis))),
                 original_path_expression:
                     tcl_compiler::auto_path_eval::capture_source_target_path_expression(
                         analysis, target,
@@ -3810,6 +3826,7 @@ impl WorkspaceIndex {
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
         let revision = self.allocate_document_revision();
         let slot = self.slot_for(uri);
+        self.docs[slot].original_source_views.clear();
         // `add_document` intentionally accumulates multiple source-site views
         // for one URI.  That is a resolution-input change unless this is an
         // empty analysis, so favour the conservative full invalidation here;
@@ -17113,3 +17130,6 @@ mod logical_self_member_source_tests {
         assert!(!index.logical_member_location_is_retained(&selected.caller));
     }
 }
+
+mod source_views;
+pub use source_views::WorkspaceOriginalSourceView;

@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-22T23:57:05.342154+00:00",
+  "scheduled": "2026-10-22T23:55:37+00:00",
+  "source_snapshot": "41ee5ab6e252d18ad269fb3be90b4cd126879733",
+  "published_snapshot": "a2ed304930b724d97c9ce803e48880ac79e6f728",
+  "source_commits": [
+    "41ee5ab6e252d18ad269fb3be90b4cd126879733"
+  ],
+  "product_tree_diff": [],
+  "remote_confirmed": "a2ed304930b724d97c9ce803e48880ac79e6f728",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

@@ -16,6 +16,71 @@ struct PathSourceContext<'a> {
     context: &'a ContextRegistry,
 }
 
+/// Exact conditional path prefix selected by a checked source cut. This is
+/// raw source advice; physical filenames and conditional import homes remain
+/// separate caller obligations, never runtime variable values.
+pub(crate) fn path_constant_prefix_for_source_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+    head: u32,
+) -> Option<PathConstantAssignments> {
+    if let Some(region) = analysis.original_source_region() {
+        return Some(region.path_inventory(analysis)?.before(head));
+    }
+    crate::source_graph::current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm_arc()?;
+    let image = SourceImage::document(source);
+    let assignments = if let Some(point) = realm
+        .source_bindings_ref()
+        .original_inherited_source_entry()
+    {
+        let namespace = point.namespace().advisory_key()?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        );
+        let mut assignments = PathConstantAssignments::default();
+        extend_path_constant_assignments_from_analysis_commands(
+            source,
+            analysis,
+            &commands,
+            Some(&namespace),
+            &mut assignments,
+        )
+        .then_some(())?;
+        assignments
+    } else {
+        analysis.path_constant_assignments.clone()
+    };
+    assignments
+        .matches_source_owner(input, &image, realm)
+        .then_some(())?;
+    Some(assignments.before(head))
+}
+
+impl crate::command_binding::OriginalSourceConditionalRegion {
+    /// Raw conditional path advice only from this issuer's actual remaining
+    /// commands and checked namespace geometry. No whole inventory, native
+    /// cell/value, completed child effect or import continuity is supplied.
+    #[must_use]
+    pub fn path_inventory(&self, analysis: &AnalysisResult) -> Option<PathConstantAssignments> {
+        let (commands, namespace) = self.original_path_commands(analysis)?;
+        let namespace = namespace.advisory_key()?;
+        let source = self.source_image().try_text().ok()?;
+        let mut out = PathConstantAssignments::default();
+        extend_path_constant_assignments_from_analysis_commands(
+            source,
+            analysis,
+            &commands,
+            Some(&namespace),
+            &mut out,
+        )
+        .then_some(out)
+    }
+}
+
 /// Inventory source writes under the actual image, availability and full
 /// grammar. This is explicit conditional path advice, not observed values,
 /// entered namespaces, native cells or successful command execution. An

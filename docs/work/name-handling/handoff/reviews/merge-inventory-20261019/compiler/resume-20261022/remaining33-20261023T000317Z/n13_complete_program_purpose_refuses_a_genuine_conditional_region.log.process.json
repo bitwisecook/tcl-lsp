@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-23T00:00:02.162141+00:00",
+  "finished_utc": "2026-10-23T00:00:05.030171+00:00",
+  "cargo_exit": 101,
+  "minimum_free_bytes": 12027584512,
+  "disk_abort": false,
+  "log_cap_bytes": 20971520,
+  "retained_log_bytes": 1717,
+  "log_at_cap": false,
+  "disk_poll_seconds": 5,
+  "termination_scope": "This invocation own Cargo session/process group only"
+}

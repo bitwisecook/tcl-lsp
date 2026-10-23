@@ -1,0 +1,47 @@
+{
+  "patch_sha256": "f8604d2f25215fbcb8daff129ec56ad3e052454f29bef8f41e5d37cf03cddfa7",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "base_sha256": "9fb3b12a25ec29cc6ea81765167a5acdab14315a30a9db4016c1270610a156cc",
+      "proposed_sha256": "a85552c1471e3e633a35c17b58e241ad8a4f7f705f05c938bcd1d9ca3e749ef6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "base_sha256": "4872524ea5ea99181621248170b180032189bc6e1a967f0166ce840f04435b9b",
+      "proposed_sha256": "f42c54b9d60bbecae3f0cc3c489fa07587c1edf9b1973dace94cdd807f5c8f6c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "base_sha256": "fc259f9017189a6cb5b121f071fb88a9b79d2fadf8560a1cf9bbf955c34a51e7",
+      "proposed_sha256": "da3def4f99236343a61f772b9429df6275cb815b383460be90c7c4893ef4030b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "base_sha256": "fee9109746d6706a9121e9fef394c0fc85f5d3d30a0af719df1ebd7bee2ee970",
+      "proposed_sha256": "c53d12e8b2484b91d8fd07f9663933e06914bfb7b9f5fe9682ccdf269197526c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "base_sha256": "1ffb4b05452dc7ebf9e9078442bacaf471b165983fd5df63d6b7ed5be025cfdd",
+      "proposed_sha256": "46150e31b108a34f35409ebc736dc50bc3565b570babd4df3310029da3e51bd5"
+    }
+  ],
+  "kind": "test-only policy alignment draft",
+  "decision": "user-decisions-20261022T1317Z actual compiler visits count Reached",
+  "actual_facts": "/tmp/compiler-g4-actual-eight-facts-20261022.json",
+  "limits": [
+    "untyped/unrun",
+    "only initial contradictory positive reachability/target assertions corrected",
+    "table/Native/effect/completion/frame/foreign and false-suffix negatives retained",
+    "lifecycle/normal actual Generic admitted=false retained as facts, no admission inference",
+    "immediate namespace and import untouched producer failures",
+    "assertions following original first failure remain unmeasured"
+  ],
+  "policy_records": [
+    "user-decisions-20261022T1317Z.json",
+    "user-decisions-20261021T0820Z.json"
+  ],
+  "actual_facts_sha256": "9cb1787ba1dabd0e8a671e0dc7ce05291c6033ab263118cf526c516c96159cfd",
+  "review": "bounded static CLEAR; compiler-review.json; no type/run acceptance"
+}

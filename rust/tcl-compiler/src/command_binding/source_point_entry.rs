@@ -378,6 +378,39 @@ impl OriginalSourcePointEntry {
                     .collect()
     }
 
+    pub(super) fn is_source_only_interpretation(
+        &self,
+        state: &super::ModuleCommandBindings,
+        context: super::SourceExecutionContext<'_>,
+    ) -> bool {
+        state.baseline.source_point_entry.as_ref() == Some(self)
+            && state.current_source_origin.as_ref().is_some_and(|origin| {
+                matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, .. }
+                    if parent == &self.source_origin())
+            })
+            && state.baseline.metadata_context.source_analysis_input() == Some(self.input())
+            && context.config == self.input().lexer_config()
+            && context.registry.snapshot().semantic_key()
+                == self
+                    .input()
+                    .borrowed_context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key()
+            && state.baseline.invocation_realm == self.payload.snapshot.realm
+            && context.realm == self.payload.snapshot.realm
+            && context.body_entry == super::SourceBodyEntryPurpose::Conditional
+            && context.compilation == Default::default()
+            && context.compilation_snapshot.is_none()
+            && context.selected_compilation.is_none()
+            && context.original_variable_compilation.is_none()
+            && state.baseline.native_compilation == Default::default()
+            && state.baseline.native_entry.is_none()
+            && state.baseline.hosted_execution_context.is_none()
+            && state.baseline.compiled_variable_provider.is_none()
+            && !state.baseline.unknown_entry
+    }
+
     pub(crate) fn child_state(
         &self,
         registry: &tcl_registry::CommandRegistry,
@@ -1133,6 +1166,83 @@ mod tests {
         assert_ne!(
             old_token.cmp(&replacement.source_origin()),
             std::cmp::Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn inherited_source_selection_retains_names_without_native_compiler_admission() {
+        let point = point();
+        let child = crate::analyser::Analyser::new()
+            .analyse_with_source_point_entry("source leaf.tcl", "tcl8.6", &point)
+            .unwrap();
+        let bindings = child
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let dispatch = bindings.dispatch_points_at(0).next().unwrap();
+        let registry = point.input().borrowed_context_registry().commands();
+        let entry = point.minted_entry(registry, point.input());
+        let context = super::super::root_source_execution_context(
+            &dispatch.state.variable_frame,
+            "::",
+            &dispatch.namespace_key,
+            point.input().lexer_config(),
+            registry,
+            entry.options(),
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        );
+        assert!(point.is_source_only_interpretation(&dispatch.state, context));
+        let mut different = context;
+        different.config.strict_quoting = !different.config.strict_quoting;
+        assert!(!point.is_source_only_interpretation(&dispatch.state, different));
+        different = context;
+        different.body_entry = super::super::SourceBodyEntryPurpose::Selected;
+        assert!(!point.is_source_only_interpretation(&dispatch.state, different));
+        let mut foreign = dispatch.state.clone();
+        foreign.current_source_origin = Some(Arc::clone(&point.payload.site.source));
+        assert!(!point.is_source_only_interpretation(&foreign, context));
+        let mut baseline = (*dispatch.state.baseline).clone();
+        baseline.source_point_entry = None;
+        foreign = dispatch.state.clone();
+        foreign.baseline = Arc::new(baseline);
+        assert!(!point.is_source_only_interpretation(&foreign, context));
+        let mut baseline = (*dispatch.state.baseline).clone();
+        baseline.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        foreign = dispatch.state.clone();
+        foreign.baseline = Arc::new(baseline);
+        assert!(!point.is_source_only_interpretation(&foreign, context));
+        assert!(!dispatch.state.has_opaque_domain());
+        assert!(!dispatch.compiled_execution.unknown);
+        assert!(dispatch.compiled_execution.admission.is_none());
+        assert!(dispatch.compiled_execution.admitted.is_none());
+        assert!(dispatch.compiled_execution.policy.is_none());
+        assert!(dispatch.compiled_execution.proofs.is_empty());
+        assert!(dispatch.compiled_execution.structured.is_none());
+        assert!(dispatch.state.baseline.compilation_dialect().is_none());
+        assert!(dispatch.state.baseline.native_entry.is_none());
+        assert!(
+            crate::registry_invocation::source_structure::original_project_source_load_at(
+                "source leaf.tcl",
+                &child,
+                0,
+            )
+            .unwrap()
+            .source_point_entry(&child)
+            .is_some()
+        );
+        let opaque = crate::analyser::Analyser::new()
+            .analyse_with_source_point_entry("unknown_writer; source leaf.tcl", "tcl8.6", &point)
+            .unwrap();
+        assert!(
+            crate::registry_invocation::source_structure::original_project_source_load_at(
+                "unknown_writer; source leaf.tcl",
+                &opaque,
+                16,
+            )
+            .unwrap()
+            .source_point_entry(&opaque)
+            .is_none()
         );
     }
 

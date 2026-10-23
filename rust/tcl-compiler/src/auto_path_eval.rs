@@ -385,7 +385,6 @@ pub use source_expression::{
 };
 
 mod path_constants;
-pub(crate) use path_constants::extend_path_constant_assignments_from_analysis_commands;
 pub use path_constants::{
     FoldedPathConstants, PathConstantAssignments, PathConstantImports, PathConstantLookup,
     PathConstantValue, PathConstantView, PathConstantWrite, constant_path_assignments,
@@ -393,6 +392,10 @@ pub use path_constants::{
     constant_path_assignments_in_namespace, constant_path_assignments_with_naming_policy,
     fold_constant_assignments, fold_constant_assignments_with_imports,
     path_source_word_is_available,
+};
+pub(crate) use path_constants::{
+    extend_path_constant_assignments_from_analysis_commands,
+    path_constant_prefix_for_source_analysis,
 };
 
 /// A plain scalar variable word: no substitution markers, no array element.

@@ -612,7 +612,17 @@ mod tests {
         };
         let positive = make("proc answer {} {return 42}; proc f {} {return [answer]}");
         let binding = positive.source_binding.as_ref().unwrap();
-        assert!(binding.proved_execution_target().is_none());
+        assert_eq!(
+            binding
+                .proved_execution_target()
+                .map(|target| target.command.as_str()),
+            Some("::answer")
+        );
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Reached
+        );
+        assert!(binding.compiler_lookup_state.is_none());
         assert!(!binding.original_invocation_completes_normally(&positive));
         let proof = binding
             .scoped_procedure_evaluation(&positive)

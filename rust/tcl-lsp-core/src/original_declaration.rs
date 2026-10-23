@@ -1562,7 +1562,13 @@ impl Serialize for OriginalDeclarationHandle {
             schema: self.schema,
             token: self.token,
             session: self.session,
-            purpose: self.session.map(|_| "logicalSourceRelationship"),
+            purpose: self.session.map(|_| {
+                if self.schema == 5 {
+                    "originalSourceViewRelationship"
+                } else {
+                    "logicalSourceRelationship"
+                }
+            }),
         }
         .serialize(serializer)
     }
@@ -1584,12 +1590,14 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
             #[serde(rename = "session")]
             allocation: EditorWireSession,
             #[serde(rename = "wirePurpose")]
-            _purpose: RelationshipPurpose,
+            purpose: RelationshipPurpose,
         }
         #[derive(Deserialize)]
         enum RelationshipPurpose {
             #[serde(rename = "logicalSourceRelationship")]
             LogicalSourceRelationship,
+            #[serde(rename = "originalSourceViewRelationship")]
+            OriginalSourceViewRelationship,
         }
         #[derive(Deserialize)]
         #[serde(untagged)]
@@ -1606,11 +1614,22 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
             // The explicit transport variant is independent of the claimed
             // semantic schema. Wrong schemas decode as inert locators; every
             // actual resolver still enforces its own kind and retained owner.
-            Wire::Session(wire) => Ok(Self {
-                schema: wire.schema,
-                token: wire.token,
-                session: Some(wire.allocation),
-            }),
+            Wire::Session(wire) => {
+                let purpose_matches = match wire.purpose {
+                    RelationshipPurpose::OriginalSourceViewRelationship => wire.schema == 5,
+                    RelationshipPurpose::LogicalSourceRelationship => wire.schema != 5,
+                };
+                if !purpose_matches {
+                    return Err(serde::de::Error::custom(
+                        "source relationship wire purpose mismatch",
+                    ));
+                }
+                Ok(Self {
+                    schema: wire.schema,
+                    token: wire.token,
+                    session: Some(wire.allocation),
+                })
+            }
         }
     }
 }
@@ -1651,9 +1670,34 @@ impl PartialEq for LogicalCallHostPublication {
 }
 impl Eq for LogicalCallHostPublication {}
 
+/// A source view's typed host publication stamp. The host must validate its
+/// actual physical parent, path, source and publication leases independently.
+/// This equality-only payload grants no semantic or Native authority and is
+/// never serialized into editor data.
+#[derive(Debug, Clone)]
+pub struct OriginalSourceViewPublication(std::sync::Arc<dyn HostPublicationValue>);
+
+impl OriginalSourceViewPublication {
+    /// Retain a host-owned stamp without asserting that it is current.
+    #[must_use]
+    pub fn retain<T: std::fmt::Debug + Eq + Send + Sync + 'static>(stamp: T) -> Self {
+        Self(std::sync::Arc::new(stamp))
+    }
+}
+impl PartialEq for OriginalSourceViewPublication {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.same_value(other.0.as_ref())
+    }
+}
+impl Eq for OriginalSourceViewPublication {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RetainedDeclaration {
     Original(OriginalDeclarationIdentity),
+    OriginalInSourceView {
+        identity: OriginalDeclarationIdentity,
+        publication: OriginalSourceViewPublication,
+    },
     LogicalClass(crate::type_hierarchy::LogicalHierarchyClass),
     LogicalCall {
         identity: crate::call_hierarchy::LogicalCallIdentity,
@@ -1697,6 +1741,68 @@ impl OriginalDeclarationRegistry {
     ) -> Option<OriginalDeclarationHandle> {
         self.issue_retained(RetainedDeclaration::Original(identity), 1)
     }
+    /// Bind a genuine readonly declaration to its independently checked host
+    /// source view. Issue only inside the host's current publication lease.
+    #[must_use]
+    pub fn issue_in_source_view(
+        &mut self,
+        identity: OriginalDeclarationIdentity,
+        publication: OriginalSourceViewPublication,
+    ) -> Option<OriginalDeclarationHandle> {
+        self.issue_retained(
+            RetainedDeclaration::OriginalInSourceView {
+                identity,
+                publication,
+            },
+            5,
+        )
+    }
+
+    /// Read the saved typed host stamp to select its exact live publication.
+    /// The returned stamp is inert: the host must revalidate it and call
+    /// `resolve_in_source_view` before using a declaration. No URI/text fallback
+    /// may renew a missing or retired saved publication.
+    #[must_use]
+    pub fn source_view_publication<T: 'static>(
+        &self,
+        handle: OriginalDeclarationHandle,
+    ) -> Option<&T> {
+        if handle.schema != 5 || !self.matches_logical_session(handle) {
+            return None;
+        }
+        let RetainedDeclaration::OriginalInSourceView { publication, .. } =
+            self.rows.get(&handle.token)?
+        else {
+            return None;
+        };
+        publication.0.as_any().downcast_ref::<T>()
+    }
+
+    /// Reselect this exact current source-view publication and original owner.
+    /// A legacy locator cannot cast to this kind; neither can CALL/TYPE/LENS.
+    #[must_use]
+    pub fn resolve_in_source_view(
+        &self,
+        handle: OriginalDeclarationHandle,
+        uri: &str,
+        source: &str,
+        analysis: &AnalysisResult,
+        current_publication: &OriginalSourceViewPublication,
+    ) -> Option<OriginalDeclarationIdentity> {
+        if handle.schema != 5 || !self.matches_logical_session(handle) {
+            return None;
+        }
+        let RetainedDeclaration::OriginalInSourceView {
+            identity,
+            publication,
+        } = self.rows.get(&handle.token)?
+        else {
+            return None;
+        };
+        (publication == current_publication && identity.is_current(uri, source, analysis))
+            .then(|| identity.clone())
+    }
+
     /// Retain a sealed Logical class selection under a separate wire schema.
     #[must_use]
     pub fn issue_logical_class(
@@ -1742,7 +1848,7 @@ impl OriginalDeclarationRegistry {
         identity: RetainedDeclaration,
         schema: u8,
     ) -> Option<OriginalDeclarationHandle> {
-        let session = if matches!(schema, 3 | 4) {
+        let session = if matches!(schema, 3 | 4 | 5) {
             Some(self.session?)
         } else {
             None
@@ -2838,6 +2944,207 @@ mod property_source_census_unclassified_receiver_tests {
                 !report.spans().is_empty(),
                 "existing positive source selector remains"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_view_publication_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    // A storage-layer control, not a genuine server publication lease. The
+    // protocol/host tests must retire actual physical-parent publications.
+    #[derive(Debug, PartialEq, Eq)]
+    struct TestView {
+        parent: &'static str,
+        epoch: u64,
+    }
+
+    #[test]
+    fn equal_source_identity_cannot_renew_another_saved_view_stamp() {
+        let uri = "file:///shared.tcl";
+        let source = "proc run {} {}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let identity = OriginalDeclarationIdentity::for_document(uri, source, &analysis).unwrap();
+        let a = OriginalSourceViewPublication::retain(TestView {
+            parent: "file:///A/root.tcl",
+            epoch: 1,
+        });
+        let b = OriginalSourceViewPublication::retain(TestView {
+            parent: "file:///B/root.tcl",
+            epoch: 1,
+        });
+        let restored_a = OriginalSourceViewPublication::retain(TestView {
+            parent: "file:///A/root.tcl",
+            epoch: 3,
+        });
+        let mut registry = OriginalDeclarationRegistry::default();
+        let old = registry
+            .issue_in_source_view(identity.clone(), a.clone())
+            .unwrap();
+        let current = registry
+            .issue_in_source_view(identity.clone(), b.clone())
+            .unwrap();
+        let restored = registry
+            .issue_in_source_view(identity.clone(), restored_a.clone())
+            .unwrap();
+        assert_ne!(old, current);
+        assert_ne!(old, restored);
+        assert_eq!(
+            registry.source_view_publication::<TestView>(old),
+            Some(&TestView {
+                parent: "file:///A/root.tcl",
+                epoch: 1
+            })
+        );
+        assert!(registry.source_view_publication::<String>(old).is_none());
+        assert!(
+            registry
+                .resolve_in_source_view(old, uri, source, &analysis, &b)
+                .is_none()
+        );
+        assert!(
+            registry
+                .resolve_in_source_view(old, uri, source, &analysis, &restored_a)
+                .is_none()
+        );
+        assert_eq!(
+            registry.resolve_in_source_view(current, uri, source, &analysis, &b),
+            Some(identity.clone())
+        );
+        assert!(registry.resolve(old, uri, source, &analysis).is_none());
+        let legacy = registry.issue(identity).unwrap();
+        assert!(
+            registry
+                .source_view_publication::<TestView>(legacy)
+                .is_none()
+        );
+        assert!(
+            registry
+                .resolve_in_source_view(legacy, uri, source, &analysis, &a)
+                .is_none()
+        );
+        let wire = serde_json::to_value(old).unwrap();
+        assert_eq!(wire.as_object().unwrap().len(), 4);
+        assert_eq!(wire["schema"], 5);
+        assert_eq!(wire["wirePurpose"], "originalSourceViewRelationship");
+        assert_eq!(
+            serde_json::from_value::<OriginalDeclarationHandle>(wire.clone()).unwrap(),
+            old
+        );
+        assert_eq!(
+            wire["session"],
+            serde_json::to_value(old.session.unwrap()).unwrap()
+        );
+        for schema in [1, 2, 3, 4] {
+            let wrong = OriginalDeclarationHandle { schema, ..old };
+            assert!(
+                registry
+                    .source_view_publication::<TestView>(wrong)
+                    .is_none()
+            );
+            assert!(
+                registry
+                    .resolve_in_source_view(wrong, uri, source, &analysis, &a)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn source_view_wire_rejects_restarted_registry_and_missing_session() {
+        // Real wire-session allocation protects counter collisions only; it
+        // grants no source, parent-publication or declaration authority.
+        let uri = "file:///shared.tcl";
+        let source = "proc run {} {}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let identity = OriginalDeclarationIdentity::for_document(uri, source, &analysis).unwrap();
+        let stamp = OriginalSourceViewPublication::retain(TestView {
+            parent: "file:///A/root.tcl",
+            epoch: 1,
+        });
+        let mut first = OriginalDeclarationRegistry::default();
+        let old = first
+            .issue_in_source_view(identity.clone(), stamp.clone())
+            .unwrap();
+        let mut restarted = OriginalDeclarationRegistry::default();
+        let new = restarted
+            .issue_in_source_view(identity.clone(), stamp.clone())
+            .unwrap();
+        assert_eq!(
+            old.token, new.token,
+            "exercise an actual reset-counter collision"
+        );
+        assert_ne!(
+            old.session, new.session,
+            "independent genuine wire allocations"
+        );
+        assert!(restarted.source_view_publication::<TestView>(old).is_none());
+        assert!(
+            restarted
+                .resolve_in_source_view(old, uri, source, &analysis, &stamp)
+                .is_none()
+        );
+        assert!(
+            restarted
+                .resolve_in_source_view(new, uri, source, &analysis, &stamp)
+                .is_some()
+        );
+        let missing = OriginalDeclarationHandle {
+            session: None,
+            ..old
+        };
+        assert!(first.source_view_publication::<TestView>(missing).is_none());
+        assert!(
+            first
+                .resolve_in_source_view(missing, uri, source, &analysis, &stamp)
+                .is_none()
+        );
+        let mut unavailable = OriginalDeclarationRegistry {
+            session: None,
+            next: 0,
+            rows: BTreeMap::new(),
+            order: VecDeque::new(),
+        };
+        assert!(
+            unavailable
+                .issue_in_source_view(identity.clone(), stamp)
+                .is_none()
+        );
+        assert!(
+            unavailable.issue(identity).is_some(),
+            "legacy Native issuance stays independent"
+        );
+    }
+
+    #[test]
+    fn source_view_transport_keeps_its_exact_session_relationship_purpose() {
+        let session = EditorWireSession::allocate().unwrap();
+        let locator = OriginalDeclarationHandle {
+            schema: 5,
+            token: 1,
+            session: Some(session),
+        };
+        let wire = serde_json::to_value(locator).unwrap();
+        assert_eq!(wire.as_object().unwrap().len(), 4);
+        assert_eq!(
+            serde_json::from_value::<OriginalDeclarationHandle>(wire.clone()).unwrap(),
+            locator
+        );
+        let mut changed = wire.clone();
+        changed["wirePurpose"] = serde_json::json!("logicalSourceRelationship");
+        assert!(serde_json::from_value::<OriginalDeclarationHandle>(changed).is_err());
+        let mut changed = wire.clone();
+        changed.as_object_mut().unwrap().remove("session");
+        assert!(serde_json::from_value::<OriginalDeclarationHandle>(changed).is_err());
+        let mut changed = wire.clone();
+        changed.as_object_mut().unwrap().remove("wirePurpose");
+        assert!(serde_json::from_value::<OriginalDeclarationHandle>(changed).is_err());
+        for schema in [1, 2, 3, 4] {
+            let mut changed = wire.clone();
+            changed["schema"] = serde_json::json!(schema);
+            assert!(serde_json::from_value::<OriginalDeclarationHandle>(changed).is_err());
         }
     }
 }

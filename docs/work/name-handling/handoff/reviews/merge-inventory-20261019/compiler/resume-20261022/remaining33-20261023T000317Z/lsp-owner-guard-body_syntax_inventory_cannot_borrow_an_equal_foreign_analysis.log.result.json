@@ -1,0 +1,42 @@
+{
+  "actual_selected": 1,
+  "artifact_stable": true,
+  "artifacts": [
+    {
+      "age_seconds": 983.1863770484924,
+      "mtime_utc": "2026-10-22T23:44:39.046479+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "4d7cfbce6589e07bd1cda19a6409591fbb22c32c40880cac1ebfe11a8e2634ba"
+    }
+  ],
+  "cargo_wrapper_exit": 0,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+  "source_stable": true,
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0",
+      "0"
+    ]
+  ],
+  "warnings": false
+}

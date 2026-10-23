@@ -1,0 +1,42 @@
+{
+  "actual_selected": 1,
+  "artifact_stable": true,
+  "artifacts": [
+    {
+      "age_seconds": 877.4178116321564,
+      "mtime_utc": "2026-10-22T23:44:39.046479+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "4d7cfbce6589e07bd1cda19a6409591fbb22c32c40880cac1ebfe11a8e2634ba"
+    }
+  ],
+  "cargo_wrapper_exit": 0,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::conditional_source::finite_cut_controls::a_genuine_point_cannot_replace_a_withdrawn_finite_plan",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "n13_finite_cut_withdrawal",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "command_binding::conditional_source::finite_cut_controls::a_genuine_point_cannot_replace_a_withdrawn_finite_plan",
+  "source_stable": true,
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0",
+      "0"
+    ]
+  ],
+  "warnings": false
+}

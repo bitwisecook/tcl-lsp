@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 0.88s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test object_types::report_comparison::tests::current_native_alias_report_capture_control ... REPORT_DECLARATION_CARDINALITY offset=227 total=2 named=1 lowerings=1 body_kind=Named current_id_owned=true current_named=true current_lowering=false classification=multiple-joined-bodies
+REPORT_DECLARATION_BODY ordinal=0 same_id=true owned=true kind=Named span_start=227 span_end=257 body_offset=241 same_original_span=true
+REPORT_DECLARATION_BODY ordinal=1 same_id=false owned=true kind=NamespaceScript span_start=227 span_end=257 body_offset=0 same_original_span=true
+REPORT_DECLARATION_CARDINALITY offset=227 total=2 named=1 lowerings=1 body_kind=Named current_id_owned=true current_named=true current_lowering=false classification=multiple-joined-bodies
+REPORT_DECLARATION_BODY ordinal=0 same_id=true owned=true kind=Named span_start=227 span_end=257 body_offset=241 same_original_span=true
+REPORT_DECLARATION_BODY ordinal=1 same_id=false owned=true kind=NamespaceScript span_start=227 span_end=257 body_offset=0 same_original_span=true
+REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false
+thread 'object_types::report_comparison::tests::current_native_alias_report_capture_control' (190849) panicked at rust/tcl-compiler/src/object_types/report_comparison.rs:455:9:
+unchanged complete AnalysisResult equality: aliases
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    object_types::report_comparison::tests::current_native_alias_report_capture_control
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 27.38s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

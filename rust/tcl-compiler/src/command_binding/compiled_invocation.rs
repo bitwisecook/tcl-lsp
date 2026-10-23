@@ -1014,6 +1014,19 @@ pub(super) fn select_invocation(
             ..CompiledInvocationSelection::default()
         };
     }
+    // This retained child is a source interpretation with no physical
+    // compiler invocation. Missing compiler ingress is not a guest mutation.
+    if state
+        .baseline
+        .source_point_entry
+        .as_ref()
+        .is_some_and(|point| point.is_source_only_interpretation(state, context))
+    {
+        return CompiledInvocationSelection {
+            admission: None,
+            ..CompiledInvocationSelection::default()
+        };
+    }
     if context.compilation.mode == NativeCompilationMode::Direct {
         return CompiledInvocationSelection::default();
     }

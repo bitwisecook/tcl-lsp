@@ -1,0 +1,25 @@
+{
+  "role": "compiler",
+  "utc": "2026-10-22T23:58:50.786173+00:00",
+  "patch_sha256": "f8604d2f25215fbcb8daff129ec56ad3e052454f29bef8f41e5d37cf03cddfa7",
+  "status": "BOUNDED STATIC CLEAR; test-only narrow decision correction, untyped/unrun; not acceptance",
+  "policy_records": [
+    "user-decisions-20261022T1317Z.json",
+    "user-decisions-20261021T0820Z.json"
+  ],
+  "actual_evidence": {
+    "path": "/tmp/compiler-g4-actual-eight-facts-20261022.json",
+    "sha256": "9cb1787ba1dabd0e8a671e0dc7ce05291c6033ab263118cf526c516c96159cfd"
+  },
+  "findings": [
+    "First6 correct only initial contradictory target/Conditional/unknown expectations for actual after-load bodies; target identities match bounded actual observations.",
+    "Nested normalisation false-suffix negatives retain original target-is-none assertion.",
+    "Compiler lookup and actual Native entry remain absent where fixture handles permit independent checks; no admission blanket added. Lifecycle and normal-result actual visits remain Generic/admitted=false.",
+    "Existing completion, result, frame, effect, source/currentness and foreign negatives are retained.",
+    "Immediate namespace and import failures untouched; immediate namespace broad module query loss is not a13:17 inversion."
+  ],
+  "limits": [
+    "Old failures stop at initial assertions; later assertions, dialect iterations and new explicit positives are unexecuted.",
+    "Actual stable first2 predecessor plus six current original failures are diagnostic evidence only; current33 suite remains in progress."
+  ]
+}

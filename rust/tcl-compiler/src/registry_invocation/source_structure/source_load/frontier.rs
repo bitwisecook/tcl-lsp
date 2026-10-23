@@ -39,6 +39,24 @@ impl OriginalProjectSourceCurrentCut {
     pub fn point(&self) -> &OriginalSourcePointEntry {
         self.kernel.point()
     }
+    /// Raw path assignments before this cut's actual handler head. This omits
+    /// the current SourceLoad barrier, never a preceding opaque/write barrier.
+    /// Physical filename and genuine imported global homes remain host-owned;
+    /// no runtime value, local-cell import or child-return continuity is granted.
+    #[must_use]
+    pub fn path_advice_before_handler(
+        &self,
+        parent: &AnalysisResult,
+    ) -> Option<crate::auto_path_eval::PathConstantAssignments> {
+        self.matches_parent_analysis(parent).then_some(())?;
+        let head = self.load.words.head_source()?.word()?;
+        crate::auto_path_eval::path_constant_prefix_for_source_analysis(
+            head.image().try_text().ok()?,
+            parent,
+            head.span().start(),
+        )
+    }
+
     /// Rejoin this exact parent view; physical publication is independent.
     #[must_use]
     pub fn matches_parent_analysis(&self, parent: &AnalysisResult) -> bool {
@@ -293,6 +311,89 @@ mod controls {
             panic!("genuine finite kernel cut required: {frontier:?}");
         };
         cut
+    }
+
+    #[test]
+    fn path_prefix_is_cut_before_the_actual_head_and_refuses_foreign_owner() {
+        let source = "set ::sourceDir /LIB; source child.tcl; set ::late LATE";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let load = load(source, &parent, "source child");
+        let cut = expect_cut(load.frontier(&parent));
+        let prefix = cut.path_advice_before_handler(&parent).unwrap();
+        let folded = crate::auto_path_eval::fold_constant_assignments(&prefix, None);
+        let at = load.path_word().unwrap().span().start();
+        assert_eq!(folded.lookup_at("::sourceDir", at).as_deref(), Some("/LIB"));
+        assert!(folded.lookup_at("::late", at).is_none());
+        assert_ne!(folded.exported().len(), 0);
+        let too_late = crate::auto_path_eval::fold_constant_assignments(
+            &parent.path_constant_assignments.before(at),
+            None,
+        );
+        assert_eq!(
+            too_late.exported().len(),
+            0,
+            "operand offset includes own SourceLoad barrier"
+        );
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        assert!(cut.path_advice_before_handler(&foreign).is_none());
+        let mut changed = parent.clone();
+        changed.body_lexer_config = None;
+        assert!(cut.path_advice_before_handler(&changed).is_none());
+    }
+
+    #[test]
+    fn region_path_inventory_uses_only_its_actual_remaining_commands() {
+        let source =
+            "set ::before ROOT; source first.tcl; set ::regionValue SUFFIX; source second.tcl";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let first = load(source, &parent, "source first");
+        let cut = expect_cut(first.frontier(&parent));
+        let child = Analyser::new()
+            .analyse_with_source_point_entry("", "tcl8.6", cut.point())
+            .unwrap();
+        let continuation = first.conditional_continuation(&parent, &child).unwrap();
+        let chain = continuation.source_regions(&parent, &child).unwrap();
+        let region = chain.regions().first().unwrap();
+        let view = Analyser::new()
+            .analyse_source_region(region, &parent, &child)
+            .unwrap();
+        let inventory = region.path_inventory(&view).unwrap();
+        let folded = crate::auto_path_eval::fold_constant_assignments(&inventory, None);
+        let at = u32::try_from(source.find("source second").unwrap()).unwrap() - 1;
+        assert_eq!(
+            folded.lookup_at("::regionValue", at).as_deref(),
+            Some("SUFFIX")
+        );
+        assert!(folded.lookup_at("::before", at).is_none());
+        assert!(region.path_inventory(&parent).is_none());
+        let mut stripped = view.clone();
+        stripped.original_source_region = None;
+        assert!(region.path_inventory(&stripped).is_none());
+        assert!(crate::source_graph::current_analysis(source, &view).is_none());
+    }
+
+    #[test]
+    fn inherited_path_prefix_retains_exact_source_namespace_home() {
+        let source = "namespace eval app {source child.tcl}";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let first = load(source, &parent, "source child");
+        let cut = expect_cut(first.frontier(&parent));
+        let child_source = "set local LOCAL; set ::global GLOBAL; source leaf.tcl";
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(child_source, "tcl8.6", cut.point())
+            .unwrap();
+        let leaf = load(child_source, &child, "source leaf");
+        let leaf_cut = expect_cut(leaf.frontier(&child));
+        let prefix = leaf_cut.path_advice_before_handler(&child).unwrap();
+        let folded = crate::auto_path_eval::fold_constant_assignments(&prefix, None);
+        let at = leaf.path_word().unwrap().span().start();
+        assert_eq!(folded.lookup_at("local", at).as_deref(), Some("LOCAL"));
+        assert_eq!(
+            folded.lookup_at("::app::local", at).as_deref(),
+            Some("LOCAL")
+        );
+        assert!(folded.lookup_at("::local", at).is_none());
+        assert_eq!(folded.lookup_at("::global", at).as_deref(), Some("GLOBAL"));
     }
 
     #[test]

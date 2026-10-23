@@ -55,6 +55,8 @@ pub(crate) fn install_for_bootstrap(
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    #[cfg(test)]
+    interp.observe_c84_error_episode("catch.enter", None);
     let dialect = interp.native_invocation_dialect();
     let jim = dialect.family() == Some(tcl_dialect::model::Family::Jim);
     if dialect.return_options_protocol()
@@ -111,6 +113,8 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         } else {
             b"catch script ?resultVarName? ?optionVarName?"
         };
+        #[cfg(test)]
+        interp.observe_c84_error_episode("catch.invalid_arity", None);
         return interp.wrong_args(synopsis);
     };
     // The caught body is a fresh completion scope. Commands within it retain
@@ -140,6 +144,8 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     let mut code = interp.eval_control_body(argv[selected.script_at + 1]);
+    #[cfg(test)]
+    interp.observe_c84_error_episode("catch.body_return_error", Some(code == Code::Error));
     if let Some(original) = &jim_original {
         if let Err(error) = original.check_for(interp) {
             return interp.report_cmd_error(error);
@@ -276,7 +282,11 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `::errorInfo`/`::errorCode` globals (so a later `set ::errorInfo` reads it)
     // and reset the accumulator for the next error.
     if code == Code::Error {
+        #[cfg(test)]
+        interp.observe_c84_error_episode("catch.before_publish", None);
         interp.publish_and_reset_error();
+        #[cfg(test)]
+        interp.observe_c84_error_episode("catch.after_publish", None);
         if interp.host_refusal_pending() {
             return Code::Error;
         }

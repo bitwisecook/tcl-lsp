@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-22T23:57:22.911356+00:00",
+  "finished_utc": "2026-10-22T23:57:29.978212+00:00",
+  "cargo_exit": 0,
+  "minimum_free_bytes": 12027613184,
+  "disk_abort": false,
+  "log_cap_bytes": 20971520,
+  "retained_log_bytes": 410,
+  "log_at_cap": false,
+  "disk_poll_seconds": 5,
+  "termination_scope": "This invocation own Cargo session/process group only"
+}

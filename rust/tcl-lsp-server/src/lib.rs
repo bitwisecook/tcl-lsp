@@ -9480,6 +9480,11 @@ pub struct Backend {
     /// every waiter but the one that did the real work. Same "wait out the
     /// in-flight pass" idiom as [`Self::workspace_scan_gate`].
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Serialises source-view construction, never held by final publication.
+    original_source_view_build_gate: Arc<tokio::sync::Mutex<()>>,
+    /// Source-only view ownership; URI invalidation retires descendants synchronously.
+    original_source_views:
+        Arc<std::sync::Mutex<readonly_reference_reports::source_views::OriginalSourceViewTable>>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
     /// database scans these (plus configured `libraryPaths`) so it can see
@@ -11111,6 +11116,8 @@ impl Backend {
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
+            original_source_view_build_gate: Arc::new(tokio::sync::Mutex::new(())),
+            original_source_views: Arc::new(std::sync::Mutex::new(Default::default())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
@@ -11684,6 +11691,10 @@ impl Backend {
         for uri in uris {
             let generation = uri_generations.entry(uri.clone()).or_default();
             *generation = generation.saturating_add(1);
+            self.original_source_views
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retire_uri(uri);
         }
         drop(uri_generations);
         self.live_publication_generation
@@ -16037,6 +16048,8 @@ impl Backend {
             workspace_scan_gate: _,
             workspace_scan_ready: _,
             rehoming_gate: _,
+            original_source_view_build_gate: _,
+            original_source_views: _,
             discovered_tcl: _,
             editor_library_paths: _,
             workspace_scan_max_files: _,
@@ -20160,6 +20173,36 @@ impl Backend {
             .await)
     }
 
+    /// Fingerprints only choose a cache bucket. The actual retained settings
+    /// and actual source owner independently authorize reuse and reanalysis.
+    fn workspace_class_source_analyser(
+        base: &AnalysisResult,
+        source: &str,
+        resource: &ResourceAnalyserInputs,
+        classes: std::collections::HashSet<String>,
+        bare_classes: std::collections::HashSet<String>,
+        factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+    ) -> Option<Box<Analyser>> {
+        let input = base.resolved_input.as_ref()?;
+        let registry = input.borrowed_context_registry().commands();
+        let entry = base.original_source_analysis_entry(source, registry, None)?;
+        let inherited = entry.options().source_point_entry.is_some();
+        let mut analyser = resource.clone().apply(Analyser::new());
+        if !base.configure_source_analyser(source, registry, &mut analyser) {
+            return None;
+        }
+        let analyser = analyser
+            .with_resolved_input(input.clone())
+            .with_source_analysis_entry(entry)
+            .with_workspace_classes(classes)
+            .with_workspace_bare_word_classes(bare_classes)
+            .with_workspace_class_factories(factories);
+        if inherited && !base.accepts_source_analyser_settings(source, registry, &analyser) {
+            return None;
+        }
+        Some(Box::new(analyser))
+    }
+
     async fn analyse_with_workspace_classes_from_analysis(
         &self,
         uri: &Uri,
@@ -20195,6 +20238,16 @@ impl Backend {
             &workspace_bare_word_classes,
             workspace_class_factories.as_deref(),
         );
+        let Some(analyser) = Self::workspace_class_source_analyser(
+            &base,
+            source,
+            &resource,
+            workspace_classes,
+            workspace_bare_word_classes,
+            workspace_class_factories,
+        ) else {
+            return base;
+        };
         if let Some(hit) = self
             .workspace_class_analyses
             .lock()
@@ -20202,7 +20255,15 @@ impl Backend {
             .get(uri)
             .filter(|entry| {
                 entry.fingerprint == fingerprint
-                    && entry.source_analysis.as_ref() == Some(&base)
+                    && entry
+                        .source_analysis
+                        .as_ref()
+                        .is_some_and(|owner| Arc::ptr_eq(owner, &base))
+                    && entry.analysis.accepts_source_analyser_settings(
+                        source,
+                        input.borrowed_context_registry().commands(),
+                        &analyser,
+                    )
                     && entry.resource_inputs.as_ref() == Some(&resource)
                     && tcl_compiler::source_graph::current_analysis(source, &entry.analysis)
                         .is_some()
@@ -20211,20 +20272,15 @@ impl Backend {
             return Arc::clone(&hit.analysis);
         }
         let owned_source = source.to_owned();
-        let analysis_resource = resource.clone();
         let analysis: Arc<AnalysisResult> = crate::rt::spawn_blocking(move || {
-            Arc::new(
-                analysis_resource
-                    .apply(tcl_compiler::analyser::Analyser::new())
-                    .with_resolved_input(input.clone())
-                    .with_workspace_classes(workspace_classes)
-                    .with_workspace_bare_word_classes(workspace_bare_word_classes)
-                    .with_workspace_class_factories(workspace_class_factories)
-                    .analyse(&owned_source, input.analyser_profile().name),
-            )
+            let mut analyser = analyser;
+            Arc::new(analyser.analyse(&owned_source, input.analyser_profile().name))
         })
         .await
         .unwrap_or_else(|_| Arc::clone(&base));
+        if Arc::ptr_eq(&analysis, &base) {
+            return base;
+        }
         if tcl_compiler::source_graph::current_analysis(source, &analysis).is_none() {
             return analysis;
         }
@@ -28756,8 +28812,36 @@ impl Backend {
     /// the same gate, so none can invalidate the freshly re-homed view between
     /// reconciliation and a definition/reference/rename read.
     async fn rehomed_index_guard(&self) -> DocumentSourceResult<tokio::sync::MutexGuard<'_, ()>> {
+        let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+            let uri = self
+                .workspace_index
+                .read()
+                .await
+                .document_uris()
+                .first()
+                .and_then(|uri| uri.parse().ok())
+                .ok_or_else(|| DocumentSourceUnavailable::InvalidStoredUri {
+                    original: "source-view work has no current physical owner".to_owned(),
+                })?;
+            return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
+        };
         let guard = self.rehoming_gate.lock().await;
-        self.refresh_source_rehoming_locked().await?;
+        if !self
+            .original_source_view_settlement_is_indexed(&settlement)
+            .await
+        {
+            let uri = self
+                .workspace_index
+                .read()
+                .await
+                .document_uris()
+                .first()
+                .and_then(|uri| uri.parse().ok())
+                .ok_or_else(|| DocumentSourceUnavailable::InvalidStoredUri {
+                    original: "source-view settlement retired".to_owned(),
+                })?;
+            return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
+        }
         Ok(guard)
     }
 
@@ -32108,6 +32192,14 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
+        if let std::ops::ControlFlow::Break(locations) = self
+            .original_source_view_navigation_route(&uri, pos, None)
+            .await?
+        {
+            return Ok(locations
+                .filter(|items| !items.is_empty())
+                .map(GotoDefinitionResponse::Array));
+        }
         let locations = Box::pin(self.compute_definition(&uri, pos)).await?;
         if locations.is_empty() {
             return Ok(None);
@@ -32415,6 +32507,12 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let include_decl = params.context.include_declaration;
+        if let std::ops::ControlFlow::Break(locations) = self
+            .original_source_view_navigation_route(&uri, pos, Some(include_decl))
+            .await?
+        {
+            return Ok(locations);
+        }
         let source_epoch = self.diag_inputs_epoch();
         let source_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
@@ -32589,6 +32687,12 @@ impl LanguageServer for Backend {
             .uri
             .clone();
         let pos = params.text_document_position_params.position;
+        if let std::ops::ControlFlow::Break(items) = self
+            .original_source_view_call_prepare_route(&uri, pos)
+            .await?
+        {
+            return Ok(items.filter(|items| !items.is_empty()));
+        }
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
@@ -32639,6 +32743,23 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let item = params.item;
+        if item
+            .data
+            .as_ref()
+            .and_then(|data| data.get("originalDeclaration"))
+            .and_then(|handle| handle.get("schema"))
+            .and_then(serde_json::Value::as_u64)
+            == Some(5)
+        {
+            let edges = self.walk_original_source_view_calls(&item, true).await?;
+            return Ok(Some(
+                edges
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(from, from_ranges)| CallHierarchyIncomingCall { from, from_ranges })
+                    .collect(),
+            ));
+        }
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
@@ -32702,6 +32823,23 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let item = params.item;
+        if item
+            .data
+            .as_ref()
+            .and_then(|data| data.get("originalDeclaration"))
+            .and_then(|handle| handle.get("schema"))
+            .and_then(serde_json::Value::as_u64)
+            == Some(5)
+        {
+            let edges = self.walk_original_source_view_calls(&item, false).await?;
+            return Ok(Some(
+                edges
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(to, from_ranges)| CallHierarchyOutgoingCall { to, from_ranges })
+                    .collect(),
+            ));
+        }
         let uri = item.uri.clone();
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
@@ -47578,6 +47716,8 @@ info exists ::N::v\uD800";
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
+            original_source_view_build_gate: Arc::new(tokio::sync::Mutex::new(())),
+            original_source_views: Arc::new(std::sync::Mutex::new(Default::default())),
             // The test harness never surveys the machine's own Tcl
             // installation: what is installed varies by host and its index
             // survey dominated server test time (user decision

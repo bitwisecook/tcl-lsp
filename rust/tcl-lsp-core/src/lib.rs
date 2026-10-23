@@ -378,3 +378,6 @@ mod dialect_ingress_tests {
         ));
     }
 }
+
+/// Exact retained source interpretation adapters for conditional readonly advice.
+pub mod original_source_views;

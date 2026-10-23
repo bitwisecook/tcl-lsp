@@ -25,8 +25,11 @@ use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext, NativeNameProtoc
 use super::{assigned_name_value_indices, is_plain_scalar_name, namespace_body_index, raw_value};
 
 mod original;
-pub(crate) use original::extend_path_constant_assignments_from_analysis_commands;
 pub use original::{constant_path_assignments_from_analysis, path_source_word_is_available};
+pub(crate) use original::{
+    extend_path_constant_assignments_from_analysis_commands,
+    path_constant_prefix_for_source_analysis,
+};
 
 /// A selected global home or an original lexical local activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

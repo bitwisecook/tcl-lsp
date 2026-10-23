@@ -1,0 +1,42 @@
+{
+  "actual_selected": 1,
+  "artifact_stable": true,
+  "artifacts": [
+    {
+      "age_seconds": 826.393355846405,
+      "mtime_utc": "2026-10-22T23:44:39.046479+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "4d7cfbce6589e07bd1cda19a6409591fbb22c32c40880cac1ebfe11a8e2634ba"
+    }
+  ],
+  "cargo_wrapper_exit": 101,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::source_point_entry::tests::source_point_allocator_compares_same_owner_actual_point_snapshots",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "n13_failed_allocator_source_point",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "command_binding::source_point_entry::tests::source_point_allocator_compares_same_owner_actual_point_snapshots",
+  "source_stable": true,
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": false
+}

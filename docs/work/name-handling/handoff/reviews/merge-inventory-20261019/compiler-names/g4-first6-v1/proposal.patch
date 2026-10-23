@@ -1,0 +1,145 @@
+--- a/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
+@@ -53,10 +53,17 @@
+     );
+     assert_eq!(
+         binding.runtime_reachability(),
+-        SourceRuntimeReachability::Conditional
++        SourceRuntimeReachability::Reached
+     );
+-    assert!(binding.execution_is_unknown());
+-    assert!(binding.proved_execution_target().is_none());
++    assert!(!binding.execution_is_unknown());
++    assert_eq!(
++        binding
++            .proved_execution_target()
++            .map(|target| target.command.as_str()),
++        Some("::expr")
++    );
++    assert!(binding.compiler_lookup_state.is_none());
++    assert!(bindings.final_state.baseline.native_entry.is_none());
+     assert!(binding.original_normal_result(&tokens).is_none());
+     assert!(!binding.original_invocation_completes_normally(&tokens));
+     assert!(binding.expression_preparation(&[]).is_none());
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -5066,13 +5066,19 @@
+                 .compiler_lookup_state
+                 .is_none()
+         );
+-        assert!(
+-            tokens
+-                .source_binding
+-                .as_ref()
+-                .unwrap()
+-                .execution_is_unknown()
+-        );
++        let binding = tokens.source_binding.as_ref().unwrap();
++        assert!(!binding.execution_is_unknown());
++        assert_eq!(
++            binding.runtime_reachability(),
++            super::super::SourceRuntimeReachability::Reached
++        );
++        assert_eq!(
++            binding
++                .proved_execution_target()
++                .map(|target| target.command.as_str()),
++            Some("::switch")
++        );
++        assert!(bindings.final_state.baseline.native_entry.is_none());
+         let mut changed = tokens.clone();
+         changed.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
+         assert!(
+--- a/rust/tcl-compiler/src/command_binding/expression_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/expression_preparation.rs
+@@ -2048,7 +2048,22 @@
+                     &tokens,
+                 );
+                 let binding = tokens.source_binding.as_ref().unwrap();
+-                assert!(binding.proved_execution_target().is_none());
++                if allowed {
++                    assert_eq!(
++                        binding
++                            .proved_execution_target()
++                            .map(|target| target.command.as_str()),
++                        Some("::expr")
++                    );
++                    assert_eq!(
++                        binding.runtime_reachability(),
++                        super::super::SourceRuntimeReachability::Reached
++                    );
++                    assert!(binding.compiler_lookup_state.is_none());
++                    assert!(bindings.final_state.baseline.native_entry.is_none());
++                } else {
++                    assert!(binding.proved_execution_target().is_none());
++                }
+                 assert_eq!(
+                     binding.nested_expression_normalisation(registry, &tokens, &parser, None),
+                     allowed,
+@@ -2121,7 +2136,22 @@
+                     &tokens,
+                 );
+                 let binding = tokens.source_binding.as_ref().unwrap();
+-                assert!(binding.proved_execution_target().is_none());
++                if allowed {
++                    assert_eq!(
++                        binding
++                            .proved_execution_target()
++                            .map(|target| target.command.as_str()),
++                        Some("::expr")
++                    );
++                    assert_eq!(
++                        binding.runtime_reachability(),
++                        super::super::SourceRuntimeReachability::Reached
++                    );
++                    assert!(binding.compiler_lookup_state.is_none());
++                    assert!(bindings.final_state.baseline.native_entry.is_none());
++                } else {
++                    assert!(binding.proved_execution_target().is_none());
++                }
+                 assert_eq!(
+                     binding.nested_expression_normalisation(registry, &tokens, &parser, None),
+                     allowed,
+--- a/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
+@@ -411,7 +411,18 @@
+         let (bindings, tokens, registry) = inventory("");
+         crate::command_binding::trace_original_g4_owner("scoped-lifecycle", &bindings, &tokens);
+         let binding = tokens.source_binding.as_ref().unwrap();
+-        assert!(binding.proved_execution_target().is_none());
++        assert_eq!(
++            binding
++                .proved_execution_target()
++                .map(|target| target.command.as_str()),
++            Some("::tcltest::test")
++        );
++        assert_eq!(
++            binding.runtime_reachability(),
++            super::super::SourceRuntimeReachability::Reached
++        );
++        assert!(binding.compiler_lookup_state.is_none());
++        assert!(bindings.final_state.baseline.native_entry.is_none());
+         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)
+             .expect("original scoped provider");
+         for phase in [
+--- a/rust/tcl-compiler/src/command_binding/normal_result.rs
++++ b/rust/tcl-compiler/src/command_binding/normal_result.rs
+@@ -612,7 +612,17 @@
+         };
+         let positive = make("proc answer {} {return 42}; proc f {} {return [answer]}");
+         let binding = positive.source_binding.as_ref().unwrap();
+-        assert!(binding.proved_execution_target().is_none());
++        assert_eq!(
++            binding
++                .proved_execution_target()
++                .map(|target| target.command.as_str()),
++            Some("::answer")
++        );
++        assert_eq!(
++            binding.runtime_reachability(),
++            super::super::SourceRuntimeReachability::Reached
++        );
++        assert!(binding.compiler_lookup_state.is_none());
+         assert!(!binding.original_invocation_completes_normally(&positive));
+         let proof = binding
+             .scoped_procedure_evaluation(&positive)

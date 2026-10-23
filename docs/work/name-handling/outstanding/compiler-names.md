@@ -2,13 +2,19 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T23:54:19Z (agent-reported work only)
+Last updated: 2026-10-23T00:02:00Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
 
+**Measured inherited producer defect / repair candidate:** current remaining33 region3FAIL, sequential2FAIL, allocator1FAIL and frontier4PASS4FAIL expose distinct real gates. Inherited first command becomes `opaque=true/registry_target=false`: `prepare_source_chunk` intentionally skips physical compiler ingress and `compilation_dialect` is None for genuine source points, but generic `compiler_head_decline(None)` treats that absence as unknown compiler effects and marks the world opaque before argv. Frozen `n13-source-only-selection-v1/proposal.patch` SHA69bd944dd846340bc04a04877038e712fbf09b38fcb8e8fb4249ce018bb51e8c checks actual point/origin/full input/config/registry/realm and current source-only Conditional/no-Native/compiler context before returning no-admission/no-proofs source selection. Genuine nested load positive, missing/foreign/config/input/Selected context negatives and unrelated unknown-writer refusal authored; syntax/current apply/whitespace pass, compiler bounded static CLEAR (`compiler-review.json`), untyped/unrun. Root allocator `unclosed=true` and nested namespace graph `seen=false` remain separate failures, not waived.
+
+**First6 narrow test policy correction:** frozen `g4-first6-v1/proposal.patch` SHAf8604d2f25215fbcb8daff129ec56ad3e052454f29bef8f41e5d37cf03cddfa7 has compiler bounded static CLEAR against13:17+08:20 and actual8facts9cb1787. Corrects only initial positive target/Reached/unknown contradictions; independent table/Native and existing result/completion/effect/frame/foreign/false-suffix negatives remain. Later assertions and dialect iterations were never reached and remain unrun. Immediate namespace's invocation-specific lexical positive passes but module readonly context returns None; import completed world is absent. Both remain separate producer/query failures, untouched by this artifact.
+
 **Replacement role restored (23:54Z):** shell works; no canonical product/Cargo writes or validation launch. First two exact 23:22 focused replay receipts independently read: each1FAIL, no warnings, source/provider/artifact stable, actual direct visit1 admitted with original words/policy and `native_entry=false`. Under the recorded compiler-visit interpretation these support Reached after-load, without Native/effect authority; no assertion corrected before remaining six traces. Compiler recovery prepared exact remaining33 (23filters), root review/launch pending.
+
+**BPF v2 successor reviewed:** immutable81f05efcaa13e6e0614acbae665071b8a5c6139a2a03efac7b2bc253c9190550 (`bpf-source-purpose-v2/`) adds every original NativeWord full-config join to the actual module plus a positive independently installed mismatched-config receipt/refusal control. Exact v1delta6ef3a461e864a4eac53a9ee921795cdde95e7c6689604dc00ca9d143d4c72897 also repairs helper doc attachment. Compiler bounded static review CLEAR; rustfmt/current apply/whitespace pass only. No type/run/first-marker measurement or integration acceptance. V1 below remains immutable/held.
 
 **BPF v1 peer blocker:** compiler found original receipt census joins image but omits each original NativeWord full configuration; current module configuration alone does not authenticate independently installed receipts. V1 is held/immutable; separate v2 will check every original word config and add a genuine mismatched-receipt-config negative. Remaining bypass review is pending.
 

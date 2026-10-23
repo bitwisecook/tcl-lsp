@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib command_binding::conditional_source::region::foreign_completed_region_controls::return_outcome_refuses_a_byte_equal_foreign_completed_region_owner -- --exact --nocapture --test-threads=1

@@ -1,0 +1,127 @@
+{
+  "prepared_utc": "2026-10-22T23:52:31.380488+00:00",
+  "status": "PREPARED ONLY; root review and explicit GO required; no Cargo launched or queued",
+  "predecessor_receipt_sha256": "944f7bcddf9a062903c5a09a62071f4df28bf3bafea02a4739a22c3067a07251",
+  "predecessor_plan_sha256": "ac0de417c4c8f4ee093050b1531bf84634d31c05d232a6263bafd83d5bb57355",
+  "remaining_rows_exactly_predecessor_required_filters_slice_2": true,
+  "expected_filters": 23,
+  "expected_tests": 33,
+  "completed_predecessor_filters": 2,
+  "completed_predecessor_tests": 2,
+  "completed_predecessor_outcome": "Both FAIL; stable source/providers/artifact; interrupted suite has no final.json; never whole35 verdict",
+  "completed_results_sha256": "fa54e09ed099ec62d5f3f4a72bc95ef31586ac0ebf487abd90ea08471aafb700",
+  "completed_watchdog_sha256": "f3588836c55dadf53bd15463d86ce7ee777316b86c6d80689a2822418e07decb",
+  "plan_sha256": "c05c3923f63c9ed159a52ff5ae38a68fa4007fd91f6cf07cea18851b333ce705",
+  "launch_sha256": "249914045a9c7155228f01cce543a38053d7af331e295f82525cff5134c4b66e",
+  "files": [
+    {
+      "source": "/tmp/compiler-postbatch-focused-v2/run.sh",
+      "source_sha256": "fc819b432ad884e7a6f0432db688618fbac86a87e0622a45db07e79c5acd9167",
+      "destination": "/tmp/compiler-postbatch-remaining33-v1/run.sh",
+      "after_sha256": "c51d716101f4f653497ae0abee5fdbe7d72957536609b6dfdba5be577bff0120",
+      "exact_replacements": [
+        {
+          "old": "/tmp/compiler-postbatch-focused-v2/",
+          "new": "/tmp/compiler-postbatch-remaining33-v1/",
+          "count": 1
+        }
+      ],
+      "inverse_reconstructs_predecessor": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-focused-v2/guarded-cargo.py",
+      "source_sha256": "a386c6028470e95469b99ce0aad8560f81c48b7a9fe075dd8cec41bfcd8ebba8",
+      "destination": "/tmp/compiler-postbatch-remaining33-v1/guarded-cargo.py",
+      "after_sha256": "a386c6028470e95469b99ce0aad8560f81c48b7a9fe075dd8cec41bfcd8ebba8",
+      "exact_replacements": [],
+      "inverse_reconstructs_predecessor": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-focused-v2/runtime-watchdog.py",
+      "source_sha256": "3d02b48d953b1d85de44f4f880d8488e9461adbb7b5082e1665b5a9e846c7e01",
+      "destination": "/tmp/compiler-postbatch-remaining33-v1/runtime-watchdog.py",
+      "after_sha256": "d8d855fc9b1491ffab5cd1fb4bef168a657c15faeb669508735bdc61838a7375",
+      "exact_replacements": [
+        {
+          "old": "/tmp/compiler-postbatch-focused-v2/",
+          "new": "/tmp/compiler-postbatch-remaining33-v1/",
+          "count": 2
+        }
+      ],
+      "inverse_reconstructs_predecessor": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-focused-v2/suite.py",
+      "source_sha256": "da6a90193337b8985b64532b3bd926dd9e297b69260a67df3b90924ce6e4fc58",
+      "destination": "/tmp/compiler-postbatch-remaining33-v1/suite.py",
+      "after_sha256": "aa36baa3c8cac92486775fd11bf210a78d7be4a7b622adc6ea7796848742e71d",
+      "exact_replacements": [
+        {
+          "old": "/tmp/compiler-postbatch-focused-v2/",
+          "new": "/tmp/compiler-postbatch-remaining33-v1/",
+          "count": 4
+        },
+        {
+          "old": "Path('/tmp/compiler-postbatch-focused-v2-runs')",
+          "new": "Path('/tmp/compiler-postbatch-remaining33-v1-runs')",
+          "count": 1
+        },
+        {
+          "old": "if not rows: raise SystemExit('STOP: explicit narrow compiler filters required')",
+          "new": "if len(rows)!=plan['expected_filters'] or sum(r['expected_selected'] for r in rows)!=plan['expected_selected']: raise SystemExit('STOP: plan count mismatch')\nif not rows: raise SystemExit('STOP: explicit narrow compiler filters required')",
+          "count": 1
+        },
+        {
+          "old": "write_json(receipt/'final.json',",
+          "new": "if len(results)!=plan['expected_filters'] or sum(r['actual_selected'] for r in results)!=plan['expected_selected']: raise SystemExit('STOP: terminal count mismatch')\nwrite_json(receipt/'final.json',",
+          "count": 1
+        }
+      ],
+      "inverse_reconstructs_predecessor": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-focused-v2/launch.py",
+      "source_sha256": "789f616c54ed3976facfa036a190a9b0428876738ec7bc0c12f1c6824746a9ed",
+      "destination": "/tmp/compiler-postbatch-remaining33-v1/launch.py",
+      "after_sha256": "249914045a9c7155228f01cce543a38053d7af331e295f82525cff5134c4b66e",
+      "exact_replacements": [
+        {
+          "old": "/tmp/compiler-postbatch-focused-v2/",
+          "new": "/tmp/compiler-postbatch-remaining33-v1/",
+          "count": 6
+        },
+        {
+          "old": "Path('/tmp/compiler-postbatch-focused-v2-runs')",
+          "new": "Path('/tmp/compiler-postbatch-remaining33-v1-runs')",
+          "count": 1
+        },
+        {
+          "old": "Prepared finite postbatch34 plus aliases1 diagnostic only; explicit root GO required",
+          "new": "Prepared remaining23 filters/33 tests only after interrupted v2 first2 completed failures; explicit root GO required",
+          "count": 1
+        },
+        {
+          "old": "fc819b432ad884e7a6f0432db688618fbac86a87e0622a45db07e79c5acd9167",
+          "new": "c51d716101f4f653497ae0abee5fdbe7d72957536609b6dfdba5be577bff0120",
+          "count": 1
+        },
+        {
+          "old": "3d02b48d953b1d85de44f4f880d8488e9461adbb7b5082e1665b5a9e846c7e01",
+          "new": "d8d855fc9b1491ffab5cd1fb4bef168a657c15faeb669508735bdc61838a7375",
+          "count": 1
+        },
+        {
+          "old": "ac0de417c4c8f4ee093050b1531bf84634d31c05d232a6263bafd83d5bb57355",
+          "new": "c05c3923f63c9ed159a52ff5ae38a68fa4007fd91f6cf07cea18851b333ce705",
+          "count": 1
+        }
+      ],
+      "inverse_reconstructs_predecessor": true
+    }
+  ],
+  "terminal_count_checks": "Plan23/33 and actual final23/33 terminal checks; each selected-count check unchanged",
+  "cache": "Fresh Cargo invocations may reuse exact cache; never direct old executable; all artifacts retained; no cleanup",
+  "guards": "Unchanged full source/provider/artifact stability,20MiB,2GiB and external watchdog-v5 180-second whole test process; diagnostic prefixes identical",
+  "canonical_source_modified": false,
+  "no_execution_queued": true
+}

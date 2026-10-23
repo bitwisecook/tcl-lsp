@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis -- --exact --nocapture --test-threads=1

@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations -- --exact --nocapture --test-threads=1

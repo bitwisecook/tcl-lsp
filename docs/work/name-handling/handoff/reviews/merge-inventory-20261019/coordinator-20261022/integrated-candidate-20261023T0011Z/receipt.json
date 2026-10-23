@@ -1,0 +1,9 @@
+{
+  "candidate_root": "/tmp/coordinator-n13-candidate-2323",
+  "patch_sha256": "65e99f8ff9ec227f6992cb885486e05547d5e3a7b1bbb255bf980c0f315ab5a9",
+  "fullmanifest_sha256": "e5833ec30728713a9e1eae191faac95b538c796b622dff066e7d8482dd74f853",
+  "file_count": 31,
+  "component_count": 10,
+  "status": "candidate only; untyped and unrun",
+  "verification": "all component hashes and canonical before hashes rechecked; independent git apply --check/reapply passed; byte-identical work tree; pinned rustfmt idempotent"
+}

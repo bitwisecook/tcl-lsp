@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-22T23:53:12.406834+00:00",
+  "protocol_receipt_sha256": "8a0e34b11834f79cf0e55f377c7c3cca08412288d5de9dcfc243a21d29276bd3",
+  "all_exact_script_replacements_and_hashes_verified": true,
+  "remaining_filters": 23,
+  "remaining_tests": 33,
+  "predecessor_completed_tests": 2,
+  "root_free_lock_verified": true,
+  "no_live_cargo_rustc": true,
+  "source_unchanged": "551aa product source, daf77 docs HEAD",
+  "gate_admissions": []
+}

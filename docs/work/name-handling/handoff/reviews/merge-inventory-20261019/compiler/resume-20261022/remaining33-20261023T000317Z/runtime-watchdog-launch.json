@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-22T23:53:26.096028+00:00",
+  "suite_pid": 185017,
+  "observer_pid": 185019,
+  "pins_before": {
+    "/tmp/compiler-postbatch-remaining33-v1/run.sh": "c51d716101f4f653497ae0abee5fdbe7d72957536609b6dfdba5be577bff0120",
+    "/tmp/compiler-postbatch-remaining33-v1/runtime-watchdog.py": "d8d855fc9b1491ffab5cd1fb4bef168a657c15faeb669508735bdc61838a7375",
+    "/tmp/compiler-postbatch-remaining33-v1/plan.json": "c05c3923f63c9ed159a52ff5ae38a68fa4007fd91f6cf07cea18851b333ce705"
+  },
+  "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+  "timer_seconds": 180,
+  "runtime_scope": "whole selected executable, excluding compilation",
+  "root_authorization": "Prepared remaining23 filters/33 tests only after interrupted v2 first2 completed failures; explicit root GO required",
+  "finished_utc": "2026-10-23T00:03:17.887630+00:00",
+  "suite_exit": 1,
+  "observer_exit": 0,
+  "pins_after": {
+    "/tmp/compiler-postbatch-remaining33-v1/run.sh": "c51d716101f4f653497ae0abee5fdbe7d72957536609b6dfdba5be577bff0120",
+    "/tmp/compiler-postbatch-remaining33-v1/runtime-watchdog.py": "d8d855fc9b1491ffab5cd1fb4bef168a657c15faeb669508735bdc61838a7375",
+    "/tmp/compiler-postbatch-remaining33-v1/plan.json": "c05c3923f63c9ed159a52ff5ae38a68fa4007fd91f6cf07cea18851b333ce705"
+  },
+  "runtime_acceptance_invalid": false
+}

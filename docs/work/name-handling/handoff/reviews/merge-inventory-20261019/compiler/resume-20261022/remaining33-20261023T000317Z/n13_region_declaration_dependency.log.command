@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner -- --exact --nocapture --test-threads=1

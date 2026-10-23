@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib analyser::types::original_body_syntax_request_tests::equal_source_and_same_realm_do_not_replace_body_inventory_request -- --exact --nocapture --test-threads=1

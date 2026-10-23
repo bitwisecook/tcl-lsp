@@ -959,6 +959,23 @@ mod controls {
 }
 
 impl OriginalSourceConditionalRegion {
+    /// Original captured segments for this exact frame, not a whole-image scan.
+    pub(crate) fn original_path_commands(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<(Vec<crate::segmenter::SegmentedCommand>, SourceNamespaceKey)> {
+        self.matches_region_analysis(analysis).then_some(())?;
+        let frame = self.0.entry.frame();
+        let origin = self.0.bindings.source_origin()?;
+        self.0
+            .entry
+            .original_plan(origin, self.input().lexer_config())?;
+        Some((
+            frame.commands.get(frame.next..)?.to_vec(),
+            frame.context.namespace_key.clone(),
+        ))
+    }
+
     /// A replay join retains the exact immediate prefix and the actual issued
     /// frame inventory. A dependency ancestor or matching image is insufficient.
     pub(crate) fn reissues_original_source_command(

@@ -411,7 +411,18 @@ mod tests {
         let (bindings, tokens, registry) = inventory("");
         crate::command_binding::trace_original_g4_owner("scoped-lifecycle", &bindings, &tokens);
         let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(binding.proved_execution_target().is_none());
+        assert_eq!(
+            binding
+                .proved_execution_target()
+                .map(|target| target.command.as_str()),
+            Some("::tcltest::test")
+        );
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Reached
+        );
+        assert!(binding.compiler_lookup_state.is_none());
+        assert!(bindings.final_state.baseline.native_entry.is_none());
         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)
             .expect("original scoped provider");
         for phase in [

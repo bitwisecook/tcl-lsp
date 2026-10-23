@@ -1,0 +1,17 @@
+{
+  "role": "compiler",
+  "utc": "2026-10-22T23:56:39.530726+00:00",
+  "patch_sha256": "81f05efcaa13e6e0614acbae665071b8a5c6139a2a03efac7b2bc253c9190550",
+  "status": "BOUNDED STATIC CLEAR after v2 config fix; untyped/unrun, no integration acceptance",
+  "findings": [
+    "Actual current module SourceBpfModuleContext and registry retained; full iterative supported script census requires selected bpf_op for every Call/Barrier.",
+    "Every original NativeWord joins exact module SourceImage channel+bytes AND full native lexer config. V2 fixes missing original receipt config join and adds genuinely installed mismatched-config negative.",
+    "Only census-current descriptor receipts bypass generic Tcl upvar/unknown-effect augmentation; generic runtime-selected API unchanged. Generated descriptor words remain BPF DSL data.",
+    "Structured If retains existing generic control handling; unsupported statement forms refuse. Private BPF phase preparation and lowerer still supply final executable issuer.",
+    "No SourceAnalysisEntry, AuthoredSimulation purpose, Native entry, Tcl procedure compiler visit, runtime frame or effect authority changes."
+  ],
+  "limits": [
+    "No actual Rust typecheck/test or new suite run performed for this patch.",
+    "Current positive/refusal controls must pass before acceptance; private full phase must still reject unsupported operation/operand semantics."
+  ]
+}

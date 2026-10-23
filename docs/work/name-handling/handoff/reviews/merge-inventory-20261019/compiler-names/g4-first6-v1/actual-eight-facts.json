@@ -1,0 +1,196 @@
+{
+  "role": "compiler",
+  "utc": "2026-10-22T23:57:53.077018+00:00",
+  "scope": "actual8 original G4 facts across interrupted predecessor2 + current remaining6; current33 suite remains in progress, no whole35 verdict",
+  "rows": [
+    {
+      "receipt": "/tmp/compiler-postbatch-focused-v2-runs/20261022T232255.302907Z",
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "b342706c3f7fadd9476234d416d8e6346c8b6fb6ee1d42c980694bd29eed8898",
+      "bounded_facts": [
+        "test command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry ... G4_OWNER label=conditional-expression offset=Some(11) reached=Reached unknown=false target=Some(\"::expr\") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: BeforeArguments } visits=1",
+        "G4_VISIT label=conditional-expression ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: BeforeArguments }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry' (183142) panicked at rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs:54:5:",
+        "  left: Reached",
+        " right: Conditional"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-focused-v2-runs/20261022T232255.302907Z",
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "0bf258e0861745a74e09e54a15f27ff5d95ee2db78cbc2d012b2eef69ac88061",
+      "bounded_facts": [
+        "test command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit ... G4_OWNER label=declaration-layout offset=Some(15) reached=Reached unknown=false target=Some(\"::switch\") owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Inline { operation: Invoke, guard: BeforeArguments } visits=1",
+        "G4_VISIT label=declaration-layout ordinal=0 selection=Some(Inline { operation: Invoke, guard: BeforeArguments }) admitted=true structured=false words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit' (183323) panicked at rust/tcl-compiler/src/command_binding/declaration_layout.rs:5069:9:",
+        "assertion failed: tokens.source_binding.as_ref().unwrap().execution_is_unknown()"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "a25bfe04ac1f3bec91741bae9c1478de54b371d4d6de4d7dbe70e45fceb5eb6a",
+      "bounded_facts": [
+        "test command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source ... G4_OWNER label=scoped-nested offset=Some(12) reached=Reached unknown=false target=Some(\"::expr\") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: ChunkEntry } visits=1",
+        "G4_VISIT label=scoped-nested ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: ChunkEntry }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source' (185356) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2051:17:",
+        "assertion failed: binding.proved_execution_target().is_none()"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "f64dc5c4ee941d3fc7a2ee7923f4888183a1bce7b005a0fc6311afa28f62b2ec",
+      "bounded_facts": [
+        "test command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source ... G4_OWNER label=selected-nested offset=Some(12) reached=Reached unknown=false target=Some(\"::expr\") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: ChunkEntry } visits=1",
+        "G4_VISIT label=selected-nested ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: ChunkEntry }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source' (185681) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2124:17:",
+        "assertion failed: binding.proved_execution_target().is_none()"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "9f424dccf738ea25fb07f96d5b1e3afd89ae43c5361447430bd4c789f5039021",
+      "bounded_facts": [
+        "test command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source ... G4_OWNER label=scoped-lifecycle offset=Some(35) reached=Reached unknown=false target=Some(\"::tcltest::test\") owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Generic visits=1",
+        "G4_VISIT label=scoped-lifecycle ordinal=0 selection=Some(Generic) admitted=false structured=false words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source' (185955) panicked at rust/tcl-compiler/src/command_binding/lifecycle_advice.rs:414:9:",
+        "assertion failed: binding.proved_execution_target().is_none()"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "774b4ec054e1cd2bdae6f959a76471466099fca98407f74ac825a22545356e70",
+      "bounded_facts": [
+        "test command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations ... G4_OWNER label=scoped-procedure-equivalence offset=Some(47) reached=Reached unknown=false target=Some(\"::answer\") owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Generic visits=1",
+        "G4_VISIT label=scoped-procedure-equivalence ordinal=0 selection=Some(Generic) admitted=false structured=false words=true policy=true native_entry=false opaque=false unclosed=false",
+        "thread 'command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations' (186207) panicked at rust/tcl-compiler/src/command_binding/normal_result.rs:615:9:",
+        "assertion failed: binding.proved_execution_target().is_none()"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "3684aecccd2407a0e9cc9c5740e6bd4d0f7fbc2c52436e1150b0cb96593fc42e",
+      "bounded_facts": [
+        "thread 'command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix' (186536) panicked at rust/tcl-compiler/src/command_binding/original_body_namespace.rs:454:17:",
+        "  left: None",
+        " right: Some(Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }))"
+      ]
+    },
+    {
+      "receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+      "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "source_stable": true,
+      "providers_stable": true,
+      "artifact_stable": true,
+      "actual_selected": 1,
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1",
+          "0"
+        ]
+      ],
+      "log_sha256": "afaeaf922aaf1320a90f3702518d1432d7cdcc2ff660cf6735b9e3eb47c56559",
+      "bounded_facts": [
+        "thread 'command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation' (186892) panicked at rust/tcl-compiler/src/command_binding/source_command_world.rs:3172:18:"
+      ]
+    }
+  ]
+}

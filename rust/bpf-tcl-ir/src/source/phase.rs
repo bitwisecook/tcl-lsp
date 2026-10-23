@@ -455,6 +455,35 @@ when XDP {use t {a b=7}; pass}",
             .unwrap()
             .prepare_function(&module, "main", registry)
             .unwrap();
+        if std::env::var_os("TCL_LSP_TRACE_BPF_PHASE").is_some() {
+            for (ordinal, statement) in prepared
+                .function
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .take(16)
+                .enumerate()
+            {
+                let kind = match statement {
+                    Statement::Call { .. } => "call",
+                    Statement::Barrier { .. } => "barrier",
+                    _ => "other",
+                };
+                let tokens = statement.tokens();
+                let selection = match super::super::selected_command(statement, registry) {
+                    Ok(Some(_)) => "selected-catalogue",
+                    Ok(None) => "authentic-unknown-head",
+                    Err(_) => "unavailable-selection",
+                };
+                eprintln!(
+                    "BPF_PHASE_ROW ordinal={ordinal} kind={kind} start={} end={} marker={:?} receipt={} selection={selection}",
+                    statement.span().start(),
+                    statement.span().end(),
+                    tokens.and_then(|tokens| tokens.synthetic.as_ref()),
+                    tokens.is_some_and(|tokens| tokens.source_bpf_command.is_some()),
+                );
+            }
+        }
         crate::lower::lower_prepared_function(
             &prepared,
             crate::ir::ProgType::SocketFilter,

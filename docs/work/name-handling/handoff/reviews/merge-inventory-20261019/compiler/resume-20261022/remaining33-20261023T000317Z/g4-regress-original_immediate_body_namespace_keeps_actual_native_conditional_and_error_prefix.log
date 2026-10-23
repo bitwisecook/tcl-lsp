@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized] target(s) in 2.59s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix ... 
+thread 'command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix' (186536) panicked at rust/tcl-compiler/src/command_binding/original_body_namespace.rs:454:17:
+assertion `left == right` failed
+  left: None
+ right: Some(Native(NativeNamespaceContext { interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, token: 0, path: ByteNamespacePath([]) }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 2.89s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

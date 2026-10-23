@@ -5066,13 +5066,19 @@ mod tests {
                 .compiler_lookup_state
                 .is_none()
         );
-        assert!(
-            tokens
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .execution_is_unknown()
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(!binding.execution_is_unknown());
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Reached
         );
+        assert_eq!(
+            binding
+                .proved_execution_target()
+                .map(|target| target.command.as_str()),
+            Some("::switch")
+        );
+        assert!(bindings.final_state.baseline.native_entry.is_none());
         let mut changed = tokens.clone();
         changed.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
         assert!(

@@ -1,0 +1,5 @@
+    Finished `test` profile [unoptimized] target(s) in 0.80s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::conditional_source::finite_cut_controls::a_genuine_point_cannot_replace_a_withdrawn_finite_plan ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 3.26s

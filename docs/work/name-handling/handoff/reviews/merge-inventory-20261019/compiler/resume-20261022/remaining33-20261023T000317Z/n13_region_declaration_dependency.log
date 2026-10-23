@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized] target(s) in 0.70s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+thread 'command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner' (189507) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:1286:75:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 2.75s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

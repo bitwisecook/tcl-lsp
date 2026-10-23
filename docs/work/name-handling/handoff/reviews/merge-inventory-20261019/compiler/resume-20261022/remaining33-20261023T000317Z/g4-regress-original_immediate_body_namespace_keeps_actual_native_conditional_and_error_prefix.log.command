@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix -- --exact --nocapture --test-threads=1

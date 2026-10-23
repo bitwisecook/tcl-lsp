@@ -1,0 +1,1015 @@
+{
+  "source_receipt": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+  "source_after_inventory": "All23 perfilter source-after manifests byte-identical to archived source-before; originals retained at source_receipt.",
+  "files": [
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log",
+      "sha256": "96503d6c92069a92989cc14615a4c3a4e265163a1586cfcce5beefb0fbff65b1",
+      "archive": "actual_compiler_syntax_owner.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.artifact.json",
+      "sha256": "e9689a2fadc24b8d90074d663af4334bc2c7683e363359f37d5eb1306f9c1a5a",
+      "archive": "actual_compiler_syntax_owner.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.command",
+      "sha256": "568756d870d88d174d3de19546aa533bc5a5c04bcc6b6abe9c3e0a16b6f6ede1",
+      "archive": "actual_compiler_syntax_owner.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "actual_compiler_syntax_owner.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.process.json",
+      "sha256": "dabe9259d7612166dd31fabf51080a421b83bd7ab32aa8db89c60eb6eb16f918",
+      "archive": "actual_compiler_syntax_owner.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.result.json",
+      "sha256": "961bb63f38963596f107200b6d2290a0b2a28ff2066a74edd857ae6afd6a9361",
+      "archive": "actual_compiler_syntax_owner.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.sha256.json",
+      "sha256": "ba9d156538fdd8aaa11587ebf09894032a099213684c3c3ac2bc5f7023690892",
+      "archive": "actual_compiler_syntax_owner.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/actual_compiler_syntax_owner.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log",
+      "sha256": "cbe052c1a89aa67275a0e7731daebf4ecf47ae3a051e8d00fe954d19e694044d",
+      "archive": "aliases_declaration_cardinality_diagnostic.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.artifact.json",
+      "sha256": "72089b43f939f510ee68318153bcdd8a61dda9881e42fb7771a49d3d0077cf76",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.command",
+      "sha256": "4c0291f1bd1091429de4f1e97e5a1afa9098ca71827b745a0ca2f810842a42f4",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.env.json",
+      "sha256": "a049802ab89d003e6cce0a03d6738a23cc43ff386d1252433f75072f3d005193",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.process.json",
+      "sha256": "80a42e7927b635309bd97b25d8b717745ff29694f455fb036fae31ab614c8490",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.result.json",
+      "sha256": "166d79d78bedc94eeb87ab7fcc40c0c075c2232e6a3c7987e4316619e8521e67",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.sha256.json",
+      "sha256": "22e96513f48ea76acc63127af3657907a44e3857d570e2f2831fa4c20a44eff9",
+      "archive": "aliases_declaration_cardinality_diagnostic.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/aliases_declaration_cardinality_diagnostic.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/build-environment.json",
+      "sha256": "f65f1d4f1881525578afca4684740168fa9e8796c2403344c288d066b47a55f6",
+      "archive": "build-environment.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/current-rust-diff.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "current-rust-diff.patch"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/final.json",
+      "sha256": "accfe275736c30ab7d6ab48d04e05152d0a76aa388a6fb93ad43e78f1ebf3a32",
+      "archive": "final.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log",
+      "sha256": "3684aecccd2407a0e9cc9c5740e6bd4d0f7fbc2c52436e1150b0cb96593fc42e",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.artifact.json",
+      "sha256": "a1c544095ff70087ddb146af14f56a10bab9b14c4fc001427dbf33e1c826a13d",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.command",
+      "sha256": "04e79e5d0a9b65ca680633d0a6fe9905063d0e25bf91c3dce8551710879dd9d4",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.process.json",
+      "sha256": "f6b7e50018d26f8277be79935604ad64598d092e6b162a7ff14922efd144197c",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.result.json",
+      "sha256": "05168887df784c72e172c10644783cb4826c70771a564ee5b252cc4a0a3da4b2",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.sha256.json",
+      "sha256": "8dbf05a4884aa9104148265d72023ff89530e945ba34dd689a229bd565f21128",
+      "archive": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log",
+      "sha256": "afaeaf922aaf1320a90f3702518d1432d7cdcc2ff660cf6735b9e3eb47c56559",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.artifact.json",
+      "sha256": "5c3b5a16309a157d3046b418c6a425e7b63821ba472da38ccb3515eab0285cbc",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.command",
+      "sha256": "a71daa3371bb8db9122bbe71d48625fd28a027a4866d83f688ae0361011010c8",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.process.json",
+      "sha256": "b79290ceeb908bca862c5fa8b7779a05502684c7840cfcbb25e0a2005782dbb7",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.result.json",
+      "sha256": "c6eed536208254c7e05d4f142a2b13ee67cb1640a5f1a40d5d47e8789083d7a3",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.sha256.json",
+      "sha256": "a1c602bfb08235318801475dd8269a1e0f16c9eaf345e32df85a1b35faa0f485",
+      "archive": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log",
+      "sha256": "9f424dccf738ea25fb07f96d5b1e3afd89ae43c5361447430bd4c789f5039021",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.artifact.json",
+      "sha256": "c5e92cfa9cd97ab8e51c26eb58cc7ee30538b2f6dcefccb3864eb3e15989235d",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.command",
+      "sha256": "7ace1804f7d9ee4172e99ce312c8c2a6118b20652b8197e7d29504b387ea9869",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.process.json",
+      "sha256": "1f08a6878fe5148a541548ab8627acb4308d49b8bf381803c1c163b67043268e",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.result.json",
+      "sha256": "8f69f5b72828bce9519201086b102e09aa35e39df0e84497cb178910690ca8be",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.sha256.json",
+      "sha256": "c81b7370a7ff00709b9ff931f0ccb2b798124cd380d51ae90699e4c424af3407",
+      "archive": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log",
+      "sha256": "a25bfe04ac1f3bec91741bae9c1478de54b371d4d6de4d7dbe70e45fceb5eb6a",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.artifact.json",
+      "sha256": "c7b21ee52a50040d0186365228323a4a95ac9db92d510e20ac766d94da86e95b",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.command",
+      "sha256": "7337eff698af0b458916174b65ce08bb1339a063237e5941b48ad5f8841f237d",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.process.json",
+      "sha256": "b0d828a9ae1a835f128991a6e9f9a072d4365ef473157c52f8ff8a59703ed592",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.result.json",
+      "sha256": "947af163d030f1c1c6c9976bcfe107220639638e79ee3000a96d428c73a2768b",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.sha256.json",
+      "sha256": "3eafc0edbaa71db8b221b1a8a6ec36b4e34164c38ccd9808650f234eb492b002",
+      "archive": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log",
+      "sha256": "774b4ec054e1cd2bdae6f959a76471466099fca98407f74ac825a22545356e70",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.artifact.json",
+      "sha256": "aa77eda9b5ad4f964e3e4aeaa87af24c4465f49bd6d562407a840f665e456976",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.command",
+      "sha256": "8b6fe2824c513e1189cb4923d72fd07dcd6a435e86e4cb7998a388c4f1255f04",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.process.json",
+      "sha256": "90ed0baa9a178e2b6ef6a88ae150a497f69b155f211d80866c35eff2b39787ca",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.result.json",
+      "sha256": "8e280d18a3c6242dd0c2258e4a5a804850c38f49b4228e02a50b48a61df0d8b5",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.sha256.json",
+      "sha256": "22ac1f8544de0926e320adb526a3af997d3df9d7def19a50c76f4a9b4b5e2db0",
+      "archive": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log",
+      "sha256": "f64dc5c4ee941d3fc7a2ee7923f4888183a1bce7b005a0fc6311afa28f62b2ec",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.artifact.json",
+      "sha256": "7555a1cf89302c73c26840dcf55ab65b247a9d5e5bf6b9d08b15c179d69fb938",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.command",
+      "sha256": "7e2abc7506eb31f761dc3b16d11899f51b691afab0602eb9b7064dfd5926c698",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.process.json",
+      "sha256": "82fbcf878187ec6fdb1ede2d510d5d624652d03101e8433c144c599d368bebad",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.result.json",
+      "sha256": "03a69ef5db65208d15c6c88da3752701c139db1e73ddaa3b2025cb65b52de515",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.sha256.json",
+      "sha256": "e0b0a9ff4aa97d26e5595fae60b93457f4c8e768759ffc0eb3722d7742949828",
+      "archive": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/head-after.txt",
+      "sha256": "d59d786b1d56233e18d3325c4ff8a33a4b06ab95a9165cbde7c3606a2b0952e7",
+      "archive": "head-after.txt"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/head-before.txt",
+      "sha256": "ff36ca885388897b9f9fc559480ab16018392c9787188e5b07c7170dbbdb91ff",
+      "archive": "head-before.txt"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log",
+      "sha256": "1393ddacf1aeccc99298a5a7ea461c303551c08227b9b750a60c586705dd57a5",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.artifact.json",
+      "sha256": "fba58b55f6316451014634e2913585d94932e0ee3ce99d46c6dd2a3dbe6b3dfe",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.command",
+      "sha256": "dd44c4a265c0713a28802ea60fe5928aef8f953eb460577535d3ff35eb5632ef",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.process.json",
+      "sha256": "b8baf116361bdc9d817b86793fe3fa34cb0614c6a796cc32d1a29ecbb8f174f8",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.result.json",
+      "sha256": "b310255147677754b602a09795b2afc61296fbad687531a749d086b06dadfd1b",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.sha256.json",
+      "sha256": "b110572842d0652bb1f42ba4ba29b51e7fcd603af860a491e4ffa636dc7972e9",
+      "archive": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log",
+      "sha256": "1f54d2fbe1477ad20a5127ba57e93f91660002194c3d9ea5ab8f0fdc263e324c",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.artifact.json",
+      "sha256": "4de0f38c4dec7e4b5ed0c17a77a026c07730fe8648e9c2d394f5be68c75b76aa",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.command",
+      "sha256": "b1b7c8d0fe02f2f84bdb314861c36cf08b1c13f05d62239aa682af1623182b10",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.process.json",
+      "sha256": "c0f3e3596b8013e1e0f8ed14178f10504062d81e79981ff2a23b727765eab703",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.result.json",
+      "sha256": "22d377a82c7116afb13fa3c37dd3b64f9caee33f743f64e4e652a714945e0a38",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.sha256.json",
+      "sha256": "78a3a3a91526806f8f6123688d8c6520d325c3c3c0f5135f70d96cdd09601d8e",
+      "archive": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log",
+      "sha256": "570f25b05a65450e548e46ebc09de534351bd04ec2e604ce73ed29ed019ca09e",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.artifact.json",
+      "sha256": "491a1d504ab0e8bdac6c2c488e9ce266d3f89e108c19e89c2268844bd0c5932b",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.command",
+      "sha256": "a3acd8f63028d2461e5fb2265bfc45322773ea5f69fb233170baafb86ac290c7",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.process.json",
+      "sha256": "7b72bdb879e54a898df18aada4be915f7749fdb6299efe775e65bcd72cd306d9",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.result.json",
+      "sha256": "b5d801ab547f2221c58974c60e0224b2d72028fdab70ced8e913a1d43c143daa",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.sha256.json",
+      "sha256": "e2ee5d13e5ed4b8400f073deb2d8a068c6d2fc4bdf0a59c9b9bbc78a25699b55",
+      "archive": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log",
+      "sha256": "30236c339ba93571612656967d4e1494a4305c882c0ae0e9f2570bad3dbc2ff6",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.artifact.json",
+      "sha256": "7e04040005bba829ce4d41fb46b0ffa6a85c5c4670d3d50fb391bfe2d5e73998",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.command",
+      "sha256": "34f4cfe9c3c75100dba8c7add97b5f889a884675046cff3cf5fd39ba5580a40f",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.process.json",
+      "sha256": "6e96c1dbfb18fb5b1ade39ada6e5e6ca4d5616681d44a0fb30156463f759f62e",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.result.json",
+      "sha256": "ca846f502baa309230eb9b8a30e6e7ef9fd2f08d4aaf2e43263c265aab0e0f55",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.sha256.json",
+      "sha256": "79a915a6666a0c80a30a351057b3dba2e4298c5116293eb222f26958411468aa",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log",
+      "sha256": "cd83ec1d07dc4d1450315b0e1f89eedb9253530831ea958236f24aeda8324598",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.artifact.json",
+      "sha256": "4d91d4ecbfe5b1887a274abd8a9345fe475795670fbf89294ae021dffd8651f0",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.command",
+      "sha256": "6b335e6430d5436cfc78d4a27c34449874cfc4e0b8b6bb879488d5259d960f22",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.process.json",
+      "sha256": "6e366382494aa0720be6cf3456936667c8634ff636e76a63a0ef8481f3df9ebd",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.result.json",
+      "sha256": "61e3ef798eea93b8804f6312f253c23604b994362b2fd849c43c15039d4bced4",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.sha256.json",
+      "sha256": "b28edc3a83349043b9ea39f497b6d0da192153806cfcf1d6d3ab305fe891e91d",
+      "archive": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log",
+      "sha256": "178d63e0241292b8d96cbf602a8d41a594d4072ccaea4cdc6639ade4e857fa94",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.artifact.json",
+      "sha256": "065efde7a2761dcfe24dfa03ab4533495f692475b5bfe7adbcebe98dc3703ac8",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.command",
+      "sha256": "c4d181f3d25803678a6a4fae77dcb4e18015046cd75bf9f34b2cdc401bc4a246",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.process.json",
+      "sha256": "d6eaea0b4d33addf8ab35d3dde374fe023a2670ab1b3622d9bcae7cf3285efc3",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.result.json",
+      "sha256": "277fd865013e3b1477c93978722197395d20ce0a71370a1f327f3616f7c0b329",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.sha256.json",
+      "sha256": "5078631ffe28e97c6dec6b62a162ff018491dbfb6ef2621776e2abe07de7efdc",
+      "archive": "n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_complete_program_purpose_refuses_a_genuine_conditional_region.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log",
+      "sha256": "290131245b22bc1b572133f0509f1a3797e46be4466b6874ba366885b32761e9",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.artifact.json",
+      "sha256": "6046988424436f98bb6659c619de7f586188b217e32083f5ac7b416e760eec3a",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.command",
+      "sha256": "cf4e11b9395b20b56175e8006d84d6fab62abd51bb1b95b2f176da94ef9ccb27",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.process.json",
+      "sha256": "ae26944bd01b4b07cb5ab574d6565712f58cdc67ed055449f1177e9b7fe63ba1",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.result.json",
+      "sha256": "2d5625a0a9d0a398ed045aa5392be77d69a73911b383e71b1215220f6e614f96",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.sha256.json",
+      "sha256": "17495dd48027a4bb60e867843b344727568b409247017ae5439175b2b5d7a1cc",
+      "archive": "n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_conditional_region_purpose_refuses_a_genuine_whole_child.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log",
+      "sha256": "a4bffbb7038113384251bf76b3250916b3ef703b1779de4861e665edd98ccc16",
+      "archive": "n13_failed_allocator_source_point.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.artifact.json",
+      "sha256": "fc4a6a7f54ace189811d1e04f4e7d7513571fe464e4b00d672571b3ed66ff473",
+      "archive": "n13_failed_allocator_source_point.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.command",
+      "sha256": "03ebe444bc27d23ad2796e43cd0ba1b3433d89d83bd907d250216c3bed95cbb7",
+      "archive": "n13_failed_allocator_source_point.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_failed_allocator_source_point.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.process.json",
+      "sha256": "d311a7c7a39ee5cc8db01a2765af26de1e5729f08202ccc2c78a37b22ae89f68",
+      "archive": "n13_failed_allocator_source_point.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.result.json",
+      "sha256": "93b2f3c9f915515b51cea9e7609822f532c0c1a726a0bf604ee49751f256b0dd",
+      "archive": "n13_failed_allocator_source_point.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.sha256.json",
+      "sha256": "c1b73d2491ba9dc4b9bc4ad124797c78cfb3c705bdab2c31f6e69430d168b7b4",
+      "archive": "n13_failed_allocator_source_point.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_failed_allocator_source_point.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log",
+      "sha256": "59e6c0926aa53f98ba769d38a0e3821bcd00c655b8aa54277d8aa884c23c808d",
+      "archive": "n13_finite_cut_withdrawal.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.artifact.json",
+      "sha256": "1ba383f43a1ab6fcc9b7dd80ee12ed5a8159fc15f7105b53e83620ec1319c83a",
+      "archive": "n13_finite_cut_withdrawal.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.command",
+      "sha256": "bbe13f77ee51b3ddaf663beb8f9646df94a929bf58400a10b6472484c506bb27",
+      "archive": "n13_finite_cut_withdrawal.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_finite_cut_withdrawal.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.process.json",
+      "sha256": "fe3aa9091af3cd6e0dadc232eece8818d69682e12720c4730c881c71d90cfbb9",
+      "archive": "n13_finite_cut_withdrawal.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.result.json",
+      "sha256": "c4b4b6d3b8275f643e81ac5ad2fe47dbeddd756cc9c81560b74f5223eb680fae",
+      "archive": "n13_finite_cut_withdrawal.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.sha256.json",
+      "sha256": "9c99f64ce0678d341f3db1d10d87e57f1b4c62a6587d067138de808f524f1db1",
+      "archive": "n13_finite_cut_withdrawal.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_finite_cut_withdrawal.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log",
+      "sha256": "43f3a11c900cbc6f553e57b13c14a5ad6b002020c6d666823247b0baa88074a9",
+      "archive": "n13_foreign_completed_region.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.artifact.json",
+      "sha256": "15ff7f18f7a52ee94f22dd2fba332d50f62aa11014e8eb9a3a08dc29420a55de",
+      "archive": "n13_foreign_completed_region.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.command",
+      "sha256": "f2740e9ca1430301ba1141c090d96ce20222d33cb578153a672b795c406fae24",
+      "archive": "n13_foreign_completed_region.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_foreign_completed_region.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.process.json",
+      "sha256": "2903e4b8c9ed5a5d4a0af4428b67c3e7981166ca5639714e04f2717ed9f1320f",
+      "archive": "n13_foreign_completed_region.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.result.json",
+      "sha256": "9e65f7df1d216cb1e825ad2ca7941d6d6f978c0ed8eb2a38fff157dabb64ea36",
+      "archive": "n13_foreign_completed_region.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.sha256.json",
+      "sha256": "b50db179b6b3aadf757c0d5ac06f6ceb10a93c24cb0fdf3ad3d17ca613c41db6",
+      "archive": "n13_foreign_completed_region.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_foreign_completed_region.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log",
+      "sha256": "9fc11054e42734bc3d1326f43fa43f5e0d5078a16fdeebd1b2866ccd0fe73e80",
+      "archive": "n13_frontier8.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.artifact.json",
+      "sha256": "2b797dab705a71135306eb1104d4708a246d6f9ab8147efea8f1350e5281552a",
+      "archive": "n13_frontier8.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.command",
+      "sha256": "0027ba176749a2dff8b67e60b64408d25177456366514aa7509a6aee312bb2c0",
+      "archive": "n13_frontier8.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_frontier8.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.process.json",
+      "sha256": "6a2d7e21198e5945fc27ef2fe7efde279bc93dc464c20af6d8226ff84f07e71e",
+      "archive": "n13_frontier8.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.result.json",
+      "sha256": "245c65490ec7aacd5523a89d933c5aacee201e33298e4e450837da83858794ac",
+      "archive": "n13_frontier8.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.sha256.json",
+      "sha256": "357dac4577b8ab66d69fd0e047678c6e83045b86c3f23846eb950ea67a50a9cc",
+      "archive": "n13_frontier8.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_frontier8.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log",
+      "sha256": "17d3c7cce6895870c00f72b1f6f345239e7a0de30f97c60e7fe0861fc3226315",
+      "archive": "n13_region_controls.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.artifact.json",
+      "sha256": "179b34479ace54fb885e5fd8b593c5f45b91b9efaaea729b06ce75d360e8aca2",
+      "archive": "n13_region_controls.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.command",
+      "sha256": "39be74208e36cd8a60e224e446c27f3278ce57a506eb0a3156e2421b2daa2f2b",
+      "archive": "n13_region_controls.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_region_controls.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.process.json",
+      "sha256": "5dab0d3a8f1a2d951fda28e4b4f10201731e48e484f50b6ec0dc061055e01bc2",
+      "archive": "n13_region_controls.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.result.json",
+      "sha256": "f01129c2960b976bfd9ab4bcf363965e1bf68bec0ed6be6b29c584498f3695fd",
+      "archive": "n13_region_controls.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.sha256.json",
+      "sha256": "07ed53fe39fd6008cf943411b07ae6561d19a75916e5eb39542161a474388838",
+      "archive": "n13_region_controls.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_controls.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log",
+      "sha256": "b112674d54b4b0f1e9471d1831e2a49936af015d08181ac036a77f9400a380ac",
+      "archive": "n13_region_declaration_dependency.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.artifact.json",
+      "sha256": "b261a112a1a6cde4178389021973c6c51f8e9626da278a4bc276ddf9482ac48a",
+      "archive": "n13_region_declaration_dependency.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.command",
+      "sha256": "7517c99fec478b8526be5bc8db9bcd6aace5391c4549fc2a3e8913ab38604cb4",
+      "archive": "n13_region_declaration_dependency.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_region_declaration_dependency.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.process.json",
+      "sha256": "e4a5d38563af980176bd25915d161722ec9dd85dba5910a9f1d0f8687b986443",
+      "archive": "n13_region_declaration_dependency.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.result.json",
+      "sha256": "5e32821b558501eba9ba9405b2e2272875ce5aca3c3be0636be29c0fe85d66d4",
+      "archive": "n13_region_declaration_dependency.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.sha256.json",
+      "sha256": "2870d49d054ee7f6168d3dba1de776e01f3c9fcde7499acb5e2168be072b6a76",
+      "archive": "n13_region_declaration_dependency.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_declaration_dependency.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log",
+      "sha256": "0d1d63543b6e0b5b3ddbfa8493bf7dec142491849bace34da437f51220cce348",
+      "archive": "n13_region_sequential_controls.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.artifact.json",
+      "sha256": "84575fd9cf0d75d916c70544933fc77c95a755395dec8560335e993a75badea2",
+      "archive": "n13_region_sequential_controls.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.command",
+      "sha256": "5982864d597767c9bff89d9ce550a550c928968e4db6e6711995c8f270dc3e2c",
+      "archive": "n13_region_sequential_controls.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_region_sequential_controls.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.process.json",
+      "sha256": "95392c1d6764a034d586c832019696471fd05ec5f70494d3289482c40bb20e88",
+      "archive": "n13_region_sequential_controls.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.result.json",
+      "sha256": "e15ad7edb221cf2c9954db807247cd5aeb295bd4fabda4d16168586a8f140453",
+      "archive": "n13_region_sequential_controls.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.sha256.json",
+      "sha256": "26e14fd6e4b9f009e9ecda7a99d8b9385b140b9d4f2d08d38025a757dfec6d7c",
+      "archive": "n13_region_sequential_controls.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_region_sequential_controls.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log",
+      "sha256": "91082c38a3938079307daf3fcff8f9b2d70309fda310b26110e9a93e70f3e82a",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.artifact.json",
+      "sha256": "db73ed8cc3c1286fb1be4ad3526a5c016980785db66f7e6842fcfda271f0458b",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.artifact.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.command",
+      "sha256": "d4e861b6ad85a44d920d4df95d7756106b2ffde28f18ae875e2f845cafdfe95a",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.command"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.env.json",
+      "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.env.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.process.json",
+      "sha256": "d2592c530eab65ee86934aea22afb7bf8e36db3b22244d6d5b62f49239cfbe30",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.process.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.result.json",
+      "sha256": "7dff8ad16c487697f0d4d67b895149647f2d16394ccd915a081e3494ef2ff000",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.result.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.sha256.json",
+      "sha256": "21432e718486b1233c6527190f505874504eeba829f6eed19db4ab7a445200ad",
+      "archive": "n13_source_entry_reborrow_unavailable_extra.log.sha256.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/n13_source_entry_reborrow_unavailable_extra.log.source-after.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "represented_by": "source-before.json.gz",
+      "identical_bytes": true
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/plan.json",
+      "sha256": "c05c3923f63c9ed159a52ff5ae38a68fa4007fd91f6cf07cea18851b333ce705",
+      "archive": "plan.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/providers-after.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "archive": "providers-after.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/providers-before.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "archive": "providers-before.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/results.json",
+      "sha256": "a8c5c20f86d61a388347c299da78efad4f735b47eaea3d6b4a9a57e80dc5aa60",
+      "archive": "results.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/runner-inputs.json",
+      "sha256": "bdedea77764e5982fb46bd840bb049854d2a674006a06c6ff3acf03313f4c833",
+      "archive": "runner-inputs.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/runtime-watchdog-launch.json",
+      "sha256": "64b66281c48abb82c298c1b28265ad0a697fc1b6a5ed7ecff86758713ad88807",
+      "archive": "runtime-watchdog-launch.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/runtime-watchdog.json",
+      "sha256": "1c0d497f8b23b5518c11284d660ab672dd91cbbc89c54d3336b468736daa06ad",
+      "archive": "runtime-watchdog.json"
+    },
+    {
+      "source": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z/source-before.json",
+      "sha256": "e2e7ce72259f460974eed23793dac310e0c88fa14e233d6e0131aee61ea4b18e",
+      "archive": "source-before.json.gz",
+      "archive_sha256": "ebfd6ff76264159cb26b19779ba81dc1cc81ea2fc2b0a2c0d280e56ac0aad6bb"
+    }
+  ]
+}

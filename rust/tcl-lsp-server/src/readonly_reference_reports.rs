@@ -66,6 +66,7 @@ impl CoarseSemanticTokenSource {
 enum FreshSourceAnalysisPurpose {
     ReadonlyComplete,
     SemanticStructure,
+    ConditionalSourceRegion,
 }
 
 /// Currency for an ordinary source action; Core still owns action admissibility.
@@ -550,6 +551,7 @@ impl Backend {
         }
         let uri_generation = self.live_publication_uri_generation(uri);
         let seed = match purpose {
+            FreshSourceAnalysisPurpose::ConditionalSourceRegion => return Ok(None),
             FreshSourceAnalysisPurpose::ReadonlyComplete => {
                 self.fresh_analysis_seed(uri, Arc::clone(&snapshot.text), snapshot.dialect.clone())
                     .await?
@@ -2089,7 +2091,8 @@ impl WorkspaceSymbolSourceAnalysis {
 impl WorkspaceSymbolFreshInput {
     fn open_snapshot_matches(&self, current: &super::DocumentState) -> bool {
         (match self.purpose {
-            FreshSourceAnalysisPurpose::ReadonlyComplete => !current.backing_file_deleted,
+            FreshSourceAnalysisPurpose::ReadonlyComplete
+            | FreshSourceAnalysisPurpose::ConditionalSourceRegion => !current.backing_file_deleted,
             FreshSourceAnalysisPurpose::SemanticStructure => {
                 current.backing_file_deleted == self.snapshot.backing_file_deleted
             }
@@ -4285,3 +4288,6 @@ mod coarse_semantic_source_tests {
         );
     }
 }
+
+// Source-only retained interpretation owners and publication leases.
+pub(crate) mod source_views;

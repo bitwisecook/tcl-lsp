@@ -114,6 +114,36 @@ pub(super) struct NativeErrorTraceState {
 }
 
 impl Interp {
+    /// Temporary opt-in test observer. Reads retained fields only, never variables or objects.
+    #[cfg(test)]
+    pub(crate) fn observe_c84_error_episode(&self, stage: &str, outcome: Option<bool>) {
+        if std::env::var("TCL_LSP_RUNTIME_C84_EPISODE_DIAGNOSTIC").as_deref()
+            != Ok("c84-episode-v1")
+        {
+            return;
+        }
+        let Ok(exc) = self.exc.try_borrow() else {
+            eprintln!("\nZZ_C84_EPISODE stage={stage} exception_borrow_unavailable=true");
+            return;
+        };
+        eprintln!(
+            "\nZZ_C84_EPISODE stage={stage} owner={:p} epoch={:?} runtime={:?} result={:p} info_present={} info_len={:?} code={:?} legacy_copy={} global_code_set={} already_logged={} private_info={} private_code={} native_cells={:?} outcome={outcome:?}",
+            std::rc::Rc::as_ptr(&self.0),
+            self.native_operation_context_epoch.get(),
+            self.runtime_version.get(),
+            self.result.get(),
+            exc.info.is_some(),
+            exc.info.as_ref().map(Vec::len),
+            exc.code,
+            exc.native.legacy_copy,
+            exc.native.global_code_set,
+            exc.already_logged,
+            exc.native.info.is_some(),
+            exc.native.code.is_some(),
+            self.native_error_cells.try_borrow().ok().map(|cells| cells.len()),
+        );
+    }
+
     pub(crate) fn capture_original_jim_error_code(
         &mut self,
     ) -> Result<OriginalJimErrorCodeCapture, tcl_cmd_core::CmdError> {
@@ -1187,6 +1217,8 @@ impl Interp {
         &mut self,
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        #[cfg(test)]
+        self.observe_c84_error_episode("c84.append_enter", None);
         currency.ensure_current_or_refuse()?;
         let Some(bytes) = self.exc.borrow().info.clone() else {
             return Ok(());
@@ -1212,16 +1244,27 @@ impl Interp {
                 )
             })?;
             if starting {
+                #[cfg(test)]
+                self.observe_c84_error_episode("c84.first_episode", None);
                 // ERR_IN_PROGRESS is reached before the initial setter callback.
                 {
                     let mut exc = self.exc.borrow_mut();
                     exc.native.info_len = length;
                     exc.native.legacy_copy = true;
                 }
+                #[cfg(not(test))]
                 let _ = self.var_set(
                     Variable::ErrorInfo.global_name().as_bytes(),
                     original.as_ptr(),
                 );
+                #[cfg(test)]
+                {
+                    let stored = self.var_set(
+                        Variable::ErrorInfo.global_name().as_bytes(),
+                        original.as_ptr(),
+                    );
+                    self.observe_c84_error_episode("c84.store_error_info_ok", Some(stored.is_ok()));
+                }
                 // Rearm the reached flags before classifying callback cleanup.
                 {
                     let mut exc = self.exc.borrow_mut();
@@ -1231,8 +1274,18 @@ impl Interp {
                 self.check_c84_error_info_result(currency, &original)?;
                 if !self.exc.borrow().native.global_code_set {
                     let code = obj::Owned::fresh(new_string(b"NONE"));
+                    #[cfg(not(test))]
                     let _ =
                         self.var_set(Variable::ErrorCode.global_name().as_bytes(), code.as_ptr());
+                    #[cfg(test)]
+                    {
+                        let stored = self
+                            .var_set(Variable::ErrorCode.global_name().as_bytes(), code.as_ptr());
+                        self.observe_c84_error_episode(
+                            "c84.store_error_code_ok",
+                            Some(stored.is_ok()),
+                        );
+                    }
                     drop(code);
                     self.check_c84_error_info_result(currency, &original)?;
                 }

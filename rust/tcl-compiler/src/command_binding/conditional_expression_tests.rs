@@ -53,10 +53,17 @@ fn conditional_expression_template_retains_grammar_without_actual_entry() {
     );
     assert_eq!(
         binding.runtime_reachability(),
-        SourceRuntimeReachability::Conditional
+        SourceRuntimeReachability::Reached
     );
-    assert!(binding.execution_is_unknown());
-    assert!(binding.proved_execution_target().is_none());
+    assert!(!binding.execution_is_unknown());
+    assert_eq!(
+        binding
+            .proved_execution_target()
+            .map(|target| target.command.as_str()),
+        Some("::expr")
+    );
+    assert!(binding.compiler_lookup_state.is_none());
+    assert!(bindings.final_state.baseline.native_entry.is_none());
     assert!(binding.original_normal_result(&tokens).is_none());
     assert!(!binding.original_invocation_completes_normally(&tokens));
     assert!(binding.expression_preparation(&[]).is_none());

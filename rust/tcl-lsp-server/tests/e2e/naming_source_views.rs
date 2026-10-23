@@ -137,6 +137,53 @@ fn position(source: &str, needle: &str) -> (u32, u32) {
     )
 }
 
+fn assert_run_reference_roster(
+    lsp: &mut Lsp,
+    leaf_uri: &str,
+    entry_uri: &str,
+    source: &str,
+    roots: &[&str],
+) {
+    let response = lsp.references(leaf_uri, 0, 6, false);
+    let rows = locations(&response);
+    assert_eq!(rows.len(), roots.len(), "{response}");
+    let mut actual = rows
+        .iter()
+        .map(|row| {
+            let start = &row.range["start"];
+            let end = &row.range["end"];
+            (
+                row.uri.clone(),
+                start["line"].as_u64().unwrap(),
+                start["character"].as_u64().unwrap(),
+                end["line"].as_u64().unwrap(),
+                end["character"].as_u64().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut expected = roots
+        .iter()
+        .map(|root| {
+            let call = format!("{}::run", namespace(root));
+            let (line, character) = position(source, &call);
+            let width = u32::try_from(call.encode_utf16().count()).unwrap();
+            (
+                entry_uri.to_owned(),
+                u64::from(line),
+                u64::from(character),
+                u64::from(line),
+                u64::from(character + width),
+            )
+        })
+        .collect::<Vec<_>>();
+    actual.sort();
+    expected.sort();
+    assert_eq!(
+        actual, expected,
+        "top-level source references retain each actual view"
+    );
+}
+
 #[test]
 fn first_source_inventory_carries_twelve_composed_views_and_retires_removed_edge() {
     let root = source_root();
@@ -166,6 +213,13 @@ fn first_source_inventory_carries_twelve_composed_views_and_retires_removed_edge
             5,
         );
     }
+    assert_run_reference_roster(
+        &mut lsp,
+        &leaf_uri,
+        &entry_uri,
+        &original,
+        &["app", "other"],
+    );
     // flat.tcl stays unopened; both source views share the root's inherited
     // path and therefore the same Unicode helper declaration.
     assert_definition(&lsp.definition(&flat_uri, 0, 15), &entry_uri, 0, 25);
@@ -184,6 +238,7 @@ fn first_source_inventory_carries_twelve_composed_views_and_retires_removed_edge
         0,
         5,
     );
+    assert_run_reference_roster(&mut lsp, &leaf_uri, &entry_uri, &changed, &["other"]);
     lsp.close_document(&entry_uri);
     drop(lsp);
     std::fs::remove_dir_all(root).expect("remove source fixture files");

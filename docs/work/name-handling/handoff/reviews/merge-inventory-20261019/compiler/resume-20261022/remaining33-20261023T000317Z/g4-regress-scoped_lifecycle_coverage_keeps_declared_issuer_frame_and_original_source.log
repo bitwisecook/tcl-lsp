@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized] target(s) in 0.75s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source ... G4_OWNER label=scoped-lifecycle offset=Some(35) reached=Reached unknown=false target=Some("::tcltest::test") owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Generic visits=1
+G4_VISIT label=scoped-lifecycle ordinal=0 selection=Some(Generic) admitted=false structured=false words=true policy=true native_entry=false opaque=false unclosed=false
+thread 'command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source' (185955) panicked at rust/tcl-compiler/src/command_binding/lifecycle_advice.rs:414:9:
+assertion failed: binding.proved_execution_target().is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 3.41s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

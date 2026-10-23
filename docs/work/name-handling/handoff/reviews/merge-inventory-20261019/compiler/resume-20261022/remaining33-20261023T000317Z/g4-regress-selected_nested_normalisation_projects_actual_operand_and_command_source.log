@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized] target(s) in 1.32s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source ... G4_OWNER label=selected-nested offset=Some(12) reached=Reached unknown=false target=Some("::expr") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: ChunkEntry } visits=1
+G4_VISIT label=selected-nested ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: ChunkEntry }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false
+thread 'command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source' (185681) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2124:17:
+assertion failed: binding.proved_execution_target().is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10542 filtered out; finished in 0.65s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

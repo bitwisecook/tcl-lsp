@@ -12427,6 +12427,8 @@ impl Interp {
     /// the first frame, truncates the command to 150 bytes (`...` on overflow),
     /// and sets `already_logged`.
     fn log_command_info(&mut self, src: &[u8], cmd: &parse::Command) {
+        #[cfg(test)]
+        self.observe_c84_error_episode("log.command_info_enter", None);
         // The same guard [`log_command_bytes`] applies. Repeated here so the
         // already-logged path — the common one on a deep unwind — skips the
         // newline scan `line_of` costs.
@@ -12461,6 +12463,8 @@ impl Interp {
     }
 
     pub(crate) fn log_command_bytes(&mut self, raw_line: u32, cmd_bytes: &[u8]) {
+        #[cfg(test)]
+        self.observe_c84_error_episode("log.command_bytes_enter", None);
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return;
         };
@@ -12498,8 +12502,13 @@ impl Interp {
         self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
         if self.seed_error_info_checked(scope.currency()).is_err() {
+            #[cfg(test)]
+            self.observe_c84_error_episode("log.seed_error", Some(false));
             return;
         }
+        #[cfg(test)]
+        self.observe_c84_error_episode("log.seed_success", Some(true));
+
         let verb: &[u8] = if started {
             b"invoked from within"
         } else {
@@ -13619,6 +13628,8 @@ impl Interp {
 
     /// Publish and consume the accumulated exception at a native result reset.
     fn publish_error(&mut self) {
+        #[cfg(test)]
+        self.observe_c84_error_episode("publish.enter", None);
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return;
         };
@@ -13642,6 +13653,8 @@ impl Interp {
                     return;
                 }
             } else if !self.uses_c84_global_error_info() || !self.exc.borrow().native.legacy_copy {
+                #[cfg(test)]
+                self.observe_c84_error_episode("publish.compatibility_globals", None);
                 let info = match self.completion_error_info_bytes_checked() {
                     Ok(info) => info,
                     Err(_) => return,
@@ -14667,6 +14680,8 @@ impl Interp {
     /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
     /// body's TIP 280 source location.
     fn dispatch_list_obj(&mut self, original: *mut TclObj, mut frame: CmdFrame) -> Code {
+        #[cfg(test)]
+        self.observe_c84_error_episode("body.list_dispatch_enter", None);
         let owner = obj::Owned::retain(original);
         let Some(backing) = crate::list::native_list_backing(owner.as_ptr()) else {
             return self.report_cmd_error(
@@ -14689,6 +14704,11 @@ impl Interp {
         frame.line = frame.line_base + 1;
         self.cmd_frames.borrow_mut().push(frame);
         let code = self.dispatch(&elements);
+        #[cfg(test)]
+        self.observe_c84_error_episode(
+            "body.list_dispatch_return_error",
+            Some(code == Code::Error),
+        );
         self.cmd_frames.borrow_mut().pop();
         code
     }

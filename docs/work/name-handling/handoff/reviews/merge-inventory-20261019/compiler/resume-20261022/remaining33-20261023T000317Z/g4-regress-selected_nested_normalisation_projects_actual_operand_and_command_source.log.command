@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source -- --exact --nocapture --test-threads=1

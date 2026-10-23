@@ -172,3 +172,6 @@ mod tk_dialect;
 mod unicode_positions;
 #[path = "e2e/vscode_parity.rs"]
 mod vscode_parity;
+
+#[path = "e2e/naming_source_view_owners.rs"]
+mod naming_source_view_owners;

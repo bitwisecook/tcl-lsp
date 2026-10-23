@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "69bd944dd846340bc04a04877038e712fbf09b38fcb8e8fb4249ce018bb51e8c",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+      "base_sha256": "54bfba82e6b129b5cb24aa4f67362eef8b736adced7f4ea8a413c3cb9742d20a",
+      "proposed_sha256": "50feba1d6ab1f318a6b5331c70c196129694ad590d4454484b91d7b53e59f160"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "base_sha256": "b078441ff6ac555d40a301a31c434be6cba7111ec7223cb3a1355383a681d5a6",
+      "proposed_sha256": "846b1bd533a8ee9463667b8280bb5046058cc20adf785806bae4462312b28914"
+    }
+  ],
+  "cause": "sealed inherited source-only input deliberately has no physical compiler ingress/dialect; generic compiler decline classified that absence as guest compiler effects then marked state opaque before argv",
+  "actual_evidence": "/tmp/compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z",
+  "limits": [
+    "off-tree untyped/unrun",
+    "no compiler/native admission or proofs",
+    "conditional debts retained",
+    "unknown handler/world mutation still refuses",
+    "root allocator unclosed and namespace source graph seenfalse remain separate gates"
+  ]
+}

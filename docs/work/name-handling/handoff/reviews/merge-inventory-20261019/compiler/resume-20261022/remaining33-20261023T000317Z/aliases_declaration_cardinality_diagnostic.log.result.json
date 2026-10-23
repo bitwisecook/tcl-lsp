@@ -1,0 +1,53 @@
+{
+  "actual_selected": 1,
+  "artifact_stable": true,
+  "artifacts": [
+    {
+      "age_seconds": 1108.2777428627014,
+      "mtime_utc": "2026-10-22T23:44:39.046479+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "4d7cfbce6589e07bd1cda19a6409591fbb22c32c40880cac1ebfe11a8e2634ba"
+    }
+  ],
+  "cargo_wrapper_exit": 101,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "diagnostic_only": true,
+  "expected_selected": 1,
+  "label": "aliases_declaration_cardinality_diagnostic",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "report_observations": [
+    "REPORT_DECLARATION_BODY ordinal=0 same_id=true owned=true kind=Named span_start=227 span_end=257 body_offset=241 same_original_span=true",
+    "REPORT_DECLARATION_BODY ordinal=1 same_id=false owned=true kind=NamespaceScript span_start=227 span_end=257 body_offset=0 same_original_span=true",
+    "REPORT_DECLARATION_CARDINALITY offset=227 total=2 named=1 lowerings=1 body_kind=Named current_id_owned=true current_named=true current_lowering=false classification=multiple-joined-bodies",
+    "REPORT_DECLARATION_BODY ordinal=0 same_id=true owned=true kind=Named span_start=227 span_end=257 body_offset=241 same_original_span=true",
+    "REPORT_DECLARATION_BODY ordinal=1 same_id=false owned=true kind=NamespaceScript span_start=227 span_end=257 body_offset=0 same_original_span=true",
+    "REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false"
+  ],
+  "requires_separate_fact_review": true,
+  "selector": "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+  "source_stable": true,
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": false,
+  "zz_result_rows": []
+}

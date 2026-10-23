@@ -1,0 +1,51 @@
+    Finished `test` profile [unoptimized] target(s) in 0.86s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 8 tests
+test registry_invocation::source_structure::source_load::frontier::controls::association_receipts_refuse_foreign_parent_and_unavailable_or_changed_input ... N13_POINT_STATE offset=23 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+thread 'registry_invocation::source_structure::source_load::frontier::controls::association_receipts_refuse_foreign_parent_and_unavailable_or_changed_input' (188098) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs:287:13:
+genuine declared/deferred body association required: Unknown
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_structure::source_load::frontier::controls::declared_procedure_and_deferred_package_body_keep_conditional_association_debts ... N13_POINT_STATE offset=23 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+
+thread 'registry_invocation::source_structure::source_load::frontier::controls::declared_procedure_and_deferred_package_body_keep_conditional_association_debts' (188125) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs:287:13:
+genuine declared/deferred body association required: Unknown
+FAILED
+test registry_invocation::source_structure::source_load::frontier::controls::finite_root_and_namespace_cuts_retain_actual_kernel_plans ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=22 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=22 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+ok
+test registry_invocation::source_structure::source_load::frontier::controls::independently_selected_enclosing_body_is_not_an_association_only_frontier ... N13_POINT_STATE offset=23 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+test registry_invocation::source_structure::source_load::frontier::controls::region_cut_rejoins_the_exact_view_and_refuses_equal_byte_foreign_region ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=18 argv=true native=false hosted=false opaque=true unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=true
+N13_POINT stage=state-or-alternatives offset=Some(18)
+thread 'registry_invocation::source_structure::source_load::frontier::controls::region_cut_rejoins_the_exact_view_and_refuses_equal_byte_foreign_region' (188149) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs:293:13:
+genuine finite kernel cut required: Unknown
+FAILED
+test registry_invocation::source_structure::source_load::frontier::controls::replayed_frontier_transfers_only_the_exact_prefix_command_debt ... N13_POINT_STATE offset=18 argv=true native=false hosted=false opaque=true unclosed=true step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=false
+N13_POINT stage=state-or-alternatives offset=Some(18)
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_STATE offset=18 argv=true native=false hosted=false opaque=true unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=true
+N13_POINT stage=state-or-alternatives offset=Some(18)
+thread 'registry_invocation::source_structure::source_load::frontier::controls::replayed_frontier_transfers_only_the_exact_prefix_command_debt' (188162) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs:293:13:
+genuine finite kernel cut required: Unknown
+FAILED
+test registry_invocation::source_structure::source_load::frontier::controls::unsupported_decode_dynamic_path_and_later_held_load_remain_unknown ... N13_POINT stage=no-dispatch-point offset=Some(0)
+N13_POINT_STATE offset=17 argv=true native=false hosted=false opaque=true unclosed=true step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=false inherited=false
+N13_POINT stage=state-or-alternatives offset=Some(17)
+ok
+test registry_invocation::source_structure::source_load::frontier::controls::whole_scope_join_refuses_a_stripped_region_but_keeps_full_child_views ... N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+N13_POINT_GRAPH offset=0 native=false uncertain=false arity=false namespace=true namespace_known=true current_interpreter=true source_paths=true exact_path=true
+N13_POINT_GRAPH_END offset=0 seen=true refused=false retained=true
+N13_POINT_STATE offset=0 argv=true native=false hosted=false opaque=false unclosed=false step=false quiet=true unknown_frame=false selected_frame=false receiver_frame=false registry_target=true inherited=false
+failures:
+failures:
+test result: FAILED. 4 passed; 4 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 20.51s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

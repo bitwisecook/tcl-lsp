@@ -43,6 +43,32 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         ),
     },
     ArtifactCoverage {
+        artifact: "CompilationUnit::source_class_facts",
+        view: None,
+        exclusion: Some(
+            "retained descriptive class roster with exact source, configuration, input and Module ownership; consumed by checked class-name analysis, not a serialisable Native class identity",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "CompilationUnit::source_body_cfgs",
+        view: None,
+        exclusion: Some(
+            "private genuine prepared child CFG cache used by checked body joins; the owning function analyses have their existing views, while this cache is not a separate public analysis",
+        ),
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::body_id",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::original_hosted_procedure_body",
+        view: None,
+        exclusion: Some(
+            "retained original hosted procedure-body evidence for compiler analysis joins; not a serialisable runtime entry, Native body identity or user-editable permission",
+        ),
+    },
+    ArtifactCoverage {
         artifact: "CompilationUnit::source",
         view: Some("sourceMap"),
         exclusion: None,
