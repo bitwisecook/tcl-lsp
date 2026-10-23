@@ -218,20 +218,15 @@ impl LogicalVariableInliningRecipe {
         {
             return None;
         }
-        let declaration = setter.original_argument_word(0)?.tokens().first()?.span;
-        let definition = analysis
-            .logical_variable_scope_advice(&image, current.config(), declaration.start())?
-            .variable_definition(name)?;
-        let read_definition = analysis
-            .logical_variable_scope_advice(&image, current.config(), reference.start())?
-            .variable_definition(name)?;
-        if definition.definition_span != declaration
-            || definition.references.as_slice() != [reference]
-            || !std::ptr::eq(definition, read_definition)
-            || reference.start() < walk.command_span_offsets(source, command)?.1
-        {
-            return None;
-        }
+        let declaration = logical_inline_definition_span(
+            source,
+            analysis,
+            command,
+            name,
+            &setter,
+            &walk,
+            (reference, &image, &current),
+        )?;
         // The authored recipe does not move RHS evaluation across another
         // source statement or earlier dynamic operand in the receiver call.
         // The actual original region/word owners supply both inventories.
@@ -240,40 +235,11 @@ impl LogicalVariableInliningRecipe {
         source_read_follows_setter(source, analysis, &walk, command, &read_command)?;
         let read_words = walk.native_words(source, &read_command)?;
         let receiver_index = read_words.iter().position(|word| word == receiver)?;
-        if read_words.iter().take(receiver_index).any(|word| {
-            word.group().expand
-                || tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none()
-        }) {
-            return None;
-        }
+        require_static_receiver_prefix(&read_words, receiver_index)?;
         // A source-history gate, not a proof that no runtime observer exists:
         // require complete selected command inventory and refuse authored
         // reflection, trace, scope-alias and dynamic-evaluation operations.
-        let mut history_supported = true;
-        let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
-            source,
-            analysis,
-            &mut |command, _, _| {
-                let observers = tcl_registry::Traits::INTROSPECTS_BY_NAME
-                    | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
-                    | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE
-                    | tcl_registry::Traits::CREATES_SCOPE_ALIAS
-                    | tcl_registry::Traits::DYNAMIC_EVAL_BODY;
-                if walk
-                    .source_traits(source, command)
-                    .is_none_or(|traits| traits.intersects(observers))
-                {
-                    history_supported = false;
-                }
-                false
-            },
-        );
-        if !history_supported
-            || !walk.complete()
-            || coverage != crate::executable_regions::PotentialSourceVisit::Complete
-        {
-            return None;
-        }
+        require_supported_inline_source_history(source, analysis, &walk)?;
         // Validate the exact proposed receiver invocation in its original
         // nested grammar. A complete document alone would not parse script
         // text inside a braced procedure body. Preserve the whole argv topology
@@ -297,22 +263,7 @@ impl LogicalVariableInliningRecipe {
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         )
         .ok()?;
-        let [proposed_command] = call_plan.commands.as_slice() else {
-            return None;
-        };
-        if call_plan.fatal_tail.is_some()
-            || proposed_command.words.len() != read_words.len()
-            || proposed_command.words[receiver_index].group().expand
-        {
-            return None;
-        }
-        for (index, (original, proposed)) in
-            read_words.iter().zip(&proposed_command.words).enumerate()
-        {
-            if index != receiver_index && original.try_text().ok()? != proposed.try_text().ok()? {
-                return None;
-            }
-        }
+        validate_inline_receiver_postimage(&call_plan, &read_words, receiver_index)?;
         // This is the complete actual proposed source, not an evaluated value.
         // Shared lexer/group/word ownership validates all enclosing grammar,
         // including delimiters around the replacement and removed statement.
@@ -883,6 +834,106 @@ fn walk_scopes_at_depth(scope: &Scope, depth: u32) -> Vec<&VarDef> {
         out.extend(walk_scopes_at_depth(child, depth + 1));
     }
     out
+}
+
+fn require_supported_inline_source_history(
+    source: &str,
+    analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
+) -> Option<()> {
+    let mut history_supported = true;
+    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let observers = tcl_registry::Traits::INTROSPECTS_BY_NAME
+                | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
+                | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE
+                | tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                | tcl_registry::Traits::DYNAMIC_EVAL_BODY;
+            if walk
+                .source_traits(source, command)
+                .is_none_or(|traits| traits.intersects(observers))
+            {
+                history_supported = false;
+            }
+            false
+        },
+    );
+    if !history_supported
+        || !walk.complete()
+        || coverage != crate::executable_regions::PotentialSourceVisit::Complete
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn require_static_receiver_prefix(
+    read_words: &[tcl_lexer::NativeWord],
+    receiver_index: usize,
+) -> Option<()> {
+    if read_words.iter().take(receiver_index).any(|word| {
+        word.group().expand
+            || tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none()
+    }) {
+        return None;
+    }
+    Some(())
+}
+
+fn validate_inline_receiver_postimage(
+    call_plan: &tcl_lexer::NativeScriptWordsPlan,
+    read_words: &[tcl_lexer::NativeWord],
+    receiver_index: usize,
+) -> Option<()> {
+    let [proposed_command] = call_plan.commands.as_slice() else {
+        return None;
+    };
+    if call_plan.fatal_tail.is_some()
+        || proposed_command.words.len() != read_words.len()
+        || proposed_command.words[receiver_index].group().expand
+    {
+        return None;
+    }
+    for (index, (original, proposed)) in read_words.iter().zip(&proposed_command.words).enumerate()
+    {
+        if index != receiver_index && original.try_text().ok()? != proposed.try_text().ok()? {
+            return None;
+        }
+    }
+    Some(())
+}
+
+fn logical_inline_definition_span(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+    name: &str,
+    setter: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    walk: &super::FrameWalk<'_>,
+    position: (
+        Span,
+        &tcl_lexer::SourceImage,
+        &crate::original_context::CurrentSourceContext<'_>,
+    ),
+) -> Option<Span> {
+    let (reference, image, current) = position;
+    let declaration = setter.original_argument_word(0)?.tokens().first()?.span;
+    let definition = analysis
+        .logical_variable_scope_advice(image, current.config(), declaration.start())?
+        .variable_definition(name)?;
+    let read_definition = analysis
+        .logical_variable_scope_advice(image, current.config(), reference.start())?
+        .variable_definition(name)?;
+    if definition.definition_span != declaration
+        || definition.references.as_slice() != [reference]
+        || !std::ptr::eq(definition, read_definition)
+        || reference.start() < walk.command_span_offsets(source, command)?.1
+    {
+        return None;
+    }
+    Some(declaration)
 }
 
 #[cfg(test)]
