@@ -167,6 +167,25 @@ struct ProposalCurrentness<'a> {
     global_config: tcl_lsp_db::AnalyserConfig,
 }
 
+fn proposal_lock_result<T, E>(result: Result<T, E>) -> Result<T, DiagnosticUnavailable> {
+    result.map_err(|_| DiagnosticUnavailable::Pending)
+}
+
+fn extend_proposal_admissions<'a>(
+    receipts: &'a [(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)],
+    published: &HashMap<Uri, PublishedSourcePath>,
+    admissions: &mut Vec<&'a DocumentPathAdmission>,
+) -> Result<(), DiagnosticUnavailable> {
+    for (uri, file, admission) in receipts {
+        let current = published.get(uri).ok_or(DiagnosticUnavailable::Stale)?;
+        if current.file != *file || !Arc::ptr_eq(&current.admission, admission) {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        admissions.push(admission.as_ref());
+    }
+    Ok(())
+}
+
 struct DiagnosticReportExpectation {
     uri: Uri,
     version: Option<i32>,
@@ -1043,50 +1062,18 @@ impl Backend {
             .proposal_admissions()
             .ok_or(DiagnosticUnavailable::Context)?;
         let documents = self.documents.lock("proposal_diagnostic_revalidate").await;
-        let db = self
-            .db
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let files = self
-            .db_files
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let members = self
-            .db_project_members
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let project = self
-            .db_project
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let factory_generation = inputs
-            .class_factory_generation
-            .try_read()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let current_folder_configs = inputs
-            .folder_db_configs
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let current_global_config = inputs
-            .db_config
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let current_rehomed_source_seeds = inputs
-            .rehomed_source_seeds
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let index = inputs
-            .workspace_index
-            .try_read()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let resolver = inputs
-            .package_resolver
-            .try_read()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
-        let published = self
-            .source_path_admissions
-            .try_lock()
-            .map_err(|_| DiagnosticUnavailable::Pending)?;
+        let db = proposal_lock_result(self.db.try_lock())?;
+        let files = proposal_lock_result(self.db_files.try_lock())?;
+        let members = proposal_lock_result(self.db_project_members.try_lock())?;
+        let project = proposal_lock_result(self.db_project.try_lock())?;
+        let factory_generation = proposal_lock_result(inputs.class_factory_generation.try_read())?;
+        let current_folder_configs = proposal_lock_result(inputs.folder_db_configs.try_lock())?;
+        let current_global_config = proposal_lock_result(inputs.db_config.try_lock())?;
+        let current_rehomed_source_seeds =
+            proposal_lock_result(inputs.rehomed_source_seeds.try_lock())?;
+        let index = proposal_lock_result(inputs.workspace_index.try_read())?;
+        let resolver = proposal_lock_result(inputs.package_resolver.try_read())?;
+        let published = proposal_lock_result(self.source_path_admissions.try_lock())?;
         let document = documents
             .get(&currentness.expected.uri)
             .ok_or(DiagnosticUnavailable::Stale)?;
@@ -1118,20 +1105,8 @@ impl Backend {
             return Err(DiagnosticUnavailable::Stale);
         }
         let mut admissions = Vec::with_capacity(currentness.source_receipts.len());
-        for (uri, file, admission) in currentness.source_receipts {
-            let current = published.get(uri).ok_or(DiagnosticUnavailable::Stale)?;
-            if current.file != *file || !Arc::ptr_eq(&current.admission, admission) {
-                return Err(DiagnosticUnavailable::Stale);
-            }
-            admissions.push(admission.as_ref());
-        }
-        for (uri, file, admission) in &provider_admissions {
-            let current = published.get(uri).ok_or(DiagnosticUnavailable::Stale)?;
-            if current.file != *file || !Arc::ptr_eq(&current.admission, admission) {
-                return Err(DiagnosticUnavailable::Stale);
-            }
-            admissions.push(admission.as_ref());
-        }
+        extend_proposal_admissions(currentness.source_receipts, &published, &mut admissions)?;
+        extend_proposal_admissions(&provider_admissions, &published, &mut admissions)?;
         if !workspace_sources.matches(&documents, &index) {
             return Err(DiagnosticUnavailable::Stale);
         }
@@ -2347,6 +2322,19 @@ mod tests {
         ));
     }
 
+    fn assert_diagnostics_unavailable(report: CurrentDiagnostics) {
+        assert!(matches!(report, CurrentDiagnostics::Unavailable { .. }));
+    }
+
+    fn legacy_full_report_id(legacy: DocumentDiagnosticReportResult) -> String {
+        match legacy {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) => {
+                report.full_document_diagnostic_report.result_id.unwrap()
+            }
+            _ => panic!("a real cache-miss pull must publish a new full report"),
+        }
+    }
+
     #[tokio::test]
     async fn current_diagnostics_withdraws_changed_inputs_generation_and_source() {
         let backend = crate::tests::test_backend();
@@ -2394,20 +2382,14 @@ mod tests {
             );
         }
         assert_eq!(prior_epoch, backend.diag_inputs_epoch());
-        assert!(matches!(
-            backend.current_diagnostics(&expected).await.unwrap(),
-            CurrentDiagnostics::Unavailable { .. }
-        ));
+        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
             CurrentDiagnostics::Complete { .. }
         ));
         *backend.class_factory_generation.write().await += 1;
-        assert!(matches!(
-            backend.current_diagnostics(&expected).await.unwrap(),
-            CurrentDiagnostics::Unavailable { .. }
-        ));
+        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         backend
             .feature_toggles
@@ -2416,10 +2398,7 @@ mod tests {
             .set
             .insert("diagnostics".into(), false);
         backend.invalidate_diag_inputs();
-        assert!(matches!(
-            backend.current_diagnostics(&expected).await.unwrap(),
-            CurrentDiagnostics::Unavailable { .. }
-        ));
+        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
@@ -2450,10 +2429,7 @@ mod tests {
                 .get(&expected.uri)
                 .is_none()
         );
-        assert!(matches!(
-            backend.current_diagnostics(&expected).await.unwrap(),
-            CurrentDiagnostics::Unavailable { .. }
-        ));
+        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
     }
 
     #[tokio::test]
@@ -2696,12 +2672,7 @@ mod tests {
         }))
         .unwrap();
         let legacy = backend.diagnostic(params).await.unwrap();
-        let legacy_id = match legacy {
-            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) => {
-                report.full_document_diagnostic_report.result_id.unwrap()
-            }
-            _ => panic!("a real cache-miss pull must publish a new full report"),
-        };
+        let legacy_id = legacy_full_report_id(legacy);
         assert_ne!(publication.result_id, legacy_id);
         backend
             .diagnostic_publisher
@@ -3233,6 +3204,55 @@ mod proposal_endpoint_tests {
         }
     }
 
+    fn assert_invalid_proposal(
+        invalid: &serde_json::Value,
+        selected: &Uri,
+        clean: &serde_json::Value,
+    ) {
+        assert_eq!(invalid["status"], "complete", "{invalid}");
+        assert_eq!(invalid["uri"], selected.as_str());
+        assert_eq!(invalid["version"], 7);
+        assert_eq!(invalid["source"], "");
+        assert_eq!(invalid["proposal"], "set\n");
+        assert!(
+            invalid["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|diagnostic| diagnostic["code"] == "E002"),
+            "{invalid}"
+        );
+        assert_ne!(invalid["resultId"], clean["resultId"]);
+    }
+
+    fn assert_clean_proposal(clean: &serde_json::Value) {
+        assert_eq!(clean["status"], "complete", "{clean}");
+        assert!(
+            clean["diagnostics"].as_array().unwrap().is_empty(),
+            "{clean}"
+        );
+    }
+
+    fn proposal_file_values(
+        db: &tcl_lsp_db::TclDatabase,
+        file: tcl_lsp_db::SourceFile,
+        config: tcl_lsp_db::AnalyserConfig,
+    ) -> (
+        String,
+        String,
+        Option<String>,
+        u64,
+        tcl_lsp_db::DiagnosticConfigurationSnapshot,
+    ) {
+        (
+            file.text(db).clone(),
+            file.dialect(db).clone(),
+            file.path(db).clone(),
+            file.sidecar_stubs_epoch(db),
+            config.diagnostic_report_configuration(db),
+        )
+    }
+
     #[tokio::test]
     async fn actual_proposal_command_changes_diagnostics_without_mutating_live_project() {
         let (backend, _, selected, other, _) = fixture().await;
@@ -3258,13 +3278,7 @@ mod proposal_endpoint_tests {
                 before.push((
                     uri.clone(),
                     file,
-                    (
-                        file.text(&*db).clone(),
-                        file.dialect(&*db).clone(),
-                        file.path(&*db).clone(),
-                        file.sidecar_stubs_epoch(&*db),
-                        config.diagnostic_report_configuration(&*db),
-                    ),
+                    proposal_file_values(&db, file, config),
                     (
                         file.external_call_sites(&*db).clone(),
                         file.workspace_class_factories(&*db).clone(),
@@ -3278,26 +3292,9 @@ mod proposal_endpoint_tests {
             .admission
             .clone();
         let clean = command(&backend, &selected, 7, "", "").await;
-        assert_eq!(clean["status"], "complete", "{clean}");
-        assert!(
-            clean["diagnostics"].as_array().unwrap().is_empty(),
-            "{clean}"
-        );
+        assert_clean_proposal(&clean);
         let invalid = command(&backend, &selected, 7, "", "set\n").await;
-        assert_eq!(invalid["status"], "complete", "{invalid}");
-        assert_eq!(invalid["uri"], selected.as_str());
-        assert_eq!(invalid["version"], 7);
-        assert_eq!(invalid["source"], "");
-        assert_eq!(invalid["proposal"], "set\n");
-        assert!(
-            invalid["diagnostics"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|diagnostic| diagnostic["code"] == "E002"),
-            "{invalid}"
-        );
-        assert_ne!(invalid["resultId"], clean["resultId"]);
+        assert_invalid_proposal(&invalid, &selected, &clean);
 
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
@@ -3312,16 +3309,7 @@ mod proposal_endpoint_tests {
                 .find(|(candidate, _)| candidate == file)
                 .unwrap()
                 .1;
-            assert_eq!(
-                (
-                    file.text(&*db).clone(),
-                    file.dialect(&*db).clone(),
-                    file.path(&*db).clone(),
-                    file.sidecar_stubs_epoch(&*db),
-                    config.diagnostic_report_configuration(&*db)
-                ),
-                *values
-            );
+            assert_eq!(proposal_file_values(&db, *file, config), *values);
             assert!(same_optional_arc(
                 evidence.0.as_ref(),
                 file.external_call_sites(&*db).as_ref()
