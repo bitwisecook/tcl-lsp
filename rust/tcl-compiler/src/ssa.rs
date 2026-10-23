@@ -634,14 +634,19 @@ struct SourceVariableBlockSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct SourceVariableReadFlags {
+    quoted: bool,
+    name_only: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct SourceVariableStatementSnapshot {
     index: usize,
     statement: Statement,
     used: Option<Version>,
     defined: Option<Version>,
     may: bool,
-    quoted: bool,
-    name_only: bool,
+    reads: SourceVariableReadFlags,
     destroyed: bool,
 }
 
@@ -3565,8 +3570,10 @@ impl SsaFunction {
                         used,
                         defined,
                         may: statement.may_defs.contains(&symbol),
-                        quoted: statement.quoted_uses.contains(&symbol),
-                        name_only: statement.name_only_uses.contains(&symbol),
+                        reads: SourceVariableReadFlags {
+                            quoted: statement.quoted_uses.contains(&symbol),
+                            name_only: statement.name_only_uses.contains(&symbol),
+                        },
                         destroyed: statement.destruction_defs.contains(&symbol),
                     })
                 })

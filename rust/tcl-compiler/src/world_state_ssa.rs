@@ -1818,8 +1818,13 @@ fn executable_expr_intents_with_source(
 ) -> Vec<(WorldStateIntentKind, WorldRegion)> {
     match function.original_expression_command_effects(value, expression) {
         None => executable_expr_intents(expression),
-        Some(Some(true) | None) => conservative_region_intents(),
-        Some(Some(false)) => known_noncommand_expr_intents(expression),
+        Some(
+            crate::executable_ir::OriginalCommandEffect::Known(true)
+            | crate::executable_ir::OriginalCommandEffect::Unavailable,
+        ) => conservative_region_intents(),
+        Some(crate::executable_ir::OriginalCommandEffect::Known(false)) => {
+            known_noncommand_expr_intents(expression)
+        }
     }
 }
 
@@ -1841,7 +1846,7 @@ fn original_word_evaluation_runs_commands(
         .original_word_command_effects(value, word)
         .map_or_else(
             || word_evaluation_runs_commands(word),
-            |source| source.unwrap_or(true),
+            |source| source.into_known().unwrap_or(true),
         )
 }
 
@@ -2140,7 +2145,9 @@ mod tests {
                 })
                 .expect("structured source lowering emits an expression value");
             assert_eq!(
-                function.original_expression_command_effects(expression.0, expression.1),
+                function
+                    .original_expression_command_effects(expression.0, expression.1)
+                    .map(crate::executable_ir::OriginalCommandEffect::into_known),
                 Some(Some(expected)),
                 "{source}"
             );
@@ -2192,7 +2199,9 @@ mod tests {
                     .next()
                     .expect("actual original operand evaluation");
             assert_eq!(
-                function.original_word_command_effects(value, word),
+                function
+                    .original_word_command_effects(value, word)
+                    .map(crate::executable_ir::OriginalCommandEffect::into_known),
                 Some(Some(expected)),
                 "{source}"
             );
@@ -2220,7 +2229,9 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            function.original_word_command_effects(value, original),
+            function
+                .original_word_command_effects(value, original)
+                .map(crate::executable_ir::OriginalCommandEffect::into_known),
             Some(Some(false))
         );
         let changed = crate::ir::WordExpr::Variable {
@@ -2228,7 +2239,9 @@ mod tests {
             source: original.source().clone(),
         };
         assert_eq!(
-            function.original_word_command_effects(value, &changed),
+            function
+                .original_word_command_effects(value, &changed)
+                .map(crate::executable_ir::OriginalCommandEffect::into_known),
             Some(None)
         );
     }
@@ -2748,12 +2761,16 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            function.original_word_command_effects(actual, word),
+            function
+                .original_word_command_effects(actual, word)
+                .map(crate::executable_ir::OriginalCommandEffect::into_known),
             Some(Some(true))
         );
         let missing = crate::executable_ir::ExecutableValueId::new(function.id, usize::MAX);
         assert_eq!(
-            function.original_word_command_effects(missing, word),
+            function
+                .original_word_command_effects(missing, word)
+                .map(crate::executable_ir::OriginalCommandEffect::into_known),
             Some(None)
         );
         assert!(original_word_evaluation_runs_commands(
@@ -2761,7 +2778,12 @@ mod tests {
         ));
         // The explicit existing constructor is the only carrierless domain.
         let manual = ExecutableFunction::new(function.id, function.entry, function.blocks.clone());
-        assert_eq!(manual.original_word_command_effects(actual, word), None);
+        assert_eq!(
+            manual
+                .original_word_command_effects(actual, word)
+                .map(crate::executable_ir::OriginalCommandEffect::into_known),
+            None
+        );
         assert!(!word_evaluation_runs_commands(word));
         assert!(!original_word_evaluation_runs_commands(
             &manual, actual, word

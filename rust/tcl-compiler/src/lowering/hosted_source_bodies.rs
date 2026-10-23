@@ -60,7 +60,10 @@ impl Lowerer<'_> {
             return;
         };
         let text = text.to_owned();
-        let previous = std::mem::replace(&mut self.readonly_hosted_body, true);
+        let previous = std::mem::replace(
+            &mut self.readonly_hosted_body,
+            crate::lowering::SourceBodyMode::ReadOnly,
+        );
         let mut body = self
             .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_body(&text, card.source().base(), &namespace)

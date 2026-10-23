@@ -885,6 +885,24 @@ pub struct ExecutableFunction {
         Option<BTreeMap<ExecutableValueId, OriginalExpressionCommandEffect>>,
 }
 
+pub(crate) enum OriginalCommandEffect {
+    Unavailable,
+    Known(bool),
+}
+
+impl OriginalCommandEffect {
+    fn from_known(effect: Option<bool>) -> Self {
+        effect.map_or(Self::Unavailable, Self::Known)
+    }
+
+    pub(crate) fn into_known(self) -> Option<bool> {
+        match self {
+            Self::Unavailable => None,
+            Self::Known(effect) => Some(effect),
+        }
+    }
+}
+
 impl ExecutableFunction {
     /// Build an executable function without changing existing CFG consumers.
     #[must_use]
@@ -904,15 +922,15 @@ impl ExecutableFunction {
     }
 
     /// Original word evaluation geometry under the retained source owner.
-    /// Outer None is explicit carrierless compatibility; inner None is a
+    /// Outer None is explicit carrierless compatibility; Unavailable is a
     /// missing/changed source owner and cannot establish effect absence.
     pub(crate) fn original_word_command_effects(
         &self,
         value: ExecutableValueId,
         word: &WordExpr,
-    ) -> Option<Option<bool>> {
+    ) -> Option<OriginalCommandEffect> {
         let retained = self.original_word_sources.as_ref()?.get(&value);
-        Some((|| {
+        Some(OriginalCommandEffect::from_known((|| {
             let retained = retained?.as_ref()?;
             (retained.evaluated == *word).then_some(())?;
             let owner = &retained.owner;
@@ -938,36 +956,36 @@ impl ExecutableFunction {
                         | tcl_lexer::ExecutablePart::ParseError(_)
                 )
             }))
-        })())
+        })()))
     }
 
     /// Source-backed command effects for one `EvaluateExpr` value. Outer None
-    /// denotes an explicitly carrierless compatibility function; inner None
+    /// denotes an explicitly carrierless compatibility function; Unavailable
     /// denotes a missing/changed production operand owner.
     pub(crate) fn original_expression_command_effects(
         &self,
         value: ExecutableValueId,
         expression: &ExecutableExpr,
-    ) -> Option<Option<bool>> {
+    ) -> Option<OriginalCommandEffect> {
         let effects = self.original_expression_command_effects.as_ref()?;
         let Some(retained) = effects.get(&value) else {
-            return Some(None);
+            return Some(OriginalCommandEffect::Unavailable);
         };
         if retained.expression != *expression {
-            return Some(None);
+            return Some(OriginalCommandEffect::Unavailable);
         }
         match (&retained.owner, retained.runs_commands) {
             (Some(OriginalExpressionEffectOwner::Source(tokens)), Some(effect))
                 if tokens.source_binding.is_some() =>
             {
-                Some(Some(effect))
+                Some(OriginalCommandEffect::Known(effect))
             }
             (Some(OriginalExpressionEffectOwner::TrapPrefix), Some(false))
                 if matches!(expression, ExecutableExpr::TrapPrefix { .. }) =>
             {
-                Some(Some(false))
+                Some(OriginalCommandEffect::Known(false))
             }
-            _ => Some(None),
+            _ => Some(OriginalCommandEffect::Unavailable),
         }
     }
 
@@ -5717,7 +5735,9 @@ mod tests {
                 })
                 .unwrap();
             assert_eq!(
-                function.original_word_command_effects(value, word),
+                function
+                    .original_word_command_effects(value, word)
+                    .map(crate::executable_ir::OriginalCommandEffect::into_known),
                 expected
             );
         }

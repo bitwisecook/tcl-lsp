@@ -331,16 +331,13 @@ impl OriginalPackSourceStatement {
     }
 }
 fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {
-    u32::try_from(
-        image
-            .bytes()
-            .get(..usize::try_from(offset).ok()?)?
-            .iter()
-            .filter(|&&b| b == b'\n')
-            .count(),
-    )
-    .ok()?
-    .checked_add(1)
+    let prefix = image.bytes().get(..usize::try_from(offset).ok()?)?;
+    let line = if u32::try_from(image.len()).is_ok() {
+        image.source_map().line_index().line_at(offset)
+    } else {
+        tcl_lexer::LineIndex::from_bytes(prefix).line_at(offset)
+    };
+    line.checked_add(1)
 }
 /// The existing loader CST parser, with original complete row/word geometry.
 /// Recovered rows stay readable but cannot lend checked word provenance beyond

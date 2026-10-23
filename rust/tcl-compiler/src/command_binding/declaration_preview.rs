@@ -840,6 +840,211 @@ impl SourceCommandBindings {
     }
 }
 
+struct PreparedOriginalOperandSource {
+    content: tcl_lexer::Span,
+    image: tcl_lexer::SourceImage,
+    native_header_value: Arc<[u8]>,
+    read: OriginalProcedureReadDeclaration,
+}
+
+fn prepare_original_operand_source(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &DeclarationLayoutObservation,
+    target: &super::SourceCommandTarget,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    shape: tcl_registry::native_procedure::NativeProcedureDefinition,
+    header: &DeclaredProcedureHeader,
+) -> Option<PreparedOriginalOperandSource> {
+    let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(producer) =
+        original_declaration_operand_input(
+            site,
+            tokens,
+            row,
+            target,
+            effective,
+            shape.body_at.checked_add(1)?,
+        )?
+    else {
+        return None;
+    };
+    let word = producer.original_word();
+    if word.group().kind != tcl_lexer::WordKind::Braced
+        || word.image() != site.source.source_image()
+        || word.config() != row.config
+    {
+        return None;
+    }
+    let content = word.content_span().ok()?;
+    let raw = word.image().bytes().get(content.as_range())?;
+    // Existing unchanged Native bodies keep their original owner terminally.
+    // This facet is solely for an original body transformed at declaration.
+    if raw == header.value.as_bytes() {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::from_bytes(raw, site.source.source_image().channel());
+    let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
+        raw,
+        word.image().channel(),
+        row.config.brace_backslash_newline,
+        producer.policy().string_protocol(),
+    )
+    .ok()?;
+    if correspondence.bytes() != producer.bytes() {
+        return None;
+    }
+    let native_header_value: Arc<[u8]> = tcl_syntax::backslash::native_source_literal_bytes(
+        header.value.as_bytes(),
+        word.image().channel(),
+        producer.policy().string_protocol(),
+    )
+    .ok()?
+    .into_owned()
+    .into();
+    let read = OriginalProcedureReadDeclaration {
+        source: ProcedureReadSource::ConfiguredSourceWord {
+            producer,
+            correspondence,
+        },
+        formals: ProcedureReadFormals::Native(header.original_parameters.clone()?),
+    };
+    Some(PreparedOriginalOperandSource {
+        content,
+        image,
+        native_header_value,
+        read,
+    })
+}
+
+#[derive(Clone, Copy)]
+struct OriginalOperandCommandContext<'a> {
+    site: &'a CommandAllocationSite,
+    row: &'a DeclarationLayoutObservation,
+    parents: &'a Arc<[DeclarationLayoutObservation]>,
+    registry: &'a tcl_registry::CommandRegistry,
+    dialect: tcl_registry::InvocationDialect,
+    read: &'a OriginalProcedureReadDeclaration,
+    header: &'a DeclaredProcedureHeader,
+    snapshot: &'a Arc<SourceLookupSnapshot>,
+    native_header_value: &'a Arc<[u8]>,
+    image: &'a tcl_lexer::SourceImage,
+    content: tcl_lexer::Span,
+    plan: &'a tcl_lexer::NativeScriptWordsPlan,
+}
+
+struct OriginalOperandCommandLayouts {
+    retained: Vec<OriginalDeclarationSourceOperandLayout>,
+    source_operations: Vec<OriginalDeclarationSourceOperation>,
+}
+
+fn original_operand_command_layouts(
+    context: OriginalOperandCommandContext<'_>,
+) -> Option<OriginalOperandCommandLayouts> {
+    let OriginalOperandCommandContext {
+        site,
+        row,
+        parents,
+        registry,
+        dialect,
+        read,
+        header,
+        snapshot,
+        native_header_value,
+        image,
+        content,
+        plan,
+    } = context;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        image,
+        content.start(),
+        row.config.nested(),
+    )?;
+    let mut retained = Vec::new();
+    let mut source_operations = Vec::new();
+    for segment in segments {
+        if segment.is_partial {
+            return None;
+        }
+        let command =
+            super::source_command_tokens_boxed(image, content.start(), row.config, &segment);
+        let offset = command.words().first()?.source().span.start();
+        let projection =
+            site.source
+                .original_lexical_command(command.words(), offset, row.config)?;
+        if !plan
+            .commands
+            .iter()
+            .any(|original| original.words.as_slice() == projection.native_words())
+        {
+            return None;
+        }
+        let child = CommandAllocationSite {
+            source: Arc::clone(&site.source),
+            offset,
+        };
+        retained.push(OriginalDeclarationSourceOperandLayout {
+            site: child.clone(),
+            config: row.config,
+            words: Arc::from(command.words()),
+            dialect,
+            read: (*read).clone(),
+            header: (*header).clone(),
+            snapshot: Arc::clone(snapshot),
+            native_header_value: Arc::clone(native_header_value),
+            parents: Arc::clone(parents),
+            source_operations: Arc::from(source_operations.as_slice()),
+        });
+        if source_operations.is_empty()
+            && retains_successor_layout(
+                &child,
+                &command,
+                snapshot,
+                &header.namespace,
+                row.config,
+                registry,
+            )
+        {
+            continue;
+        }
+        let Some(operation) =
+            original_source_operation_continuation(retained.last()?, &command, registry)
+        else {
+            break;
+        };
+        source_operations.push(operation);
+    }
+    Some(OriginalOperandCommandLayouts {
+        retained,
+        source_operations,
+    })
+}
+
+fn original_operand_body_snapshot(
+    site: &CommandAllocationSite,
+    row: &DeclarationLayoutObservation,
+    header: &DeclaredProcedureHeader,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<Arc<SourceLookupSnapshot>> {
+    let mut state = row.snapshot.state.clone();
+    state.variable_frame = header.frame.clone();
+    state.source_variables = Arc::new(
+        state
+            .source_variables
+            .in_frame(&header.frame)
+            .with_namespace_identity(header.namespace.clone()),
+    );
+    header
+        .original_parameters
+        .as_ref()?
+        .seed_unknown(Arc::make_mut(&mut state.source_variables), registry);
+    state.current_source_origin = Some(Arc::clone(&site.source));
+    let snapshot = Arc::new(SourceLookupSnapshot::in_realm(state, row.snapshot.realm));
+    Some(snapshot)
+}
+
 fn original_source_operand_layout_for_declaration(
     site: &CommandAllocationSite,
     row: &DeclarationLayoutObservation,
@@ -904,72 +1109,15 @@ fn original_source_operand_layout_for_declaration(
                 dialect,
             },
         )?;
-        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(producer) =
-            original_declaration_operand_input(
-                site,
-                &tokens,
-                row,
-                target,
-                &effective,
-                shape.body_at.checked_add(1)?,
-            )?
-        else {
-            return None;
-        };
-        let word = producer.original_word();
-        if word.group().kind != tcl_lexer::WordKind::Braced
-            || word.image() != site.source.source_image()
-            || word.config() != row.config
-        {
-            return None;
-        }
-        let content = word.content_span().ok()?;
-        let raw = word.image().bytes().get(content.as_range())?;
-        // Existing unchanged Native bodies keep their original owner terminally.
-        // This facet is solely for an original body transformed at declaration.
-        if raw == header.value.as_bytes() {
-            return None;
-        }
-        let image = tcl_lexer::SourceImage::from_bytes(raw, site.source.source_image().channel());
-        let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
-            raw,
-            word.image().channel(),
-            row.config.brace_backslash_newline,
-            producer.policy().string_protocol(),
-        )
-        .ok()?;
-        if correspondence.bytes() != producer.bytes() {
-            return None;
-        }
-        let native_header_value: Arc<[u8]> = tcl_syntax::backslash::native_source_literal_bytes(
-            header.value.as_bytes(),
-            word.image().channel(),
-            producer.policy().string_protocol(),
-        )
-        .ok()?
-        .into_owned()
-        .into();
-        let read = OriginalProcedureReadDeclaration {
-            source: ProcedureReadSource::ConfiguredSourceWord {
-                producer,
-                correspondence,
-            },
-            formals: ProcedureReadFormals::Native(header.original_parameters.clone()?),
-        };
-        let mut state = row.snapshot.state.clone();
-        state.variable_frame = header.frame.clone();
-        state.source_variables = Arc::new(
-            state
-                .source_variables
-                .in_frame(&header.frame)
-                .with_namespace_identity(header.namespace.clone()),
-        );
-        header
-            .original_parameters
-            .as_ref()?
-            .seed_unknown(Arc::make_mut(&mut state.source_variables), registry);
-        state.current_source_origin = Some(Arc::clone(&site.source));
-        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(state, row.snapshot.realm));
+        let PreparedOriginalOperandSource {
+            content,
+            image,
+            native_header_value,
+            read,
+        } = prepare_original_operand_source(
+            site, &tokens, row, target, &effective, shape, &header,
+        )?;
+        let snapshot = original_operand_body_snapshot(site, row, &header, registry)?;
         let plan = tcl_lexer::native_script_words_in_with_purpose(
             site.source.source_image().clone(),
             content,
@@ -977,68 +1125,23 @@ fn original_source_operand_layout_for_declaration(
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         )
         .ok()?;
-        if plan.fatal_tail.is_some() {
-            return None;
-        }
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &image,
-            content.start(),
-            row.config.nested(),
-        )?;
-        let mut retained = Vec::new();
-        let mut source_operations = Vec::new();
-        for segment in segments {
-            if segment.is_partial {
-                return None;
-            }
-            let command =
-                super::source_command_tokens_boxed(&image, content.start(), row.config, &segment);
-            let offset = command.words().first()?.source().span.start();
-            let projection =
-                site.source
-                    .original_lexical_command(command.words(), offset, row.config)?;
-            if !plan
-                .commands
-                .iter()
-                .any(|original| original.words.as_slice() == projection.native_words())
-            {
-                return None;
-            }
-            let child = CommandAllocationSite {
-                source: Arc::clone(&site.source),
-                offset,
-            };
-            retained.push(OriginalDeclarationSourceOperandLayout {
-                site: child.clone(),
-                config: row.config,
-                words: Arc::from(command.words()),
-                dialect,
-                read: read.clone(),
-                header: header.clone(),
-                snapshot: Arc::clone(&snapshot),
-                native_header_value: Arc::clone(&native_header_value),
-                parents: Arc::clone(parents),
-                source_operations: Arc::from(source_operations.as_slice()),
-            });
-            if source_operations.is_empty()
-                && retains_successor_layout(
-                    &child,
-                    &command,
-                    &snapshot,
-                    &header.namespace,
-                    row.config,
-                    registry,
-                )
-            {
-                continue;
-            }
-            let Some(operation) =
-                original_source_operation_continuation(retained.last()?, &command, registry)
-            else {
-                break;
-            };
-            source_operations.push(operation);
-        }
+        let OriginalOperandCommandLayouts {
+            retained,
+            source_operations: _source_operations,
+        } = original_operand_command_layouts(OriginalOperandCommandContext {
+            site,
+            row,
+            parents,
+            registry,
+            dialect,
+            read: &read,
+            header: &header,
+            snapshot: &snapshot,
+            native_header_value: &native_header_value,
+            image: &image,
+            content,
+            plan: &plan,
+        })?;
         if selected
             .as_ref()
             .is_some_and(|previous| previous != &retained)
@@ -1788,6 +1891,63 @@ impl SourceCommandBindings {
         })
     }
 
+    fn original_argument_layout_parents_are_current(
+        &self,
+        site: &CommandAllocationSite,
+        tokens: &crate::ir::CommandTokens,
+        parents: &[DeclarationLayoutObservation],
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        !(input
+            .borrowed_context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            != registry.snapshot().semantic_key()
+            || self.lexer_config != Some(config)
+            || self.root_origin.as_ref() != Some(&site.source)
+            || parents.is_empty()
+            || parents.iter().any(|parent| {
+                parent.issuer != DeclarationLayoutIssuer::OriginalDeclaration
+                    || parent.config != config
+                    || parent.words.as_ref() != tokens.words()
+                    || !parent.entry.owns_source(&site.source, site.offset)
+                    || !parent
+                        .entry
+                        .owns_original_context(&parent.snapshot.state.source_variables)
+                    || parent.snapshot.state.variable_frame != *parent.entry.frame()
+                    || parent.snapshot.state.logical_source_name_advice_input() != Some(input)
+                    || parent
+                        .snapshot
+                        .state
+                        .baseline
+                        .metadata_context
+                        .source_analysis_input()
+                        != Some(input)
+                    || parent.snapshot.state.baseline.registry_snapshot
+                        != Some(registry.snapshot().semantic_key())
+                    || parent.snapshot.state.baseline.native_entry.is_some()
+                    || parent
+                        .snapshot
+                        .state
+                        .baseline
+                        .execution_name_policy
+                        .is_some()
+                    || parent
+                        .snapshot
+                        .state
+                        .baseline
+                        .hosted_execution_context
+                        .is_some()
+            })
+            || site
+                .source
+                .original_lexical_command(tokens.words(), site.offset, config)
+                .is_none())
+    }
+
     /// Original argv children in the same unentered Logical declaration world.
     /// Literal prefixes do not change lookup; an unknown getter, substitution
     /// result or callback ends this projection before any later child. Native
@@ -1809,53 +1969,9 @@ impl SourceCommandBindings {
             return;
         };
         let config = input.lexer_config();
-        if input
-            .borrowed_context_registry()
-            .commands()
-            .snapshot()
-            .semantic_key()
-            != registry.snapshot().semantic_key()
-            || self.lexer_config != Some(config)
-            || self.root_origin.as_ref() != Some(&site.source)
-            || parents.is_empty()
-            || parents.iter().any(|parent| {
-                parent.issuer != DeclarationLayoutIssuer::OriginalDeclaration
-                    || parent.config != config
-                    || parent.words.as_ref() != tokens.words()
-                    || !parent.entry.owns_source(&site.source, site.offset)
-                    || !parent
-                        .entry
-                        .owns_original_context(&parent.snapshot.state.source_variables)
-                    || parent.snapshot.state.variable_frame != *parent.entry.frame()
-                    || parent.snapshot.state.logical_source_name_advice_input() != Some(&input)
-                    || parent
-                        .snapshot
-                        .state
-                        .baseline
-                        .metadata_context
-                        .source_analysis_input()
-                        != Some(&input)
-                    || parent.snapshot.state.baseline.registry_snapshot
-                        != Some(registry.snapshot().semantic_key())
-                    || parent.snapshot.state.baseline.native_entry.is_some()
-                    || parent
-                        .snapshot
-                        .state
-                        .baseline
-                        .execution_name_policy
-                        .is_some()
-                    || parent
-                        .snapshot
-                        .state
-                        .baseline
-                        .hosted_execution_context
-                        .is_some()
-            })
-            || site
-                .source
-                .original_lexical_command(tokens.words(), site.offset, config)
-                .is_none()
-        {
+        if !self.original_argument_layout_parents_are_current(
+            site, tokens, parents, registry, &input, config,
+        ) {
             return;
         }
         let Some(calls) = crate::word_subst::checked_argument_lifted_calls(tokens, config) else {

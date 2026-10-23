@@ -486,7 +486,8 @@ impl CommandTokens {
         {
             return None;
         }
-        let text = std::str::from_utf8(image.bytes().get(region.as_range())?).ok()?;
+        let source_bytes = image.shared_bytes();
+        let text = std::str::from_utf8(source_bytes.get(region.as_range())?).ok()?;
         let first = self
             .words()
             .first()?
@@ -496,8 +497,7 @@ impl CommandTokens {
             region.start().checked_add(first.end())?,
         );
         let plan =
-            tcl_lexer::native_script_words_in_with_purpose(image.clone(), region, config, purpose)
-                .ok()?;
+            tcl_lexer::native_script_words_in_with_purpose(image, region, config, purpose).ok()?;
         let command = plan.commands.into_iter().find(|command| {
             command
                 .words
@@ -507,7 +507,7 @@ impl CommandTokens {
         if command.words.len() != self.words().len() {
             return None;
         }
-        let map = SourceMap::new(image.try_text().ok()?);
+        let map = SourceMap::new(std::str::from_utf8(&source_bytes).ok()?);
         for (actual, supplied) in command.words.iter().zip(self.words()) {
             let local = supplied.original_written_span(text.as_bytes())?;
             let expected = Span::new(

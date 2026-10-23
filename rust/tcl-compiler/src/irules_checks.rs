@@ -990,11 +990,16 @@ fn dedupe_drop_states(states: Vec<DropFlowState>) -> Vec<DropFlowState> {
 }
 
 #[derive(Clone)]
+struct OriginalIrulesPacketActions {
+    drops_connection: bool,
+    returns_dns_packet: bool,
+}
+
+#[derive(Clone)]
 struct OriginalIrulesFlowCommand {
     command: String,
     span: Span,
-    drops_connection: bool,
-    returns_dns_packet: bool,
+    packet_actions: OriginalIrulesPacketActions,
     disables_all_events: bool,
     may_commit_response: bool,
     requires_http_context: bool,
@@ -1115,8 +1120,10 @@ fn possible_irule_flow_command(
         OriginalIrulesFlowCommand {
             command,
             span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
-            drops_connection,
-            returns_dns_packet,
+            packet_actions: OriginalIrulesPacketActions {
+                drops_connection,
+                returns_dns_packet,
+            },
             disables_all_events,
             may_commit_response,
             requires_http_context,
@@ -1131,12 +1138,12 @@ fn drop_flow_command(state: &DropFlowState, command: &OriginalIrulesFlowCommand)
         next.drop_cmd.clear();
         next.drop_at = None;
     }
-    if command.drops_connection {
+    if command.packet_actions.drops_connection {
         next.dropped = true;
         next.drop_cmd.clone_from(&command.command);
         next.drop_at = Some(command.span);
     }
-    if command.returns_dns_packet {
+    if command.packet_actions.returns_dns_packet {
         next.dns_returned = true;
         next.dns_at = Some(command.span);
     }
