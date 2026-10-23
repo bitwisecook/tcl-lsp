@@ -1,0 +1,18 @@
+{
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "time": 1792778936.0267303,
+  "scope": "Read-only memo boundary review; not runtime acceptance",
+  "source_sha256": {
+    "rust/tcl-compiler/src/realm.rs": "bcbfca03a225add2ca133d09950e1fdfc801311a2831447eba85db03224f7727",
+    "rust/tcl-compiler/src/command_binding.rs": "29fc592b8b3bcdd1d04c7e8b96575ec5144059f2a6b82171e68cf8cd2b0b1caa",
+    "rust/tcl-compiler/src/analyser/state.rs": "40aed6f83edab9362a5eec935b62d803c347fc4b0bbd9ec51b1d0849e0ec4c71",
+    "rust/tcl-compiler/src/analyser/source_settings.rs": "16dd686e56d646e69a82140e9d7eb13837ba8a43ff2f7609cffde7321ed00d2c"
+  },
+  "findings": [
+    "CommandBindingRealm retains strict bindings/specs/source_input PartialEq, excluding derived caches exactly as before.",
+    "No binding inventory replacement found in realm methods. with_analyser_source_settings changes a separate settings facet; its one production call seals a newly created document realm before queries.",
+    "with_resolved_analysis_input changes the separately checked input facet; per-invocation metadata checks, registry semantics and typed owner remain in caller-alias admission/key.",
+    "Written-site memo contains only syntax geometry and immutable binding-site data. Current source/image/configuration checks remain outside memo lookup.",
+    "Corpus and adversarial controls remain required; this source review is not their substitute."
+  ]
+}

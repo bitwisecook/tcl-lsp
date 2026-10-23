@@ -6,7 +6,7 @@
 from pathlib import Path
 import os,signal,time,json
 controls=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-controls')
-out=controls.parent/'current-b6ea6dc5/build-memory-guard.json';record={'started_unix':time.time(),'policy':'Pause only owned-tree rustc --test while the full-tree rustc --test is active. Never signal runtime test executables.','events':[]};paused={}
+out=controls.parent/'current-b6ea6dc5/build-memory-guard.json';record={'started_unix':time.time(),'policy':'Hold only owned-tree rustc --test until the full control executable is built or its build fails. Never signal runtime test executables.','events':[]};paused={}
 def write():out.write_text(json.dumps(record,indent=2)+'\n')
 def get(pid):
  p=Path('/proc')/str(pid)
@@ -26,7 +26,7 @@ def resume(pid,row):
 try:
  write()
  while not (controls/'controls-binary.json').exists() and not (controls/'final.json').exists():
-  active=units();full=any('/workspace/tcl-lsp-perf-latest/' in ' '.join(r['args']) for r in active)
+  active=units();full=True
   for row in active:
    if full and '/workspace/tcl-lsp-owned/' in ' '.join(row['args']) and row['pid'] not in paused:
     os.kill(row['pid'],signal.SIGSTOP);paused[row['pid']]=row;record['events'].append({'action':'pause','process':row,'time':time.time()});write()

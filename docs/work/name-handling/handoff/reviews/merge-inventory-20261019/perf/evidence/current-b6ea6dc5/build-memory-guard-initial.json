@@ -1,0 +1,6 @@
+{
+  "started_unix": 1792776870.5301445,
+  "policy": "Pause only owned-tree rustc --test while the full-tree rustc --test is active. Never signal runtime test executables.",
+  "events": [],
+  "finished_unix": 1792779494.864834
+}

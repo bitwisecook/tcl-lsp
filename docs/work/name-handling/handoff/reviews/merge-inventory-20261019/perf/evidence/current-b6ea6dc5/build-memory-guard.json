@@ -1,5 +1,5 @@
 {
-  "started_unix": 1792776870.5301445,
-  "policy": "Pause only owned-tree rustc --test while the full-tree rustc --test is active. Never signal runtime test executables.",
+  "started_unix": 1792779495.21424,
+  "policy": "Hold only owned-tree rustc --test until the full control executable is built or its build fails. Never signal runtime test executables.",
   "events": []
 }

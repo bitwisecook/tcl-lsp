@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 17:59 UTC
+Last updated: 2026-10-23 18:22 UTC
 
 ## Resume
 
@@ -42,7 +42,8 @@ Active commands (build/run/delete executables in one command):
   this no-switch source. Compiler filters now building atopt1/assertions on.
 - Combined lexer queued /tmp/perf-b6-lexer.log, same original586 inventory;
   combined Clippy45643 /tmp/perf-b6-clippy.log checks default target separately.
-- Memory guard89564 may serialize ONLY the two large rustc --test compilations;
+- Memory guard36561 holds ONLY the clean6 rustc --test compilation until the
+  combined control executable is built or its build fails;
   never signals runtime test executables. Its finally resumes any paused rustc.
   Source/configuration remain fixed; build timing is not a latency comparison.
 
@@ -210,3 +211,10 @@ while builders/controls/corpus are active; record the mechanical delta and
 verify scoped fmt/typecheck before readiness. The other routed interprocedural
 scan_statement length warning predates its two call-site changes. Six owned
 files have zero diagnostics. No full-workspace Clippy success is claimed.
+
+Current build-memory guard was restarted with the stronger ordering before
+any unit executable existed. Its first no-pause interval is preserved as
+build-memory-guard-initial.json. No runtime test is signalled or paused. Both
+normal compiler-library LLVM builds continue; no new runtime verdict yet.
+Memo-boundary source audit is memo-boundary-review.json, explicitly not a
+substitute for the required controls/corpus. Preserve the frozen b6 source.
