@@ -16,7 +16,9 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('root', type=Path)
 parser.add_argument('--controls', type=Path, required=True)
-parser.add_argument('--realm-controls', type=Path, required=True)
+parser.add_argument('--realm-controls', type=Path)
+parser.add_argument('--target-dir', type=Path)
+parser.add_argument('--opt-level', choices=('0', '1', '2', '3'), default='0')
 parser.add_argument('--evidence', type=Path, required=True)
 args = parser.parse_args()
 root = args.root.resolve()
@@ -34,15 +36,17 @@ for mode in ['new', 'old']:
     assert set(observed) == listed and all(value == 'ok' for value in observed.values())
 head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 inputs = json.loads((controls / 'inputs.json').read_text())
-realm_controls = args.realm_controls.resolve()
-realm_inputs = json.loads((realm_controls / 'tests-compiler-build-inputs.json').read_text())
-assert realm_inputs['head'] == inputs['head'], 'realm controls use another commit'
-assert realm_inputs['rust_diff_sha256'] == inputs['rust_diff_sha256'], 'realm controls use another batch'
 realm_name = 'object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm'
-for mode in ['new', 'old']:
-    output = (realm_controls / f'tests-compiler-lib-{mode}.out').read_text()
-    actual = dict(re.findall(r'^test (.+?) \.\.\. (ok|FAILED|ignored)$', output, re.M))
-    assert actual.get(realm_name) == 'ok', f'{mode} diagnostic-output realm control has not passed'
+if realm_name not in listed:
+    assert args.realm_controls, 'actual diagnostic-output realm control is required'
+    realm_controls = args.realm_controls.resolve()
+    realm_inputs = json.loads((realm_controls / 'tests-compiler-build-inputs.json').read_text())
+    assert realm_inputs['head'] == inputs['head'], 'realm controls use another commit'
+    assert realm_inputs['rust_diff_sha256'] == inputs['rust_diff_sha256'], 'realm controls use another batch'
+    for mode in ['new', 'old']:
+        output = (realm_controls / f'tests-compiler-lib-{mode}.out').read_text()
+        actual = dict(re.findall(r'^test (.+?) \.\.\. (ok|FAILED|ignored)$', output, re.M))
+        assert actual.get(realm_name) == 'ok', f'{mode} diagnostic-output realm control has not passed'
 assert head == inputs['head'], 'controls use another source commit'
 diff = subprocess.check_output(['git', 'diff', '--', 'rust'], cwd=root)
 assert hashlib.sha256(diff).hexdigest() == inputs['rust_diff_sha256'], 'batch changed since controls'
@@ -65,8 +69,10 @@ sources = {'zz_authenticated_perfprobe': 'authenticated_perfprobe.rs.txt',
 examples = root / 'rust/tcl-compiler/examples'
 examples.mkdir(exist_ok=True)
 env = dict(os.environ, CARGO_INCREMENTAL='0', CARGO_PROFILE_DEV_DEBUG='0',
-           CARGO_PROFILE_DEV_OPT_LEVEL='0', CARGO_PROFILE_TEST_DEBUG='0',
-           CARGO_PROFILE_TEST_OPT_LEVEL='0', CARGO_TARGET_DIR=str(root / 'target'))
+           CARGO_PROFILE_DEV_OPT_LEVEL=args.opt_level, CARGO_PROFILE_TEST_DEBUG='0',
+           CARGO_PROFILE_TEST_OPT_LEVEL=args.opt_level,
+           CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true', CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true',
+           CARGO_TARGET_DIR=str((args.target_dir or root / 'target').resolve()))
 env.pop('ZZ_OLD_ENV', None)
 artifacts = set()
 created_sources = []
@@ -78,7 +84,7 @@ try:
         target.write_bytes((tools / source).read_bytes())
         created_sources.append(target)
     receipt = {'head': head, 'rust_diff_sha256': hashlib.sha256(diff).hexdigest(),
-               'profile': 'dev opt-level=0 debug=0 incremental=0; assertions unchanged',
+               'profile': f'dev opt-level={args.opt_level} debug=0 incremental=0; debug/overflow assertions enabled',
                'controls_final_sha256': hashlib.sha256((controls / 'final.json').read_bytes()).hexdigest(),
                'rosters': rosters,
                'fixture_sha256': {p: hashlib.sha256((root / p).read_bytes()).hexdigest()

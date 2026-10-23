@@ -1,0 +1,84 @@
+{
+  "results": [
+    {
+      "label": "build-controls",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "wall_s": 1671.5795209407806,
+      "warnings": 0,
+      "executables": {
+        "tcl_compiler": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+      }
+    },
+    {
+      "label": "controls-list",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "authenticated_report",
+        "--list"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 0.09101080894470215
+    },
+    {
+      "label": "controls-new",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "authenticated_report",
+        "--test-threads=1"
+      ],
+      "extra_env": {},
+      "exit": 101,
+      "wall_s": 167.10324358940125
+    },
+    {
+      "label": "controls-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "authenticated_report",
+        "--test-threads=1"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 101,
+      "wall_s": 220.66584134101868
+    },
+    {
+      "label": "build-probes",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--example",
+        "zz_authenticated_perfprobe",
+        "--example",
+        "zz_spectclprobe",
+        "--message-format=json"
+      ],
+      "exit": -2,
+      "wall_s": 2856.3448309898376,
+      "warnings": 0,
+      "executables": {}
+    }
+  ],
+  "source_unchanged": true,
+  "removed_executables": [
+    "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+  ],
+  "finished_unix": 1792757465.3627226
+}

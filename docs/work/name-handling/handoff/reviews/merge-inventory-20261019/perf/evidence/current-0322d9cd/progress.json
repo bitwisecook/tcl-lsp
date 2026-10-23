@@ -54,7 +54,27 @@
       },
       "exit": 101,
       "wall_s": 220.66584134101868
+    },
+    {
+      "label": "build-probes",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--example",
+        "zz_authenticated_perfprobe",
+        "--example",
+        "zz_spectclprobe",
+        "--message-format=json"
+      ],
+      "exit": -2,
+      "wall_s": 2856.3448309898376,
+      "warnings": 0,
+      "executables": {}
     }
   ],
-  "updated_unix": 1792754593.589199
+  "updated_unix": 1792757449.9733446
 }

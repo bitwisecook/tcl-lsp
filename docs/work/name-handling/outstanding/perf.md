@@ -2,59 +2,56 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 11:50 UTC
+Last updated: 2026-10-23 12:20 UTC
 
 ## Resume
 
-**BLOCKED on current compiler report controls; regression checks RUNNING. No production commit.**
-Latest frozen proof source is 0322d9cd1af50e28157b7c3693f53b77cc92adf7 in
-/workspace/tcl-lsp-perf-latest, an independent shallow checkout. AGENTS.md is
-byte-identical to the earlier proof guide. The FULL batch is applied in nine
-experimental Rust files, including temporary switches; both clean patches are
-refreshed against this exact commit. The residual images/segments drafts are
-also refreshed, unapplied and unproven, routed to compiler-names.
+**Latest-source retry RUNNING; no production commit.** All obsolete0322
+workers have been stopped and executables/probe sources cleaned after the
+functional upstream a8e7bc7a repair landed. Their partial compiler/server/
+SpecTcl runs are superseded, NOT completed pass-to-fail comparisons. Exact
+interruption/cleanup and partial receipts remain in current-0322d9cd/.
 
-The user2256 acceptance contract is authenticated complete-report comparison,
-separate from strict runtime/cache Eq. tools/authenticated_perfprobe.rs.txt
-requires Equal for old1/old2, old1/new AND new/old2. Different and Unavailable
-fail; strict runtime equality is recorded separately without alteration.
-Current authenticated-report controls are COMPLETE: 15 each, **12 PASS /3 FAIL
-in BOTH modes**, zero warnings, identical inventory, zero pass-to-fail.
-report-controls-summary.json records the two unchanged alias-role assertions
-and hosted CurrentOwnerUnavailable failure. E003 positive/foreign controls
-pass. The separate direct-artifact smoke returns complete Equal triples for
-E003 and aliases in forced-old AND mixed modes; strict runtime Eq remains
-false and was not altered. Direct hosted all-old AND mixed each fail all3 pairs with
-Unavailable(CurrentOwnerUnavailable); executable removed.
+Frozen proof source is now a8e7bc7a0d368bbaab5bd1676a0383ad2b837130 in
+/workspace/tcl-lsp-perf-latest. The FULL batch remains applied in nine
+experimental Rust files, including switches. Both clean split patches are
+refreshed against this head and byte-exact switch reconstruction/fmt passes.
+Never commit realm/interprocedural or switches; neither patch is proven yet.
 
-Full corpus acceptance remains BLOCKED until the original report controls and
-the separate diagnostic-output realm control pass in both modes. Different
-and Unavailable fail. No field, assertion, subject or budget is weakened;
-neither perf patch is proven/ready. The new preflight explicitly checks both
-report and actual-realm controls, exact source/batch and all117 fixture bytes.
-Evidence is under perf/evidence/current-0322d9cd/.
+The owner repair changes actual procedure visitation and hosted source-word
+issuance, and replaces unsupported alias-role premises with exact genuine
+Native/Logical roles, purposes, counts and extents plus role/purpose/extent
+mutation refusals. Original full-pair/unique/Equal checks remain. No perf
+assertion was weakened. Fresh current controls include authenticated_report
+AND the exact actual diagnostic-output realm control, expected16 total in
+both modes. Different and Unavailable still fail the full corpus gate.
 
-Runner PID/status: inspect /tmp/perf-run-retry.log and evidence progress.json.
-Build/run/delete happen in the same command. Targets are isolated under /workspace/tcl-lsp-perf-latest. The first target
-started empty; retries reuse matching dependencies from this same checkout.
-Cargo receipts record freshness. No cross-worktree build artifacts are reused. Source-before/after and artifact hashes will be retained. Use
-source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh; preserved oracles
-are available through the proof checkout's tmp symlink.
+Current jobs:
+- /tmp/perf-run-a8e7.log, session51915: default0 control build, both control
+  modes, native/hosted smoke and complete PackSet three-way; owns cleanup.
+- /tmp/perf-lexer-a8e7.log, session39041: default0 lexer both modes, isolated
+  target-lexer-controls; build/run/delete in one command.
+- /tmp/perf-spectcl-a8e7.log, session2241: isolated target-spectcl-opt1,
+  debug/overflow assertions on; tests wait for /tmp/perf-a8e7-server-finished.
 
-The initial f149597f current build stopped at the upstream propagation::run
-missing_docs error (0 warnings, no tests), fixed upstream in f89bd6f6. Its
-complete failed build/source receipts remain in evidence/current-f149597f/.
-The retry uses that repair without any perf edit to optimiser source. The
-main clean patches are refreshed against0322; no semantic proof is implied.
+After BOTH controls green, start current compiler filters with private
+executables while main still owns its original test binary, then default0
+server build with /tmp/perf-a8e7-heavy-tests-finished resource flag. Keep
+server180s limits/assertions unchanged and release only after other heavy
+work finishes. Release SpecTcl runtime only after server tests finish.
 
-Prior confirmed comparison failures at 39b39296 and all historical corpus,
-crate, timing and timeout outcomes below remain evidence of those exact
-sources. Do not infer a latest-source verdict from them. Compiler changes on
-new work include the distinct report API and owner repairs; their actual
-latest controls determine whether the full proof can resume. Never normalize
-owners, omit fields, change global/runtime/cache Eq or weaken assertions.
-Do not commit realm.rs or interprocedural.rs or mark their patch proven
-without the required complete latest-source proof.
+Full corpus command uses tools/run_authenticated_corpus.py ROOT --controls
+current-a8e7bc7a --opt-level1 --target-dir ROOT/target-spectcl-opt1 --evidence
+NEW_DIRECTORY. It requires completed green current controls, exact source/
+batch and all117 original fixture bytes; the actual-realm control may be in
+that same inventory or a separately supplied --realm-controls directory.
+All3 old/new/old reports must Equal; strict runtime Eq is recorded separately.
+Corpus and current crate/filter/server proofs still UNRUN or in progress.
+
+Use source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh. Persistent
+job metadata is /workspace/perf-active-state.json; update it on transitions.
+Publish ONLY own docs/artifacts, fetch/rebase before every normal push,
+at most30min apart. No PR. Footer Co-Authored-By: Codex <noreply@openai.com>.
 
 ## Completed evidence
 

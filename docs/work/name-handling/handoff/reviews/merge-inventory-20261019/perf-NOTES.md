@@ -1,19 +1,17 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 11:50 UTC
+Last updated: 2026-10-23 12:20 UTC
 
-**Blocked on current compiler report controls; regression checks continue. No production code landed.** The independent
-0322d9cd checkout contains the full switched batch. Clean six/two-file patches
-and routed residual drafts are refreshed against that exact source; formatting
-and byte-exact switch reconstruction pass. This is applicability evidence,
-not semantic acceptance.
+**Latest-source retry running at a8e7bc7a; no production code landed.** The
+upstream functional repair changes procedure visitation/hosted event issuance
+and exact authentic alias owner controls. All0322 workers were stopped and
+cleaned; their partial regression runs are superseded, never full comparisons.
+The finished0322 lexer/report/smoke/trace observations below remain historical.
 
-The coordinator-recorded user2256 contract accepts the distinct authenticated
-complete-report API. The new harness requires all three old/new/old comparisons
-to be Equal and records strict runtime equality independently. Current compiler
-controls and smoke cases are running; see perf/evidence/current-0322d9cd/.
-Earlier failed results below remain pinned to their historical source commits.
-No latest full-corpus verdict or compiler-patch readiness is claimed.
+The FULL batch is rebased onto a8e7; clean6/two patches refresh and fmt/switch
+reconstruction pass. Current16 report+actual-realm controls, lexer and opt1
+SpecTcl builds are in progress. No latest corpus acceptance or compiler-patch
+readiness is claimed. See outstanding/perf.md for exact commands/resources.
 
 ## Current0322 progress
 

@@ -1,0 +1,9 @@
+{
+  "compiler/lib/new": {
+    "status": "running",
+    "log": "tests-compiler-lib-new.out"
+  },
+  "compiler/lib/old": {
+    "status": "pending"
+  }
+}
