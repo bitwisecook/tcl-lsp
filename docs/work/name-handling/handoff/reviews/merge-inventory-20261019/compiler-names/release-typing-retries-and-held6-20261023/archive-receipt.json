@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T10:15:31.010917+00:00",
+  "scope": "Exact v12 label-only templates/adapter, held oldZZ cleanup current-before source and peer receipts; no rootGO, actualidentity, producttyping/runtime/perf acceptance",
+  "archive_sha256": "e7b677426335abac31ba15e895c0f90757ab9e89911f06d5c3279154a106d5ec",
+  "selected_receipt_pins": {
+    "/tmp/vm-runtime-clippy181-held6-review-v1/names-static-peer.json": "bcb8e5be9e470aabb4d03abfbc6b1e03ded5f96695f3f751a51688f6953e0bbd",
+    "/tmp/compiler-focused61-next-builder-v5/names-static-peer.json": "8b1fc8f3a0c3120fdca3dad5771dee22d29597c7f401ace72d3a99f182537641",
+    "/tmp/lsp-startup-upf-latebound-materializer-v5/names-static-peer.json": "54385b625a34a537744add6baa1d9a9b24c2b9f43eaebb96489525935abb021a",
+    "/tmp/compiler-next-integration-composition-v14/names-v15-static-peer.json": "963d7a9619548aa067255cfc61a9e0944b856a90df23476f774425dedaf3ec01",
+    "/tmp/compiler-private-method-path-fix-v1/names-static-peer.json": "2d5b67ad5a1483df05c5b5f9103e6558d70ad9ff366d7e8c921afc684a644457"
+  },
+  "cleanup_status": "HELD, compiler peer pending, not included upcoming typing product; needed TCL_LSP probes retained"
+}

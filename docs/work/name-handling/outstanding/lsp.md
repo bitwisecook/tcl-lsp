@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T09:44:32Z: actual source122 productc40883dd/tree2e6b20c8/map eafa64c5 rootv10typing35926 RUNNING, no finalverdict. Startup2+UPF2 template `/tmp/lsp-startup-upf-source122-template-v1-direct4` frozen plan13a36090/suitee7b28ffe/inputsaaf002cd; actualidentity3c55643a+futureactualPASS0Wtype10receipt only, GOabsent/noCargo. Onefresh e2e+serverpair4exacttests, originalstartup/classcollisioncontrol+newUPF2; samebudgets/88125/fullseals/TMPDIRworkspace/NoTomrefusal/failurecontext, peerspending. Candidatecleanup reapply validates current122functional WORK33files/258literalreplacements check-only, currentcandidatealreadyclean; rootlatercarry+token-onlyreapply avoids overwritingfunctionality. SourceHOLD/rootsoleintegration.
+Current status 2026-10-23T10:05:31Z: candidate-only contract cleanup applied: obsolete appliance report and migration ledger removed; current embedded-Tcl and value-transfer consumer contracts retain semantic ownership and exact28 executable ratchet limits. All39 new/retargeted Markdown links resolve; no old basenames remain. No gate disabled/assertion removed/Cargo/Git. Latebound direct4v3 Names focused staticCLEAR42a3521c; actual failedv10 and reported v11 E0603 do not satisfy typing prerequisite, no GO or materialization. Root source HOLD persists.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T09:44:32Z
+Last updated: 2026-10-23T10:05:31Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T09:44:32Z: startup/UPF template `lsp/startup-upf-source122-template-v1-20261023/` has actual122identity/futuretype10schema, noGO/PASSfiction; await Names/CCG peers then rootallocation after actualtyping. Candidatefixture reapply `lsp/release-candidate-fixture-cleanup-20261023/reapply-include-paths.py` defaultcheck validated bothalreadyclean candidate andcurrent122workmapping (33files/258literals). Root must carryfunctionaldeltas then explicitcandidate-onlyapply. Keep original startup/barrier/UPF assertion semantics/allguards; no LSPCargo/source/Git/GO.
+Latest resume pointer 2026-10-23T10:05:31Z: review `lsp/candidate-contract-cleanup-20261023/final-pins.json`, comparison patch and linkcheck39/0; candidate new docs preserve driftgate and exact28 ratchet rows. Existing interface value-transfers.md retained. Names peer42a3521c closes lateboundv3 static review; require root actual successful final AND launcher plus tuple/map before materialization. No current successful typing claim; no LSP shared source/Cargo/Git/GO.
 
 
 

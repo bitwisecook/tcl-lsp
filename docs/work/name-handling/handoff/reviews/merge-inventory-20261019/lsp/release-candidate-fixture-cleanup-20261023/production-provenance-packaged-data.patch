@@ -1,0 +1,11 @@
+--- rust/tcl-registry/src/f5/evidence/resolution_contexts.rs
++++ rust/tcl-registry/src/f5/evidence/resolution_contexts.rs
+@@ -31,7 +31,7 @@
+ );
+ const PROVENANCE: super::EvidenceProvenance = appliance(
+     ProbeSetId::RESOLUTION_CONTEXTS,
+-    "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md",
++    "rust/tcl-registry/data/f5/resolution_contexts/",
+     false,
+ );
+ 

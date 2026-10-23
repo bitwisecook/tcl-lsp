@@ -1,0 +1,12 @@
+{
+  "actual_utc": "2026-10-23T09:51:52.345287+00:00",
+  "scope": "Candidate-only production provenance presentation reference cleanup; existing appliance source, ProbeSetId, e4false, parsedtablefacts and allassertions unchanged",
+  "consumer": "rust/tcl-registry/src/f5/evidence/resolution_contexts.rs",
+  "old_reference": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md",
+  "new_reference": "rust/tcl-registry/data/f5/resolution_contexts/",
+  "reason": "Point provenance section/reference at actually packaged unchanged scriptd.txt+cli.txt observations instead of absent process report; no new facts inferred",
+  "before_sha256": "6268cbc6ab7b7b04a1fa55a73f1cc3f51d900e633b71fd2c620138f93b0c3248",
+  "after_sha256": "612ff37195c3529384f977caa192316f199cbc87644e8ce8acfd25850a9901e6",
+  "data_paths_exist": true,
+  "cargo_or_tests_run": false
+}

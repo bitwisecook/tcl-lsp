@@ -1,0 +1,2059 @@
+--- a/rust/tcl-vm/src/cmd_try.rs
++++ b/rust/tcl-vm/src/cmd_try.rs
+@@ -589,6 +589,107 @@
+     Ok(selected)
+ }
+ 
++fn original_final_clause(
++    vm: &mut Vm,
++    rest: &[Value],
++    j: usize,
++    jim: bool,
++) -> Result<Value, Completion<Value>> {
++    if j + 2 < rest.len() {
++        return Err(if jim {
++            crate::command::native_wrong_arguments_message(
++                vm,
++                "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
++            )
++        } else {
++            clause_failure(
++                vm,
++                tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
++                b"finally clause must be last".to_vec(),
++            )
++        });
++    }
++    if j + 1 >= rest.len() {
++        return Err(clause_argument_error(
++            vm,
++            tcl_registry::NativeTryClauseArgument::Finally,
++            b"wrong # args to finally clause: must be \"... finally script\"".to_vec(),
++        ));
++    }
++    Ok(rest[j + 1].clone())
++}
++
++fn require_handler_arguments(
++    vm: &mut Vm,
++    rest: &[Value],
++    j: usize,
++    kind: &str,
++) -> Result<(), Completion<Value>> {
++    if j + 4 > rest.len() {
++        return Err(clause_argument_error(
++            vm,
++            if kind == "on" {
++                tcl_registry::NativeTryClauseArgument::On
++            } else {
++                tcl_registry::NativeTryClauseArgument::Trap
++            },
++            format!(
++                "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
++                if kind == "on" { "code" } else { "pattern" }
++            )
++            .into_bytes(),
++        ));
++    }
++    Ok(())
++}
++
++fn original_jim_clause_match(
++    vm: &mut Vm,
++    pattern: &Value,
++    is_trap: bool,
++    body_code: Option<Code>,
++    code: i64,
++    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
++) -> Result<bool, Completion<Value>> {
++    let captured = captured_error_code.ok_or_else(|| {
++        vm.refuse_host_command("original Jim clause capture is unavailable".into())
++    })?;
++    captured
++        .check(vm)
++        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
++    let matched = if is_trap {
++        match captured
++            .original(vm)
++            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
++        {
++            Some(original) => {
++                original_jim_errorcode_prefix_match(vm, pattern, &original, captured)?
++            }
++            None => false,
++        }
++    } else {
++        body_code.is_some_and(|body| code == body.as_int())
++    };
++    captured
++        .check(vm)
++        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
++    Ok(matched)
++}
++
++fn original_handler_fallthrough(
++    vm: &mut Vm,
++    script: &Value,
++    jim: bool,
++) -> Result<bool, Completion<Value>> {
++    if jim {
++        Ok(false)
++    } else {
++        let script_bytes = ValueOps::native_string_bytes(vm, script)
++            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
++        Ok(tcl_core_types::c_string_extent(&script_bytes) == b"-")
++    }
++}
++
+ /// Parse clauses; Jim resolves each match at its reached post-body ordinal.
+ fn parse_clauses(
+     vm: &mut Vm,
+@@ -616,41 +717,11 @@
+         let handler_type = original_handler_type(vm, &rest[j], jim)?;
+         match handler_type {
+             "finally" => {
+-                if j + 2 < rest.len() {
+-                    return Err(if jim {
+-                        crate::command::native_wrong_arguments_message(
+-                            vm,
+-                            "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
+-                        )
+-                    } else {
+-                        clause_failure(
+-                            vm,
+-                            tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
+-                            b"finally clause must be last".to_vec(),
+-                        )
+-                    });
+-                }
+-                if j + 1 >= rest.len() {
+-                    return Err(clause_argument_error(
+-                        vm,
+-                        tcl_registry::NativeTryClauseArgument::Finally,
+-                        b"wrong # args to finally clause: must be \"... finally script\"".to_vec(),
+-                    ));
+-                }
+-                finally = Some(rest[j + 1].clone());
++                finally = Some(original_final_clause(vm, rest, j, jim)?);
+                 j += 2;
+             }
+             kind @ ("on" | "trap") => {
+-                if j + 4 > rest.len() {
+-                    return Err(clause_argument_error(vm, if kind == "on" {
+-                        tcl_registry::NativeTryClauseArgument::On
+-                    } else {
+-                        tcl_registry::NativeTryClauseArgument::Trap
+-                    }, format!(
+-                        "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
+-                        if kind == "on" { "code" } else { "pattern" }
+-                    ).into_bytes()));
+-                }
++                require_handler_arguments(vm, rest, j, kind)?;
+                 let is_trap = kind == "trap";
+                 let code = original_handler_code(vm, &rest[j + 1], is_trap, jim, body_code)?;
+                 if !jim {
+@@ -659,32 +730,14 @@
+                     })?;
+                 }
+                 let jim_matches = if jim {
+-                    let captured = captured_error_code.ok_or_else(|| {
+-                        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+-                    })?;
+-                    captured
+-                        .check(vm)
+-                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+-                    let matched = if is_trap {
+-                        match captured
+-                            .original(vm)
+-                            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+-                        {
+-                            Some(original) => original_jim_errorcode_prefix_match(
+-                                vm,
+-                                &rest[j + 1],
+-                                &original,
+-                                captured,
+-                            )?,
+-                            None => false,
+-                        }
+-                    } else {
+-                        body_code.is_some_and(|body| code == body.as_int())
+-                    };
+-                    captured
+-                        .check(vm)
+-                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+-                    Some(matched)
++                    Some(original_jim_clause_match(
++                        vm,
++                        &rest[j + 1],
++                        is_trap,
++                        body_code,
++                        code,
++                        captured_error_code,
++                    )?)
+                 } else {
+                     None
+                 };
+@@ -702,15 +755,7 @@
+                     None
+                 };
+                 let script = rest[j + 3].clone();
+-                let is_dash = if jim {
+-                    false
+-                } else {
+-                    let script_bytes =
+-                        ValueOps::native_string_bytes(vm, &script).map_err(|error| {
+-                            crate::command::completion_from_cmd_error(vm, error.into())
+-                        })?;
+-                    tcl_core_types::c_string_extent(&script_bytes) == b"-"
+-                };
++                let is_dash = original_handler_fallthrough(vm, &script, jim)?;
+                 handlers.push(Handler {
+                     code,
+                     is_trap,
+@@ -773,12 +818,11 @@
+         None
+     };
+     let reached = (|| {
+-        if jim {
+-            if let Err(error) = vm.reset_original_jim_global_error_code()
+-                && vm.refused_completion().is_some()
+-            {
+-                return error;
+-            }
++        if jim
++            && let Err(error) = vm.reset_original_jim_global_error_code()
++            && vm.refused_completion().is_some()
++        {
++            return error;
+         }
+         let jim_prefix = if let Some(original) = &original {
+             let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
+@@ -826,16 +870,16 @@
+             body_error_code: None,
+             compiled,
+         });
+-        if let Some(original) = &original {
+-            if let Err(error) = original.current_for_value(vm, body) {
+-                return crate::command::completion_from_cmd_error(vm, error);
+-            }
++        if let Some(original) = &original
++            && let Err(error) = original.current_for_value(vm, body)
++        {
++            return crate::command::completion_from_cmd_error(vm, error);
+         }
+         let prepared = vm.prepare_script_commands_value(body);
+-        if let Some(original) = &original {
+-            if let Err(error) = original.check(vm) {
+-                return crate::command::completion_from_cmd_error(vm, error);
+-            }
++        if let Some(original) = &original
++            && let Err(error) = original.check(vm)
++        {
++            return crate::command::completion_from_cmd_error(vm, error);
+         }
+         match prepared {
+             Ok(prepared) if prepared.prefix.is_some() => {
+@@ -878,10 +922,10 @@
+             }
+         }
+     })();
+-    if let Some(original) = original {
+-        if let Err(error) = original.finish(vm) {
+-            return crate::command::completion_from_cmd_error(vm, error);
+-        }
++    if let Some(original) = original
++        && let Err(error) = original.finish(vm)
++    {
++        return crate::command::completion_from_cmd_error(vm, error);
+     }
+     reached
+ }
+--- a/rust/tcl-vm/src/exec.rs
++++ b/rust/tcl-vm/src/exec.rs
+@@ -1344,6 +1344,39 @@
+     f.stack.pop().unwrap_or_else(Value::empty)
+ }
+ 
++macro_rules! variable_try_op {
++    ($e:expr) => {
++        match $e {
++            Ok(v) => v,
++            Err(c) => return Tick::Return(c),
++        }
++    };
++}
++
++// Portable operation failures retain byte diagnostics and host refusal tags.
++macro_rules! variable_try_core {
++    ($vm:expr, $operation:expr) => {
++        match $operation {
++            Ok(value) => value,
++            Err(error) => {
++                return Tick::Return(crate::command::completion_from_cmd_error($vm, error.into()));
++            }
++        }
++    };
++}
++
++macro_rules! variable_operand_bytes {
++    ($vm:expr, $value:expr) => {{
++        let operand = $value;
++        match $vm.native_name_operand_bytes_checked(&operand) {
++            Ok(bytes) => bytes,
++            Err(error) => {
++                return Tick::Return(crate::command::completion_from_cmd_error($vm, error));
++            }
++        }
++    }};
++}
++
+ /// The dict decode/rebuild helpers behind the `dict*` opcodes.
+ ///
+ /// Every one of them starts from [`Vm::dict_pairs`], the VM's binding of the
+@@ -2589,12 +2622,10 @@
+                             .oo_call_exit
+                             .as_ref()
+                             .or(activation.procedure_call_exit.as_ref())
++                            && let Err(error) =
++                                exit.in_original(vm, |vm, original| exit.retire(vm, original))
+                         {
+-                            if let Err(error) =
+-                                exit.in_original(vm, |vm, original| exit.retire(vm, original))
+-                            {
+-                                crate::interp::oo_cleanup::retain_error(vm, &error);
+-                            }
++                            crate::interp::oo_cleanup::retain_error(vm, &error);
+                         }
+                     } else if let Some(previous) = activation.replay_namespace_restore.take() {
+                         vm.leave_replay_namespace(previous);
+@@ -3392,12 +3423,12 @@
+         )>,
+     ) -> Option<TailcallReq> {
+         self.settle_activation_parse_tail(act, c);
+-        if let Some((exit, original)) = oo_exit {
+-            if let Err(error) = exit.check_running(self, original) {
+-                crate::interp::oo_cleanup::retain_error(self, &error);
+-                exit.retire(self, original);
+-                return None;
+-            }
++        if let Some((exit, original)) = oo_exit
++            && let Err(error) = exit.check_running(self, original)
++        {
++            crate::interp::oo_cleanup::retain_error(self, &error);
++            exit.retire(self, original);
++            return None;
+         }
+         // An error unwinding through an inlined command body (`eval {…}`)
+         // adds the body frames the uncompiled command would, before this
+@@ -3406,12 +3437,12 @@
+         if c.code == Code::Error {
+             self.apply_activation_error_context(act, acts);
+         }
+-        if let Some((exit, original)) = oo_exit {
+-            if let Err(error) = exit.check_running(self, original) {
+-                crate::interp::oo_cleanup::retain_error(self, &error);
+-                exit.retire(self, original);
+-                return None;
+-            }
++        if let Some((exit, original)) = oo_exit
++            && let Err(error) = exit.check_running(self, original)
++        {
++            crate::interp::oo_cleanup::retain_error(self, &error);
++            exit.retire(self, original);
++            return None;
+         }
+         let tailcall = act.is_proc.then(|| self.take_frame_tailcall()).flatten();
+         if act.is_proc {
+@@ -3948,21 +3979,21 @@
+         if !self.update_return_info(c) {
+             return;
+         }
+-        if let Some((_, original)) = oo_exit {
+-            if let Err(error) = original.check(self) {
+-                crate::interp::oo_cleanup::retain_error(self, &error);
+-                return;
+-            }
++        if let Some((_, original)) = oo_exit
++            && let Err(error) = original.check(self)
++        {
++            crate::interp::oo_cleanup::retain_error(self, &error);
++            return;
+         }
+         if c.code == Code::Error && self.uses_jim_error_stack() {
+             self.refresh_jim_evaluation_frames(acts);
+             self.capture_jim_error_stack();
+         }
+-        if let Some((_, original)) = oo_exit {
+-            if let Err(error) = original.check(self) {
+-                crate::interp::oo_cleanup::retain_error(self, &error);
+-                return;
+-            }
++        if let Some((_, original)) = oo_exit
++            && let Err(error) = original.check(self)
++        {
++            crate::interp::oo_cleanup::retain_error(self, &error);
++            return;
+         }
+         if c.code == Code::Error
+             && let Some(words) = acts
+@@ -4137,12 +4168,12 @@
+             &crate::interp::oo_cleanup::OriginalOoCleanup,
+         )>,
+     ) -> bool {
+-        if let Some((exit, original)) = selected {
+-            if let Err(error) = exit.check_running(self, original) {
+-                crate::interp::oo_cleanup::retain_error(self, &error);
+-                exit.retire(self, original);
+-                return false;
+-            }
++        if let Some((exit, original)) = selected
++            && let Err(error) = exit.check_running(self, original)
++        {
++            crate::interp::oo_cleanup::retain_error(self, &error);
++            exit.retire(self, original);
++            return false;
+         }
+         true
+     }
+@@ -7799,101 +7830,123 @@
+         asm: &Rc<FunctionAsm>,
+         instr: &Instruction,
+     ) -> Tick {
+-        let lvt = asm.lvt.entries();
+-
+-        // Unwrap a fallible step, unwinding the instruction on an error. The
+-        // value form lets a store arm push what the variable reads back.
+-        macro_rules! try_op {
+-            ($e:expr) => {
+-                match $e {
+-                    Ok(v) => v,
+-                    Err(c) => return Tick::Return(c),
+-                }
+-            };
+-        }
+-
+-        // Portable operation failures retain byte diagnostics and host refusal tags.
+-        macro_rules! try_core {
+-            ($operation:expr) => {
+-                match $operation {
+-                    Ok(value) => value,
+-                    Err(error) => {
+-                        return Tick::Return(crate::command::completion_from_cmd_error(
+-                            self,
+-                            error.into(),
+-                        ));
+-                    }
+-                }
+-            };
+-        }
+-
+-        macro_rules! native_operand_bytes {
+-            ($value:expr) => {{
+-                let operand = $value;
+-                match self.native_name_operand_bytes_checked(&operand) {
+-                    Ok(bytes) => bytes,
+-                    Err(error) => {
+-                        return Tick::Return(crate::command::completion_from_cmd_error(
+-                            self, error,
+-                        ));
+-                    }
+-                }
+-            }};
+-        }
+-
+-        let lvt_name = |slot: i32| -> tcl_core_types::NameBytes {
+-            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
+-                .cloned()
+-                .unwrap_or_default()
+-        };
+-
++        match instr.op {
++            Op::EXIST_SCALAR | Op::EXIST_STK | Op::EXIST_ARRAY | Op::EXIST_ARRAY_STK => {
++                self.tick_variable_existence(f, instr)
++            }
++            Op::ARRAY_EXISTS_IMM
++            | Op::ARRAY_EXISTS_STK
++            | Op::ARRAY_MAKE_IMM
++            | Op::ARRAY_MAKE_STK => self.tick_variable_array_shape(f, instr),
++            Op::UNSET_STK | Op::UNSET_SCALAR | Op::UNSET_ARRAY | Op::UNSET_ARRAY_STK => {
++                self.tick_variable_unset(f, instr)
++            }
++            Op::APPEND_SCALAR1
++            | Op::APPEND_SCALAR4
++            | Op::APPEND_ARRAY1
++            | Op::APPEND_ARRAY4
++            | Op::LAPPEND_SCALAR1
++            | Op::LAPPEND_SCALAR4
++            | Op::LAPPEND_ARRAY1
++            | Op::LAPPEND_ARRAY4
++            | Op::APPEND_STK
++            | Op::LAPPEND_STK
++            | Op::APPEND_ARRAY_STK
++            | Op::LAPPEND_ARRAY_STK => self.tick_variable_append_value(f, instr),
++            Op::LAPPEND_LIST
++            | Op::LAPPEND_LIST_STK
++            | Op::LAPPEND_LIST_ARRAY
++            | Op::LAPPEND_LIST_ARRAY_STK => self.tick_variable_append_list(f, instr),
++            Op::CONST_IMM | Op::CONST_STK => self.tick_variable_constant(f, instr),
++            Op::NSUPVAR | Op::UPVAR | Op::VARIABLE => self.tick_variable_link(f, instr),
++            Op::FOREACH_START => self.tick_variable_loop_start(f, instr),
++            Op::FOREACH_STEP | Op::LMAP_COLLECT => self.tick_variable_loop_step(f, instr),
++            Op::FOREACH_END => self.tick_variable_loop_end(f, instr),
++            Op::DICT_FIRST | Op::DICT_NEXT => self.tick_variable_dictionary_iteration(f, instr),
++            Op::DICT_UPDATE_START | Op::DICT_UPDATE_END => {
++                self.tick_variable_dictionary_update(f, instr)
++            }
++            Op::DICT_EXPAND | Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK | Op::VERIFY_DICT => {
++                self.tick_variable_dictionary_scope(f, asm, instr)
++            }
++            Op::DICT_PUT => self.tick_variable_dictionary_put(f, instr),
++            Op::DICT_SET
++            | Op::DICT_UNSET
++            | Op::DICT_INCR_IMM
++            | Op::DICT_APPEND
++            | Op::DICT_LAPPEND => self.tick_variable_dictionary_write(f, asm, instr),
++            _ => Tick::Return(
++                self.refuse_host_command("variable instruction dispatch is inconsistent".into()),
++            ),
++        }
++    }
++
++    #[inline(never)]
++    fn tick_variable_existence(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
+         match instr.op {
+             Op::EXIST_SCALAR => {
+-                let found = try_op!(self.exists_compiled_original_variable(
++                let found = variable_try_op!(self.exists_compiled_original_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None
+                 ));
+-                f.stack.push(try_op!(self.compiled_existence_result(found)));
++                f.stack
++                    .push(variable_try_op!(self.compiled_existence_result(found)));
+             }
+             Op::EXIST_STK => {
+                 let original = pop(f);
+                 let found = if self.native_c_variable_name_protocol().is_some() {
+-                    try_op!(self.exists_original_c_parts(&original, None))
++                    variable_try_op!(self.exists_original_c_parts(&original, None))
+                 } else {
+-                    let name = native_operand_bytes!(original);
+-                    try_op!(self.exists_var_traced_bytes(&name).map_err(|first| {
++                    let name = variable_operand_bytes!(self, original);
++                    variable_try_op!(self.exists_var_traced_bytes(&name).map_err(|first| {
+                         self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                     }))
+                 };
+-                f.stack.push(try_op!(self.compiled_existence_result(found)));
++                f.stack
++                    .push(variable_try_op!(self.compiled_existence_result(found)));
+             }
+             Op::EXIST_ARRAY => {
+                 let index = pop(f);
+-                let found = try_op!(self.exists_compiled_original_variable(
++                let found = variable_try_op!(self.exists_compiled_original_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&index)
+                 ));
+-                f.stack.push(try_op!(self.compiled_existence_result(found)));
++                f.stack
++                    .push(variable_try_op!(self.compiled_existence_result(found)));
+             }
+             Op::EXIST_ARRAY_STK => {
+                 let index = pop(f);
+                 let original = pop(f);
+                 let found = if self.native_c_variable_name_protocol().is_some() {
+-                    try_op!(self.exists_original_c_parts(&original, Some(&index)))
++                    variable_try_op!(self.exists_original_c_parts(&original, Some(&index)))
+                 } else {
+-                    let index = native_operand_bytes!(index);
+-                    let name = native_operand_bytes!(original);
+-                    try_op!(
+-                        self.exists_elem_traced_bytes(&name, &index)
+-                            .map_err(|first| self.refuse_tcl_host_failure(
+-                                crate::error::TclHostFailure::Execution(first)
+-                            ))
+-                    )
++                    let index = variable_operand_bytes!(self, index);
++                    let name = variable_operand_bytes!(self, original);
++                    variable_try_op!(self.exists_elem_traced_bytes(&name, &index).map_err(
++                        |first| self.refuse_tcl_host_failure(
++                            crate::error::TclHostFailure::Execution(first)
++                        )
++                    ))
+                 };
+-                f.stack.push(try_op!(self.compiled_existence_result(found)));
+-            }
++                f.stack
++                    .push(variable_try_op!(self.compiled_existence_result(found)));
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_array_shape(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::ARRAY_EXISTS_IMM => {
+-                let found = try_op!(self.array_exists_compiled(
++                let found = variable_try_op!(self.array_exists_compiled(
+                     usize::try_from(imm0(instr)).expect("local slot index")
+                 ));
+                 let version = self.actual_native_invocation_dialect().tcl_version;
+@@ -7902,48 +7955,64 @@
+                         self.refuse_host_command("native array existence issuer".into()),
+                     );
+                 };
+-                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+-                    |error| crate::command::completion_from_cmd_error(self, error.into())
+-                ));
++                let result =
++                    variable_try_op!(self.native_c_execution_boolean(found, version).map_err(
++                        |error| crate::command::completion_from_cmd_error(self, error.into())
++                    ));
+                 f.stack.push(result);
+             }
+             Op::ARRAY_EXISTS_STK => {
+                 let original = pop(f);
+-                let found = try_op!(self.array_exists_original_opcode(&original));
++                let found = variable_try_op!(self.array_exists_original_opcode(&original));
+                 let Some(version) = self.actual_native_invocation_dialect().tcl_version else {
+                     return Tick::Return(
+                         self.refuse_host_command("native Array constant issuer".into()),
+                     );
+                 };
+-                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+-                    |error| crate::command::completion_from_cmd_error(self, error.into())
+-                ));
++                let result =
++                    variable_try_op!(self.native_c_execution_boolean(found, version).map_err(
++                        |error| crate::command::completion_from_cmd_error(self, error.into())
++                    ));
+                 f.stack.push(result);
+             }
+             // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
+             // variable an empty array when undefined, no-op when it already is
+             // one, and error on a scalar or an array element.
+             Op::ARRAY_MAKE_IMM => {
+-                try_op!(self.ensure_array_compiled(
++                variable_try_op!(self.ensure_array_compiled(
+                     usize::try_from(imm0(instr)).expect("local slot index")
+                 ));
+             }
+             Op::ARRAY_MAKE_STK => {
+                 let original = pop(f);
+-                try_op!(self.array_make_original_opcode(&original));
+-            }
++                variable_try_op!(self.array_make_original_opcode(&original));
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_unset(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::UNSET_STK => {
+                 // operand = flags; a non-zero flag means "complain" (error when
+                 // the variable is absent). The name (possibly `a(k)`) is on TOS.
+                 let complain = imm0(instr) != 0;
+                 let name = pop(f);
+-                try_op!(self.unset_original_named_variable(&name, complain));
++                variable_try_op!(self.unset_original_named_variable(&name, complain));
+             }
+             Op::UNSET_SCALAR => {
+                 // Operands [flags, slot]; flags bit 0 ⇒ complain when absent.
+                 f.dict_iters.remove(&imm_at(instr, 1));
+                 let complain = imm0(instr) != 0;
+-                try_op!(self.unset_compiled_variable(
++                variable_try_op!(self.unset_compiled_variable(
+                     usize::try_from(imm_at(instr, 1)).expect("local slot index"),
+                     None,
+                     complain
+@@ -7960,8 +8029,11 @@
+                 // `UNSET_STK` complained.
+                 let complain = imm0(instr) != 0;
+                 let key_original = pop(f);
+-                let key = native_operand_bytes!(key_original.native_lifetime_lease().into_value());
+-                try_op!(self.unset_compiled_variable(
++                let key = variable_operand_bytes!(
++                    self,
++                    key_original.native_lifetime_lease().into_value()
++                );
++                variable_try_op!(self.unset_compiled_variable(
+                     usize::try_from(imm_at(instr, 1)).expect("local slot index"),
+                     Some(&key),
+                     complain
+@@ -7976,20 +8048,38 @@
+                 let key = pop(f);
+                 let name = pop(f);
+                 if self.native_c_variable_name_protocol().is_some() {
+-                    try_op!(self.unset_original_c_variable_parts(&name, &key, complain));
++                    variable_try_op!(self.unset_original_c_variable_parts(&name, &key, complain));
+                 } else {
+-                    let key_bytes = native_operand_bytes!(key.native_lifetime_lease().into_value());
++                    let key_bytes =
++                        variable_operand_bytes!(self, key.native_lifetime_lease().into_value());
+                     let name_bytes =
+-                        native_operand_bytes!(name.native_lifetime_lease().into_value());
+-                    try_op!(self.unset_array_elem_checked_bytes(&name_bytes, &key_bytes, complain));
+-                }
+-            }
+-
++                        variable_operand_bytes!(self, name.native_lifetime_lease().into_value());
++                    variable_try_op!(self.unset_array_elem_checked_bytes(
++                        &name_bytes,
++                        &key_bytes,
++                        complain
++                    ));
++                }
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_append_value(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             // Single-value append opcodes do not fire a read trace; list
+             // expansion opcodes use the retained-cell read/update protocol.
+             Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
+                 let value = pop(f);
+-                f.stack.push(try_op!(self.append_compiled_variable(
++                f.stack.push(variable_try_op!(self.append_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     &[value]
+@@ -7997,8 +8087,8 @@
+             }
+             Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4 => {
+                 let value = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                f.stack.push(try_op!(self.append_compiled_variable(
++                let key = variable_operand_bytes!(self, pop(f));
++                f.stack.push(variable_try_op!(self.append_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&key),
+                     &[value]
+@@ -8006,7 +8096,7 @@
+             }
+             Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4 => {
+                 let value = pop(f);
+-                f.stack.push(try_op!(self.lappend_compiled_single(
++                f.stack.push(variable_try_op!(self.lappend_compiled_single(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     &value
+@@ -8014,8 +8104,8 @@
+             }
+             Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4 => {
+                 let value = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                f.stack.push(try_op!(self.lappend_compiled_single(
++                let key = variable_operand_bytes!(self, pop(f));
++                f.stack.push(variable_try_op!(self.lappend_compiled_single(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&key),
+                     &value
+@@ -8023,28 +8113,42 @@
+             }
+             Op::APPEND_STK | Op::LAPPEND_STK => {
+                 let value = pop(f);
+-                let name = native_operand_bytes!(pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
+                 let stored = if instr.op == Op::APPEND_STK {
+                     self.append_variable_bytes(&name, None, value)
+                 } else {
+                     self.lappend_instruction_single_bytes(&name, None, &value)
+                 };
+-                f.stack.push(try_op!(stored));
++                f.stack.push(variable_try_op!(stored));
+             }
+             Op::APPEND_ARRAY_STK | Op::LAPPEND_ARRAY_STK => {
+                 let value = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
+                 let stored = if instr.op == Op::APPEND_ARRAY_STK {
+                     self.append_variable_bytes(&name, Some(&key), value)
+                 } else {
+                     self.lappend_instruction_single_bytes(&name, Some(&key), &value)
+                 };
+-                f.stack.push(try_op!(stored));
+-            }
++                f.stack.push(variable_try_op!(stored));
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_append_list(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::LAPPEND_LIST => {
+                 let additions = pop(f);
+-                let updated = try_op!(self.lappend_instruction_compiled_list(
++                let updated = variable_try_op!(self.lappend_instruction_compiled_list(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     &additions
+@@ -8054,15 +8158,16 @@
+             }
+             Op::LAPPEND_LIST_STK => {
+                 let additions = pop(f);
+-                let name = native_operand_bytes!(pop(f));
+-                let updated = try_op!(self.lappend_instruction_list_bytes(&name, None, &additions));
++                let name = variable_operand_bytes!(self, pop(f));
++                let updated =
++                    variable_try_op!(self.lappend_instruction_list_bytes(&name, None, &additions));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+             Op::LAPPEND_LIST_ARRAY => {
+                 let additions = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let updated = try_op!(self.lappend_instruction_compiled_list(
++                let key = variable_operand_bytes!(self, pop(f));
++                let updated = variable_try_op!(self.lappend_instruction_compiled_list(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&key),
+                     &additions
+@@ -8072,27 +8177,56 @@
+             }
+             Op::LAPPEND_LIST_ARRAY_STK => {
+                 let additions = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
+-                let updated =
+-                    try_op!(self.lappend_instruction_list_bytes(&name, Some(&key), &additions));
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
++                let updated = variable_try_op!(self.lappend_instruction_list_bytes(
++                    &name,
++                    Some(&key),
++                    &additions
++                ));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+-
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_constant(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::CONST_IMM => {
+                 let value = pop(f);
+-                try_op!(self.declare_compiled_constant(
++                variable_try_op!(self.declare_compiled_constant(
+                     usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                     value
+                 ));
+             }
+             Op::CONST_STK => {
+                 let value = pop(f);
+-                let name = native_operand_bytes!(pop(f));
+-                try_op!(self.declare_constant_bytes(&name, value, false));
+-            }
+-
++                let name = variable_operand_bytes!(self, pop(f));
++                variable_try_op!(self.declare_constant_bytes(&name, value, false));
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_link(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             // -- global / upvar links. The namespace ("::") or level reference
+             // is left on the stack for the next link op to reuse; a trailing
+             // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
+@@ -8101,14 +8235,16 @@
+                 let Some(namespace_operand) = f.stack.last() else {
+                     return Tick::Return(err("nsupvar: stack underflow"));
+                 };
+-                let namespace = try_core!(self.namespace_object_lookup(namespace_operand));
++                let namespace =
++                    variable_try_core!(self, self.namespace_object_lookup(namespace_operand));
+                 let Some(namespace) = namespace else {
+-                    let namespace_bytes = native_operand_bytes!(
++                    let namespace_bytes = variable_operand_bytes!(
++                        self,
+                         namespace_operand.native_lifetime_lease().into_value()
+                     );
+                     return Tick::Return(self.namespace_lookup_error_bytes(&namespace_bytes));
+                 };
+-                try_op!(self.link_compiled_namespace_original(
++                variable_try_op!(self.link_compiled_namespace_original(
+                     usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                     namespace,
+                     &other,
+@@ -8124,12 +8260,12 @@
+                 else {
+                     return Tick::Return(err("upvar: stack underflow"));
+                 };
+-                let (_, target) = try_op!(crate::command::runtime_frame_selection(
++                let (_, target) = variable_try_op!(crate::command::runtime_frame_selection(
+                     self,
+                     tcl_registry::FrameEffectSpec::UPVAR,
+                     &[level_operand]
+                 ));
+-                try_op!(self.link_compiled_upvar(
++                variable_try_op!(self.link_compiled_upvar(
+                     usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                     target,
+                     &other,
+@@ -8140,14 +8276,27 @@
+             // lookup updates its selected name cache before binding the local slot.
+             Op::VARIABLE => {
+                 let original = pop(f);
+-                try_op!(self.link_compiled_namespace_original(
++                variable_try_op!(self.link_compiled_namespace_original(
+                     usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                     self.current_ns_id(),
+                     &original,
+                     true,
+                 ));
+             }
+-
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_loop_start(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             // -- foreach (C Tcl INST_FOREACH_*): aux var groups on the
+             //    instruction; foreach_start jumps to step; step binds the loop
+             //    vars and jumps back to the body, or falls through to end. --
+@@ -8212,6 +8361,20 @@
+                     f.pc = step;
+                 }
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_loop_step(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::FOREACH_STEP => {
+                 if f.foreach_stack
+                     .last()
+@@ -8247,10 +8410,12 @@
+                     for (name, v) in binds {
+                         match name {
+                             tcl_bytecode::CompiledVariableTarget::Slot(slot) => {
+-                                try_op!(self.store_compiled_variable_result(slot, None, v));
++                                variable_try_op!(
++                                    self.store_compiled_variable_result(slot, None, v)
++                                );
+                             }
+                             tcl_bytecode::CompiledVariableTarget::Name(name) => {
+-                                try_op!(self.set_var_bytes(name.as_bytes(), v));
++                                variable_try_op!(self.set_var_bytes(name.as_bytes(), v));
+                             }
+                         }
+                     }
+@@ -8282,6 +8447,20 @@
+                     }
+                 }
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_loop_end(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::FOREACH_END => {
+                 let st = f.foreach_stack.pop();
+                 // A collecting loop (`lmap`) yields `list(accum)`; a plain
+@@ -8298,7 +8477,20 @@
+                     }
+                 }
+             }
+-
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_dictionary_iteration(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             // Compiled `dict for` / `dict map` iteration primitives. `dictFirst
+             // <slot>` pops the dict (TOS), records an iterator in `<slot>`, and
+             // pushes `value, key, done` (done on top). `dictNext <slot>`
+@@ -8366,27 +8558,66 @@
+                 f.stack.push(k);
+                 f.stack.push(Value::bool(done));
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_dictionary_update(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             Op::DICT_UPDATE_START => {
+                 let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
+                 let vars = instr.dict_vars.as_deref().unwrap_or_default();
+                 let Some(keys) = f.stack.last() else {
+                     return Tick::Return(err("dictUpdateStart: stack underflow"));
+                 };
+-                try_op!(self.start_compiled_dictionary_update(slot, keys, vars));
++                variable_try_op!(self.start_compiled_dictionary_update(slot, keys, vars));
+             }
+             Op::DICT_UPDATE_END => {
+                 let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
+                 let keys = pop(f);
+-                try_op!(self.finish_compiled_dictionary_update(
++                variable_try_op!(self.finish_compiled_dictionary_update(
+                     slot,
+                     &keys,
+                     instr.dict_vars.as_deref().unwrap_or_default()
+                 ));
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_dictionary_scope(
++        &mut self,
++        f: &mut Frame,
++        asm: &Rc<FunctionAsm>,
++        instr: &Instruction,
++    ) -> Tick {
++        let lvt = asm.lvt.entries();
++        let lvt_name = |slot: i32| -> tcl_core_types::NameBytes {
++            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
++                .cloned()
++                .unwrap_or_default()
++        };
++        match instr.op {
+             Op::DICT_EXPAND => {
+                 let path = pop(f);
+                 let dictionary = pop(f);
+-                let keys = try_op!(crate::cmd_dict::expand_dictionary_scope(
++                let keys = variable_try_op!(crate::cmd_dict::expand_dictionary_scope(
+                     self,
+                     &dictionary,
+                     &path
+@@ -8397,13 +8628,13 @@
+                 let state = pop(f);
+                 let path = pop(f);
+                 let (name, publication) = if instr.op == Op::DICT_RECOMBINE_STK {
+-                    (tcl_core_types::NameBytes::from(native_operand_bytes!(pop(f)).as_ref()),
++                    (tcl_core_types::NameBytes::from(variable_operand_bytes!(self, pop(f)).as_ref()),
+                      crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell)
+                 } else {
+                     (lvt_name(imm0(instr)), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(
+                         usize::try_from(imm0(instr)).unwrap_or(usize::MAX)))
+                 };
+-                try_op!(crate::cmd_dict::recombine_dictionary_scope(
++                variable_try_op!(crate::cmd_dict::recombine_dictionary_scope(
+                     self,
+                     name.as_bytes(),
+                     publication,
+@@ -8423,7 +8654,20 @@
+                     }
+                 }
+             }
+-
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_dictionary_put(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
++        match instr.op {
+             // Dicts (LVT form, proc bodies)
+             // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
+             // stack holds the N keys then the value. Writes the variable and
+@@ -8445,11 +8689,37 @@
+                         "native dictionary-put recipe is unavailable".into(),
+                     ));
+                 }
+-                let updated = try_core!(crate::cmd_dict::put_original_member(
+-                    self, &original, &key, value
+-                ));
++                let updated = variable_try_core!(
++                    self,
++                    crate::cmd_dict::put_original_member(self, &original, &key, value)
++                );
+                 f.stack.push(updated);
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++        Tick::Continue
++    }
++
++    #[inline(never)]
++    fn tick_variable_dictionary_write(
++        &mut self,
++        f: &mut Frame,
++        asm: &Rc<FunctionAsm>,
++        instr: &Instruction,
++    ) -> Tick {
++        let lvt = asm.lvt.entries();
++        let lvt_name = |slot: i32| -> tcl_core_types::NameBytes {
++            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
++                .cloned()
++                .unwrap_or_default()
++        };
++        match instr.op {
+             Op::DICT_SET => {
+                 let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                 let name = lvt_name(imm_at(instr, 1));
+@@ -8458,7 +8728,7 @@
+                     return Tick::Return(err("dictSet: stack underflow"));
+                 }
+                 let keys = f.stack.split_off(f.stack.len() - nkeys);
+-                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
++                let updated = variable_try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
+                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                     &keys, Some(value)));
+                 f.last_options = updated.options;
+@@ -8473,7 +8743,7 @@
+                     return Tick::Return(err("dictUnset: stack underflow"));
+                 }
+                 let keys = f.stack.split_off(f.stack.len() - nkeys);
+-                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
++                let updated = variable_try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
+                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                     &keys, None));
+                 f.last_options = updated.options;
+@@ -8486,7 +8756,7 @@
+                 let name = lvt_name(imm_at(instr, 1));
+                 let key = pop(f);
+                 let increment = Value::int(amount);
+-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
++                let updated = variable_try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                     &key, |vm, old| crate::cmd_dict::increment_dictionary_member(vm, old, &increment, true)));
+                 f.last_options = updated.options;
+@@ -8498,7 +8768,7 @@
+                 let name = lvt_name(imm0(instr));
+                 let value = pop(f);
+                 let key = pop(f);
+-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
++                let updated = variable_try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
+                     &key, |vm, old| crate::cmd_dict::append_compiled_member_value(vm, old, &value)));
+                 f.last_options = updated.options;
+@@ -8510,7 +8780,7 @@
+                 let name = lvt_name(imm0(instr));
+                 let value = pop(f);
+                 let key = pop(f);
+-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
++                let updated = variable_try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                     name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
+                     &key, |vm, old| crate::cmd_dict::lappend_member_values(vm, old, &[value])));
+                 f.last_options = updated.options;
+@@ -8524,26 +8794,50 @@
+                 );
+             }
+         }
+-
+         Tick::Continue
+     }
+ 
+     /// The scalar and array-element loads, stores and increments of
+-    /// [`Self::tick_variable_instruction`]: the instructions recursion through
++    /// [`self.tick_variable_instruction`]: the instructions recursion through
+     /// a variable trace most often passes, in a frame of their own.
+     #[inline(never)]
+     fn tick_scalar_variable_instruction(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
+-        // Unwrap a fallible step, unwinding the instruction on an error. The
+-        // value form lets a store arm push what the variable reads back.
+-        macro_rules! try_op {
+-            ($e:expr) => {
+-                match $e {
+-                    Ok(v) => v,
+-                    Err(c) => return Tick::Return(c),
+-                }
+-            };
+-        }
+-
++        match instr.op {
++            Op::LOAD_STK
++            | Op::LOAD_SCALAR_STK
++            | Op::STORE_STK
++            | Op::STORE_SCALAR_STK
++            | Op::INCR_STK_IMM
++            | Op::INCR_SCALAR_STK_IMM
++            | Op::INCR_STK
++            | Op::INCR_SCALAR_STK => self.tick_stack_scalar_variable_instruction(f, instr),
++            Op::LOAD_SCALAR1
++            | Op::LOAD_SCALAR4
++            | Op::STORE_SCALAR1
++            | Op::STORE_SCALAR4
++            | Op::INCR_SCALAR1
++            | Op::INCR_SCALAR1_IMM => self.tick_local_scalar_variable_instruction(f, instr),
++            Op::INCR_ARRAY_STK_IMM
++            | Op::INCR_ARRAY_STK
++            | Op::LOAD_ARRAY_STK
++            | Op::STORE_ARRAY_STK => self.tick_stack_array_variable_instruction(f, instr),
++            Op::INCR_ARRAY1
++            | Op::INCR_ARRAY1_IMM
++            | Op::LOAD_ARRAY1
++            | Op::LOAD_ARRAY4
++            | Op::STORE_ARRAY1
++            | Op::STORE_ARRAY4 => self.tick_local_array_variable_instruction(f, instr),
++            _ => Tick::Return(
++                self.refuse_host_command("variable instruction dispatch is inconsistent".into()),
++            ),
++        }
++    }
++
++    fn tick_stack_scalar_variable_instruction(
++        &mut self,
++        f: &mut Frame,
++        instr: &Instruction,
++    ) -> Tick {
+         // Like `try_op!`, but logs this instruction's command-source frame to
+         // `errorInfo` before unwinding — for compiled command-boundary ops
+         // (`set`/`incr` → STORE_*/INCR_*) so a failing compiled command
+@@ -8576,61 +8870,65 @@
+             };
+         }
+ 
+-        macro_rules! native_operand_bytes {
+-            ($value:expr) => {{
+-                let operand = $value;
+-                match self.native_name_operand_bytes_checked(&operand) {
+-                    Ok(bytes) => bytes,
+-                    Err(error) => {
+-                        return Tick::Return(crate::command::completion_from_cmd_error(
+-                            self, error,
+-                        ));
+-                    }
+-                }
+-            }};
+-        }
+-
+         match instr.op {
+             // Variables (stack form, by name)
+             // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
+             // general `*Stk` form (the compiler emits them when the name is known
+             // to carry no `(index)` part), so they are the same arm here.
+             Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
+-                let name = native_operand_bytes!(pop(f));
+-                f.stack
+-                    .push(try_op!(self.read_variable_result_bytes(&name, None)));
++                let name = variable_operand_bytes!(self, pop(f));
++                f.stack.push(variable_try_op!(
++                    self.read_variable_result_bytes(&name, None)
++                ));
+             }
+             Op::STORE_STK | Op::STORE_SCALAR_STK => {
+                 let value = pop(f);
+-                let name = native_operand_bytes!(pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
+                 let stored = try_cmd!(self.store_var_result_bytes(&name, value));
+                 f.stack.push(stored);
+             }
+             Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
+-                let name = native_operand_bytes!(pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
+                 let amount = Value::int(i64::from(imm0(instr)));
+-                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
++                let updated = variable_try_op!(self.increment_captured_bytes(&name, None, &amount));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+             Op::INCR_STK | Op::INCR_SCALAR_STK => {
+                 let amount = pop(f);
+-                let name = native_operand_bytes!(pop(f));
+-                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
++                let name = variable_operand_bytes!(self, pop(f));
++                let updated = variable_try_op!(self.increment_captured_bytes(&name, None, &amount));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+-
+-            // Variables (LVT form, proc bodies)
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++
++        Tick::Continue
++    }
++
++    fn tick_local_scalar_variable_instruction(
++        &mut self,
++        f: &mut Frame,
++        instr: &Instruction,
++    ) -> Tick {
++        match instr.op {
+             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
+-                f.stack.push(try_op!(self.read_compiled_variable_result(
+-                    usize::try_from(imm0(instr)).expect("local slot index"),
+-                    None
+-                )));
++                f.stack
++                    .push(variable_try_op!(self.read_compiled_variable_result(
++                        usize::try_from(imm0(instr)).expect("local slot index"),
++                        None
++                    )));
+             }
+             Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
+                 let value = pop(f);
+-                let stored = try_op!(self.store_compiled_variable_result(
++                let stored = variable_try_op!(self.store_compiled_variable_result(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     value
+@@ -8639,7 +8937,7 @@
+             }
+             Op::INCR_SCALAR1 => {
+                 let amount = pop(f);
+-                let updated = try_op!(self.increment_compiled_variable(
++                let updated = variable_try_op!(self.increment_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     &amount
+@@ -8649,7 +8947,7 @@
+             }
+             Op::INCR_SCALAR1_IMM => {
+                 let amount = Value::int(i64::from(imm_at(instr, 1)));
+-                let updated = try_op!(self.increment_compiled_variable(
++                let updated = variable_try_op!(self.increment_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     None,
+                     &amount
+@@ -8657,26 +8955,79 @@
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++
++        Tick::Continue
++    }
++
++    fn tick_stack_array_variable_instruction(
++        &mut self,
++        f: &mut Frame,
++        instr: &Instruction,
++    ) -> Tick {
++        match instr.op {
+             Op::INCR_ARRAY_STK_IMM => {
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
+                 let amount = Value::int(i64::from(imm0(instr)));
+-                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
++                let updated =
++                    variable_try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+             Op::INCR_ARRAY_STK => {
+                 let amount = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
+-                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
++                let updated =
++                    variable_try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
++            Op::LOAD_ARRAY_STK => {
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
++                f.stack.push(variable_try_op!(
++                    self.read_variable_result_bytes(&name, Some(&key))
++                ));
++            }
++            Op::STORE_ARRAY_STK => {
++                let value = pop(f);
++                let key = variable_operand_bytes!(self, pop(f));
++                let name = variable_operand_bytes!(self, pop(f));
++                f.stack.push(variable_try_op!(
++                    self.store_elem_result_bytes(&name, &key, value)
++                ));
++            }
++            _ => {
++                return Tick::Return(
++                    self.refuse_host_command(
++                        "variable instruction dispatch is inconsistent".into(),
++                    ),
++                );
++            }
++        }
++
++        Tick::Continue
++    }
++
++    fn tick_local_array_variable_instruction(
++        &mut self,
++        f: &mut Frame,
++        instr: &Instruction,
++    ) -> Tick {
++        match instr.op {
+             Op::INCR_ARRAY1 => {
+                 let amount = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let updated = try_op!(self.increment_compiled_variable(
++                let key = variable_operand_bytes!(self, pop(f));
++                let updated = variable_try_op!(self.increment_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&key),
+                     &amount
+@@ -8685,9 +9036,9 @@
+                 f.stack.push(updated.value);
+             }
+             Op::INCR_ARRAY1_IMM => {
+-                let key = native_operand_bytes!(pop(f));
++                let key = variable_operand_bytes!(self, pop(f));
+                 let amount = Value::int(i64::from(imm_at(instr, 1)));
+-                let updated = try_op!(self.increment_compiled_variable(
++                let updated = variable_try_op!(self.increment_compiled_variable(
+                     usize::try_from(imm0(instr)).expect("local slot index"),
+                     Some(&key),
+                     &amount
+@@ -8695,36 +9046,23 @@
+                 f.last_options = updated.options;
+                 f.stack.push(updated.value);
+             }
+-
+-            // Arrays.
+-            Op::LOAD_ARRAY_STK => {
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
++            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
++                let key = variable_operand_bytes!(self, pop(f));
+                 f.stack
+-                    .push(try_op!(self.read_variable_result_bytes(&name, Some(&key))));
+-            }
+-            Op::STORE_ARRAY_STK => {
+-                let value = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                let name = native_operand_bytes!(pop(f));
+-                f.stack
+-                    .push(try_op!(self.store_elem_result_bytes(&name, &key, value)));
+-            }
+-            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
+-                let key = native_operand_bytes!(pop(f));
+-                f.stack.push(try_op!(self.read_compiled_variable_result(
+-                    usize::try_from(imm0(instr)).expect("local slot index"),
+-                    Some(&key)
+-                )));
++                    .push(variable_try_op!(self.read_compiled_variable_result(
++                        usize::try_from(imm0(instr)).expect("local slot index"),
++                        Some(&key)
++                    )));
+             }
+             Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
+                 let value = pop(f);
+-                let key = native_operand_bytes!(pop(f));
+-                f.stack.push(try_op!(self.store_compiled_variable_result(
+-                    usize::try_from(imm0(instr)).expect("local slot index"),
+-                    Some(&key),
+-                    value
+-                )));
++                let key = variable_operand_bytes!(self, pop(f));
++                f.stack
++                    .push(variable_try_op!(self.store_compiled_variable_result(
++                        usize::try_from(imm0(instr)).expect("local slot index"),
++                        Some(&key),
++                        value
++                    )));
+             }
+             _ => {
+                 return Tick::Return(
+@@ -11248,9 +11586,7 @@
+         let proc = &activation.proc;
+         let invoked =
+             Value::from_native_string_bytes(proc.actual_command_slot().simple.as_bytes().to_vec());
+-        if let Err(c) = self.enter_proc(proc, &activation.body, &invoked, argv) {
+-            return Err(c);
+-        }
++        self.enter_proc(proc, &activation.body, &invoked, argv)?;
+         if let Err(error) = active.capture_call_and_namespace(self) {
+             crate::interp::oo_cleanup::retain_error(self, &error);
+             active.retire_call(self, false);
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -1122,8 +1122,6 @@
+     /// linked into the program.
+     loaded_libraries: Vec<(String, String)>,
+ }
+-
+-/// A compiled function and the manifest of the module it came from.
+ 
+ /// The guard machinery's record of command tokens, by token generation.
+ #[derive(Default)]
+@@ -4569,23 +4567,22 @@
+             .map(|value| self.auto_path_list(value))
+             .transpose()?;
+         let mut environment = Vec::new();
+-        if existing.is_none() {
+-            if let Some(value) = self
++        if existing.is_none()
++            && let Some(value) = self
+                 .read_var_traced("::env(TCLLIBPATH)")
+                 .unwrap_or_default()
+-            {
+-                environment = self.auto_path_list(&value)?;
+-                let home = self.host_rc().env().get("HOME");
+-                scope
+-                    .check(self)
+-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-                environment = tcl_cmd_core::platform::auto_path_environment(
+-                    environment,
+-                    home.as_deref().map(str::as_bytes),
+-                    tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
+-                )
++        {
++            environment = self.auto_path_list(&value)?;
++            let home = self.host_rc().env().get("HOME");
++            scope
++                .check(self)
+                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-            }
++            environment = tcl_cmd_core::platform::auto_path_environment(
++                environment,
++                home.as_deref().map(str::as_bytes),
++                tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
++            )
++            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+         }
+         let library = self.read_var_traced("::tcl_library").unwrap_or_default();
+         let library = library
+@@ -7254,9 +7251,8 @@
+             return crate::command::completion_from_cmd_error(self, error);
+         }
+ 
+-        let producer = match self.name_policy_protocol() {
+-            Some(policy) => policy,
+-            None => return self.refuse_host_command("parent alias publication issuer".into()),
++        let Some(producer) = self.name_policy_protocol() else {
++            return self.refuse_host_command("parent alias publication issuer".into());
+         };
+         for realm in [src, target] {
+             let Some(receiver) = self
+@@ -7977,12 +7973,11 @@
+             .native_bootstrap_protocol()
+             .map(tcl_registry::special_vars::NativeBootstrapProtocol::child_initialisation)
+             .filter(|initialisation| initialisation.initialises_jim_static_extensions())
++            && let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation)
+         {
+-            if let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation) {
+-                let _ = crate::command::completion_from_cmd_error(self, error);
+-                self.retire_interp(id);
+-                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+-            }
++            let _ = crate::command::completion_from_cmd_error(self, error);
++            self.retire_interp(id);
++            return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+         }
+ 
+         // The interp *path* name keys `children` as written (interp names are
+@@ -24316,10 +24311,11 @@
+         table_key: Option<jim_table_keys::OriginalJimCommandKey>,
+         helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+     ) -> (crate::command::NativeProcedureCommand, String) {
+-        if self.uses_native_jim_lookup() && proc.native_jim_namespace.is_none() {
+-            if let Some(token) = proc.execution_namespace.context().resolved_token() {
+-                proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(token));
+-            }
++        if self.uses_native_jim_lookup()
++            && proc.native_jim_namespace.is_none()
++            && let Some(token) = proc.execution_namespace.context().resolved_token()
++        {
++            proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(token));
+         }
+         let slot = CommandSlot {
+             namespace: proc.command_ns_id,
+@@ -24763,7 +24759,7 @@
+             let reached = (|| {
+                 let context = self.native_jim_object_context()?;
+                 source.bind_native_jim_context(&context)?;
+-                Ok::<_, tcl_syntax::value::ValueError>(source.pin_native_jim_source_info(&context)?)
++                source.pin_native_jim_source_info(&context)
+             })();
+             self.original_expression_source_current(source, scope)?;
+             Some(reached?)
+@@ -24858,11 +24854,11 @@
+         let node = node?;
+         let policy = self.native_compiler_policy();
+         if scope.is_some() {
+-            source.cache_expression_checked(dialect, profile, &policy, &node, &mut || {
++            source.cache_expression_checked(dialect, &profile, &policy, &node, &mut || {
+                 self.original_expression_source_current(source, scope)
+             })?;
+         } else {
+-            source.cache_expression(dialect, profile, &policy, &node);
++            source.cache_expression(dialect, &profile, &policy, &node);
+         }
+         self.original_expression_source_current(source, scope)?;
+         Ok(node)
+@@ -25011,7 +25007,7 @@
+         {
+             original.reject_expression(
+                 self.native_invocation_dialect(),
+-                self.expression_source_profile().cache_key(),
++                &self.expression_source_profile().cache_key(),
+                 &self.native_compiler_policy(),
+             );
+         }
+@@ -26830,7 +26826,7 @@
+                 tcl_runtime_api::NativeCompilationAdmissionScope::Script,
+             ));
+         };
+-        let compiled = compiler.compile_script_with_entry(
++        let compilation_outcome = compiler.compile_script_with_entry(
+             ScriptCompileTarget {
+                 source: src,
+                 namespace: &namespace,
+@@ -26839,7 +26835,7 @@
+             self.source_profile(),
+             &entry,
+         );
+-        let module = compiled.map_err(|error| {
++        let module = compilation_outcome.map_err(|error| {
+             self.compile_service_error(
+                 error,
+                 src,
+--- a/rust/tcl-vm/src/interp/native_string_stage_tests.rs
++++ b/rust/tcl-vm/src/interp/native_string_stage_tests.rs
+@@ -957,7 +957,7 @@
+             ops.current_for_value(held.value())
+         };
+         held.value()
+-            .cache_expression_checked(dialect, profile, &policy, &node, &mut check)
++            .cache_expression_checked(dialect, &profile, &policy, &node, &mut check)
+             .unwrap_err()
+     };
+     drop(ops);
+--- a/rust/tcl-vm/src/value.rs
++++ b/rust/tcl-vm/src/value.rs
+@@ -32,10 +32,12 @@
+ use std::rc::Rc;
+ 
+ mod native_boolean_truth;
++mod native_compound;
+ mod native_list_storage;
+ mod native_namespace_name;
+ mod native_retirement;
+ 
++use native_compound::{CompoundStringBacking, CompoundStringNode};
+ use tcl_cmd_core::namespace::TclStringHashOrder;
+ use tcl_core_types::RecursionLimit;
+ use tcl_syntax::list;
+@@ -2426,7 +2428,7 @@
+                 == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::BeforeParsing
+         {
+             let replacement =
+-                Self::expression_primary(input.dialect, *input.profile, input.policy, None);
++                Self::expression_primary(input.dialect, input.profile, input.policy, None);
+             if check.is_some() {
+                 self.replace_primary_using(replacement, check)?;
+             } else {
+@@ -2439,12 +2441,12 @@
+ 
+     fn expression_primary(
+         dialect: tcl_registry::InvocationDialect,
+-        profile: tcl_dialect::DialectProfileKey,
++        profile: &tcl_dialect::DialectProfileKey,
+         policy: &crate::compiled::NativeCompilerPolicy,
+         node: Option<tcl_syntax::expr::NativeExprNode>,
+     ) -> IntRep {
+         IntRep::Expression(Rc::new(ExpressionCache {
+-            profile,
++            profile: *profile,
+             dialect,
+             policy: *policy,
+             node,
+@@ -2455,7 +2457,7 @@
+     pub(crate) fn reject_expression(
+         &self,
+         dialect: tcl_registry::InvocationDialect,
+-        profile: tcl_dialect::DialectProfileKey,
++        profile: &tcl_dialect::DialectProfileKey,
+         policy: &crate::compiled::NativeCompilerPolicy,
+     ) {
+         self.replace_primary(Self::expression_primary(dialect, profile, policy, None));
+@@ -2554,12 +2556,12 @@
+     fn expression_cache_replacement(
+         &self,
+         dialect: tcl_registry::InvocationDialect,
+-        profile: tcl_dialect::DialectProfileKey,
++        profile: &tcl_dialect::DialectProfileKey,
+         policy: &crate::compiled::NativeCompilerPolicy,
+         node: &tcl_syntax::expr::NativeExprNode,
+     ) -> Option<IntRep> {
+         if self.native_jim_expression_objects().is_some()
+-            && self.cached_expression(dialect, &profile, policy).is_some()
++            && self.cached_expression(dialect, profile, policy).is_some()
+         {
+             return None;
+         }
+@@ -2574,7 +2576,7 @@
+     pub(crate) fn cache_expression(
+         &self,
+         dialect: tcl_registry::InvocationDialect,
+-        profile: tcl_dialect::DialectProfileKey,
++        profile: &tcl_dialect::DialectProfileKey,
+         policy: &crate::compiled::NativeCompilerPolicy,
+         node: &tcl_syntax::expr::NativeExprNode,
+     ) {
+@@ -2587,7 +2589,7 @@
+     pub(crate) fn cache_expression_checked<E: From<ValueError>>(
+         &self,
+         dialect: tcl_registry::InvocationDialect,
+-        profile: tcl_dialect::DialectProfileKey,
++        profile: &tcl_dialect::DialectProfileKey,
+         policy: &crate::compiled::NativeCompilerPolicy,
+         node: &tcl_syntax::expr::NativeExprNode,
+         check: &mut dyn FnMut() -> Result<(), E>,
+@@ -3117,44 +3119,10 @@
+         failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+         check: &mut Option<&mut NativeValueCheck<'_, E>>,
+     ) -> Result<Rc<[u8]>, E> {
+-        enum Backing {
+-            List(crate::NativeListItems),
+-            Dictionary(Rc<Vec<(Value, Value)>>),
+-        }
+-        impl Backing {
+-            fn len(&self) -> usize {
+-                match self {
+-                    Self::List(items) => items.len(),
+-                    Self::Dictionary(pairs) => pairs.len() * 2,
+-                }
+-            }
+-            fn member(&self, index: usize) -> &Value {
+-                match self {
+-                    Self::List(items) => &items[index],
+-                    Self::Dictionary(pairs) => {
+-                        let (key, value) = &pairs[index / 2];
+-                        if index.is_multiple_of(2) { key } else { value }
+-                    }
+-                }
+-            }
+-        }
+-        #[derive(Clone, Copy)]
+-        enum Node {
+-            Root,
+-            Member { backing: usize, index: usize },
+-        }
+-        impl Node {
+-            fn value<'a>(self, root: &'a Value, backings: &'a [Backing]) -> &'a Value {
+-                match self {
+-                    Self::Root => root,
+-                    Self::Member { backing, index } => backings[backing].member(index),
+-                }
+-            }
+-        }
+         // Typed backing leases retain original members without acquiring child
+         // object references. Indices remain valid even if an object shimmers.
+-        let mut backings = Vec::<Backing>::new();
+-        let mut pending = vec![(Node::Root, false)];
++        let mut backings = Vec::<CompoundStringBacking>::new();
++        let mut pending = vec![(CompoundStringNode::Root, false)];
+         while let Some((node, expanded)) = pending.pop() {
+             let current = node.value(self, &backings);
+             current.native_string_stage_check(check)?;
+@@ -3165,8 +3133,10 @@
+                 .seal_compound_string_protocol(protocol)
+                 .map_err(failure)?;
+             let backing = match &*current.0.intrep.borrow() {
+-                IntRep::List { items, .. } => Some(Backing::List(items.lifetime_view())),
+-                IntRep::Dict(dict) => Some(Backing::Dictionary(dict.pairs_backing())),
++                IntRep::List { items, .. } => {
++                    Some(CompoundStringBacking::List(items.lifetime_view()))
++                }
++                IntRep::Dict(dict) => Some(CompoundStringBacking::Dictionary(dict.pairs_backing())),
+                 _ => None,
+             };
+             let Some(backing) = backing else {
+@@ -3181,7 +3151,7 @@
+                 pending.push((node, true));
+                 pending.extend((0..count).rev().map(|index| {
+                     (
+-                        Node::Member {
++                        CompoundStringNode::Member {
+                             backing: slot,
+                             index,
+                         },
+@@ -4542,27 +4512,27 @@
+         let conversion = if let Some(conversion) = cached {
+             conversion
+         } else {
+-            if kind != NativeScalarGetterKind::Boolean {
+-                if let Some(environment) = environment {
+-                    if checked_jim {
+-                        let context = Self::native_stage_result(self.native_jim_context(), check)?;
+-                        context.numeric_stage_using(check, &jim_abi, |actual| {
+-                            tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+-                                protocol,
+-                                kind,
+-                                tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+-                                actual,
+-                            )
+-                        })?;
+-                    } else {
+-                        let reached = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
++            if kind != NativeScalarGetterKind::Boolean
++                && let Some(environment) = environment
++            {
++                if checked_jim {
++                    let context = Self::native_stage_result(self.native_jim_context(), check)?;
++                    context.numeric_stage_using(check, &jim_abi, |actual| {
++                        tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                             protocol,
+                             kind,
+                             tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+-                            environment,
+-                        );
+-                        Self::native_stage_result(reached, check)?;
+-                    }
++                            actual,
++                        )
++                    })?;
++                } else {
++                    let reached = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
++                        protocol,
++                        kind,
++                        tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
++                        environment,
++                    );
++                    Self::native_stage_result(reached, check)?;
+                 }
+             }
+             let reached = if let Some(provider) = string_provider {
+@@ -9763,16 +9733,37 @@
+     /// word (`yes`) is C's `boolean` (`booleanString` before 9.0); one a
+     /// comparison made is C's `int`.
+     pub(crate) fn representation(&self, release: tcl_dialect::TclVersion) -> Vec<u8> {
+-        use tcl_cmd_core::representation::{Internal, Representation, describe};
++        use tcl_cmd_core::representation::{Representation, describe};
+         let string = self.0.string.borrow().as_ref().map(RawString::bytes);
+         let address = |p: *const ()| p as usize;
+         let modern = release >= tcl_dialect::TclVersion::V9_0;
++        let (type_name, internal) =
++            Self::representation_payload(&self.0.intrep.borrow(), string.as_deref(), modern);
++        describe(
++            &Representation {
++                type_name,
++                ref_count: Rc::strong_count(&self.0),
++                address: address(Rc::as_ptr(&self.0).cast()),
++                internal,
++                string: string.as_deref(),
++            },
++            release,
++        )
++    }
++
++    fn representation_payload(
++        intrep: &IntRep,
++        string: Option<&[u8]>,
++        modern: bool,
++    ) -> (Option<&'static str>, tcl_cmd_core::representation::Internal) {
++        use tcl_cmd_core::representation::Internal;
++        let address = |p: *const ()| p as usize;
+         let boolean_word = |word: bool| match (word, modern) {
+             (false, _) => "int",
+             (true, true) => "boolean",
+             (true, false) => "booleanString",
+         };
+-        let (type_name, internal): (Option<&str>, Internal) = match &*self.0.intrep.borrow() {
++        match intrep {
+             IntRep::Str => (None, Internal::None),
+             IntRep::NativeString { .. } | IntRep::JimString(_) => {
+                 (Some("string"), Internal::Words(0, 0))
+@@ -9826,9 +9817,7 @@
+             #[allow(clippy::cast_precision_loss)]
+             IntRep::CoercedDouble(n) => (Some("coerced-double"), Internal::Double(*n as f64)),
+             IntRep::Bool(b) => {
+-                let word = string
+-                    .as_deref()
+-                    .is_some_and(|s| s != b"0".as_slice() && s != b"1".as_slice());
++                let word = string.is_some_and(|s| s != b"0".as_slice() && s != b"1".as_slice());
+                 (
+                     Some(boolean_word(word)),
+                     Internal::Words(usize::from(*b), 0),
+@@ -9861,17 +9850,7 @@
+                 Some("dict"),
+                 Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+             ),
+-        };
+-        describe(
+-            &Representation {
+-                type_name,
+-                ref_count: Rc::strong_count(&self.0),
+-                address: address(Rc::as_ptr(&self.0).cast()),
+-                internal,
+-                string: string.as_deref(),
+-            },
+-            release,
+-        )
++        }
+     }
+ }
+ 
+--- /dev/null
++++ b/rust/tcl-vm/src/value/native_compound.rs
+@@ -0,0 +1,44 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Allocation-only backing views for the original compound string updater.
++
++use super::Value;
++use std::rc::Rc;
++
++pub(super) enum CompoundStringBacking {
++    List(crate::NativeListItems),
++    Dictionary(Rc<Vec<(Value, Value)>>),
++}
++impl CompoundStringBacking {
++    pub(super) fn len(&self) -> usize {
++        match self {
++            Self::List(items) => items.len(),
++            Self::Dictionary(pairs) => pairs.len() * 2,
++        }
++    }
++    pub(super) fn member(&self, index: usize) -> &Value {
++        match self {
++            Self::List(items) => &items[index],
++            Self::Dictionary(pairs) => {
++                let (key, value) = &pairs[index / 2];
++                if index.is_multiple_of(2) { key } else { value }
++            }
++        }
++    }
++}
++#[derive(Clone, Copy)]
++pub(super) enum CompoundStringNode {
++    Root,
++    Member { backing: usize, index: usize },
++}
++impl CompoundStringNode {
++    pub(super) fn value<'a>(
++        self,
++        root: &'a Value,
++        backings: &'a [CompoundStringBacking],
++    ) -> &'a Value {
++        match self {
++            Self::Root => root,
++            Self::Member { backing, index } => backings[backing].member(index),
++        }
++    }
++}

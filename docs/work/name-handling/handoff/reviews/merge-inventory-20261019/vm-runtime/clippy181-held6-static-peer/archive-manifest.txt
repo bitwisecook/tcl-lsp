@@ -1,0 +1,3 @@
+fd42f45254eb8bd69f4b85dd327113fec504f6259d46d8c3a76adce4bd316b6a  manifest.json
+bcb8e5be9e470aabb4d03abfbc6b1e03ded5f96695f3f751a51688f6953e0bbd  names-static-peer.json
+a93d5cd54cbbabffee17c37e4d9b306f59ba0d501ff064c413ba1b0b62c53508  proposal.patch

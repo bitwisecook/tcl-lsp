@@ -2,11 +2,39 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T09:44:08.776126+00:00 (actualv10 FAIL5missingdocs/0W; minimal5docfix ready; finite16 templates unbound)
+Last updated: 2026-10-23T10:06:13.057968+00:00 (actual bfa5/source122 v11 typing errors compiler-owned; VM16 latebound preparation; held6 static CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Current actual source122 is bfa5e524/tree6e889d1a; the five registry fielddocs and
+four Jimcall API docs are integrated. V11 typing closed10:05:44 Cargo101 with seven errors/0warnings; compiler/root
+own corrections and newv13 composition including reviewedheld6. No actual typing/runtime acceptance inferred. New-public-API
+missing_docs scan found no additional gap. Root solely owns Cargo/GO/Git/source.
+
+VM16 actual-latebound materializer `/tmp/vm16-latebound-materializer-v1/`
+uses shared LSP v3 strict typing-proof helper42eab1bd (focused peer pending),
+refuses actual failedv10 in normal and -O before output, and retains original
+Jim7 + authoredcall3 + metadataidentity1 + directUPF2 + Spec3 =16 selectors,
+7 fresh CargoJSON targets. Template `/tmp/vm16-latebound-template-v1/` is not
+GO or runnable admission; requires exact successful actual identity/type final
+and launcher. Providers include Tcl5/Jim/fullTommath/C headers/GCC/SDK/ELF;
+aggregate20MiB,180s,2GiB actual mounts,88125 executor/full lifecycle unchanged.
+NoTom16 separate actual-latebound profile and sameOUTDIR controls still pending.
+
+Held6 structural patch a93d5cd5/manifestfd42f452 is now bounded staticCLEAR:
+Names peer bcb8e5be at `/tmp/vm-runtime-clippy181-held6-review-v1/` verifies
+six exact current before/finals, dispatcher/token/try/value inverses and atomic
+cache-profile callers. Applies after bfa5 with25local already integrated.
+Fifteen inline(never) helpers can add one native frame per active opcode;
+actual typing/current strictClippy/depth-trace-error/Tcl performance UNRUN.
+No181 reduction or release claim. Root has exact patch and existing stack3,
+trace/reentry/oracle selectors. Full historical181 patch remains separate.
+
+CI intentionalNoTom step-only flag hunk6a448a64 is composed by CCG explicit
+CI successorv3 bd349672; preserves original Make command/tests/features and
+all fullTommath jobs. Compiler peer pending; no canonical CI edit by VM.
 
 Actual source122 v10 typing closed09:42:26 Cargo101 with five missing_docs
 errors (BuiltinCoreProcedureDescriptor fields native_procedure.rs29–33), no

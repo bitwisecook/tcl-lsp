@@ -1,0 +1,107 @@
+{
+  "utc": "2026-10-23T10:24:12Z",
+  "scope": "root-authorized deletion of only eight historical source snapshot output copies",
+  "rechecked_current_inputs": {
+    "v12_runner_input_keys": 53,
+    "runtime_builder_v5_input_keys": 13,
+    "candidate_paths_in_either_manifest": 0
+  },
+  "archive_checks": {
+    "seven-package-source30-typecheck-v4": {
+      "manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/seven-package-source30-typecheck-v4/archive-manifest.json",
+      "manifest_sha256": "620854a73f4a366a86127baa3b4dde9482333846acc46a76831ac87517de593d",
+      "payloads_verified": 4
+    },
+    "compiler58-v3-closed-20261023T0654Z": {
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/compiler58-v3-closed-20261023T0654Z/compiler58-v3-closed.tar.gz",
+      "sha256": "23fc259d60cbc9ef4e4c64b59c794ac3a924636f626769cd5193ed42f5be2060",
+      "payloads_verified": 2
+    },
+    "report14-v6-source30-archive-20261023T0334Z": {
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/report14-v6-source30-archive-20261023T0334Z/report14-v6-source30-evidence.tar.gz",
+      "archive_sha256": "ad61f548c7a9258d186ee6e2dcab0eab1c2b9d774621d111e30703f4ccd800b4",
+      "manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/report14-v6-source30-archive-20261023T0334Z/file-manifest.json",
+      "manifest_sha256": "3778e94e4f6aa7bb044f23f053b176e7d2102490883268161afdb3a6e000ae6c",
+      "payloads_verified": 1
+    },
+    "diagnostic11-source30-archive-20261023T0340Z": {
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/diagnostic11-source30-archive-20261023T0340Z/diagnostic11-source30-evidence.tar.gz",
+      "archive_sha256": "bd69a24c04ca017de9ffebd7c93c4faa19b91ea96bce2dd2f4219432bb3927ff",
+      "manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/diagnostic11-source30-archive-20261023T0340Z/file-manifest.json",
+      "manifest_sha256": "43921840668b39af989ebd31f0e7f275e0889ec961a3045aede94a2989250557",
+      "payloads_verified": 1
+    }
+  },
+  "deleted_files": [
+    {
+      "path": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/source-before.json",
+      "group": "compiler58-v3-closed-20261023T0654Z",
+      "payload": "run/source-before.json",
+      "bytes": 12728460,
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db"
+    },
+    {
+      "path": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/source-final.json",
+      "group": "compiler58-v3-closed-20261023T0654Z",
+      "payload": "run/source-final.json",
+      "bytes": 12728460,
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db"
+    },
+    {
+      "path": "/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025047.806155Z/source-before.json",
+      "group": "seven-package-source30-typecheck-v4",
+      "payload": "attempts/20261023T025047.806155Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    },
+    {
+      "path": "/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025047.806155Z/source-after.json",
+      "group": "seven-package-source30-typecheck-v4",
+      "payload": "attempts/20261023T025047.806155Z/source-after.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    },
+    {
+      "path": "/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025300.957867Z/source-before.json",
+      "group": "seven-package-source30-typecheck-v4",
+      "payload": "attempts/20261023T025300.957867Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    },
+    {
+      "path": "/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025300.957867Z/source-after.json",
+      "group": "seven-package-source30-typecheck-v4",
+      "payload": "attempts/20261023T025300.957867Z/source-after.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    },
+    {
+      "path": "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z/source-before.json",
+      "group": "diagnostic11-source30-archive-20261023T0340Z",
+      "payload": "runs/20261023T033456.480590Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    },
+    {
+      "path": "/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z/source-before.json",
+      "group": "report14-v6-source30-archive-20261023T0334Z",
+      "payload": "runs/20261023T031436.856477Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "2f85feadd50825da644d96e515065ca592aac026794d7033c9f99e6be7fce956"
+    }
+  ],
+  "deleted_file_count": 8,
+  "deleted_bytes": 101827680,
+  "no_other_paths_deleted": true,
+  "excluded": [
+    "providers",
+    "runner inputs/manifests",
+    "current v12/runtime-builder inputs",
+    "current typing outputs",
+    "Native15/current evidence",
+    "executables",
+    "target directories",
+    "build outputs",
+    "all other files"
+  ]
+}

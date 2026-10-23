@@ -1,0 +1,19 @@
+{
+  "actual_utc": "2026-10-23T09:56:38.107372+00:00",
+  "checks": [
+    {
+      "python_optimized": false,
+      "exit": 1,
+      "refused_failed_actual_v10": true,
+      "output_absent": true
+    },
+    {
+      "python_optimized": true,
+      "exit": 1,
+      "refused_failed_actual_v10": true,
+      "output_absent": true
+    }
+  ],
+  "duplicate_json_refused": true,
+  "scope": "Actual failedv10/duplicate-negative only, no positive materialization/output/GO/Cargo"
+}

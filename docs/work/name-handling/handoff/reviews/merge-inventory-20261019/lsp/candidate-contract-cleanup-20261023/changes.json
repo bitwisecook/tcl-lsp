@@ -1,0 +1,458 @@
+{
+  "actual_utc": "2026-10-23T10:02:13.648740+00:00",
+  "scope": "Candidate-only durable contract rewrite/rename and obsolete report removal; semantic consumer tables and exact ratchet limits preserved, no gate disabled",
+  "ratchet_rows_unchanged": {
+    "rust/tcl-cli/src/commands/minimize.rs": 1,
+    "rust/tcl-compiler/src/analyser/class_lattice.rs": 3,
+    "rust/tcl-compiler/src/analyser/diagnostics/security.rs": 2,
+    "rust/tcl-compiler/src/analyser/diagnostics/validity.rs": 2,
+    "rust/tcl-compiler/src/analyser/irules_event_checks.rs": 6,
+    "rust/tcl-compiler/src/codegen/cmd_subst.rs": 3,
+    "rust/tcl-compiler/src/codegen/emitter/bytecoded.rs": 4,
+    "rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs": 2,
+    "rust/tcl-compiler/src/codegen/statements.rs": 2,
+    "rust/tcl-compiler/src/codegen/structured.rs": 2,
+    "rust/tcl-compiler/src/connection_scope.rs": 1,
+    "rust/tcl-compiler/src/inline_uplevel.rs": 1,
+    "rust/tcl-compiler/src/irules_checks.rs": 3,
+    "rust/tcl-compiler/src/lowering/mod.rs": 1,
+    "rust/tcl-compiler/src/lowering/structured.rs": 2,
+    "rust/tcl-compiler/src/optimiser/end_offset.rs": 1,
+    "rust/tcl-compiler/src/place_bridge.rs": 2,
+    "rust/tcl-compiler/src/shimmer/thunking.rs": 1,
+    "rust/tcl-compiler/src/ssa.rs": 1,
+    "rust/tcl-compiler/src/taint.rs": 3,
+    "rust/tcl-compiler/src/var_escape/handlers.rs": 2,
+    "rust/tcl-compiler/src/var_escape/helpers.rs": 1,
+    "rust/tcl-compiler/src/var_scoping.rs": 1,
+    "rust/tcl-irules/src/lib.rs": 1,
+    "rust/tcl-lsp-core/src/oo_body.rs": 1,
+    "rust/tcl-mcp/src/irule_gen.rs": 2,
+    "rust/tcl-mcp/src/irule_test.rs": 2,
+    "rust/tcl-sslictcl/src/bin/sslictcl-data.rs": 4
+  },
+  "renamed_value_contract": "docs/design/compiler/value-transfer-consumers.md",
+  "replacement_f5_contract": "docs/design/f5/embedded-tcl-contract.md",
+  "changes": {
+    "docs/design/compiler/value-transfer-consumers.md": {
+      "before_sha256": null,
+      "after_sha256": "ca391e2d92c5dacad9b9decb643cb4a68e4be5177b82872e675e6f386d757779",
+      "bytes_before": 0,
+      "bytes_after": 45588
+    },
+    "docs/design/f5/embedded-tcl-contract.md": {
+      "before_sha256": null,
+      "after_sha256": "77665b0e50c153226fa7770aa2381f5ff22849322e777629b6f55822eb5e3f8d",
+      "bytes_before": 0,
+      "bytes_after": 5110
+    },
+    "docs/design/compiler/value-transfers-migration.md": {
+      "before_sha256": "ce1d4f8d744388a2108c69f65d02560fa24d6e1c19c6d561a15b10e775bd575a",
+      "after_sha256": null,
+      "bytes_before": 75251,
+      "bytes_after": 0
+    },
+    "docs/design/f5/bigip-irule-parser-measurements.md": {
+      "before_sha256": "bef0b8b9e7c9ca95530dd8a1963256e6390337631a7649260fdf70cc57fa13b9",
+      "after_sha256": null,
+      "bytes_before": 51231,
+      "bytes_after": 0
+    },
+    "docs/GLOSSARY.md": {
+      "before_sha256": "3d9043ae9ef11fe6b9dff1e15d6b3fa987679e01ec237fe70b91911b54e8e71b",
+      "after_sha256": "7e901a5aa1f8da3d09e49f03ddae449b0a1e178e1312dccfc2bd95989ce4cdfd",
+      "bytes_before": 87904,
+      "bytes_after": 87903
+    },
+    "docs/generated/value-transfers.md": {
+      "before_sha256": "949637a24fee8323fb1389c8e4bca73e332b163f09980d3d31faf2185df2c101",
+      "after_sha256": "4021856480a454debdec5707b6afdd1d2d28c87b0580783818cdd38d7eaf7abc",
+      "bytes_before": 311370,
+      "bytes_after": 311383
+    },
+    "docs/kcs/kcs-issue-the-value-transfers-gate-reports-a-command-name.md": {
+      "before_sha256": "60e642048f898eaf76c50fb7259aa4efd5dfd5fc872cffe199da2c6022c6da76",
+      "after_sha256": "905e790f848506be6571efce1abf89f49c0c2d177933e0e300cc669139fd3cfc",
+      "bytes_before": 4382,
+      "bytes_after": 4379
+    },
+    "docs/kcs/compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md": {
+      "before_sha256": "db1ef696a9dfba8a2f775b23022a4667cc05afed0035fad834d6da6a063c876d",
+      "after_sha256": "95b5e34ce160ce472a0ba11d546b023595051a2cdcc51e7205753474e8f2db76",
+      "bytes_before": 5459,
+      "bytes_after": 5457
+    },
+    "docs/kcs/compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md": {
+      "before_sha256": "fb6b510c8b73a08abe23a00a1155020735e5e29d7e7f8dd2b5764bc435bfcf06",
+      "after_sha256": "f4c6b158ad6d1b435ac21bc7dcaec4500292c72372d344c69eb1844d177b8fd7",
+      "bytes_before": 3953,
+      "bytes_after": 3951
+    },
+    "docs/design/README.md": {
+      "before_sha256": "46b17c06e9893d9986cf110aff44198d27da2fbf8c5e180bc3790244be360689",
+      "after_sha256": "abd2c04b94db03d1b5e7f335f64cc2e0610e53c3c6e42c81fc889a2bbb74bd2a",
+      "bytes_before": 28274,
+      "bytes_after": 28082
+    },
+    "docs/design/contracts/shared-utility-contracts-rust.md": {
+      "before_sha256": "c54c4bb1cf2bf7f9e591219f64dcc70544b237415589754e947a82e929216079",
+      "after_sha256": "a85fd180a8222c88fd8b74422b6dc710a4537870fa8e791becaa9242598f0737",
+      "bytes_before": 1307680,
+      "bytes_after": 1307679
+    },
+    "docs/design/compiler/optimisation-passes.md": {
+      "before_sha256": "1c275255b0db857b8c85cbfbb10c7988c490ad03fd2d827d9c4027ea605b2f52",
+      "after_sha256": "926c9a9c98b39a3d0cb587bf503f1a231f9c5f148160aa96d9837fc7b9a8f1d9",
+      "bytes_before": 17911,
+      "bytes_after": 17910
+    },
+    "docs/design/compiler/registry-consumer-contracts.md": {
+      "before_sha256": "72556b2dee84812b11e98d6ffad202ebd4a7c374450a5c8ec25d112ec6423029",
+      "after_sha256": "2e72339e926f3343ce15f5907dad71ed4988dddf62c382327cca51e86341f0ac",
+      "bytes_before": 164226,
+      "bytes_after": 164224
+    },
+    "docs/design/compiler/README.md": {
+      "before_sha256": "9078f9112add471caf0e48d1a428aaf5d65adf318d9628d0b16e628b7a97bf01",
+      "after_sha256": "0e6a945babcf6475ae765fd5464c97cb2c0b3683bd2e306c694c7093a4cd4b86",
+      "bytes_before": 14820,
+      "bytes_after": 14728
+    },
+    "docs/design/compiler/command-registry.md": {
+      "before_sha256": "a63431042a1ace040d2c0176824a312a35585b02b2e81cbf8522da19eb5f6f5d",
+      "after_sha256": "5bea87550763f053a46ade4fc0482aded8dc7d1ce1039985fc231a46f27da35c",
+      "bytes_before": 133020,
+      "bytes_after": 133019
+    },
+    "docs/design/compiler/expression-parsing.md": {
+      "before_sha256": "d106af7d2901d3791449cde7eefad959f68e1f401fc4586c4a264670862dcc3a",
+      "after_sha256": "e324804129fd56757ac71c16cee94f157c79241186002b8c3a6aceb5fb408e7d",
+      "bytes_before": 13875,
+      "bytes_after": 13865
+    },
+    "docs/design/compiler/precision-limitations.md": {
+      "before_sha256": "463b0e615b230866d56c628db0d1abd8c17e6e37c623593086360e5e87ca0453",
+      "after_sha256": "f20e09444be6883af569513b2ff947aea44d16f36739b98fcf085e76ee20dd78",
+      "bytes_before": 28632,
+      "bytes_after": 28631
+    },
+    "docs/design/compiler/value-transfers-examples.md": {
+      "before_sha256": "ac4a29961227975fad89f4cd84b214449dad89e54d21f25bc08bbe5253c6b3f5",
+      "after_sha256": "1d36878c9501b0163a906cfd0a7a13b2e9bcba24a2738376889db3b165f9b4e6",
+      "bytes_before": 71886,
+      "bytes_after": 71880
+    },
+    "docs/design/compiler/value-evaluation.md": {
+      "before_sha256": "62faf2b10b98b8f17c90a0575772eb20448c7c1ad807f744f3326f796de458a5",
+      "after_sha256": "58c7d8e5e59dcbc8694e5b7632b147fde2c5c1202c6c8febc6ef1d60a79688af",
+      "bytes_before": 158637,
+      "bytes_after": 158635
+    },
+    "docs/design/compiler/value-transfers.md": {
+      "before_sha256": "39a210f7c5cff9be9e4a91c010866b6f29c41cb7772369190d38d25068d6da32",
+      "after_sha256": "25b530d5a6dbca233b93c59ce392eee05b77d67a7c432c6a62569b497423909d",
+      "bytes_before": 190487,
+      "bytes_after": 190479
+    },
+    "docs/design/registry/dialect-profile-model.md": {
+      "before_sha256": "fedc4077fe8ee33621aba46ad2a196f9f21106e8301b295fdf8d5bb531c1df30",
+      "after_sha256": "880715a324081ba4c8ca34316e9116851f2293ea245cec55bea5c53a87fcb55d",
+      "bytes_before": 53755,
+      "bytes_after": 53735
+    },
+    "docs/design/registry/dialect-and-package-registry-redesign.md": {
+      "before_sha256": "ca5178e291887a839bf4b9c73d638271ce8e26aff840b2c22b67692db593d62a",
+      "after_sha256": "e30b9a1dab7f6b1887946763edad00189fb667aea8c2d8f1cf8969f0387866f8",
+      "bytes_before": 71165,
+      "bytes_after": 71135
+    },
+    "rust/tcl-lsp-core/src/completion.rs": {
+      "before_sha256": "2897d6934dfc64ebd7ee5cdc71410a628474dbc4fadbeee89d4b144d16e1e362",
+      "after_sha256": "940b2cf4744fdc5408237dde16d4e4950a2a8416aa9f47fa196c22ca863c48f4",
+      "bytes_before": 306199,
+      "bytes_after": 306179
+    },
+    "rust/tcl-syntax/src/expr/parser.rs": {
+      "before_sha256": "9974913f1ff5faad99a0aab12c4b59fad9369659d357a8e3ed5eced4ca5bb343",
+      "after_sha256": "b25d3ca500b0a54c2a72ba304a8c1d7da16da98c334b14af90760db4d0c516e3",
+      "bytes_before": 63206,
+      "bytes_after": 63196
+    },
+    "rust/xtask/src/value_transfers.rs": {
+      "before_sha256": "85c668e6b10ddf8573096f06f24651d6727327d27bba3134d928ca55a95db3af",
+      "after_sha256": "4237d3b88879d70f0e9d5e6506defa55489d303998a86703c13ae1ad20ee8607",
+      "bytes_before": 51524,
+      "bytes_after": 51537
+    },
+    "rust/tcl-lexer/src/lexer.rs": {
+      "before_sha256": "1c24f9c1d521e1aa657c629f8caf49b7d2177b2a89720bb143000b41e863e07d",
+      "after_sha256": "f6130ff977aaee4842d599d5d8a6811c40c94328a9aac8ae8bd2159e126def9a",
+      "bytes_before": 170685,
+      "bytes_after": 170655
+    },
+    "rust/tcl-lexer/src/script.rs": {
+      "before_sha256": "c67ef7ff491b9f313266b570b75f4eebb17a4aa483991b8012009b2bfe8760fa",
+      "after_sha256": "f464c9b1e2c2d8db19b642e2ff13fdd74c27a2dba887c253a96d7dea2b34a599",
+      "bytes_before": 41885,
+      "bytes_after": 41875
+    },
+    "rust/tcl-lexer/src/expr_lexer.rs": {
+      "before_sha256": "ea5381f6f3e711dc0c446fc65c5568cf835efb50d335f9305d86dc7d37ab498d",
+      "after_sha256": "5377eca6c41573c522eb489dc94064f487550f523f3b3738a105afe41f593451",
+      "bytes_before": 86069,
+      "bytes_after": 86049
+    },
+    "rust/tcl-lexer/tests/f5_lexical_conformance.rs": {
+      "before_sha256": "5720ddd37f3df766f0809f957ec48c38049d5c1cf53923265cecc31769d251f1",
+      "after_sha256": "df81eed6159e55b742d8cc08bfd13392f6d5323a44bd0cdbab5af17dfe8935db",
+      "bytes_before": 8008,
+      "bytes_after": 7998
+    },
+    "rust/tcl-lexer/tests/data/f5_lexical_vectors.txt": {
+      "before_sha256": "12ff88baa13eaba82377602e45b7b022947e2582919cc36347dbc5cf9ce15392",
+      "after_sha256": "31d99866c23cee7785fadc9ef0b60803909652f9641c6e6333d810844049525a",
+      "bytes_before": 7197,
+      "bytes_after": 7187
+    },
+    "rust/tcl-lsp-server/tests/e2e/diagnostics.rs": {
+      "before_sha256": "1c44f70fb3af972fd21be91836d7135cf8ff38db3d818463d01b1eb50884c592",
+      "after_sha256": "c8e7baa511f7906d8a6c76e11c131ab607b08a2f3809e1149a9eaa443033f54a",
+      "bytes_before": 208215,
+      "bytes_after": 208195
+    },
+    "rust/tcl-lsp-server/tests/e2e/completion.rs": {
+      "before_sha256": "77749d8ef85bc2dce61006fc742ff6bdb2bd2ec8280d42f354381a15e4372a5f",
+      "after_sha256": "b0444b07f751290a9a42b9ed1958b2e414acd8d24a0b7699a944883784c69392",
+      "bytes_before": 33775,
+      "bytes_after": 33765
+    },
+    "rust/tcl-irule-test/src/live.rs": {
+      "before_sha256": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
+      "after_sha256": "e8a5b8b42ee17e59d9474f5c3e806b18fedf64fde4f0e73f3865b24d30099e6d",
+      "bytes_before": 108494,
+      "bytes_after": 108484
+    },
+    "rust/tcl-irule-test/tcl/expr_ops.tcl": {
+      "before_sha256": "9ea491d82db26f576ef853c43e28f1013833d8443bd3d2a8d47a1605a56e9f06",
+      "after_sha256": "4fed26e7a7196e2d77818fc3a43c6340b4fd30ac727fd3f18dcd42cfd4392653",
+      "bytes_before": 34340,
+      "bytes_after": 34300
+    },
+    "rust/tcl-irule-test/tcl/_registry_data.tcl": {
+      "before_sha256": "ec7a4e82c2c7b5ad39e2ba99db175fb14740d0c9c47bc89875305abcf25f2309",
+      "after_sha256": "ce9eda873eba5b4c9238d9c61a475fdb5e7a29380c2bc1a901bad4368455228c",
+      "bytes_before": 48212,
+      "bytes_after": 48202
+    },
+    "rust/tcl-compiler/src/dynamic_names.rs": {
+      "before_sha256": "61a63c562bba8c7560da10e2d7e5dc600261ac57467e7f9f03ab87f7e325abce",
+      "after_sha256": "bdf8528eaa48312dfd2c597bb2aa23580c6153399e908d82a3d18349adc9a046",
+      "bytes_before": 107728,
+      "bytes_after": 107718
+    },
+    "rust/tcl-compiler/src/segmenter.rs": {
+      "before_sha256": "a688e3cacd6f47f3c8d96eee0bed0a3c4f91caf2cf5578d6d0493149fce6f1bb",
+      "after_sha256": "e8c28a5d32f2bd814567c218e6874d45c29ebe0ae8d337cb08f251a989c95127",
+      "bytes_before": 96206,
+      "bytes_after": 96196
+    },
+    "rust/tcl-compiler/src/analyser/irules_event_checks.rs": {
+      "before_sha256": "3854a0ed442a58495ef887f95523fb6cdec844b7ee51e4c7446b99f2e0ee72f9",
+      "after_sha256": "98a811a557dc93d5027a93955833cb272c11fe6007648680858c201258744c8e",
+      "bytes_before": 93737,
+      "bytes_after": 93727
+    },
+    "rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs": {
+      "before_sha256": "0abdc5a103985da8330d35cc80c0958c0c30d6e8d99a2d0280ea6471b6528a77",
+      "after_sha256": "1e0c960c327e4551410b5938118de3d7cc87f12f62b77dfb18b2d0f8b139ca6c",
+      "bytes_before": 147488,
+      "bytes_after": 147478
+    },
+    "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": {
+      "before_sha256": "33407c846518786f3f7261aae7b061976398dbb87c34aa64e9925218c51c618f",
+      "after_sha256": "7043539d265dfd2c5bc615bf2003bd06837132898ee1084c93123b0fa5b664ee",
+      "bytes_before": 723031,
+      "bytes_after": 722981
+    },
+    "rust/tcl-compiler/src/lowering/hooks/incr.rs": {
+      "before_sha256": "414b0d14df306815c21dae145ec0efad0c2ceb587292d172b9bf15acfb24a3d6",
+      "after_sha256": "faa7c36a9bff7d8fd3f52550c06e5ee2580de4e9d20d0d104d13813c92ba5d2c",
+      "bytes_before": 13938,
+      "bytes_after": 13928
+    },
+    "rust/tcl-compiler/tests/dialect_threading.rs": {
+      "before_sha256": "cdea7493452f83356c58bd5c9deddbd6fd231f200fa8920e10ea5eecc4fbcb7b",
+      "after_sha256": "514aba156442ca98e65d785cf170ec0124d3f087e9f388d46a823674a0716a7f",
+      "bytes_before": 15053,
+      "bytes_after": 15043
+    },
+    "rust/tcl-compiler/tests/checks.rs": {
+      "before_sha256": "b63bff6e53a5bcde7fa6201b396d11a8eae94e9e159b3a85159bd679dda9151e",
+      "after_sha256": "c79eaf5d67708dcb1b60661fe0ba98d3d0f8341a005d280d26143d6da7db7c87",
+      "bytes_before": 141559,
+      "bytes_after": 141539
+    },
+    "rust/tcl-compiler/tests/command_segmenter.rs": {
+      "before_sha256": "99d2499e090dfc7e4cdabe16e5f5f96e7b27ce2b4935105ff14c7db8fd71e019",
+      "after_sha256": "7ac4fbbacb657a15e0ba04aa3b61e18b1d4e44c63bce0a001b2bec92fc13b0ec",
+      "bytes_before": 8855,
+      "bytes_after": 8845
+    },
+    "rust/tcl-compiler/tests/tcl_expr_eval.rs": {
+      "before_sha256": "32aabedd447d0cdc52400bb456dfd52a4ec56a419aa12d853ecdd0bd92ecdb76",
+      "after_sha256": "831d309667f891c18f12205f30831d800c8f305189719d608e0cfe29efc430d1",
+      "bytes_before": 43301,
+      "bytes_after": 43291
+    },
+    "rust/tcl-dialect/src/profile.rs": {
+      "before_sha256": "83d637626d7d3f69e20915711d26f818b80d580b84dd64d9ac647f3ddd97018c",
+      "after_sha256": "7d2fc4e38d1cbf21c97f108866cef584e942bcde9f06c27f221f04b9f4930a4d",
+      "bytes_before": 136713,
+      "bytes_after": 136613
+    },
+    "rust/tcl-dialect/src/grammar.rs": {
+      "before_sha256": "28310116998bef000441fe36171b1a6a6d9e7c2ea01fb925a4da141aceb5ee16",
+      "after_sha256": "a419577cb8b9c2fd28ede31b7d2067c95f6daa47035c68e44099c683481090e0",
+      "bytes_before": 64247,
+      "bytes_after": 64227
+    },
+    "rust/tcl-dialect/src/model/family.rs": {
+      "before_sha256": "0c559643859b1c06d7093a1ad1f9bfd32e55809d501fe070c6f294e13cac1bd8",
+      "after_sha256": "9fd908ef83af67df0ff4b1335980587cfc32d53b4eba9d3345c8a36f110ba72b",
+      "bytes_before": 62857,
+      "bytes_after": 62827
+    },
+    "rust/tcl-dialect/src/model/environment.rs": {
+      "before_sha256": "98c4a2a61062258ac338cbd274eaff017be68fd0a48c747bd1119f8abc60641f",
+      "after_sha256": "557263ca39e3765930b5ff9dbf4cb43e21e6b47ec9be031aeb0406c6170717eb",
+      "bytes_before": 116767,
+      "bytes_after": 116747
+    },
+    "rust/tcl-dialect/src/model/expr_grammar.rs": {
+      "before_sha256": "124061bbdc2b69b4488c805b8585f72bb3aed4b2829b5dcb99b4369be22e1c9d",
+      "after_sha256": "516dd99b267e97d2da0c6080325d395dc59eb1a74536ca83a1587bb380e19654",
+      "bytes_before": 51856,
+      "bytes_after": 51846
+    },
+    "rust/tcl-registry/src/events.rs": {
+      "before_sha256": "3317ef4cadcda73417980f500620e23f456c803da95a59c191a712444b3efb45",
+      "after_sha256": "abaf4ea6c9e4359d841f8cc8d6d6425bf06d832dbf51efd3248265889f5b8cde",
+      "bytes_before": 165094,
+      "bytes_after": 165084
+    },
+    "rust/tcl-registry/src/irules_policy.rs": {
+      "before_sha256": "24f67fd50d2519de56f725b2591272ba8621d979eadd25f5ff85fffd5b3e0985",
+      "after_sha256": "f400f81b087df58d431804da4b929d70a2f11f17f2baebf5e15c137428d998d7",
+      "bytes_before": 18073,
+      "bytes_after": 18063
+    },
+    "rust/tcl-registry/src/expr_surface.rs": {
+      "before_sha256": "f1d4d4db2b79b72dfda29c6196f14e09d43324ea788d761a7859b41c8592b792",
+      "after_sha256": "6f7d723134ba03df1f697d91855ced886acf4fb2d89a5d84d8679af50a9648fe",
+      "bytes_before": 23615,
+      "bytes_after": 23595
+    },
+    "rust/tcl-registry/src/model/context.rs": {
+      "before_sha256": "fee0f51cb5fab89e59b158952cedf8b5bc7222f95c5142b097466f56208de56f",
+      "after_sha256": "bc5eaf7f0e5f50c117f394cfd67a04ba660bc27b3680d14d36526fae771f021d",
+      "bytes_before": 132440,
+      "bytes_after": 132430
+    },
+    "rust/tcl-registry/src/value_transfer/keyed_update.rs": {
+      "before_sha256": "712f9f6a2744c89591051b4ecb7f43d40ad3f2a442c64ced898b3a5bbac48f5a",
+      "after_sha256": "4b1c5931ef91d231dbe526a9d71694fb7097e00f99b8ba79e17960d61d214e2a",
+      "bytes_before": 17102,
+      "bytes_after": 17101
+    },
+    "rust/tcl-registry/src/value_transfer/tcllib.rs": {
+      "before_sha256": "576e1342dfca4c7f0dd0ddf153a36beee4f43fdee73c795ddb4153d266e50fd4",
+      "after_sha256": "a04ed92a8a822c4e60647604d35e2988b15027deebf3326922f5fe939ef16ec2",
+      "bytes_before": 8386,
+      "bytes_after": 8385
+    },
+    "rust/tcl-registry/src/value_transfer/irules.rs": {
+      "before_sha256": "02c93f7f094f814ddca881b84c55c66d74e4fe7a5ad408dcf6b53918799e4ecc",
+      "after_sha256": "3a3dd2b2c9dbebb0cbcf972a27319edef4ab5706b15bedace8ec12fa52d2f866",
+      "bytes_before": 9145,
+      "bytes_after": 9144
+    },
+    "rust/tcl-registry/src/f5/tmsh_syntax.rs": {
+      "before_sha256": "c380c38998b3aa908fed8c50d1d725f2c6bfb7eee632e742553e2af1369965e9",
+      "after_sha256": "be33a3963227be4bd936e16c12c36f49e3d8d58df94190b54076b988583a400d",
+      "bytes_before": 11721,
+      "bytes_after": 11711
+    },
+    "rust/tcl-registry/src/f5/mod.rs": {
+      "before_sha256": "ae3c3e783423f4d45118151b0bd3efba98d57096fcf5ccddc997ff3fde2bb0fe",
+      "after_sha256": "88de02482d0ba5bade4f4763681d5e739260551a6174cf927c0917303dfc4540",
+      "bytes_before": 4392,
+      "bytes_after": 4365
+    },
+    "rust/tcl-registry/src/commands/irules/http__uri.rs": {
+      "before_sha256": "077ab5999c8dcbe16fc39ae08115fbf8dc0538a5f5268fee40721cf48b9a4905",
+      "after_sha256": "b614e878aeb23481615b972da3a16774d5c1b06a8ec3f03f7368e7d5b7f2fb86",
+      "bytes_before": 5100,
+      "bytes_after": 5090
+    },
+    "rust/tcl-registry/src/commands/irules/ssl__cipher.rs": {
+      "before_sha256": "119b692146888f8c838676f9aef9e3e190a99cb64893a3e66b43c7d9efa9bb0f",
+      "after_sha256": "0d0e9995f6a4ac4293674d310736a73c7373f23b724c07cc17bd8357ce90f32e",
+      "bytes_before": 6363,
+      "bytes_after": 6353
+    },
+    "rust/tcl-registry/src/commands/irules/http__collect.rs": {
+      "before_sha256": "960f6e6c8abb3e8bcb6712987b2282c22312ba960dfa56de2a072439f35fe6d2",
+      "after_sha256": "f30404e0a8b218e0406f520773b639fde06c0471d61c3943c6d519723876be63",
+      "bytes_before": 3437,
+      "bytes_after": 3427
+    },
+    "rust/tcl-registry/src/commands/irules/ip__server_addr.rs": {
+      "before_sha256": "0cdf662cc3e2f58d8559a972d0b94652d5c7912dd794d59daa2b2b0ad30d55c1",
+      "after_sha256": "da625afba4bbd7b2000e321e68eac34c3d6e86897a27dc445546620eaf4f3ad1",
+      "bytes_before": 3372,
+      "bytes_after": 3362
+    },
+    "rust/tcl-registry/src/commands/irules/http__status.rs": {
+      "before_sha256": "128c79d6ca46dd30dc404e7d15f976c9d9523909d0b78bb9433bf46cc46aeec3",
+      "after_sha256": "a0102dd744961e68d574c8b7b8fc30437d85dbe2e5128a22a6b8588701d31b2f",
+      "bytes_before": 3039,
+      "bytes_after": 3029
+    },
+    "rust/tcl-registry/src/commands/irules/lb__server.rs": {
+      "before_sha256": "60c528fc15243c08bc6f4485772232d534d394f6c91d55caa172973cf6e874c3",
+      "after_sha256": "585374fc9a48734c6d017d9dea94970300502f94b7bc8563d530ee0d6fd5302b",
+      "bytes_before": 8302,
+      "bytes_after": 8292
+    },
+    "rust/tcl-registry/src/commands/tcl/trace.rs": {
+      "before_sha256": "308a8ddeb5c3d0ed5e744214290990cb3bb85ef12e767aa93c7615277055c391",
+      "after_sha256": "4a9fee531439d4ac223465b0c3fd65657147bbde1919a92044f569ddf344f2cd",
+      "bytes_before": 89083,
+      "bytes_after": 89063
+    },
+    "rust/tcl-registry/tests/value_transfers.rs": {
+      "before_sha256": "27cb094e3e121ab7515251b81f0df54e70f9896a5077c225bc7f2f708e941e70",
+      "after_sha256": "04e3863974c1c27c2a96001e428512b2fd8162d771213efe382865c86b831a3f",
+      "bytes_before": 320112,
+      "bytes_after": 320111
+    },
+    "rust/tcl-registry/tests/dialect_profile.rs": {
+      "before_sha256": "c3a7a97d10c2ad77b3ce07dbf4d3fc724bdc639b951cdd45826df8503d57ea8f",
+      "after_sha256": "0a5e1bf8b0ed5cc8d65b29fe46176ac8eebadf65120006a36b25284c11bfa84b",
+      "bytes_before": 26043,
+      "bytes_after": 26023
+    },
+    "scripts/dev/bigip-probes/README.md": {
+      "before_sha256": "09827547f4f186f040bc13b1cfa2fb86ffe38732ff93a3ffd6426ff09d8ec986",
+      "after_sha256": "64ae5ab25a08e5ac33e4e9d3ff4e02ed7a1fb107a1daccee506b27ebab3cd92e",
+      "bytes_before": 6845,
+      "bytes_after": 6825
+    },
+    "scripts/dev/bigip-probes/lib/e4-context-probe.sh": {
+      "before_sha256": "2f914031837b2810adea6c2a1541606c03ec8867e295699ea3aa41f0c4b98993",
+      "after_sha256": "ad359d5a7fd63b1383ee2066c6b7ec51dd6a930070697447b8e7539d5e727008",
+      "bytes_before": 5904,
+      "bytes_after": 5894
+    }
+  }
+}

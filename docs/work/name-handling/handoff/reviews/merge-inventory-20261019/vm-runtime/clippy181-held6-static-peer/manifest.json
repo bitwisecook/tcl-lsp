@@ -1,0 +1,61 @@
+{
+  "status": "HELD6 extraction for Names staticreview only; no typing/Clippy/functional/stack proof",
+  "patch_sha256": "a93d5cd54cbbabffee17c37e4d9b306f59ba0d501ff064c413ba1b0b62c53508",
+  "paths": [
+    {
+      "path": "rust/tcl-vm/src/cmd_try.rs",
+      "canonical_before_sha256": "b91c539df4139e9f282484ba11de2eec50a6f5a18d04428cab6ff52adee1c2e1",
+      "shadow_sha256": "8c70f2ca0a92258ca191ef3070dfebecc69fce8786fe8b75ebe1811bdb49c9be",
+      "canonical_after_sha256": "b91c539df4139e9f282484ba11de2eec50a6f5a18d04428cab6ff52adee1c2e1",
+      "current_sha256": "b91c539df4139e9f282484ba11de2eec50a6f5a18d04428cab6ff52adee1c2e1",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "canonical_before_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+      "shadow_sha256": "24e68320480e29f768a702dde403e7b41a116b5b6b8c8a353754364b5767632c",
+      "canonical_after_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+      "current_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "canonical_before_sha256": "da3c336e5a38bdf2c7c4302c1b46deb6f4ab2d155b119e3fea80618ce027cf7c",
+      "shadow_sha256": "eaffb61e43b245108e1c708c2437081805e26cf6445566360e33c337ec786ba0",
+      "canonical_after_sha256": "da3c336e5a38bdf2c7c4302c1b46deb6f4ab2d155b119e3fea80618ce027cf7c",
+      "current_sha256": "da3c336e5a38bdf2c7c4302c1b46deb6f4ab2d155b119e3fea80618ce027cf7c",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_string_stage_tests.rs",
+      "canonical_before_sha256": "b4bb3a6d02cae524463b4f9a92f20380c6e4b6a994c7466db9a9d8f06599a8f7",
+      "shadow_sha256": "9ff7fa404877d35ccbb5c6da0bf8f0d6e3053c2b634b1e21e6e81f9db70ae5a3",
+      "canonical_after_sha256": "b4bb3a6d02cae524463b4f9a92f20380c6e4b6a994c7466db9a9d8f06599a8f7",
+      "current_sha256": "b4bb3a6d02cae524463b4f9a92f20380c6e4b6a994c7466db9a9d8f06599a8f7",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-vm/src/value.rs",
+      "canonical_before_sha256": "f0ca1391bb1856449af8454b3a8b7c422fc13a780a96efd7417fb565a1d04f7f",
+      "shadow_sha256": "3b8f809179d839bb0a958d6e91ab101a4dff7eea049dc17520028995e30a323c",
+      "canonical_after_sha256": "f0ca1391bb1856449af8454b3a8b7c422fc13a780a96efd7417fb565a1d04f7f",
+      "current_sha256": "f0ca1391bb1856449af8454b3a8b7c422fc13a780a96efd7417fb565a1d04f7f",
+      "current_before_match": true
+    },
+    {
+      "path": "rust/tcl-vm/src/value/native_compound.rs",
+      "canonical_before_sha256": null,
+      "shadow_sha256": "0b29a388c73aaa69cd8e935b75557bae8fc6cdfa53fa77089ddd1138fac4875d",
+      "canonical_after_sha256": null,
+      "current_sha256": null,
+      "current_before_match": true
+    }
+  ],
+  "source_composition_manifest": "/tmp/vm-runtime-clippy-181-composed-v3/manifest.json",
+  "inverse_support_dirs": [
+    "/tmp/vm-runtime-clippy-181-structural",
+    "/tmp/vm-runtime-clippy-181-scalar-shadow",
+    "/tmp/vm-runtime-clippy-181-try-shadow",
+    "/tmp/vm-runtime-clippy-181-value-shadow"
+  ]
+}

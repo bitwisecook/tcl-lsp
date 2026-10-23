@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T10:15:04.620764+00:00",
+  "status": "bounded static deletion-only CLEAR, future cleanup only",
+  "patch_sha256": "1a5b9b4d636ba61e2a63e7a04a4f2fbffe0e70f5ae33a074bcc88ef27824241e",
+  "checks": [
+    "exact current copied zero-fuzz/nooffset apply",
+    "seven old cfgtest env printing blocks plus sole zz_before local removed",
+    "no additions/runtime statements/predicates/assertions changed",
+    "new TCL_LSP required first-gate diagnostics retained"
+  ],
+  "limits": "Not included active typing or integration batch; root cleanup window and subsequent exact product gates required"
+}

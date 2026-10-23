@@ -1,0 +1,17 @@
+{
+  "actual_utc": "2026-10-23T09:56:21.650272+00:00",
+  "scope": "Immutable successor explicit fail-closed require checks under python-O; duplicate JSON keys refused; no actual PASS/GO/output fabricated",
+  "predecessor_manifest_sha256": "25e96544cd4153441e0acc0028b625b244b85e0905c5d53dc56b11bb1c8ce65d",
+  "files": {
+    "materialize.py": "9b2c7d2ec8d9c00678a7a67b72c2f812c4c5c259841a5f20d3936e32903aafc1",
+    "typing-proof.py": "42eab1bd8a3b9342864ea29e28e17d755c097a324df8933061e1edf81e2055a8"
+  },
+  "template_inputs": {
+    "suite.py": "e7b28ffea36abf93321a4990ae328eb38b3b921b6452d2582bc3ad8795df2f93",
+    "launch.py": "4735ffc1eeea59c970dba39fd9b7c7811e9e2463f7b060e568787899a935cd97",
+    "run.sh": "1d18d6c3a3fca2a489dd003861cb95d8a71f89ade875f77ecc1f9930c8d5d6bf",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "plan.json": "13a360901923cd34511227304aa67dd5fe000ed95182b9569358b72551d1038c"
+  }
+}

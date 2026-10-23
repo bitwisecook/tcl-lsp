@@ -1,0 +1,27 @@
+{
+  "scope": "work evidence about off-tree paired-performance review artifacts; no product-source change",
+  "utc": "2026-10-23",
+  "status": "original v3 patch and manifest byte identity not restored",
+  "event": "The off-tree /tmp/paired-perf-review-v3 proposal.patch and manifest.json were rewritten while regenerating checker metadata before the root stop message arrived. The helper was then restored byte-for-byte from immutable v2. The v3 workflow file was unchanged.",
+  "original_expected": {
+    "helper_sha256": "4383ce55f26154b4378773ac4468f54ea2c7e7bacdb1fb92db990f97ad9a17ff",
+    "patch_sha256": "030a2cdc153aaf3acced1131d78790b757ea986feba371f591babc2bac546ce2",
+    "manifest_sha256": "779c8b7f76edd3e2ed2b53b950e2efb981908e45f5ce57fad34e0125c0c9c384"
+  },
+  "verified_after_recovery": {
+    "v3_helper_sha256": "4383ce55f26154b4378773ac4468f54ea2c7e7bacdb1fb92db990f97ad9a17ff",
+    "v3_workflow_sha256": "6b8c82c80f1cb6e0fc483e0274d89f9f95d77dfde0db952473d65177722d30ba",
+    "v3_directory_patch_sha256_current_but_nonoriginal": "2692145547b9034a90b56852d0ceb963cf310a928b5f4e391a673c0fd2172800",
+    "v3_directory_manifest_sha256_current_but_nonoriginal": "aae497dbb09fd7f2705c2adb83c8eec0903d7aa497ef49fad4d30a5fb189e03"
+  },
+  "recovery_note": "No byte-identical copy of the original v3 patch or manifest was found under /tmp or /workspace. A regenerated patch from the same workflow/helper content produced a different hash and is not represented as the original. Root authorized a separate v4 successor; v4 is the integration candidate. Original v3 source provenance and current actual identity had already been recorded before this off-tree artifact mutation.",
+  "v4_successor": {
+    "directory": "/tmp/paired-perf-review-v4",
+    "patch_sha256": "4921c7dfef38b8fefecd09f40744ff09933aca7828b0b3202e79b57bd6dc6781",
+    "helper_sha256": "c38ba429667df50c02b55689dbeb542ac0b25e212495675854d0f5f803c163e8",
+    "helper_delta_from_restored_v3_helper_sha256": "1f59fd10241abd6bcb1b0dfad19ff7a574be5155ccf1ad42b008a72f6f409bc3",
+    "manifest_sha256": "5d5616e4f181236839bc7ab1cceca213f66417f37e0306586fcba36efb3b095a"
+  },
+  "no_source_or_product_files_changed": true,
+  "no_cargo_build_or_ci_dispatch": true
+}

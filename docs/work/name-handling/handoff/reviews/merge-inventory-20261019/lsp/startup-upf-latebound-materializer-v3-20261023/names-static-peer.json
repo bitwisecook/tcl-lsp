@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-23T09:57:49.233798+00:00",
+  "verdict": "CLEAR bounded late-bound identity/actual typing final+launcher proof preparation; runtime unrun",
+  "manifest_sha256": "05dc5edff3e7e3107be88d933d9640f46291530e44f5fa14caba046c2196b20d",
+  "files": {
+    "materialize.py": "9b2c7d2ec8d9c00678a7a67b72c2f812c4c5c259841a5f20d3936e32903aafc1",
+    "typing-proof.py": "42eab1bd8a3b9342864ea29e28e17d755c097a324df8933061e1edf81e2055a8"
+  },
+  "checks": [
+    "all exact preparation/template pins verified",
+    "AST valid and no removable assert guards",
+    "duplicate keys rejected in builder/proof/raw CargoJSON",
+    "actual PASS0/all6/8packages/product122/map joins before output",
+    "closed launcher/exact beforeafter pins/GO/snapshot/process/transcript COMPLETE+LOCK_RELEASED authenticated",
+    "generated source_view revalidates same proof and rootGO final+launcher exact binding",
+    "no actual GO/Cargo/Git or positive materialization"
+  ],
+  "failed_actual_v10_controls": [
+    {
+      "flags": [],
+      "exit": 1,
+      "no_output": true,
+      "actual_failure_reason": true
+    },
+    {
+      "flags": [
+        "-O"
+      ],
+      "exit": 1,
+      "no_output": true,
+      "actual_failure_reason": true
+    }
+  ],
+  "limits": "Only normal+optimized failed-v10 refusal executed. Actual repaired v11 still open with4observed E0603, cannot allocate until root actualPASS0W final+launcher close."
+}

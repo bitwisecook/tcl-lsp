@@ -1,0 +1,70 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T10:25:37.533791+00:00",
+  "scheduled_report_utc": "2026-10-23T10:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T10:55:37+00:00",
+  "change_since_previous_report": [
+    "09:55:37checkpointon time active261a11829, normalpublished49c593003 at09:57:19 afterfreshdepth1fetch/rebase/productdiff0. Single nexttimer60810 due10:25:37; externalBIGIP/perfheadersstale, reviewtriageexplicitCOMPLETE; no duplicates/takeover.",
+    "Typev11 actualCargo101at10:03:24/finalFAIL10:05:15, parent85769CLOSEDexit1/LOCK_RELEASED. Sevenerrors(4privatepath,3diagnosticDisplay),0observedwarnings, source/providerstable; narrowrepairsourceappliedplusreviewedVMheld6. No runtime acceptance.",
+    "Functional102pathbatch/cumulative135current1358e8d32 thenhelpertypingrepairdbc42ca50. Finalreviewedmanifest832ad60d38components retains37othercomponentpins; onlypairedperfcomponentexplicitlyreplacedafteroldofftreeartifactmutation, no original030a recoveryclaim. Newactualidentity9f5e0848/map19cfcb78/headDBC42/tree34ab verified, bothPythonmodes100755 independentlyGitchecked.",
+    "10:21 actualtypev12source135 root98031 GO5a34a3a4/plan81a7abf6/input36af2bd5 running; all8pkg/alltargets, originalguards/floors/zeroWrequired/TMPDIRworkspace/normalNoTomflagrefused. Focusedruntime5/61/expandedVM/startup+UPF4 queuedonlyafteractualPASS0W.",
+    "CIcapturepilotrealNextestPASS2terminals; formattedcurrentCIv4 staticpeerCLEAR/RuffPASS nowintegrated. Pairedcorpusworkflowusesexistingregisteredperf.yml manualmode, Linux/macOS small/medium/full samehost3alternatingpairs; isolatedlint+typingPASS, actualmeasurementsUNRUN. DedicatediRulesperfexemptonly.",
+    "Candidatecarried16currentfunctionalchangesvia3way0conflicts; candidate-onlydocs/comments/evidencecleanupcontinues. FullMarkdown783files4350links0missingfilepaths, fixture232actualinputs preserved, officialreleaseperfdataretained,83historicalPRcomparisonfiles archivedoffcandidate/removed. Probe cleanupawaitspeer, shippingcandidateunvalidated.",
+    "Connectorartifactretrievalrestored: priorCI5206native1archiveonlyselection2537notoutcomes; decodedlog292namedFAILobservedbeforecancel, nofullpartitionorbaselinejoinclaim. PriorCI5206cargo-denyactualPASS knownfixeddependencyversionspresent; no newdependencyupdate indicated."
+  ],
+  "committed": [
+    "dbc42ca50695d76fcb15552df32be6eb38ad0d76"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Completeactualtypev12/source135; thenfirstcauseCCGfocused5, compiler61, VMdepth/SpecTcl controls andstartup+UPF4.",
+    "Pushworkcheckpoint; finishstaticcleanreleasecandidate, commit/pushintermediateanddispatchfullCI pluspairedTclcorpusperformance; requireF+zeroP2F+greenbeforeauthorisedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Latestsource135eightpkg/alltarget typev12RUNNING. Priorv11FAILED7errors0observedwarnings, repaired. No currentruntime/CI/perf acceptance; historicalsource46 outcomesremainhistorical only. AllreleaseFcheckboxesopen.",
+  "disk_free_bytes": 7733071872,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

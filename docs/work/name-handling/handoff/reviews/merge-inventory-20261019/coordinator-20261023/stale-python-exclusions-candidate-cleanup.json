@@ -1,0 +1,23 @@
+{
+  "scope": "candidate-only Makefile cleanup; no changes to shared work Makefile",
+  "branch": "release/lsp-naming",
+  "candidate_root": "/workspace/naming-lsp-release/tcl-lsp",
+  "before_makefile_sha256": "16f25c6f227a732abcd53812b3ebaf72c5fb5a2e9524b3620b41135be9dd6894",
+  "after_makefile_sha256": "8d739f49579d38727d32c72aafdcf993853d4d485202308bca1183b52cad1395",
+  "removed_stale_inert_exclusions": [
+    "scripts/dev/replay-namespace-delete-callback-events.py (PY_FILES exclusion; absent and not tracked)",
+    "scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py (typecheck-only exclusion; absent and not tracked)"
+  ],
+  "changes": "Removed those stale paths and their obsolete special-case filtering comment/variable. PY_TYPECHECK_FILES now equals PY_FILES.",
+  "preservation_checks": {
+    "tracked_python_files": 37,
+    "removed_paths_were_tracked": false,
+    "current_python_file_set_changed": false,
+    "ruff_recipe_commands_unchanged": true,
+    "ty_and_pyright_recipe_commands_unchanged": true,
+    "meaningful_check_targets_or_assertions_weakened": false,
+    "lsp_peer_confirmed_no_overlapping_makefile_edit": true
+  },
+  "evidence": "/tmp/stale-python-exclusions-only.patch",
+  "status": "candidate edit only; awaiting root review"
+}
