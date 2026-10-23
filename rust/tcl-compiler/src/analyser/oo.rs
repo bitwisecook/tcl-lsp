@@ -2853,7 +2853,12 @@ impl Analyser {
                 command_token.span.start(),
             )
         {
-            let Some(mut class) = call.metadata(&self.result).cloned() else {
+            let Some(mut class) =
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "jim.member.metadata",
+                    call.metadata(&self.result).cloned(),
+                )
+            else {
                 return false;
             };
             let context = self
@@ -2874,11 +2879,17 @@ impl Analyser {
             if grammar.family != tcl_registry::definer::DefinerFamily::JimClass {
                 return false;
             }
-            if !super::original_definer::logical_arguments_match(
-                call.original_words(),
-                args,
-                arg_tokens,
-            ) {
+            if crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.member.arguments",
+                super::original_definer::logical_arguments_match(
+                    call.original_words(),
+                    args,
+                    arg_tokens,
+                )
+                .then_some(()),
+            )
+            .is_none()
+            {
                 return false;
             }
             if !self.analyse_jim_inline_member(grammar, args, arg_tokens, &mut class, scope_path) {

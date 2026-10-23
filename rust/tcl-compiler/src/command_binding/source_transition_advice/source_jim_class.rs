@@ -323,7 +323,11 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         parent: Option<&Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     ) -> Option<Arc<OriginalAuthoredJimClass>> {
-        let (purpose, layout) = self.selected_jim_source_purpose(schema)?;
+        let (purpose, layout) =
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.class.source_purpose",
+                self.selected_jim_source_purpose(schema),
+            )?;
         if graph.native_baseline || invocation.native.iter().any(|word| word.group().expand) {
             return None;
         }
@@ -338,7 +342,10 @@ impl AdviceInvocationContext<'_> {
         {
             return None;
         }
-        let mut factory = self.schema_advice(invocation, graph, schema)?;
+        let mut factory = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.class.schema_advice",
+            self.schema_advice(invocation, graph, schema),
+        )?;
         if parent_body.is_some() {
             factory.obligations.push(super::SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability);
         }
@@ -475,13 +482,27 @@ impl AdviceInvocationContext<'_> {
         let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
             return false;
         };
-        let Some(key) = graph.selected_head_key(head.bytes()) else {
+        let Some(key) = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.selected_head",
+            graph.selected_head_key(head.bytes()),
+        ) else {
             return false;
         };
-        let Some(AdviceCell::AuthoredJimClass(class)) = graph.cells.get(&key) else {
+        let Some(AdviceCell::AuthoredJimClass(class)) =
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.call.graph_cell",
+                graph.cells.get(&key),
+            )
+        else {
             return false;
         };
-        if !class.matches_source_context(self.origin.source_image(), self.config, self.context)
+        if crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.class_context",
+            class
+                .matches_source_context(self.origin.source_image(), self.config, self.context)
+                .then_some(()),
+        )
+        .is_none()
             || native.iter().any(|word| {
                 word.group().expand
                     || word
@@ -507,6 +528,14 @@ impl AdviceInvocationContext<'_> {
             class: Arc::clone(class),
             obligations,
         };
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.call.retained offset={} obligations={:?}",
+                first.span().start(),
+                call.obligations()
+            );
+        }
         merge_receipt(
             &mut tape.authored_jim_calls,
             first.span().start(),

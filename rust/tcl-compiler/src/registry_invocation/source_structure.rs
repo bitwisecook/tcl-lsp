@@ -7468,6 +7468,12 @@ pub fn source_authored_jim_call_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<crate::command_binding::OriginalAuthoredJimClassCall> {
-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
-    realm.original_authored_jim_call(input, &native)
+    let (input, realm, native) = trace_jim_source_option(
+        "jim.call.registered_words",
+        registered_original_words_at(source, analysis, offset),
+    )?;
+    trace_jim_source_option(
+        "jim.call.realm_receipt",
+        realm.original_authored_jim_call(input, &native),
+    )
 }

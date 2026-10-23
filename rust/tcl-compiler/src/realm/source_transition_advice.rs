@@ -472,8 +472,14 @@ impl super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         original: &[tcl_lexer::NativeWord],
     ) -> Option<crate::command_binding::OriginalAuthoredJimClassCall> {
-        self.matches_resolved_analysis_input(input).then_some(())?;
-        let image = self.original_source_image()?;
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.input",
+            self.matches_resolved_analysis_input(input).then_some(()),
+        )?;
+        let image = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.image",
+            self.original_source_image(),
+        )?;
         let config = input.lexer_config();
         self.matches_original_source_image(image, config)
             .then_some(())?;
@@ -482,11 +488,20 @@ impl super::CommandBindingRealm {
             self.bindings
                 .original_source_transition_advice_tape(&context)
         });
-        let tape = prepared.as_ref().as_ref()?;
-        let receipt = tape.authored_jim_call(original.first()?.span().start())?;
-        (receipt.matches_source_context(image, config, &context)
-            && receipt.original_words() == original)
-            .then(|| receipt.clone())
+        let tape = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.tape",
+            prepared.as_ref().as_ref(),
+        )?;
+        let receipt = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.tape_receipt",
+            tape.authored_jim_call(original.first()?.span().start()),
+        )?;
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.call.exact_rejoin",
+            (receipt.matches_source_context(image, config, &context)
+                && receipt.original_words() == original)
+                .then(|| receipt.clone()),
+        )
     }
 
     pub(crate) fn original_authored_jim_class(

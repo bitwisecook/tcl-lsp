@@ -267,12 +267,18 @@ impl Analyser {
             if matches!(
                 inv.lookup,
                 crate::signature_scan::types::SignatureCommandLookup::InvocationHead
-            ) && crate::registry_invocation::source_structure::source_authored_jim_call_at(
+            ) && crate::registry_invocation::source_structure::trace_jim_source_option("jim.diagnostic.call", crate::registry_invocation::source_structure::source_authored_jim_call_at(
                 &self.source,
                 &self.result,
                 inv.range.start(),
-            )
-            .is_some_and(|call| !call.has_earlier_unknown_mutations())
+            ))
+            .is_some_and(|call| {
+                #[cfg(debug_assertions)]
+                if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+                    eprintln!("JIM_SOURCE_OWNER stage=jim.diagnostic.obligations offset={} obligations={:?}", inv.range.start(), call.obligations());
+                }
+                !call.has_earlier_unknown_mutations()
+            })
             {
                 continue;
             }
