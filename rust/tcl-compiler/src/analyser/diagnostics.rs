@@ -1203,7 +1203,7 @@ impl Analyser {
             self.emit_unused_param_diagnostics(
                 function_unit,
                 ir_proc,
-                module.map(|owner| owner.original_source_module()),
+                module.map(super::super::interprocedural::ModuleProcedures::original_source_module),
             );
         }
     }

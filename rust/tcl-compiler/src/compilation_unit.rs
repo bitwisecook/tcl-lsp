@@ -2739,11 +2739,13 @@ fn lower_and_build_cfg(
     )
 }
 
+#[derive(Clone, Copy)]
 struct OriginalBodyCacheInputs<'a> {
     legacy: Option<&'a BodyLoweringCache<'a>>,
     original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
 }
 
+#[derive(Clone, Copy)]
 struct OriginalLoweringCaches<'a> {
     legacy: Option<&'a BodyLoweringCache<'a>>,
     source: Option<&'a crate::lowering::SourceBodySyntaxCache<'a>>,
@@ -2982,6 +2984,7 @@ struct BodyUnitContext<'a> {
     config: tcl_lexer::LexerConfig,
 }
 
+#[derive(Clone, Copy)]
 struct DeclaredBodyMemoContext<'a> {
     prepared: Option<&'a CfgContext>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -4807,13 +4810,13 @@ impl CompilationUnit {
     /// no default metadata context is reconstructed for deep inspection.
     #[must_use]
     pub fn with_retained_deep_semantic_analysis(mut self, registry: &CommandRegistry) -> Self {
+        use crate::dispatch_proof::DispatchEntryAssumption;
         let original_owner = self
             .optimiser_source_owner
             .clone()
             .filter(|owner| owner.matches_unit(&self) && owner.matches_registry(registry));
         self.optimiser_source_owner = None;
 
-        use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
             registry,
             self.top_level
@@ -4876,9 +4879,9 @@ impl CompilationUnit {
         registry: &tcl_registry::CommandRegistry,
         context: Option<SemanticContext>,
     ) -> Self {
+        use crate::dispatch_proof::DispatchEntryAssumption;
         self.optimiser_source_owner = None;
 
-        use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = SemanticAnalysisBundle::build(
             registry,
             context,
@@ -5507,9 +5510,7 @@ fn collect_known_classes(
         if trace_enabled {
             trace("class_roster.positioned", bindings.is_some());
         }
-        let Some(bindings) = bindings else {
-            return None;
-        };
+        let bindings = bindings?;
         #[cfg(test)]
         if trace_enabled {
             trace(

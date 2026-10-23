@@ -293,9 +293,7 @@ pub fn const_contributors(
     var_name: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
-    let Some(config) = retained_config(fu, config) else {
-        return None;
-    };
+    let config = retained_config(fu, config)?;
     if fu.complexity_guarded {
         return None;
     }
@@ -315,9 +313,7 @@ pub fn const_contributors_for_version(
     version: Version,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<ValueContributor>> {
-    let Some(config) = retained_config(fu, config) else {
-        return None;
-    };
+    let config = retained_config(fu, config)?;
     if fu.complexity_guarded {
         return None;
     }

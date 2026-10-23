@@ -1800,7 +1800,7 @@ fn walk_string_eq_ne(
             walk_string_eq_ne(right, original, found, depth + 1);
             if matches!(op, BinOp::Eq | BinOp::Ne) && eq_ne_compares_as_strings(left, right) {
                 let span = original.and_then(|owner| owner.binary_operator_span(node));
-                found.push((*op, span.map(|span| span.start())));
+                found.push((*op, span.map(tcl_lexer::Span::start)));
             }
         }
         ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, original, found, depth + 1),

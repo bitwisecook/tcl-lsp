@@ -311,8 +311,10 @@ impl OriginalDecodedLambdaFormattingBody {
             return None;
         }
         let context = input.context_registry();
-        let selected =
-            words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+        let selected = words.with_source_schema(
+            &context,
+            crate::registry_invocation::source_schema_queries::lambda_call,
+        )??;
         if words.original_argument_word(selected.lambda_argument) != Some(parent) {
             return None;
         }

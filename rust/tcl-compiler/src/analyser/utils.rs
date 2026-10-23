@@ -829,7 +829,12 @@ impl<'a> CommentLineWalker<'a> {
             && candidates.matches_source(source.source_image(), self.config)
         {
             let _selection_unknown = candidates.selection_unknown();
-            children.extend(candidates.bodies().iter().map(|body| body.content_span()));
+            children.extend(
+                candidates
+                    .bodies()
+                    .iter()
+                    .map(super::super::registry_invocation::OriginalSourceScriptBody::content_span),
+            );
         }
         for &(ordinal, role) in words.roles().unwrap_or_default() {
             if role != ArgRole::LambdaLiteral {

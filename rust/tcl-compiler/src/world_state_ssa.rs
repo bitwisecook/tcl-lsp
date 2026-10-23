@@ -1818,7 +1818,7 @@ fn executable_expr_intents_with_source(
 ) -> Vec<(WorldStateIntentKind, WorldRegion)> {
     match function.original_expression_command_effects(value, expression) {
         None => executable_expr_intents(expression),
-        Some(Some(true)) | Some(None) => conservative_region_intents(),
+        Some(Some(true) | None) => conservative_region_intents(),
         Some(Some(false)) => known_noncommand_expr_intents(expression),
     }
 }

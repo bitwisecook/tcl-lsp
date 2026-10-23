@@ -5555,10 +5555,9 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
                 .map(|shape| (shape.command, shape.effective, None)),
         );
     }
-    let native_source = tokens
-        .source_binding
-        .as_ref()
-        .is_some_and(|binding| binding.has_original_native_source_command());
+    let native_source = tokens.source_binding.as_ref().is_some_and(
+        super::command_binding::SourceInvocationBinding::has_original_native_source_command,
+    );
     // Present Native source ownership is terminal, independently of reached argv.
     if candidates.is_empty() && native_source {
         if let (Some(module), Some(body), Some(metadata)) = (
@@ -6772,7 +6771,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     let sink = tokens
         .and_then(|tokens| TaintSinkSource::for_original_invocation(tokens, sink_call.source));
     for warning in &mut warnings[first_warning..] {
-        warning.source_sink = sink.clone();
+        warning.source_sink.clone_from(&sink);
     }
 }
 
@@ -8701,7 +8700,7 @@ fn var_wrapper_colours(
             }
             let colour = source
                 .allows_nominal_metadata()
-                .then(|| ())
+                .then_some(())
                 .and_then(|()| parse_command_substitution_with_config(sub, config))
                 .and_then(|(cmd, sub_args)| {
                     let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();

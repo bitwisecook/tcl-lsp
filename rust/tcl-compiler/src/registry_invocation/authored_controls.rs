@@ -17,8 +17,8 @@ pub(crate) struct AuthoredSourceInvocation {
 }
 
 enum AuthoredSourceOwner {
-    Header(super::authored_source_structure::AuthoredSourceGrammar),
-    Body(Arc<OriginalAuthoredSourceBodyScope>, CommandTokens),
+    Header(Box<super::authored_source_structure::AuthoredSourceGrammar>),
+    Body(Arc<OriginalAuthoredSourceBodyScope>, Box<CommandTokens>),
 }
 
 pub(crate) fn original_authored_control_invocation(
@@ -28,12 +28,12 @@ pub(crate) fn original_authored_control_invocation(
     let binding = tokens.source_binding.as_ref()?;
     let owner = if binding.has_original_authored_source_body_name_role_owner() {
         let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
-        AuthoredSourceOwner::Body(Arc::new(scope.clone()), tokens.clone())
+        AuthoredSourceOwner::Body(Arc::new(scope.clone()), Box::new(tokens.clone()))
     } else {
-        AuthoredSourceOwner::Header(
+        AuthoredSourceOwner::Header(Box::new(
             super::original_authored_source_structure(tokens, registry)?
                 .into_closed_source_grammar()?,
-        )
+        ))
     };
     let expansion = match &owner {
         AuthoredSourceOwner::Header(grammar) => grammar.has_original_word_expansion(),
@@ -166,7 +166,7 @@ pub(crate) fn original_authored_scalar_invocation(
             )
     };
     let selected = super::resolve_original_source_layout(registry, None, tokens, &advice)?;
-    let owner = AuthoredSourceOwner::Body(Arc::new(scope.clone()), tokens.clone());
+    let owner = AuthoredSourceOwner::Body(Arc::new(scope.clone()), Box::new(tokens.clone()));
     let (descriptor, hook, roles, traits) = owner.with_schema(registry, |schema| {
         use tcl_registry::hooks::LoweringHookId;
         let facts = schema.facts();

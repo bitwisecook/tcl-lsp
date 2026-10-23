@@ -21,8 +21,8 @@ fn original_static_literal(
 }
 
 fn channel_diagnostic(original: &OriginalDiagnosticInvocation) -> Option<Diagnostic> {
-    let layout =
-        original.with_schema(|schema| schema.authored_source_channel_configuration())??;
+    let layout = original
+        .with_schema(crate::registry_invocation::source_schema_queries::channel_configuration)??;
     let encoding = original_static_literal(original, layout.encoding)?;
     let translation = original_static_literal(original, layout.translation)?;
     if encoding != layout.binary_value || translation == layout.binary_value {

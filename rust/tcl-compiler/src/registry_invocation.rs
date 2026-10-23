@@ -697,7 +697,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     // retains generic IR instead of borrowing a definitive Switch topology.
     if source_roles
         .as_ref()
-        .is_some_and(|roles| roles.selection_unknown())
+        .is_some_and(StructuredSourceRoles::selection_unknown)
     {
         #[cfg(test)]
         trace_original_structure("source_roles", tokens, false);

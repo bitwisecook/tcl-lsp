@@ -551,6 +551,7 @@ impl OriginalSourceVariableAliasOperands {
         current: &crate::signature_scan::scope::SignatureNamespaceScope,
         selection: AliasNamespacePurpose,
     ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        use tcl_registry::VariableAliasTarget as Target;
         let (purpose, logical_declaration) = match selection {
             AliasNamespacePurpose::Recorded(purpose) => (purpose, false),
             AliasNamespacePurpose::LogicalDeclaration(purpose) => (purpose, true),
@@ -589,7 +590,6 @@ impl OriginalSourceVariableAliasOperands {
             let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition else {
                 continue;
             };
-            use tcl_registry::VariableAliasTarget as Target;
             let variable = match &alias.target {
                 Target::Global { variable }
                 | Target::CurrentNamespace { variable }
@@ -655,6 +655,7 @@ impl OriginalSourceVariableAliasOperands {
     }
 }
 
+#[derive(Clone, Copy)]
 enum AliasNamespacePurpose {
     Recorded(crate::signature_scan::original_name::OriginalSourceNamePurpose),
     LogicalDeclaration(crate::signature_scan::original_name::OriginalSourceNamePurpose),

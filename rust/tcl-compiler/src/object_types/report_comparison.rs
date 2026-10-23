@@ -82,6 +82,14 @@ struct ReportCandidates<'a> {
     definition_classes: HashSet<ReportOwner<'a>>,
 }
 
+type ReportedScope<'a> = (
+    Span,
+    &'a str,
+    ReportFrame<'a>,
+    Option<ReportOwner<'a>>,
+    Option<&'a str>,
+);
+
 impl ObjectReportSource {
     fn frame(&self, frame: BodyFrameId) -> Option<ReportFrame<'_>> {
         match frame {
@@ -125,17 +133,7 @@ impl ObjectReportSource {
             .collect()
     }
 
-    fn reported_scopes(
-        &self,
-    ) -> Option<
-        Vec<(
-            Span,
-            &str,
-            ReportFrame<'_>,
-            Option<ReportOwner<'_>>,
-            Option<&str>,
-        )>,
-    > {
+    fn reported_scopes(&self) -> Option<Vec<ReportedScope<'_>>> {
         self.scopes
             .iter()
             .map(|scope| {

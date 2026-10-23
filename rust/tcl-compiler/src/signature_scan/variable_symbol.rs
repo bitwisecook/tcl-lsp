@@ -568,13 +568,13 @@ pub(crate) fn original_variable_alias_local_name(
     input: &SignatureSourceNameInput,
     purpose: crate::registry_invocation::DeclarationVariableAliasPurpose,
 ) -> Option<NameBytes> {
+    use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
+    use tcl_syntax::naming::NativeNameContext;
     let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
         input
     else {
         return None;
     };
-    use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
-    use tcl_syntax::naming::NativeNameContext;
     let protocol = input.policy().recipe();
     let bytes = match purpose {
         Purpose::Global => tcl_syntax::naming::global_local_name_bytes(protocol, input.bytes())?,

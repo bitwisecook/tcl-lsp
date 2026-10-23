@@ -4140,7 +4140,7 @@ impl<'a> LatticeDriver<'a> {
     ) -> Option<ScriptRun> {
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             script,
-            original.map_or(0, |owner| owner.base()),
+            original.map_or(0, super::interprocedural::OriginalSummaryScript::base),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.lexer_config),
         );
         let [seg] = commands.as_slice() else {
@@ -4534,7 +4534,9 @@ impl<'a> LatticeDriver<'a> {
         }
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             script,
-            original.as_ref().map_or(0, |owner| owner.base()),
+            original
+                .as_ref()
+                .map_or(0, super::interprocedural::OriginalSummaryScript::base),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.lexer_config),
         );
         if commands.iter().any(|seg| seg.is_partial) {
@@ -4559,7 +4561,7 @@ impl<'a> LatticeDriver<'a> {
         for seg in commands {
             // The command's own text: a head the source writes as the
             // command's name, which a `;` may follow (`break;`).
-            let base = original.map_or(0, |owner| owner.base());
+            let base = original.map_or(0, super::interprocedural::OriginalSummaryScript::base);
             let at = usize::try_from(seg.span.start().saturating_sub(base)).unwrap_or(usize::MAX);
             let end = usize::try_from(seg.span.end().saturating_sub(base)).unwrap_or(usize::MAX);
             if script.get(at..end).map(|text| split_head(text).0) != Some(seg.name()) {
@@ -6895,7 +6897,9 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
                             let argument = self.written_arguments.get(id.0).copied().flatten()?;
                             module.original_body(parent, argument, operand.text)
                         });
-                let base_offset = original.as_ref().map_or(0, |source| source.base());
+                let base_offset = original
+                    .as_ref()
+                    .map_or(0, super::interprocedural::OriginalSummaryScript::base);
                 let base_offset =
                     usize::try_from(base_offset).map_err(|_| DeclineReason::NotExact)?;
                 *self.nested_source.borrow_mut() = original;

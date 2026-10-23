@@ -2851,7 +2851,7 @@ impl Analyser {
                 .result
                 .resolved_input
                 .as_ref()
-                .map(|input| input.context_registry());
+                .map(super::input::ResolvedAnalysisInput::context_registry);
             let Some(context) = context else {
                 return false;
             };

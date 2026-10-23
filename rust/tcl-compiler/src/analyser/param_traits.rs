@@ -1145,8 +1145,10 @@ fn selected_lambda_source(
         analysis,
         command_offset,
     )?;
-    let selected =
-        words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+    let selected = words.with_source_schema(
+        &context,
+        crate::registry_invocation::source_schema_queries::lambda_call,
+    )??;
     if selected.lambda_argument != argument {
         return None;
     }
@@ -1867,7 +1869,7 @@ pub fn caller_frame_upvar_params(
         let Some(selected) = view.parameter_invocation(params).or_else(|| {
             source
                 .as_ref()
-                .map(|selected| selected.retained_invocation())
+                .map(super::super::registry_invocation::ConditionalParameterSourceInvocation::retained_invocation)
         }) else {
             continue;
         };

@@ -150,7 +150,7 @@ impl Analyser {
             return;
         }
         let Some(performed) = original
-            .with_schema(|schema| schema.substitutions_performed())
+            .with_schema(crate::registry_invocation::source_schema_queries::substitutions_performed)
             .flatten()
         else {
             return;
@@ -159,7 +159,7 @@ impl Analyser {
             return;
         };
         let Some(selected) = projected
-            .with_schema(|schema| schema.substitutions_performed())
+            .with_schema(crate::registry_invocation::source_schema_queries::substitutions_performed)
             .flatten()
         else {
             return;

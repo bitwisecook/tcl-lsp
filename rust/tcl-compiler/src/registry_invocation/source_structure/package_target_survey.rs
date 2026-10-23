@@ -500,8 +500,10 @@ impl OriginalPackageIndexSourceSurvey {
         let subject_word = outer_words.original_argument_word(outer_query.arguments.start)?;
         let inner = original_single_source_command_substitution(subject_word)?;
         let inner_words = self.command_words(inner.command())?;
-        let inner_query = inner_words
-            .with_source_schema(&context, |schema| schema.authored_source_package_query())??;
+        let inner_query = inner_words.with_source_schema(
+            &context,
+            crate::registry_invocation::source_schema_queries::package_query,
+        )??;
         if inner_query.query != SourcePackageQuery::ProvidedVersion {
             return None;
         }

@@ -1358,9 +1358,7 @@ impl<'a> ModuleProcedures<'a> {
         let mut settled = !recursive;
         if recursive {
             for qname in component {
-                self.provisional
-                    .borrow_mut()
-                    .insert((*qname).to_owned(), None);
+                self.provisional.borrow_mut().insert((*qname).clone(), None);
             }
             for round in 1.. {
                 if rounds.exceeded(round) {
@@ -1375,7 +1373,7 @@ impl<'a> ModuleProcedures<'a> {
                 for (qname, roles) in component.iter().zip(&roles) {
                     self.provisional
                         .borrow_mut()
-                        .insert((*qname).to_owned(), roles.clone());
+                        .insert((*qname).clone(), roles.clone());
                 }
                 if !changed {
                     settled = true;
@@ -1441,7 +1439,7 @@ impl<'a> ModuleProcedures<'a> {
             };
             self.summaries
                 .borrow_mut()
-                .insert((*qname).to_owned(), summary);
+                .insert((*qname).clone(), summary);
         }
     }
 
