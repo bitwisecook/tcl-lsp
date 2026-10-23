@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T05:04:54.426798+00:00",
+  "source_product": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "observed": 66,
+  "passes": 51,
+  "failures": 15,
+  "original_jim26": {
+    "PASS": 15,
+    "FAIL": 11
+  },
+  "added_jim8": {
+    "PASS": 6,
+    "FAIL": 2
+  },
+  "after8b32": {
+    "PASS": 30,
+    "FAIL": 2
+  },
+  "manifest_sha256": "54a43066fc2df5a9e706b27e92206da7ca429e7f2e7f5c107f182113f286bf96",
+  "payload_files_verified": 388,
+  "scope": "Full guarded source30 Spec66 closure, all7build0W/source/provider/artifact/count/status/exit/lifecycle/GO/launcher guards independently checked beforesource46 integration; no wholeC1C2/zeroP2F/releaseacceptance."
+}

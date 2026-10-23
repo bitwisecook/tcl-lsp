@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T05:04:12.969595+00:00",
+  "status": "HELD for compiler environment/tool identity gap; source/selector/artifact/HEAD envelope statically checked",
+  "path": "/tmp/lsp-quote-body-finite-v2-source46-direct23",
+  "pins": {
+    "plan.json": "b6130a0a7400bfa5c8233ea4dd7c256b105a4696cb4c190029469b167e762737",
+    "suite.py": "42c071f18c041adeafe4f850f5e808665fef8ffb66c24841093677425757b8af",
+    "runner-input-manifest.json": "b5f8dfed2200852632d61b6cfeb260561ba49bc884cb7e0b3b608ba981d33992",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "checks": [
+    "All exact runner manifest inputs current",
+    "All7 selector-source pins and46 product afterhashes current",
+    "Frozen inventory22097938 data identical, unique exact23 count1 each, target grouping1+1+4+12+5",
+    "AST4/Bash parse PASS; absentGO launch refusal exit2 before runner/lock/Cargo",
+    "Source46 approvedHEAD/tree/all46committedblob/worktree+docs-descendant monotonic sampling and finalseals recheck retained",
+    "Fresh exact CargoJSON target kind/name/profile/manifest/executable under targetdir and per-selector/final artifact seals retained",
+    "Exact printedname/start/summary/status/exit guards preserve originalfailed tests as failure, not protocol success",
+    "Executor88125 exact reviewed lifecycle; no core/compiler server needed"
+  ],
+  "blockers": [
+    "run.sh sources environment but suite inherits compiler flags/wrappers/build-target overrides in os.environ.copy; future builds could suppress0W or replace compiler despite earlier typecheckPASS.",
+    "Cargo absolute path only checked exists, expected Cargo/rustc hash and required actual environment not joined to pinned source46 typecheck plan. Provider snapshot covers Tcl/Jim, not compiler tool identities."
+  ],
+  "requested_successor": "Preserve23/inventory/assertions/lifecycle; reuse typecheckv8 required_environment/PATH/refusedoverrides/Cargo+rustrchash checks beforelock in launcher+suite.",
+  "limits": "No Cargo/build/Git/provider/canonical source/GO mutation; tests unrun. No cause/runtime/acceptance claim."
+}

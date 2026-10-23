@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T05:00:06.824319+00:00",
+  "role": "coordinator",
+  "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "plan_sha256": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+  "source46_manifest_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "runner_input_manifest_sha256": "611f5e485c30ac708c017ad9fb503daff05491a20a38ec53079b9ab50457645d",
+  "approved_integrated_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "approved_integrated_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07",
+  "allocation": "eight-package all-target typecheck only; source/provider HOLD; docs-only descendants allowed; no runtime/strictlint/release claim",
+  "prerequisite_spec66_closure_sha256": "6d5d1031c3aa41450ac751a84629ee5f71a5215ae9cc8fda982564dccd6f0bb3"
+}

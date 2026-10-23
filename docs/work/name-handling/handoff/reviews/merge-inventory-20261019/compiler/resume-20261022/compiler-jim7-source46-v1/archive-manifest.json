@@ -1,0 +1,22 @@
+{
+  "archive_sha256": "aa795b765b089a58dc325a831c3cbb27e0dfe5eb6ab362c9ae41daab3c81351a",
+  "files": {
+    "compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "guarded-cargo.py": "59e926475c29aeb97d9f2ee80bbb70b089c818803f4f196857ba78ec4108a8d2",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch-preflight-refusal.json": "d2902f15e3c87b14d96432203dff5e2894ff8b461de41aa2eb1f10b57cc79aec",
+    "launch.py": "c730fc0cb5cd736abeb168afcf8e75aa27771753ab5a6822dd24d8e78077e422",
+    "plan.json": "ea778e6f50b22f3464e533a66b10b72d947e391c5d342a516f2ff6d94263194f",
+    "readiness.json": "46097e2904966b99b603a9b7927979f5fd266f0050e49fed3937adab0b2ab92a",
+    "run.sh": "19956eb05cca036cea3699dc13eb2102a503f44712019d17dd7c3d9d2164c874",
+    "runner-input-manifest.json": "b5cd38ba3a6ac41357ec6800f1d2ad95b79b5d0b480d71dec2dc08a028907799",
+    "source46-manifest.json": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "suite.py": "b61826f70e9dc632b7ea3568c8e7da9bd9a191fe9fb850d85a7cfa2e4c4299ae",
+    "typecheck8-plan.json": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+    "typecheck8-runner-input-manifest.json": "611f5e485c30ac708c017ad9fb503daff05491a20a38ec53079b9ab50457645d"
+  },
+  "status": "prepared only; peers pending; rootGO absent; no Cargo/runtime"
+}

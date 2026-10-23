@@ -1,0 +1,19 @@
+{
+  "status": "Root allocation only after actual typecheck8 PASS0W; this is a schema, NOT a GO",
+  "required_fields": {
+    "plan_sha256": "exact plan pin",
+    "runner_input_manifest_sha256": "exact runtime input manifest pin",
+    "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "source46_manifest_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "approved_integrated_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+    "approved_integrated_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07",
+    "compiler49_final_receipt": "actual complete valid49 final path",
+    "compiler49_final_sha256": "actual final bytes",
+    "compiler49_launcher_receipt": "actual valid49 launcher",
+    "compiler49_launcher_sha256": "actual launcher bytes",
+    "typecheck8_final_receipt": "actual completed v8 final, not start",
+    "typecheck8_final_sha256": "allocate exact bytes only after actual PASS0W",
+    "typecheck8_launcher_receipt": "actual completed v8 launcher",
+    "typecheck8_launcher_sha256": "allocate exact bytes only after actual PASS0W"
+  }
+}

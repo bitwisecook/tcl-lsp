@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T04:59:37.023531+00:00",
+  "spec66_summary_sha256": "6d5d1031c3aa41450ac751a84629ee5f71a5215ae9cc8fda982564dccd6f0bb3",
+  "spec66_results_sha256": "37d5b6878c2662e2fc65fa831fca3d79eca18960cabe97bea8ddff6128bd5ba0",
+  "launcher_sha256": "7ad49128af18c549cbdb36061ee476558e9d7b5d1c0e689c600d119d24b9ec50",
+  "actual_observed": 66,
+  "actual_passes": 51,
+  "actual_failures": 15,
+  "all_source_provider_artifact_counts_status_exit_warning_lifecycle_guards_valid": true,
+  "next_batch_manifest_sha256": "d5c0674176c80a311a5fc9f460304ea4e2223c3f4c834f356b38d93f23fea236",
+  "next_patch_sha256": "8460f1a5cb239f211a431ef6269c3478e091ade157d40902632c10d1ccb8d834",
+  "scope": "Actual source30 Spec66 closure only; failures retained; no release/admission. Source46 reviewed WIP integration allowed after slot closure.",
+  "integrated_worktree_paths": 28,
+  "cumulative_product_paths": 46,
+  "typing": false,
+  "runtime_tested": false,
+  "source46_manifest_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "approved_integrated_head": "425bd8bd0360294bc5929a39e814fe555ed9b07c",
+  "approved_integrated_tree": "5bc79699ab0b53026d71ca7fe37972bfdb990c07"
+}

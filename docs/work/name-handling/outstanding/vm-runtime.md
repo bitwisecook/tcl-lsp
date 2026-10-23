@@ -2,11 +2,29 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:50Z (Spec66v4 RUNNING; EDAloadables8/8PASS targetguardsvalid,total61=46PASS15FAIL; finalenvironment5; CCGdirect3v3 boundedpeerCLEAR)
+Last updated: 2026-10-23T05:01Z (actual Spec66v4 COMPLETE04:59:18=51PASS15FAIL,all66strictguards/7artifacts/source/providers stable0W; losslesscompletearchive ready)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual Spec66v4 COMPLETE04:59:18Z, launcherfinal04:59:19 exit1, inputs/GO/
+manifest stable, lockreleased.66exact observations51PASS15FAIL; allstrict
+summary/count/status/exit receipts valid,7freshCargoartifacts,7builds0warnings,
+40940fullsource/fullprovider bytes equal and allartifact finalguards stable.
+Split originalJim26=15PASS11FAIL, added8=6PASS2FAIL, after8b32=30PASS2FAIL.
+Targets: Jimdocument21/13, ownsurface9/2, roster4/0, generation3/0, seed1/0,
+EDAloadables8/0, EDAenvironment5/0. All15failures remain originalstrict
+observations routedcompiler; no cause inferred from outcome, no assertion or
+budget weakened. Scope source30product4d4/tree9259, not future source46.
+Whole lossless run/protocol/GO/launcher/rawsource30 archive:
+`vm-runtime/runs/spec66-complete-20261023T045918Z/manifest.txt`; original12
+sourcebytes and externalprotocol inputs copied from frozen completedJim34
+archive, not current futureproduct files. Finalenvironment targetarchive
+`vm-runtime/runs/spec66-eda_environment_packs-target-20261023/manifest.txt`
+SHAa6bb5c52. No whole C.1–C.2/release/baselinezeroP2F admission. Root owns
+subsequentsource46 integration/typing; VM launched no Cargo/source/Git actions.
+
 
 Sixthtarget EDAloadables8 closed8/8PASS,0W,targetsource/provider/artifactguards
 stable; archive `vm-runtime/runs/spec66-eda_loadables-target-20261023/manifest.txt`
