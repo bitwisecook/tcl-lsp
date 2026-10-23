@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 12:20 UTC
+Last updated: 2026-10-23 12:38 UTC
 
 **Latest-source retry running at a8e7bc7a; no production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -9,8 +9,8 @@ cleaned; their partial regression runs are superseded, never full comparisons.
 The finished0322 lexer/report/smoke/trace observations below remain historical.
 
 The FULL batch is rebased onto a8e7; clean6/two patches refresh and fmt/switch
-reconstruction pass. Current16 report+actual-realm controls, lexer and opt1
-SpecTcl builds are in progress. No latest corpus acceptance or compiler-patch
+reconstruction pass. Current lexer is586/586PASS BOTH with zero warnings and executable removed.
+The16 report+actual-realm control and opt1SpecTcl builds are in progress. No latest corpus acceptance or compiler-patch
 readiness is claimed. See outstanding/perf.md for exact commands/resources.
 
 ## Current0322 progress

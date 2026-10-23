@@ -1,57 +1,15 @@
 {
-  "base": "0322d9cd1af50e28157b7c3693f53b77cc92adf7",
-  "status": "applicability/format/parse only; semantic proof not implied",
-  "sets": [
-    {
-      "patches": [
-        "perf-owned.patch",
-        "perf-realm-interprocedural.patch"
-      ],
-      "files": [
-        "rust/tcl-compiler/src/command_binding/formal_call_advice.rs",
-        "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
-        "rust/tcl-compiler/src/command_binding/original_name_value.rs",
-        "rust/tcl-compiler/src/interprocedural.rs",
-        "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
-        "rust/tcl-compiler/src/realm.rs",
-        "rust/tcl-lexer/src/parse_cut.rs",
-        "rust/tcl-lexer/src/source_map.rs"
-      ],
-      "apply": "PASS; exact snapshots",
-      "rustfmt": "PASS",
-      "sha256": {
-        "perf-owned.patch": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a",
-        "perf-realm-interprocedural.patch": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3"
-      }
+  "base": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "status": "clean application, exact snapshot bytes and rustfmt PASS; semantic proof still pending",
+  "patches": {
+    "perf-owned.patch": {
+      "sha256": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a"
     },
-    {
-      "patches": [
-        "perf-analyser-images.patch",
-        "perf-analyser-segments.patch"
-      ],
-      "files": [
-        "rust/tcl-compiler/src/analyser/commands.rs",
-        "rust/tcl-compiler/src/analyser/diagnostics/validity.rs"
-      ],
-      "apply": "PASS; exact snapshots",
-      "rustfmt": "PASS",
-      "sha256": {
-        "perf-analyser-images.patch": "eae7338e1a2ca0cfa26c78f0d4db8fe406c180a2942bfd22298ef95473cc64bf",
-        "perf-analyser-segments.patch": "8fd57bd7b601f1b13d574577aae0d348836584e98bc90d280980e9ef2019b371"
-      }
-    },
-    {
-      "patches": [
-        "perf-lsp-current-inventory.patch"
-      ],
-      "files": [
-        "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs"
-      ],
-      "apply": "PASS; exact snapshots",
-      "rustfmt": "not run on inherited whole-file formatting; draft parse only",
-      "sha256": {
-        "perf-lsp-current-inventory.patch": "1d58573fa6232403fd26164d2fce53a7f8608d84a9ac05265ad461a4e8d53e38"
-      }
+    "perf-realm-interprocedural.patch": {
+      "sha256": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3"
     }
-  ]
+  },
+  "owned_count": 6,
+  "routed_count": 2,
+  "temporary_switches": false
 }

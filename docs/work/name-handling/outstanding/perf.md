@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 12:20 UTC
+Last updated: 2026-10-23 12:38 UTC
 
 ## Resume
 
@@ -29,8 +29,8 @@ both modes. Different and Unavailable still fail the full corpus gate.
 Current jobs:
 - /tmp/perf-run-a8e7.log, session51915: default0 control build, both control
   modes, native/hosted smoke and complete PackSet three-way; owns cleanup.
-- /tmp/perf-lexer-a8e7.log, session39041: default0 lexer both modes, isolated
-  target-lexer-controls; build/run/delete in one command.
+- /tmp/perf-lexer-a8e7.log, session39041 COMPLETE: default0 lexer586/586 both modes,
+  zero warnings; isolated target-lexer-controls, executable removed.
 - /tmp/perf-spectcl-a8e7.log, session2241: isolated target-spectcl-opt1,
   debug/overflow assertions on; tests wait for /tmp/perf-a8e7-server-finished.
 
@@ -55,10 +55,9 @@ at most30min apart. No PR. Footer Co-Authored-By: Codex <noreply@openai.com>.
 
 ## Completed evidence
 
-Current0322 lexer library: **586/586 PASS in BOTH modes**, identical complete
+Completed0322 lexer library: **586/586 PASS in BOTH modes**, identical complete
 inventories, no warnings, test executable removed. Exact default-profile
-build/outputs: evidence/current-0322d9cd/crate-tests-default/. No other current
-suite verdict yet. All 117 text corpus bytes match the recorded baseline and
+build/outputs: evidence/current-0322d9cd/crate-tests-default/. The other0322 regression runs were superseded by the a8e7 repair. All 117 text corpus bytes match the recorded baseline and
 added-class roster; all 72 tracked SpecTcl source/test inputs are present.
 
 
@@ -96,10 +95,9 @@ added-class roster; all 72 tracked SpecTcl source/test inputs are present.
 
 ## Remaining, in order
 
-1. Compiler owner resolves the current two alias-role assertion failures and
-   hosted CurrentOwnerUnavailable. Then complete actual-realm controls and
-   full all-old/mixed 102+15+synthetic report equality/PackSet proof. Never
-   treat the native two-fixture smoke as complete corpus acceptance.
+1. Complete fresh a8e7 report/realm controls in BOTH modes, then the full
+   all-old/mixed102+15+synthetic report and PackSet proof. The0322 blockers
+   are historical after upstream repair, not a current verdict.
 2. Finish current-source crate/no-switch gates with zero pass-to-fail and zero
    new warnings. Preserve known failure/resource limits. Older six-file-only
    Clippy snapshot: zero owned /783 foreign; not current workspace green.
@@ -116,28 +114,24 @@ added-class roster; all 72 tracked SpecTcl source/test inputs are present.
 
 ## Files, trees and reproduction
 
-Main patches are refreshed against0322d9cd; byte-exact clean application only,
-no semantic proof implied. /tmp/perf-0322-clean holds clean snapshots.
+Main patches are refreshed againsta8e7bc7a; byte-exact clean application only,
+no semantic proof implied. /tmp/perf-a8e7-clean holds clean snapshots.
 refresh_patches.py ROOT --base REF --snapshot DEST refreshes clean6/two split;
 use --output-dir to avoid overwriting main artifacts during historical checks.
 Older e4 proof patches/inputs are archived in evidence/latest-e4a01bbe/proof-patches/.
 Never reapply a batch over an already modified tree.
 
-/workspace/tcl-lsp-work is the frozen e4 source and evidence publisher; its
-nine experimental Rust changes are uncommitted. /workspace/tcl-lsp-current
-contains the fresh39b proof. /workspace/tcl-lsp-rust is exact fcb7927f with own
-target. Never link a new probe against an older/mutated target and call it
-that old base. Old target/ compiler rlib was invalidated earlier; do not use it.
-Current target is isolated and local cache invalidation is recorded. Temporary
-probe sources/executables were removed; recorded .rs.txt reproducer sources stay.
+/workspace/tcl-lsp-work retains frozen historical source plus active evidence
+writes. /workspace/tcl-lsp-current is the historical39b proof. Current source
+and its own default/opt1/lexer targets are /workspace/tcl-lsp-perf-latest.
+/workspace/tcl-lsp-rust retains the exact origin baseline and separate target.
+Never use a stale sibling target as proof of another source revision.
 
-Active publication uses /workspace/tcl-lsp-publish, docs-only cherry-picks,
-fetch origin work && rebase origin/work before every push, retry/no force.
-The checkpoint controller is STOPPED (stop flag exists and log confirms it).
-All proof workers completed and removed their executables; no background
-build/test/publisher remains. Final evidence publication uses a manual
-docs-only cherry-pick; the final response supplies its published commit.
-No PR. Footer: Co-Authored-By: Codex <noreply@openai.com>.
+Publication is /workspace/tcl-lsp-publish with only own doc/artifact commits.
+Fetch origin work and rebase origin/work before every normal push, retry on
+rejection, no force and no PR. The old automatic controller is stopped;
+current jobs are the explicit commands in Resume. Each command owns cleanup.
+No current test executable or temporary .rs probe may be committed.
 
 Use source /tmp/perf-env.sh then active scripts/dev/agent-build-env.sh.
 CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6
@@ -153,33 +147,7 @@ The user authorized **authenticated full-report comparison** as the new perf equ
 
 Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. [Exact API and 14-control handoff](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-v7-20261023T0101Z/) and [guarded execution preparation](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-focused14-v1-20261023T0106Z/) are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
 
-## Active regression pipeline
-
-- /tmp/perf-run-retry.log: main default-profile control/smoke/PackSet command;
-  controls complete, Cargo probe build queued behind the server build.
-- /tmp/perf-direct-smoke.log: public API smoke linked from exact completed
-  normal Cargo artifacts while unit-test build finished; source/library/binary
-  hashes and cleanup recorded in evidence/current-0322d9cd/direct-smoke/.
-- /tmp/perf-compiler-current.log: original selected compiler filters in BOTH
-  default-profile modes, private byte-identical executable copies. No final
-  inventory comparison yet; all test assertions unchanged.
-- /tmp/perf-server-current.log: default-profile named server build. It waits
-  for /tmp/perf-heavy-tests-finished before running the unchanged180s cases.
-  Release that resource flag ONLY after compiler/main/direct jobs AND SpecTcl
-  compilation stop using CPU, so the server tests run quietly.
-- /tmp/perf-spectcl-current.log: separate target-spectcl-opt1 compilation with
-  debug/overflow assertions on; eval_loader/golden_packs wait for
-  /tmp/perf-server-tests-finished. Release only after server tests finish.
-  Opt1 results do not erase historical default-profile budget outcomes.
-
-No background publisher/controller is running. Manually checkpoint own docs
-with fetch/rebase before each normal push, at most30minutes apart. All active
-commands build/run/delete their executables in the same command. Temporary
-probe .rs files must be removed after the main command; never commit them.
-The LSP inventory draft is an additional uncompiled/unproven route, not part
-of either perf batch patch and not a fix for all review4.1 scaling shapes.
-
-## Current hosted refusal diagnostic
+## Superseded0322 hosted diagnostic
 
 Three original failing controls were rerun unchanged with their existing trace
 flag, using a byte-identical private copy of the known control binary. All3
@@ -199,3 +167,14 @@ Logical alias observations: named0/unit2, NamespaceScript and OriginalDeclaratio
 share source site24 but have distinct declaration extents24..55 and42..54.
 The unchanged Named+NamespaceScript same-declaration expectation is unmet. No
 producer cause or permission to weaken it is inferred from these observations.
+
+## Current completed result
+
+At a8e7 lexer lib is586/586PASS BOTH, identical complete inventories,
+zero warnings, default0/debug0, executable removed. Evidence is in
+current-a8e7bc7a/crate-tests-default/. Other current gates remain pending.
+
+The old hosted-event diagnostic draft is superseded by the upstream a8e7
+functional repair and must not be applied to the new source. Its raw trace
+remains historical provenance. Residual image/segment and LSP inventory
+performance drafts remain Blocked/routed and unproven.

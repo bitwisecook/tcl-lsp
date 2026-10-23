@@ -146,3 +146,12 @@ original Named+NamespaceScript same-declaration assertion still fails. Full
 raw current trace and compact observations are in report-refusal-trace/.
 Neither this observation nor the successful actual native smoke authorizes
 changing the role expectation, dropping any body or forwarding the perf patch.
+
+## Successor a8e7bc7a
+
+The owner has landed source-procedure traversal, hosted event-word issuance
+and exact authentic alias role/purpose/span controls. The0322 failures above
+are superseded source evidence. Fresh16 report/realm controls are building;
+availability is not inferred from source review. The old logging draft must
+not be applied to the successor. Full corpus and compiler-patch acceptance
+remain pending actual new-source gates, with every field/assertion retained.
