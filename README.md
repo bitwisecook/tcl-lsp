@@ -2110,23 +2110,6 @@ This project was inspired by:
 - [iRuleScan](https://github.com/simonkowallik/irulescan) by Simon Kowallik -- a security scanner for F5 iRules
 - [tclint-vscode](https://github.com/nmoroze/tclint-vscode) by Noah Moroze -- a Tcl linter with VS Code integration
 
-## AI
-
-This project used AI very heavily.
-
-- The core parser, lexer, IR, CFG were largely hand created with input on AI about
-  structure, and lots of AI code review.
-- The command registry was seeded by hand then filled out with AI.
-- The vscode extension, compiler explorer, editor integrations, CI/CD, build pipelines
-  VM, and compiler to Tcl bytecode were all entirely vibe coded.
-- The Claude skills, AI integrations were vibe coded with hand work on the prompts
-  .. they need more of that.
-- The vast bulk of tests were AI written, AI ported from sources like Tcl, but all 
-  largely directed by me in their creation. If I'd been doing that by hand you'd
-  see 3 tests and they'd all be "make install worked for me, good luck"
-- Claude Opus 4.6, Gemini 3.1 Pro and OpenAI GPT-5.3-Codex were all used to review
-  the code, critise it, rewrite and reorganise it.
-
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE)
