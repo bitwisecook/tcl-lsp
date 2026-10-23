@@ -2,11 +2,11 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 13:53 UTC
+Last updated: 2026-10-23 14:02 UTC
 
 ## Resume
 
-**Test typing fix PUSHED; compiler retry and independent server/SpecTcl builds RUNNING. No perf production commit.** All obsolete0322
+**Necessary compiler repairs PUSHED; quiet server comparisons RUNNING. No perf production commit.** All obsolete0322
 workers have been stopped and executables/probe sources cleaned after the
 functional upstream a8e7bc7a repair landed. Their partial compiler/server/
 SpecTcl runs are superseded, NOT completed pass-to-fail comparisons. Exact
@@ -49,27 +49,41 @@ executables/sources removed. normal-artifact-audit.json confirms current
 Cargo fresh:false and a different compiler hash from0322; no stale reuse
 is inferred. Exact37-byte control fixture/provenance is retained.
 
-Current clean-six proof checkout is /workspace/tcl-lsp-owned at94c7f61e.
-Exactly six files are dirty; no switch or compiler-owned two-file patch.
-All117 text fixture hashes match baseline. Default0 clean lexer586/586 PASS
-in both environment executions, zero warnings, executable removed. Because
-this build has no switch, the old environment variable is intentionally
-ignored; the genuine switched lexer comparison is separately a8
-586/586 BOTH. An older sparse pattern excluded six checked-in registry
-oracle captures; failed attempts executed zero tests/warnings. All captures
-are now restored byte-exactly, and raw failed-build receipts are retained.
-Clean six-file metadata check and original selected compiler filters are
-building, sessions22046/47607, /tmp/perf-owned-latest-{check.stderr,compiler.log}.
+Current clean-six checkout is /workspace/tcl-lsp-owned at6e729fe9, with
+exactly the six perf-owned source edits and no switch or routed compiler
+patch. The prior94c7f61e metadata check FAILED with6 upstream type errors
+and3 unused-import warnings, zero tests. Full JSON/stderr/summary retained
+under current-94c7f61e-clean6/. The selected-filter build was interrupted
+before tests, not a completed comparison. Necessary repairs are PUSHED
+separately as6e729fe9 under the user's explicit authorisation: restore state
+import, mutable validity accumulators, command borrow, qualified compilation
+context, and remove exactly three unused imports. Admission predicates and
+all assertions remain. Follow-up typing/test build is in progress, NOT green.
+
+The clean6 compiler-filter retry at6e729fe9 is session68715,
+/tmp/perf-owned-typing-repair-compiler.log, evidence/current-6e729fe9-clean6/.
+It is temporarily PAUSED with the a8 control builder/watcher for a quiet
+server window; the window's finally block resumes every exact owned PID.
+Current94 clean6 lexer586/586 passes in both environment executions with
+zero warnings/executable cleanup. The build has no switch, so that variable
+is ignored; genuine switched a8 lexer comparison separately passes586 BOTH.
+All117 fixture bytes matched94; six originally excluded tracked registry
+oracle captures were restored byte-exactly. Failed sparse-build attempts are
+retained, not test outcomes. The canonical typing repairs do not touch lexer
+source, fixtures or any perf-owned source file.
 
 Current jobs:
-- /tmp/perf-run-a8e7-test-slice.log, session70544: compiler controls retry
+- /tmp/perf-run-a8e7-test-slice.log, session70544: compiler controls retry (PAUSED for quiet server window)
   including the published test-only correction; build then both16 controls,
   complete smoke/PackSet probes and cleanup in one command.
-- /tmp/perf-watch-compiler-checks.log, session58557 waits for that exact
+- /tmp/perf-watch-compiler-checks.log, session58557 (PAUSED) waits for that exact
   compiler binary, makes a SHA-verified private copy, runs all original
   compiler filters both modes plus the existing report trace, then deletes it.
-- /tmp/perf-server-a8e7.log, session19381: default0 server build COMPLETE/zero warnings; tests wait
-  for /tmp/perf-a8e7-heavy-tests-finished.
+- /tmp/perf-server-a8e7.log, session19381: default0 build COMPLETE/zero warnings; both original180s
+  cases/modes now RUNNING on the quiet host. /tmp/perf-quiet-server-window.log
+  session6068 pauses only the8 owned compiler/watcher processes and resumes
+  them after all4 server runs plus executable cleanup. Raw pause/resume and
+  timing receipts are server-quiet-window.json.
 - /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
   control build; zero tests, source unchanged and cleanup complete.
 - /tmp/perf-lexer-a8e7.log, session39041 COMPLETE: default0 lexer586/586 both modes,

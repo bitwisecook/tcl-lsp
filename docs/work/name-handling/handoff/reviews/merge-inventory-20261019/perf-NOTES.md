@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 13:53 UTC
+Last updated: 2026-10-23 14:02 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -188,3 +188,12 @@ checks continue. Both split patches are unchanged byte for byte on94c7f61e;
 ordered apply/snapshot/fmt checks pass. Neither is semantically proven.
 The a8 server default0 and SpecTcl opt1 binaries have completed zero-warning
 builds and wait for quiet resources; no runtime verdict is claimed.
+
+Current clean6 metadata check94c7f61e failed with6 upstream typing errors
+and3 unused imports, zero tests. Full diagnostics are retained. Necessary
+minimal compiler repairs are PUSHED separately as6e729fe9, preserving every
+admission predicate/assertion. The clean6 compiler retry uses that canonical
+head and remains unproven. Its builder and the a8 control builder/watcher
+are temporarily paused while all4 named server180s runs execute quietly;
+the window resumes exact owned processes in finally after server cleanup.
+SpecTcl opt1 tests remain queued; no new runtime result is implied.

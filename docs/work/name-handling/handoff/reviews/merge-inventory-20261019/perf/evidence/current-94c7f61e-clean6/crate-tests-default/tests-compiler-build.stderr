@@ -1,0 +1,38 @@
+    Blocking waiting for file lock on build directory
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling zeroize v1.9.1
+   Compiling subtle v2.6.1
+   Compiling typenum v1.20.1
+   Compiling rand_core v0.10.1
+   Compiling hybrid-array v0.4.15
+   Compiling num-traits v0.2.19
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.4
+   Compiling const-oid v0.10.2
+   Compiling block-buffer v0.12.1
+   Compiling thiserror v2.0.21
+   Compiling bitflags v2.13.2
+   Compiling num-integer v0.1.47
+   Compiling crypto-common v0.2.2
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-core-types)
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-dialect)
+   Compiling digest v0.11.3
+   Compiling memchr v2.8.3
+   Compiling cpufeatures v0.3.1
+   Compiling bytecount v0.6.9
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lexer)
+   Compiling libm v0.2.16
+   Compiling sha2 v0.11.1
+   Compiling num-bigint v0.5.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling shlex v2.0.1
+   Compiling cc v1.8.0
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-syntax)
+   Compiling base64ct v1.8.3
+   Compiling pem-rfc7468 v1.0.0
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-platform)
+   Compiling cpubits v0.1.1
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2

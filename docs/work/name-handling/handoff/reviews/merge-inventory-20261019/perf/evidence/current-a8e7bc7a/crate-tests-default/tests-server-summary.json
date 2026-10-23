@@ -1,12 +1,25 @@
 {
   "server/startup/new": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 10.412,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-server-startup-new.out"
   },
   "server/startup/old": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 21.355,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-server-startup-old.out"
   },
   "server/workspace_symbol/new": {
-    "status": "pending"
+    "status": "running",
+    "log": "tests-server-workspace_symbol-new.out"
   },
   "server/workspace_symbol/old": {
     "status": "pending"

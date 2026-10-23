@@ -1,0 +1,57 @@
+from pathlib import Path
+import json,os,signal,time
+roots={21559:'perf-run-a8e7-test-slice.py',21695:'perf-watch-compiler-checks.py',25478:'run_crate_proofs.py . --stage compiler'}
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')
+out=base/'current-a8e7bc7a/crate-tests-default/server-quiet-window.json'
+paused=[];record={'started_unix':time.time(),'reason':'pause only owned compiler build/control workers so all named server tests retain their original180s budgets on a quiet host','paused':paused}
+def write():out.write_text(json.dumps(record,indent=2)+'\n')
+def info(pid):
+ p=Path('/proc')/str(pid);stat=(p/'stat').read_text();parts=stat[stat.rfind(')')+2:].split();return {'pid':pid,'state':parts[0],'ppid':int(parts[1]),'start_ticks':int(parts[19]),'argv':(p/'cmdline').read_bytes().replace(b'\0',b' ').decode()}
+def children(pid):
+ result=[]
+ for p in Path('/proc').iterdir():
+  if p.name.isdigit():
+   try:
+    r=info(int(p.name))
+    if r['ppid']==pid:result.append(r['pid'])
+   except (FileNotFoundError,ProcessLookupError):pass
+ return result
+def stop_tree(pid):
+ try:r=info(pid)
+ except FileNotFoundError:return
+ if r['state']=='Z':return
+ os.kill(pid,signal.SIGSTOP);paused.append(r);write()
+ for child in children(pid):stop_tree(child)
+try:
+ for pid,expected in roots.items():
+  r=info(pid);assert expected in r['argv'],(pid,r)
+ for pid in roots:stop_tree(pid)
+ for r in paused:
+  assert info(r['pid'])['state'] in ['T','t','Z'],r
+ record['all_workers_stopped_unix']=time.time();write()
+ Path('/tmp/perf-a8e7-heavy-tests-finished').touch()
+ print('Quiet server window started; paused',len(paused),'owned processes',flush=True)
+ summary=out.parent/'tests-server-summary.json'
+ while True:
+  state=json.loads(summary.read_text())
+  if len(state)==4 and all('returncode' in x for x in state.values()):
+   exes=[]
+   for line in (out.parent/'tests-server-build.jsonl').read_text().splitlines():
+    row=json.loads(line)
+    if row.get('reason')=='compiler-artifact' and row.get('executable'):exes.append(Path(row['executable']))
+   if all(not p.exists() for p in exes):break
+  time.sleep(5)
+ record['server_summary']=state
+ record['server_tests_and_cleanup_finished_unix']=time.time();write()
+ print('All four server runs and executable cleanup complete',flush=True)
+finally:
+ resumed=[]
+ for r in reversed(paused):
+  try:
+   current=info(r['pid'])
+   if current['start_ticks']==r['start_ticks']:
+    os.kill(r['pid'],signal.SIGCONT);resumed.append(r['pid'])
+  except ProcessLookupError:pass
+  except FileNotFoundError:pass
+ record['resumed']=resumed;record['finished_unix']=time.time();write()
+ print('Compiler workers resumed',resumed,flush=True)

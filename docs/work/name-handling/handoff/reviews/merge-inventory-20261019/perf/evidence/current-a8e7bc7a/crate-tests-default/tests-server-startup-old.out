@@ -1,0 +1,19 @@
+
+running 1 test
+test original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles ... FAILED
+
+failures:
+
+---- original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles stdout ----
+
+thread 'original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles' (25661) panicked at rust/tcl-lsp-server/src/original_document_metadata_tests.rs:623:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 844 filtered out; finished in 21.27s

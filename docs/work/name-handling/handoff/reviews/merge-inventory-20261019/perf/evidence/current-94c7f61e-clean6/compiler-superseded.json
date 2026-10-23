@@ -1,0 +1,11 @@
+{
+  "reason": "normal metadata check found upstream type/import failures; stop before compiler-filter execution, repair current work then rerun",
+  "parent": 24258,
+  "signalled_children": [
+    24281,
+    24931,
+    25024
+  ],
+  "timestamp_unix": 1792763772.2388442,
+  "not_a_completed_pass_to_fail_comparison": true
+}

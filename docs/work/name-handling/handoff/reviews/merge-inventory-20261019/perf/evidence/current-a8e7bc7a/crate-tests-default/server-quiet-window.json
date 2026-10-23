@@ -1,0 +1,63 @@
+{
+  "started_unix": 1792764061.7530394,
+  "reason": "pause only owned compiler build/control workers so all named server tests retain their original180s budgets on a quiet host",
+  "paused": [
+    {
+      "pid": 21559,
+      "state": "S",
+      "ppid": 21550,
+      "start_ticks": 5650752,
+      "argv": "python3 /tmp/perf-run-a8e7-test-slice.py "
+    },
+    {
+      "pid": 21594,
+      "state": "S",
+      "ppid": 21559,
+      "start_ticks": 5651655,
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j2 -p tcl-compiler --lib --no-run --message-format=json "
+    },
+    {
+      "pid": 24248,
+      "state": "S",
+      "ppid": 21594,
+      "start_ticks": 5755488,
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_compiler --edition=2024 rust/tcl-compiler/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=0fd2ed86780e435d -C extra-filename=-69985a5938e13168 --out-dir /workspace/tcl-lsp-perf-latest/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-perf-latest/target/debug/deps --extern bitflags=/workspace/tcl-lsp-perf-latest/target/debug/deps/libbitflags-1fdf0fce4c11fa73.rmeta --extern num_bigint=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_bigint-0d8571d427f93d3d.rmeta --extern num_integer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_integer-de14a98996d95faf.rmeta --extern num_traits=/workspace/tcl-lsp-perf-latest/target/debug/deps/libnum_traits-84554fa0bfb1fd1b.rmeta --extern regex=/workspace/tcl-lsp-perf-latest/target/debug/deps/libregex-81d2b450d64af4ea.rmeta --extern rustc_hash=/workspace/tcl-lsp-perf-latest/target/debug/deps/librustc_hash-24b16ca29408e1a7.rmeta --extern tcl_bytecode=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_bytecode-4eb1a604ba648668.rmeta --extern tcl_cmd_core=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_cmd_core-2558ce111892a90f.rmeta --extern tcl_core_types=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_core_types-7a0c30e1b57eb98b.rmeta --extern tcl_dialect=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_dialect-051746368397d9ae.rmeta --extern tcl_lexer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rmeta --extern tcl_registry=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_registry-1b0cca42e692289a.rmeta --extern tcl_runtime_api=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_runtime_api-057d314f36c92c0a.rmeta --extern tcl_syntax=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_syntax-d55a159e25981def.rmeta --extern thiserror=/workspace/tcl-lsp-perf-latest/target/debug/deps/libthiserror-ddfaee5c6b17577b.rmeta --extern unicode_general_category=/workspace/tcl-lsp-perf-latest/target/debug/deps/libunicode_general_category-08e203d4bfdf5349.rmeta "
+    },
+    {
+      "pid": 21695,
+      "state": "S",
+      "ppid": 21693,
+      "start_ticks": 5662317,
+      "argv": "python3 /tmp/perf-watch-compiler-checks.py "
+    },
+    {
+      "pid": 25478,
+      "state": "S",
+      "ppid": 25277,
+      "start_ticks": 5828428,
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage compiler --opt-level 0 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-6e729fe9-clean6/crate-tests-default "
+    },
+    {
+      "pid": 25501,
+      "state": "S",
+      "ppid": 25478,
+      "start_ticks": 5828713,
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j2 -p tcl-compiler --lib --no-run --message-format=json "
+    },
+    {
+      "pid": 25545,
+      "state": "S",
+      "ppid": 25501,
+      "start_ticks": 5831484,
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_syntax --edition=2024 rust/tcl-syntax/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) --cfg feature=\"num-bigint\" --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values(\"num-bigint\")) -C metadata=1682fba860d8e8ab -C extra-filename=-d55a159e25981def --out-dir /workspace/tcl-lsp-owned/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-owned/target/debug/deps --extern bitflags=/workspace/tcl-lsp-owned/target/debug/deps/libbitflags-1fdf0fce4c11fa73.rmeta --extern libm=/workspace/tcl-lsp-owned/target/debug/deps/liblibm-dd4faa934fa7045f.rmeta --extern num_bigint=/workspace/tcl-lsp-owned/target/debug/deps/libnum_bigint-0d8571d427f93d3d.rmeta --extern num_integer=/workspace/tcl-lsp-owned/target/debug/deps/libnum_integer-de14a98996d95faf.rmeta --extern num_traits=/workspace/tcl-lsp-owned/target/debug/deps/libnum_traits-84554fa0bfb1fd1b.rmeta --extern tcl_core_types=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_core_types-7a0c30e1b57eb98b.rmeta --extern tcl_dialect=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_dialect-051746368397d9ae.rmeta --extern tcl_lexer=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rmeta "
+    },
+    {
+      "pid": 25591,
+      "state": "S",
+      "ppid": 25501,
+      "start_ticks": 5832885,
+      "argv": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name aho_corasick --edition=2021 /workspace/.cargo/registry/src/raw.githubusercontent.com-1fd8571475c8f238/aho-corasick-1.1.5/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg feature=\"perf-literal\" --cfg feature=\"std\" --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values(\"default\", \"logging\", \"perf-literal\", \"std\")) -C metadata=85ab9b5ad32c6732 -C extra-filename=-82a504d3de39eb53 --out-dir /workspace/tcl-lsp-owned/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-owned/target/debug/deps --extern memchr=/workspace/tcl-lsp-owned/target/debug/deps/libmemchr-48baebea031d4a80.rmeta --cap-lints allow "
+    }
+  ],
+  "all_workers_stopped_unix": 1792764065.1242793
+}
