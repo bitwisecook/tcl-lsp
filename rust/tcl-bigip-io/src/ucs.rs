@@ -147,8 +147,14 @@ pub fn is_pgp_bytes(data: &[u8]) -> bool {
 }
 
 /// Strip leading `.`/`/` characters.
-fn lstrip_dot_slash(name: &str) -> &str {
-    name.trim_start_matches(['.', '/'])
+fn lstrip_dot_slash(mut name: &str) -> &str {
+    loop {
+        name = name.trim_start_matches('/');
+        let Some(rest) = name.strip_prefix("./") else {
+            return name;
+        };
+        name = rest;
+    }
 }
 
 /// Case-sensitive `.conf` suffix test, mirroring `endswith(".conf")`.
@@ -892,6 +898,31 @@ mod tests {
         ] {
             assert!(!is_forensic_path(p), "{p} should not be forensic");
         }
+    }
+
+    #[test]
+    fn exact_member_reads_preserve_dot_names_and_directory_components() {
+        let raw = build_ucs(&[
+            (".hidden", "dot"),
+            ("hidden", "bare"),
+            ("elsewhere/donor", "other"),
+        ]);
+        let no_passphrase = || Ok(String::new());
+        let dot = find_exact_ucs_member_source(&raw, "./.hidden", &no_passphrase, "test")
+            .unwrap()
+            .unwrap();
+        assert_eq!(dot.bytes(), b"dot");
+        assert_eq!(dot.path(), ".hidden");
+        assert_eq!(dot.file_entry().path, ".hidden");
+        let bare = find_exact_ucs_member_source(&raw, "hidden", &no_passphrase, "test")
+            .unwrap()
+            .unwrap();
+        assert_eq!(bare.bytes(), b"bare");
+        assert!(
+            find_exact_ucs_member_source(&raw, "donor", &no_passphrase, "test")
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[cfg(unix)]

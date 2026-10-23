@@ -1,0 +1,60 @@
+{
+  "source_base": "ed680fd2 plus original path-prefix and JSON-value assertion corrections",
+  "command": {
+    "cargo": [
+      "test",
+      "--locked",
+      "--no-fail-fast",
+      "-p",
+      "tcl-bigip-io",
+      "-p",
+      "tcl-bigip-query",
+      "--lib",
+      "--test",
+      "integration",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "runs": [
+      {
+        "target": "tcl_bigip_io",
+        "args": [
+          "exact_member_reads",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "integration",
+        "args": [
+          "files::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      }
+    ],
+    "log": "/workspace/scratch/bigip-20261023/explicit-file-tests-final.log"
+  },
+  "exit": 0,
+  "io_tests": {
+    "pass": 2,
+    "fail": 0
+  },
+  "query_file_tests": {
+    "pass": 6,
+    "fail": 0
+  },
+  "warnings": 0,
+  "files": {
+    "rust/tcl-bigip-io/src/ucs.rs": "2c9df9d9f3023f4b360e9a97b54d397331eef0d71c76eee634b14904c98375b2",
+    "rust/tcl-bigip-query/src/eval.rs": "0af1dba7bcfe3b00ede56ff13b5381571116cce9ceca025d4d163afc34a996fc",
+    "rust/tcl-bigip-query/src/builtins/files.rs": "e3e483bbc63203feae8620b5ae1a7d9ddf7c6616f37fc2a1e05f8de88702fb34",
+    "rust/tcl-bigip-query/tests/integration/files.rs": "8b478b635872980b6cff4bc13f26ffecb7708802c74c5b60b020ea8b9f1503d7"
+  },
+  "raw_sha256": "5bc61d0167b04c8ee4dcb656286b9cbdd0945a35dc51afaf7fdc528c32587750",
+  "limitations": [
+    "CLI provider and original archive-content protocol test have not yet run on this expansion.",
+    "Only the selected tests ran, not the full library suite.",
+    "Initial new DSL assertion compared escaped JSON text to a literal character; corrected to exact decoded-JSON value equality."
+  ]
+}

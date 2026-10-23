@@ -122,7 +122,10 @@ fn file_attaches_content() {
 #[test]
 fn file_reads_explicit_lossy_members_without_expanding_discovery() {
     let out = run(r#"file("etc/donor") | .content"#);
-    assert!(out.contains("new\u{fffd}"), "{out}");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&out).unwrap(),
+        serde_json::json!(["new\u{fffd}"])
+    );
     assert!(!run("files").contains("etc/donor"));
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&run(r#"file("donor")"#)).unwrap(),

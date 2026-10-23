@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T11:23Z
+Last updated: 2026-10-23T11:35Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -162,17 +162,25 @@ prior receipts below describe their original source, not the new integrated tip.
 - Two CLI input-only corrections select `.full-path` rather than leaf `.name`;
   all refusal/output/artifact assertions remain. Rationale in
   `bigip-lsp/cli-fixture-corrections-20261023.md`.
-- Sessions:92295 IO+query focused tests active. `/workspace/scratch/bigip-20261023/`
+- Focused explicit-file tests PASS: IO2/2 and query6/6; receipt
+  `bigip-lsp/explicit-file-20261023.json`. Prefix stripping now preserves real
+  dot-names instead of aliasing `.hidden` to `hidden`. Source-name/query
+  alias controls pass; all executables deleted. Sessions92295 initial run
+  (new assertion JSON rendering mismatch only),62986 corrected8/8 final run.
+  Combined native build65063 is active; strict F5/editor lint52191 is active. `/workspace/scratch/bigip-20261023/`
   holds `env.sh`, build/run/delete helper and all plans/logs. This helper now
   runs any available selected artifact even after a sibling build failure,
   labels missing targets not-built, and always deletes every issued test exe.
 - The combined native plan is `native-combined.json` (Compiler5 controls,
   Core ILX, CLI/provider/trace/simulation, server F5 pull, ILX16/XC/W109 e2e).
   Previous launch96931 was stopped before artifacts after the new user decision;
-  restart it after the focused explicit-file tests. Build sources stay frozen.
+  has been restarted as65063 after focused8/8 and restoring16 additional
+  literal fixtures unchanged from HEAD. Build sources stay frozen.
 - Earlier Core test build failed only on three omitted literal experiment
   fixtures; their exact HEAD bytes are restored and sparse patterns retained.
   Scoped broad Clippy completed with10generic Core errors, no owned finding;
+  exact index/raw hashes: `bigip-lsp/clippy-core-blockers-20261023.json` and
+  `clippy-broad-20261023.jsonl.gz`.
   selecting Core as a strict root blocked dependent targets. Next pass must
   select F5 roots+xtask separately, then server separately, using --no-deps.
   Current irules strict library/tests is green (256trait recursion, no allowance).

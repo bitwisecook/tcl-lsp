@@ -1,0 +1,568 @@
+{
+  "source": "c695061e before the explicit-file expansion",
+  "exit": 101,
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust -p tcl-lsp-core -p tcl-lsp-server -p xtask --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "errors": [
+    {
+      "message": "binding's name is too similar to existing binding",
+      "code": {
+        "code": "clippy::similar_names",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "line": 859
+        }
+      ]
+    },
+    {
+      "message": "binding's name is too similar to existing binding",
+      "code": {
+        "code": "clippy::similar_names",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/minify/original.rs",
+          "line": 703
+        }
+      ]
+    },
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/diagnostic_report.rs",
+          "line": 291
+        }
+      ]
+    },
+    {
+      "message": "large size difference between variants",
+      "code": {
+        "code": "clippy::large_enum_variant",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "line": 1701
+        }
+      ]
+    },
+    {
+      "message": "this OR pattern can be rewritten using a range",
+      "code": {
+        "code": "clippy::manual_range_patterns",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "line": 1857
+        }
+      ]
+    },
+    {
+      "message": "field name ends with the struct's name",
+      "code": {
+        "code": "clippy::struct_field_names",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 111
+        }
+      ]
+    },
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 615
+        }
+      ]
+    },
+    {
+      "message": "item in documentation is missing backticks",
+      "code": {
+        "code": "clippy::doc_markdown",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/rename.rs",
+          "line": 371
+        }
+      ]
+    },
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "line": 2000
+        }
+      ]
+    },
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "line": 2232
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "target": "build-script-build",
+      "kinds": [
+        "custom-build"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_core_types",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_dialect",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_lexer",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_syntax",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_platform",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_runtime_api",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_cmd_core",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_regex",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_registry",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_bytecode",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_compiler",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_irules",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_sslictcl",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_bigip",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "build-script-build",
+      "kinds": [
+        "custom-build"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_host_c_abi",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_host_native",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_vm",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_engine_api",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_engine_tclvm",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_pkg_model",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_userdirs",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_spec_hooks",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_bigip_query",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_test_support",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "build-script-build",
+      "kinds": [
+        "custom-build"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_version",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_bigip_io",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_f5mku",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_sandbox",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_pkg",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_irule_test",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_diagram",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "build-script-build",
+      "kinds": [
+        "custom-build"
+      ],
+      "test": false
+    },
+    {
+      "target": "bigip_report_gen_rust",
+      "kinds": [
+        "lib"
+      ],
+      "test": false
+    },
+    {
+      "target": "build-script-build",
+      "kinds": [
+        "custom-build"
+      ],
+      "test": false
+    },
+    {
+      "target": "tcl_runtime",
+      "kinds": [
+        "rlib",
+        "cdylib",
+        "staticlib"
+      ],
+      "test": false
+    },
+    {
+      "target": "architecture",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "report",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "firewall",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "apm",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "render_arch",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "certs",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "gtm",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "bigip_report_gen_rust",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    },
+    {
+      "target": "tcl_bigip_io",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    },
+    {
+      "target": "ucs",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "tcl_bigip_query",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    },
+    {
+      "target": "integration",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "x509_only",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "integration",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "tcl_bigip",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    },
+    {
+      "target": "tcl_f5mku",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    },
+    {
+      "target": "resolve_args",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "event_emission",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "script_bearing_args",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "object_refs",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "walker",
+      "kinds": [
+        "test"
+      ],
+      "test": true
+    },
+    {
+      "target": "tcl_irules",
+      "kinds": [
+        "lib"
+      ],
+      "test": true
+    }
+  ],
+  "raw_sha256": "05b83105f85ab72e2f3663ae3fd8b5f37f503e3b34744e10194a1c83301c7ce4",
+  "raw_bytes": 322905,
+  "limitations": [
+    "Core selected as a strict root prevents dependent CLI/server/editor roots from completing; use separate root selections to finish those checks.",
+    "Core library tests remain gated by its normal-library lint failures.",
+    "Owned explicit-file expansion is newer and needs fresh lint."
+  ]
+}
