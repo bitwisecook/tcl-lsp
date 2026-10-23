@@ -210,6 +210,17 @@ pub fn prepare_rename_in_program(
             placeholder: selected.method.name.clone(),
         });
     }
+    prepare_lexical_rename(source, &line_index, (line, character), analysis, resolution)
+}
+
+fn prepare_lexical_rename(
+    source: &str,
+    line_index: &LineIndex,
+    position: (u32, u32),
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Option<PrepareRename> {
+    let (line, character) = position;
     // A namespace name is renameable, and the check must come
     // first: the word resolvers below would otherwise anchor prepare on a
     // same-spelled proc or class in a completely different place in the file.
@@ -223,10 +234,10 @@ pub fn prepare_rename_in_program(
     if let Some(cell) =
         crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)
     {
-        let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+        let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
         return crate::namespace_rename::namespace_segment_at(source, analysis, cursor, &cell).map(
             |span| PrepareRename {
-                range: span_to_range(source, &line_index, span),
+                range: span_to_range(source, line_index, span),
                 placeholder: source[span.start() as usize..span.end() as usize].to_owned(),
             },
         );
@@ -234,7 +245,7 @@ pub fn prepare_rename_in_program(
     // Variable?  Shared `$ref` gate: a `$name`-shaped substring in a comment
     // or a data brace is not a reference, so it is not renameable either —
     // and neither is the `$n` inside a brace-quoted *name* word.
-    let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
         analysis,
@@ -245,7 +256,7 @@ pub fn prepare_rename_in_program(
         crate::definition::lookup_var_read_at(analysis, source, byte_offset, &var_name)
     {
         return Some(PrepareRename {
-            range: span_to_range(source, &line_index, var_def.definition_span),
+            range: span_to_range(source, line_index, var_def.definition_span),
             placeholder: var_def.name.clone(),
         });
     }
@@ -254,12 +265,12 @@ pub fn prepare_rename_in_program(
     // via `var_def_at_declaration_offset`'s byte-offset span search (see
     // its own doc for why the ordinary scope-chain walk can't reach a
     // parameter's own declaring token).
-    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(var_def) =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)
     {
         return Some(PrepareRename {
-            range: span_to_range(source, &line_index, var_def.definition_span),
+            range: span_to_range(source, line_index, var_def.definition_span),
             placeholder: var_def.name.clone(),
         });
     }
@@ -267,7 +278,7 @@ pub fn prepare_rename_in_program(
     // resolution — never a namespace-blind `p.name == word` first-hit scan
     // (which could seed the rename with an arbitrary same-named proc).
     let (word, word_start, word_end) = find_word_span_at_position(source, line, character)?;
-    let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let word_off = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(preparation) = prepare_list_built_self_method_rename(
         source,
         line,
@@ -279,18 +290,18 @@ pub fn prepare_rename_in_program(
         return Some(preparation);
     }
     if let Some(preparation) =
-        prepare_named_command_rename(source, &line_index, analysis, resolution, (&word, word_off))
+        prepare_named_command_rename(source, line_index, analysis, resolution, (&word, word_off))
     {
         return Some(preparation);
     }
     // Method / classmethod / property inside a class body?
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(class_def) = crate::definition::enclosing_class_at(analysis, cursor_offset)
         .and_then(|q| analysis.all_classes.get(q))
         && let Some((_, span)) = resolve_member_span(class_def, &word, cursor_offset)
     {
         return Some(PrepareRename {
-            range: span_to_range(source, &line_index, span),
+            range: span_to_range(source, line_index, span),
             placeholder: word.clone(),
         });
     }
@@ -299,7 +310,7 @@ pub fn prepare_rename_in_program(
         && let Some(selector) = selected.editable_selector()
     {
         return Some(PrepareRename {
-            range: span_to_range(source, &line_index, selector),
+            range: span_to_range(source, line_index, selector),
             placeholder: selected.method.name.clone(),
         });
     }
@@ -607,50 +618,7 @@ fn rename_in_program_unchecked(
         return Err(refusal);
     }
     if !analysis.allows_lexical_declaration_advice() {
-        let std::ops::ControlFlow::Break(Some(identity)) =
-            crate::original_declaration::select_at_offset("", source, analysis, cursor)
-        else {
-            return Err(crate::rename_safety::RenameRefusal {
-                reason: "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits".to_owned(),
-                range: None,
-            });
-        };
-        let document = crate::original_declaration::OriginalDeclarationDocument {
-            uri: "",
-            source,
-            analysis,
-        };
-        let edits = if matches!(
-            identity.role(),
-            crate::original_declaration::OriginalDeclarationRole::Method(_)
-        ) {
-            crate::original_member_rename::original_member_rename_edits(
-                &[document],
-                &identity,
-                new_name,
-            )
-            .map_err(|refusal| crate::rename_safety::RenameRefusal {
-                reason: format!("{}: {}", refusal.code(), refusal.reason()),
-                range: Some(span_to_range(source, &line_index, identity.span())),
-            })?
-        } else {
-            crate::original_command_rename::original_command_rename_edits(
-                &[document],
-                &identity,
-                new_name,
-            )
-            .map_err(|refusal| crate::rename_safety::RenameRefusal {
-                reason: format!("{}: {}", refusal.code(), refusal.reason()),
-                range: Some(span_to_range(source, &line_index, identity.span())),
-            })?
-        };
-        return Ok(edits
-            .into_iter()
-            .map(|edit| TextEdit {
-                range: span_to_range(source, &line_index, edit.span),
-                new_text: edit.new_text,
-            })
-            .collect());
+        return rename_original_declaration(source, analysis, cursor, &line_index, new_name);
     }
     if let Some(refusal) = pre_edit_refusal(
         source,
@@ -670,18 +638,38 @@ fn rename_in_program_unchecked(
         return result;
     }
 
+    rename_lexical_tiers(
+        source,
+        dialect,
+        (line, character),
+        new_name,
+        analysis,
+        resolution,
+        &line_index,
+    )
+}
+
+fn rename_lexical_tiers(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    position: (u32, u32),
+    new_name: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+    line_index: &LineIndex,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    let (line, character) = position;
     // Namespace name first: the position is *definitive* (a proc or class of
     // the same spelling is not what it names), and the gate above already
     // cleared this document.
     if let Some(edits) = rename_namespace_at(source, dialect, line, character, new_name, analysis) {
         return Ok(edits);
     }
-    if let Some(edits) =
-        rename_variable_at(source, line, character, new_name, analysis, &line_index)
+    if let Some(edits) = rename_variable_at(source, line, character, new_name, analysis, line_index)
     {
         return Ok(edits);
     }
-    let def_byte = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
 
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Ok(Vec::new());
@@ -691,7 +679,7 @@ fn rename_in_program_unchecked(
         source,
         dialect,
         analysis,
-        &line_index,
+        line_index,
         (&word, new_name),
         def_byte,
     ) {
@@ -702,7 +690,7 @@ fn rename_in_program_unchecked(
         source,
         analysis,
         resolution,
-        &line_index,
+        line_index,
         (&word, new_name),
         def_byte,
     ) {
@@ -714,11 +702,11 @@ fn rename_in_program_unchecked(
         (line, character),
         new_name,
         analysis,
-        &line_index,
+        line_index,
     ) {
         return edits;
     }
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(selected) =
         crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
         && selected.method.name == word
@@ -737,23 +725,76 @@ fn rename_in_program_unchecked(
             ),
             new_name,
             analysis,
-            &line_index,
+            line_index,
         )
     {
         return edits;
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     gated_untargeted_member_rename(
         source,
         dialect,
         (&word, new_name),
         analysis,
         cursor_offset,
-        &line_index,
+        line_index,
     )
     .map(Option::unwrap_or_default)
+}
+
+fn rename_original_declaration(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    line_index: &LineIndex,
+    new_name: &str,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    let std::ops::ControlFlow::Break(Some(identity)) =
+        crate::original_declaration::select_at_offset("", source, analysis, cursor)
+    else {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits".to_owned(),
+            range: None,
+        });
+    };
+    let document = crate::original_declaration::OriginalDeclarationDocument {
+        uri: "",
+        source,
+        analysis,
+    };
+    let edits = if matches!(
+        identity.role(),
+        crate::original_declaration::OriginalDeclarationRole::Method(_)
+    ) {
+        crate::original_member_rename::original_member_rename_edits(
+            &[document],
+            &identity,
+            new_name,
+        )
+        .map_err(|refusal| crate::rename_safety::RenameRefusal {
+            reason: format!("{}: {}", refusal.code(), refusal.reason()),
+            range: Some(span_to_range(source, line_index, identity.span())),
+        })?
+    } else {
+        crate::original_command_rename::original_command_rename_edits(
+            &[document],
+            &identity,
+            new_name,
+        )
+        .map_err(|refusal| crate::rename_safety::RenameRefusal {
+            reason: format!("{}: {}", refusal.code(), refusal.reason()),
+            range: Some(span_to_range(source, line_index, identity.span())),
+        })?
+    };
+    Ok(edits
+        .into_iter()
+        .map(|edit| TextEdit {
+            range: span_to_range(source, line_index, edit.span),
+            new_text: edit.new_text,
+        })
+        .collect())
 }
 
 fn readonly_math_rename_refusal(

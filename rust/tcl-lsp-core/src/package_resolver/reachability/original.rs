@@ -241,18 +241,7 @@ impl Walker<'_, '_> {
             self.config.at_depth(depth),
         );
         let commands = super::walk_command_words_with_config(text, self.config.at_depth(depth));
-        // Coverage needs the whole original vector inventory, not merely a
-        // successful join for the subset the compatibility walker reports.
-        if commands.len() != plan.commands.len()
-            || commands
-                .iter()
-                .zip(&plan.commands)
-                .any(|(words, expected)| {
-                    original.words(words, &plan).as_deref() != Some(expected.words.as_slice())
-                })
-        {
-            self.complete = false;
-        }
+        self.record_script_coverage(&original, &plan, &commands);
         let mut reached = reached.clone();
         for words in &commands {
             let Some(native) = original.words(words, &plan) else {
@@ -278,40 +267,9 @@ impl Walker<'_, '_> {
                 reached = reached.with(Condition::Undecidable);
                 continue;
             };
-            // The existing walker does not traverse operand substitutions. The
-            // shared full-depth arena includes commands inside variable indexes.
-            // Record omitted script/Expr/error phases BEFORE callbacks or stops.
-            if native.iter().any(|word| {
-                word.executable_parts().all_parts().any(|part| {
-                    matches!(
-                        part.part,
-                        tcl_lexer::ExecutablePart::Command { .. }
-                            | tcl_lexer::ExecutablePart::Expression { .. }
-                            | tcl_lexer::ExecutablePart::ParseError(_)
-                    )
-                })
-            }) {
-                self.complete = false;
-            }
+            self.record_operand_execution_coverage(&native);
             let (bodies, bodies_complete) = self.bodies(&control.words);
-            if !control.path_admitted()
-                || !bodies_complete
-                || (self.survey.is_some() && !control.admission.roles_complete)
-            {
-                self.complete = false;
-            }
-            match control.words.roles() {
-                Some(roles) => {
-                    for &(argument, role) in roles {
-                        if role == ArgRole::Expr
-                            && !matches!(self.guard(&control, argument), Guard::Constant(_))
-                        {
-                            self.complete = false;
-                        }
-                    }
-                }
-                None => self.complete = false,
-            }
+            self.record_control_coverage(&control, bodies_complete);
             if control.registration {
                 let conditions = if control.path_admitted() || control.advertisement.is_some() {
                     reached.clone()
@@ -343,16 +301,7 @@ impl Walker<'_, '_> {
                     AfterIf::NotAChain => {}
                 }
             }
-            let mut might_stop = false;
-            for body in bodies {
-                let body_reached = reached.with(Condition::Undecidable);
-                let after = self.walk_body(&control, body, &body_reached, depth + 1);
-                might_stop |= after.is_none()
-                    || (self.survey.is_some()
-                        && after
-                            .as_ref()
-                            .is_some_and(|after| additional_unknown(after, &body_reached)));
-            }
+            let might_stop = self.bodies_might_stop(&control, bodies, &reached, depth);
             if !control.path_admitted()
                 || (control.traits.contains(Traits::CONTROL_FLOW) && might_stop)
             {
@@ -360,6 +309,85 @@ impl Walker<'_, '_> {
             }
         }
         Some(reached)
+    }
+
+    fn record_script_coverage(
+        &mut self,
+        original: &OriginalScript,
+        plan: &tcl_lexer::NativeScriptWordsPlan,
+        commands: &[Vec<Vec<tcl_lexer::Token>>],
+    ) {
+        // Coverage needs the whole original vector inventory, not merely a
+        // successful join for the subset the compatibility walker reports.
+        if commands.len() != plan.commands.len()
+            || commands
+                .iter()
+                .zip(&plan.commands)
+                .any(|(words, expected)| {
+                    original.words(words, plan).as_deref() != Some(expected.words.as_slice())
+                })
+        {
+            self.complete = false;
+        }
+    }
+
+    fn record_operand_execution_coverage(&mut self, native: &[tcl_lexer::NativeWord]) {
+        // The existing walker does not traverse operand substitutions. The
+        // shared full-depth arena includes commands inside variable indexes.
+        // Record omitted script/Expr/error phases BEFORE callbacks or stops.
+        if native.iter().any(|word| {
+            word.executable_parts().all_parts().any(|part| {
+                matches!(
+                    part.part,
+                    tcl_lexer::ExecutablePart::Command { .. }
+                        | tcl_lexer::ExecutablePart::Expression { .. }
+                        | tcl_lexer::ExecutablePart::ParseError(_)
+                )
+            })
+        }) {
+            self.complete = false;
+        }
+    }
+
+    fn record_control_coverage(&mut self, control: &Control, bodies_complete: bool) {
+        if !control.path_admitted()
+            || !bodies_complete
+            || (self.survey.is_some() && !control.admission.roles_complete)
+        {
+            self.complete = false;
+        }
+        match control.words.roles() {
+            Some(roles) => {
+                for &(argument, role) in roles {
+                    if role == ArgRole::Expr
+                        && !matches!(self.guard(control, argument), Guard::Constant(_))
+                    {
+                        self.complete = false;
+                    }
+                }
+            }
+            None => self.complete = false,
+        }
+    }
+
+    fn bodies_might_stop(
+        &mut self,
+        control: &Control,
+        bodies: Vec<Span>,
+        reached: &Conditions,
+        depth: u32,
+    ) -> bool {
+        let mut might_stop = false;
+        for body in bodies {
+            let body_reached = reached.with(Condition::Undecidable);
+            let after = self.walk_body(control, body, &body_reached, depth + 1);
+            might_stop |= after.is_none()
+                || (self.survey.is_some()
+                    && after
+                        .as_ref()
+                        .is_some_and(|after| additional_unknown(after, &body_reached)));
+        }
+        might_stop
     }
 
     fn walk_body(
@@ -520,22 +548,7 @@ impl Walker<'_, '_> {
         let mut previous = None;
         let mut missing_body = false;
         for body in bodies {
-            let expression = if let Some(clauses) = &control.source_clauses {
-                clauses
-                    .iter()
-                    .find(|(_, selected_body)| *selected_body == body)
-                    .and_then(|(expression, _)| *expression)
-            } else {
-                roles
-                    .iter()
-                    .filter(|(argument, role)| {
-                        *role == ArgRole::Expr
-                            && *argument < body
-                            && previous.is_none_or(|previous| *argument > previous)
-                    })
-                    .map(|(argument, _)| *argument)
-                    .max()
-            };
+            let expression = Self::branch_expression(control, roles, body, previous);
             previous = Some(body);
             let mut branch = earlier_false.clone();
             if let Some(expression) = expression {
@@ -604,6 +617,30 @@ impl Walker<'_, '_> {
                 .map_or_else(|| reached.clone(), |condition| reached.with(condition)),
             _ => reached.with(Condition::Undecidable),
         })
+    }
+
+    fn branch_expression(
+        control: &Control,
+        roles: &[(usize, ArgRole)],
+        body: usize,
+        previous: Option<usize>,
+    ) -> Option<usize> {
+        if let Some(clauses) = &control.source_clauses {
+            clauses
+                .iter()
+                .find(|(_, selected_body)| *selected_body == body)
+                .and_then(|(expression, _)| *expression)
+        } else {
+            roles
+                .iter()
+                .filter(|(argument, role)| {
+                    *role == ArgRole::Expr
+                        && *argument < body
+                        && previous.is_none_or(|previous| *argument > previous)
+                })
+                .map(|(argument, _)| *argument)
+                .max()
+        }
     }
 
     fn guard(&self, control: &Control, argument: usize) -> Guard {
