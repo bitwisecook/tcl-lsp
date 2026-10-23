@@ -113,6 +113,17 @@ pub(super) fn procedure_view(
             }
         }
     }
+    let (root_ids, leaf_ids, roots, leaves) = graph_endpoints(&labels, &incoming, &outgoing);
+    let mut graph = json!({"projection": "original-source-declarations", "nodes": nodes, "edges": edges,
+        "references": references, "roots": roots, "leaf_procs": leaves,
+        "root_ids": root_ids, "leaf_ids": leaf_ids});
+    append_hosted_procedures(source, analysis, &mut graph)?;
+    Some(graph)
+}
+
+type GraphEndpoints = (Vec<String>, Vec<String>, Vec<String>, Vec<String>);
+
+fn graph_endpoints(labels: &[String], incoming: &[bool], outgoing: &[bool]) -> GraphEndpoints {
     let root_ids = incoming
         .iter()
         .enumerate()
@@ -137,11 +148,7 @@ pub(super) fn procedure_view(
         .filter(|(ordinal, _)| !outgoing[*ordinal])
         .map(|(_, label)| label.clone())
         .collect::<Vec<_>>();
-    let mut graph = json!({"projection": "original-source-declarations", "nodes": nodes, "edges": edges,
-        "references": references, "roots": roots, "leaf_procs": leaves,
-        "root_ids": root_ids, "leaf_ids": leaf_ids});
-    append_hosted_procedures(source, analysis, &mut graph)?;
-    Some(graph)
+    (root_ids, leaf_ids, roots, leaves)
 }
 
 /// Hosted headers remain source cards without borrowing C/Jim publication or
