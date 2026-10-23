@@ -121,8 +121,9 @@ fn variable_declaration_upper_arity_matches_original_oracles() {
 
 #[test]
 fn array_name_mode_validation_boundaries_match_original_oracles() {
-    let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/inputs");
+    let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/inputs",
+    );
     for (environment, original) in [
         (
             "tcl8.4",
