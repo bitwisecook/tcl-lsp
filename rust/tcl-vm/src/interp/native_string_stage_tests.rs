@@ -957,7 +957,7 @@ fn original_expression_cache_publication_checks_actual_header_before_replacement
             ops.current_for_value(held.value())
         };
         held.value()
-            .cache_expression_checked(dialect, profile, &policy, &node, &mut check)
+            .cache_expression_checked(dialect, &profile, &policy, &node, &mut check)
             .unwrap_err()
     };
     drop(ops);

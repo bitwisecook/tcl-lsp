@@ -49,8 +49,11 @@ impl AnalysisResult {
         };
         let source_templates = source_declarations
             .iter()
-            .filter_map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration::template_source)
-            .filter(|source| source.matches_source(image, input))
+            .filter_map(|declaration| {
+                declaration
+                    .template_source()
+                    .filter(|source| source.matches_source(image, input))
+            })
             .collect::<Vec<_>>();
         let mut anchors = self.original_alias_source_anchors();
         anchors.extend(source_templates.iter().map(|source| {
@@ -87,31 +90,33 @@ impl AnalysisResult {
             let Some(frame) = frame else {
                 continue;
             };
-            let mut candidates = self
-                .original_variable_alias_receipts
-                .iter()
-                .chain(source_templates.iter().map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasTemplateSource::relation))
-                .filter(|alias| {
-                    alias.frame() == &frame
-                        && alias.invocation_offset() <= anchor.span.start()
-                        && if let Some(scope) = &logical_scope {
-                            scope.matches_alias_template(
-                                anchor.span,
-                                &anchor.input,
-                                anchor.receiver,
-                                alias,
-                            )
-                        } else {
-                            bindings.original_variable_alias_template_matches_at_span(
-                                anchor.span,
-                                &anchor.input,
-                                anchor.receiver,
-                                alias,
-                                config,
-                            )
-                        }
-                })
-                .collect::<Vec<_>>();
+            let mut candidates =
+                self.original_variable_alias_receipts
+                    .iter()
+                    .chain(source_templates.iter().map(
+                        crate::registry_invocation::OriginalLogicalAliasTemplateSource::relation,
+                    ))
+                    .filter(|alias| {
+                        alias.frame() == &frame
+                            && alias.invocation_offset() <= anchor.span.start()
+                            && if let Some(scope) = &logical_scope {
+                                scope.matches_alias_template(
+                                    anchor.span,
+                                    &anchor.input,
+                                    anchor.receiver,
+                                    alias,
+                                )
+                            } else {
+                                bindings.original_variable_alias_template_matches_at_span(
+                                    anchor.span,
+                                    &anchor.input,
+                                    anchor.receiver,
+                                    alias,
+                                    config,
+                                )
+                            }
+                    })
+                    .collect::<Vec<_>>();
             candidates.sort_by_key(|alias| alias.invocation_offset());
             let Some(alias) = candidates.pop() else {
                 continue;

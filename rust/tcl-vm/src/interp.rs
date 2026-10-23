@@ -1123,8 +1123,6 @@ struct PackageState {
     loaded_libraries: Vec<(String, String)>,
 }
 
-/// A compiled function and the manifest of the module it came from.
-
 /// The guard machinery's record of command tokens, by token generation.
 #[derive(Default)]
 struct GuardedCommands {
@@ -4569,23 +4567,22 @@ impl Vm {
             .map(|value| self.auto_path_list(value))
             .transpose()?;
         let mut environment = Vec::new();
-        if existing.is_none() {
-            if let Some(value) = self
+        if existing.is_none()
+            && let Some(value) = self
                 .read_var_traced("::env(TCLLIBPATH)")
                 .unwrap_or_default()
-            {
-                environment = self.auto_path_list(&value)?;
-                let home = self.host_rc().env().get("HOME");
-                scope
-                    .check(self)
-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-                environment = tcl_cmd_core::platform::auto_path_environment(
-                    environment,
-                    home.as_deref().map(str::as_bytes),
-                    tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
-                )
+        {
+            environment = self.auto_path_list(&value)?;
+            let home = self.host_rc().env().get("HOME");
+            scope
+                .check(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-            }
+            environment = tcl_cmd_core::platform::auto_path_environment(
+                environment,
+                home.as_deref().map(str::as_bytes),
+                tcl_cmd_core::path::PathReading::of_release(self.runtime_version()),
+            )
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         }
         let library = self.read_var_traced("::tcl_library").unwrap_or_default();
         let library = library
@@ -7254,9 +7251,8 @@ impl Vm {
             return crate::command::completion_from_cmd_error(self, error);
         }
 
-        let producer = match self.name_policy_protocol() {
-            Some(policy) => policy,
-            None => return self.refuse_host_command("parent alias publication issuer".into()),
+        let Some(producer) = self.name_policy_protocol() else {
+            return self.refuse_host_command("parent alias publication issuer".into());
         };
         for realm in [src, target] {
             let Some(receiver) = self
@@ -7977,12 +7973,11 @@ impl Vm {
             .native_bootstrap_protocol()
             .map(tcl_registry::special_vars::NativeBootstrapProtocol::child_initialisation)
             .filter(|initialisation| initialisation.initialises_jim_static_extensions())
+            && let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation)
         {
-            if let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation) {
-                let _ = crate::command::completion_from_cmd_error(self, error);
-                self.retire_interp(id);
-                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
-            }
+            let _ = crate::command::completion_from_cmd_error(self, error);
+            self.retire_interp(id);
+            return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
         }
 
         // The interp *path* name keys `children` as written (interp names are
@@ -24316,10 +24311,11 @@ impl Vm {
         table_key: Option<jim_table_keys::OriginalJimCommandKey>,
         helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
     ) -> (crate::command::NativeProcedureCommand, String) {
-        if self.uses_native_jim_lookup() && proc.native_jim_namespace.is_none() {
-            if let Some(token) = proc.execution_namespace.context().resolved_token() {
-                proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(token));
-            }
+        if self.uses_native_jim_lookup()
+            && proc.native_jim_namespace.is_none()
+            && let Some(token) = proc.execution_namespace.context().resolved_token()
+        {
+            proc.native_jim_namespace = Some(self.new_jim_declaration_namespace(token));
         }
         let slot = CommandSlot {
             namespace: proc.command_ns_id,
@@ -24763,7 +24759,7 @@ impl Vm {
             let reached = (|| {
                 let context = self.native_jim_object_context()?;
                 source.bind_native_jim_context(&context)?;
-                Ok::<_, tcl_syntax::value::ValueError>(source.pin_native_jim_source_info(&context)?)
+                source.pin_native_jim_source_info(&context)
             })();
             self.original_expression_source_current(source, scope)?;
             Some(reached?)
@@ -24858,11 +24854,11 @@ impl Vm {
         let node = node?;
         let policy = self.native_compiler_policy();
         if scope.is_some() {
-            source.cache_expression_checked(dialect, profile, &policy, &node, &mut || {
+            source.cache_expression_checked(dialect, &profile, &policy, &node, &mut || {
                 self.original_expression_source_current(source, scope)
             })?;
         } else {
-            source.cache_expression(dialect, profile, &policy, &node);
+            source.cache_expression(dialect, &profile, &policy, &node);
         }
         self.original_expression_source_current(source, scope)?;
         Ok(node)
@@ -25011,7 +25007,7 @@ impl Vm {
         {
             original.reject_expression(
                 self.native_invocation_dialect(),
-                self.expression_source_profile().cache_key(),
+                &self.expression_source_profile().cache_key(),
                 &self.native_compiler_policy(),
             );
         }
@@ -26830,7 +26826,7 @@ impl Vm {
                 tcl_runtime_api::NativeCompilationAdmissionScope::Script,
             ));
         };
-        let compiled = compiler.compile_script_with_entry(
+        let compilation_outcome = compiler.compile_script_with_entry(
             ScriptCompileTarget {
                 source: src,
                 namespace: &namespace,
@@ -26839,7 +26835,7 @@ impl Vm {
             self.source_profile(),
             &entry,
         );
-        let module = compiled.map_err(|error| {
+        let module = compilation_outcome.map_err(|error| {
             self.compile_service_error(
                 error,
                 src,

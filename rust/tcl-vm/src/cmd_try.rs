@@ -589,6 +589,107 @@ fn original_handler_code(
     Ok(selected)
 }
 
+fn original_final_clause(
+    vm: &mut Vm,
+    rest: &[Value],
+    j: usize,
+    jim: bool,
+) -> Result<Value, Completion<Value>> {
+    if j + 2 < rest.len() {
+        return Err(if jim {
+            crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
+            )
+        } else {
+            clause_failure(
+                vm,
+                tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
+                b"finally clause must be last".to_vec(),
+            )
+        });
+    }
+    if j + 1 >= rest.len() {
+        return Err(clause_argument_error(
+            vm,
+            tcl_registry::NativeTryClauseArgument::Finally,
+            b"wrong # args to finally clause: must be \"... finally script\"".to_vec(),
+        ));
+    }
+    Ok(rest[j + 1].clone())
+}
+
+fn require_handler_arguments(
+    vm: &mut Vm,
+    rest: &[Value],
+    j: usize,
+    kind: &str,
+) -> Result<(), Completion<Value>> {
+    if j + 4 > rest.len() {
+        return Err(clause_argument_error(
+            vm,
+            if kind == "on" {
+                tcl_registry::NativeTryClauseArgument::On
+            } else {
+                tcl_registry::NativeTryClauseArgument::Trap
+            },
+            format!(
+                "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
+                if kind == "on" { "code" } else { "pattern" }
+            )
+            .into_bytes(),
+        ));
+    }
+    Ok(())
+}
+
+fn original_jim_clause_match(
+    vm: &mut Vm,
+    pattern: &Value,
+    is_trap: bool,
+    body_code: Option<Code>,
+    code: i64,
+    captured_error_code: Option<&crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>,
+) -> Result<bool, Completion<Value>> {
+    let captured = captured_error_code.ok_or_else(|| {
+        vm.refuse_host_command("original Jim clause capture is unavailable".into())
+    })?;
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let matched = if is_trap {
+        match captured
+            .original(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        {
+            Some(original) => {
+                original_jim_errorcode_prefix_match(vm, pattern, &original, captured)?
+            }
+            None => false,
+        }
+    } else {
+        body_code.is_some_and(|body| code == body.as_int())
+    };
+    captured
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    Ok(matched)
+}
+
+fn original_handler_fallthrough(
+    vm: &mut Vm,
+    script: &Value,
+    jim: bool,
+) -> Result<bool, Completion<Value>> {
+    if jim {
+        Ok(false)
+    } else {
+        let script_bytes = ValueOps::native_string_bytes(vm, script)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        Ok(tcl_core_types::c_string_extent(&script_bytes) == b"-")
+    }
+}
+
 /// Parse clauses; Jim resolves each match at its reached post-body ordinal.
 fn parse_clauses(
     vm: &mut Vm,
@@ -616,41 +717,11 @@ fn parse_clauses(
         let handler_type = original_handler_type(vm, &rest[j], jim)?;
         match handler_type {
             "finally" => {
-                if j + 2 < rest.len() {
-                    return Err(if jim {
-                        crate::command::native_wrong_arguments_message(
-                            vm,
-                            "wrong # args: should be \"try ?options? script ?on|trap code varlist script ...? ?finally script?\"",
-                        )
-                    } else {
-                        clause_failure(
-                            vm,
-                            tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
-                            b"finally clause must be last".to_vec(),
-                        )
-                    });
-                }
-                if j + 1 >= rest.len() {
-                    return Err(clause_argument_error(
-                        vm,
-                        tcl_registry::NativeTryClauseArgument::Finally,
-                        b"wrong # args to finally clause: must be \"... finally script\"".to_vec(),
-                    ));
-                }
-                finally = Some(rest[j + 1].clone());
+                finally = Some(original_final_clause(vm, rest, j, jim)?);
                 j += 2;
             }
             kind @ ("on" | "trap") => {
-                if j + 4 > rest.len() {
-                    return Err(clause_argument_error(vm, if kind == "on" {
-                        tcl_registry::NativeTryClauseArgument::On
-                    } else {
-                        tcl_registry::NativeTryClauseArgument::Trap
-                    }, format!(
-                        "wrong # args to {kind} clause: must be \"... {kind} {} variableList script\"",
-                        if kind == "on" { "code" } else { "pattern" }
-                    ).into_bytes()));
-                }
+                require_handler_arguments(vm, rest, j, kind)?;
                 let is_trap = kind == "trap";
                 let code = original_handler_code(vm, &rest[j + 1], is_trap, jim, body_code)?;
                 if !jim {
@@ -659,32 +730,14 @@ fn parse_clauses(
                     })?;
                 }
                 let jim_matches = if jim {
-                    let captured = captured_error_code.ok_or_else(|| {
-                        vm.refuse_host_command("original Jim clause capture is unavailable".into())
-                    })?;
-                    captured
-                        .check(vm)
-                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-                    let matched = if is_trap {
-                        match captured
-                            .original(vm)
-                            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
-                        {
-                            Some(original) => original_jim_errorcode_prefix_match(
-                                vm,
-                                &rest[j + 1],
-                                &original,
-                                captured,
-                            )?,
-                            None => false,
-                        }
-                    } else {
-                        body_code.is_some_and(|body| code == body.as_int())
-                    };
-                    captured
-                        .check(vm)
-                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-                    Some(matched)
+                    Some(original_jim_clause_match(
+                        vm,
+                        &rest[j + 1],
+                        is_trap,
+                        body_code,
+                        code,
+                        captured_error_code,
+                    )?)
                 } else {
                     None
                 };
@@ -702,15 +755,7 @@ fn parse_clauses(
                     None
                 };
                 let script = rest[j + 3].clone();
-                let is_dash = if jim {
-                    false
-                } else {
-                    let script_bytes =
-                        ValueOps::native_string_bytes(vm, &script).map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
-                    tcl_core_types::c_string_extent(&script_bytes) == b"-"
-                };
+                let is_dash = original_handler_fallthrough(vm, &script, jim)?;
                 handlers.push(Handler {
                     code,
                     is_trap,
@@ -773,12 +818,11 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         None
     };
     let reached = (|| {
-        if jim {
-            if let Err(error) = vm.reset_original_jim_global_error_code()
-                && vm.refused_completion().is_some()
-            {
-                return error;
-            }
+        if jim
+            && let Err(error) = vm.reset_original_jim_global_error_code()
+            && vm.refused_completion().is_some()
+        {
+            return error;
         }
         let jim_prefix = if let Some(original) = &original {
             let selected = tcl_registry::catch_invocation::select_native_jim_capture_prefix(
@@ -826,16 +870,16 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             body_error_code: None,
             compiled,
         });
-        if let Some(original) = &original {
-            if let Err(error) = original.current_for_value(vm, body) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
+        if let Some(original) = &original
+            && let Err(error) = original.current_for_value(vm, body)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         let prepared = vm.prepare_script_commands_value(body);
-        if let Some(original) = &original {
-            if let Err(error) = original.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
+        if let Some(original) = &original
+            && let Err(error) = original.check(vm)
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
         match prepared {
             Ok(prepared) if prepared.prefix.is_some() => {
@@ -878,10 +922,10 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     })();
-    if let Some(original) = original {
-        if let Err(error) = original.finish(vm) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
+    if let Some(original) = original
+        && let Err(error) = original.finish(vm)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
 }

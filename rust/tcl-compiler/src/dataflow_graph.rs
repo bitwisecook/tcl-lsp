@@ -352,7 +352,7 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
         let symbol = *cell;
         let cell_display = current_cell.map_or_else(
             String::new,
-            super::var_resolve::cell_key::VariableCellKey::compatibility_name,
+            crate::var_resolve::VariableCellKey::compatibility_name,
         );
         let var_name = ssa.var_name(symbol);
         let ssa_key = Some((symbol, *version));
@@ -388,7 +388,7 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
                 edge.to_symbol = Some(use_site.variable);
                 edge.to_cell = receiving_cell.map_or_else(
                     String::new,
-                    super::var_resolve::cell_key::VariableCellKey::compatibility_name,
+                    crate::var_resolve::VariableCellKey::compatibility_name,
                 );
                 edge
             } else {

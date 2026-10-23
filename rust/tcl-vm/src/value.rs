@@ -32,10 +32,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 mod native_boolean_truth;
+mod native_compound;
 mod native_list_storage;
 mod native_namespace_name;
 mod native_retirement;
 
+use native_compound::{CompoundStringBacking, CompoundStringNode};
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::RecursionLimit;
 use tcl_syntax::list;
@@ -2426,7 +2428,7 @@ impl Value {
                 == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::BeforeParsing
         {
             let replacement =
-                Self::expression_primary(input.dialect, *input.profile, input.policy, None);
+                Self::expression_primary(input.dialect, input.profile, input.policy, None);
             if check.is_some() {
                 self.replace_primary_using(replacement, check)?;
             } else {
@@ -2439,12 +2441,12 @@ impl Value {
 
     fn expression_primary(
         dialect: tcl_registry::InvocationDialect,
-        profile: tcl_dialect::DialectProfileKey,
+        profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: Option<tcl_syntax::expr::NativeExprNode>,
     ) -> IntRep {
         IntRep::Expression(Rc::new(ExpressionCache {
-            profile,
+            profile: *profile,
             dialect,
             policy: *policy,
             node,
@@ -2455,7 +2457,7 @@ impl Value {
     pub(crate) fn reject_expression(
         &self,
         dialect: tcl_registry::InvocationDialect,
-        profile: tcl_dialect::DialectProfileKey,
+        profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
     ) {
         self.replace_primary(Self::expression_primary(dialect, profile, policy, None));
@@ -2554,12 +2556,12 @@ impl Value {
     fn expression_cache_replacement(
         &self,
         dialect: tcl_registry::InvocationDialect,
-        profile: tcl_dialect::DialectProfileKey,
+        profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
     ) -> Option<IntRep> {
         if self.native_jim_expression_objects().is_some()
-            && self.cached_expression(dialect, &profile, policy).is_some()
+            && self.cached_expression(dialect, profile, policy).is_some()
         {
             return None;
         }
@@ -2574,7 +2576,7 @@ impl Value {
     pub(crate) fn cache_expression(
         &self,
         dialect: tcl_registry::InvocationDialect,
-        profile: tcl_dialect::DialectProfileKey,
+        profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
     ) {
@@ -2587,7 +2589,7 @@ impl Value {
     pub(crate) fn cache_expression_checked<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,
-        profile: tcl_dialect::DialectProfileKey,
+        profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
         check: &mut dyn FnMut() -> Result<(), E>,
@@ -3117,44 +3119,10 @@ impl Value {
         failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
         check: &mut Option<&mut NativeValueCheck<'_, E>>,
     ) -> Result<Rc<[u8]>, E> {
-        enum Backing {
-            List(crate::NativeListItems),
-            Dictionary(Rc<Vec<(Value, Value)>>),
-        }
-        impl Backing {
-            fn len(&self) -> usize {
-                match self {
-                    Self::List(items) => items.len(),
-                    Self::Dictionary(pairs) => pairs.len() * 2,
-                }
-            }
-            fn member(&self, index: usize) -> &Value {
-                match self {
-                    Self::List(items) => &items[index],
-                    Self::Dictionary(pairs) => {
-                        let (key, value) = &pairs[index / 2];
-                        if index.is_multiple_of(2) { key } else { value }
-                    }
-                }
-            }
-        }
-        #[derive(Clone, Copy)]
-        enum Node {
-            Root,
-            Member { backing: usize, index: usize },
-        }
-        impl Node {
-            fn value<'a>(self, root: &'a Value, backings: &'a [Backing]) -> &'a Value {
-                match self {
-                    Self::Root => root,
-                    Self::Member { backing, index } => backings[backing].member(index),
-                }
-            }
-        }
         // Typed backing leases retain original members without acquiring child
         // object references. Indices remain valid even if an object shimmers.
-        let mut backings = Vec::<Backing>::new();
-        let mut pending = vec![(Node::Root, false)];
+        let mut backings = Vec::<CompoundStringBacking>::new();
+        let mut pending = vec![(CompoundStringNode::Root, false)];
         while let Some((node, expanded)) = pending.pop() {
             let current = node.value(self, &backings);
             current.native_string_stage_check(check)?;
@@ -3165,8 +3133,10 @@ impl Value {
                 .seal_compound_string_protocol(protocol)
                 .map_err(failure)?;
             let backing = match &*current.0.intrep.borrow() {
-                IntRep::List { items, .. } => Some(Backing::List(items.lifetime_view())),
-                IntRep::Dict(dict) => Some(Backing::Dictionary(dict.pairs_backing())),
+                IntRep::List { items, .. } => {
+                    Some(CompoundStringBacking::List(items.lifetime_view()))
+                }
+                IntRep::Dict(dict) => Some(CompoundStringBacking::Dictionary(dict.pairs_backing())),
                 _ => None,
             };
             let Some(backing) = backing else {
@@ -3181,7 +3151,7 @@ impl Value {
                 pending.push((node, true));
                 pending.extend((0..count).rev().map(|index| {
                     (
-                        Node::Member {
+                        CompoundStringNode::Member {
                             backing: slot,
                             index,
                         },
@@ -4542,27 +4512,27 @@ impl Value {
         let conversion = if let Some(conversion) = cached {
             conversion
         } else {
-            if kind != NativeScalarGetterKind::Boolean {
-                if let Some(environment) = environment {
-                    if checked_jim {
-                        let context = Self::native_stage_result(self.native_jim_context(), check)?;
-                        context.numeric_stage_using(check, &jim_abi, |actual| {
-                            tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
-                                protocol,
-                                kind,
-                                tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
-                                actual,
-                            )
-                        })?;
-                    } else {
-                        let reached = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+            if kind != NativeScalarGetterKind::Boolean
+                && let Some(environment) = environment
+            {
+                if checked_jim {
+                    let context = Self::native_stage_result(self.native_jim_context(), check)?;
+                    context.numeric_stage_using(check, &jim_abi, |actual| {
+                        tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
                             protocol,
                             kind,
                             tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
-                            environment,
-                        );
-                        Self::native_stage_result(reached, check)?;
-                    }
+                            actual,
+                        )
+                    })?;
+                } else {
+                    let reached = tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
+                        protocol,
+                        kind,
+                        tcl_syntax::scalar_getter::NativeScalarGetterStage::Fresh,
+                        environment,
+                    );
+                    Self::native_stage_result(reached, check)?;
                 }
             }
             let reached = if let Some(provider) = string_provider {
@@ -9763,16 +9733,37 @@ impl Value {
     /// word (`yes`) is C's `boolean` (`booleanString` before 9.0); one a
     /// comparison made is C's `int`.
     pub(crate) fn representation(&self, release: tcl_dialect::TclVersion) -> Vec<u8> {
-        use tcl_cmd_core::representation::{Internal, Representation, describe};
+        use tcl_cmd_core::representation::{Representation, describe};
         let string = self.0.string.borrow().as_ref().map(RawString::bytes);
         let address = |p: *const ()| p as usize;
         let modern = release >= tcl_dialect::TclVersion::V9_0;
+        let (type_name, internal) =
+            Self::representation_payload(&self.0.intrep.borrow(), string.as_deref(), modern);
+        describe(
+            &Representation {
+                type_name,
+                ref_count: Rc::strong_count(&self.0),
+                address: address(Rc::as_ptr(&self.0).cast()),
+                internal,
+                string: string.as_deref(),
+            },
+            release,
+        )
+    }
+
+    fn representation_payload(
+        intrep: &IntRep,
+        string: Option<&[u8]>,
+        modern: bool,
+    ) -> (Option<&'static str>, tcl_cmd_core::representation::Internal) {
+        use tcl_cmd_core::representation::Internal;
+        let address = |p: *const ()| p as usize;
         let boolean_word = |word: bool| match (word, modern) {
             (false, _) => "int",
             (true, true) => "boolean",
             (true, false) => "booleanString",
         };
-        let (type_name, internal): (Option<&str>, Internal) = match &*self.0.intrep.borrow() {
+        match intrep {
             IntRep::Str => (None, Internal::None),
             IntRep::NativeString { .. } | IntRep::JimString(_) => {
                 (Some("string"), Internal::Words(0, 0))
@@ -9826,9 +9817,7 @@ impl Value {
             #[allow(clippy::cast_precision_loss)]
             IntRep::CoercedDouble(n) => (Some("coerced-double"), Internal::Double(*n as f64)),
             IntRep::Bool(b) => {
-                let word = string
-                    .as_deref()
-                    .is_some_and(|s| s != b"0".as_slice() && s != b"1".as_slice());
+                let word = string.is_some_and(|s| s != b"0".as_slice() && s != b"1".as_slice());
                 (
                     Some(boolean_word(word)),
                     Internal::Words(usize::from(*b), 0),
@@ -9861,17 +9850,7 @@ impl Value {
                 Some("dict"),
                 Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
             ),
-        };
-        describe(
-            &Representation {
-                type_name,
-                ref_count: Rc::strong_count(&self.0),
-                address: address(Rc::as_ptr(&self.0).cast()),
-                internal,
-                string: string.as_deref(),
-            },
-            release,
-        )
+        }
     }
 }
 

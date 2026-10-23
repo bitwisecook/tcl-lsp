@@ -151,7 +151,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
     for (qname, fu) in &cu.procedures {
         let Some(proc) = cu.ir_module.procedures.get(qname) else {
-            n17_live_trace!("decline=propagation-procedure-missing name={qname}");
+            n17_live_trace!("decline=propagation-procedure-missing name={qname:?}");
             continue;
         };
         // The call-site namespace for O103 chain resolution is the proc's
@@ -162,10 +162,10 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             .as_deref()
             .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
         else {
-            n17_live_trace!("decline=propagation-namespace name={qname}");
+            n17_live_trace!("decline=propagation-namespace name={qname:?}");
             continue;
         };
-        n17_live_trace!("propagation-procedure name={qname} namespace={namespace}");
+        n17_live_trace!("propagation-procedure name={qname:?} namespace={namespace}");
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
     // Load-forwarding runs a separate per-function pass on top

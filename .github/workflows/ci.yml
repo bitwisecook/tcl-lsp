@@ -306,7 +306,7 @@ jobs:
                   web_frontends_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/nextest-terminal-capture.py | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
                   runner_policy_changed=true ;;
               esac
               if "$rust_tests_path" "$f"; then
@@ -1415,41 +1415,25 @@ jobs:
       # `--no-run --no-fail-fast` outright ("the argument '--no-run' cannot be
       # used with '--no-fail-fast'"), and the flag is meaningless anyway when
       # no tests are executed.
-      - name: cargo nextest run (binary-aware workspace shard)
-        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        env:
-          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
-          RUST_TESTS_RUNNER: ${{ env.RUNNER_MODE }}
-          SHARD: ${{ matrix.shard }}
-        run: |
-          extra="--no-fail-fast"
-          if [ "$ALREADY_GREEN" = "true" ]; then
-            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
-            if [ "$RUST_TESTS_RUNNER" = tank ]; then
-              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
-            else
-              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
-            fi
-            exit 0
-          fi
-          if [ "$RUST_TESTS_RUNNER" = tank ]; then
-            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
-          else
-            bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
-          fi
-
       - name: Record selected shard listing
+        continue-on-error: true
         if: always() && !cancelled() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
           SHARD: ${{ matrix.shard }}
+          RUST_TESTS_RUNNER: ${{ env.RUNNER_MODE }}
         run: |
           shard_file=$(printf '%s' "$SHARD" | tr '/' '-')
-          bash scripts/dev/rust-test-binary-shard.sh list "$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
+          if [ "$RUST_TESTS_RUNNER" = tank ]; then
+            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" bash scripts/dev/rust-test-binary-shard.sh list "$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
+          else
+            bash scripts/dev/rust-test-binary-shard.sh list "$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
+          fi
           if [ "$SHARD" = "1/5" ]; then
             cargo metadata --no-deps --locked --format-version 1 > "$RUNNER_TEMP/rust-tests-metadata.json"
           fi
 
       - name: Upload selected shard listing
+        continue-on-error: true
         if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1470,6 +1454,40 @@ jobs:
           compression-level: 0
           retention-days: 1
           overwrite: true
+      - name: cargo nextest run (binary-aware workspace shard)
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        env:
+          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+          RUST_TESTS_RUNNER: ${{ env.RUNNER_MODE }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          extra="--no-fail-fast"
+          if [ "$ALREADY_GREEN" = "true" ]; then
+            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
+            if [ "$RUST_TESTS_RUNNER" = tank ]; then
+              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
+            else
+              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
+            fi
+            exit 0
+          fi
+          shard_file=$(printf '%s' "$SHARD" | tr '/' '-')
+          if [ "$RUST_TESTS_RUNNER" = tank ]; then
+            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" python3 scripts/dev/nextest-terminal-capture.py --selected-json "$RUNNER_TEMP/rust-tests-$shard_file.json" --output-dir "$RUNNER_TEMP/nextest-capture-shard-$shard_file" -- bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra --message-format libtest-json-plus --message-format-version 0.1
+          else
+            python3 scripts/dev/nextest-terminal-capture.py --selected-json "$RUNNER_TEMP/rust-tests-$shard_file.json" --output-dir "$RUNNER_TEMP/nextest-capture-shard-$shard_file" -- bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra --message-format libtest-json-plus --message-format-version 0.1
+          fi
+
+      - name: Upload shard terminal capture
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rust-tests-terminal-${{ matrix.id }}
+          path: ${{ runner.temp }}/nextest-capture-shard-${{ matrix.id }}
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 1
+
       # Setup is intentionally skipped when the root Rust-test closure is
       # unaffected, so sccache is unavailable on those required no-op runs.
       - name: Report sccache statistics
@@ -1725,6 +1743,22 @@ jobs:
       # would otherwise sit in the main partition's build graph.  Only the
       # fuzzer's own fast plumbing unit tests run — fuzz CAMPAIGNS are
       # manual-only (`make fuzz`), never CI.
+      - name: Record selected heavy listing
+        continue-on-error: true
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && needs.channel.outputs.already_green != 'true'
+        run: cargo nextest list -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features --message-format json > "$RUNNER_TEMP/rust-tests-heavy-selected.json"
+
+      - name: Upload selected heavy listing
+        continue-on-error: true
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rust-tests-heavy-listing
+          path: ${{ runner.temp }}/rust-tests-heavy-selected.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
       - name: cargo nextest run (VM-sim heavies + tcl-fuzz plumbing)
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
@@ -1735,7 +1769,21 @@ jobs:
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
+          if [ "$ALREADY_GREEN" = "true" ]; then
+            cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
+          else
+            python3 scripts/dev/nextest-terminal-capture.py --selected-json "$RUNNER_TEMP/rust-tests-heavy-selected.json" --output-dir "$RUNNER_TEMP/nextest-capture-heavy" -- cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features --message-format libtest-json-plus --message-format-version 0.1
+          fi
+
+      - name: Upload heavy terminal capture
+        if: always() && needs.channel.outputs.docs_only != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rust-tests-heavy-terminal
+          path: ${{ runner.temp }}/nextest-capture-heavy
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 1
 
   # The standalone `runtime/rust` unit suite.
   #
@@ -1795,6 +1843,8 @@ jobs:
       # checkout where the tree WAS already fetched.
       - name: make runtime-rust-test-no-tommath (standalone runtime, no libtommath)
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          TCL_RUNTIME_EXPECT_NO_TOMMATH: "1"
         run: make runtime-rust-test-no-tommath
 
       # libtommath, for the same reason `wasm-real-link` fetches it: without
@@ -2425,17 +2475,29 @@ jobs:
           set -euo pipefail
           cargo nextest list --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --partition "hash:$PARTITION" --message-format json > "$RESULT_DIR/selected.json"
 
+      - name: Upload pre-run partition listing
+        continue-on-error: true
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-e2e-selected-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/lsp-e2e-result/selected.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
       - name: lsp_e2e partition ${{ matrix.partition }} against the native Rust server
         id: tests
         continue-on-error: true
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         env:
           ARCHIVE: ${{ runner.temp }}/lsp-e2e-archive/lsp-e2e.tar.zst
+          RESULT_DIR: ${{ runner.temp }}/lsp-e2e-result
           PARTITION: ${{ matrix.partition }}
         run: |
           set -euo pipefail
           start=$(date +%s)
-          cargo nextest run --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --no-fail-fast --partition "hash:$PARTITION"
+          python3 scripts/dev/nextest-terminal-capture.py --selected-json "$RESULT_DIR/selected.json" --output-dir "$RESULT_DIR/terminal-capture" -- cargo nextest run --archive-file "$ARCHIVE" --workspace-remap "$GITHUB_WORKSPACE" --no-fail-fast --partition "hash:$PARTITION" --message-format libtest-json-plus --message-format-version 0.1
           end=$(date +%s)
           seconds=$((end - start))
           echo "lsp_e2e_partition=${PARTITION} lsp_e2e_partition_seconds=$seconds"
