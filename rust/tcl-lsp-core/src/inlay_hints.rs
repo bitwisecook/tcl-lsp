@@ -195,74 +195,94 @@ pub fn inlay_hints_in_program(
     }
 
     if parameter_hints {
-        // The segmenter has no sound way to start mid-file (a command
-        // boundary requires tracking brace/bracket nesting from the top), so
-        // it still walks the whole document. What a requested viewport buys
-        // is skipping original procedure/argument selection and the registry
-        // synopsis query for a command
-        // that falls entirely outside the range: cheap span arithmetic on
-        // data the segmenter already produced, applied before any of that
-        // work runs, not after (the `position_within_range` filter inside
-        // original procedure/builtin hint emitters only ever trimmed the
-        // *output*).
-        let range_start_off = line_index.offset_at_utf16(
-            range.start_line,
-            tcl_lexer::Utf16Col::new(range.start_character),
+        collect_parameter_hints(
             source,
+            analysis,
+            resolution,
+            config,
+            range,
+            &line_index,
+            &mut out,
         );
-        let range_end_off = line_index.offset_at_utf16(
-            range.end_line,
-            tcl_lexer::Utf16Col::new(range.end_character),
-            source,
-        );
-        let Some(structure) =
-            crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
-        else {
-            return out;
-        };
-        let segments = structure.commands;
-        for seg in &segments {
-            if seg.texts.is_empty() || seg.argv.is_empty() {
-                continue;
-            }
-            if seg.span.end() <= range_start_off || seg.span.start() >= range_end_off {
-                continue;
-            }
-            if crate::definition::program_forced_import_abstains(
-                analysis,
-                resolution.program,
-                seg.argv[0].span.start(),
-            ) {
-                continue;
-            }
-            if !analysis.allows_lexical_declaration_advice() {
-                if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(source, analysis, seg) {
-                    emit_original_procedure_hints(source, &prototype, &line_index, range, &mut out);
-                    continue;
-                }
-            } else if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(source, analysis, seg) {
-                emit_original_logical_procedure_hints(source, &prototype, &line_index, range, &mut out);
-                continue;
-            }
-            // Built-in command — parse the registry synopsis for
-            // positional parameter names.  User procs take
-            // precedence (handled above).
-            if let Some(selected) = source_registry_words(source, analysis, seg)
-                && let Some(input) = analysis.resolved_input.as_ref()
-            {
-                emit_original_builtin_hints(
-                    source,
-                    &selected,
-                    &input.context_registry(),
-                    &line_index,
-                    range,
-                    &mut out,
-                );
-            }
-        }
     }
 
     out
+}
+
+fn collect_parameter_hints(
+    source: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+    config: tcl_lexer::LexerConfig,
+    range: LspRange,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    // The segmenter has no sound way to start mid-file (a command
+    // boundary requires tracking brace/bracket nesting from the top), so
+    // it still walks the whole document. What a requested viewport buys
+    // is skipping original procedure/argument selection and the registry
+    // synopsis query for a command
+    // that falls entirely outside the range: cheap span arithmetic on
+    // data the segmenter already produced, applied before any of that
+    // work runs, not after (the `position_within_range` filter inside
+    // original procedure/builtin hint emitters only ever trimmed the
+    // *output*).
+    let range_start_off = line_index.offset_at_utf16(
+        range.start_line,
+        tcl_lexer::Utf16Col::new(range.start_character),
+        source,
+    );
+    let range_end_off = line_index.offset_at_utf16(
+        range.end_line,
+        tcl_lexer::Utf16Col::new(range.end_character),
+        source,
+    );
+    let Some(structure) =
+        crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+    else {
+        return;
+    };
+    let segments = structure.commands;
+    for seg in &segments {
+        if seg.texts.is_empty() || seg.argv.is_empty() {
+            continue;
+        }
+        if seg.span.end() <= range_start_off || seg.span.start() >= range_end_off {
+            continue;
+        }
+        if crate::definition::program_forced_import_abstains(
+            analysis,
+            resolution.program,
+            seg.argv[0].span.start(),
+        ) {
+            continue;
+        }
+        if !analysis.allows_lexical_declaration_advice() {
+            if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(source, analysis, seg) {
+                emit_original_procedure_hints(source, &prototype, line_index, range, out);
+                continue;
+            }
+        } else if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_logical_procedure_arguments(source, analysis, seg) {
+            emit_original_logical_procedure_hints(source, &prototype, line_index, range, out);
+            continue;
+        }
+        // Built-in command — parse the registry synopsis for
+        // positional parameter names.  User procs take
+        // precedence (handled above).
+        if let Some(selected) = source_registry_words(source, analysis, seg)
+            && let Some(input) = analysis.resolved_input.as_ref()
+        {
+            emit_original_builtin_hints(
+                source,
+                &selected,
+                &input.context_registry(),
+                line_index,
+                range,
+                out,
+            );
+        }
+    }
 }
 
 /// Short display name for a Tcl intrep type.
@@ -320,82 +340,7 @@ fn collect_type_hints(
         return;
     }
     if !analysis.allows_lexical_declaration_advice() {
-        let mut hints = std::collections::BTreeMap::new();
-        for function in cu.all_body_function_units() {
-            let metadata = function.invocation_metadata_context_for_module(registry, &cu.ir_module);
-            for (&block, body) in &function.ssa.blocks {
-                for (index, statement) in body.statements.iter().enumerate() {
-                    let view =
-                        tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
-                    for (&symbol, &version) in &statement.defs {
-                        let definition = view
-                            .original_definition_name_with_metadata_context(
-                                symbol, registry, metadata,
-                            )
-                            .and_then(|definition| {
-                                let span = function.abs_span(definition.span());
-                                analysis
-                                    .original_variable_symbols
-                                    .iter()
-                                    .any(|occurrence| {
-                                        occurrence.is_declaration()
-                                            && occurrence.span() == span
-                                            && occurrence.original_name_input()
-                                                == definition.original_name_input()
-                                    })
-                                    .then(|| (span, definition.original_name_input().clone()))
-                            })
-                            .or_else(|| {
-                                if analysis.resolved_input.as_ref()
-                                    != cu.ir_module.source_metadata_input.as_ref()
-                                {
-                                    return None;
-                                }
-                                let definition = view.original_source_definition_for_body(
-                                    symbol,
-                                    cu,
-                                    function.body_id?,
-                                    registry,
-                                )?;
-                                Some((definition.span(), definition.original_name_input().clone()))
-                            });
-                        let Some((span, input)) = definition else {
-                            continue;
-                        };
-                        let display = function
-                            .types
-                            .get(&(symbol, version))
-                            .and_then(type_display);
-                        let value = (input, display);
-                        hints
-                            .entry((span.start(), span.end()))
-                            .and_modify(|previous: &mut (_, Option<String>)| {
-                                if previous != &value {
-                                    previous.1 = None;
-                                }
-                            })
-                            .or_insert(value);
-                    }
-                }
-            }
-        }
-        for ((span_start, span_end), (_, display)) in hints {
-            let Some(display) = display else {
-                continue;
-            };
-            let start = line_index.position_at_utf16(span_start, source);
-            let end = line_index.position_at_utf16(span_end, source);
-            if end.line < range.start_line || start.line > range.end_line {
-                continue;
-            }
-            out.push(InlayHint {
-                position_line: end.line,
-                position_character: end.character.get(),
-                label: format!(": {display}"),
-                kind: InlayHintKind::Type,
-                padding_left: true,
-            });
-        }
+        collect_original_type_hints(source, analysis, registry, cu, range, line_index, out);
         return;
     }
 
@@ -414,6 +359,91 @@ fn collect_type_hints(
         out,
         0,
     );
+}
+
+fn collect_original_type_hints(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    cu: &CompilationUnit,
+    range: LspRange,
+    line_index: &LineIndex,
+    out: &mut Vec<InlayHint>,
+) {
+    let mut hints = std::collections::BTreeMap::new();
+    for function in cu.all_body_function_units() {
+        let metadata = function.invocation_metadata_context_for_module(registry, &cu.ir_module);
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let view =
+                    tcl_compiler::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                for (&symbol, &version) in &statement.defs {
+                    let definition = view
+                        .original_definition_name_with_metadata_context(symbol, registry, metadata)
+                        .and_then(|definition| {
+                            let span = function.abs_span(definition.span());
+                            analysis
+                                .original_variable_symbols
+                                .iter()
+                                .any(|occurrence| {
+                                    occurrence.is_declaration()
+                                        && occurrence.span() == span
+                                        && occurrence.original_name_input()
+                                            == definition.original_name_input()
+                                })
+                                .then(|| (span, definition.original_name_input().clone()))
+                        })
+                        .or_else(|| {
+                            if analysis.resolved_input.as_ref()
+                                != cu.ir_module.source_metadata_input.as_ref()
+                            {
+                                return None;
+                            }
+                            let definition = view.original_source_definition_for_body(
+                                symbol,
+                                cu,
+                                function.body_id?,
+                                registry,
+                            )?;
+                            Some((definition.span(), definition.original_name_input().clone()))
+                        });
+                    let Some((span, input)) = definition else {
+                        continue;
+                    };
+                    let display = function
+                        .types
+                        .get(&(symbol, version))
+                        .and_then(type_display);
+                    let value = (input, display);
+                    hints
+                        .entry((span.start(), span.end()))
+                        .and_modify(|previous: &mut (_, Option<String>)| {
+                            if previous != &value {
+                                previous.1 = None;
+                            }
+                        })
+                        .or_insert(value);
+                }
+            }
+        }
+    }
+    for ((span_start, span_end), (_, display)) in hints {
+        let Some(display) = display else {
+            continue;
+        };
+        let start = line_index.position_at_utf16(span_start, source);
+        let end = line_index.position_at_utf16(span_end, source);
+        if end.line < range.start_line || start.line > range.end_line {
+            continue;
+        }
+        out.push(InlayHint {
+            position_line: end.line,
+            position_character: end.character.get(),
+            label: format!(": {display}"),
+            kind: InlayHintKind::Type,
+            padding_left: true,
+        });
+    }
 }
 
 /// Match an original scope body to one actual declaration and issued body.
