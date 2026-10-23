@@ -1960,7 +1960,7 @@ impl ModuleCommandBindings {
         bytes: &[u8],
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
-        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
+        use tcl_syntax::naming::NativeNameProtocol;
         #[cfg(any(test, debug_assertions))]
         let geometry_timing = OriginalGeometryTiming::at_query(1);
         let query = self.original_command_world.query_view(self);

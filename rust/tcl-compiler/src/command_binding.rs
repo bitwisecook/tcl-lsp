@@ -6598,7 +6598,8 @@ impl SourceConditionalHandlerNormal {
     ) -> bool {
         state.baseline.source_point_entry.as_ref() == Some(&self.entry)
             && context.body_entry == SourceBodyEntryPurpose::Conditional
-            && context.compilation == NativeCompilationContext::default()
+            && context.compilation
+                == tcl_registry::native_compilation::NativeCompilationContext::default()
             && self.config == context.config
             && self.words == native.words
             && self.operation == facts.operation
@@ -6734,7 +6735,8 @@ impl SourceOutcomes {
             return;
         };
         if context.body_entry != SourceBodyEntryPurpose::Conditional
-            || context.compilation != NativeCompilationContext::default()
+            || context.compilation
+                != tcl_registry::native_compilation::NativeCompilationContext::default()
             || normal.baseline.native_entry.is_some()
             || normal.source_step_observed()
             || normal.source_execution_observed(None)

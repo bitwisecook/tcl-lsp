@@ -2,7 +2,7 @@
 //! Existing Logical source-point history for an explicitly hypothetical target survey,
 //! and the survey-scoped Logical conditional source control that produces it.
 use super::{
-    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings, NamespaceKeyQuery,
+    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings,
     OriginalCompilationLookupAdvice, OriginalSourceCommandTransitionAdvice,
     PreparedSourceNativeInvocation, SourceCommandBindings, SourceCommandTarget,
     SourceCommandTransitionObligation, SourceExecutionContext, SourceNamespaceKey, SourceOriginId,

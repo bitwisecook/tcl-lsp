@@ -179,7 +179,7 @@ impl ModuleCommandBindings {
         let mut projection = body.clone();
         let mut relocation = crate::var_resolve::VariableProofRelocation::default();
         let mut dependencies = std::collections::BTreeMap::new();
-        let valid = collect_analytical_projection_dependencies(
+        let mut valid = collect_analytical_projection_dependencies(
             &mut projection,
             scope,
             self,
@@ -356,7 +356,7 @@ impl ModuleCommandBindings {
         let mut projection = body.clone();
         let mut relocation = crate::var_resolve::VariableProofRelocation::default();
         let mut dependencies = std::collections::BTreeMap::new();
-        let valid = collect_readonly_projection_dependencies(
+        let mut valid = collect_readonly_projection_dependencies(
             &mut projection,
             scope,
             self,
@@ -1029,7 +1029,7 @@ fn original_native_source_schema_dependency(
         })
         .collect::<Option<Vec<_>>>()?;
     words.with_source_schema(input.borrowed_context_registry(), |schema| {
-        use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
+        use tcl_registry::world_effect::CallbackKinds;
         let (effects, transitions) =
             schema.authored_source_effects_and_state_transitions(words.dialect()?);
         let callbacks = effects.callback().kinds;

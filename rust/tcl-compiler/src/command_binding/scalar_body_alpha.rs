@@ -5,7 +5,9 @@
 //! Conditional scalar formal renaming without changing frames or values.
 
 use super::declaration_layout::original_declaration_layouts;
-use super::{CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
+use super::{
+    CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings, SourceInvocationBinding,
+};
 use crate::signature_scan::variable_symbol::{
     SignatureSourceVariableSlot, SignatureSourceVariableSymbol,
 };
