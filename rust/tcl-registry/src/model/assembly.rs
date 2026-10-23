@@ -202,13 +202,22 @@ impl ContextRegistry {
                 environment.targets = targets;
             }
         }
+        let commands = Arc::new(self.commands.project_for_profile(profile));
+        let commands = if let Some(core) = environment.core
+            && Some(core.family) != self.context.environment.core.map(|core| core.family)
+        {
+            let (_, specs) = crate::cache::core_surface_for(core.family);
+            Arc::new(commands.with_core_surface(&specs, &commands))
+        } else {
+            commands
+        };
         Self::assemble(
             ResolvedContext::resolve_with_inherited_surfaces(
                 Arc::new(environment),
                 &KeyedVersions::default(),
                 self.context.inherited_surface_snapshot().clone(),
             ),
-            Arc::new(self.commands.project_for_profile(profile)),
+            commands,
         )
     }
 
