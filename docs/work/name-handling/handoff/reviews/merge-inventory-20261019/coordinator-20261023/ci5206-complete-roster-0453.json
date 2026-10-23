@@ -1,0 +1,204 @@
+{
+  "utc": "2026-10-23T04:53:10.288837+00:00",
+  "run_id": 39879737945,
+  "source_product": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "published_head": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "raw_file": "ci5206-rest-response-0453.json",
+  "raw_sha256": "d2ed4bcd5cde1bb50c589a3b3bbc095714af167b48c721bedfc9ce3bf68aca81",
+  "total_count": 31,
+  "jobs": [
+    {
+      "id": 120173969301,
+      "name": "channel",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120173969710,
+      "name": "cargo-deny",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175507888,
+      "name": "test-ext-web",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175507919,
+      "name": "build-tcl-lsp-server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175507991,
+      "name": "rust-check",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508112,
+      "name": "rust-tests-heavy",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508114,
+      "name": "spectcl-compat",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508202,
+      "name": "python",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175508212,
+      "name": "web-frontends",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175508284,
+      "name": "wasm-real-link",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508333,
+      "name": "lsp-e2e archive",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175508339,
+      "name": "runtime-rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508388,
+      "name": "rust-tests-doctest",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120175508422,
+      "name": "lsp-server-wasm",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508425,
+      "name": "lsp-server-wasi",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508527,
+      "name": "rust-tests-shard (2/5)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120175508573,
+      "name": "rust-tests-shard (1/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508606,
+      "name": "rust-tests-shard (3/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175508624,
+      "name": "rust-tests-shard (5/5)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120175508634,
+      "name": "rust-tests-shard (4/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120175509762,
+      "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120175509857,
+      "name": "macos-wasm-check",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120177961482,
+      "name": "pr-gate",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120178740920,
+      "name": "lsp-e2e-partition (3/3)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120178740998,
+      "name": "lsp-e2e-partition (1/3)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120178741001,
+      "name": "lsp-e2e-partition (2/3)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120180571667,
+      "name": "test-ext-multi-folder",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120180571704,
+      "name": "test-ext-partition (3, three)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120180571738,
+      "name": "test-ext-partition (2, two)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120180571894,
+      "name": "test-ext-partition (1, one)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120186673586,
+      "name": "test-ext",
+      "status": "completed",
+      "conclusion": "failure"
+    }
+  ],
+  "counts": {
+    "success": 7,
+    "failure": 19,
+    "in_progress": 3,
+    "skipped": 2
+  },
+  "scope": "Complete31-job currentroster, not current-source46 CI; no inference for unexecuted/missing tests."
+}

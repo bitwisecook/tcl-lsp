@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T04:54:38.955181+00:00",
+  "prior_raw": "ci5206-rest-response-0418.json",
+  "current_raw": "ci5206-rest-response-0453.json",
+  "raw_bytes_equal": true,
+  "current_sha256": "d2ed4bcd5cde1bb50c589a3b3bbc095714af167b48c721bedfc9ce3bf68aca81",
+  "new_jobs": [],
+  "state_transitions": [],
+  "new_logs_retrieved": false,
+  "counts": {
+    "success": 7,
+    "failure": 19,
+    "in_progress": 3,
+    "skipped": 2
+  },
+  "total31_complete": true
+}

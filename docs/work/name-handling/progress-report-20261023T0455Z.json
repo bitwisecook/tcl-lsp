@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T04:55:37.491578+00:00",
+  "scheduled_report_utc": "2026-10-23T04:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T05:25:37+00:00",
+  "change_since_previous_report": [
+    "04:25 report ontime/pushed36840a77a04:26, nextreminder46322 due04:55. CompletedSpec66targetrecords normalpushed94aba241f04:32,a25cb853904:36,cb251e74e04:43,66a9232ed04:51; everypush freshdepth1fetch/rebase, productdiff0. Product remains4d4/source30 while guarded66runs; no PR/merge/tag/release.",
+    "Eight-package source39 typecheckv7 boundedstaticCLEAR CCGenv/process+LSPfinalHEAD+root39baseline/candidatejoin. Exactplan18375e40, runner-inputmanifest285f7916, source39map5a6a3137; finalactualintegratedHEAD/tree/GO unminted. No build/typing claim.",
+    "Jim34/ownsurface11/roster4 targetevidence independently verified and normalpushed94aba241f04:32 thena25cb8539 04:36. Actualtarget totals21/13,9/2,4/0, targetguards0W; remainingSpecphase stillrunning. Generation3 raw3/3PASS withinoriginal180sec, finaltargetseals pending.",
+    "Rootcoherent nextbatchv4 adds peer-CLEARJim4pureobservability +CCG3purestructural functions before firstrebuild: total28filescurrent4d4/cumulative46vs3b1, combined8460f1a5/manifd5c06741. All componentpeers/applydoubleverify/fmt28PASS. Case-list excluded, no morecomponentsbeforetyping; sourceHOLD/untyped/unrun.",
+    "Four-originalG4 supplement866d2893 completesall8originalG4 alongside newConditionalcontrol; combinedcompiler35filters58tests, zerooverlapLSP23/Jim7. Native15source46v10 staticpeerCLEAR; CCG3templatepeerpending. Total intended focused106cases before any further productmutation, actualsource46binding/typing allpending.",
+    "Current Spec66 partial 2026-10-23T04:54:38.968446+00:00: 64 observed 49PASS/15FAIL; fullphaseguard/closure pending, allsix completedtargetarchives independently verified/published. Jim34=21/13 (original15/11+added6/2),ownsurface11=9/2,roster4=4/0,generation3=3/0,seed1=1/0,EDAloadables8=8/0; targetguards0W. Finalenvironment5 stillrunning.",
+    "Freshcomplete CI5206 31-job roster at04:53 byte-identical prior04:18:7success19failure3running2skip, rawD2unchanged, no newlog/outcome claims. ExternalBIGIP18:08/perf21:00/reviewtriage19:57:30 remain>60min stale; usernotified/no takeover; triage roledeclaresCOMPLETE."
+  ],
+  "committed": [
+    "6d9cdc641b4c2c8699ae029f341df1e0c694022a"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Complete current-source SpecTcl66 guarded acceptance and lossless archive; keep outcomes separate from older CI and exact original baseline identities.",
+    "AfterguardedSpec66closure integrateexact28file reviewedbatch, freezeactualsource46productHEAD/tree, eightpackagealltargets0W. Then compiler54+LSP23+Jim7 finiteinventories (zeroexact/substringoverlap) withall original assertions and actualcurrent source/provider/process guards; tracefirstreport/Jim refusals toowner.",
+    "Run original C6/RBS/integration3, N17/native/host/lifecycle/strict checks on identified current source; authenticated full-report perf gate needs complete all-old/mixed reruns before any perf patch acceptance.",
+    "Close zero pass-to-fail against actual origin/rust plus all review sectionF gates, then await explicit PR request. No PR/merge/tag/release authorised."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Currentproduct4d4/source30 sevenpackagealltargetsPASS0W; report14FAIL10/4,diag11FAIL1/10,body5FAIL3/2 allguardsvalid0W; fullnumeric4PASS4/4 allguardsvalid0W. Current Spec66 partial 2026-10-23T04:54:38.968446+00:00: 64 observed 49PASS/15FAIL; fullphaseguard/closure pending, allsix completedtargetarchives independently verified/published. Jim34=21/13 (original15/11+added6/2),ownsurface11=9/2,roster4=4/0,generation3=3/0,seed1=1/0,EDAloadables8=8/0; targetguards0W. Finalenvironment5 stillrunning. Next28file/cumulative46batch OFFTREE/untyped/unrun; allF/audit0/fullzero-P2F/strictlint/host/perf/wholeC1C2 gates open. No PR/merge/release.",
+  "disk_free_bytes": 9432354816,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

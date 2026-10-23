@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T04:25:37.297984+00:00
+Last updated: 2026-10-23T04:55:37.371749+00:00
 
 ## In progress
 
@@ -526,3 +526,13 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - Complete31-job hostedCI5206 roster refreshed04:18 with unchanged7success19failure3running2skip, rawresponse SHA d2ed4bcd unchanged; no new completed logs. Full4 original67payload archive independently extraction-hash verified, tar3cc2b19c.
 - Final nextbatchv3 statically composed21files/cumulative39vs3b1, combined8466f1f6/manif4e68d5b2. Bodyissuer9bdae873 peerCLEARca850ed3 +quote/bodyconsumer2834a8b6 peerCLEARa41c7da7; oldNative APIs preserved; case-list excluded. Lossless11payload composition archiveb950650c. Still OFFTREE, not typed/run/integrated; source66HOLD.
 - Actual Spec66 partial 2026-10-23T04:25:02.933550+00:00: 18 observed, 14PASS/4FAIL; finalguards pending. Original class W123 Point and method-body-not-walked assertions routed to compiler with current original sources, no shared-cause inference.
+
+### Current cycle and routing (04:55 UTC)
+
+- 04:25 report ontime/pushed36840a77a04:26, nextreminder46322 due04:55. CompletedSpec66targetrecords normalpushed94aba241f04:32,a25cb853904:36,cb251e74e04:43,66a9232ed04:51; everypush freshdepth1fetch/rebase, productdiff0. Product remains4d4/source30 while guarded66runs; no PR/merge/tag/release.
+- Eight-package source39 typecheckv7 boundedstaticCLEAR CCGenv/process+LSPfinalHEAD+root39baseline/candidatejoin. Exactplan18375e40, runner-inputmanifest285f7916, source39map5a6a3137; finalactualintegratedHEAD/tree/GO unminted. No build/typing claim.
+- Jim34/ownsurface11/roster4 targetevidence independently verified and normalpushed94aba241f04:32 thena25cb8539 04:36. Actualtarget totals21/13,9/2,4/0, targetguards0W; remainingSpecphase stillrunning. Generation3 raw3/3PASS withinoriginal180sec, finaltargetseals pending.
+- Rootcoherent nextbatchv4 adds peer-CLEARJim4pureobservability +CCG3purestructural functions before firstrebuild: total28filescurrent4d4/cumulative46vs3b1, combined8460f1a5/manifd5c06741. All componentpeers/applydoubleverify/fmt28PASS. Case-list excluded, no morecomponentsbeforetyping; sourceHOLD/untyped/unrun.
+- Four-originalG4 supplement866d2893 completesall8originalG4 alongside newConditionalcontrol; combinedcompiler35filters58tests, zerooverlapLSP23/Jim7. Native15source46v10 staticpeerCLEAR; CCG3templatepeerpending. Total intended focused106cases before any further productmutation, actualsource46binding/typing allpending.
+- Current Spec66 partial 2026-10-23T04:54:38.968446+00:00: 64 observed 49PASS/15FAIL; fullphaseguard/closure pending, allsix completedtargetarchives independently verified/published. Jim34=21/13 (original15/11+added6/2),ownsurface11=9/2,roster4=4/0,generation3=3/0,seed1=1/0,EDAloadables8=8/0; targetguards0W. Finalenvironment5 stillrunning.
+- Freshcomplete CI5206 31-job roster at04:53 byte-identical prior04:18:7success19failure3running2skip, rawD2unchanged, no newlog/outcome claims. ExternalBIGIP18:08/perf21:00/reviewtriage19:57:30 remain>60min stale; usernotified/no takeover; triage roledeclaresCOMPLETE.
