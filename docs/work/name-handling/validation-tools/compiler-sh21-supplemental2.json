@@ -14,7 +14,19 @@
   ],
   "source_pins": {
     "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
-    "rust/tcl-compiler/src/shimmer/use_site.rs": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+    "rust/tcl-compiler/src/shimmer/use_site.rs": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+    "rust/tcl-compiler/src/shimmer/hints.rs": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1",
+    "rust/tcl-compiler/src/shimmer/commit.rs": "bddae8076596052c843b81f344b89174ae659540a8bf69c7e7c43c2591d9e0c6"
   },
-  "target": "tcl_compiler"
+  "target": "tcl_compiler",
+  "approved_source_pin_refresh": {
+    "source_proposal_patch_sha256": "a9494c8443b64008b6c328b4d0d6c81bc98a8c03354fa73e343b0c237282a9c9",
+    "source_manifest_sha256": "ed9c6f329a0b3b7d9a36cc41196db42d279d08d84be4de98ce0cec1f609697f2",
+    "independent_substantive_peer_sha256": "75d434faa335f36427b598b565cac1c0e7dfd702d51a8316f9d047ae5215fafe",
+    "previous_source_pins": {
+      "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+      "rust/tcl-compiler/src/shimmer/use_site.rs": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+    },
+    "scope": "Approved scalar literal-target representation-read coverage with original/effective pureargv and exact current represented read owner. No selected test/assertion/observer/selector/env/order change; no actual SH2 PASS claim."
+  }
 }

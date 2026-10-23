@@ -264,7 +264,7 @@ require(
     "supplemental roster overlaps original58",
 )
 require(
-    sha(BASE / "compiler-sh21-supplemental2.json") == "6b741fbdecbfea711bdff0e4d4457cc095bd5f8fff8a063aa194e0535cdcce8d",
+    sha(BASE / "compiler-sh21-supplemental2.json") == "0add8b781c91a7a522f77363242381e6c308e3abd20dbb604f71627a1a3213cc",
     "exact separate SH21 diagnostic duplicate input pin",
 )
 sh21_diagnostic = json.loads((BASE / "compiler-sh21-supplemental2.json").read_text())
