@@ -1,0 +1,26 @@
+{
+  "source": "d392eb63 product, unchanged by tracking-only commits",
+  "cli_probe": {
+    "command": "target/debug/f5-query explain-flow explain-flow-matched.pcap explain-flow-simulate.conf --simulate --json",
+    "cwd": "rust/f5-cli/tests/fixtures",
+    "binary_sha256": "7e40425b3459ee62e202bbfbc5737086a6374b70189b915f7fd8f7038fd2d613",
+    "timeout_seconds": 120,
+    "result": "TIMEOUT; no report, VM admission result unreached",
+    "fixtures_sha256": {
+      "rust/f5-cli/tests/fixtures/explain-flow-matched.pcap": "4019a3b33772cfe0c3e8cc365da0c2ce16554c78dbe485909721b047f2fc8b84",
+      "rust/f5-cli/tests/fixtures/explain-flow-simulate.conf": "3c5eb7658a025b4eccf15e63286b1d985d9ea7ba9d985182174b8fe80facde61"
+    }
+  },
+  "isolated_session": {
+    "source": "fn main() { let lib = tcl_irule_test::embedded::EmbeddedLib::materialise().unwrap(); eprintln!(\"embedded framework ready\"); match tcl_irule_test::LiveSession::new(lib.path()) { Ok(_) => println!(\"session ready\"), Err(error) => println!(\"session error: {error:?}\") } }\n",
+    "timeout_seconds": 60,
+    "result": "Embedded framework materialised; LiveSession::new did not return. Semantic/admission result unreached.",
+    "raw_sha256": "3def969bf5180e9fc6317e40a21470ca0476489638438486f7805a7a5a997da8"
+  },
+  "limits": [
+    "Finite observations only, not a hot-function attribution or new allowed test budget.",
+    "Original CLI tests remain unchanged and are queued in the combined native run.",
+    "CI5206 NativePreflightRequired is a separate earlier executed result; these probes do not reproduce that error."
+  ],
+  "live_source_sha256": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+}

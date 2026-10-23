@@ -1,0 +1,495 @@
+{
+  "date_utc": "2026-10-23T11:51:34Z",
+  "source": "d392eb63 product source, tracking-only 2b49be30",
+  "command": "cargo clippy --locked -p tcl-lsp-server --lib --test e2e --no-deps --message-format=json -- -D warnings",
+  "exit": 101,
+  "message_count": 32,
+  "owned_f5_findings": 0,
+  "messages": [
+    {
+      "code": {
+        "code": "clippy::similar_names",
+        "explanation": null
+      },
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 877,
+          "column": 55,
+          "function": "capture_initial_original_source_root"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/studio_source.rs",
+          "line": 508,
+          "column": 16,
+          "function": "studio_source_command"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::collapsible_if",
+        "explanation": null
+      },
+      "message": "this `if` statement can be collapsed",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 693,
+          "column": 17,
+          "function": "publish_original_source_view_batch"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::doc_markdown",
+        "explanation": null
+      },
+      "message": "item in documentation is missing backticks",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 1784,
+          "column": 40,
+          "function": "original_source_bootstrap_is_current"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::unused_async_trait_impl",
+        "explanation": null
+      },
+      "message": "unused `async` for async trait impl function with no `.await` statements",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2490,
+          "column": 5,
+          "function": "original_source_view_settlement_is_indexed"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::items_after_statements",
+        "explanation": null
+      },
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2671,
+          "column": 9,
+          "function": "lift_current_source_view_call_item"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::op_ref",
+        "explanation": null
+      },
+      "message": "needlessly taken reference of both operands",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2769,
+          "column": 17,
+          "function": "walk_original_source_view_calls"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::op_ref",
+        "explanation": null
+      },
+      "message": "needlessly taken reference of both operands",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2850,
+          "column": 13,
+          "function": "walk_original_source_view_calls"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::default_trait_access",
+        "explanation": null
+      },
+      "message": "calling `OriginalSourceViewTable::default()` is more clear than this expression",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 11108,
+          "column": 67,
+          "function": "with_store"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16640 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16917,
+          "column": 23,
+          "function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16568 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16938,
+          "column": 21,
+          "function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16688 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16949,
+          "column": 9,
+          "function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 19088 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17075,
+          "column": 28,
+          "function": "original_method_locations_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 19088 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17097,
+          "column": 28,
+          "function": "original_method_hover_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16568 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17732,
+          "column": 20,
+          "function": "autoload_definition"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16424 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25094,
+          "column": 9,
+          "function": "pull_and_apply_config"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16648 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25375,
+          "column": 13,
+          "function": "coalesced_config_reload"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16448 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25383,
+          "column": 9,
+          "function": "run_config_reload"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25389,
+          "column": 9,
+          "function": "run_config_reload"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16448 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30710,
+          "column": 15,
+          "function": "initialized"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30730,
+          "column": 15,
+          "function": "initialized"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30786,
+          "column": 13,
+          "function": "shutdown"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31204,
+          "column": 23,
+          "function": "did_change_configuration"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16672 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31225,
+          "column": 15,
+          "function": "did_change_configuration"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16448 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31433,
+          "column": 15,
+          "function": "did_change_workspace_folders"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31483,
+          "column": 23,
+          "function": "did_change_watched_files"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16448 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31683,
+          "column": 19,
+          "function": "did_change_watched_files"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 16624 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31703,
+          "column": 19,
+          "function": "did_change_watched_files"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 17800 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32573,
+          "column": 25,
+          "function": "incoming_calls"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 17800 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32653,
+          "column": 25,
+          "function": "outgoing_calls"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::large_futures",
+        "explanation": null
+      },
+      "message": "large future with a size of 17008 bytes",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34004,
+          "column": 39,
+          "function": "execute_command"
+        }
+      ]
+    },
+    {
+      "code": {
+        "code": "clippy::unused_async",
+        "explanation": null
+      },
+      "message": "unused `async` for function with no await statements",
+      "primary": [
+        {
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2490,
+          "column": 5,
+          "function": "original_source_view_settlement_is_indexed"
+        }
+      ]
+    }
+  ],
+  "raw_sha256": {
+    "server-clippy.jsonl": "847d9c521cbb83773f3eb382d56b5ff28ecd2152289d92e1c47c54b416f42e6d",
+    "server-clippy.stderr": "f9402c8c339568232d2585852d629db8efedb7fb0746a716380cadf6528d87f4"
+  },
+  "limits": "Generic server library errors prevent the e2e lint target. This is not a whole-server green result; F5 reference routes have no finding. No generic code edited."
+}

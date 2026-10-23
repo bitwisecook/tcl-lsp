@@ -268,7 +268,7 @@ forensic `files` / `glob` / `grep` and `ucs_cert` builtins report that
 they are unavailable rather than reaching for a filesystem that isn't
 there.
 
-`FilesReader::Inventory` supplies forensic discovery for `files`, `glob` and
+`FileOp::Inventory` supplies forensic discovery for `files`, `glob` and
 `grep`. An explicit `file(path)` uses `FileOp::Exact`: the host selects one
 exact original UTF-8 archive path without leaf-name fallback, then returns
 metadata computed from its original bytes and a lossy UTF-8 `content` preview.

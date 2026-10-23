@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T11:50Z
+Last updated: 2026-10-23T12:03Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -46,6 +46,17 @@ prior receipts below describe their original source, not the new integrated tip.
    repro and contract; finish owned code/evidence and update final notes.
 
 ## Blocked (on whom, and what is needed)
+
+- VM/compiler/performance host startup: current isolated LiveSession::new
+  does not return within60s after materialising its embedded framework; actual
+  CLI explain-flow simulation yields no report within120s. These finite probes
+  do not reproduce CI5206 NativePreflightRequired or identify a hot function.
+  Exact minimal repro, raw/hashes and unchanged guard contract:
+  `bigip-lsp/live-startup-repro-20261023.md`. Original CLI runs are pending.
+
+- Fresh server strict lint has32generic library errors, zero F5 findings;
+  `bigip-lsp/clippy-server-blockers-20261023.json`. The library failure prevents
+  e2e lint. This supersedes the prior server count for its tested scope.
 
 - Fresh scoped lint: ten generic Core errors are indexed in
   `bigip-lsp/clippy-core-blockers-20261023.json`. Non-editor xtask
@@ -174,11 +185,17 @@ prior receipts below describe their original source, not the new integrated tip.
   dot-names instead of aliasing `.hidden` to `hidden`. Source-name/query
   alias controls pass; all executables deleted. Sessions92295 initial run
   (new assertion JSON rendering mismatch only),62986 corrected8/8 final run.
-  Combined native build65063 is active. Strict F5/editor lint52191 finished101
+  Combined native build65063 finished typing/linking0warnings (27m53s),
+  and its sequential original tests are active. The compiler same-frame
+  procedure positive already failed0-versus1 as predicted by the minimal repro;
+  the same-source owner/barrier positive passed. Whole5/Core/CLI/server/e2e
+  results remain pending. Strict F5/editor lint52191 finished101
   with only XC and non-editor xtask trait-recursion errors (four messages,
   including lib/test duplicates); owned XC correction awaits the frozen build.
   Raw/index: `bigip-lsp/clippy-f5-editor-initial-20261023.{json,jsonl.gz}`.
-  Server lint28044 is active. Standalone WASM lint39088 PASS0warnings
+  Server lint28044 completed101 with32generic library errors and
+  zero owned F5 findings; the e2e lint target is gated. Exact primary locations
+  and enclosing functions: `bigip-lsp/clippy-server-blockers-20261023.json`. Standalone WASM lint39088 PASS0warnings
   on the new query API; `bigip-lsp/wasm-clippy-20261023.json`. `/workspace/scratch/bigip-20261023/`
   holds `env.sh`, build/run/delete helper and all plans/logs. This helper now
   runs any available selected artifact even after a sibling build failure,
