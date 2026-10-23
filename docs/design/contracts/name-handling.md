@@ -2487,7 +2487,7 @@ behavior-changing authoring policy. These syntax facts supply no installed
 handler, runtime result/effect, movement permission, insertion/store/frame
 closure or Native identity. Native alias-insertion refusals remain independent.
 Collision gaps, clause-keyword exclusion and unavailable original/source phases
-remain bounded debt; this tranche does not close runtime alias obligations.
+leave runtime alias obligations unresolved.
 
 
 ### Conditional package target-survey query prerequisites
@@ -2506,7 +2506,7 @@ their display name and pinned reference patchlevel. An explicit hypothetical
 to its supplied release parameter, but cannot treat the pinned build version
 as the target's exact patchlevel or manufacture actual provision. Compiler
 history/source/realm/entry proofs and authoritative traversal coverage remain
-separate prerequisites. The consumer migration remains outstanding.
+separate prerequisites.
 
 The source_package_query field is deliberately builtin-only: the genuine
 Studio renderer GAPS register, exhaustive SubCommand coverage and draft
@@ -2559,7 +2559,7 @@ remain outside this static approximation and require semantic tokens.
 
 ### Orphan refresh: diagnostic query dependencies
 
-An orphan buffer contributes no workspace declarations but still consumes analysis inputs. A command-signature refresh may omit it only with a current dependency receipt from the actual configured diagnostic producers. The initial bounded receipt distinguishes NoRead from Broad: NoRead means those diagnostic producers made no workspace command-header query, never that unknown source arguments contain no executable script or that runtime command dependencies are absent. Logical settlement, project callbacks and whole-command rosters remain Broad until a genuine finite source-slot query result is retained. Source/package changes always wake every orphan. Raw source mentions may add positive wakes, never prove a negative dependency.
+An orphan buffer contributes no workspace declarations but still consumes analysis inputs. A command-signature refresh may omit it only with a current dependency receipt from the actual configured diagnostic producers. The bounded receipt distinguishes NoRead from Broad: NoRead means those diagnostic producers made no workspace command-header query, never that unknown source arguments contain no executable script or that runtime command dependencies are absent. Logical settlement, project callbacks and whole-command rosters remain Broad until a genuine finite source-slot query result is retained. Source/package changes always wake every orphan. Raw source mentions may add positive wakes, never prove a negative dependency.
 
 The receipt retains the actual source/input/Registry and URI/revision/version, and joins the existing analyser-input gate/epoch, scheduler generation and class-factory owner at the final no-await decision. Missing, stale, broad or busy owners wake conservatively. Public report names, raw source substrings and an unconfigured constructor cannot issue or retag this receipt. A separate explicit default producer setup in a fixture is not a live resource-configuration receipt. No Native lookup, provider, body completeness, source-load, availability or editable identity follows.
 
@@ -2768,11 +2768,9 @@ and elimination unreachable/dead-store/ADCE adapters (:826:unreachable,
 :826:dead-store, :826:adce) consume that extent independently of their original
 semantic gates. Unavailable geometry withholds the source proposal and cannot
 mark a dead-store edit as removed. Actual proposed source construction and
-physical optimizer equivalence are independent unresolved purposes. Other
-remaining callers of the compatibility statement scanner are not closed by
-this partial adoption; old scanner assertions remain intact.
+physical optimiser equivalence require independent proof.
 
-### Remaining statement-extent consumer adoption
+### Statement-extent consumers
 
 The same original-rewrite-statement-extent owner (:61) is consumed by the
 existing tail-call, unused-procedure, structure-elimination, pattern-recognition,
@@ -2785,9 +2783,8 @@ missing one extent cannot leave a partial deletion/replacement group.
 Unchanged independent scope/result/effect/observer/storage/authorisation gates
 still determine whether a source rewrite is permissible. Structured child
 traversal continues when an unavailable enclosing extent blocks only its own
-proposal. The old delimiter scanner is retained solely for its unchanged
-historical test probes once the complete adoption chain is applied. This
-geometry adoption does not discharge the unused-procedure declaration/erasure,
+proposal. The delimiter scanner is retained for its test probes. Source geometry does
+not discharge the unused-procedure declaration/erasure,
 source-motion read/effects, reference-census, target construction or Native
 equivalence audit purposes. No execution result is claimed.
 
@@ -2806,7 +2803,7 @@ equivalence or erasure authority.
 
 ### Configured optimiser scalar source spelling
 
-The existing configured-scalar-word-construction purpose (:121) now uses
+The configured-scalar-word-construction purpose uses
 lexical_unicode_source_word under the actual ChainSourceContext full lexer
 configuration. Its narrower value policy still refuses braces, backslashes
 and CR/LF; the policy is not a Tcl name-validity grammar. Existing chain
@@ -2817,7 +2814,7 @@ allocation and source edit/equivalence gates remain independent. Native chain
 results remain hint-only where their existing erasure/equivalence owner is
 missing. General propagation output (:3146), expression literal/container
 construction (:682), scalar assignment/return target selection and parent
-postimage proof are not closed by this narrow spelling adopter.
+postimage proof require independent ownership.
 
 ### Expression literal source projection
 
@@ -2909,15 +2906,12 @@ configuration held by its actual pass, selected module input or current
 argument issuer. The shared Syntax lexical Unicode source-word owner checks
 the complete word and its exact decoded value. A failed constructor returns no
 replacement, and is never interpreted as an empty literal or successful fold.
-The previous local safe-word/list-quoter choice no longer decides target Tcl
-syntax. Existing source spans, evaluation, folding, read/effect/observer and
+Existing source spans, evaluation, folding, read/effect/observer and
 Native equivalence gates remain independent.
 
-This closes only the configured literal projection of the existing propagation
-construction adopter. Original outer command/target preservation, complete
-parent postimage correspondence and physical erasure/equivalence are separate
-obligations; this change grants no source-authoring exemption for a semantic
-optimizer.
+Configured literal projection supplies no source-authoring exemption. Original
+outer command/target preservation, complete parent postimage correspondence and
+physical erasure/equivalence remain separate obligations.
 
 ### Provider-owned pack discovery and evaluated source ingress
 
@@ -3355,7 +3349,7 @@ and exact Registry semantic key; source/configuration/metadata remain independen
 checked before access. A different baseline computes its own source product,
 never borrowing a same-valued cached selection. Interpretation completes before
 OnceLock publication, with no cache lock held through recursion.
-conditional declaration selection map is retained; the baseline key is weak,
+The conditional declaration selection map is retained; the baseline key is weak,
 so the memo introduces no strong baseline/analysis-owner cycle. Owner equality
 and hashing continue to use allocation identity and ignore derived contents.
 
@@ -3378,7 +3372,7 @@ and its canonical configured Operator token, never a substring in a leaf gap.
 The existing fixed-string comparison proof, braced-only substitution boundary,
 256-depth refusal and edit safety remain independent and unchanged. Recovery,
 compiled leaves, foreign subtree, source mismatch or missing geometry refuse.
-This adopts only row1045; no expression evaluation or Native grant follows.
+Expression operator geometry grants no expression evaluation or Native authority.
 
 
 ### Actual hook receiver before metadata answer cache admission
@@ -3393,8 +3387,8 @@ host for missing capability. With neither installed host nor installer they
 retain the old abstention; retirement clears the old worker host/cache before
 any hit can return. No VM naming/state, Native handler guarantee, physical
 provider absence or lock against a later external publication is inferred.
-The existing separate HookPlan selected-declaration/option-slot identity facets
-are not closed by this current-receiver phase correction.
+HookPlan selected-declaration and option-slot identity require their own
+independent proofs.
 ### Original hook source field and selected declaration ownership
 
 Hook slot allocation retains the complete authored tuple in HookSourceIdentity:
@@ -3465,7 +3459,7 @@ That new image is never retagged as original source. Its stock lookup remains
 an explicit review premise: the current original scope may shadow, alias or
 rebind that destination, and list conversion/effects/equivalence remain unknown.
 The fix retains `RequiresReview`; this is no actual lookup or automatic-edit
-grant. Only row630's proposal boundary is adopted, not all schema callers.
+grant.
 
 
 ### Configured W308 method proposal receiver
@@ -3479,8 +3473,8 @@ method value, and the edit spans the complete original word, including quote or
 brace wrappers. Missing original geometry, foreign parent or expansion supplies
 no edit while preserving the diagnostic. No candidate becomes a method key,
 selected implementation or dispatch grant. The fix remains `RequiresReview`.
-This adopts only row185; the independent class/member inventory and method
-return-summary rows remain separate obligations.
+Class/member inventory and method return summaries retain their independent
+proof requirements.
 
 
 ### Original source interpreter scope relation
@@ -3495,8 +3489,8 @@ report scopes cannot hide an isolated parent. Missing or foreign correspondence
 stays unavailable; the diagnostic consumer abstains for unavailable and isolated
 relations. A real ordinary namespace containing the marker has no special role.
 This is a source diagnostic compartment only, with no physical interpreter,
-child existence, entered body, command availability or Native grant. Row350
-changes; independent class/member/source receiver proof remains required.
+child existence, entered body, command availability or Native grant. Independent
+class/member/source receiver proof remains required.
 
 
 ### Retained inherited source roster observation
@@ -3533,8 +3527,8 @@ genuine selected original Require word/value under full current input. Package
 namespace coverage stays the existing deliberately whole-file source dependency
 policy, including later requirements; it establishes no loading or installation.
 No report QName, alias chase, required-name string or source offset alone
-donates identity. This adopts row2441's selection/fix/flush source boundaries;
-physical private/public handler equivalence and custom command execution remain
+donates identity. Physical private/public handler equivalence and custom command
+execution remain
 independent. Other builtin diagnostic suppression policies are unchanged.
 
 
@@ -3591,7 +3585,7 @@ Elimination's increment existence/integer checks reborrow the same CU/function
 and actual represented definition; shared literal array splitting keeps element
 receivers excluded. Source/metadata/currentness, observer and semantic deletion
 gates remain independent. Source ownership never becomes a physical cell,
-completed store, Native entry or erase/equivalence grant. Existing row487 only.
+completed store, Native entry or erase/equivalence grant.
 
 ### Complete source configuration in lowering expression projections
 
@@ -3640,8 +3634,7 @@ selected normal setter's actual phase-specific definition places. Missing or
 empty data never licenses movement; all earlier source-MAY, effect, observer,
 read and motion guards remain. This is deliberately not a complete condition
 footprint: object conversions, command effects, full read/write/observer closure
-and result allocation/equivalence still need independent actual proof. The five
-known Native optimizer proof HOLDs are not closed by this read component.
+and result allocation/equivalence require independent proof.
 
 
 The physical component requires the per-read and setter contexts' explicit
