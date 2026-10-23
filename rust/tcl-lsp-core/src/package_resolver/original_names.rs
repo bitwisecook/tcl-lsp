@@ -646,25 +646,8 @@ fn original_package_entries(
             let Some(words) = reached.original_words else {
                 return;
             };
-            let keys: Vec<_> = words
-                .iter()
-                .map(|word| {
-                    SignatureSourceNameKey::from_original_native_word(
-                        word,
-                        WordValueRules::from_config(&config),
-                        policy,
-                    )
-                })
-                .collect();
-            let arguments: Vec<_> = keys
-                .iter()
-                .skip(1)
-                .map(|key| {
-                    key.as_ref()
-                        .and_then(SignatureSourceNameKey::display)
-                        .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
-                })
-                .collect();
+            let keys = package_entry_word_keys(&words, config, policy);
+            let arguments = package_entry_invocation_arguments(&keys);
             let Some(head_key) = keys.first().and_then(Option::as_ref) else {
                 return;
             };
@@ -697,29 +680,15 @@ fn original_package_entries(
                 else {
                     continue;
                 };
-                let Some(input) = package
-                    .argument_index()
-                    .and_then(|ordinal| keys.get(ordinal + 1))
-                    .and_then(Option::as_ref)
-                    .cloned()
+                let Some(input) = package_entry_name_input(&keys, package) else {
+                    continue;
+                };
+                let Some(advertised) =
+                    package_entry_advertised_version(&keys, version_subject, version)
                 else {
                     continue;
                 };
-                let Some(advertised) = version_subject
-                    .argument_index()
-                    .and_then(|ordinal| keys.get(ordinal + 1))
-                    .and_then(Option::as_ref)
-                    .and_then(SignatureSourceNameKey::display)
-                else {
-                    continue;
-                };
-                if !tcl_dialect::validate_version_for(advertised, version) {
-                    continue;
-                }
-                let Some(body_index) = script.argument_index() else {
-                    continue;
-                };
-                let Some(loader) = words.get(body_index + 1) else {
+                let Some(loader) = package_entry_loader_word(&words, script) else {
                     continue;
                 };
                 let files = filenames.as_ref().map_or_else(Vec::new, |scanner| {
@@ -749,6 +718,72 @@ fn original_package_entries(
         return Vec::new();
     }
     entries
+}
+
+fn package_entry_name_input(
+    keys: &[Option<SignatureSourceNameKey>],
+    package: &tcl_registry::state_transition::TransitionSubject,
+) -> Option<SignatureSourceNameKey> {
+    package
+        .argument_index()
+        .and_then(|ordinal| keys.get(ordinal + 1))
+        .and_then(Option::as_ref)
+        .cloned()
+}
+
+fn package_entry_word_keys(
+    words: &[tcl_lexer::NativeWord],
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+) -> Vec<Option<SignatureSourceNameKey>> {
+    words
+        .iter()
+        .map(|word| {
+            SignatureSourceNameKey::from_original_native_word(
+                word,
+                WordValueRules::from_config(&config),
+                policy,
+            )
+        })
+        .collect()
+}
+
+fn package_entry_invocation_arguments(
+    keys: &[Option<SignatureSourceNameKey>],
+) -> Vec<tcl_registry::InvocationWord<'_>> {
+    use tcl_registry::InvocationWord;
+    keys.iter()
+        .skip(1)
+        .map(|key| {
+            key.as_ref()
+                .and_then(SignatureSourceNameKey::display)
+                .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
+        })
+        .collect()
+}
+
+fn package_entry_advertised_version<'a>(
+    keys: &'a [Option<SignatureSourceNameKey>],
+    version_subject: &tcl_registry::state_transition::TransitionSubject,
+    version: tcl_dialect::TclVersion,
+) -> Option<&'a str> {
+    let advertised = version_subject
+        .argument_index()
+        .and_then(|ordinal| keys.get(ordinal + 1))
+        .and_then(Option::as_ref)
+        .and_then(SignatureSourceNameKey::display)?;
+    if !tcl_dialect::validate_version_for(advertised, version) {
+        return None;
+    }
+    Some(advertised)
+}
+
+fn package_entry_loader_word<'a>(
+    words: &'a [tcl_lexer::NativeWord],
+    script: &tcl_registry::state_transition::TransitionSubject,
+) -> Option<&'a tcl_lexer::NativeWord> {
+    let body_index = script.argument_index()?;
+    words.get(body_index + 1)
 }
 
 #[derive(Debug, Clone)]
