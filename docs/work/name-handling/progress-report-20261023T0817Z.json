@@ -1,0 +1,59 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T08:17:52.425427+00:00",
+  "scheduled_report_utc": "2026-10-23T08:17:52.290247+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T08:25:37+00:00",
+  "change_since_previous_report": [
+    "CCGdirect3 currentproduct897b CLOSED08:03:25:0PASS3FAIL/3, twofreshCargoJSONbuilds0W/allraw lifecycle/counts/status/artifact/input/provider guards independentlyaudited0c8990f4. Protocolafter source/HEADnotpersisted: current100405source/HEAD rehash labelledpostclosure endpoints, notinventedhistoricalcaptures. Root19337CLOSED1/LOCK_RELEASED.",
+    "Full137logical126gzipblobarchive0502750a independentlyrootverified allpayload/currentoriginal hashes. Originalfirstassertion failures/unreachedsubcases retained. Nextrootqueue livehook2 thenNative15, GOsabsent.",
+    "Reviewedcore17 revision4Normalowner ownsecondanalysispositive appendedafteralloldassertions (6cecfd10), allproductionunchanged; oldversionsimmutable. Rootauthorizedtwoadditionalpurediagnostics nativeentryv2 1eae0d85 andN17bodyinventoryf02cb3d2 afterstaticpeers; nextcompositionpending, noactualsourceintegration/newtyping/runtime.",
+    "Exactnextest0.9.148 Linuxbinary upstreamarchive223ba936/binary53470cfc verified/version reportscommitcd1d6d546; noCargo/PATHchange. Wrapperv2f4ab122e staticCLEAR/syntheticsPASS, realreporter/CIpilot unrun. AzureCIartifactdownloadproxy403 andconnectorTransportclosed remainretrievalblockers."
+  ],
+  "admissions": [],
+  "committed": [
+    "d9fa60531dcfddf7ce33f6be2253ce93cf44180c"
+  ],
+  "in_progress": [
+    "Guarded livehook2 thenNative15 unchangedproduct measurements before nextsourcewindow.",
+    "Integrateexactreviewedfix/fixture/diagnosticcomposition afteractualidentity finalization; freshstrict8packagealltargettyping thenoriginalfocusedcontrols/newnegatives.",
+    "FullsectionF, exactbaselinezeroP2F, SpecTclC1C2/perf/shippedhosts/strictlint/generatedgates remainopen; noPRunlessasked."
+  ],
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

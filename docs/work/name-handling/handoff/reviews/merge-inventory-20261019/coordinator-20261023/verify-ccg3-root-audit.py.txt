@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""Independent read-only CCG3 raw-run closure verifier; emits assigned audit receipt."""
+from pathlib import Path
+import datetime
+import hashlib
+import json
+import re
+import shlex
+import subprocess
+
+ROOT = Path('/workspace/naming-migration-active/tcl-lsp')
+BASE = Path('/tmp/ccg-post46-direct3-v6')
+RUN = Path('/tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z')
+LAUNCH = Path('/tmp/ccg-post46-direct3-v6-runs/20261023T075710.885181Z')
+DEST = ROOT / 'docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/source46-ccg3-v6-raw-independent-audit.json'
+
+def data(path):
+    return json.loads(Path(path).read_text())
+
+def sha(path):
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
+
+def check(cond, message):
+    if not cond:
+        raise AssertionError(message)
+
+def source_manifest_now():
+    raw = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=ROOT)
+    records = {}
+    selected_roots = {'rust', 'runtime', 'tests', 'experiments', 'spec', 'specs', 'data', 'resources', '.cargo'}
+    selected_suffixes = {'.rs', '.c', '.h', '.tcl', '.tclspec'}
+    selected_names = {'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'rustfmt.toml', 'clippy.toml'}
+    for item in raw.split(b'\0'):
+        if not item:
+            continue
+        path = Path(item.decode())
+        if path.parts[0] in selected_roots or path.suffix in selected_suffixes or path.name in selected_names:
+            records[str(path)] = sha(ROOT / path) if (ROOT / path).is_file() else None
+    return records
+
+def proc_guard(rec, deadline, cap, floor):
+    for key in ('complete', 'artifact_unchanged', 'group_empty_before_parent_reap', 'timer_armed_before_spawn'):
+        check(rec.get(key) is True, f'process guard {key}')
+    check(rec.get('stop_reason') is None, 'process stop reason')
+    check(rec.get('deadline_seconds') == deadline, 'process deadline')
+    check(rec.get('cap_bytes') == cap and rec.get('disk_floor_bytes') == floor, 'process cap/floor')
+    check(rec.get('consecutive_complete_empty_group_scans', 0) >= 2, 'two complete empty group scans')
+    scan = rec.get('last_group_scan', {})
+    check(scan.get('complete') is True and scan.get('members') == [] and scan.get('vanished_pids') == [], 'last group scan')
+    check(not rec.get('owned_live_group_members'), 'owned live group members')
+    check(rec['timer_armed_monotonic_ns'] < rec['spawn_return_monotonic_ns'] < rec['parent_exit_observed_monotonic_ns'], 'timer/parent timing order')
+    check(rec['retained_bytes'] == rec['stdout_bytes'] + rec['stderr_bytes'] <= cap, 'retained byte accounting')
+    check(rec['parent_waitid_wnowait']['si_status'] == rec['exit_code'], 'WNOWAIT exit status')
+    for kind in ('stdout', 'stderr'):
+        p = Path(rec[kind])
+        check(p.stat().st_size == rec[kind + '_bytes'], f'{kind} byte size')
+    check(rec['artifact_sha256_before'] == rec['artifact_sha256_after'] == sha(rec['artifact']), 'process artifact hash')
+
+assert not DEST.exists(), 'immutable audit receipt already exists'
+plan = data(BASE / 'plan.json')
+go = data(BASE / 'root-go.json')
+input_manifest = data(BASE / 'runner-input-manifest.json')
+final = data(RUN / 'final.json')
+rows = data(RUN / 'results.json')
+closure = data(RUN / 'root-observed-parent-closure.json')
+launcher = data(LAUNCH / 'launcher.json')
+manifest = data(BASE / 'source46-manifest.json')
+check(sha(BASE / 'plan.json') == '8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34', 'plan pin')
+check(sha(BASE / 'root-go.json') == '7f868f51c7de304137f7ba474ed24a6084432615d0ee8af596d56b7c4789a09e', 'GO pin')
+check(sha(BASE / 'source46-manifest.json') == 'f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7', 'source46 map pin')
+check(go['plan_sha256'] == sha(BASE / 'plan.json') and go['source46_manifest_sha256'] == sha(BASE / 'source46-manifest.json'), 'GO plan/map binding')
+check(go['approved_integrated_head'] == '897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6', 'approved HEAD')
+check(go['approved_integrated_tree'] == '0b11e3a05ee26ca70bbe001244d05c5ab9004f30', 'approved tree')
+check(manifest['exact_path_count'] == 46 and len(manifest['paths']) == 46 and len({x['path'] for x in manifest['paths']}) == 46, 'source46 exact inventory')
+check(final['root_go_sha256'] == sha(BASE / 'root-go.json') and final['results'] == 3 and final['selected'] == 3, 'final scope/count')
+check(final['overall_exit'] == 1 and final['all3_direct_child_timers_valid'] and final['all_artifacts_retained'] and final['artifact_stable'], 'final status and artifact guards')
+check(closure['tool_session_id'] == 19337 and closure['root_parent_session'] == 19337 and closure['observed_closed'] is True and closure['exit_code'] == 1 and closure['lock_released'] is True, 'actual root-observed closure')
+check(launcher['exit_code'] == 1 and launcher['inputs_stable'] is True and launcher['root_go_stable'] is True and launcher['durable_file_backed_output'] is True, 'launcher closure')
+check(launcher['pins_before'] == launcher['pins_after'] and launcher['plan_sha256'] == sha(BASE/'plan.json'), 'launcher input pins')
+transcript = (LAUNCH / 'launcher.transcript').read_text()
+check('COMPLETE receipt=' in transcript and 'overall=1' in transcript and 'LOCK_RELEASED' in transcript, 'launcher transcript closure')
+
+# Validate every pinned input and the run's narrower frozen input snapshot.
+for path, expected in input_manifest['inputs'].items():
+    check(sha(path) == expected, f'runner input changed: {path}')
+run_inputs = data(RUN / 'runner-inputs.json')
+check(all(sha(path) == expected for path, expected in run_inputs.items()), 'run input pins')
+check(data(RUN/'root-go.json') == go and data(RUN/'plan.json') == plan, 'run-frozen plan/GO copy')
+
+# Recompute the exact frozen source-manifest AST over the current tree. The raw
+# CCG3 run did not persist source-after/head-after; this receipt records the
+# post-close endpoint sampled now and does not invent those missing files.
+source_before = data(RUN / 'source-before.json')
+source_current = source_manifest_now()
+check(len(source_before) == 100405 and len(source_current) == 100405, '100405 source inventory count')
+check(source_current == source_before, 'current full source manifest differs from frozen source-before')
+source46_current = []
+for item in manifest['paths']:
+    path = ROOT / item['path']
+    current_hash = sha(path)
+    check(current_hash == item['after_sha256'], f'current source46 file differs: {item["path"]}')
+    blob = subprocess.run(['git', 'show', go['approved_integrated_head'] + ':' + item['path']], cwd=ROOT, capture_output=True)
+    check(blob.returncode == 0 and hashlib.sha256(blob.stdout).hexdigest() == item['after_sha256'], f'approved source46 blob differs: {item["path"]}')
+    source46_current.append({'path': item['path'], 'sha256': current_hash})
+
+# Docs-only descendant guard, plus current endpoint equality to startup.
+head_start = (RUN/'head-before.txt').read_text().strip()
+head_startup = data(RUN/'head-snapshot-startup.json')['head']
+head_current = git('rev-parse', 'HEAD')
+check(head_start == head_startup == head_current == 'd9fa60531dcfddf7ce33f6be2253ce93cf44180c', 'actual HEAD endpoint')
+approved = go['approved_integrated_head']
+check(subprocess.run(['git','merge-base','--is-ancestor',approved,head_current],cwd=ROOT).returncode == 0, 'approved HEAD is ancestor')
+changed = []
+for commit in git('rev-list', f'{approved}..{head_current}').splitlines():
+    changed.extend(x for x in git('diff-tree','--no-commit-id','--name-only','-r','-m',commit).splitlines() if x)
+check(all(path.startswith('docs/work/name-handling/') for path in changed), 'non-doc descendant commit')
+outside = subprocess.check_output(['git','diff','--name-only',approved,'--','.', ':(exclude)docs/work/name-handling'],cwd=ROOT,text=True).splitlines()
+check(not outside, 'current worktree product delta outside docs')
+untracked = subprocess.check_output(['git','ls-files','--others','--exclude-standard','-z'],cwd=ROOT).split(b'\0')
+check(all(not x or x.decode(errors='surrogateescape').startswith('docs/work/name-handling/') for x in untracked), 'untracked path outside docs')
+
+# Root run's same full provider seal was persisted at startup/build/final.
+provider_names = ['providers-before.json','providers-after-build.json','providers-after.json','providers-final.json']
+providers = {name:data(RUN/name) for name in provider_names}
+check(all(value == providers[provider_names[0]] for value in providers.values()), 'provider snapshots differ')
+
+# Exact two Cargo JSON builds and their actual current artifacts.
+builds = []
+for target in plan['package_builds']:
+    package = target['package']; stem = 'build-' + package
+    argv = target['cargo_argv']
+    check(data(RUN/(stem+'.process.json'))['argv'] == argv, f'{package} exact Cargo argv')
+    check((RUN/(stem+'.command')).read_text().strip() == shlex.join(argv), f'{package} command file')
+    rec = data(RUN/(stem+'.process.json')); proc_guard(rec, 3600, 20*1024*1024, 2*1024**3)
+    check(rec['exit_code'] == 0 and rec['actual_argv'] == argv and rec['cargo_binary_sha256'] == plan['build_environment']['cargo_sha256'], f'{package} actual Cargo success')
+    events=[]
+    for line in Path(rec['stdout']).read_text().splitlines():
+        if line.strip(): events.append(json.loads(line))
+    finished=[e for e in events if e.get('reason')=='build-finished']
+    check(len(finished)==1 and finished[0].get('success') is True, f'{package} Cargo build-finished')
+    check(not [e for e in events if e.get('reason')=='compiler-message' and e.get('message',{}).get('level') in ('warning','error')], f'{package} compiler warnings/errors')
+    check(not [e for e in events if e.get('reason')=='build-script-executed' and e.get('warnings')], f'{package} build-script warnings')
+    stderr = Path(rec['stderr']).read_text(errors='replace')
+    check(not re.search(r'^warning:',stderr,re.M), f'{package} stderr warning')
+    art = data(RUN/(stem+'.artifact.json'))
+    event = art['cargo_event']; cargo_events=[e for e in events if e == event]
+    check(len(cargo_events)==1 and art['captured_from_current_cargo_event'] is True, f'{package} artifact current Cargo event')
+    check(event['manifest_path'] == target['manifest_path'] and event['target']['name'] == target['target_name'] and event['target']['kind'] == target['target_kind'] and event['profile']['test'] is True, f'{package} artifact target identity')
+    check(sha(art['path']) == art['sha256'] == final['build_artifacts'][package]['sha256'], f'{package} artifact file SHA')
+    # This CCG3 run persists raw Cargo JSON and stderr, not a separate warnings receipt.
+    builds.append({'package':package,'argv':argv,'exit_code':rec['exit_code'],'artifact_sha256':art['sha256'],'warnings':0})
+
+# Exact finite 3-row protocol; preserve actual outcome as all three failures.
+required = plan['required_filters']
+check(len(required)==3 and len(rows)==3 and len({(r['package'],r['artifact']['target_name'],r['selector']) for r in rows})==3, 'exact three filter rows')
+observed=[]
+for index,(expected,row) in enumerate(zip(required,rows),1):
+    check(row['index']==index and row['label']==expected['label'] and row['package']==expected['package'] and row['selector']==expected['selector'] and row['artifact']['target_name']==expected['target'], f'row {index} identity')
+    check(row['expected_selected']==expected['expected_selected']==1 and row['expected_names']==expected['selected_tests']==[expected['selector']], f'row {index} expected selector')
+    check(row['selected_names']==[expected['selector']] and row['actual_selected']==1 and row['started_counts']==[1], f'row {index} actual selected/count')
+    check(row['argv'][1:] == [expected['selector'],'--exact','--nocapture','--test-threads=1'], f'row {index} exact invocation arguments')
+    check(data(RUN/(f'{index:02d}-{expected["label"]}.env.json')) == expected['env'], f'row {index} exact env')
+    rec=row['process']; proc_guard(rec,180,20*1024*1024,2*1024**3)
+    check(rec['exit_code']==row['exit_code'] and rec['exit_code'] in (0,101), f'row {index} raw process exit')
+    text=Path(rec['stdout']).read_text(errors='replace')+'\n'+Path(rec['stderr']).read_text(errors='replace')
+    names=re.findall(r'^test ([A-Za-z0-9_:]+) \.\.\.',text,re.M)
+    starts=[int(x) for x in re.findall(r'^running (\d+) tests?$',text,re.M)]
+    summaries=re.findall(r'^test result: (.+?)\. (\d+) passed; (\d+) failed; (\d+) ignored;',text,re.M)
+    check(names==[expected['selector']] and starts==[1] and len(summaries)==1, f'row {index} raw test output identity/count')
+    status,passed,failed,ignored=summaries[0]
+    check((status,int(passed),int(failed),int(ignored),rec['exit_code']) in [('ok',1,0,0,0),('FAILED',0,1,0,101)], f'row {index} raw test summary/exit')
+    check(row['summaries']==[list(summaries[0:1][0])], f'row {index} result summary matches raw')
+    check(row['warnings'] is False and not re.search(r'^warning:',text,re.M), f'row {index} warning status')
+    check(row['source_stable'] and row['providers_stable'] and row['artifact_stable'], f'row {index} recorded guards')
+    check(row['artifact']['package']==expected['package'] and row['artifact']['target_name']==expected['target'] and sha(row['artifact']['path'])==row['artifact']['sha256'], f'row {index} exact retained artifact')
+    check(row['stdout_sha256']==sha(rec['stdout']) and row['stderr_sha256']==sha(rec['stderr']), f'row {index} raw log hashes')
+    observed.append({'label':expected['label'],'package':expected['package'],'target':expected['target'],'selector':expected['selector'],'env':expected['env'],'selected':1,'started':1,'test_status':status,'passed':int(passed),'failed':int(failed),'ignored':int(ignored),'exit_code':rec['exit_code'],'timer_seconds':rec['deadline_seconds'],'group_empty_before_reap':rec['group_empty_before_parent_reap'],'warnings':False})
+check(sum(x['passed'] for x in observed)==0 and sum(x['failed'] for x in observed)==3 and sum(x['ignored'] for x in observed)==0, 'actual finite outcomes')
+
+receipt = {
+    'schema':'ccg3-v6-raw-independent-audit-v1',
+    'scope':'Finite 3-selector CCG3 run only; not general native87/N17/full51 acceptance, source repair, release, or merge readiness.',
+    'audited_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    'raw_run':str(RUN), 'launcher_run':str(LAUNCH),
+    'root_parent_closure':closure,
+    'plan_sha256':sha(BASE/'plan.json'), 'root_go_sha256':sha(BASE/'root-go.json'),
+    'source46_manifest_sha256':sha(BASE/'source46-manifest.json'),
+    'integrated_source46_paths':46,
+    'source_snapshot':{'persisted_before_count':len(source_before),'current_recomputed_after_closure_count':len(source_current),'current_equals_before':True,'source_after_persisted_by_protocol':False,'head_before':head_start,'head_snapshot_after_persisted_by_protocol':False,'head_current_recomputed_after_closure':head_current,'docs_only_descendant_guard':True},
+    'provider_snapshots':{'persisted':provider_names,'all_equal':True,'entry_count':len(providers['providers-before.json'])},
+    'runner_inputs':{'manifest_sha256':sha(BASE/'runner-input-manifest.json'),'input_count':len(input_manifest['inputs']),'all_pinned_inputs_current':True,'run_input_pin_count':len(run_inputs)},
+    'builds':builds,
+    'selectors':observed,
+    'raw_totals':{'selected':3,'started':3,'passed':0,'failed':3,'ignored':0,'test_process_exits':{'0':sum(x['exit_code']==0 for x in observed),'101':sum(x['exit_code']==101 for x in observed)}},
+    'guards':{'all_processes_timer_armed_before_spawn':True,'per_selector_cap_bytes':20971520,'build_cap_bytes':20971520,'disk_floor_bytes':2147483648,'all_direct_children_waitid_status_matches':True,'two_complete_empty_group_scans_each':True,'zero_build_and_test_warnings':True,'artifacts_exact_current_cargo_event_and_sha_verified':True,'full_source_100405_recomputed_equal_to_persisted_before':True,'provider_snapshots_equal':True,'current_head_docs_only_descendant_verified':True},
+    'limits':['The protocol does not persist source-after or head-after snapshots; current source and HEAD were independently recomputed after the recorded parent closure and compared to persisted startup snapshots.','This is a finite diagnostic observation; the three observed failures are retained as failures.','No type proof, broad protocol acceptance, or release readiness is claimed.']
+}
+DEST.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+print(json.dumps({'receipt':str(DEST),'source_count':len(source_current),'provider_count':len(providers['providers-before.json']),'builds':builds,'raw_totals':receipt['raw_totals'],'head_current':head_current},sort_keys=True))

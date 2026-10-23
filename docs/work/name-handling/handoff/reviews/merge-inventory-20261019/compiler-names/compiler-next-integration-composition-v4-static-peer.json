@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T08:09:55.344809+00:00",
+  "status": "CLEAR bounded core17 v4 replacement-only delta; no typing/runtime/source admission",
+  "manifest_sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6",
+  "combined_patch_sha256": "956ccbb7beab02deacc74dac12762e6d332eaa26af709105e6e9d883fc2d14e9",
+  "candidate64_map_sha256": "79ec9a9db890b2b420cd4ae54e6342cb35bcd0f22322265f5bbb8d3a4b998bfa",
+  "format_receipt_sha256": "a888f20fb9ad0130a9eae74f4582306b7e994e4314ce4c08de79287faafce3fc",
+  "checks": [
+    "Allother16 component patchpins identical predecessorv3; only Normalowner v2\u2192v3 replacement",
+    "Same29paths/currentbeforepins; only source_point final changes7ba30f43, allother28 finalfiles identical",
+    "Removing appended secondanalysis ownseed-positive restores whole predecessor file; allproduction/alloldassertions and order identical",
+    "Regenerated exact combinedpatch from realcurrent before+all29 frozenfinals byte-identical combined956ccbb7; no fuzz/offset/synthesis",
+    "Same64 cumulativepaths/baselines; only source_point afterhash changes; candidate remainsNOT actualidentity",
+    "29ownereditionformatreceipt PASS, same oldNormalEq/ptr and sourcebarrier union"
+  ],
+  "limits": "Source46 actual897b unchanged, candidate is off-tree only; no Rusttyping/runtime/Cargo/Git/GO. Builder willtakeexplicit root-reviewedmanifest+SHA and refuse absent actual committed identity."
+}

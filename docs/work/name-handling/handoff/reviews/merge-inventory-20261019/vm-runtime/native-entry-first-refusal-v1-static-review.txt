@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T08:11:23.323713+00:00",
+  "status": "HOLD HISTORICAL: unconditional track_caller affects release scope; v2 is current; no integration authorization",
+  "reviewer": "vm-runtime",
+  "patch_sha256": "379bbd27d072f08a825f0c16527a9ed05d166261efa18e287412f0aa5af1f1aa",
+  "independent_before_and_after3": true,
+  "independent_zero_fuzz_apply": true,
+  "rustfmt": "PASS edition2024 skip_children=true on exact3 standalone shadow files; initial full traversal lacked unrelated modules, no product issue",
+  "scope": "Three-file first-native-entry diagnostic only",
+  "findings": [
+    "require_provider remains same possible_error/locals writes; track_caller records immediate existing issuer with no new graph/registry/provider query",
+    "assessment computed once in original argument order; prints existing assessment fields before existing publication logic, no rerun or policy mutation",
+    "emitter computes native_failure once as before; borrowed existing cfg/dependency fields observed, original ProviderRequired/Unpresented/NotRequired branch untouched",
+    "new prints debug_assertions plus exact existing diagnostic env value; source_image().len is immutable field access, not a source ownership/provider query",
+    "original tests/assertions and Native/purpose grant behavior unchanged; actual issuer is not yet measured",
+    "Unconditional track_caller in v1 is a release attribution scope change; root requires debug-only cfg_attr successor. Static observations above do not authorize v1."
+  ],
+  "limits": "No Cargo/Rust compiler, GO, canonical source, provider or Git action.",
+  "superseded_by": {
+    "path": "/tmp/ccg-native-entry-first-refusal-v2/proposal.patch",
+    "sha256": "1eae0d85bf86767986e4dddb3fdf5139b94b2406707ac56f77115e333de0e167",
+    "owner_peer": "compiler performing current bounded peer; VM does not duplicate"
+  }
+}

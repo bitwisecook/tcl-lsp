@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T08:16:30.288634+00:00",
+  "status": "CLEAR bounded test-only body-census observer; type/runtime UNRUN",
+  "patch_sha256": "f02cb3d29c62db96a8687863c7e7cb30e4626e9b89c02e1e9b5e5360016ddcc4",
+  "checks": [
+    "Independentcurrent/final/patch/zero-fuzz-nooffset/pinnedfmtPASS",
+    "Removing sole census block restores entireoriginalfile byte-for-byte; no assertion/name selection/return/order change",
+    "CompilationUnit public original_procedure_for_body and body_lowering_function and maps accessible; borrows same heldModule Procedure for pointer check, no clone or conversion",
+    "Every actualnamed+body_lowering row logged in full, no firstmatch/dedup; typedissuer/kind/label/span retained, functionbodyid rejoin descriptive only",
+    "New public readonly owner/function queries feed output only; no evaluator/sourceanalysis/hostcall/Native/Normal/fold grant"
+  ],
+  "limits": "Actual::p store/bodykind/issuer census remains unmeasured; existing cleanup inverse must version afteractualintegration/measurement. No source/Cargo/Git/GO."
+}

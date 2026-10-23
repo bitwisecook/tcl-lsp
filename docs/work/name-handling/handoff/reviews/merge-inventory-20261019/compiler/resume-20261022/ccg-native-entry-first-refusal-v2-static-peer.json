@@ -1,0 +1,16 @@
+{
+  "verdict": "bounded static pure diagnostic/type-access/order CLEAR; typing/runtime UNRUN",
+  "proposal_sha256": "1eae0d85bf86767986e4dddb3fdf5139b94b2406707ac56f77115e333de0e167",
+  "v1": "HELD historical: unscoped track_caller corrected in immutablev2",
+  "checks": [
+    "Independent3 currentbefore/final/zero-fuzz-nooffset apply +pinnedfmtPASS",
+    "Exactv2\u2192v1delta solely cfg_attr(debug_assertions,track_caller); new caller metadata absent inrelease, debugfirstdeclinecallsite retained",
+    "require_provider still writes possible_error=true then locals=None inoriginalorder; only cfgdebug/env immutable caller/chunk fields logged beforehand",
+    "Preflight assessment originalqueryonce; mode/frame and assessment fields alreadyowned/materialized; originaltimingdrop and guards retained",
+    "Emitter originalfailure extraction and admissionbranch order unchanged; lengths/is_some/Copyprovider bool and refs logged only; no semanticquery/assertion/proof/provider/admission changes"
+  ],
+  "limits": [
+    "Firstdeclining actualissuer not measured by static review; subsequent flags mayreflect earlier debt until actualtrace determines sequence",
+    "Not included in frozen composition-v4/core17; no source/Cargo/Git/GO"
+  ]
+}

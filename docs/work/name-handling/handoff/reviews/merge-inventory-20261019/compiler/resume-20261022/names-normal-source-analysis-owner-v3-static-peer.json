@@ -1,0 +1,16 @@
+{
+  "verdict": "bounded test-only production/type/lifetime/order static CLEAR; Rust/runtime UNRUN",
+  "proposal_sha256": "6cecfd10cce96fe822f142502213a76e79b29f3f6841dc77f6b03281fe7ccbfb",
+  "predecessor_v2_sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+  "checks": [
+    "Exact3current before/finalpins; independent zero-fuzz/nooffset apply; pinnedfmt3PASS",
+    "All production bytes and other2 finalfiles exactlyv2; removing exact7lineappend restores entirev2sourcepointfile byte-for-byte",
+    "Append occurs after alloldassertions including changedconfiguration/refusals, no reorder/skip/inversion/newpredicate",
+    "Secondseed genuinely issued by other retainedbinding from original foreign independently analysed result, input borrowed from same living foreign result; no reconstructed owner or firstseed donation",
+    "Second result/realm/input remain alive; seed owns same existing strongownerArc, oldsource/baseline/registry/config checks unchanged; same original testselector/count"
+  ],
+  "limits": [
+    "Actual secondmemoanalysis own availability/foreignrefusals/lifetime tests unrun until validated integrated source and strict runner",
+    "No Cargo/Git/source/GO or protocolrefresh"
+  ]
+}

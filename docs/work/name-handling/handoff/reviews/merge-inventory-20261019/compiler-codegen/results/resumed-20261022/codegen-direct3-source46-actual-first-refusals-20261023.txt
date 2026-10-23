@@ -1,0 +1,21 @@
+UTC: 2026-10-23T08:10:33.130654+00:00
+Scope: read-only actual direct3 result classification; no product/test/source change.
+Protocol: /tmp/ccg-post46-direct3-v6 (root GO, current repaired source46).
+Actual run: /tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z
+Final: selected=3 results=3 overall_exit=1 all3_direct_child_timers_valid=True source_stable=True providers_stable=True artifact_stable=True all_artifacts_retained=True
+
+Row1: original cmd_control_e2e catch-write fails BEFORE catch assertion: VM true compile entry, 29-byte procedure body, profile/point/policy/closed/frame/namespace present, FunctionAsm ProviderRequired with zero compiler prerequisites, then validate_native_compilation_entry first predicate preflight_flag -> CompilationAdmission(NativePreflightRequired). Actual trace does not identify preflight possible_error versus emitter dependency_refusal or the specific compiler visitor. Do not relax helper/admission.
+Row2: original pack_source reference body first positive vendor::f 21 returns None, expected Some(42). N17G2 retained-input/exact-metadata/host true, original-p-count=0; count is for fixture proc ::p in proved_under. No parent/SSA/fold trace reached.
+Row3: original pack_source per-release case reaches 8.4/8.5 negative assertions, then 8.6 string cat positive returns None, expected Some(xy). N17G2 original-p-count=0 with same retained-input/exact-metadata/host true. Later release cases not reached.
+No N17 SCCP or live pack-fold verdict follows. Separate hook2 remains unmeasured. Observer cleanup remains held.
+
+Evidence SHA256:
+final.json f2aaa25fe22ac3683ce60fa011300c33a9074bf8020f9d255f523fab4d59eae6
+01-native_admission_first_decline.stderr 8d5044d6ed79fbe4037e2354c4b34f0aa31d2ecabb4f4f1a5da8c59260e37280
+01-native_admission_first_decline.result.json a23c6a3dab530892dfa144760644ea601c0f9190d2655c5e59771336d863c8d2
+02-derived_first_decline_1.stderr 6ed2afd58b98c4a10f8404949932ec9bc4c9fe23e2a8da2118295a24430ac4bb
+02-derived_first_decline_1.result.json e40e972d77918dbf437a9a2be0b2e2299dfece804d903c35d361446828fa50d2
+03-derived_first_decline_2.stderr b0ba44a01dbf43f59a51f334efc3b70c26f15539c6f4f4267d7ae068a3d841c0
+03-derived_first_decline_2.result.json 623e8551ab8b5b7b0aaecd27863ea317e31234d46d05aafb0915800040237b36
+
+Prepared pure debug row1 trace: /tmp/ccg-native-entry-first-refusal-v2/proposal.patch 1eae0d85bf86767986e4dddb3fdf5139b94b2406707ac56f77115e333de0e167; peer pending; not run.

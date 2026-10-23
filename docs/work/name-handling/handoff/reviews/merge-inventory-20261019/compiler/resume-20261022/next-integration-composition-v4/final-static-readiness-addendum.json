@@ -1,0 +1,35 @@
+{
+  "status": "BOUNDED STATIC CLEAR replacement-only composition-v4/core17; actual integration/typing/runtime pending",
+  "utc": "2026-10-23T08:11:23.416092+00:00",
+  "manifest_sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6",
+  "combined_patch_sha256": "956ccbb7beab02deacc74dac12762e6d332eaa26af709105e6e9d883fc2d14e9",
+  "cumulative64_candidate_map_sha256": "79ec9a9db890b2b420cd4ae54e6342cb35bcd0f22322265f5bbb8d3a4b998bfa",
+  "owner29_edition_format_sha256": "a888f20fb9ad0130a9eae74f4582306b7e994e4314ce4c08de79287faafce3fc",
+  "replacement_delta_proof_sha256": "ccb5604005b4024f1ee7ff0dc0291d8031fdafca5ba2d4268bec1d6d0a16573a",
+  "Names_composition_delta_peer_sha256": "62e0c3821edda59b2a9e01014ccd5519fb16389bf7fead97d63edfc95022ce01",
+  "Normal_v3_test_peer_sha256": "f590488c6d860f55e5e0498f5c417be46c2b932d080e4d3f2524bab0450a08a6",
+  "inherits_unchanged_core17_v3_union_peers": {
+    "Names": "0561e6ad21cfe3d06a7dc664e769ee507e9c12d156e2d307da6e8c0d4a3db7f4",
+    "CCG_source_structure": "ac111488f836d31bda851e22929d7661a2c768cce9599beb8e995d6d20780899"
+  },
+  "exact_delta": "Normal-owner-v2\u2192v3 only, aftereveryoldassert appends genuine second-analysis OWNseed/OWNbindings Some. Sameproduction/alloldguards/Eq/selectors/counts. Other16componentpatchpins exact and other28finalbytes identical.",
+  "counts": {
+    "actual_source46": 46,
+    "component_count": 17,
+    "changed_batch_paths": 29,
+    "proposed_cumulative_vs_3b1_paths": 64
+  },
+  "actual_product": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30/mapf7568b84",
+  "late_binding": "Names typingbuilder must require explicit reviewed candidate-manifest path+SHA; no latest/default fallback, actualnewHEAD/tree required afterrootintegration. Compose builder required explicit reviewed predecessor path+SHA and refuses absent/mismatch.",
+  "excluded": [
+    "Alias fixture held admissibility/Logical positive unrun",
+    "Late CCG Native trace379/v2 and other later proposals: not selected here",
+    "Old Normalv1 held, v2 historicalclear preserved; no old sourcepin refresh"
+  ],
+  "limits": [
+    "No Cargo/Git/source/provider/GO by compiler",
+    "Newcandidate integrated identity not minted; nofictionPASS",
+    "Allcombined typing/runtime/newfinite controls/lifetime/perf acceptance unrun; oldsource46 outcomes are predecessor evidence",
+    "Temporary diagnostics must be removed/reviewed before release; allrelease/Clippy/perfgates stillopen"
+  ]
+}

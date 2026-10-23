@@ -1,0 +1,169 @@
+{
+  "audited_utc": "2026-10-23T08:13:25.076317+00:00",
+  "builds": [
+    {
+      "argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "cmd_control_e2e",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "artifact_sha256": "e1d01c583bce7165436a2ab5033c242283d9ec4d8977f24c46617ecf28826671",
+      "exit_code": 0,
+      "package": "tcl-vm",
+      "warnings": 0
+    },
+    {
+      "argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "pack_source_e2e",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "artifact_sha256": "90099afe756cb906ffdccb2ae2d6c7390bd9b5d6c78ce96b03302f0585b3b009",
+      "exit_code": 0,
+      "package": "tcl-spectcl",
+      "warnings": 0
+    }
+  ],
+  "guards": {
+    "all_direct_children_waitid_status_matches": true,
+    "all_processes_timer_armed_before_spawn": true,
+    "artifacts_exact_current_cargo_event_and_sha_verified": true,
+    "build_cap_bytes": 20971520,
+    "current_head_docs_only_descendant_verified": true,
+    "disk_floor_bytes": 2147483648,
+    "full_source_100405_recomputed_equal_to_persisted_before": true,
+    "per_selector_cap_bytes": 20971520,
+    "provider_snapshots_equal": true,
+    "two_complete_empty_group_scans_each": true,
+    "zero_build_and_test_warnings": true
+  },
+  "integrated_source46_paths": 46,
+  "launcher_run": "/tmp/ccg-post46-direct3-v6-runs/20261023T075710.885181Z",
+  "limits": [
+    "The protocol does not persist source-after or head-after snapshots; current source and HEAD were independently recomputed after the recorded parent closure and compared to persisted startup snapshots.",
+    "This is a finite diagnostic observation; the three observed failures are retained as failures.",
+    "No type proof, broad protocol acceptance, or release readiness is claimed."
+  ],
+  "plan_sha256": "8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34",
+  "provider_snapshots": {
+    "all_equal": true,
+    "entry_count": 104,
+    "persisted": [
+      "providers-before.json",
+      "providers-after-build.json",
+      "providers-after.json",
+      "providers-final.json"
+    ]
+  },
+  "raw_run": "/tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z",
+  "raw_totals": {
+    "failed": 3,
+    "ignored": 0,
+    "passed": 0,
+    "selected": 3,
+    "started": 3,
+    "test_process_exits": {
+      "0": 0,
+      "101": 3
+    }
+  },
+  "root_go_sha256": "7f868f51c7de304137f7ba474ed24a6084432615d0ee8af596d56b7c4789a09e",
+  "root_parent_closure": {
+    "actual_launcher": "/tmp/ccg-post46-direct3-v6-runs/20261023T075710.885181Z/launcher.json",
+    "exit_code": 1,
+    "kind": "root-observed-guarded-parent-closure",
+    "lock_release_evidence": "Actual durable transcript COMPLETE overall1 and LOCK_RELEASED2026-10-23T08:03:25.918693+00:00; write_stdin observedexit1",
+    "lock_released": true,
+    "observed_closed": true,
+    "observed_utc": "2026-10-23T08:05:47.507546+00:00",
+    "root_parent_session": 19337,
+    "suite_finished_utc": "2026-10-23T08:03:25.917784+00:00",
+    "tool_session_id": 19337
+  },
+  "runner_inputs": {
+    "all_pinned_inputs_current": true,
+    "input_count": 18,
+    "manifest_sha256": "10fa392a3c45b10abc300ff0e253920bf223f1d0452d20d0f629d292f5e77884",
+    "run_input_pin_count": 8
+  },
+  "schema": "ccg3-v6-raw-independent-audit-v1",
+  "scope": "Finite 3-selector CCG3 run only; not general native87/N17/full51 acceptance, source repair, release, or merge readiness.",
+  "selectors": [
+    {
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "exit_code": 101,
+      "failed": 1,
+      "group_empty_before_reap": true,
+      "ignored": 0,
+      "label": "native_admission_first_decline",
+      "package": "tcl-vm",
+      "passed": 0,
+      "selected": 1,
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "started": 1,
+      "target": "cmd_control_e2e",
+      "test_status": "FAILED",
+      "timer_seconds": 180,
+      "warnings": false
+    },
+    {
+      "env": {},
+      "exit_code": 101,
+      "failed": 1,
+      "group_empty_before_reap": true,
+      "ignored": 0,
+      "label": "derived_first_decline_1",
+      "package": "tcl-spectcl",
+      "passed": 0,
+      "selected": 1,
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "started": 1,
+      "target": "pack_source_e2e",
+      "test_status": "FAILED",
+      "timer_seconds": 180,
+      "warnings": false
+    },
+    {
+      "env": {},
+      "exit_code": 101,
+      "failed": 1,
+      "group_empty_before_reap": true,
+      "ignored": 0,
+      "label": "derived_first_decline_2",
+      "package": "tcl-spectcl",
+      "passed": 0,
+      "selected": 1,
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "started": 1,
+      "target": "pack_source_e2e",
+      "test_status": "FAILED",
+      "timer_seconds": 180,
+      "warnings": false
+    }
+  ],
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "source_snapshot": {
+    "current_equals_before": true,
+    "current_recomputed_after_closure_count": 100405,
+    "docs_only_descendant_guard": true,
+    "head_before": "d9fa60531dcfddf7ce33f6be2253ce93cf44180c",
+    "head_current_recomputed_after_closure": "d9fa60531dcfddf7ce33f6be2253ce93cf44180c",
+    "head_snapshot_after_persisted_by_protocol": false,
+    "persisted_before_count": 100405,
+    "source_after_persisted_by_protocol": false
+  }
+}

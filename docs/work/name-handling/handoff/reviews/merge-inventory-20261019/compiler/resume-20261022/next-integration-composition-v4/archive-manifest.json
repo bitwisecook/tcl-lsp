@@ -1,0 +1,272 @@
+{
+  "status": "PASS all archive members independentlyrehashed",
+  "archive_sha256": "af0bdfac957a7ffd6553e58eac2146e8db9688fa052b4eb025a15221247a971f",
+  "member_count": 53,
+  "members": [
+    {
+      "name": "manifest.json",
+      "bytes": 118329,
+      "sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6"
+    },
+    {
+      "name": "final-static-readiness-addendum.json",
+      "bytes": 2502,
+      "sha256": "50072cc835c43565458bb350ad13fab2f8c67ba40e5261f9d129d2f0be552f6e"
+    },
+    {
+      "name": "owner-edition-format-receipt.json",
+      "bytes": 6873,
+      "sha256": "a888f20fb9ad0130a9eae74f4582306b7e994e4314ce4c08de79287faafce3fc"
+    },
+    {
+      "name": "replacement-delta-proof.json",
+      "bytes": 813,
+      "sha256": "ccb5604005b4024f1ee7ff0dc0291d8031fdafca5ba2d4268bec1d6d0a16573a"
+    },
+    {
+      "name": "core17-cumulative-candidate-map.json",
+      "bytes": 17371,
+      "sha256": "79ec9a9db890b2b420cd4ae54e6342cb35bcd0f22322265f5bbb8d3a4b998bfa"
+    },
+    {
+      "name": "names-static-peer.json",
+      "bytes": 1440,
+      "sha256": "62e0c3821edda59b2a9e01014ccd5519fb16389bf7fead97d63edfc95022ce01"
+    },
+    {
+      "name": "core17-without-alias.patch",
+      "bytes": 135646,
+      "sha256": "956ccbb7beab02deacc74dac12762e6d332eaa26af709105e6e9d883fc2d14e9"
+    },
+    {
+      "name": "core17-without-alias/rust/bpf-tcl-ir/src/source/phase.rs",
+      "bytes": 24180,
+      "sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "bytes": 33538,
+      "sha256": "87007e03fdc87754b27247a398ccaa030877e91809f14ad8840b563dd6f4b57a"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "bytes": 248745,
+      "sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "bytes": 62570,
+      "sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding.rs",
+      "bytes": 1062368,
+      "sha256": "9083e1ab7d2fc2463cd1c46d978f047feb6c06b84cba4e51025383adec466fb0"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "bytes": 95933,
+      "sha256": "55808f4424e88c9c960bd9ad13038d0f996bc634d1f67ff61b77e6001b863446"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "bytes": 43461,
+      "sha256": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "bytes": 112218,
+      "sha256": "c133fd7d875308c534e92fa7b120104f7922a1be283f9cfca4beace8b1e21cd4"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "bytes": 22366,
+      "sha256": "3cce1b63fa86b28003a3ecadd485f50c40cbf25d6c3339437d9ba38efddb5e3a"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "bytes": 48600,
+      "sha256": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "bytes": 54575,
+      "sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "bytes": 54261,
+      "sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "bytes": 188214,
+      "sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "bytes": 99840,
+      "sha256": "501b45e5763a3029cc8b48069cd121121d89d83f93902c70cc2e5c41de8b71b1"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "bytes": 29169,
+      "sha256": "7ba30f437330b56f9ff570d4ce6b75bfc8dbad77e94c156e9e5ca9d194bb0687"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/lowering/mod.rs",
+      "bytes": 533068,
+      "sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/optimiser/mod.rs",
+      "bytes": 37207,
+      "sha256": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "bytes": 254479,
+      "sha256": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "bytes": 11003,
+      "sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "bytes": 307279,
+      "sha256": "b635db4427c6b54866ceacf65fbf9e3ae507af9f903986d2685d854c18071d40"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "bytes": 28354,
+      "sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/script_binds.rs",
+      "bytes": 40845,
+      "sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/shimmer/use_site.rs",
+      "bytes": 97675,
+      "sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/src/taint.rs",
+      "bytes": 620815,
+      "sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "bytes": 48626,
+      "sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-lsp-core/src/minify/original.rs",
+      "bytes": 102521,
+      "sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-registry/src/native_procedure.rs",
+      "bytes": 68524,
+      "sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-spectcl/src/core_surfaces.rs",
+      "bytes": 13294,
+      "sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7"
+    },
+    {
+      "name": "core17-without-alias/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "bytes": 3799,
+      "sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11"
+    },
+    {
+      "name": "frozen-component-patches/normal-owner-v3.patch.txt",
+      "bytes": 5724,
+      "sha256": "6cecfd10cce96fe822f142502213a76e79b29f3f6841dc77f6b03281fe7ccbfb"
+    },
+    {
+      "name": "frozen-component-patches/empty-installed-v1.patch.txt",
+      "bytes": 8225,
+      "sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308"
+    },
+    {
+      "name": "frozen-component-patches/jim-canonical-v4.patch.txt",
+      "bytes": 9405,
+      "sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b"
+    },
+    {
+      "name": "frozen-component-patches/var-helper-v2.patch.txt",
+      "bytes": 4263,
+      "sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150"
+    },
+    {
+      "name": "frozen-component-patches/g4-supplement-v2.patch.txt",
+      "bytes": 5847,
+      "sha256": "874d5f493c5a22d101017b3bd08e872686693b31f78aaa1fd56043159224a062"
+    },
+    {
+      "name": "frozen-component-patches/bpf-row30-v1.patch.txt",
+      "bytes": 1586,
+      "sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8"
+    },
+    {
+      "name": "frozen-component-patches/bom-fixture-v1.patch.txt",
+      "bytes": 1514,
+      "sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f"
+    },
+    {
+      "name": "frozen-component-patches/nested-census-v4.patch.txt",
+      "bytes": 26236,
+      "sha256": "c1d9cc066f36d0998fccd57533528b5432bd16409999fe45042b5eef75814189"
+    },
+    {
+      "name": "frozen-component-patches/hosted-event-v1.patch.txt",
+      "bytes": 8376,
+      "sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662"
+    },
+    {
+      "name": "frozen-component-patches/ilx-words-v1.patch.txt",
+      "bytes": 14524,
+      "sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af"
+    },
+    {
+      "name": "frozen-component-patches/sh-producer-v1.patch.txt",
+      "bytes": 8198,
+      "sha256": "26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398"
+    },
+    {
+      "name": "frozen-component-patches/rbs-read-v1.patch.txt",
+      "bytes": 10077,
+      "sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73"
+    },
+    {
+      "name": "frozen-component-patches/exprfold-v6.patch.txt",
+      "bytes": 8253,
+      "sha256": "e72aec5239c8c8922424b5ad541960c3a8f5f230a80acf812e1be0578e35f57b"
+    },
+    {
+      "name": "frozen-component-patches/taint-ingress-v1.patch.txt",
+      "bytes": 3462,
+      "sha256": "4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda"
+    },
+    {
+      "name": "frozen-component-patches/import-child-v1.patch.txt",
+      "bytes": 6359,
+      "sha256": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b"
+    },
+    {
+      "name": "frozen-component-patches/readonly-route-v1.patch.txt",
+      "bytes": 11531,
+      "sha256": "fd55fed4c1f0217283474f760358fc8839d959aaa32bf3c4e8901b1d422674af"
+    },
+    {
+      "name": "frozen-component-patches/jim-constructor-cell-v1.patch.txt",
+      "bytes": 2899,
+      "sha256": "62f85b91bc4b3090e01611663279401b677179950781ee168aea72c47d5c56d0"
+    }
+  ]
+}

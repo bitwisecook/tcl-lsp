@@ -1,0 +1,11 @@
+{
+  "status": "PASS exact replacement-only structural proof",
+  "predecessor_manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "manifest_sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6",
+  "all_other_component_patch_pins_exact": 16,
+  "only_changed_final_path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+  "source_point_v3_final_sha256": "7ba30f437330b56f9ff570d4ce6b75bfc8dbad77e94c156e9e5ca9d194bb0687",
+  "changed_batch_paths": 29,
+  "candidate_cumulative_paths": 64,
+  "late_binding": "compose builder requires explicit reviewed predecessor manifestpath+SHA; absent/zeroSHA refused before mutation. Names futuretypingbuilder must bind exactnewcandidatepath+SHA explicitly; no actualproduct/GO minted."
+}

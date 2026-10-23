@@ -2,11 +2,62 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T07:53:59.167109+00:00 (Jim7 complete1PASS/6FAIL0W allguards; full165-file lossless archive completed)
+Last updated: 2026-10-23T08:11:54.342816+00:00 (native-entry diagnostic v1 held; debug-onlyv2 compiler peer pending, excluded from composition)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Native-entry diagnostic v1 patch379bbd27 is HISTORICAL HOLD because its
+unconditional track_caller changes release attribution scope. Independent3
+before/after/zero-fuzz and standalonefmt checks do not authorize integration.
+Current v2 `/tmp/ccg-native-entry-first-refusal-v2/proposal.patch`1eae0d85
+changes only cfg_attr(debug_assertions, track_caller); compiler owns its current
+bounded peer, VM does not duplicate. No trace candidate included in current
+composition without explicit rootadd; actual typing/runtime unrun. Ownedheld
+receipt `vm-runtime/native-entry-first-refusal-v1-static-review.txt`.
+No Cargo/GO/Git/source/provider changes. Current root sourceHOLD persists.
+
+CCGdirect3 actual COMPLETE08:03:25.917784Z, LOCK_RELEASED08:03:25.918693Z;
+launcher finished08:03:26.954660Z stable/exit1 and root observed parent19337
+closed. Exact3 measured0PASS/3FAIL, source100405/provider/artifact guards stable,
+0warnings. Full lossless archive137logical/126gzipblobs, allroundtrips verified:
+`vm-runtime/runs/ccg-direct3-complete-20261023T075718Z/manifest.txt`
+SHA0502750aeb421629e589aa14da31e6ddbf7a63512014681f883ccb1043d7a7d3.
+Contains entire rawrun/protocol/finishedlauncher/GO/rootparent/transitiveinputs/
+prerequisite evidence/original51source-test payloads. No rawRUN modification
+performed by VM. Root independently verifies payloads before next allocation.
+Catch failed before first semantic assertion; reference failed firstof12;
+release failed8.6 before later matrix. These do not prove later subcases or
+wholeSpecTcl acceptance. CCG owns functional fix; separate original hook2 is
+still unrun and required before N17observer cleanup. Source/provider HOLD,
+root sole Cargo/Git/GO/integration; no duplicate Rust or runtime launch.
+
+CCGdirect3 actual all3 selector rows closed0PASS/3FAIL, rowguards stable0W.
+Catch fails at VM compile entry cmd_control_e2e75 NativePreflightRequired,
+before expected42 and later increment subcases. Reference-body fails first
+of12 cases at pack_source_e2e393 None versus Some42; later cases unmeasured.
+Release-body passes early8.4/8.5 negative cat assertions then fails8.6 at485
+None versus Somexy; later octal and actual provider-oracle matrix unreached.
+Actual N17G2 p-count0 with retainedinput/exactmetadata/host true is diagnostic,
+not successful fold/body proof. CCG owns cause/fix; no duplicate VM work.
+Final/launcher/rootparent19337 closure pending. Prepared lossless archivehelper
+`/tmp/archive-ccg-direct3-closed-v1.py` b7e58894 refuses before allclosureproof.
+Separate hook2 remains unrun and required before N17observer cleanup. No
+Cargo/GO/Git/source changes; root sole slot/source owner, source/provider HOLD.
+
+Root independently verified Jim7 rawguards and complete165logical/149blob
+archive; published0755cycle a009. CCGdirect3 now owns sole root slot parent19337,
+reviewed existing launch.py/GO7f868, actual suite
+`/tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z`.
+VM monitors original catch-body/Specpack/release-body first assertions read-only;
+CCG owns functional codegen. First fresh VM artifact exists, no selected test
+rows closed at this refresh. Initial wrong-shell66773 refused before Cargo;
+root corrected using identical existingGO/inputs. No VM Cargo/GO/source/Git.
+Any complete archive waits for actual final+finished launcher+root parent
+closure/LOCK_RELEASED. Separate hook2 original const-fold must be measured
+before any N17 observer cleanup; no outcomes inferred from current build.
+Source/provider HOLD and all original assertions/budgets remain intact.
 
 Jim7v3 actual COMPLETE07:52:50.909484Z, LOCK_RELEASED07:52:50.912116Z,
 launcher finished07:52:51.153654Z exit1/stable; root observed parent90875 closed.

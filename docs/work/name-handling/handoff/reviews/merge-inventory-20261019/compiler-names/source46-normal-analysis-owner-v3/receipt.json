@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T08:06:33.873482+00:00",
+  "status": "Bounded static CLEAR test-only successor; production unchangedv2, actualownsecondanalysis runtime UNRUN",
+  "patch_sha256": "6cecfd10cce96fe822f142502213a76e79b29f3f6841dc77f6b03281fe7ccbfb",
+  "peer_sha256": "f590488c6d860f55e5e0498f5c417be46c2b932d080e4d3f2524bab0450a08a6",
+  "archive_sha256": "3a193a94af2fa23218fd2b6e0cd32e6bbd92877d148ed60b6dab5c5d1fcf7af6",
+  "files": {
+    "candidate/added-assertion.txt": "c1f90ee4adda36c00640e91188227473893a966dc52e63916a6ed789249e71d4",
+    "candidate/compiler-peer-review.json": "f590488c6d860f55e5e0498f5c417be46c2b932d080e4d3f2524bab0450a08a6",
+    "candidate/manifest.json": "b1bff5484c3a79003e2027db1a6634ae983a594d826e75975821696afb5ff2b3",
+    "candidate/prepare.py": "98a40450145cfd2f3e8e7eba16a99f2bd9ba431281f9ed81ceef417332830852",
+    "candidate/proposal.patch": "6cecfd10cce96fe822f142502213a76e79b29f3f6841dc77f6b03281fe7ccbfb",
+    "current/rust/tcl-compiler/src/command_binding/source_point_entry.rs": "846b1bd533a8ee9463667b8280bb5046058cc20adf785806bae4462312b28914",
+    "current/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+    "current/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+    "proposed/rust/tcl-compiler/src/command_binding/source_point_entry.rs": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6",
+    "proposed/rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b",
+    "proposed/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "7ba30f437330b56f9ff570d4ce6b75bfc8dbad77e94c156e9e5ca9d194bb0687"
+  },
+  "assertions": "All oldpositive/negative/Eq assertions and order unchanged, append genuine secondanalysis ownseed/owninput/ownbindings Some at veryend. No owner fabrication or source mutation. Same selector/count, same4fieldEq/Normalptr production. V2/core17 predecessor frozen unchanged."
+}
