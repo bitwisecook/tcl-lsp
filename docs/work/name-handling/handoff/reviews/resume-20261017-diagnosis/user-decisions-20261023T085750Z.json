@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T08:57:50.922522+00:00",
+  "source": "User instruction in this coordinator chat",
+  "instruction": "implement the plan, reach the PR, get it done in the next 6 hours",
+  "decisions": {
+    "execute_release_plan": {
+      "choice": "Implement now; target PR readiness and opening within six hours",
+      "started_utc": "2026-10-23T08:56:04+00:00",
+      "target_deadline_utc": "2026-10-23T14:56:04+00:00"
+    },
+    "PR_authorisation": {
+      "choice": "Open clean rust-target PR once the existing release gates are satisfied",
+      "meaning": "The user now explicitly asks to reach the PR. No further permission to open it is needed after section F, exact zero pass-to-fail, clean candidate and required pre-PR checks pass. This does not authorise weakening gates, merging, tagging or publishing."
+    }
+  },
+  "other_decisions_retained": [
+    "All functional fixes on work; intermediate branch cleanup/extraction/validation only",
+    "No evidence or development-process chaff in the release candidate; may remain on work",
+    "Dedicated iRules performance excluded this release, correctness/safety remain"
+  ]
+}

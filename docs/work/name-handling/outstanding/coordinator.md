@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T08:50:37.117590+00:00
+Last updated: 2026-10-23T08:57:51.131492+00:00
 
 ## In progress
 
@@ -47,7 +47,7 @@ Last updated: 2026-10-23T08:50:37.117590+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (08:25 UTC)
+### Current cycle and routing (08:55 UTC)
 
 - 06:55:37reporton time, activee1548731c normalpublished fefa1e468 at06:56:56 after freshdepth1fetch/rebase/productdiff0. Currentproduct897b/tree0b11/mapf756 unchanged.
 - Compiler58 actualCLOSED06:54:45:35filters58tests40PASS18FAIL/0W, allrawbuild/input/source/provider/artifact/timer/process/launcher guards rootindependentlyverified. Complete322payloadarchive23fc259d rootverified, finala2543f18/launcherae69b4eb; failed-valid runtime, allF/audit0. RootnextLSP23allocation; remainingJim7/CCG3/hook2/Native15GOsabsent.
@@ -64,3 +64,5 @@ Last updated: 2026-10-23T08:50:37.117590+00:00
 - 07:55:37cycleon time, active d9fa60531 normalpublisheda009fcd11at07:56:56 freshfetch/rebase/productdiff0. Next08:25:37 single17085. CCG3GO7f868minted; root66773wrong-shellstoppedbeforeCargo; correctedreviewedlauncher19337actualrun075718/launcher075710. No re-mint/inputchange. Core17 finalstaticunionCLEAR0561e6ad+ac111488, no sourceintegration.
 - ActualCCG3rawindependentaudit0c8990f4 PASS for evidencevalidity, runtime0PASS3FAIL remainsFAIL;137logical126blobarchive0502750a allrootverified. Active8ff2411b8 normalpublished e3785f0e9 at08:19:07 freshfetch/rebase/productdiff0. Hook2root20770 actualv9allocationrunning on unchangedproduct; nofutureNative15GO.
 - Actualhook2GO3551bc42 mintedafterdeepv9proof, root20770 launcher082133/suite082153 running original2. Native15GOabsent. Proposedv5/core19 9e8c0477/402fbd34 has19components/31batchpaths/proposed66cumulative (actualcountscomputed, no sourceintegration), Names/CCG exactsharedpuredebug-insertion unionreview pending; all17oldv4pins unchanged. Genericactualidentitytypingbuilderv3 strictJSON/schema stilltemplate-only.
+- Userauthorisesintermediatecleanreleasebranch, allactualfunctionalfixesremainwork; evidence/processchaffmayremainworkbutexcludedfromrelease. DedicatediRulesperformanceexemptthisrelease, correctness/safetyremain. Comprehensiveplan lsp-release-pr-plan.md prepared; allgates exactreducedcandidate+Tclcorpusperformance+zeroP2F.
+- User08:56directsexecuteplan/reachPRwithin6h target14:56UTC; PRopeningnowexplicitlyauthorisedafterexistingF+zeroP2F+green+cleancandidate. No merge/tag/releaseauthorised. FiveimplementationrolesresumedofftreeunderNative15sourceHOLD; auditpreparingcriticalpath.

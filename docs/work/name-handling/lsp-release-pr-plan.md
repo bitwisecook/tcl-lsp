@@ -11,8 +11,10 @@ and development evidence remain on `work`. The intermediate branch is for cleanu
 validation only. The user's intermediate-branch permission is recorded in
 `handoff/reviews/resume-20261017-diagnosis/user-decisions-20261023T084659Z.json`.
 Follow-up fixing-location and iRules-performance decisions: `handoff/reviews/resume-20261017-diagnosis/user-decisions-20261023T084954Z.json`.
-Opening the PR still requires an explicit user request. Merge, tagging and
-release publication are subsequent actions, not authorised by this plan.
+The user subsequently requested implementation and reaching the PR within six
+hours, starting08:56UTC on23October (target14:56UTC). Opening the PR is now
+authorised after the existing gates pass; no further opening approval is needed.
+Merge, tagging and release publication remain subsequent unauthorised actions.
 
 ## Acceptance contract
 
@@ -339,10 +341,10 @@ all actionable release-scope findings. On the final candidate:
   requirement for actual PR/merge-candidate checks after PR authorisation.
 - Prepare a concise PR title/body explaining the user-visible problem, resulting
   behavior, supported scope, restrictions and validation commands/results.
-  Keep raw evidence and process history out. User approval to open the PR is
-  the final action after readiness, never a substitute for completing work.
+  Keep raw evidence and process history out. The user has now authorised opening the PR once readiness is demonstrated;
+  open it only after completing the work and existing release gates.
 
-Only then report ready for an explicitly requested PR into rust. Do not merge
+Only then open the requested PR into rust and attach its URL to this task. Do not merge
 or publish. Once the LSP ships under subsequent authorisation, reconcile any durable
 release cleanup needed by work and continue the parked migration from its
 recorded role briefs without losing in-progress work. Functional fixes will
