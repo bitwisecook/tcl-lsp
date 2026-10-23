@@ -23,8 +23,9 @@
 //! in-browser console, where they error clearly). Each returns file objects
 //! `{path, size, sha256, is_text, content?}` whose fields are ordinary `.field`
 //! navigation — so `file("etc/passwd").content` and `glob("home/*/.ssh/*").path`
-//! just work. The inventory is scoped to the forensically-relevant members (the
-//! same set the report's Forensics tab uses).
+//! just work. Discovery is scoped to the forensic inventory. An explicit `file`
+//! reads its exact archive path and supplies a lossy UTF-8 content preview;
+//! the host retains original bytes for mutation admission.
 
 use indexmap::IndexMap;
 use tcl_syntax::glob::string_match;
@@ -102,26 +103,18 @@ fn bi_glob(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     ))
 }
 
-/// `file(path)` — one member by exact path, with `content` attached for text
-/// files (`null` for binary / missing / sensitive). Returns `null` if absent.
+/// `file(path)` — one exact archive member with a lossy content preview.
+/// Returns `null` only for completed absence, without discovery or leaf fallback.
 fn bi_file(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let want = as_str(&args[0], "file", 1)?;
-    let inv = inventory(ctx, "file")?;
-    let Some(entry) = inv.into_iter().find(|f| path_of(f) == Some(want.as_str())) else {
-        return Ok(Value::Null);
-    };
-    let text = is_text(&entry);
-    let mut m = match entry {
-        Value::Object(m) => m,
-        _ => IndexMap::new(),
-    };
-    let content = if text {
-        read_content(ctx, "file", &want)?.map_or(Value::Null, Value::Str)
-    } else {
-        Value::Null
-    };
-    m.insert("content".into(), content);
-    Ok(Value::Object(m))
+    let read = reader(ctx, "file")?;
+    match read(&ctx.root.uri, &FileOp::Exact(want))? {
+        value @ (Value::Object(_) | Value::Null) => Ok(value),
+        other => Err(QueryError::builtin(format!(
+            "file: reader returned {} (expected a member object or null)",
+            other.type_name()
+        ))),
+    }
 }
 
 /// `grep(pattern[, path_glob])` — regex-search text members (optionally

@@ -948,7 +948,6 @@ impl Interp {
     /// Legacy C84 existence obtains only bytes from the original name. Its
     /// selected cell and read observers remain the same receiver owners; no
     /// parsed or local primary is inspected, discarded or installed here.
-
     fn prepare_original_c_byte_name_parts_using(
         &mut self,
         original: *mut TclObj,

@@ -68,10 +68,8 @@ fn retain_original_store(
     };
     let written = variables.read_contents_origin(&receiver, context.registry)
         == crate::var_resolve::ContentsOrigin::WrittenAt(context.invocation_offset);
-    let retained =
+    let _retained =
         written && variables.retain_original_name_value(&receiver, value, context.registry);
-    #[cfg(not(debug_assertions))]
-    let _ = retained;
 }
 
 /// Capture value-free successful read authority at the actual selected Set

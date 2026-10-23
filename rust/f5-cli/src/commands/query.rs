@@ -162,9 +162,20 @@ fn make_ucs_cert_reader(sources: ProviderSources) -> tcl_bigip_query::eval::UcsC
     )
 }
 
-/// Build the `files` / `file` / `glob` / `grep` reader the query engine injects:
-/// enumerate a source's forensic UCS members (metadata) or read one member's
-/// content, decrypting the archive as needed with the shared passphrase.
+/// Wire metadata comes from the selected original archive entry.
+fn file_entry_fields(entry: &tcl_bigip_io::UcsFileEntry) -> [(String, Value); 4] {
+    [
+        ("path".to_owned(), Value::Str(entry.path.clone())),
+        (
+            "size".to_owned(),
+            Value::Int(i64::try_from(entry.size).unwrap_or(i64::MAX)),
+        ),
+        ("sha256".to_owned(), Value::Str(entry.sha256.clone())),
+        ("is_text".to_owned(), Value::Bool(entry.is_text)),
+    ]
+}
+
+/// Enumerate forensic members or read an explicit member under the UCS owner.
 fn make_files_reader(sources: ProviderSources) -> tcl_bigip_query::eval::FilesReader {
     use tcl_bigip_io::{MemberScope, list_ucs_members};
     use tcl_bigip_query::eval::FileOp;
@@ -191,20 +202,31 @@ fn make_files_reader(sources: ProviderSources) -> tcl_bigip_query::eval::FilesRe
                     })?;
                     let list = entries
                         .iter()
-                        .map(|e| {
-                            Value::object([
-                                ("path".to_owned(), Value::Str(e.path.clone())),
-                                (
-                                    "size".to_owned(),
-                                    Value::Int(i64::try_from(e.size).unwrap_or(i64::MAX)),
-                                ),
-                                ("sha256".to_owned(), Value::Str(e.sha256.clone())),
-                                ("is_text".to_owned(), Value::Bool(e.is_text)),
-                            ])
-                        })
+                        .map(|entry| Value::object(file_entry_fields(entry)))
                         .collect();
                     sources.borrow_mut().entries.extend(entries);
                     Ok(Value::List(list))
+                }
+                FileOp::Exact(member_path) => {
+                    let member = tcl_bigip_io::find_exact_ucs_member_source(
+                        &raw,
+                        member_path,
+                        &provider,
+                        &path,
+                    )
+                    .map_err(|error| QueryError::builtin(format!("file: {path}: {error}")))?;
+                    let Some(member) = member else {
+                        return Ok(Value::Null);
+                    };
+                    let entry = member.file_entry();
+                    let content = Value::Str(String::from_utf8_lossy(member.bytes()).into_owned());
+                    let value = Value::object(
+                        file_entry_fields(&entry)
+                            .into_iter()
+                            .chain(std::iter::once(("content".to_owned(), content))),
+                    );
+                    sources.borrow_mut().members.push(member);
+                    Ok(value)
                 }
                 FileOp::Content(member) => {
                     match tcl_bigip_io::find_ucs_member_source(&raw, member, &provider, &path) {
@@ -1138,6 +1160,62 @@ pub fn help_renderers_text() -> String {
 #[cfg(test)]
 #[path = "../../../tcl-bigip-query/tests/common/ucs.rs"]
 mod certificate_test_fixture;
+
+#[cfg(test)]
+mod provider_source_tests {
+    use super::{ProviderSources, make_files_reader};
+    use tcl_bigip_query::eval::FileOp;
+    use tcl_bigip_query::value::Value;
+
+    #[test]
+    fn archive_content_donors_retain_original_bytes_before_mutation() {
+        let path = std::env::temp_dir().join(format!(
+            "f5-query-provider-source-{}.ucs",
+            std::process::id()
+        ));
+        for (donor, faithful) in [
+            (b"new\xff".as_slice(), false),
+            ("new\u{fffd}".as_bytes(), true),
+        ] {
+            let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            let mut archive = tar::Builder::new(gzip);
+            let mut header = tar::Header::new_gnu();
+            header.set_size(u64::try_from(donor.len()).unwrap());
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive.append_data(&mut header, "etc/motd", donor).unwrap();
+            let original = archive.into_inner().unwrap().finish().unwrap();
+            std::fs::write(&path, &original).unwrap();
+            let sources = ProviderSources::default();
+            let reader = make_files_reader(sources.clone());
+            let value = reader(
+                path.to_str().unwrap(),
+                &FileOp::Exact("etc/motd".to_owned()),
+            )
+            .unwrap();
+            let Value::Object(preview) = value else {
+                panic!("the exact reader must return member metadata and content");
+            };
+            assert!(
+                matches!(preview.get("content"), Some(Value::Str(text)) if text == "new\u{fffd}")
+            );
+            assert!(
+                matches!(preview.get("size"), Some(Value::Int(size)) if *size == i64::try_from(donor.len()).unwrap())
+            );
+            assert!(matches!(preview.get("is_text"), Some(Value::Bool(text)) if *text == faithful));
+            let retained = sources.borrow();
+            assert_eq!(retained.members.len(), 1);
+            assert_eq!(retained.members[0].bytes(), donor);
+            let admission = retained.require_faithful();
+            assert_eq!(admission.is_ok(), faithful);
+            if !faithful {
+                assert!(admission.unwrap_err().to_string().contains("invalid UTF-8"));
+            }
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+}
 
 #[cfg(test)]
 mod ucs_cert_tests {

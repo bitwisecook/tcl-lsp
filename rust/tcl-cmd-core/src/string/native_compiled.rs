@@ -26,7 +26,6 @@ fn require_protocol<O: ValueOps>(ops: &O, version: TclVersion) -> Result<(), Cmd
 ///
 /// # Errors
 /// Returns actual original getter or selected native-protocol failures.
-
 pub fn compiled_find<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
@@ -91,7 +90,6 @@ fn reached_range<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Declines a missing original Unicode representation or an invalid index.
-
 pub fn compiled_range<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
@@ -113,7 +111,6 @@ pub fn compiled_range<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Propagates original getter, range and native result-constructor failures.
-
 pub fn compiled_tail<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
@@ -145,7 +142,6 @@ pub fn compiled_tail<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Declines unreached Unicode, foreign protocol or an invalid selected index.
-
 pub fn compiled_index<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
@@ -182,7 +178,6 @@ pub fn compiled_index<O: NativeIndexOps>(
 ///
 /// # Errors
 /// Propagates the original search, backing and range result-constructor refusal.
-
 pub fn compiled_qualifiers<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,

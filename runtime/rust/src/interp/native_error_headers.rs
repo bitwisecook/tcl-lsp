@@ -380,7 +380,6 @@ impl NativeErrorStack {
     /// `TclGetInnerContext` owns its List independently of the `errorStack` reference.
 
     /// Append actual producer objects; no child is materialized or reconstructed.
-
     #[cfg(test)]
     pub(super) fn entries(&self) -> Vec<Vec<u8>> {
         let protocol = self.protocol.expect("selected private header");

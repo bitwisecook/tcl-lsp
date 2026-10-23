@@ -84,7 +84,6 @@ use tcl_syntax::naming::whole_scalar_variable_reference_name;
 /// word; string literals with Tcl metacharacters (`$`, `[`, `\`,
 /// …) are skipped because substituting them as a bare word
 /// would change the command's interpretation.
-
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     run_oo_method_folds(ctx, cu);
     // The top-level body's extra escaping set (names some other procedure

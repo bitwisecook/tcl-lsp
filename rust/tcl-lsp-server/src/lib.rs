@@ -50426,7 +50426,6 @@ proc p {} {
     /// same two holes: no folder override at all, and a folder handle
     /// constructed with `None` / `Vec::new()` so *any* folder override of an
     /// unrelated knob drops the global value.
-
     #[tokio::test]
     async fn resource_scoped_analyser_inputs_resolve_per_folder() {
         let backend = test_backend();

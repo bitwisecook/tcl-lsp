@@ -268,6 +268,16 @@ forensic `files` / `glob` / `grep` and `ucs_cert` builtins report that
 they are unavailable rather than reaching for a filesystem that isn't
 there.
 
+`FilesReader::Inventory` supplies forensic discovery for `files`, `glob` and
+`grep`. An explicit `file(path)` uses `FileOp::Exact`: the host selects one
+exact original UTF-8 archive path without leaf-name fallback, then returns
+metadata computed from its original bytes and a lossy UTF-8 `content` preview.
+Missing members return null; duplicate exact paths and archive failures return
+errors. `is_text` still reports valid UTF-8 without NUL and does not suppress an
+explicit preview. The CLI retains the selected original member and checks its
+path/content fidelity before publishing any mutation. Identical preview strings
+cannot replace that original-byte admission.
+
 Core entry points:
 
 - `evaluate_statement(stmt, ctx) -> Result<Vec<Value>, QueryError>` — runs

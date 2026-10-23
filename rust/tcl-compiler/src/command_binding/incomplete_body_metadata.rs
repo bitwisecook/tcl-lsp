@@ -168,16 +168,13 @@ fn procedure_namespace(
 }
 
 fn incomplete_procedure_name(
-    // The caller owns source geometry; this parameter retains debug trace coordinates.
-    site: &CommandAllocationSite,
+    _site: &CommandAllocationSite,
     header: &IncompleteHeader,
     target: &super::SourceCommandTarget,
     advice: &OriginalCompilationLookupAdvice,
     registry: &tcl_registry::CommandRegistry,
     config: LexerConfig,
 ) -> Option<usize> {
-    #[cfg(not(debug_assertions))]
-    let _ = site;
     if !target.prepended.is_empty() {
         return None;
     }

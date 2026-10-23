@@ -1914,7 +1914,6 @@ fn source_registry_words_with_definition_parent(
     );
     realm.stamp_original_tokens(&mut tokens);
     let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
-    tokens.source_binding.is_some();
     if blocked {
         return None;
     }

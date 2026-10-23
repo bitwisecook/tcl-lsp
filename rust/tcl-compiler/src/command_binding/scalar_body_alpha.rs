@@ -116,7 +116,7 @@ fn validate_alpha_formal<'a>(
     symbol: &SignatureSourceVariableSymbol,
     proposed: &[u8],
     config: LexerConfig,
-    site: &CommandAllocationSite,
+    _site: &CommandAllocationSite,
 ) -> Option<(
     &'a super::formal_topology::OriginalFormalTopology,
     tcl_core_types::NameBytes,

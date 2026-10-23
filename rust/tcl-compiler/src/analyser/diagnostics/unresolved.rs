@@ -251,8 +251,6 @@ impl Analyser {
         // ``self.result.diagnostics`` freely; restore at the end
         // (matches the snapshot/restore round-trip contract).
         let invocations = std::mem::take(&mut self.result.command_invocations);
-        #[cfg(debug_assertions)]
-        self.trace_unresolved_math_invocations(&invocations);
         for inv in &invocations {
             let name = &inv.name;
             // An existence probe (`namespace which -command NAME`, exact
@@ -353,13 +351,6 @@ impl Analyser {
             self.result.diagnostics.push(diagnostic);
         }
         self.result.command_invocations = invocations;
-    }
-
-    #[cfg(debug_assertions)]
-    fn trace_unresolved_math_invocations(
-        &self,
-        invocations: &[crate::signature_scan::types::SignatureCommandInvocation],
-    ) {
     }
 
     fn unresolved_source_subject(

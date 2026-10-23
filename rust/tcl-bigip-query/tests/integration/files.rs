@@ -59,6 +59,25 @@ fn stub_reader() -> FilesReader {
             "root/.ssh/authorized_keys" => Value::Str("ssh-rsa AAAA attacker\n".to_owned()),
             _ => Value::Null,
         }),
+        FileOp::Exact(path) => {
+            let (content, size, text) = match path.as_str() {
+                "etc/passwd" => (
+                    "root:x:0:0::/root:/bin/bash\nbackdoor:x:0:0::/root:/bin/bash\n",
+                    60,
+                    true,
+                ),
+                "root/.ssh/authorized_keys" => ("ssh-rsa AAAA attacker\n", 40, true),
+                "etc/donor" => ("new\u{fffd}", 4, false),
+                _ => return Ok(Value::Null),
+            };
+            Ok(Value::object([
+                ("path".to_owned(), Value::Str(path.clone())),
+                ("size".to_owned(), Value::Int(size)),
+                ("sha256".to_owned(), Value::Str("cc".to_owned())),
+                ("is_text".to_owned(), Value::Bool(text)),
+                ("content".to_owned(), Value::Str(content.to_owned())),
+            ]))
+        }
     })
 }
 
@@ -98,6 +117,20 @@ fn glob_filters_by_path() {
 fn file_attaches_content() {
     let out = run(r#"file("etc/passwd") | .content"#);
     assert!(out.contains("backdoor"), "content attached: {out}");
+}
+
+#[test]
+fn file_reads_explicit_lossy_members_without_expanding_discovery() {
+    let out = run(r#"file("etc/donor") | .content"#);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&out).unwrap(),
+        serde_json::json!(["new\u{fffd}"])
+    );
+    assert!(!run("files").contains("etc/donor"));
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&run(r#"file("donor")"#)).unwrap(),
+        serde_json::json!([null])
+    );
 }
 
 #[test]

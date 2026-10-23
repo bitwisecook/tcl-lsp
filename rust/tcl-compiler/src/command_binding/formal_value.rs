@@ -31,16 +31,13 @@ enum FormalValueSource<'a> {
 fn direct_formal_argument_value(
     site: &super::CommandAllocationSite,
     observation: &super::declaration_layout::DeclarationLayoutObservation,
-    // The caller joins the exact source component; this parameter retains debug trace spans.
-    source: &SourceSite,
+    _source: &SourceSite,
     index: usize,
     parameters: &[&str],
     registry: &CommandRegistry,
 ) -> Option<(CommandTokens, String)> {
     // naming.tcloo.original-declared-receiver-caller-traits
 
-    #[cfg(not(debug_assertions))]
-    let _ = source;
     let context = &observation.snapshot.state.source_variables;
     // Command-table uncertainty cannot change this conditional input.
     // Only independently retained caller-frame aliases may precede a

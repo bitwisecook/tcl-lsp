@@ -233,6 +233,8 @@ pub enum FileOp {
     /// List the archive's forensic members with metadata (`path`, `size`,
     /// `sha256`, `is_text`) and no content — a light inventory.
     Inventory,
+    /// Read one exact archive member with original metadata and a lossy content preview.
+    Exact(String),
     /// Read one member's content as a UTF-8-lossy string.
     Content(String),
 }
