@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T07:46:51.401061+00:00",
+  "run_id": 39879737945,
+  "total_count": 13,
+  "raw_sha256": "2fb703c748712703acb8bfc12d2b2ce7710ff9a92f26753731b0fe207dc183d6",
+  "selected_readonly_recovery": [
+    {
+      "id": 12484815637,
+      "name": "lsp-e2e-result-1-3",
+      "size_in_bytes": 381360
+    },
+    {
+      "id": 12480044412,
+      "name": "rust-tests-listing-5-5",
+      "size_in_bytes": 767358
+    }
+  ],
+  "no_outcome_claim_from_artifact_name_or_availability": true,
+  "reason": "Completed-run artifact metadata exposes small result/listing artifacts despite unavailable job logs. Inspect actual contents before classifying any terminal results. Main2 artifact remains absent."
+}

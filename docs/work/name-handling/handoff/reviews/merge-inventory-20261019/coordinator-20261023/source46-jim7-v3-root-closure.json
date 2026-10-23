@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-23T07:53:24.622807+00:00",
+  "scope": "Exact original Jim7 on repairedsource46; no wholeJim/SpecTcl/release admission",
+  "run": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z",
+  "launcher": "/tmp/compiler-jim7-source46-v3/launcher-runs/20261023T074007.629314Z/launcher.json",
+  "final_sha256": "88a78c7e1b60c1660bc56171d57dff29f8067fe344a2df0c6aa043b8f607fdd5",
+  "launcher_sha256": "017858af3f676681bdbbf1384ff0ddcb1f3bd8d4b8c3911f742ee25a80696a1d",
+  "observed_parent": {
+    "kind": "root-observed-guarded-parent-closure",
+    "tool_session_id": 90875,
+    "root_parent_session": 90875,
+    "observed_closed": true,
+    "observed_utc": "2026-10-23T07:53:20.034716+00:00",
+    "exit_code": 1,
+    "suite_finished_utc": "2026-10-23T07:52:50.909484+00:00",
+    "lock_released": true,
+    "lock_release_evidence": "Actual durable launcher.transcript reports LOCK_RELEASED 2026-10-23T07:52:50.912116+00:00; root write_stdin returned exit_code1/COMPLETE overall1",
+    "actual_protocol_launcher": "/tmp/compiler-jim7-source46-v3/launcher-runs/20261023T074007.629314Z/launcher.json"
+  },
+  "passed": 1,
+  "failed": 6,
+  "selected": 7,
+  "source_count": 100405,
+  "zero_warnings": true,
+  "raw_build_argv_counts_status_process_input_source_provider_artifact_head_guards_root_verified": true,
+  "failed_selectors": [
+    "a_class_records_the_variables_its_dictionary_names",
+    "a_method_body_sees_the_instance_variables_and_self",
+    "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+    "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+    "a_jim_document_resolves_every_declared_command",
+    "a_pack_carrying_jim_store_keeps_jims_own_surface"
+  ],
+  "all_release_boxes_remain_open": true
+}

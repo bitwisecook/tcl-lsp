@@ -1,0 +1,6 @@
+{
+  "status": "PASS70 archive members independently rehashed",
+  "archive_sha256": "f2d095fdb99a25d66fff77dc8f9d6b04da7cb7da0d5ae26cc6707d775dfc6e6f",
+  "manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "limits": "Archive integrity only; all combined typing/runtime unrun"
+}

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T07:43:47.920186+00:00",
+  "repo": "bitwisecook/tcl-lsp",
+  "run_id": 39879737945,
+  "job_id": 120175508527,
+  "action": "connected github.fetch_workflow_job_logs bounded metadata-only retry",
+  "is_error": true,
+  "error": "Transport closed",
+  "named_outcomes_obtained": false,
+  "job_status_must_not_supply_named_test_outcomes": true,
+  "no_signed_url_printed_or_archived": true,
+  "gate_admissions": []
+}

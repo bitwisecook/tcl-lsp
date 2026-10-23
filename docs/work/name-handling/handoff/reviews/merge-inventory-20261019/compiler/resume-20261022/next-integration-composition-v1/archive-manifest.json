@@ -1,0 +1,481 @@
+{
+  "archive_sha256": "96e4d28f2478602a1f15a12584e0dadedfcd971dece4407961ef7019ff3db3bf",
+  "member_count": 95,
+  "members": [
+    {
+      "name": "manifest.json",
+      "sha256": "62e054a576fa446ebe81ecbe385f31df29fb6d769b07e2de4adac2a0af6d9f06",
+      "bytes": 185129
+    },
+    {
+      "name": "readiness-addendum.json",
+      "sha256": "8715b714ca6a117250c4cd838af47f0885da88e63d11a27c10c16bcc891a45e9",
+      "bytes": 2503
+    },
+    {
+      "name": "owner-edition-format-receipt.json",
+      "sha256": "b5adc65188bff3a7fa3f1aa9619adabc944fab9873a1b6ec715ee5c617581ee9",
+      "bytes": 16476
+    },
+    {
+      "name": "alias-supported-v1-header-normalized.patch",
+      "sha256": "86ebb8c496789a558438ba671bc023e00836d3843842b88f23c6c906e483e217",
+      "bytes": 2608
+    },
+    {
+      "name": "bom-fixture-v1-header-normalized.patch",
+      "sha256": "50d2211e793d170a9a673622df78e3aa3283a6a4f76628f573b12eec7a89e391",
+      "bytes": 1518
+    },
+    {
+      "name": "bpf-row30-v1-header-normalized.patch",
+      "sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8",
+      "bytes": 1586
+    },
+    {
+      "name": "core15-without-alias-body-correspondence-union.patch",
+      "sha256": "4d7d2e62e9e126d3685bd9dee73a978f743eef2bb0c3c07cb22ef1cf67a7b299",
+      "bytes": 10161
+    },
+    {
+      "name": "core15-without-alias.patch",
+      "sha256": "459fda103f200816af33ac72b246f003359c040c913ea84200c4b53eb033a89c",
+      "bytes": 110917
+    },
+    {
+      "name": "empty-installed-v1-header-normalized.patch",
+      "sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+      "bytes": 8225
+    },
+    {
+      "name": "exprfold-v6-header-normalized.patch",
+      "sha256": "e72aec5239c8c8922424b5ad541960c3a8f5f230a80acf812e1be0578e35f57b",
+      "bytes": 8253
+    },
+    {
+      "name": "g4-supplement-v2-header-normalized.patch",
+      "sha256": "874d5f493c5a22d101017b3bd08e872686693b31f78aaa1fd56043159224a062",
+      "bytes": 5847
+    },
+    {
+      "name": "hosted-event-v1-header-normalized.patch",
+      "sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662",
+      "bytes": 8376
+    },
+    {
+      "name": "ilx-words-v1-header-normalized.patch",
+      "sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af",
+      "bytes": 14524
+    },
+    {
+      "name": "import-child-v1-header-normalized.patch",
+      "sha256": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b",
+      "bytes": 6359
+    },
+    {
+      "name": "jim-canonical-v4-header-normalized.patch",
+      "sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+      "bytes": 9405
+    },
+    {
+      "name": "nested-census-v3-header-normalized.patch",
+      "sha256": "03e603db557c11905df2cb15cfaa2bc50a63434ddae44861adaee64fb899fc28",
+      "bytes": 15796
+    },
+    {
+      "name": "normal-owner-v2-header-normalized.patch",
+      "sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+      "bytes": 5235
+    },
+    {
+      "name": "rbs-read-v1-header-normalized.patch",
+      "sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73",
+      "bytes": 10077
+    },
+    {
+      "name": "review16-with-alias-body-correspondence-union.patch",
+      "sha256": "bc1c92b19033609bf5ca3b3c6ce2494d3ff65c0bc3426b8ffe275f258bb95e67",
+      "bytes": 12592
+    },
+    {
+      "name": "review16-with-alias.patch",
+      "sha256": "4111adddfa5df460bfcb8e490eed3c91278561746937f1a451b0f34ce555675f",
+      "bytes": 113348
+    },
+    {
+      "name": "sh-producer-v1-header-normalized.patch",
+      "sha256": "26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398",
+      "bytes": 8198
+    },
+    {
+      "name": "taint-ingress-v1-header-normalized.patch",
+      "sha256": "4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda",
+      "bytes": 3462
+    },
+    {
+      "name": "var-helper-v2-header-normalized.patch",
+      "sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150",
+      "bytes": 4263
+    },
+    {
+      "name": "core15-without-alias/rust/bpf-tcl-ir/src/source/phase.rs",
+      "sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125",
+      "bytes": 24180
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "87007e03fdc87754b27247a398ccaa030877e91809f14ad8840b563dd6f4b57a",
+      "bytes": 33538
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f",
+      "bytes": 248745
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+      "bytes": 62570
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "9083e1ab7d2fc2463cd1c46d978f047feb6c06b84cba4e51025383adec466fb0",
+      "bytes": 1062368
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "sha256": "55808f4424e88c9c960bd9ad13038d0f996bc634d1f67ff61b77e6001b863446",
+      "bytes": 95933
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "sha256": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd",
+      "bytes": 43461
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "sha256": "856317ba09dedc7934e91b42a81ab3ea561286485da97b0f41980fc1b142b919",
+      "bytes": 107459
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "sha256": "3cce1b63fa86b28003a3ecadd485f50c40cbf25d6c3339437d9ba38efddb5e3a",
+      "bytes": 22366
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "sha256": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8",
+      "bytes": 48600
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+      "bytes": 54575
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6",
+      "bytes": 54261
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b",
+      "bytes": 188214
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "bfd5f1a6da5888d563508ae73eeb49894ecf457e570ae235b4401a076833f974",
+      "bytes": 28851
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/lowering/mod.rs",
+      "sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8",
+      "bytes": 533068
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/optimiser/mod.rs",
+      "sha256": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc",
+      "bytes": 37207
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "sha256": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55",
+      "bytes": 254479
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed",
+      "bytes": 11003
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "ba6f4583192b96329dc8f58c9cdb1d64a615b428a694ef363e82d5f4a335eb5a",
+      "bytes": 301530
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5",
+      "bytes": 28354
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/script_binds.rs",
+      "sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee",
+      "bytes": 40845
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/shimmer/use_site.rs",
+      "sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70",
+      "bytes": 97675
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/src/taint.rs",
+      "sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6",
+      "bytes": 620815
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+      "bytes": 48626
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469",
+      "bytes": 102521
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-registry/src/native_procedure.rs",
+      "sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+      "bytes": 68524
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7",
+      "bytes": 13294
+    },
+    {
+      "name": "core15-without-alias/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11",
+      "bytes": 3799
+    },
+    {
+      "name": "review16-with-alias/rust/bpf-tcl-ir/src/source/phase.rs",
+      "sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125",
+      "bytes": 24180
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "d86668318c8a5fc038083ff08ce81f7a8bd1cdcc63be6c4c8b98ecf90f382184",
+      "bytes": 35068
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f",
+      "bytes": 248745
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+      "bytes": 62570
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "9083e1ab7d2fc2463cd1c46d978f047feb6c06b84cba4e51025383adec466fb0",
+      "bytes": 1062368
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "sha256": "55808f4424e88c9c960bd9ad13038d0f996bc634d1f67ff61b77e6001b863446",
+      "bytes": 95933
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "sha256": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd",
+      "bytes": 43461
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "sha256": "856317ba09dedc7934e91b42a81ab3ea561286485da97b0f41980fc1b142b919",
+      "bytes": 107459
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "sha256": "3cce1b63fa86b28003a3ecadd485f50c40cbf25d6c3339437d9ba38efddb5e3a",
+      "bytes": 22366
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "sha256": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8",
+      "bytes": 48600
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+      "bytes": 54575
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6",
+      "bytes": 54261
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b",
+      "bytes": 188214
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "bfd5f1a6da5888d563508ae73eeb49894ecf457e570ae235b4401a076833f974",
+      "bytes": 28851
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/lowering/mod.rs",
+      "sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8",
+      "bytes": 533068
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/optimiser/mod.rs",
+      "sha256": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc",
+      "bytes": 37207
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "sha256": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55",
+      "bytes": 254479
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed",
+      "bytes": 11003
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "ba6f4583192b96329dc8f58c9cdb1d64a615b428a694ef363e82d5f4a335eb5a",
+      "bytes": 301530
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5",
+      "bytes": 28354
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/script_binds.rs",
+      "sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee",
+      "bytes": 40845
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/shimmer/use_site.rs",
+      "sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70",
+      "bytes": 97675
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/src/taint.rs",
+      "sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6",
+      "bytes": 620815
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+      "bytes": 48626
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469",
+      "bytes": 102521
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-registry/src/native_procedure.rs",
+      "sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+      "bytes": 68524
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7",
+      "bytes": 13294
+    },
+    {
+      "name": "review16-with-alias/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11",
+      "bytes": 3799
+    },
+    {
+      "name": "frozen-component-patches/normal-owner-v2.patch.txt",
+      "sha256": "6ae79e80c768429d8e0694ee232fab4fc39e04c40fa819d0179007ba405e2bc1",
+      "bytes": 5235
+    },
+    {
+      "name": "frozen-component-patches/empty-installed-v1.patch.txt",
+      "sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+      "bytes": 8225
+    },
+    {
+      "name": "frozen-component-patches/jim-canonical-v4.patch.txt",
+      "sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+      "bytes": 9405
+    },
+    {
+      "name": "frozen-component-patches/var-helper-v2.patch.txt",
+      "sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150",
+      "bytes": 4263
+    },
+    {
+      "name": "frozen-component-patches/g4-supplement-v2.patch.txt",
+      "sha256": "874d5f493c5a22d101017b3bd08e872686693b31f78aaa1fd56043159224a062",
+      "bytes": 5847
+    },
+    {
+      "name": "frozen-component-patches/bpf-row30-v1.patch.txt",
+      "sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8",
+      "bytes": 1586
+    },
+    {
+      "name": "frozen-component-patches/bom-fixture-v1.patch.txt",
+      "sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f",
+      "bytes": 1514
+    },
+    {
+      "name": "frozen-component-patches/nested-census-v3.patch.txt",
+      "sha256": "03e603db557c11905df2cb15cfaa2bc50a63434ddae44861adaee64fb899fc28",
+      "bytes": 15796
+    },
+    {
+      "name": "frozen-component-patches/hosted-event-v1.patch.txt",
+      "sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662",
+      "bytes": 8376
+    },
+    {
+      "name": "frozen-component-patches/ilx-words-v1.patch.txt",
+      "sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af",
+      "bytes": 14524
+    },
+    {
+      "name": "frozen-component-patches/sh-producer-v1.patch.txt",
+      "sha256": "26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398",
+      "bytes": 8198
+    },
+    {
+      "name": "frozen-component-patches/rbs-read-v1.patch.txt",
+      "sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73",
+      "bytes": 10077
+    },
+    {
+      "name": "frozen-component-patches/exprfold-v6.patch.txt",
+      "sha256": "e72aec5239c8c8922424b5ad541960c3a8f5f230a80acf812e1be0578e35f57b",
+      "bytes": 8253
+    },
+    {
+      "name": "frozen-component-patches/taint-ingress-v1.patch.txt",
+      "sha256": "4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda",
+      "bytes": 3462
+    },
+    {
+      "name": "frozen-component-patches/import-child-v1.patch.txt",
+      "sha256": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b",
+      "bytes": 6359
+    },
+    {
+      "name": "frozen-component-patches/alias-supported-v1.patch.txt",
+      "sha256": "86ebb8c496789a558438ba671bc023e00836d3843842b88f23c6c906e483e217",
+      "bytes": 2608
+    }
+  ]
+}

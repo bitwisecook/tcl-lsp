@@ -1,0 +1,1299 @@
+{
+  "utc": "2026-10-23T07:53:38.887624+00:00",
+  "status": "full completed Jim7 lossless archive; finite original7 only",
+  "run": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z",
+  "launcher": "/tmp/compiler-jim7-source46-v3/launcher-runs/20261023T074007.629314Z",
+  "PASS": 1,
+  "FAIL": 6,
+  "counts": 7,
+  "final": {
+    "all7_direct_child_timers_valid": true,
+    "all_artifacts_retained": true,
+    "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+    "artifact_stable": true,
+    "build_artifacts": {
+      "tcl-spectcl:test:jim_document": {
+        "captured_from_current_cargo_event": true,
+        "cargo_event": {
+          "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19",
+          "features": [],
+          "filenames": [
+            "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19"
+          ],
+          "fresh": false,
+          "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+          "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+          "profile": {
+            "debug_assertions": true,
+            "debuginfo": 0,
+            "opt_level": "0",
+            "overflow_checks": true,
+            "test": true
+          },
+          "reason": "compiler-artifact",
+          "target": {
+            "crate_types": [
+              "bin"
+            ],
+            "doc": false,
+            "doctest": false,
+            "edition": "2024",
+            "kind": [
+              "test"
+            ],
+            "name": "jim_document",
+            "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+            "test": true
+          }
+        },
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "mtime_ns": 1792741314065134853,
+        "package": "tcl-spectcl",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "sha256": "bae9e708e512a99eab52f334b6a2badeb61420256d2b026e403ada3e9aa532b7",
+        "size": 178052656,
+        "stderr_sha256": "5a36d6ceef2f76527618e812744f25ff2e0d1b49e42cf350ed1ca30b0b871555",
+        "stdout_sha256": "92b2acd4ead6c371f617d853c8f0a38f48e76c15082bc4d666a5ac4f290782ed",
+        "target_kind": [
+          "test"
+        ],
+        "target_name": "jim_document"
+      },
+      "tcl-spectcl:test:jim_own_surface": {
+        "captured_from_current_cargo_event": true,
+        "cargo_event": {
+          "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1",
+          "features": [],
+          "filenames": [
+            "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1"
+          ],
+          "fresh": false,
+          "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+          "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+          "profile": {
+            "debug_assertions": true,
+            "debuginfo": 0,
+            "opt_level": "0",
+            "overflow_checks": true,
+            "test": true
+          },
+          "reason": "compiler-artifact",
+          "target": {
+            "crate_types": [
+              "bin"
+            ],
+            "doc": false,
+            "doctest": false,
+            "edition": "2024",
+            "kind": [
+              "test"
+            ],
+            "name": "jim_own_surface",
+            "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+            "test": true
+          }
+        },
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "mtime_ns": 1792741381898481336,
+        "package": "tcl-spectcl",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "sha256": "2e557d0eac4800b261eb4cdd677f5c72abc6c80ee5a4c41b69943f7472d9a5a9",
+        "size": 129198512,
+        "stderr_sha256": "cb7007ddd64a1814ddc22da76c1bd25ac7e7fb5714937d5d8f2aacc3c974ff22",
+        "stdout_sha256": "a6b541a14b39e43d75f8b93193e6c140ee9ae317ea563891a479e912fe4fe7bc",
+        "target_kind": [
+          "test"
+        ],
+        "target_name": "jim_own_surface"
+      }
+    },
+    "finished_utc": "2026-10-23T07:52:50.909484+00:00",
+    "head_after": "78966ead5dbe7316ea759342402e1600f0640e01",
+    "head_before": "78966ead5dbe7316ea759342402e1600f0640e01",
+    "head_docs_descendant_valid": true,
+    "overall_exit": 1,
+    "providers_stable": true,
+    "results": 7,
+    "root_go_sha256": "eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3",
+    "selected": 7,
+    "source_count": 100405,
+    "source_stable": true
+  },
+  "files": [
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.command",
+      "sha256": "1ee8d0ce2898c95e456d283020eae2189e467017c7d961761d78f9495c5c9447",
+      "bytes": 179,
+      "blob": "blobs/1ee8d0ce2898c95e456d283020eae2189e467017c7d961761d78f9495c5c9447.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.env.json",
+      "sha256": "fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b",
+      "bytes": 44,
+      "blob": "blobs/fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.process.json",
+      "sha256": "4690ecc7e3fc3f107577a78f61fbfb90046499bf1291f6c4128c8ffe040d2da8",
+      "bytes": 2380,
+      "blob": "blobs/4690ecc7e3fc3f107577a78f61fbfb90046499bf1291f6c4128c8ffe040d2da8.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.result.json",
+      "sha256": "8af16e5c531ae5023315f23c4114d4ce5d029f8727a277a8a8d78844068eb09a",
+      "bytes": 5453,
+      "blob": "blobs/8af16e5c531ae5023315f23c4114d4ce5d029f8727a277a8a8d78844068eb09a.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.sha256.json",
+      "sha256": "bc86945cf318b9fe06fc2a87591e01c598bb94c6379b9448ad1c7b07d9016873",
+      "bytes": 1361,
+      "blob": "blobs/bc86945cf318b9fe06fc2a87591e01c598bb94c6379b9448ad1c7b07d9016873.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.stderr",
+      "sha256": "516c87057efae0e0d1ed4d80022217ce49d7c0c466c35b0e03daf57eb7ae651c",
+      "bytes": 5680,
+      "blob": "blobs/516c87057efae0e0d1ed4d80022217ce49d7c0c466c35b0e03daf57eb7ae651c.gz"
+    },
+    {
+      "path": "run/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/01-01-jim-source-owner-original5-a_class_records_the_variables_its_dictionary_names.stdout",
+      "sha256": "95bd43c09cd341d3f65899e98151c4b1552b2b643862afa0e5cf934725b5ac3c",
+      "bytes": 261,
+      "blob": "blobs/95bd43c09cd341d3f65899e98151c4b1552b2b643862afa0e5cf934725b5ac3c.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.command",
+      "sha256": "a4df028fb2d63ea99fefda3b89f4a0fdc208a4c596f96c4951676d656b9a0439",
+      "bytes": 179,
+      "blob": "blobs/a4df028fb2d63ea99fefda3b89f4a0fdc208a4c596f96c4951676d656b9a0439.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.env.json",
+      "sha256": "fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b",
+      "bytes": 44,
+      "blob": "blobs/fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.process.json",
+      "sha256": "a846a38220811ebeb837908caab26c6367d9e8b596924aff7e9ce7d0189ec5db",
+      "bytes": 2380,
+      "blob": "blobs/a846a38220811ebeb837908caab26c6367d9e8b596924aff7e9ce7d0189ec5db.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.result.json",
+      "sha256": "7458594a83dff6b5ebc75ed33cdeb491dfc8ae155fedab1a775f858b74bea111",
+      "bytes": 5453,
+      "blob": "blobs/7458594a83dff6b5ebc75ed33cdeb491dfc8ae155fedab1a775f858b74bea111.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.sha256.json",
+      "sha256": "0da21fff128137f54fa24a9b358334ef5cbf951943f1dc67d4f2998d35b38478",
+      "bytes": 1361,
+      "blob": "blobs/0da21fff128137f54fa24a9b358334ef5cbf951943f1dc67d4f2998d35b38478.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.stderr",
+      "sha256": "e6e2bc5ed41cd7c4e6e2da30f841d67aa0739e6f4a790e0280749c09127f6899",
+      "bytes": 9382,
+      "blob": "blobs/e6e2bc5ed41cd7c4e6e2da30f841d67aa0739e6f4a790e0280749c09127f6899.gz"
+    },
+    {
+      "path": "run/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/02-02-jim-source-owner-original5-a_method_body_sees_the_instance_variables_and_self.stdout",
+      "sha256": "7d2c466f08ce88b871def13a2654e1886ea9e776bc9c121d44ba2b071b0ae6b3",
+      "bytes": 261,
+      "blob": "blobs/7d2c466f08ce88b871def13a2654e1886ea9e776bc9c121d44ba2b071b0ae6b3.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.command",
+      "sha256": "c3c364df20b985aa0463398ebb29eb6212c462555954f8f6d0a5110eb50ead1b",
+      "bytes": 203,
+      "blob": "blobs/c3c364df20b985aa0463398ebb29eb6212c462555954f8f6d0a5110eb50ead1b.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.env.json",
+      "sha256": "fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b",
+      "bytes": 44,
+      "blob": "blobs/fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.process.json",
+      "sha256": "0c7895b2a85856b4bf451f2a34a735b3a09f22f0029f78f69b2759c4fae517ba",
+      "bytes": 2452,
+      "blob": "blobs/0c7895b2a85856b4bf451f2a34a735b3a09f22f0029f78f69b2759c4fae517ba.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.result.json",
+      "sha256": "6d5ca97c97546ed6653a7ad26b4ef74192ab8316e6f55d8c04cd12ad3b42128f",
+      "bytes": 5597,
+      "blob": "blobs/6d5ca97c97546ed6653a7ad26b4ef74192ab8316e6f55d8c04cd12ad3b42128f.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.sha256.json",
+      "sha256": "ae8837f8beb3b8e447f9ffbf3e14a8cacc809f5626cc725f802562cd8420f4d8",
+      "bytes": 1505,
+      "blob": "blobs/ae8837f8beb3b8e447f9ffbf3e14a8cacc809f5626cc725f802562cd8420f4d8.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.stderr",
+      "sha256": "2f16091b87ee6d421fe99c1a47f00dfda22fc1448dcb3db6911c1a4af8dc3079",
+      "bytes": 8758,
+      "blob": "blobs/2f16091b87ee6d421fe99c1a47f00dfda22fc1448dcb3db6911c1a4af8dc3079.gz"
+    },
+    {
+      "path": "run/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/03-03-jim-source-owner-original5-older_jim_retains_positive_logical_source_purpose_without_native_promotion.stdout",
+      "sha256": "5f53d82b617783821fa93696bc9d1cb2cd74547c0ab8e9c3334548002c99b56c",
+      "bytes": 309,
+      "blob": "blobs/5f53d82b617783821fa93696bc9d1cb2cd74547c0ab8e9c3334548002c99b56c.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.command",
+      "sha256": "57bbde46dd3308eefda739bffe900255420c7ec9ebe20fcd6ad12a7da57d338b",
+      "bytes": 194,
+      "blob": "blobs/57bbde46dd3308eefda739bffe900255420c7ec9ebe20fcd6ad12a7da57d338b.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.env.json",
+      "sha256": "fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b",
+      "bytes": 44,
+      "blob": "blobs/fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.process.json",
+      "sha256": "224ddca749db18fa22ac4e23cf293d6fc7a158ccfcfd602c9dd78ddcabd684a6",
+      "bytes": 2424,
+      "blob": "blobs/224ddca749db18fa22ac4e23cf293d6fc7a158ccfcfd602c9dd78ddcabd684a6.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.result.json",
+      "sha256": "9c11b99aef656646601af0933c0daee82e61f57ad3e29c7e7d7431c1631f9e80",
+      "bytes": 5542,
+      "blob": "blobs/9c11b99aef656646601af0933c0daee82e61f57ad3e29c7e7d7431c1631f9e80.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.sha256.json",
+      "sha256": "b5efb30788a3d2053affc63ae62cc0dc8bdf2cde30aef72a4f3e594637b969c4",
+      "bytes": 1451,
+      "blob": "blobs/b5efb30788a3d2053affc63ae62cc0dc8bdf2cde30aef72a4f3e594637b969c4.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.stderr",
+      "sha256": "854b4b2c12807e7cec9e55be732dd1c062b297d3ab3d773efc74f59616855fb4",
+      "bytes": 9635,
+      "blob": "blobs/854b4b2c12807e7cec9e55be732dd1c062b297d3ab3d773efc74f59616855fb4.gz"
+    },
+    {
+      "path": "run/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/04-04-jim-source-owner-original5-nested_jim_headers_retain_the_authentic_conditional_source_parent.stdout",
+      "sha256": "823f13d9bd3a36c2cc82a28f1620096ebca94690353014bbd619b07072ee039c",
+      "bytes": 291,
+      "blob": "blobs/823f13d9bd3a36c2cc82a28f1620096ebca94690353014bbd619b07072ee039c.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.command",
+      "sha256": "00e658353dec6e73cc9a1d98bb359ce0ee106f17e311547c0b2f73f66273d75f",
+      "bytes": 195,
+      "blob": "blobs/00e658353dec6e73cc9a1d98bb359ce0ee106f17e311547c0b2f73f66273d75f.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.env.json",
+      "sha256": "fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b",
+      "bytes": 44,
+      "blob": "blobs/fbda84b942a122bbaf5541aeb82a8c5050ca789939ea8d96a1b55aa25c25457b.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.process.json",
+      "sha256": "c25466ca6374c73f277497e7f1a31926844569ebfd33a200f846ffe2e74e700d",
+      "bytes": 2424,
+      "blob": "blobs/c25466ca6374c73f277497e7f1a31926844569ebfd33a200f846ffe2e74e700d.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.result.json",
+      "sha256": "4b852915412022c1d8921ec5c18e1bf9becd35c5842fdbe38e4972f17295bc1e",
+      "bytes": 5539,
+      "blob": "blobs/4b852915412022c1d8921ec5c18e1bf9becd35c5842fdbe38e4972f17295bc1e.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.sha256.json",
+      "sha256": "5b553620671399a3937d0431a2838cb4fafd33b6c02ea8438f8a1fdf16007f42",
+      "bytes": 1457,
+      "blob": "blobs/5b553620671399a3937d0431a2838cb4fafd33b6c02ea8438f8a1fdf16007f42.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.stderr",
+      "sha256": "f093e8baf1a0ade4c2356ed99daf386afd7dfbe04a8b22980c049ba6437e5c81",
+      "bytes": 8967,
+      "blob": "blobs/f093e8baf1a0ade4c2356ed99daf386afd7dfbe04a8b22980c049ba6437e5c81.gz"
+    },
+    {
+      "path": "run/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/05-05-jim-source-owner-original5-authored_jim_dictionary_and_odd_shape_use_the_original_list_fields.stdout",
+      "sha256": "4fb4335a20ec6d688cea26860b5ab24fc96a123e0f46631c6242fcad52bb36e1",
+      "bytes": 192,
+      "blob": "blobs/4fb4335a20ec6d688cea26860b5ab24fc96a123e0f46631c6242fcad52bb36e1.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.command",
+      "sha256": "1cfcd9fe9e945d4243a6183ec77abf9011f9a4087cc1eaa95c8489a7451c4bf5",
+      "bytes": 178,
+      "blob": "blobs/1cfcd9fe9e945d4243a6183ec77abf9011f9a4087cc1eaa95c8489a7451c4bf5.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "blob": "blobs/ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.process.json",
+      "sha256": "b6e211225f105bb88f286ec1e895c45998c91ce5f0fa482ec55415756c1aa856",
+      "bytes": 2367,
+      "blob": "blobs/b6e211225f105bb88f286ec1e895c45998c91ce5f0fa482ec55415756c1aa856.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.result.json",
+      "sha256": "3ac3beba90a41ddfe76854871b167e615cfeca7888b916811706428c50da3a7f",
+      "bytes": 5445,
+      "blob": "blobs/3ac3beba90a41ddfe76854871b167e615cfeca7888b916811706428c50da3a7f.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.sha256.json",
+      "sha256": "1037c847f22612380943d4587ae6971169596822e5da4ac29ab7cb0762054ac5",
+      "bytes": 1313,
+      "blob": "blobs/1037c847f22612380943d4587ae6971169596822e5da4ac29ab7cb0762054ac5.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.stderr",
+      "sha256": "d50469f3f7c07090d801761a68fb6ae01b33672c1dc6fe88a25d92f6b9128b20",
+      "bytes": 243,
+      "blob": "blobs/d50469f3f7c07090d801761a68fb6ae01b33672c1dc6fe88a25d92f6b9128b20.gz"
+    },
+    {
+      "path": "run/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/06-06-jim-proc-row-original2-a_jim_document_resolves_every_declared_command.stdout",
+      "sha256": "b3ff06e6282f525d3d51a4f12c76926ca3945d2caeb8362661c1c80bd8f5c847",
+      "bytes": 253,
+      "blob": "blobs/b3ff06e6282f525d3d51a4f12c76926ca3945d2caeb8362661c1c80bd8f5c847.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.command",
+      "sha256": "446798872c78ef2910b8e752fc2b1a0bdc30c3048f0bbb207747517932103d8c",
+      "bytes": 180,
+      "blob": "blobs/446798872c78ef2910b8e752fc2b1a0bdc30c3048f0bbb207747517932103d8c.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.env.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "blob": "blobs/ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.process.json",
+      "sha256": "a0bd61df120121de2842d3689d392c4fa43ea551e093579c6a6abd0b74a6528d",
+      "bytes": 2373,
+      "blob": "blobs/a0bd61df120121de2842d3689d392c4fa43ea551e093579c6a6abd0b74a6528d.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.result.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.result.json",
+      "sha256": "ad004943f99ce227b3454278095880d5d14d15f23ed1e7538f43f95fe173f1ef",
+      "bytes": 5457,
+      "blob": "blobs/ad004943f99ce227b3454278095880d5d14d15f23ed1e7538f43f95fe173f1ef.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.sha256.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.sha256.json",
+      "sha256": "5aff46ee4cce45da5d610a9efeecd71d2db532d615c970b989cd8f20ccbc5351",
+      "bytes": 1325,
+      "blob": "blobs/5aff46ee4cce45da5d610a9efeecd71d2db532d615c970b989cd8f20ccbc5351.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.stderr",
+      "sha256": "895b5ec5eb08378016c3d58e3064882300dbb70467334c008574ad32a39a6cf9",
+      "bytes": 255,
+      "blob": "blobs/895b5ec5eb08378016c3d58e3064882300dbb70467334c008574ad32a39a6cf9.gz"
+    },
+    {
+      "path": "run/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/07-07-jim-proc-row-original2-a_pack_carrying_jim_store_keeps_jims_own_surface.stdout",
+      "sha256": "48f82824fc4c0516f6f93b35bf1098857752d58c1593477260e5c346909df02c",
+      "bytes": 257,
+      "blob": "blobs/48f82824fc4c0516f6f93b35bf1098857752d58c1593477260e5c346909df02c.gz"
+    },
+    {
+      "path": "run/build-environment.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-environment.json",
+      "sha256": "64e509ae3d82242e5d1115462348b6b9c913508d3b7392a2ca3f65c63cb4d139",
+      "bytes": 936,
+      "blob": "blobs/64e509ae3d82242e5d1115462348b6b9c913508d3b7392a2ca3f65c63cb4d139.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_document.artifact.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_document.artifact.json",
+      "sha256": "306aa1f449e2f61db69009f5c4f425c21eb24987bde9ea2a79d2bd6b09da5cc5",
+      "bytes": 1897,
+      "blob": "blobs/306aa1f449e2f61db69009f5c4f425c21eb24987bde9ea2a79d2bd6b09da5cc5.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_document.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_document.command",
+      "sha256": "f11737f9eede775584eb4e681410ac44a9612db5ddf753eba6b7fa6869d09225",
+      "bytes": 152,
+      "blob": "blobs/f11737f9eede775584eb4e681410ac44a9612db5ddf753eba6b7fa6869d09225.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_document.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_document.process.json",
+      "sha256": "ae7454d19abf3e2aaa01d616a56b66f3c78aa1d41e4d7e4b6ad0c9d7203b5c44",
+      "bytes": 2964,
+      "blob": "blobs/ae7454d19abf3e2aaa01d616a56b66f3c78aa1d41e4d7e4b6ad0c9d7203b5c44.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_document.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_document.stderr",
+      "sha256": "5a36d6ceef2f76527618e812744f25ff2e0d1b49e42cf350ed1ca30b0b871555",
+      "bytes": 360,
+      "blob": "blobs/5a36d6ceef2f76527618e812744f25ff2e0d1b49e42cf350ed1ca30b0b871555.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_document.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_document.stdout",
+      "sha256": "92b2acd4ead6c371f617d853c8f0a38f48e76c15082bc4d666a5ac4f290782ed",
+      "bytes": 130150,
+      "blob": "blobs/92b2acd4ead6c371f617d853c8f0a38f48e76c15082bc4d666a5ac4f290782ed.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_own_surface.artifact.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_own_surface.artifact.json",
+      "sha256": "823a3923b94892c489b8a0d6b6f84d4a3cada03b808037bd97009c6e4c93e166",
+      "bytes": 1915,
+      "blob": "blobs/823a3923b94892c489b8a0d6b6f84d4a3cada03b808037bd97009c6e4c93e166.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_own_surface.command",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_own_surface.command",
+      "sha256": "fc55931d617ecc539f2dbf99de5b38a3d065792467572b27c979fd00a4cb46c4",
+      "bytes": 155,
+      "blob": "blobs/fc55931d617ecc539f2dbf99de5b38a3d065792467572b27c979fd00a4cb46c4.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_own_surface.process.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_own_surface.process.json",
+      "sha256": "0238b2ca7f6edf1b89f4231a438662969e2d26ab14b93651c290902ee19200e4",
+      "bytes": 2978,
+      "blob": "blobs/0238b2ca7f6edf1b89f4231a438662969e2d26ab14b93651c290902ee19200e4.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_own_surface.stderr",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_own_surface.stderr",
+      "sha256": "cb7007ddd64a1814ddc22da76c1bd25ac7e7fb5714937d5d8f2aacc3c974ff22",
+      "bytes": 155,
+      "blob": "blobs/cb7007ddd64a1814ddc22da76c1bd25ac7e7fb5714937d5d8f2aacc3c974ff22.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl-test-jim_own_surface.stdout",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/build-tcl-spectcl-test-jim_own_surface.stdout",
+      "sha256": "a6b541a14b39e43d75f8b93193e6c140ee9ae317ea563891a479e912fe4fe7bc",
+      "bytes": 130159,
+      "blob": "blobs/a6b541a14b39e43d75f8b93193e6c140ee9ae317ea563891a479e912fe4fe7bc.gz"
+    },
+    {
+      "path": "run/current-rust-diff.patch",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/current-rust-diff.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/final.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/final.json",
+      "sha256": "88a78c7e1b60c1660bc56171d57dff29f8067fe344a2df0c6aa043b8f607fdd5",
+      "bytes": 5032,
+      "blob": "blobs/88a78c7e1b60c1660bc56171d57dff29f8067fe344a2df0c6aa043b8f607fdd5.gz"
+    },
+    {
+      "path": "run/head-before.txt",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/head-before.txt",
+      "sha256": "cdc986bbb5047fceb9dbd48d004afaea0f6620bcd7411337f38509a54216d6ad",
+      "bytes": 41,
+      "blob": "blobs/cdc986bbb5047fceb9dbd48d004afaea0f6620bcd7411337f38509a54216d6ad.gz"
+    },
+    {
+      "path": "run/head-snapshot-startup.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/head-snapshot-startup.json",
+      "sha256": "2b60a1f146469c34f470aa7ae14b05005a688ef8c16cb74ff1c1074f1b246231",
+      "bytes": 142,
+      "blob": "blobs/2b60a1f146469c34f470aa7ae14b05005a688ef8c16cb74ff1c1074f1b246231.gz"
+    },
+    {
+      "path": "run/plan.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/plan.json",
+      "sha256": "a7f22195a70768a3e55cf0a4bfe16f7ab243b54b04aba6ec3089193cf45ab330",
+      "bytes": 26155,
+      "blob": "blobs/a7f22195a70768a3e55cf0a4bfe16f7ab243b54b04aba6ec3089193cf45ab330.gz"
+    },
+    {
+      "path": "run/providers-after-build.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/providers-after-build.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-after.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/providers-after.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-before.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/providers-before.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-final.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/providers-final.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/results.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/results.json",
+      "sha256": "625bfc364db43fae741ad18975f5d47f5b1671fce93d0ce589f33d8f0d0ab2bd",
+      "bytes": 40582,
+      "blob": "blobs/625bfc364db43fae741ad18975f5d47f5b1671fce93d0ce589f33d8f0d0ab2bd.gz"
+    },
+    {
+      "path": "run/root-go.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/root-go.json",
+      "sha256": "eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3",
+      "bytes": 1653,
+      "blob": "blobs/eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3.gz"
+    },
+    {
+      "path": "run/root-observed-parent-closure.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/root-observed-parent-closure.json",
+      "sha256": "9d2ffc94928bb9d4d82687e02ff6fb79f6ba826d6a8808c27a09404e85e796b6",
+      "bytes": 589,
+      "blob": "blobs/9d2ffc94928bb9d4d82687e02ff6fb79f6ba826d6a8808c27a09404e85e796b6.gz"
+    },
+    {
+      "path": "run/runner-inputs.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/runner-inputs.json",
+      "sha256": "37e7047856a3e0486208a89f13c2d45d966d7817a6b14878f55decdf8220c8cc",
+      "bytes": 1037,
+      "blob": "blobs/37e7047856a3e0486208a89f13c2d45d966d7817a6b14878f55decdf8220c8cc.gz"
+    },
+    {
+      "path": "run/source-before.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/source-before.json",
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "bytes": 12728460,
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    },
+    {
+      "path": "run/source-final.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/source-final.json",
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "bytes": 12728460,
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    },
+    {
+      "path": "protocol/__pycache__/guarded-exec.cpython-312.pyc",
+      "original": "/tmp/compiler-jim7-source46-v3/__pycache__/guarded-exec.cpython-312.pyc",
+      "sha256": "2a8a3c08a9821443680a30185371491e0870e6331928d7ee48a7967193595956",
+      "bytes": 16500,
+      "blob": "blobs/2a8a3c08a9821443680a30185371491e0870e6331928d7ee48a7967193595956.gz"
+    },
+    {
+      "path": "protocol/compiler49-v7-plan.json",
+      "original": "/tmp/compiler-jim7-source46-v3/compiler49-v7-plan.json",
+      "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+      "bytes": 26602,
+      "blob": "blobs/0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313.gz"
+    },
+    {
+      "path": "protocol/compiler49-v7-root-go.raw.json",
+      "original": "/tmp/compiler-jim7-source46-v3/compiler49-v7-root-go.raw.json",
+      "sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+      "bytes": 575,
+      "blob": "blobs/dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2.gz"
+    },
+    {
+      "path": "protocol/compiler49-v7-root-go.receipt.json",
+      "original": "/tmp/compiler-jim7-source46-v3/compiler49-v7-root-go.receipt.json",
+      "sha256": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+      "bytes": 575,
+      "blob": "blobs/af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d.gz"
+    },
+    {
+      "path": "protocol/compiler49-v7-runner-input-manifest.json",
+      "original": "/tmp/compiler-jim7-source46-v3/compiler49-v7-runner-input-manifest.json",
+      "sha256": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+      "bytes": 1074,
+      "blob": "blobs/23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48.gz"
+    },
+    {
+      "path": "protocol/guarded-cargo.py",
+      "original": "/tmp/compiler-jim7-source46-v3/guarded-cargo.py",
+      "sha256": "3fe52bb5a5d6aa97f42fe9b177758bba52995144183cb9a1574aabd31d4a4af5",
+      "bytes": 1924,
+      "blob": "blobs/3fe52bb5a5d6aa97f42fe9b177758bba52995144183cb9a1574aabd31d4a4af5.gz"
+    },
+    {
+      "path": "protocol/guarded-exec.py",
+      "original": "/tmp/compiler-jim7-source46-v3/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "protocol/launch-preflight-refusal.json",
+      "original": "/tmp/compiler-jim7-source46-v3/launch-preflight-refusal.json",
+      "sha256": "92c03f16dcc21e347d1dc46a3356bc77281b3f0a6dcffe177b02378204ca24f7",
+      "bytes": 195,
+      "blob": "blobs/92c03f16dcc21e347d1dc46a3356bc77281b3f0a6dcffe177b02378204ca24f7.gz"
+    },
+    {
+      "path": "protocol/launch.py",
+      "original": "/tmp/compiler-jim7-source46-v3/launch.py",
+      "sha256": "d1cb5e2af243f08bb7ce76bbc5e83a5d493693b0455aeb716ba5e7af5d8493b2",
+      "bytes": 3393,
+      "blob": "blobs/d1cb5e2af243f08bb7ce76bbc5e83a5d493693b0455aeb716ba5e7af5d8493b2.gz"
+    },
+    {
+      "path": "protocol/launcher-runs/20261023T074007.629314Z/launcher.json",
+      "original": "/tmp/compiler-jim7-source46-v3/launcher-runs/20261023T074007.629314Z/launcher.json",
+      "sha256": "017858af3f676681bdbbf1384ff0ddcb1f3bd8d4b8c3911f742ee25a80696a1d",
+      "bytes": 4992,
+      "blob": "blobs/017858af3f676681bdbbf1384ff0ddcb1f3bd8d4b8c3911f742ee25a80696a1d.gz"
+    },
+    {
+      "path": "protocol/launcher-runs/20261023T074007.629314Z/launcher.transcript",
+      "original": "/tmp/compiler-jim7-source46-v3/launcher-runs/20261023T074007.629314Z/launcher.transcript",
+      "sha256": "3b7d934046ebce7877f2220a53b25b93ba84e7fb1e64ce7c41a3b3e5eedef70e",
+      "bytes": 2547,
+      "blob": "blobs/3b7d934046ebce7877f2220a53b25b93ba84e7fb1e64ce7c41a3b3e5eedef70e.gz"
+    },
+    {
+      "path": "protocol/plan.json",
+      "original": "/tmp/compiler-jim7-source46-v3/plan.json",
+      "sha256": "ed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c",
+      "bytes": 26155,
+      "blob": "blobs/ed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c.gz"
+    },
+    {
+      "path": "protocol/preflight-refusal.json",
+      "original": "/tmp/compiler-jim7-source46-v3/preflight-refusal.json",
+      "sha256": "235b2abb627b97b06068ddb78b073a54fe59f63219dab78d712a5d716940daee",
+      "bytes": 341,
+      "blob": "blobs/235b2abb627b97b06068ddb78b073a54fe59f63219dab78d712a5d716940daee.gz"
+    },
+    {
+      "path": "protocol/readiness.json",
+      "original": "/tmp/compiler-jim7-source46-v3/readiness.json",
+      "sha256": "9cb81e0a4de4899a674c0bdf653a687919ffe7098bcee1219bf5e125bdb134f4",
+      "bytes": 906,
+      "blob": "blobs/9cb81e0a4de4899a674c0bdf653a687919ffe7098bcee1219bf5e125bdb134f4.gz"
+    },
+    {
+      "path": "protocol/root-go.json",
+      "original": "/tmp/compiler-jim7-source46-v3/root-go.json",
+      "sha256": "eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3",
+      "bytes": 1653,
+      "blob": "blobs/eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3.gz"
+    },
+    {
+      "path": "protocol/run.sh",
+      "original": "/tmp/compiler-jim7-source46-v3/run.sh",
+      "sha256": "b45b098f5f7362835fb7461ff0ac4bf34c5388a493ce557d48ee68ffdfb5662e",
+      "bytes": 69,
+      "blob": "blobs/b45b098f5f7362835fb7461ff0ac4bf34c5388a493ce557d48ee68ffdfb5662e.gz"
+    },
+    {
+      "path": "protocol/runner-input-manifest.json",
+      "original": "/tmp/compiler-jim7-source46-v3/runner-input-manifest.json",
+      "sha256": "4ab415b101889ee2401f1d34f80f6d0b2c242742686e4b680ca7b6de662913a5",
+      "bytes": 1938,
+      "blob": "blobs/4ab415b101889ee2401f1d34f80f6d0b2c242742686e4b680ca7b6de662913a5.gz"
+    },
+    {
+      "path": "protocol/source46-manifest.json",
+      "original": "/tmp/compiler-jim7-source46-v3/source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539,
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.gz"
+    },
+    {
+      "path": "protocol/suite.py",
+      "original": "/tmp/compiler-jim7-source46-v3/suite.py",
+      "sha256": "d966d10eff4adba149d030b7c8db7c41f268a0eb44b56d97a9c63c64baecfb86",
+      "bytes": 35452,
+      "blob": "blobs/d966d10eff4adba149d030b7c8db7c41f268a0eb44b56d97a9c63c64baecfb86.gz"
+    },
+    {
+      "path": "protocol/typecheck8-plan.json",
+      "original": "/tmp/compiler-jim7-source46-v3/typecheck8-plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534,
+      "blob": "blobs/983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e.gz"
+    },
+    {
+      "path": "protocol/typecheck8-runner-input-manifest.json",
+      "original": "/tmp/compiler-jim7-source46-v3/typecheck8-runner-input-manifest.json",
+      "sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "bytes": 1415,
+      "blob": "blobs/1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40.gz"
+    },
+    {
+      "path": "root-parent-closure-observation.json",
+      "original": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/root-observed-parent-closure.json",
+      "sha256": "9d2ffc94928bb9d4d82687e02ff6fb79f6ba826d6a8808c27a09404e85e796b6",
+      "bytes": 589,
+      "blob": "blobs/9d2ffc94928bb9d4d82687e02ff6fb79f6ba826d6a8808c27a09404e85e796b6.gz"
+    },
+    {
+      "path": "prerequisite/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/final.json",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/final.json",
+      "sha256": "379bfb659cd6fe15ab529f4236ef512342c04b38c01302b75b191a7502cea1f0",
+      "bytes": 4636,
+      "blob": "blobs/379bfb659cd6fe15ab529f4236ef512342c04b38c01302b75b191a7502cea1f0.gz"
+    },
+    {
+      "path": "prerequisite/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015856.543048Z/launcher.json",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015856.543048Z/launcher.json",
+      "sha256": "1e2a4d350574fda3bb953bd3be90a8f24db63d423ec66bf40bd30a3297b54d22",
+      "bytes": 2445,
+      "blob": "blobs/1e2a4d350574fda3bb953bd3be90a8f24db63d423ec66bf40bd30a3297b54d22.gz"
+    },
+    {
+      "path": "prerequisite/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json",
+      "sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+      "bytes": 1395,
+      "blob": "blobs/603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24.gz"
+    },
+    {
+      "path": "prerequisite/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json",
+      "sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+      "bytes": 4004,
+      "blob": "blobs/22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-c6-provider-manifest.py",
+      "original": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+      "bytes": 1861,
+      "blob": "blobs/5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e.gz"
+    },
+    {
+      "path": "transitive/tmp/tcl-lsp-naming-env.sh",
+      "original": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+      "bytes": 1042,
+      "blob": "blobs/9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/guarded-cargo.py",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/guarded-cargo.py",
+      "sha256": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319",
+      "bytes": 1943,
+      "blob": "blobs/b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/guarded-exec.py",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/launch.py",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/launch.py",
+      "sha256": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce",
+      "bytes": 2851,
+      "blob": "blobs/bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/plan.json",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/plan.json",
+      "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+      "bytes": 26602,
+      "blob": "blobs/0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/run.sh",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/run.sh",
+      "sha256": "f4b3f6704516f92e586a4fa040ce44d2b572e1d300f84453f379eb4535805a67",
+      "bytes": 130,
+      "blob": "blobs/f4b3f6704516f92e586a4fa040ce44d2b572e1d300f84453f379eb4535805a67.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-n13-focused-successor-v7-integrated/suite.py",
+      "original": "/tmp/compiler-n13-focused-successor-v7-integrated/suite.py",
+      "sha256": "ff4861c7d1fb2230f6cdba89161ca56210dcb9b594737ea29a60f510bbab2bbd",
+      "bytes": 18919,
+      "blob": "blobs/ff4861c7d1fb2230f6cdba89161ca56210dcb9b594737ea29a60f510bbab2bbd.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/README.md",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/README.md",
+      "sha256": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "bytes": 3554,
+      "blob": "blobs/6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/launch.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/launch.py",
+      "sha256": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "bytes": 3403,
+      "blob": "blobs/f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/plan.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534,
+      "blob": "blobs/983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "bytes": 435,
+      "blob": "blobs/e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/run.sh",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/run.sh",
+      "sha256": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "bytes": 89,
+      "blob": "blobs/7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539,
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/suite.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/suite.py",
+      "sha256": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "bytes": 15756,
+      "blob": "blobs/9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365.gz"
+    },
+    {
+      "path": "frozen-source/runtime/rust/src/interp.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/src/interp.rs",
+      "sha256": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+      "bytes": 1115916,
+      "blob": "blobs/580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398.gz"
+    },
+    {
+      "path": "frozen-source/rust/bpf-tcl-ir/src/source/phase.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir/src/source/phase.rs",
+      "sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+      "bytes": 23292,
+      "blob": "blobs/c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "sha256": "fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e",
+      "bytes": 22079,
+      "blob": "blobs/fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "bytes": 26683,
+      "blob": "blobs/20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "sha256": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+      "bytes": 12880,
+      "blob": "blobs/a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/class_hierarchy.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+      "sha256": "ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31",
+      "bytes": 84926,
+      "blob": "blobs/ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/commands.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/commands.rs",
+      "sha256": "819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+      "bytes": 385896,
+      "blob": "blobs/819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/diagnostic_subject.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "sha256": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+      "bytes": 26852,
+      "blob": "blobs/607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/diagnostics.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "sha256": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+      "bytes": 74120,
+      "blob": "blobs/f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/mod.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/mod.rs",
+      "sha256": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+      "bytes": 5975,
+      "blob": "blobs/01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/oo.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/oo.rs",
+      "sha256": "88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e",
+      "bytes": 389879,
+      "blob": "blobs/88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/original_definer.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/original_definer.rs",
+      "sha256": "e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed",
+      "bytes": 26054,
+      "blob": "blobs/e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/state.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/state.rs",
+      "sha256": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+      "bytes": 356563,
+      "blob": "blobs/ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/cfg_builder/mod.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "sha256": "223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696",
+      "bytes": 349622,
+      "blob": "blobs/223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+      "bytes": 1060142,
+      "blob": "blobs/8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/compiler_inventory.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+      "bytes": 100672,
+      "blob": "blobs/f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "sha256": "27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120",
+      "bytes": 4547,
+      "blob": "blobs/27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_source.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "sha256": "1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae",
+      "bytes": 26466,
+      "blob": "blobs/1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_source/region.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "sha256": "775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3",
+      "bytes": 59337,
+      "blob": "blobs/775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/expression_preparation.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "sha256": "58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8",
+      "bytes": 105091,
+      "blob": "blobs/58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/normal_result.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "sha256": "3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16",
+      "bytes": 46940,
+      "blob": "blobs/3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "sha256": "5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725",
+      "bytes": 55436,
+      "blob": "blobs/5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/retained_source.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+      "bytes": 54197,
+      "blob": "blobs/6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+      "bytes": 187568,
+      "blob": "blobs/5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+      "bytes": 27436,
+      "blob": "blobs/99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "sha256": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+      "bytes": 37379,
+      "blob": "blobs/05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "sha256": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+      "bytes": 15251,
+      "blob": "blobs/ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/ir.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir.rs",
+      "sha256": "c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5",
+      "bytes": 200625,
+      "blob": "blobs/c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/ir/source_bpf_command.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir/source_bpf_command.rs",
+      "sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+      "bytes": 35031,
+      "blob": "blobs/15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types.rs",
+      "sha256": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+      "bytes": 153969,
+      "blob": "blobs/42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types/authenticated_report.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "sha256": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+      "bytes": 10380,
+      "blob": "blobs/7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types/logical_source_candidates.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "sha256": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+      "bytes": 27385,
+      "blob": "blobs/955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/chain_fold.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/chain_fold.rs",
+      "sha256": "b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839",
+      "bytes": 58694,
+      "blob": "blobs/b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/elimination.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/elimination.rs",
+      "sha256": "bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7",
+      "bytes": 130113,
+      "blob": "blobs/bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/propagation.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+      "bytes": 252819,
+      "blob": "blobs/b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/realm/source_transition_advice.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "sha256": "34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8",
+      "bytes": 75736,
+      "blob": "blobs/34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "sha256": "41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+      "bytes": 46718,
+      "blob": "blobs/41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_structure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "bytes": 299174,
+      "blob": "blobs/449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+      "bytes": 25040,
+      "blob": "blobs/9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/tests/wasm_real_link.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/tests/wasm_real_link.rs",
+      "sha256": "4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15",
+      "bytes": 78379,
+      "blob": "blobs/4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-core/src/minify/original.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+      "bytes": 101603,
+      "blob": "blobs/b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-core/src/source_structure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20",
+      "bytes": 120364,
+      "blob": "blobs/b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/lib.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "bytes": 2922005,
+      "blob": "blobs/2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/readonly_reference_reports.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "bytes": 172928,
+      "blob": "blobs/44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+      "bytes": 123803,
+      "blob": "blobs/151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/spec_corpus.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/spec_corpus.rs",
+      "sha256": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "bytes": 68487,
+      "blob": "blobs/68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/jim_document.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+      "sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "bytes": 32523,
+      "blob": "blobs/15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/jim_own_surface.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "bytes": 17681,
+      "blob": "blobs/a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e.gz"
+    }
+  ],
+  "unique_blobs": 149,
+  "archive_roundtrip_verified": true,
+  "limits": "Exact selector PASS does not imply every script/subcase executed after an early assertion FAIL. Source-owner5 and proc-row2 remain separate; no wholeJim/all11/C1C2 acceptance. Off-tree metadataidentity v4 unapplied."
+}

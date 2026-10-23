@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T07:48:55.334627+00:00",
+  "artifact_id": 12484815637,
+  "fresh_redirect_only_probe": true,
+  "redirect_url_not_printed_or_saved": true,
+  "download_attempt_observation": "Previous fresh redirect download reached network proxy CONNECT tunnel403Forbidden; no artifactbytes obtained. This is not an automatic approval rejection.",
+  "api_status": 302,
+  "api_date": "Fri, 23 Oct 2026 07:48:55 GMT",
+  "redirect_hostname": "productionresultssa3.blob.core.windows.net",
+  "redirect_expiry": [
+    "2026-10-23T07:58:55Z"
+  ],
+  "redirect_present": true
+}

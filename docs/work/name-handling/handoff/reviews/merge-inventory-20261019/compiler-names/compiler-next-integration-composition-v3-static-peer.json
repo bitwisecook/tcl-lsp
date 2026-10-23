@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-23T07:54:27.214893+00:00",
+  "status": "CLEAR bounded exact core17 component-union preservation; alias excluded, no typing/runtime or integration authority",
+  "manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "current46_match": 46,
+  "independently_applied_component_patches": [
+    "normal-owner-v2",
+    "empty-installed-v1",
+    "jim-canonical-v4",
+    "var-helper-v2",
+    "g4-supplement-v2",
+    "bpf-row30-v1",
+    "bom-fixture-v1",
+    "nested-census-v4",
+    "hosted-event-v1",
+    "ilx-words-v1",
+    "sh-producer-v1",
+    "rbs-read-v1",
+    "exprfold-v6",
+    "taint-ingress-v1",
+    "import-child-v1",
+    "readonly-route-v1",
+    "jim-constructor-cell-v1"
+  ],
+  "variants": [
+    {
+      "id": "core17-without-alias",
+      "paths": 29,
+      "combined_patch_sha256": "1a6a8943ea185327fbf92ce0d215c9d1fee9d7b669b0080be8fb5784ce64a65c",
+      "all_component_changed_fragments_exact": true,
+      "no_missing_or_added_fragments": true,
+      "independent_reapply_zero_fuzz_zero_offset": true,
+      "all_final_hashes": true
+    }
+  ],
+  "format_receipt_sha256": "30e0a654d92a4d2fc3fd5a08cf24639d6bee4c92b8570096e4bcbb56e7465bec",
+  "reviewed_semantics": [
+    "Normal-only strict analysisowner ptrjoin and EXACT old4field seedEq bytes retained from peer6ae79; no global/report/runtime Eq policy change",
+    "Installedempty guard requires exactcurrent typed installedcard/allocation/source/span/root/namespace; existing arbitraryempty/outofrange/duplicate refusal unchanged from ede9",
+    "Body correspondence core17 final bytes equal previously reviewed core15 Installed+hosted puretrace union; alias excluded, no new production bodyrole change",
+    "G4 lifecycle/namespace purpose fixture obligations and all original tails retained exactly; actual Conditional/runtime premises still UNRUN",
+    "Var helper retains heldCU and original_procedure_for_body pointer/module-issuedID/uniqueLabel/Named-orOriginalDeclaration gating exactly; IR-only path named-only",
+    "All shared file modifications are exact disjoint original changed fragments from immutable peer-reviewed components including boundary insertion; no semantic merge synthesis or assertion loss"
+  ],
+  "limits": "No source application/Cargo/Git/GO/typing/runtime/complete report/perf acceptance. Jim/BPF/Exprfold/source_structure semantic peers owned CCG/VM; this checks their exact component preservation only. Pure traces require release cleanup. Core17 root scope not integration authorization; nestedv4 and readonlyfd55 included explicitly; oldcore15/16 immutable."
+}

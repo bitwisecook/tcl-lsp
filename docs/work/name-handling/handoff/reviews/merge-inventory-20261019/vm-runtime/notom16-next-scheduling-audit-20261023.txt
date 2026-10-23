@@ -1,0 +1,74 @@
+noTom16 mandatory baseline scheduling audit
+Recorded 2026-10-23T07:45:38.678302+00:00; static only, no Cargo/Git/GO/source/provider changes.
+
+Existing immutable protocol: /tmp/vm-runtime-ci5206-notommath16-v3-lifecycle
+plan SHA256 3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e
+All9 frozen input hashes match; root-go.json absent. No duplicate runner needed.
+
+Exact CI join: baseline run39816429638 headfcb7927f02b5395753247b322fdd7be87ae5c731
+job119956196088, make runtime-rust-test-no-tommath,655PASS/0FAIL. Current
+CI5206 noTommath section has16 terminal FAIL identities below. Separate default
+feature/full backend section and baseline-absent frame abort are excluded.
+Original per-failure assertion bodies unavailable before CI abort; no cause
+inferred from terminal outcome. Classification receipt7a489b33; raw6538ace1.
+
+cmd_error::tests::eight_four_catch_takes_no_options_variable
+cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles
+cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters
+cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name
+codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version
+codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c
+env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps
+env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0
+env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env
+env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host
+env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable
+env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host
+env_trace::tests::the_home_directory_follows_env_home
+env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces
+env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path
+env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it
+
+Backend/build contract: default features, NO --features engine; remove
+TCL_TOMMATH_DIR and diagnostic env; dedicated exact runtime mirror and target,
+canonical root Cargo.toml/lock plus rust/experiments links. Current Cargo JSON
+must identify tcl_runtime test profile with rlib/cdylib/staticlib target kinds,
+one fresh executable; actual build-script cfg must exclude have_tommath.
+Exactly intentional "libtommath source not found; bignum backend disabled"
+notice permitted; no0W claim and no other warning/error allowed. Exact16 roster,
+16original --exact selectors, count/start/summary/process consistency required.
+FullTom4 covers only the catch identity among these16, and in a different
+engine/fullTommath configuration: its4PASS cannot close even that noTommath
+identity. The other15 are not selected by full4. No semantic equivalence claim.
+
+Current three canonical observer/semantic pins are required: cmd_error ac849810,
+interp580d73c0, interp/native_error_variables91d70ce6. All match current source.
+Existing wrapper snapshots current full source/providers before/after and exact
+mirror; it predates repaired46 exact approved tuple/typecheck9/env-tool gates.
+Before future allocation, root must bind actual approved future product/full
+source to its same-source typing receipt and review environment/tool overrides
+against current executor standard. Existing protocol is not evidence of that
+new binding; preserve it and use an explicit reviewed successor if required.
+No changing Cargo flags or selectors implicitly. Current v9 PASS0W establishes
+eight-package typing only; optional default-feature standalone runtime lib
+build and noTommath cfg/artifact/roster remain actual required build proof.
+
+Existing lifecycle88125: whole nonblocking lock, source/provider/tool seals,
+3600s build/180s selector deadlines armed before spawn, retained owned PID,
+20MiB aggregate logs, actual /workspace and /tmp floors2GiB, no source/target
+cleanup. Full provider chains/SDK/C toolchain remain sealed even with Tommath
+disabled. Root alone will decide future queue after current108/integration;
+UPF2 and originalSpec3 are separate unrun acceptance gaps. GeneralVM parity
+remains parked; these exact16 baseline regressions remain mandatory.
+
+Root clarification: the existing intentional notice allowance records actual
+historical protocol behavior only; it cannot satisfy the user's zero-warning
+release admission. No warning waiver or backend-semantic change is authorized.
+Actual producer is runtime/rust/build.rs:117 `cargo:warning=libtommath source
+not found; bignum backend disabled`, in locate_libtommath None branch; that
+branch returns before line234 `cargo:rustc-cfg=have_tommath`. Probe at312 checks
+TCL_TOMMATH_DIR/tommath.h, then checkout fetched-tree candidate. This is a
+Cargo build-script warning, distinct from cfg facts and Rust diagnostics.
+Future runtime16 restoration, standalone typing, and strict0W admission must
+remain separate. Whether a supported noTommath mode should emit a non-warning
+notice needs bounded future assessment; no suppression or source fix made.

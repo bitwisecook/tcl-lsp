@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T07:48:59.425601+00:00",
+  "status": "bounded static CLEAR; actual Rust typing/runtime UNRUN",
+  "patch_sha256": "62f85b91bc4b3090e01611663279401b677179950781ee168aea72c47d5c56d0",
+  "reviewer": "vm-runtime",
+  "scope": "One-file diagnostic purity/borrows/API signatures only",
+  "findings": [
+    "selected_head_key, written.first/input, graph resolver each evaluated once at original position; original None ?/else behavior retained",
+    "cells.get retains immutable reference; Option<&AdviceCell> Copy map logs discriminant without moving enum or mutating graph; match original reference once",
+    "NativeWord::span and lexer Span::start existing callable APIs inspected; value debug formatting uses existing Debug implementations",
+    "trace_jim_source_option returns unchanged generic Option; debug env logging only, no purpose conversion/fallback or grant",
+    "release branch has no cell debug code; actual cell path not yet measured; static carrier mismatch not claimed cause"
+  ],
+  "limits": "No Cargo/type check, canonical source, tests, GO or Git actions."
+}

@@ -1,0 +1,3193 @@
+--- a/rust/bpf-tcl-ir/src/source/phase.rs
++++ b/rust/bpf-tcl-ir/src/source/phase.rs
+@@ -460,7 +460,23 @@
+     #[test]
+     fn losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory() {
+         let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+-        let module = super::super::lower_bpf_source("map m hash 4 8 1; pass", registry);
++        // Socket filters use accept/drop. Keep the former pass spelling as a
++        // negative control so it cannot masquerade as a selection failure.
++        let incompatible = super::super::lower_bpf_source("map m hash 4 8 1; pass", registry);
++        let incompatible_phase = BpfSourceScript::from_module(&incompatible, registry).unwrap();
++        let incompatible_prepared = incompatible_phase
++            .prepare_function(&incompatible, "main", registry)
++            .expect("pass remains a selected command before program-type validation");
++        let error = crate::lower::lower_prepared_function(
++            &incompatible_prepared,
++            crate::ir::ProgType::SocketFilter,
++            registry,
++        )
++        .unwrap_err();
++        assert_eq!(error.code, crate::diag::BpfDiag::OutOfSubset);
++        assert!(error.msg.contains("`pass` is not a valid verdict"));
++
++        let module = super::super::lower_bpf_source("map m hash 4 8 1; accept", registry);
+         let phase = BpfSourceScript::from_module(&module, registry).unwrap();
+         let mut script = phase.script().clone();
+         let Statement::Call { tokens, .. } = &mut script.statements[0] else {
+--- a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -128,6 +128,7 @@
+             Self::push(
+                 &mut bodies,
+                 module,
++                registry,
+                 *id,
+                 Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
+             )?;
+@@ -141,6 +142,7 @@
+             Self::push(
+                 &mut bodies,
+                 module,
++                registry,
+                 *id,
+                 Self::procedure(module, *id, body, role)?,
+             )?;
+@@ -149,6 +151,7 @@
+             Self::push(
+                 &mut bodies,
+                 module,
++                registry,
+                 *id,
+                 ReportBodyOwner {
+                     id: *id,
+@@ -169,6 +172,7 @@
+             Self::push(
+                 &mut bodies,
+                 module,
++                registry,
+                 *id,
+                 ReportBodyOwner {
+                     id: *id,
+@@ -237,20 +241,33 @@
+         // Every additional event card must join an actual retained body, and
+         // each original event word belongs to this complete source generation.
+         for (id, card) in &module.irules_event_bodies {
+-            let body = module
+-                .procedures
+-                .get(id)
+-                .or_else(|| module.body_lowering(id))?;
+-            if !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry) {
++            let body = super::trace_capture_option(
++                module
++                    .procedures
++                    .get(id)
++                    .or_else(|| module.body_lowering(id)),
++                "bodies.event-procedure",
++            )?;
++            if super::trace_capture_gate(
++                !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry),
++                "bodies.event-procedure-match",
++            ) {
+                 return None;
+             }
+-            let row = bodies.iter_mut().find(|row| row.id == *id)?;
+-            if row.original_word.is_some() {
++            let row = super::trace_capture_option(
++                bodies.iter_mut().find(|row| row.id == *id),
++                "bodies.event-row",
++            )?;
++            if super::trace_capture_gate(row.original_word.is_some(), "bodies.event-duplicate-word")
++            {
+                 return None;
+             }
+             row.original_word = Some(
+-                card.event_word(&module.source, module.native_lexer_config(), registry)?
+-                    .clone(),
++                super::trace_capture_option(
++                    card.event_word(&module.source, module.native_lexer_config(), registry),
++                    "bodies.event-word",
++                )?
++                .clone(),
+             );
+         }
+         // A reference into a definition scope must join this same complete
+@@ -392,6 +409,7 @@
+     fn push(
+         bodies: &mut Vec<ReportBodyOwner>,
+         module: &crate::ir::Module,
++        registry: &CommandRegistry,
+         id: ProcedureId,
+         body: ReportBodyOwner,
+     ) -> Option<()> {
+@@ -414,12 +432,74 @@
+                 .source
+                 .bytes()
+                 .get(body.declaration.as_range())
+-                .is_none_or(|source| source.is_empty())
++                .is_none_or(|source| {
++                    source.is_empty()
++                        && Self::empty_installed_body(module, registry, id, &body).is_none()
++                })
+         {
+             return None;
+         }
+         bodies.push(body);
+         Some(())
++    }
++
++    // An installed body retains its evaluated value extent. Admit an empty
++    // extent only through the same current source card used by the Lowerer.
++    fn empty_installed_body(
++        module: &crate::ir::Module,
++        registry: &CommandRegistry,
++        id: ProcedureId,
++        body: &ReportBodyOwner,
++    ) -> Option<()> {
++        (matches!(
++            body.role,
++            ReportBodyRole::Unit(ProcedureBodyKind::Installed)
++        ) && body.id == id
++            && body.declaration_purpose.is_none()
++            && body.declaration.is_empty())
++        .then_some(())?;
++        let positioned = module
++            .retained_source_bindings
++            .as_ref()?
++            .positioned_for_module(module, registry)?;
++        let root = positioned.source_origin()?;
++        let allocation = module.installed_procedure_body_units.get(&id)?;
++        let held = module.body_units.get(&id)?;
++        let source = body.source.as_ref()?;
++        let namespace = body.namespace.as_deref()?;
++        (module.procedure_ids.owns(id)
++            && held.body_kind == ProcedureBodyKind::Installed
++            && held.span == body.declaration
++            && held.declaration_site == body.site
++            && Some(held.body_offset) == body.body_offset
++            && held.body_offset == body.declaration.start()
++            && held
++                .body
++                .executed_source
++                .as_ref()
++                .is_some_and(|actual| Arc::ptr_eq(actual, source))
++            && held.body.namespace_context.as_deref() == Some(namespace)
++            && body.site.as_ref() == Some(&allocation.site)
++            && allocation.matches_source_declaration_image(&module.source, allocation.site.offset)
++            && Arc::ptr_eq(&allocation.site.source, root)
++            && Arc::ptr_eq(&source.origin, root)
++            && source.text.bytes().is_empty()
++            && matches!(
++                &source.mapping,
++                crate::command_binding::ExecutedScriptMapping::Contiguous { base }
++                    if *base == body.declaration.start()
++            ))
++        .then_some(())?;
++        positioned
++            .installed_procedure_body_units()
++            .into_iter()
++            .any(|card| {
++                card.allocation == *allocation
++                    && card.source == **source
++                    && Arc::ptr_eq(&card.source.origin, root)
++                    && card.namespace_key == *namespace
++            })
++            .then_some(())
+     }
+ 
+     #[cfg(test)]
+@@ -604,6 +684,88 @@
+         assert!(report.current_capture().is_ok());
+         assert!(!report.current_capture().unwrap().bodies.bodies.is_empty());
+         report
++    }
++
++    #[test]
++    fn empty_installed_body_requires_the_current_complete_source_card() {
++        let source = "proc retained {} {}\nretained EXTRA";
++        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let capture = left
++            .current_capture()
++            .expect("genuine empty installed body");
++        assert_eq!(
++            left.compare(&right),
++            super::super::AnalysisReportComparison::Equal
++        );
++        let module = &capture.bodies.prepared.unit().ir_module;
++        let registry = left.analysis.resolved_registry().unwrap();
++        let (&id, _) = module.installed_procedure_body_units.iter().next().unwrap();
++        let make = |module: &crate::ir::Module| {
++            ReportBodyInventory::procedure(
++                module,
++                id,
++                module.body_units.get(&id).unwrap(),
++                ReportBodyRole::Unit(ProcedureBodyKind::Installed),
++            )
++            .unwrap()
++        };
++        let body = make(module);
++        assert_eq!(body.declaration, Span::empty(18));
++        assert!(body.declaration_purpose.is_none());
++        assert!(ReportBodyInventory::empty_installed_body(module, registry, id, &body).is_some());
++        let mut missing = module.clone();
++        missing.installed_procedure_body_units.remove(&id);
++        assert!(ReportBodyInventory::empty_installed_body(&missing, registry, id, &body).is_none());
++        let mut changed = module.clone();
++        changed.body_units.get_mut(&id).unwrap().body_offset += 1;
++        assert!(
++            ReportBodyInventory::empty_installed_body(&changed, registry, id, &make(&changed))
++                .is_none()
++        );
++        let mut no_owner = module.clone();
++        no_owner.retained_source_bindings = None;
++        assert!(
++            ReportBodyInventory::empty_installed_body(&no_owner, registry, id, &body).is_none()
++        );
++        let foreign = &right
++            .current_capture()
++            .unwrap()
++            .bodies
++            .prepared
++            .unit()
++            .ir_module;
++        assert!(ReportBodyInventory::empty_installed_body(foreign, registry, id, &body).is_none());
++        let mut wrong_role = make(module);
++        wrong_role.role = ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration);
++        assert!(
++            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_role).is_none()
++        );
++        let mut wrong_purpose = make(module);
++        wrong_purpose.declaration_purpose = Some(ReportDeclarationPurpose::AllocatedSource);
++        assert!(
++            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_purpose)
++                .is_none()
++        );
++        let mut wrong_span = make(module);
++        wrong_span.declaration = Span::empty(0);
++        assert!(
++            ReportBodyInventory::empty_installed_body(module, registry, id, &wrong_span).is_none()
++        );
++        let mut out_of_range = make(module);
++        out_of_range.declaration = Span::empty(u32::try_from(source.len() + 1).unwrap());
++        assert!(
++            ReportBodyInventory::push(&mut Vec::new(), module, registry, id, out_of_range)
++                .is_none()
++        );
++        let mut bodies = Vec::new();
++        assert!(
++            ReportBodyInventory::push(&mut bodies, module, registry, id, make(module)).is_some()
++        );
++        assert!(
++            ReportBodyInventory::push(&mut bodies, module, registry, id, make(module)).is_none()
++        );
++        assert_eq!(bodies.len(), 1);
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -28,6 +28,16 @@
+ //! invalid IP-address literal at its def site (W124), the racy `static::`
+ //! cross-event flow (IRULE4005), and the flow-sensitive renamed-command
+ //! check (W128).
++
++fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++        eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// Bounded normal stores with literal values are diagnostic candidates.
+ /// This does not establish that their possible compiler failure can be erased.
+@@ -1686,16 +1696,37 @@
+         ir_proc: Option<&crate::ir::Procedure>,
+         ctx: &ReadBeforeSetCtx<'_>,
+     ) -> HashSet<String> {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++            eprintln!(
++                "RBS_READ_OWNER stage=entry procedure={} dynamic_writes={} body_kind={:?}",
++                ir_proc.is_some(),
++                fu.dynamic_names.writes,
++                ir_proc.map(|procedure| procedure.body_kind)
++            );
++        }
+         let exists_guards = collect_existence_guards(
+             fu,
+             self.analysis_context().commands(),
+             fu.source_lexer_config(),
+         );
+         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++            eprintln!(
++                "RBS_READ_OWNER stage=physical_missing count={}",
++                w210_min.len()
++            );
++        }
+         let original_image = tcl_lexer::SourceImage::document(&self.source);
+         let declared_flow = ir_proc.and_then(|procedure| {
+-            function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
+-                .or_else(|| {
++            rbs_read_option(
++                "function_flow",
++                function_declaration_flow(fu, procedure, &original_image, &self.profile_registry()),
++            )
++            .or_else(|| {
++                rbs_read_option(
++                    "fallback_read_flow",
+                     self.head_identities
+                         .source_bindings()
+                         .original_procedure_read_flow(
+@@ -1703,8 +1734,9 @@
+                             &original_image,
+                             &self.profile_registry(),
+                             self.result.resolved_input.as_ref()?,
+-                        )
+-                })
++                        ),
++                )
++            })
+         });
+ 
+         // Unknown writers retire physical absence proofs. Declaration advice
+@@ -1712,22 +1744,28 @@
+         // body does not close an unknown option grammar or caller frame.
+         if fu.dynamic_names.writes {
+             let potential = ir_proc.and_then(|procedure| {
+-                let declaration = crate::script_binds::authored_procedure_read_advice(
+-                    &original_image,
+-                    procedure,
+-                    &self.result,
+-                    &self.analysis_context(),
++                let declaration = rbs_read_option(
++                    "read_recipe",
++                    crate::script_binds::authored_procedure_read_advice(
++                        &original_image,
++                        procedure,
++                        &self.result,
++                        &self.analysis_context(),
++                    ),
+                 )?;
+-                self.declaration_potential_read_spans(
+-                    fu,
+-                    procedure,
+-                    &declaration,
+-                    declared_flow.as_ref()?,
+-                    ctx,
+-                    DeclaredReadProofs {
+-                        exists_guards: &exists_guards,
+-                        proved: &w210_min,
+-                    },
++                rbs_read_option(
++                    "potential_reads",
++                    self.declaration_potential_read_spans(
++                        fu,
++                        procedure,
++                        &declaration,
++                        rbs_read_option("required_flow", declared_flow.as_ref())?,
++                        ctx,
++                        DeclaredReadProofs {
++                            exists_guards: &exists_guards,
++                            proved: &w210_min,
++                        },
++                    ),
+                 )
+             });
+             suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+@@ -1740,14 +1778,17 @@
+         // An authored declaration can delimit a diagnostic read without
+         // overriding unknown writes, accepted operand layouts or SSA origins.
+         let declaration_advice = ir_proc.and_then(|procedure| {
+-            crate::script_binds::authored_procedure_read_advice(
+-                &procedure.body.executed_source.as_ref().map_or_else(
+-                    || tcl_lexer::SourceImage::document(&self.source),
+-                    |source| source.origin.source_image().clone(),
++            rbs_read_option(
++                "read_recipe",
++                crate::script_binds::authored_procedure_read_advice(
++                    &procedure.body.executed_source.as_ref().map_or_else(
++                        || tcl_lexer::SourceImage::document(&self.source),
++                        |source| source.origin.source_image().clone(),
++                    ),
++                    procedure,
++                    &self.result,
++                    &self.analysis_context(),
+                 ),
+-                procedure,
+-                &self.result,
+-                &self.analysis_context(),
+             )
+         });
+ 
+@@ -1769,16 +1810,19 @@
+         );
+ 
+         let potential = declaration_advice.as_ref().and_then(|declaration| {
+-            self.declaration_potential_read_spans(
+-                fu,
+-                ir_proc?,
+-                declaration,
+-                declared_flow.as_ref()?,
+-                ctx,
+-                DeclaredReadProofs {
+-                    exists_guards: &exists_guards,
+-                    proved: &w210_min,
+-                },
++            rbs_read_option(
++                "potential_reads",
++                self.declaration_potential_read_spans(
++                    fu,
++                    ir_proc?,
++                    declaration,
++                    rbs_read_option("required_flow", declared_flow.as_ref())?,
++                    ctx,
++                    DeclaredReadProofs {
++                        exists_guards: &exists_guards,
++                        proved: &w210_min,
++                    },
++                ),
+             )
+         });
+         suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+@@ -1977,6 +2021,12 @@
+         }
+         let mut reads = std::collections::HashMap::new();
+         for (name, &span) in report.declared_absence_warning_occurrences() {
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++                eprintln!(
++                    "RBS_READ_OWNER stage=declared_absence_candidate name={name} span={span:?}"
++                );
++            }
+             if !declaration.owns(span)
+                 || !report.allows_declared_absence_warning(name, span)
+                 || proved.contains_key(name)
+--- a/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs
+@@ -1409,6 +1409,9 @@
+         "set x 5\nlindex $x 0\n",
+         "set l hello\nforeach y $l { puts $y }\n",
+     ] {
++        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
++            eprintln!("SH21 stage=original-scalar-fixture source={src:?}");
++        }
+         assert!(
+             !fires(src, D, "S100") && !fires(src, D, "S101"),
+             "FP-SH-21: scalar literal used as a list must not shimmer; got {:?}",
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -6597,6 +6597,26 @@
+ }
+ 
+ impl SourceOutcomes {
++    #[cfg(debug_assertions)]
++    fn trace_original_namespace_child(&self, stage: &str, offset: u32) {
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_NAMESPACE_CHILD stage={stage} site={offset} normal={} complete={} native_complete={} conditional_complete={} unclosed={:?} routes={:?}",
++                self.normal.is_some(),
++                self.normal_completion.is_some(),
++                self.native_normal_completion.is_some(),
++                self.conditional_normal_completion.is_some(),
++                self.normal
++                    .as_ref()
++                    .map(|normal| normal.unclosed_command_world),
++                self.abrupt
++                    .iter()
++                    .map(|(route, _)| route)
++                    .collect::<Vec<_>>(),
++            );
++        }
++    }
++
+     fn retain_closed_native_handler_completion(
+         &mut self,
+         native: SourceNativeInvocation<'_>,
+@@ -9107,6 +9127,14 @@
+         self.retain_original_argument_syntax_commands(base, segments, state, context);
+         let mut outcomes = SourceOutcomes::normal(state);
+         outcomes.retain_complete_normal_evaluation();
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_NAMESPACE_CHILD_ENTRY base={base} entry_error={} segments={}",
++                entry_error.is_some(),
++                segments.len()
++            );
++        }
+         if let Some(abrupt) = entry_error {
+             outcomes.add_abrupt(
+                 tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+@@ -9115,6 +9143,8 @@
+                 abrupt,
+             );
+         }
++        #[cfg(debug_assertions)]
++        outcomes.trace_original_namespace_child("script_entry", base);
+         for (index, segment) in segments.iter().enumerate() {
+             let Some(mut continuing) = outcomes.normal.take() else {
+                 if !outcomes.abrupt.is_empty() {
+@@ -9169,6 +9199,8 @@
+                     command.abrupt.len(),
+                 );
+             }
++            #[cfg(debug_assertions)]
++            command.trace_original_namespace_child("command_return", segment.span.start());
+             outcomes.join(&command);
+             outcomes.normal_completion = outcomes
+                 .normal_completion
+@@ -9176,6 +9208,8 @@
+             outcomes.complete_procedure_return = outcomes
+                 .complete_procedure_return
+                 .filter(|_| prefix_complete.is_some());
++            #[cfg(debug_assertions)]
++            outcomes.trace_original_namespace_child("script_join", segment.span.start());
+             let Some(continuing) = &outcomes.normal else {
+                 continue;
+             };
+@@ -9213,6 +9247,19 @@
+         #[cfg(any(test, debug_assertions))]
+         let preflight_timing = root_owner_work::Timing::at(root_owner_work::Query::Preflight);
+         let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_NAMESPACE_CHILD_PREFLIGHT base={base} bytes={} failure={} possible_error={} native_entry_unavailable={} compiler_sites={} child_regions={} preview_depth={}",
++                image.len(),
++                assessment.failure.is_some(),
++                assessment.possible_error,
++                assessment.native_entry_unavailable,
++                assessment.compiler_invocations.len(),
++                assessment.compiled_children.len(),
++                self.declaration_preview_depth,
++            );
++        }
+         #[cfg(any(test, debug_assertions))]
+         drop(preflight_timing);
+         #[cfg(any(test, debug_assertions))]
+--- a/rust/tcl-compiler/src/command_binding/compiled_preflight.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_preflight.rs
+@@ -295,6 +295,12 @@
+             .as_ref()
+             .is_some_and(|own| own != required)
+         {
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++                eprintln!(
++                    "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={base} reason=math_table_prerequisite_mismatch"
++                );
++            }
+             scanner.possible_error = true;
+         } else {
+             failure.math_table_prerequisite = Some(required.clone());
+@@ -430,7 +436,17 @@
+ }
+ 
+ impl CompilerTraversal<'_> {
++    #[cfg_attr(debug_assertions, track_caller)]
+     fn require_provider(&mut self) {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={} previous_possible_error={} caller={}",
++                self.chunk.offset,
++                self.possible_error,
++                std::panic::Location::caller(),
++            );
++        }
+         self.possible_error = true;
+         self.locals = None;
+     }
+--- a/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs
+@@ -911,7 +911,16 @@
+                     }
+                 }
+                 tcl_lexer::ExecutablePart::Expression { .. }
+-                | tcl_lexer::ExecutablePart::ParseError(_) => self.possible_error = true,
++                | tcl_lexer::ExecutablePart::ParseError(_) => {
++                    #[cfg(debug_assertions)]
++                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++                        eprintln!(
++                            "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={} reason=expression_or_parse_error_part span={:?}",
++                            self.chunk.offset, component.span
++                        );
++                    }
++                    self.possible_error = true;
++                }
+                 tcl_lexer::ExecutablePart::Text(_) => {}
+             }
+         }
+--- a/rust/tcl-compiler/src/command_binding/compiler_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/compiler_inventory.rs
+@@ -6,6 +6,33 @@
+ 
+ use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
+ use std::collections::BTreeMap;
++
++fn trace_compiler_syntax_option<T>(
++    stage: &str,
++    offset: Option<u32>,
++    value: Option<T>,
++) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!(
++            "ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} present={}",
++            value.is_some()
++        );
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset);
++    value
++}
++
++fn trace_compiler_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!("ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} value={value}");
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset);
++    value
++}
+ 
+ /// Runtime entry knowledge for one exact original command allocation.
+ #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+@@ -231,6 +258,134 @@
+ }
+ 
+ impl SourceCommandBindings {
++    /// Read every retained compiler row without assigning a body or selecting it.
++    #[cfg(debug_assertions)]
++    pub(super) fn trace_original_body_compiler_census(
++        &self,
++        body: crate::ir::ProcedureId,
++        span: tcl_lexer::Span,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        registry: &tcl_registry::CommandRegistry,
++    ) {
++        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
++            return;
++        }
++        let in_span =
++            |site: &CommandAllocationSite| span.start() <= site.offset && site.offset < span.end();
++        let trace_visit = |kind: &str,
++                           site: &CommandAllocationSite,
++                           ordinal: usize,
++                           visit: &SourceCompilerInvocation| {
++            let original = visit.original_words.as_ref();
++            let policy = visit.policy.as_ref();
++            let point = visit
++                .table
++                .state
++                .baseline
++                .metadata_context
++                .source_analysis_input();
++            eprintln!(
++                "ORIGINAL_BODY_COMPILER_ROW body={body:?} kind={kind} offset={} ordinal={ordinal} head={:?} root={} numeric_in_body={} selection={:?} admitted={} structured={} words={} word_count={:?} word_offset={:?} config={:?} config_matches={} source_site={} table_source={} registry={} metadata_matches={} compiler={} dialect={} protocol={} realm={}",
++                site.offset,
++                visit.head,
++                self.root_origin
++                    .as_ref()
++                    .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
++                in_span(site),
++                visit.selection,
++                visit.admitted.is_some(),
++                visit.structured.is_some(),
++                original.is_some(),
++                original.map(|words| words.words.len()),
++                original
++                    .and_then(|words| words.words.first().map(|word| word.source().span.start())),
++                original.map(|words| words.config),
++                original.is_some_and(|words| words.config == input.lexer_config()),
++                original.is_some_and(|words| words.site == *site),
++                visit.table.state.current_source_origin.as_ref() == Some(&site.source),
++                visit.table.state.baseline.registry_snapshot
++                    == Some(registry.snapshot().semantic_key()),
++                point == Some(input),
++                policy.is_some_and(|policy| policy.compiler.is_some()),
++                policy.is_some_and(|policy| policy.words.is_some()),
++                policy.is_some_and(|policy| policy.source_protocol.is_some()),
++                policy.is_some_and(|policy| policy.realm == visit.table.realm),
++            );
++        };
++        eprintln!(
++            "ORIGINAL_BODY_COMPILER_CENSUS body={body:?} span={span:?} direct_sites={} child_regions={} analysis_owner={}",
++            self.compiler_invocations.len(),
++            self.compiled_children.len(),
++            self.original_analysis_owner.is_some(),
++        );
++        for (site, visits) in &self.compiler_invocations {
++            for (ordinal, visit) in visits.iter().enumerate() {
++                trace_visit("direct", site, ordinal, visit);
++            }
++        }
++        for (site, children) in &self.compiled_children {
++            for (ordinal, child) in children.iter().enumerate() {
++                let parent_current = match child.parent.as_ref() {
++                    super::compiled_invocation::SourceNativeCompilerAdmission::Inline(parent) => {
++                        self.compiler_invocations
++                            .get(&parent.compilation_site)
++                            .is_some_and(|parents| {
++                                !parents.is_empty()
++                                    && parents.iter().all(|visit| {
++                                        visit.admitted.as_deref() == Some(child.parent.as_ref())
++                                            && visit.namespace_key == child.parent_namespace_key
++                                            && visit.table == child.table
++                                    })
++                            })
++                    }
++                    super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => false,
++                };
++                eprintln!(
++                    "ORIGINAL_BODY_COMPILER_CHILD body={body:?} offset={} ordinal={ordinal} source_root={} enclosing_offset={} enclosing_root={} parent_offset={:?} parent_root={} base={} bytes={} mapping={:?} script_root={} origin_matches_site={} provider_required={} parent_current={parent_current} sites={}",
++                    site.offset,
++                    self.root_origin
++                        .as_ref()
++                        .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
++                    child.enclosing.offset,
++                    self.root_origin
++                        .as_ref()
++                        .is_some_and(|root| Arc::ptr_eq(root, &child.enclosing.source)),
++                    match child.parent.as_ref() {
++                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
++                            parent,
++                        ) => Some(parent.compilation_site.offset),
++                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => None,
++                    },
++                    match child.parent.as_ref() {
++                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
++                            parent,
++                        ) => self
++                            .root_origin
++                            .as_ref()
++                            .is_some_and(|root| Arc::ptr_eq(root, &parent.compilation_site.source)),
++                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) =>
++                            false,
++                    },
++                    child.script.base(),
++                    child.script.text.len(),
++                    child.script.mapping,
++                    self.root_origin
++                        .as_ref()
++                        .is_some_and(|root| Arc::ptr_eq(root, &child.script.origin)),
++                    child.script.origin == site.source,
++                    self.compilation_provider_required
++                        .contains(&child.enclosing),
++                    child.compiler_visits.len(),
++                );
++                for (command, visits) in child.compiler_visits.iter() {
++                    for (ordinal, visit) in visits.iter().enumerate() {
++                        trace_visit("raw-child", command, ordinal, visit);
++                    }
++                }
++            }
++        }
++    }
++
+     /// Every actual compiler observation retains its own immutable table and
+     /// namespace. Missing unanimous Native attachment cannot select one table.
+     pub(crate) fn original_compiler_syntax_alternatives<'a>(
+@@ -239,25 +394,72 @@
+         input: &crate::analyser::ResolvedAnalysisInput,
+         registry: &tcl_registry::CommandRegistry,
+     ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {
+-        let owner = self.original_analysis_owner.as_ref()?;
+-        let binding = tokens.source_binding.as_ref()?;
+-        if tokens.synthetic.is_some()
+-            || !tokens.original_words_match_argv_text()
+-            || input.has_logical_source_name_context()
+-            || input.has_hosted_source_name_context()
+-            || !binding
+-                .original_analysis_owner
+-                .as_ref()
+-                .is_some_and(|actual| Arc::ptr_eq(actual, owner))
+-            || owner.metadata.source_analysis_input() != Some(input)
+-            || !self
+-                .matches_original_source_image(owner.source.source_image(), input.lexer_config())
++        let offset = tokens
++            .words()
++            .first()
++            .map(|word| word.source().span.start());
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++            eprintln!(
++                "ORIGINAL_COMPILER_SYNTAX_QUERY offset={offset:?} words={:?} argv_texts={:?} input_config={:?}",
++                tokens.words(),
++                tokens.argv_texts,
++                input.lexer_config()
++            );
++        }
++        let owner = trace_compiler_syntax_option(
++            "analysis_owner",
++            offset,
++            self.original_analysis_owner.as_ref(),
++        )?;
++        let binding =
++            trace_compiler_syntax_option("source_binding", offset, tokens.source_binding.as_ref())?;
++        if trace_compiler_syntax_flag("synthetic", offset, tokens.synthetic.is_some())
++            || trace_compiler_syntax_flag(
++                "word_text_mismatch",
++                offset,
++                !tokens.original_words_match_argv_text(),
++            )
++            || trace_compiler_syntax_flag(
++                "logical_context",
++                offset,
++                input.has_logical_source_name_context(),
++            )
++            || trace_compiler_syntax_flag(
++                "hosted_context",
++                offset,
++                input.has_hosted_source_name_context(),
++            )
++            || trace_compiler_syntax_flag(
++                "binding_owner_mismatch",
++                offset,
++                !binding
++                    .original_analysis_owner
++                    .as_ref()
++                    .is_some_and(|actual| Arc::ptr_eq(actual, owner)),
++            )
++            || trace_compiler_syntax_flag(
++                "owner_input_mismatch",
++                offset,
++                owner.metadata.source_analysis_input() != Some(input),
++            )
++            || trace_compiler_syntax_flag(
++                "source_image_mismatch",
++                offset,
++                !self.matches_original_source_image(
++                    owner.source.source_image(),
++                    input.lexer_config(),
++                ),
++            )
+         {
+             return None;
+         }
+         let site = CommandAllocationSite {
+             source: Arc::clone(&owner.source),
+-            offset: tokens.words().first()?.source().span.start(),
++            offset: trace_compiler_syntax_option("head_word", offset, tokens.words().first())?
++                .source()
++                .span
++                .start(),
+         };
+         let mut visits = self
+             .compiler_invocations
+@@ -265,16 +467,34 @@
+             .into_iter()
+             .flatten()
+             .collect::<Vec<_>>();
+-        if let Some(children) = self.original_child_compiler_visits(&site) {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++            eprintln!(
++                "ORIGINAL_COMPILER_SYNTAX_DIRECT offset={offset:?} visits={}",
++                visits.len()
++            );
++        }
++        if let Some(children) = trace_compiler_syntax_option(
++            "child_visits",
++            offset,
++            self.original_child_compiler_visits(&site),
++        ) {
+             visits.extend(children);
+         }
+-        if visits.is_empty() {
++        if trace_compiler_syntax_flag("visits_empty", offset, visits.is_empty()) {
+             return None;
+         }
+         visits
+             .into_iter()
+-            .map(|visit| {
+-                original_compiler_syntax_alternative(visit, owner, tokens, input, registry)
++            .enumerate()
++            .map(|(ordinal, visit)| {
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++                    eprintln!("ORIGINAL_COMPILER_SYNTAX_VISIT offset={offset:?} ordinal={ordinal} words={:?}", visit.original_words.as_ref().map(|words| &words.words));
++                }
++                #[cfg(not(debug_assertions))]
++                let _ = ordinal;
++                trace_compiler_syntax_option("alternative", offset, original_compiler_syntax_alternative(visit, owner, tokens, input, registry))
+             })
+             .collect()
+     }
+@@ -287,40 +507,85 @@
+     input: &crate::analyser::ResolvedAnalysisInput,
+     registry: &tcl_registry::CommandRegistry,
+ ) -> Option<OriginalCompilerArgumentSyntax<'a>> {
+-    let original = visit.original_words.as_ref()?;
+-    let policy = visit.policy.as_ref()?;
+-    policy.compiler?;
+-    policy.source_protocol?;
+-    let dialect = policy.words?;
++    let offset = tokens
++        .words()
++        .first()
++        .map(|word| word.source().span.start());
++    let original = trace_compiler_syntax_option(
++        "visit.original_words",
++        offset,
++        visit.original_words.as_ref(),
++    )?;
++    let policy = trace_compiler_syntax_option("visit.policy", offset, visit.policy.as_ref())?;
++    trace_compiler_syntax_option("visit.compiler", offset, policy.compiler)?;
++    trace_compiler_syntax_option("visit.source_protocol", offset, policy.source_protocol)?;
++    let dialect = trace_compiler_syntax_option("visit.word_dialect", offset, policy.words)?;
+     let snapshot = &visit.table;
+-    if original.words.as_ref() != tokens.words()
+-        || original.config != input.lexer_config()
+-        || owner.config != original.config
+-        || !Arc::ptr_eq(&owner.source, &original.site.source)
+-        || snapshot.state.current_source_origin.as_ref() != Some(&original.site.source)
+-        || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
+-        || policy.realm != snapshot.realm
+-    {
++    if trace_compiler_syntax_flag(
++        "visit.word_vector_mismatch",
++        offset,
++        original.words.as_ref() != tokens.words(),
++    ) || trace_compiler_syntax_flag(
++        "visit.input_config_mismatch",
++        offset,
++        original.config != input.lexer_config(),
++    ) || trace_compiler_syntax_flag(
++        "visit.owner_config_mismatch",
++        offset,
++        owner.config != original.config,
++    ) || trace_compiler_syntax_flag(
++        "visit.origin_mismatch",
++        offset,
++        !Arc::ptr_eq(&owner.source, &original.site.source),
++    ) || trace_compiler_syntax_flag(
++        "visit.snapshot_origin_mismatch",
++        offset,
++        snapshot.state.current_source_origin.as_ref() != Some(&original.site.source),
++    ) || trace_compiler_syntax_flag(
++        "visit.registry_mismatch",
++        offset,
++        snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key()),
++    ) || trace_compiler_syntax_flag(
++        "visit.realm_mismatch",
++        offset,
++        policy.realm != snapshot.realm,
++    ) {
+         return None;
+     }
+-    original.site.source.original_lexical_command(
+-        &original.words,
+-        original.site.offset,
+-        original.config,
++    trace_compiler_syntax_option(
++        "visit.original_lexical_command",
++        offset,
++        original.site.source.original_lexical_command(
++            &original.words,
++            original.site.offset,
++            original.config,
++        ),
+     )?;
+-    let point = snapshot
+-        .state
+-        .baseline
+-        .metadata_context
+-        .source_analysis_input()?;
+-    if point != input && point != &input.for_nested_source() {
++    let point = trace_compiler_syntax_option(
++        "visit.point_input",
++        offset,
++        snapshot
++            .state
++            .baseline
++            .metadata_context
++            .source_analysis_input(),
++    )?;
++    if trace_compiler_syntax_flag(
++        "visit.point_input_mismatch",
++        offset,
++        point != input && point != &input.for_nested_source(),
++    ) {
+         return None;
+     }
+-    let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+-        registry,
+-        point,
+-        original.config,
+-        Some(point.unit_profile()),
++    let metadata = trace_compiler_syntax_option(
++        "visit.metadata",
++        offset,
++        crate::registry_invocation::InvocationMetadataContext::for_source_input(
++            registry,
++            point,
++            original.config,
++            Some(point.unit_profile()),
++        ),
+     )?;
+     Some(OriginalCompilerArgumentSyntax {
+         metadata,
+--- a/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
+@@ -423,6 +423,23 @@
+         );
+         assert!(binding.compiler_lookup_state.is_none());
+         assert!(bindings.final_state.baseline.native_entry.is_none());
++        assert!(SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry).is_none());
++
++        // An abrupt root keeps this independent declaration survey Conditional.
++        // Its genuine source carrier must satisfy the scoped provider contract.
++        let (bindings, tokens, registry) = inventory("; return ROOT");
++        crate::command_binding::trace_original_g4_owner(
++            "scoped-lifecycle-conditional",
++            &bindings,
++            &tokens,
++        );
++        let binding = tokens.source_binding.as_ref().unwrap();
++        assert_eq!(
++            binding.runtime_reachability(),
++            super::super::SourceRuntimeReachability::Conditional
++        );
++        assert!(binding.lookup_state.is_some());
++        assert!(bindings.final_state.baseline.native_entry.is_none());
+         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)
+             .expect("original scoped provider");
+         for phase in [
+--- a/rust/tcl-compiler/src/command_binding/original_body_namespace.rs
++++ b/rust/tcl-compiler/src/command_binding/original_body_namespace.rs
+@@ -283,6 +283,25 @@
+             })
+             .collect();
+         OriginalBodyGeometryFixture { input, tokens }
++    }
++
++    fn original_conditional_body_fixture(source: &str, environment: &str) -> OriginalBodyFixture {
++        let wrapped = format!("proc conditional_body {{condition}} {{{source}}}; return ROOT");
++        let mut fixture = original_fixture(&wrapped, environment);
++        let start = wrapped.find(source).unwrap();
++        fixture.tokens = source
++            .match_indices("if ")
++            .map(|(relative, _)| {
++                let offset = u32::try_from(start + relative).unwrap();
++                let binding = fixture.bindings.invocation_at_source("", offset);
++                let (_, mut tokens) = binding
++                    .original_recorded_command()
++                    .expect("genuine original conditional body command");
++                tokens.source_binding = Some(binding);
++                tokens
++            })
++            .collect();
++        fixture
+     }
+ 
+     fn body_at(
+@@ -448,6 +467,48 @@
+                     "{environment}: {parent:?}"
+                 );
+                 assert!(binding.native_structured_preparation.is_none());
++                // A missing condition errors before selecting or entering this
++                // body; the original namespace syntax above remains independent.
++                assert!(
++                    fixture
++                        .bindings
++                        .executed_script_namespace_context(&body)
++                        .is_none()
++                );
++                let site = binding.invocation_site().unwrap();
++                assert!(fixture.bindings.executed_script_at(site, 1).is_none());
++                assert!(
++                    fixture
++                        .bindings
++                        .executed_script_entry_namespace_context_at(site, 1, &body)
++                        .is_none()
++                );
++                assert!(
++                    fixture
++                        .bindings
++                        .compiled_script_namespace_context(&body)
++                        .is_none()
++                );
++            }
++            // Unknown but bound formal input reaches genuine conditional body
++            // observations. It does not infer entry from the lexical body word.
++            let fixture = original_conditional_body_fixture(source, environment);
++            let config = fixture.input.lexer_config();
++            let expected = SourceNamespaceKey::from_native_entry(
++                fixture.entry.native_entry.as_deref().unwrap(),
++            )
++            .unwrap();
++            assert_eq!(fixture.tokens.len(), 2);
++            for parent in &fixture.tokens {
++                let binding = parent.source_binding.as_ref().unwrap();
++                assert_eq!(
++                    binding.runtime_reachability(),
++                    super::super::SourceRuntimeReachability::Conditional
++                );
++                let body_config = binding
++                    .original_lexer_config_for_tokens(parent)
++                    .expect("actual original nested body configuration");
++                let body = body_at(parent, 2, body_config);
+                 // The readonly namespace query also retains conditional body
+                 // syntax; it does not assert that the body entered. Pin that
+                 // distinction against the exact actual-entry query.
+@@ -462,14 +523,13 @@
+                 assert!(
+                     fixture
+                         .bindings
+-                        .executed_script_entry_namespace_context_at(site, 1, &body)
+-                        .is_none()
+-                );
+-                assert!(
+-                    fixture
+-                        .bindings
+-                        .compiled_script_namespace_context(&body)
+-                        .is_none()
++                        .entered_scripts
++                        .values()
++                        .flat_map(|arguments| arguments.values().flatten())
++                        .any(|observation| observation.source == body
++                            && observation.frame.is_none()
++                            && observation.namespace.is_none()
++                            && observation.conditional_namespace.as_ref() == Some(&expected))
+                 );
+             }
+             let mut lowerer =
+--- a/rust/tcl-compiler/src/command_binding/retained_source.rs
++++ b/rust/tcl-compiler/src/command_binding/retained_source.rs
+@@ -418,6 +418,18 @@
+             .and_then(|binding| binding.original_analysis_owner.as_ref())
+             .zip(self.positioned.original_analysis_owner.as_ref())
+             .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original))
++    }
++
++    #[cfg(debug_assertions)]
++    pub(crate) fn trace_original_body_compiler_census(
++        &self,
++        body: crate::ir::ProcedureId,
++        span: tcl_lexer::Span,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        registry: &CommandRegistry,
++    ) {
++        self.positioned
++            .trace_original_body_compiler_census(body, span, input, registry);
+     }
+ 
+     /// Independent source-syntax observations from the original compiler.
+--- a/rust/tcl-compiler/src/command_binding/source_point_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_point_entry.rs
+@@ -249,6 +249,7 @@
+             .get_or_init(|| {
+                 let state = &self.payload.snapshot.state;
+                 let seed = super::source_transition_advice::OriginalSourceTransitionSeed {
++                    analysis_owner: Some(Arc::clone(&self.payload.owner)),
+                     origin: Arc::clone(&self.payload.site.source),
+                     config: self.input().lexer_config(),
+                     baseline: Arc::clone(&state.baseline),
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -3092,6 +3092,7 @@
+         self.matches_original_source_image(origin.source_image(), config)
+             .then_some(())?;
+         Some(OriginalSourceTransitionSeed {
++            analysis_owner: self.original_analysis_owner().cloned(),
+             origin: Arc::clone(origin),
+             config,
+             baseline: Arc::clone(&self.final_state.baseline),
+@@ -3162,13 +3163,26 @@
+ 
+ /// Immutable whole-source issuer shared by independently requested purposes.
+ /// The baseline retains its real metadata and entry; no body becomes a new entry.
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Debug, Clone)]
+ pub(super) struct OriginalSourceTransitionSeed {
++    // Only the Normal-source query uses this attachment. Source syntax reuse
++    // keeps its existing four-field seed equality below.
++    pub(super) analysis_owner: Option<Arc<super::OriginalSourceAnalysisOwner>>,
+     pub(super) origin: Arc<super::SourceOriginId>,
+     pub(super) config: LexerConfig,
+     pub(super) baseline: Arc<super::BindingBaseline>,
+     pub(super) logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+ }
++impl PartialEq for OriginalSourceTransitionSeed {
++    fn eq(&self, other: &Self) -> bool {
++        self.origin == other.origin
++            && self.config == other.config
++            && self.baseline == other.baseline
++            && self.logical_input == other.logical_input
++    }
++}
++impl Eq for OriginalSourceTransitionSeed {}
++
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum OriginalSourceCataloguePurpose {
+     CompleteProgram,
+@@ -3447,6 +3461,7 @@
+         .source
+         .original_lexical_command(tokens.words(), site.offset, row.config)?;
+     let seed = OriginalSourceTransitionSeed {
++        analysis_owner: Some(Arc::clone(owner)),
+         origin: Arc::clone(&site.source),
+         config: row.config,
+         baseline: Arc::clone(baseline),
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
+@@ -464,9 +464,16 @@
+         context: &ContextRegistry,
+         bindings: &crate::command_binding::SourceCommandBindings,
+     ) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
+-        if bindings
+-            .source_origin()
+-            .is_none_or(|origin| !Arc::ptr_eq(origin, &self.origin))
++        // Equal-source memo reuse has a distinct analysis attachment even when
++        // the original source origin and baseline allocations are shared.
++        if self
++            .analysis_owner
++            .as_ref()
++            .zip(bindings.original_analysis_owner())
++            .is_none_or(|(expected, actual)| !Arc::ptr_eq(expected, actual))
++            || bindings
++                .source_origin()
++                .is_none_or(|origin| !Arc::ptr_eq(origin, &self.origin))
+             || !Arc::ptr_eq(&bindings.final_state.baseline, &self.baseline)
+             || !bindings.matches_original_source_image(self.origin.source_image(), self.config)
+         {
+@@ -566,8 +573,32 @@
+             seed.normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
+                 .is_some()
+         );
++        assert!(!Arc::ptr_eq(
++            bindings.original_analysis_owner().unwrap(),
++            other.original_analysis_owner().unwrap(),
++        ));
++        assert_eq!(seed, other.original_source_transition_seed().unwrap());
+         assert!(
+             seed.normal_source_outcome_graph(input.borrowed_context_registry(), other)
++                .is_none()
++        );
++        let mut missing_owner = bindings.clone();
++        missing_owner.original_analysis_owner = None;
++        assert!(
++            seed.normal_source_outcome_graph(input.borrowed_context_registry(), &missing_owner)
++                .is_none()
++        );
++        let mut foreign_owner = bindings.clone();
++        foreign_owner.original_analysis_owner = other.original_analysis_owner().cloned();
++        assert!(
++            seed.normal_source_outcome_graph(input.borrowed_context_registry(), &foreign_owner)
++                .is_none()
++        );
++        let mut missing_seed_owner = seed.clone();
++        missing_seed_owner.analysis_owner = None;
++        assert!(
++            missing_seed_owner
++                .normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
+                 .is_none()
+         );
+         // Keep every other actual point field unchanged; only replace its
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -4730,6 +4730,20 @@
+         Ok((materialised_body, body_is_dynamic, body_offset))
+     }
+ 
++    // Preserve each queried Option; this reports source ownership only.
++    fn trace_report_event_option<T>(value: Option<T>, stage: &str) -> Option<T> {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
++            eprintln!(
++                "REPORT_EVENT_SOURCE stage={stage} available={}",
++                value.is_some()
++            );
++        }
++        #[cfg(not(test))]
++        let _ = stage;
++        value
++    }
++
+     /// Event geometry comes from the retained declaration and original words.
+     /// A captured/derived argument cannot borrow a displayed event spelling.
+     fn original_when_event_word(
+@@ -4739,52 +4753,65 @@
+         image: &tcl_lexer::SourceImage,
+     ) -> Option<tcl_lexer::NativeWord> {
+         use tcl_registry::events::IrulesTopLevelDeclaration;
+-        let candidates = self
+-            .source_bindings
+-            .as_ref()?
+-            .deferred_rule_declaration_candidates(seg.span.start())?;
+-        let indices = candidates
+-            .iter()
+-            .map(|candidate| {
+-                let IrulesTopLevelDeclaration::Event { event: name, .. } = &candidate.declaration
+-                else {
+-                    return None;
+-                };
+-                if name != event
+-                    || !candidate.target.registry_backed
+-                    || !candidate.target.prepended.is_empty()
+-                {
+-                    return None;
+-                }
+-                let symbol = self
+-                    .registry
+-                    .get(&candidate.target.command)?
+-                    .defines_symbol?;
+-                (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
+-                    .then_some(usize::from(symbol.name_arg) + 1)
+-            })
+-            .collect::<Option<Vec<_>>>()?;
+-        let &index = indices.first()?;
++        let bindings =
++            Self::trace_report_event_option(self.source_bindings.as_ref(), "source-bindings")?;
++        let candidates = Self::trace_report_event_option(
++            bindings.deferred_rule_declaration_candidates(seg.span.start()),
++            "deferred-candidates",
++        )?;
++        let indices = Self::trace_report_event_option(
++            candidates
++                .iter()
++                .map(|candidate| {
++                    let IrulesTopLevelDeclaration::Event { event: name, .. } =
++                        &candidate.declaration
++                    else {
++                        return None;
++                    };
++                    if name != event
++                        || !candidate.target.registry_backed
++                        || !candidate.target.prepended.is_empty()
++                    {
++                        return None;
++                    }
++                    let symbol = self
++                        .registry
++                        .get(&candidate.target.command)?
++                        .defines_symbol?;
++                    (symbol.kind == tcl_registry::DefinedSymbolKind::Event)
++                        .then_some(usize::from(symbol.name_arg) + 1)
++                })
++                .collect::<Option<Vec<_>>>(),
++            "event-indices",
++        )?;
++        let &index = Self::trace_report_event_option(indices.first(), "event-index")?;
+         if indices.iter().any(|candidate| *candidate != index) {
+             return None;
+         }
+         let tokens = self.cmd_tokens(seg);
+-        let words = crate::registry_invocation::original_native_compiler_words(
+-            image,
+-            &tokens.word_exprs,
+-            seg.span.start(),
+-            self.config,
++        let words = Self::trace_report_event_option(
++            crate::registry_invocation::original_native_compiler_words(
++                image,
++                &tokens.word_exprs,
++                seg.span.start(),
++                self.config,
++            ),
++            "original-words",
+         )?;
+-        let word = words.get(index)?;
+-        if let Some(context) = self.invocation_metadata_context()
++        let word = Self::trace_report_event_option(words.get(index), "original-event-word")?;
++        if let Some(context) =
++            Self::trace_report_event_option(self.invocation_metadata_context(), "metadata-context")
+             && context
+                 .source_analysis_input()
+                 .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+         {
+-            let metadata = crate::registry_invocation::original_hosted_source_registry_metadata(
+-                self.registry,
+-                context,
+-                &tokens,
++            let metadata = Self::trace_report_event_option(
++                crate::registry_invocation::original_hosted_source_registry_metadata(
++                    self.registry,
++                    context,
++                    &tokens,
++                ),
++                "hosted-metadata",
+             )?;
+             if metadata.shape().original_words() != words.as_slice()
+                 || !candidates
+@@ -4798,10 +4825,16 @@
+                     word,
+                     metadata.shape().original_head().policy(),
+                 );
+-            return input
+-                .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName)?
+-                .eq_ignore_ascii_case(event.as_bytes())
+-                .then(|| word.clone());
++            let literal = Self::trace_report_event_option(
++                input.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName),
++                "hosted-event-units",
++            )?;
++            return Self::trace_report_event_option(
++                literal
++                    .eq_ignore_ascii_case(event.as_bytes())
++                    .then(|| word.clone()),
++                "hosted-event-value",
++            );
+         }
+         let dialect = self.invocation_dialect?;
+         let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+--- a/rust/tcl-compiler/src/optimiser/mod.rs
++++ b/rust/tcl-compiler/src/optimiser/mod.rs
+@@ -412,17 +412,43 @@
+         let bindings = self.ir_module.and_then(|module| {
+             crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)
+         });
++        #[cfg(debug_assertions)]
++        let row24_trace = std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
++            && self.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
++        #[cfg(debug_assertions)]
++        if row24_trace {
++            eprintln!("CCG24 stage=eval-bindings present={}", bindings.is_some());
++        }
+         let policy = self.fold_policy();
+         let context = policy.preparation_context()?;
++        #[cfg(debug_assertions)]
++        if row24_trace {
++            eprintln!("CCG24 stage=eval-preparation-context");
++        }
+         let preparation = bindings.and_then(|bindings| bindings.preparation_for_context(&context));
+         let preparation = preparation?;
++        #[cfg(debug_assertions)]
++        if row24_trace {
++            eprintln!("CCG24 stage=eval-preparation");
++        }
+         crate::expression_rewrite::expression_result_protocol_equivalence(
+             &preparation.witness,
+             None,
+         )
+         .ok()?;
++        #[cfg(debug_assertions)]
++        if row24_trace {
++            eprintln!("CCG24 stage=eval-result-equivalence");
++        }
+         let numeric = bindings
+             .and_then(|bindings| bindings.source_numeric_operands(&context, self.registry?));
++        #[cfg(debug_assertions)]
++        if row24_trace {
++            eprintln!(
++                "CCG24 stage=eval-numeric-operands count={}",
++                numeric.as_ref().map_or(0, |(_, operands)| operands.len())
++            );
++        }
+         // A literal replacement requires result-object equivalence as well as
+         // input conversion proof. Partial arithmetic rewrites use the separate
+         // expression equivalence gate and retain a numeric result operation.
+--- a/rust/tcl-compiler/src/optimiser/propagation.rs
++++ b/rust/tcl-compiler/src/optimiser/propagation.rs
+@@ -76,6 +76,18 @@
+ use super::{Optimisation, PassContext};
+ use tcl_syntax::naming::whole_scalar_variable_reference_name;
+ 
++// Off-tree diagnostic only: exact original row24, enabled explicitly.
++macro_rules! ccg_row24_trace {
++    ($ctx:expr, $($arg:tt)*) => {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
++            && $ctx.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n"
++        {
++            eprintln!($($arg)*);
++        }
++    };
++}
++
+ /// Run the propagation pass across every function.
+ ///
+ /// Emits one `O100` per single-token `$var` argument that SCCP
+@@ -85,6 +97,7 @@
+ /// …) are skipped because substituting them as a bare word
+ /// would change the command's interpretation.
+ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
++    ccg_row24_trace!(ctx, "CCG24 stage=pass-enter");
+     run_oo_method_folds(ctx, cu);
+     // The top-level body's extra escaping set (names some other procedure
+     // declares `global`) — shared by the top-level constants projection
+@@ -1688,6 +1701,11 @@
+     namespace: &str,
+     extra_escaping: &std::collections::HashSet<String>,
+ ) {
++    ccg_row24_trace!(
++        ctx,
++        "CCG24 stage=function-enter authored={}",
++        script.is_authored_source()
++    );
+     // A computed or opaque variable name can rewrite any local binding under
+     // a spelling absent from SCCP's per-name lattice.  Do not let its raw
+     // constants reach the text-level folds below: unlike
+@@ -1695,6 +1713,7 @@
+     // dynamic-name guard and could emit (for example) `return 1` after a
+     // depth-capped nested substitution may have run `set $name 2`.
+     if fu.dynamic_barrier_blocks_value_motion() {
++        ccg_row24_trace!(ctx, "CCG24 stage=dynamic-barrier");
+         // A local value-motion barrier withdraws lattice substitutions. Exact
+         // original invocation receipts still independently authorise closed
+         // constant calls that consume no such local facts.
+@@ -1720,6 +1739,11 @@
+     // (below) is the one exception that still needs its own check, since it
+     // runs an independent def-use-chain scan that never consults `fu.sccp`.
+     let constants = constants_with_builtin_folds(ctx, cu, fu, extra_escaping);
++    ccg_row24_trace!(
++        ctx,
++        "CCG24 stage=projected-constants x={:?}",
++        constants.get("x")
++    );
+     let numeric = operand_types(fu);
+     walk_script(ctx, cu, script, &constants, Some(&numeric), namespace, 0);
+ }
+@@ -1825,6 +1849,12 @@
+     namespace: &str,
+     depth: u32,
+ ) {
++    ccg_row24_trace!(
++        ctx,
++        "CCG24 stage=walk-script depth={depth} authored={} count={}",
++        script.is_authored_source(),
++        script.statements.len()
++    );
+     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
+         return;
+     }
+@@ -1866,6 +1896,11 @@
+             tokens,
+             ..
+         } => {
++            ccg_row24_trace!(
++                ctx,
++                "CCG24 stage=call span={span:?} tokens={}",
++                tokens.is_some()
++            );
+             if let Some(t) = tokens {
+                 visit_call_tokens(ctx, cu, t, constants);
+                 visit_call_cmd_subst_folds(ctx, cu, t, constants, namespace, *span);
+@@ -2583,8 +2618,11 @@
+     call: &crate::word_subst::LiftedCall,
+     constants: &std::collections::HashMap<String, String>,
+ ) -> Option<String> {
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-enter constants={constants:?}");
+     let registry = ctx.registry?;
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-registry");
+     let input = cu.ir_module.source_metadata_input.as_ref()?;
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-input");
+     let context = PassContext {
+         source: ctx.source,
+         dialect: ctx.dialect,
+@@ -2593,6 +2631,7 @@
+         ..PassContext::default()
+     };
+     let actual = context.retained_metadata_context()?;
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-metadata");
+     let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(input.unit_profile());
+     parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
+     let expression = crate::word_subst::lifted_source_expressions_with_metadata_context(
+@@ -2604,6 +2643,7 @@
+     )
+     .into_iter()
+     .find(|expression| expression.span == call.span)?;
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-lifted-match");
+     let env = constants
+         .iter()
+         .map(|(name, value)| {
+@@ -2614,6 +2654,7 @@
+         })
+         .collect();
+     let value = context.eval_expression_at(&expression.expression, &env, call.span)?;
++    ccg_row24_trace!(ctx, "CCG24 stage=expr-evaluated");
+     crate::tcl_expr_eval::format_tcl_value_with_policy(&value, context.fold_policy())
+         .and_then(|value| render_propagation_word(&value, input.lexer_config()))
+ }
+@@ -2633,8 +2674,10 @@
+         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+     let metadata = actual.as_deref().map(Into::into);
+     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
+-        return;
+-    };
++        ccg_row24_trace!(ctx, "CCG24 stage=no-retained-calls");
++        return;
++    };
++    ccg_row24_trace!(ctx, "CCG24 stage=retained-calls count={}", calls.len());
+     for word in tokens.words() {
+         let crate::ir::WordExpr::CommandSubstitution { spelling, source } = word else {
+             continue;
+@@ -2672,9 +2715,9 @@
+             ));
+             continue;
+         }
+-        if retained_expr_call(call, registry, metadata)
+-            && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants)
+-        {
++        let is_expr = retained_expr_call(call, registry, metadata);
++        ccg_row24_trace!(ctx, "CCG24 stage=expr-call selected={is_expr}");
++        if is_expr && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants) {
+             ctx.report(Optimisation::new(
+                 DiagCode::O101,
+                 "Fold constant expression",
+--- a/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs
++++ b/rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs
+@@ -2,6 +2,7 @@
+ //! Hosted conditional source roles share the catalogue barrier owner.
+ 
+ use super::VendorRegistryInvocationShape;
++use super::source_structure::{trace_remote_source_flag, trace_remote_source_option};
+ use crate::command_binding::{VendorCatalogueSourceCandidate, VendorCatalogueSourceObligation};
+ use crate::ir::CommandTokens;
+ use crate::signature_scan::vendor_name::VendorSourceNameInput;
+@@ -59,18 +60,38 @@
+     head: &VendorSourceNameInput,
+     original: &[NativeWord],
+ ) -> Option<OriginalConditionalVendorRegistryMetadata> {
+-    let shape = super::vendor_registry_invocation_shape(context, head, original)?;
+-    let catalogue = tokens
+-        .source_binding
+-        .as_ref()?
+-        .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands())?;
+-    if catalogue.command() != shape.command() {
++    let shape = trace_remote_source_option(
++        "metadata.shape",
++        tokens.argv.first().map(|word| word.start()),
++        super::vendor_registry_invocation_shape(context, head, original),
++    )?;
++    let catalogue = trace_remote_source_option(
++        "metadata.lookup_catalogue",
++        tokens.argv.first().map(|word| word.start()),
++        tokens
++            .source_binding
++            .as_ref()?
++            .original_vendor_catalogue_source_candidate(tokens, head, original, context.commands()),
++    )?;
++    if !trace_remote_source_flag(
++        "metadata.catalogue_shape",
++        tokens.argv.first().map(|word| word.start()),
++        catalogue.command() == shape.command(),
++    ) {
+         return None;
+     }
+-    let authored_barriers = super::vendor_source_barriers::capture(
+-        context,
+-        head,
+-        &catalogue.selected_source_prefixes()?,
++    let authored_barriers = trace_remote_source_option(
++        "metadata.prefix_barriers",
++        tokens.argv.first().map(|word| word.start()),
++        super::vendor_source_barriers::capture(
++            context,
++            head,
++            &trace_remote_source_option(
++                "metadata.prefixes",
++                tokens.argv.first().map(|word| word.start()),
++                catalogue.selected_source_prefixes(),
++            )?,
++        ),
+     )?;
+     Some(OriginalConditionalVendorRegistryMetadata {
+         catalogue,
+@@ -86,38 +107,76 @@
+     tokens: &CommandTokens,
+     occurrence: &crate::signature_scan::vendor_name::VendorSourceNameOccurrence,
+ ) -> Option<OriginalConditionalVendorRegistryMetadata> {
+-    let binding = tokens.source_binding.as_ref()?;
+-    let body = occurrence.body_origin();
+-    if body.is_some_and(|body| !body.matches_child(context, occurrence.original_words())) {
++    let binding = trace_remote_source_option(
++        "metadata.binding",
++        tokens.argv.first().map(|word| word.start()),
++        tokens.source_binding.as_ref(),
++    )?;
++    let body = trace_remote_source_option(
++        "metadata.body_origin",
++        tokens.argv.first().map(|word| word.start()),
++        occurrence.body_origin(),
++    );
++    if body.is_some_and(|body| {
++        !trace_remote_source_flag(
++            "metadata.current_child",
++            tokens.argv.first().map(|word| word.start()),
++            body.matches_child(context, occurrence.original_words()),
++        )
++    }) {
+         return None;
+     }
+-    let mut metadata = if binding.lookup_state.is_some() {
++    let mut metadata = if trace_remote_source_flag(
++        "metadata.lookup_state_present",
++        tokens.argv.first().map(|word| word.start()),
++        binding.lookup_state.is_some(),
++    ) {
+         // A present lookup cannot fall through when its own cell classifier
+         // rejects the descriptor. The script receipt supplies no other table.
+-        original_conditional_vendor_registry_metadata(
+-            context,
+-            tokens,
+-            occurrence.name_input(),
+-            occurrence.original_words(),
++        trace_remote_source_option(
++            "metadata.lookup_classifier",
++            tokens.argv.first().map(|word| word.start()),
++            original_conditional_vendor_registry_metadata(
++                context,
++                tokens,
++                occurrence.name_input(),
++                occurrence.original_words(),
++            ),
+         )?
+     } else {
+         let body = body?;
+-        let shape = super::vendor_registry_invocation_shape(
+-            context,
+-            occurrence.name_input(),
+-            occurrence.original_words(),
+-        )?;
+-        let catalogue = binding.original_vendor_script_body_source_candidate(
+-            context,
+-            tokens,
+-            &shape,
+-            occurrence.site(),
+-            body,
+-        )?;
+-        let authored_barriers = super::vendor_source_barriers::capture(
+-            context,
+-            occurrence.name_input(),
+-            &catalogue.selected_source_prefixes()?,
++        let shape = trace_remote_source_option(
++            "metadata.shape",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_registry_invocation_shape(
++                context,
++                occurrence.name_input(),
++                occurrence.original_words(),
++            ),
++        )?;
++        let catalogue = trace_remote_source_option(
++            "metadata.body_catalogue",
++            tokens.argv.first().map(|word| word.start()),
++            binding.original_vendor_script_body_source_candidate(
++                context,
++                tokens,
++                &shape,
++                occurrence.site(),
++                body,
++            ),
++        )?;
++        let authored_barriers = trace_remote_source_option(
++            "metadata.prefix_barriers",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_source_barriers::capture(
++                context,
++                occurrence.name_input(),
++                &trace_remote_source_option(
++                    "metadata.prefixes",
++                    tokens.argv.first().map(|word| word.start()),
++                    catalogue.selected_source_prefixes(),
++                )?,
++            ),
+         )?;
+         OriginalConditionalVendorRegistryMetadata {
+             catalogue,
+@@ -127,11 +186,19 @@
+     };
+     if let Some(body) = body {
+         metadata.catalogue.retain_script_body_origin(body);
+-        metadata.authored_barriers = super::vendor_source_barriers::capture_in_script_body(
+-            context,
+-            occurrence.name_input(),
+-            &metadata.catalogue.selected_source_prefixes()?,
+-            body,
++        metadata.authored_barriers = trace_remote_source_option(
++            "metadata.body_barriers",
++            tokens.argv.first().map(|word| word.start()),
++            super::vendor_source_barriers::capture_in_script_body(
++                context,
++                occurrence.name_input(),
++                &trace_remote_source_option(
++                    "metadata.retained_prefixes",
++                    tokens.argv.first().map(|word| word.start()),
++                    metadata.catalogue.selected_source_prefixes(),
++                )?,
++                body,
++            ),
+         )?;
+     }
+     Some(metadata)
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -134,6 +134,81 @@
+     // docs/design/analysis/name-resolution-proofs/original-immutable-image-geometry.md
+     (image.channel() == tcl_lexer::SourceChannel::Document && image.bytes() == source.as_bytes())
+         .then(|| image.clone())
++}
++
++fn trace_original_source_role_option<T>(
++    stage: &str,
++    offset: Option<u32>,
++    value: Option<T>,
++) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!(
++            "ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present={}",
++            value.is_some()
++        );
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset);
++    value
++}
++
++fn trace_original_source_role_words(
++    stage: &str,
++    offset: Option<u32>,
++    value: Option<OriginalRegistryWords>,
++) -> Option<OriginalRegistryWords> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        if let Some(words) = value.as_ref() {
++            let source = match &words.source {
++                OriginalRegistrySource::Selected => "Selected",
++                OriginalRegistrySource::Scoped(_) => "Scoped",
++                OriginalRegistrySource::DefinitionMember(_) => "DefinitionMember",
++                OriginalRegistrySource::SourceTransitions(_) => "SourceTransitions",
++                OriginalRegistrySource::ProducedPrefix(_) => "ProducedPrefix",
++                OriginalRegistrySource::Conditional(_) => "Conditional",
++                OriginalRegistrySource::ConditionalNativeSource(_) => "ConditionalNativeSource",
++                OriginalRegistrySource::Vendor(_) => "Vendor",
++            };
++            eprintln!(
++                "ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present=true source={source} command={:?} roles={:?} operands_preserve_lookup={}",
++                words.command, words.roles, words.operands_preserve_source_lookup
++            );
++        } else {
++            eprintln!("ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present=false");
++        }
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset);
++    value
++}
++
++#[cfg(debug_assertions)]
++fn trace_original_source_role_binding(
++    stage: &str,
++    offset: Option<u32>,
++    binding: Option<&crate::command_binding::SourceInvocationBinding>,
++) {
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        if let Some(binding) = binding {
++            eprintln!(
++                "ORIGINAL_SOURCE_ROLE_BINDING stage={stage} offset={offset:?} targets={:?} unknown={} absent={} runtime_state={} compiler_state={} compiler_admission={:?}",
++                binding
++                    .targets
++                    .iter()
++                    .map(|target| (&target.command, target.registry_backed, &target.kind))
++                    .collect::<Vec<_>>(),
++                binding.unknown,
++                binding.may_be_absent,
++                binding.lookup_state.is_some(),
++                binding.compiler_lookup_state.is_some(),
++                binding.native_compilation_admission
++            );
++        } else {
++            eprintln!("ORIGINAL_SOURCE_ROLE_BINDING stage={stage} offset={offset:?} present=false");
++        }
++    }
+ }
+ 
+ /// Original document/workspace assistance at the unchanged complete call.
+@@ -163,6 +238,12 @@
+         segment,
+     );
+     realm.stamp_original_tokens(&mut tokens);
++    #[cfg(debug_assertions)]
++    trace_original_source_role_binding(
++        "declared",
++        segment.argv.first().map(|word| word.span.start()),
++        tokens.source_binding.as_ref(),
++    );
+     let offset = segment.argv.first()?.span.start();
+     let original = crate::registry_invocation::original_native_compiler_words(
+         &image,
+@@ -171,10 +252,23 @@
+         config,
+     )?;
+     let binding = tokens.source_binding.as_ref()?;
+-    let selected = binding
+-        .original_declared_source_selection(&tokens, input, &original)
+-        .or_else(|| realm.original_authored_declared_source_selection(input, &tokens, &original))?;
+-    crate::command_binding::OriginalDeclaredCommandWords::from_selected(selected, input)
++    let selected = trace_original_source_role_option(
++        "declared.point",
++        Some(offset),
++        binding.original_declared_source_selection(&tokens, input, &original),
++    )
++    .or_else(|| {
++        trace_original_source_role_option(
++            "declared.authored",
++            Some(offset),
++            realm.original_authored_declared_source_selection(input, &tokens, &original),
++        )
++    })?;
++    trace_original_source_role_option(
++        "declared.words",
++        Some(offset),
++        crate::command_binding::OriginalDeclaredCommandWords::from_selected(selected, input),
++    )
+ }
+ 
+ /// Fresh readonly source grammar with its own complete editing input and
+@@ -1939,7 +2033,11 @@
+     }
+     let config = analysis.body_lexer_config?;
+     let realm = analysis.retained_command_realm()?;
+-    let image = retained_document_image(source, realm, config);
++    let image = trace_remote_source_option(
++        "source.image",
++        segment.argv.first().map(|word| word.span.start()),
++        retained_document_image(source, realm, config),
++    );
+     #[cfg(test)]
+     trace_original_child_guard(
+         "source.image",
+@@ -1947,7 +2045,11 @@
+         image.is_some(),
+     );
+     let image = image?;
+-    let matches_image = analysis.matches_original_source_image(&image, config);
++    let matches_image = trace_remote_source_flag(
++        "source.image_config",
++        segment.argv.first().map(|word| word.span.start()),
++        analysis.matches_original_source_image(&image, config),
++    );
+     #[cfg(test)]
+     trace_original_child_guard(
+         "source.image_config",
+@@ -1963,7 +2065,29 @@
+         segment,
+     );
+     realm.stamp_original_tokens(&mut tokens);
+-    let blocked = realm.original_source_registry_barrier(&input.context_registry(), &tokens);
++    #[cfg(debug_assertions)]
++    trace_original_source_role_binding(
++        "registry",
++        segment.argv.first().map(|word| word.span.start()),
++        tokens.source_binding.as_ref(),
++    );
++    let blocked = trace_remote_source_flag(
++        "source.blocked",
++        segment.argv.first().map(|word| word.span.start()),
++        realm.original_source_registry_barrier(&input.context_registry(), &tokens),
++    );
++    trace_remote_source_flag(
++        "source.binding",
++        segment.argv.first().map(|word| word.span.start()),
++        tokens.source_binding.is_some(),
++    );
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!(
++            "ORIGINAL_SOURCE_ROLE_ROUTE stage=registry.barrier offset={:?} blocked={blocked}",
++            segment.argv.first().map(|word| word.span.start())
++        );
++    }
+     #[cfg(test)]
+     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+         let offset = segment.argv.first().map(|word| word.span.start());
+@@ -1976,7 +2100,11 @@
+     if let Some(parent) = parent {
+         return original_definition_member_registry_words(source, analysis, segment, parent);
+     }
+-    if let Some(scoped) = original_scoped_registry_words(source, analysis, segment) {
++    if let Some(scoped) = trace_original_source_role_words(
++        "registry.scoped",
++        segment.argv.first().map(|word| word.span.start()),
++        original_scoped_registry_words(source, analysis, segment),
++    ) {
+         return Some(scoped);
+     }
+     if realm
+@@ -1987,13 +2115,21 @@
+         return logical_source_registry_words(source, realm, input, segment);
+     }
+     if !analysis.has_original_vendor_source_names()
+-        && let Some(selected) = selected_registry_words(source, analysis, segment, registry)
++        && let Some(selected) = trace_original_source_role_words(
++            "registry.selected",
++            segment.argv.first().map(|word| word.span.start()),
++            selected_registry_words(source, analysis, segment, registry),
++        )
+     {
+         return Some(selected);
+     }
+     let offset = segment.argv.first()?.span.start();
+     if analysis.has_original_vendor_source_names() {
+-        let (metadata, _) = selected_vendor_registry_words_at(source, analysis, offset)?;
++        let (metadata, _) = trace_remote_source_option(
++            "source.selected_vendor",
++            Some(offset),
++            selected_vendor_registry_words_at(source, analysis, offset),
++        )?;
+         let context = analysis.resolved_input.as_ref()?.context_registry();
+         let mut tokens = crate::ir::CommandTokens::from_segmented(
+             &tcl_lexer::SourceMap::from_image(&image),
+@@ -2005,27 +2141,51 @@
+             .stamp_original_tokens(&mut tokens);
+         // The shared builder authenticates the complete original native
+         // vector. Resegmentation's comment trivia is not word identity.
+-        return original_vendor_registry_words(&context, &tokens, metadata);
++        return trace_remote_source_option(
++            "source.vendor_words",
++            Some(offset),
++            original_vendor_registry_words(&context, &tokens, metadata),
++        );
+     }
+     let metadata = analysis
+         .original_conditional_registry_metadata_in_source(&image, config, offset)
+         .cloned();
+     let context = analysis.resolved_input.as_ref()?.context_registry();
+-    native_source_registry_words(
+-        source,
+-        config,
+-        analysis.retained_command_realm()?,
+-        &context,
+-        segment,
+-        metadata,
++    trace_original_source_role_words(
++        "registry.native",
++        Some(offset),
++        native_source_registry_words(
++            source,
++            config,
++            analysis.retained_command_realm()?,
++            &context,
++            segment,
++            metadata,
++        ),
+     )
+     .or_else(|| {
+-        let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
+-        source_transition_words_with_segment(source, config, &context, segment, advice)
++        let advice = trace_original_source_role_option(
++            "registry.prefix_advice",
++            Some(offset),
++            realm.original_source_prefix_catalogue_advice(input, &tokens),
++        )?;
++        trace_original_source_role_words(
++            "registry.prefix_words",
++            Some(offset),
++            source_transition_words_with_segment(source, config, &context, segment, advice),
++        )
+     })
+     .or_else(|| {
+-        let advice = realm.original_member_source_catalogue_advice(input, &tokens)?;
+-        source_transition_words_with_segment(source, config, &context, segment, advice)
++        let advice = trace_original_source_role_option(
++            "registry.member_advice",
++            Some(offset),
++            realm.original_member_source_catalogue_advice(input, &tokens),
++        )?;
++        trace_original_source_role_words(
++            "registry.member_words",
++            Some(offset),
++            source_transition_words_with_segment(source, config, &context, segment, advice),
++        )
+     })
+ }
+ 
+@@ -2223,16 +2383,24 @@
+     // naming.diagnostic.original-package-source-advice
+     // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+     if let Some(region) = analysis.original_source_region.as_ref()
+-        && !region.owns_original_command_at(analysis, offset)
++        && !trace_remote_source_flag(
++            "at.region_owns",
++            Some(offset),
++            region.owns_original_command_at(analysis, offset),
++        )
+     {
+         return None;
+     }
+-    let config = analysis.body_lexer_config?;
++    let config = trace_remote_source_option("at.config", Some(offset), analysis.body_lexer_config)?;
+     let image = tcl_lexer::SourceImage::document(source);
+-    analysis
+-        .matches_original_source_image(&image, config)
+-        .then_some(())?;
+-    let realm = analysis.retained_command_realm()?;
++    trace_remote_source_flag(
++        "at.image_config",
++        Some(offset),
++        analysis.matches_original_source_image(&image, config),
++    )
++    .then_some(())?;
++    let realm =
++        trace_remote_source_option("at.realm", Some(offset), analysis.retained_command_realm())?;
+     let binding = realm.invocation_at_source("", offset);
+     let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+         segment
+@@ -2249,7 +2417,42 @@
+             .next()?
+     };
+     (segment.argv.first()?.span.start() == offset).then_some(())?;
+-    source_registry_words(source, analysis, &segment)
++    trace_remote_source_option(
++        "at.source_registry_words",
++        Some(offset),
++        source_registry_words(source, analysis, &segment),
++    )
++}
++
++/// Diagnostic identity: reports only the original query result.
++#[inline]
++pub(super) fn trace_remote_source_option<T>(
++    stage: &str,
++    offset: Option<u32>,
++    value: Option<T>,
++) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
++        eprintln!(
++            "REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} present={}",
++            value.is_some()
++        );
++    }
++    #[cfg(not(test))]
++    let _ = (stage, offset);
++    value
++}
++
++/// Diagnostic identity: reports only the original predicate result.
++#[inline]
++pub(super) fn trace_remote_source_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
++        eprintln!("REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} value={value}");
++    }
++    #[cfg(not(test))]
++    let _ = (stage, offset);
++    value
+ }
+ 
+ /// Original whole words under a positively retained Logical source input.
+@@ -3954,10 +4157,16 @@
+         }
+         return logical_source_registry_words(source, realm, input, segment);
+     }
+-    let Some(metadata) =
+-        native_source_metadata(source, config, realm, context, segment, retained_metadata)
+-    else {
+-        return source_transition_registry_words(source, config, realm, context, segment);
++    let Some(metadata) = trace_original_source_role_option(
++        "native.metadata",
++        segment.argv.first().map(|word| word.span.start()),
++        native_source_metadata(source, config, realm, context, segment, retained_metadata),
++    ) else {
++        return trace_original_source_role_words(
++            "native.transition_fallback",
++            segment.argv.first().map(|word| word.span.start()),
++            source_transition_registry_words(source, config, realm, context, segment),
++        );
+     };
+     conditional_source_registry_words(source, config, realm, context, segment, metadata)
+ }
+@@ -3982,19 +4191,33 @@
+         return None;
+     }
+ 
+-    let metadata = if let Some(metadata) = retained_metadata {
++    let metadata = if let Some(metadata) = trace_original_source_role_option(
++        "metadata.retained",
++        segment.argv.first().map(|word| word.span.start()),
++        retained_metadata,
++    ) {
+         metadata
+     } else {
+         let candidate = tokens
+             .source_binding
+             .as_ref()
+             .and_then(|binding| {
+-                binding.original_catalogue_source_candidate_from_tokens(&tokens, registry)
++                trace_original_source_role_option(
++                    "metadata.point_candidate",
++                    segment.argv.first().map(|word| word.span.start()),
++                    binding.original_catalogue_source_candidate_from_tokens(&tokens, registry),
++                )
+             })
+             .or_else(|| {
+-                realm
+-                    .source_bindings_ref()
+-                    .original_future_source_catalogue_candidate(&image, config, &tokens, registry)
++                trace_original_source_role_option(
++                    "metadata.future_candidate",
++                    segment.argv.first().map(|word| word.span.start()),
++                    realm
++                        .source_bindings_ref()
++                        .original_future_source_catalogue_candidate(
++                            &image, config, &tokens, registry,
++                        ),
++                )
+             });
+         candidate.and_then(|candidate| {
+             super::conditional_metadata::original_catalogue_registry_metadata(context, candidate)
+@@ -4694,14 +4917,15 @@
+     }
+     // Choose the actual innermost original command before querying metadata.
+     // Missing/blocked inner metadata cannot borrow an outer script's roles.
+-    let occurrence = selected?;
++    let occurrence =
++        trace_remote_source_option("vendor.selected_occurrence", Some(cursor), selected)?;
+     let words = occurrence.original_words();
+     let start = words.first()?.span().start();
+     let end = words.last()?.span().end();
+     let text = source.get(start as usize..end as usize)?;
+     let mut commands =
+         crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+-    if commands.len() != 1 {
++    if !trace_remote_source_flag("vendor.single_command", Some(cursor), commands.len() == 1) {
+         return None;
+     }
+     let command = commands.pop()?;
+@@ -4711,8 +4935,12 @@
+         &command,
+     );
+     realm.stamp_original_tokens(&mut tokens);
+-    let metadata = crate::registry_invocation::original_vendor_occurrence_registry_metadata(
+-        &context, &tokens, occurrence,
++    let metadata = trace_remote_source_option(
++        "vendor.occurrence_metadata",
++        Some(cursor),
++        crate::registry_invocation::original_vendor_occurrence_registry_metadata(
++            &context, &tokens, occurrence,
++        ),
+     )?;
+     Some((metadata, command))
+ }
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs
+@@ -21,6 +21,41 @@
+     request: crate::compilation_unit::OriginalOptimiserSourceOrigin,
+     retained: Arc<crate::command_binding::RetainedSourceModuleBindings>,
+     commands: Vec<CommandTokens>,
++}
++
++fn trace_body_syntax_option<T>(
++    stage: &str,
++    offset: Option<u32>,
++    alternative: Option<usize>,
++    value: Option<T>,
++) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!(
++            "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} present={}",
++            value.is_some()
++        );
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset, alternative);
++    value
++}
++
++fn trace_body_syntax_flag(
++    stage: &str,
++    offset: Option<u32>,
++    alternative: Option<usize>,
++    value: bool,
++) -> bool {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++        eprintln!(
++            "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} value={value}"
++        );
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = (stage, offset, alternative);
++    value
+ }
+ 
+ impl OriginalBodySyntaxInventory {
+@@ -75,6 +110,8 @@
+             {
+                 continue;
+             }
++            #[cfg(debug_assertions)]
++            retained.trace_original_body_compiler_census(*id, procedure.span, input, registry);
+             let mut scripts = vec![&procedure.body];
+             while let Some(script) = scripts.pop() {
+                 if inventory.commands.len() > 65_536 {
+@@ -114,6 +151,21 @@
+                 registry,
+                 retained.owns_original_analysis_attachment(tokens),
+             );
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
++                eprintln!(
++                    "ORIGINAL_BODY_SYNTAX_NESTED_CARRIERS parent_offset={:?} nested_offsets={:?}",
++                    tokens
++                        .words()
++                        .first()
++                        .map(|word| word.source().span.start()),
++                    tokens
++                        .nested_bindings
++                        .iter()
++                        .map(|(offset, _)| *offset)
++                        .collect::<Vec<_>>(),
++                );
++            }
+             let native = binding
+                 .original_compiler_argument_syntax(tokens, &self.input, registry)
+                 .is_some_and(|syntax| {
+@@ -159,7 +211,14 @@
+         analysis: &AnalysisResult,
+         segment: &crate::segmenter::SegmentedCommand,
+     ) -> Option<&CommandTokens> {
+-        self.matches_analysis(source, analysis).then_some(())?;
++        let offset = segment.argv.first().map(|word| word.span.start());
++        trace_body_syntax_flag(
++            "tokens.current_analysis",
++            offset,
++            None,
++            self.matches_analysis(source, analysis),
++        )
++        .then_some(())?;
+         let parsed = CommandTokens::from_segmented(
+             &self.image.source_map(),
+             self.input.lexer_config(),
+@@ -171,8 +230,14 @@
+                 && tokens.argv_texts == parsed.argv_texts
+                 && tokens.original_words_match_argv_text()
+         });
+-        let first = matching.next()?;
+-        matching.all(|other| other == first).then_some(first)
++        let first = trace_body_syntax_option("tokens.match", offset, None, matching.next())?;
++        trace_body_syntax_flag(
++            "tokens.unanimous_match",
++            offset,
++            None,
++            matching.all(|other| other == first),
++        )
++        .then_some(first)
+     }
+ 
+     /// Selected words from this actual body token vector. This remains separate
+@@ -252,39 +317,72 @@
+         analysis: &AnalysisResult,
+         segment: &crate::segmenter::SegmentedCommand,
+     ) -> Option<OriginalRegistryWords> {
+-        let tokens = self.tokens(source, analysis, segment)?;
++        let offset = segment.argv.first().map(|word| word.span.start());
++        let tokens = trace_body_syntax_option(
++            "source_syntax.tokens",
++            offset,
++            None,
++            self.tokens(source, analysis, segment),
++        )?;
+         let context = self.input.borrowed_context_registry();
+         let registry = context.commands();
+-        let alternatives =
++        let alternatives = trace_body_syntax_option(
++            "source_syntax.alternatives",
++            offset,
++            None,
+             self.retained
+-                .original_compiler_syntax_alternatives(tokens, &self.input, registry)?;
++                .original_compiler_syntax_alternatives(tokens, &self.input, registry),
++        )?;
+         let mut unanimous = None;
+-        for syntax in alternatives {
++        for (ordinal, syntax) in alternatives.into_iter().enumerate() {
+             let metadata = syntax.metadata();
+-            let advice = syntax.source_lookup_advice(tokens)?;
+-            if !advice.closed_authored_simulation_source_lookup(tokens, metadata, registry) {
++            let advice = trace_body_syntax_option(
++                "source_syntax.advice",
++                offset,
++                Some(ordinal),
++                syntax.source_lookup_advice(tokens),
++            )?;
++            if !trace_body_syntax_flag(
++                "source_syntax.closed",
++                offset,
++                Some(ordinal),
++                advice.closed_authored_simulation_source_lookup(tokens, metadata, registry),
++            ) {
+                 return None;
+             }
+-            let selected = super::super::resolve_original_declared_layout(
+-                registry, metadata, tokens, &advice,
++            let selected = trace_body_syntax_option(
++                "source_syntax.layout",
++                offset,
++                Some(ordinal),
++                super::super::resolve_original_declared_layout(registry, metadata, tokens, &advice),
+             )?;
+-            let candidate = compiler_source_words(
+-                &self.image,
+-                &self.input,
+-                tokens,
+-                segment,
+-                &syntax,
+-                &selected,
++            let candidate = trace_body_syntax_option(
++                "source_syntax.words",
++                offset,
++                Some(ordinal),
++                compiler_source_words(
++                    &self.image,
++                    &self.input,
++                    tokens,
++                    segment,
++                    &syntax,
++                    &selected,
++                ),
+             )?;
+             if let Some(prior) = &unanimous {
+-                if prior != &candidate || !same_source_descriptor(prior, &candidate, context) {
++                if trace_body_syntax_flag(
++                    "source_syntax.disagreement",
++                    offset,
++                    Some(ordinal),
++                    prior != &candidate || !same_source_descriptor(prior, &candidate, context),
++                ) {
+                     return None;
+                 }
+             } else {
+                 unanimous = Some(candidate);
+             }
+         }
+-        unanimous
++        trace_body_syntax_option("source_syntax.unanimous", offset, None, unanimous)
+     }
+ 
+     /// Same configured token-gap proof through the unchanged Native syntax
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -26,6 +26,16 @@
+ //! A depth limit returns no ownership advice; it never invents a binding.
+ 
+ use tcl_registry::{ArgRole, CommandRegistry};
++
++fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
++        eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// How deep to follow nested script words.
+ ///
+@@ -404,9 +414,9 @@
+     analysis: &crate::analyser::AnalysisResult,
+     context: &tcl_registry::model::ContextRegistry,
+ ) -> Option<AuthoredProcedureReadAdvice> {
+-    let config = analysis.body_lexer_config?;
+-    let input = analysis.resolved_input.as_ref()?;
+-    let realm = analysis.retained_command_realm()?;
++    let config = rbs_read_option("recipe.config", analysis.body_lexer_config)?;
++    let input = rbs_read_option("recipe.input", analysis.resolved_input.as_ref())?;
++    let realm = rbs_read_option("recipe.realm", analysis.retained_command_realm())?;
+     if !realm.matches_resolved_analysis_input(input)
+         || !realm.matches_original_source_image(image, config)
+         || input.lexer_config() != config
+@@ -414,13 +424,19 @@
+         return None;
+     }
+     let binding = realm.invocation_at_source("", procedure.span.start());
+-    let (_, mut tokens) = binding.original_recorded_command()?;
++    let (_, mut tokens) = rbs_read_option(
++        "recipe.recorded_command",
++        binding.original_recorded_command(),
++    )?;
+     tokens.source_binding = Some(binding);
+-    let recipe = realm
+-        .source_bindings_ref()
+-        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
+-    let body_span = recipe.original_body_span()?;
+-    let body = procedure.body_source.as_ref()?;
++    let recipe = rbs_read_option(
++        "recipe.declaration",
++        realm
++            .source_bindings_ref()
++            .original_procedure_read_declaration(&tokens, context.commands(), input),
++    )?;
++    let body_span = rbs_read_option("recipe.body_span", recipe.original_body_span())?;
++    let body = rbs_read_option("recipe.body_source", procedure.body_source.as_ref())?;
+     if recipe.original_image() != image
+         || body_span.start() != procedure.body_offset
+         || recipe.original_body_text()? != body
+--- a/rust/tcl-compiler/src/shimmer/use_site.rs
++++ b/rust/tcl-compiler/src/shimmer/use_site.rs
+@@ -53,6 +53,29 @@
+ };
+ use super::span::def_range_map;
+ use super::{ShimmerWarning, type_name};
++
++macro_rules! sh21_trace {
++    ($($argument:tt)*) => {
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
++            eprintln!($($argument)*);
++        }
++    };
++}
++
++fn sh21_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    sh21_trace!("SH21 stage={stage} present={}", value.is_some());
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
++
++fn sh21_flag(stage: &str, value: bool) -> bool {
++    sh21_trace!("SH21 stage={stage} value={value}");
++    #[cfg(not(test))]
++    let _ = stage;
++    value
++}
+ 
+ /// Find use-site shimmer warnings for a function.
+ ///
+@@ -389,14 +412,14 @@
+     word: &crate::ir::WordExpr,
+     expected: TclType,
+ ) -> Option<(String, Symbol, u32, super::commit::RepresentationCost)> {
+-    let (spelling, _) = word.sole_variable_substitution()?;
++    let (spelling, _) = sh21_option("tracked.sole_variable", word.sole_variable_substitution())?;
+     let var = element_var_name(spelling).to_owned();
+-    let read = ctx.source.read_word(word)?;
++    let read = sh21_option("tracked.ssa_read", ctx.source.read_word(word))?;
+     let sym = read.symbol;
+     if ctx.array_syms.contains(&sym) {
+         return None;
+     }
+-    let ver = read.version?;
++    let ver = sh21_option("tracked.version", read.version)?;
+     if ver == 0 {
+         return None;
+     }
+@@ -405,18 +428,33 @@
+         .get((sym, ver))
+         .cloned()
+         .unwrap_or_else(TypeLattice::unknown);
++    sh21_trace!(
++        "SH21 stage=tracked.lattice kind={:?} expected={expected:?}",
++        lattice.kind()
++    );
+     if lattice.kind() != TypeKind::Known {
+         return None;
+     }
+     let current = lattice.tcl_type()?;
+-    let cost = ctx
+-        .commit
+-        .cost_for_word(ctx.source, word, read, current, expected)?;
++    let cost = sh21_option(
++        "tracked.captured_cost",
++        ctx.commit
++            .cost_for_word(ctx.source, word, read, current, expected),
++    )?;
++    sh21_trace!(
++        "SH21 stage=tracked.cost current={:?} expected={expected:?} commitment={:?}",
++        cost.current,
++        cost.commitment
++    );
+     Some((var, sym, ver, cost))
+ }
+ 
+ fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize) {
+-    let expectation = invocation_shimmer_expectation(site.invocation, i);
++    sh21_trace!("SH21 stage=argument command={} index={i}", site.command);
++    let expectation = sh21_option(
++        "argument.expectation",
++        invocation_shimmer_expectation(site.invocation, i),
++    );
+     let Some(expectation) = expectation else {
+         return;
+     };
+@@ -512,13 +550,16 @@
+             .get(&sym)
+             .is_some_and(|targets| targets.len() >= 2);
+     if !multi_target_in_loop
+-        && is_free_first_conversion(
+-            current,
+-            expected,
+-            ctx.values.get(&(sym, ver)),
+-            ctx.representation(sym, ver),
+-            ctx.commit.numbers(),
+-            ctx.commit.word_rules(),
++        && sh21_flag(
++            "free_first_conversion",
++            is_free_first_conversion(
++                current,
++                expected,
++                ctx.values.get(&(sym, ver)),
++                ctx.representation(sym, ver),
++                ctx.commit.numbers(),
++                ctx.commit.word_rules(),
++            ),
+         )
+     {
+         return;
+@@ -678,6 +719,12 @@
+ }
+ 
+ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
++    sh21_trace!(
++        "SH21 stage=statement span={:?} kind={:?} uses={}",
++        stmt.span(),
++        std::mem::discriminant(stmt),
++        uses.len()
++    );
+     match stmt {
+         Statement::Call {
+             command, tokens, ..
+@@ -686,8 +733,13 @@
+             // exactly as the same command on its own line would — Tcl runs it
+             // before the outer command either way — so check it as the
+             // invocation it is.
++            sh21_trace!(
++                "SH21 stage=generic-call command={command} span={:?}",
++                stmt.span()
++            );
+             check_lifted_calls(ctx, tokens.as_ref(), stmt.span());
+-            let Some(invocation) = ctx.context.statement(stmt) else {
++            let Some(invocation) = sh21_option("generic.invocation", ctx.context.statement(stmt))
++            else {
+                 return;
+             };
+             let inert = super::hints::inert_effective_args(&invocation);
+@@ -723,6 +775,7 @@
+         }
+ 
+         Statement::Incr { name, amount, .. } => {
++            sh21_trace!("SH21 stage=native-incr name={name} span={:?}", stmt.span());
+             // `incr` reads both its target variable and (when present) its
+             // increment argument as Int.  The two checks are independent —
+             // an Int target with a String `$amount` still shimmers on the
+@@ -757,10 +810,12 @@
+ /// non-int, non-numeric type that is not a clean hex/octal/binary integer
+ /// literal string (that spelling promotes cleanly to int).
+ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMap<Symbol, u32>) {
+-    let Some(sym) = ctx.source.symbol(var) else {
++    let Some(sym) = sh21_option("incr.symbol", ctx.source.symbol(var)) else {
+         return;
+     };
+-    let Some(&ver) = uses.get(&sym) else { return };
++    let Some(&ver) = sh21_option("incr.version", uses.get(&sym)) else {
++        return;
++    };
+     check_incr_read(
+         ctx,
+         var,
+@@ -784,6 +839,7 @@
+     if ctx.array_syms.contains(&sym) {
+         return;
+     }
++    sh21_trace!("SH21 stage=incr.read var={var} version={:?}", read.version);
+     let Some(ver) = read.version else {
+         return;
+     };
+@@ -795,6 +851,10 @@
+         .get((sym, ver))
+         .cloned()
+         .unwrap_or_else(TypeLattice::unknown);
++    sh21_trace!(
++        "SH21 stage=incr.lattice var={var} kind={:?}",
++        lattice.kind()
++    );
+     if lattice.kind() != TypeKind::Known {
+         return;
+     }
+@@ -812,7 +872,14 @@
+             .commit
+             .cost_for_native_read(ctx.source, read, current, TclType::Int),
+     };
+-    let Some(cost) = cost else { return };
++    let Some(cost) = sh21_option("incr.captured_cost", cost) else {
++        return;
++    };
++    sh21_trace!(
++        "SH21 stage=incr.cost var={var} current={:?} commitment={:?}",
++        cost.current,
++        cost.commitment
++    );
+     let current = cost.current;
+     let commit_state = cost.commitment;
+     let must_pay_committed = commit_state.must_pay(TclType::Int);
+@@ -824,13 +891,16 @@
+         // incr n`, `set n 5; incr n`) promotes to `Int` for free — no shimmer.
+         // A non-integer pure string (`set n hello; incr n`) is *not* a valid
+         // instance, so it still fires: that conversion fails at runtime.
+-        if is_free_first_conversion(
+-            current,
+-            TclType::Int,
+-            ctx.values.get(&(sym, ver)),
+-            ctx.representation(sym, ver),
+-            ctx.commit.numbers(),
+-            ctx.commit.word_rules(),
++        if sh21_flag(
++            "free_first_conversion",
++            is_free_first_conversion(
++                current,
++                TclType::Int,
++                ctx.values.get(&(sym, ver)),
++                ctx.representation(sym, ver),
++                ctx.commit.numbers(),
++                ctx.commit.word_rules(),
++            ),
+         ) {
+             return;
+         }
+--- a/rust/tcl-compiler/src/taint.rs
++++ b/rust/tcl-compiler/src/taint.rs
+@@ -3687,6 +3687,28 @@
+     .warnings
+ }
+ 
++fn trace_taint_cu_ingress_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!("TAINT_CU_INGRESS stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = stage;
++    value
++}
++
++fn trace_taint_cu_ingress_context<'a>(source: TaintSourceContext<'a>) -> TaintSourceContext<'a> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!(
++            "TAINT_CU_INGRESS stage=function_source_context metadata={} dialect={}",
++            source.metadata.is_some(),
++            source.dialect.is_some()
++        );
++    }
++    source
++}
++
+ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
+     cu: &crate::compilation_unit::CompilationUnit,
+     registry: &CommandRegistry,
+@@ -3694,12 +3716,21 @@
+     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+ ) -> TaintWarningReport {
+     let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!(
++            "TAINT_CU_INGRESS stage=module retained_bindings={} supplied_input={}",
++            cu.ir_module.retained_source_bindings.is_some(),
++            cu.ir_module.source_metadata_input.is_some()
++        );
++    }
+     // naming.source.retained-positioned-command-realm
+     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+     // Missing original ownership is terminal for this whole-unit query.
+-    let Some(identities) =
+-        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+-    else {
++    let Some(identities) = trace_taint_cu_ingress_option(
++        "positioned_module_realm",
++        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry),
++    ) else {
+         out.replays = TaintReplayAnalysis::unavailable();
+         return out;
+     };
+@@ -3726,7 +3757,19 @@
+             &fu.ssa,
+             module_traces,
+         );
+-        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++            eprintln!(
++                "TAINT_CU_INGRESS stage=function body_id={} executable_blocks={} taint_values={}",
++                fu.body_id.is_some(),
++                exec.len(),
++                taints.len()
++            );
++        }
++        let Some(shadowed) = trace_taint_cu_ingress_option(
++            "current_shadowed_names",
++            shadowed_builtin_names_for_module_function(fu, cu, registry),
++        ) else {
+             out.replays.merge(TaintReplayAnalysis::unavailable());
+             continue;
+         };
+@@ -3735,7 +3778,11 @@
+             &taints,
+             exec,
+             registry,
+-            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
++            trace_taint_cu_ingress_context(TaintSourceContext::for_module_function(
++                registry,
++                &cu.ir_module,
++                fu,
++            )),
+             &shadowed,
+             module_traces,
+             &identities,
+--- a/rust/tcl-compiler/tests/var_escape_residual2.rs
++++ b/rust/tcl-compiler/tests/var_escape_residual2.rs
+@@ -87,29 +87,72 @@
+     static_context_for(TCL).commands()
+ }
+ 
++enum EscapeSource {
++    Unit(Box<CompilationUnit>),
++    Ir(Box<tcl_compiler::Module>),
++}
++
+ /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),
+ /// interprocedural fixpoint folded in.
+ struct EscapeSummaries {
+-    module: tcl_compiler::Module,
++    source: EscapeSource,
+     by_body: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+ }
+ 
+ impl EscapeSummaries {
++    fn module(&self) -> &tcl_compiler::Module {
++        match &self.source {
++            EscapeSource::Unit(unit) => &unit.ir_module,
++            EscapeSource::Ir(module) => module,
++        }
++    }
++
+     fn fixture_body(&self, label: &str) -> tcl_core_types::BodyFrameId {
++        let module = self.module();
+         if label == tcl_compiler::var_escape::TOP_LEVEL_QNAME {
+-            return tcl_core_types::BodyFrameId::Top(self.module.procedure_ids.module_id());
++            return tcl_core_types::BodyFrameId::Top(module.procedure_ids.module_id());
+         }
+-        let mut bodies = self
+-            .module
++        if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some() {
++            for (id, body) in module.procedures.iter().chain(module.body_lowerings()) {
++                let original = match &self.source {
++                    EscapeSource::Unit(unit) => unit.original_procedure_for_body(*id).is_some(),
++                    EscapeSource::Ir(_) => module.procedures.contains_key(id),
++                };
++                eprintln!(
++                    "ESCAPE_BODY_OWNER id={id:?} kind={:?} label={:?} span={:?} original={} summary={}",
++                    body.body_kind,
++                    body.qualified_name,
++                    body.span,
++                    original,
++                    self.by_body
++                        .contains_key(&tcl_core_types::BodyFrameId::Body(*id)),
++                );
++            }
++        }
++        let mut bodies = module
+             .procedures
+             .iter()
++            .chain(module.body_lowerings())
++            .filter(|(id, body)| match &self.source {
++                EscapeSource::Unit(unit) => unit
++                    .original_procedure_for_body(**id)
++                    .is_some_and(|original| std::ptr::eq(original, *body)),
++                EscapeSource::Ir(_) => module.procedures.contains_key(*id),
++            })
+             .filter(|(_, body)| body.qualified_name == label);
+-        let (id, _) = bodies.next().expect("original authored fixture body");
++        let (id, body) = bodies.next().expect("original authored fixture body");
+         assert!(
+             bodies.next().is_none(),
+             "ambiguous authored fixture body {label}"
+         );
+-        assert!(self.module.procedure_ids.owns(*id));
++        assert!(module.procedure_ids.owns(*id));
++        if matches!(&self.source, EscapeSource::Unit(_)) {
++            assert!(matches!(
++                body.body_kind,
++                tcl_compiler::ir::ProcedureBodyKind::Named
++                    | tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
++            ));
++        }
+         tcl_core_types::BodyFrameId::Body(*id)
+     }
+ }
+@@ -118,7 +161,7 @@
+     let cu = CompilationUnit::build_for(src, registry(), false);
+     let by_body = analyse_var_escape_cu(&cu, true);
+     EscapeSummaries {
+-        module: cu.ir_module,
++        source: EscapeSource::Unit(Box::new(cu)),
+         by_body,
+     }
+ }
+@@ -128,7 +171,7 @@
+     let cu = CompilationUnit::build_for(src, registry(), false);
+     let by_body = analyse_var_escape_cu(&cu, false);
+     EscapeSummaries {
+-        module: cu.ir_module,
++        source: EscapeSource::Unit(Box::new(cu)),
+         by_body,
+     }
+ }
+@@ -137,7 +180,10 @@
+ fn escape_ir(src: &str) -> EscapeSummaries {
+     let module = lower_to_ir(src, registry());
+     let by_body = analyse_var_escape(&module, true);
+-    EscapeSummaries { module, by_body }
++    EscapeSummaries {
++        source: EscapeSource::Ir(Box::new(module)),
++        by_body,
++    }
+ }
+ 
+ /// Drive the low-level [`analyse_cfg_function`] directly on a top-level script and
+--- a/rust/tcl-lsp-core/src/minify/original.rs
++++ b/rust/tcl-lsp-core/src/minify/original.rs
+@@ -897,7 +897,24 @@
+             ("puts {*}\"42\"", "puts {*}\"42\""),
+             ("puts \"42", "puts \"42"),
+         ] {
+-            let analysis = super::analysis_for_profile(source, profile, &registry);
++            let analysis = if source == "puts \"\u{feff}42\"" {
++                // The refusal control must actually select whole-input BOM skipping.
++                // Content is exercised independently by the positive control below.
++                let config = tcl_lexer::LexerConfig {
++                    leading_bom: tcl_lexer::LeadingBom::Skip,
++                    ..tcl_lexer::LexerConfig::for_profile(Some(profile))
++                };
++                let generation = crate::context_for_dialect_profile(profile);
++                let context = std::sync::Arc::new(
++                    generation.with_command_store(registry.snapshot().shared_registry()),
++                );
++                let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
++                    profile, profile, context, config,
++                );
++                super::analysis_with_input(source, &input)
++            } else {
++                super::analysis_for_profile(source, profile, &registry)
++            };
+             assert!(!analysis.allows_lexical_declaration_advice());
+             let result =
+                 super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
+--- a/rust/tcl-registry/src/native_procedure.rs
++++ b/rust/tcl-registry/src/native_procedure.rs
+@@ -22,6 +22,27 @@
+ use std::collections::HashMap;
+ use std::sync::{Mutex, OnceLock, PoisonError};
+ 
++/// Descriptor data applied only while preparing actual compiled-in core rows.
++/// Reading this data grants no command, compiler or current-registration proof.
++#[derive(Debug, Clone, Copy)]
++pub struct BuiltinCoreProcedureDescriptor {
++    pub name: &'static str,
++    pub provider: tcl_dialect::model::SpecProvider,
++    pub analyser_hook: crate::hooks::AnalyserHookId,
++    pub traits: crate::Traits,
++    pub definition: NativeProcedureDefinitionSpec,
++}
++
++/// The registry-owned argv descriptor of the trusted embedded Jim procedure row.
++pub const BUILTIN_CORE_PROCEDURE_DESCRIPTORS: &[BuiltinCoreProcedureDescriptor] =
++    &[BuiltinCoreProcedureDescriptor {
++        name: "proc",
++        provider: tcl_dialect::model::SpecProvider::Core(tcl_dialect::model::Family::Jim),
++        analyser_hook: crate::hooks::AnalyserHookId::Proc,
++        traits: crate::Traits::DEFINES_PROCEDURE.union(crate::Traits::DEFERS_BODY),
++        definition: NativeProcedureDefinitionSpec::Core,
++    }];
++
+ /// One stable descriptor clone per actual compiled-in core row. Repeated core
+ /// registration retains pointer identity and does not advance its generation.
+ type CoreDefinitionSpecs = HashMap<usize, &'static crate::CommandSpec>;
+@@ -33,22 +54,25 @@
+ pub(crate) fn attach_builtin_core_definition(
+     spec: &'static crate::CommandSpec,
+ ) -> &'static crate::CommandSpec {
+-    use tcl_dialect::model::{Family, SpecProvider};
+     static ATTACHED: OnceLock<Mutex<CoreDefinitionSpecs>> = OnceLock::new();
+-    if spec.name != "proc"
+-        || spec.procedure_definition.is_some()
+-        || spec.analyser_hook != Some(crate::hooks::AnalyserHookId::Proc)
+-        || !spec
+-            .traits
+-            .contains(crate::Traits::DEFINES_PROCEDURE | crate::Traits::DEFERS_BODY)
+-        || !spec.surface.is_some_and(|surface| {
+-            surface
+-                .iter()
+-                .any(|row| row.provider == SpecProvider::Core(Family::Jim))
++    if spec.procedure_definition.is_some() {
++        return spec;
++    }
++    let Some(descriptor) = BUILTIN_CORE_PROCEDURE_DESCRIPTORS
++        .iter()
++        .find(|descriptor| {
++            spec.name == descriptor.name
++                && spec.analyser_hook == Some(descriptor.analyser_hook)
++                && spec.traits.contains(descriptor.traits)
++                && spec.surface.is_some_and(|surface| {
++                    surface
++                        .iter()
++                        .any(|row| row.provider == descriptor.provider)
++                })
+         })
+-    {
++    else {
+         return spec;
+-    }
++    };
+     let mut memo = ATTACHED
+         .get_or_init(Mutex::default)
+         .lock()
+@@ -56,7 +80,7 @@
+     memo.entry(std::ptr::from_ref(spec).addr())
+         .or_insert_with(|| {
+             let mut attached = spec.clone();
+-            attached.procedure_definition = Some(NativeProcedureDefinitionSpec::Core);
++            attached.procedure_definition = Some(descriptor.definition);
+             Box::leak(Box::new(attached))
+         })
+ }
+--- a/rust/tcl-spectcl/src/core_surfaces.rs
++++ b/rust/tcl-spectcl/src/core_surfaces.rs
+@@ -92,9 +92,37 @@
+     PACKS.get_or_init(|| {
+         CORE_SURFACES
+             .iter()
+-            .map(|(_, source)| crate::loader::evaluate_pack(source))
++            .map(|(_, source)| prepare_builtin_pack(crate::loader::evaluate_pack(source)))
+             .collect()
+     })
++}
++
++// Only the fixed CORE_SURFACES load above reaches this preparation boundary.
++fn prepare_builtin_pack(mut pack: Pack) -> Pack {
++    for command in &mut pack.commands {
++        let original = command.spec;
++        if original.procedure_definition.is_some() {
++            continue;
++        }
++        let descriptor = tcl_registry::native_procedure::BUILTIN_CORE_PROCEDURE_DESCRIPTORS
++            .iter()
++            .find(|descriptor| {
++                original.name == descriptor.name
++                    && original.analyser_hook == Some(descriptor.analyser_hook)
++                    && original.traits.contains(descriptor.traits)
++                    && original.surface.is_some_and(|surface| {
++                        surface
++                            .iter()
++                            .any(|row| row.provider == descriptor.provider)
++                    })
++            });
++        if let Some(descriptor) = descriptor {
++            let mut canonical = original.clone();
++            canonical.procedure_definition = Some(descriptor.definition);
++            command.spec = Box::leak(Box::new(canonical));
++        }
++    }
++    pack
+ }
+ 
+ /// The roster rows the compiled-in sources declare, parsed once.
+@@ -117,9 +145,9 @@
+ 
+ /// The commands the compiled-in sources declare, in source order.
+ ///
+-/// Each spec is the loader's own interned `&'static` value, so a caller can
+-/// register the same set repeatedly and the registry recognises it as
+-/// unchanged.
++/// The fixed compiled-in loader prepares descriptor metadata once; this read
++/// neither seeds nor replaces the active registry. Every registration shares
++/// these canonical row pointers and therefore recognises an unchanged set.
+ #[must_use]
+ pub fn builtin_commands() -> Vec<&'static CommandSpec> {
+     packs()
+--- /dev/null
++++ b/rust/tcl-spectcl/tests/jim_core_metadata_identity.rs
+@@ -0,0 +1,89 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Canonical compiled-core descriptor identity and metadata accessor purity.
++
++use std::sync::{Arc, Barrier};
++
++use tcl_registry::{CommandSpec, core_surface_generation, register_core_surface_specs};
++
++fn same_rows(left: &[&'static CommandSpec], right: &[&'static CommandSpec]) {
++    assert_eq!(left.len(), right.len());
++    assert!(left.iter().zip(right).all(|(a, b)| std::ptr::eq(*a, *b)));
++}
++
++/// This isolated test process reaches the accessor before any bootstrap.
++#[test]
++fn compiled_core_metadata_is_pure_before_and_after_active_registration() {
++    let custom: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
++        name: "custom::core_metadata_probe",
++        ..CommandSpec::DEFAULT
++    }));
++    let first_generation = register_core_surface_specs(vec![custom]);
++    let rows = tcl_spectcl::core_surfaces::builtin_commands();
++    assert_eq!(core_surface_generation(), first_generation);
++    assert_eq!(register_core_surface_specs(vec![custom]), first_generation);
++    let proc_row = rows.iter().find(|row| row.name == "proc").unwrap();
++    assert!(proc_row.procedure_definition.is_some());
++    assert!(proc_row.native_compilation.is_none());
++
++    let foreign = tcl_spectcl::loader::evaluate_pack(include_str!(
++        "../core-surfaces/jim-own-surface.tclspec"
++    ));
++    let foreign_proc = foreign
++        .commands
++        .iter()
++        .find(|command| command.spec.name == "proc")
++        .unwrap()
++        .spec;
++    assert!(foreign_proc.procedure_definition.is_none());
++    assert!(!std::ptr::eq(foreign_proc, *proc_row));
++    assert_eq!(core_surface_generation(), first_generation);
++
++    let canonical_generation = register_core_surface_specs(rows.clone());
++    assert_eq!(
++        register_core_surface_specs(rows.clone()),
++        canonical_generation
++    );
++    let repeated = tcl_spectcl::core_surfaces::builtin_commands();
++    same_rows(&rows, &repeated);
++    let replacement_generation = register_core_surface_specs(vec![custom]);
++    same_rows(&rows, &tcl_spectcl::core_surfaces::builtin_commands());
++    assert_eq!(core_surface_generation(), replacement_generation);
++    assert_eq!(
++        register_core_surface_specs(vec![custom]),
++        replacement_generation
++    );
++
++    let next: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
++        name: "custom::next_core_metadata_probe",
++        ..CommandSpec::DEFAULT
++    }));
++    let barrier = Arc::new(Barrier::new(2));
++    let writer_barrier = Arc::clone(&barrier);
++    let writer = std::thread::spawn(move || {
++        writer_barrier.wait();
++        register_core_surface_specs(vec![next])
++    });
++    barrier.wait();
++    same_rows(&rows, &tcl_spectcl::core_surfaces::builtin_commands());
++    let final_generation = writer.join().unwrap();
++    assert_eq!(register_core_surface_specs(vec![next]), final_generation);
++    same_rows(&rows, &tcl_spectcl::core_surfaces::builtin_commands());
++    assert_eq!(core_surface_generation(), final_generation);
++}

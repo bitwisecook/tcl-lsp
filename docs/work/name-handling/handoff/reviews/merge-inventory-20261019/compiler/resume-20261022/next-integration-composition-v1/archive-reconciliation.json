@@ -1,0 +1,8 @@
+{
+  "status": "PASS all95 archive members independently rehashed without extraction",
+  "archive_sha256": "96e4d28f2478602a1f15a12584e0dadedfcd971dece4407961ef7019ff3db3bf",
+  "original_manifest_sha256": "62e054a576fa446ebe81ecbe385f31df29fb6d769b07e2de4adac2a0af6d9f06",
+  "core15_cumulative_candidate_map_sha256": "d495f6641be186f6455e240bc10c58bd2303acf5cc6efbed1d6ee4e1a8dbc91f",
+  "cumulative_candidate_count": 63,
+  "scope": "Candidate only, unchanged frozen archive. No actual new product HEAD/tree/GO/runtime/typing."
+}

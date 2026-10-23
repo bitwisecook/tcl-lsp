@@ -1,0 +1,10 @@
+{
+  "status": "OFFTREE pure first-producer diagnostic; syntax/apply PASS, typing/runtime UNRUN",
+  "patch_sha256": "62f85b91bc4b3090e01611663279401b677179950781ee168aea72c47d5c56d0",
+  "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+  "before_sha256": "f3385c2252428f29f17d99570b7ebfc51d5c1e383e0d75449ce3d087e3597d92",
+  "after_sha256": "501b45e5763a3029cc8b48069cd121121d89d83f93902c70cc2e5c41de8b71b1",
+  "env": "debug_assertions + existing TCL_LSP_TRACE_JIM_SOURCE_OWNER",
+  "contract": "Existing selected-head-key/cell lookup/written-head/class resolution once/order/refusal preserved; only immutable actual cell enum and raw actual head/offset metadata logged. SourceClass/AuthoredJimClass distinction not changed, no Native or Logical fallback or grant. Original test suffix byte-identical.",
+  "purpose": "Actual Jim7 authored class tape receipt succeeds but constructor tape entry missing. Determine whether original selected cell is AuthoredJimClass, unknown/missing or alias before treating static separate carrier route as actual cause. No fix/cause claim."
+}

@@ -2,11 +2,61 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T07:27:19.850452+00:00 (Jim7v3 frozen pins rechecked; root LSP23 running, Jim7 next; compiler58 closed 40PASS/18FAIL)
+Last updated: 2026-10-23T07:53:59.167109+00:00 (Jim7 complete1PASS/6FAIL0W allguards; full165-file lossless archive completed)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Jim7v3 actual COMPLETE07:52:50.909484Z, LOCK_RELEASED07:52:50.912116Z,
+launcher finished07:52:51.153654Z exit1/stable; root observed parent90875 closed.
+All7 original exact selectors selected1 each,0ignored, direct lifecycle complete;
+source100405/provider/artifacts stable,0warnings. Actual source-owner5=1PASS/
+4FAIL, ownsurface2=0PASS/2FAIL. V4 canonicalidentity remains unapplied/untyped/
+unrun; actual ownsurface failures support candidate relevance, not acceptance.
+Full lossless archive165files/149gzipblobs, all payload roundtrips verified:
+`vm-runtime/runs/jim7-complete-20261023T074026Z/manifest.txt`
+SHAbc5dd539ebb84674c07696e21cd7c17645db6e2356c93e451e52b78728dda6c5.
+Includes complete rawrun/protocol/GO/finishedlauncher/transitiveinputs/actual
+prerequisite receipts/rootparent observation and original48source/test bytes.
+Root independently verifies archive/guards before nextslot. Original per-row
+assertion can stop later subcases: no whole11/Jim/C1–C2 claim. Compiler owns
+source-owner class/receipt diagnosis; VM retains exact boundaries. No source,
+Cargo, GO or Git action by VM. Source/provider HOLD remains root-owned.
+
+Jim7 actual per-selector measurement now7/7 closed1PASS/6FAIL. Source-owner5:
+class dictionary and method-body FAIL at originals253/322; older/nested receipt
+FAIL at545; authored dictionary/odd-shape PASS. Ownsurface2 bothFAIL at original
+210/443 proc pointer assertions, confirming current candidate-relevant failure
+without applying v4. Each closed row has exact1 and stable source/provider/
+artifact guards; final/launcher/root-parent closure remains pending here.
+Lossless archive helper `/tmp/archive-jim7-closed-v1.py` prepared, not executed;
+it requires final7, stable finished launcher, transcriptLOCK_RELEASED and root
+observed parent90875 closure before writing archive. No later-subcase/full11/
+wholeJim acceptance inferred. Compiler owns class producer diagnosis; VM only
+retains actual trace boundaries. Source/provider HOLD, no Cargo/Git/GO/source.
+
+Mandatory noTom16 scheduling audit: existing v3-lifecycle protocol remains
+immutable/unrun, all9 inputs match, no GO and no duplicate runner. Exact16
+CI baseline-PASS/current-FAIL identities retained; fullTom4 overlaps only catch
+and cannot close its noTommath flavor. Current observer3 pins match, but future
+allocation needs exact approved product/same-source typing/env-tool binding
+review; no Cargo/arg changes made. Details and exact16 roster:
+`vm-runtime/notom16-next-scheduling-audit-20261023.txt`.
+Jim7 first closed original row fails W123 Point at jim_document.rs253; authored
+receipt true versus constructor receipt false is actual trace contrast only,
+not a common-cause conclusion. Remaining rows and final guards are pending.
+
+Actual Jim7v3 root GO eace0cbcf950f36eeef534d3d4f9d8aa5b23922e761cced156ae15d60afef5b3
+is now allocated after LSP23 closed17PASS/6FAIL/0W with allguards (root archive273).
+Durable launcher started07:40:07.629Z; suite directory
+`/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z` holds initial
+source/provider/environment seals; no selector outcomes were closed at this
+refresh. Read-only monitoring only, no duplicate Cargo/GO. Earlier52604 refusal
+was before Cargo due docs oracle.tcl; root reports exact bytes renamed.tcl.txt,
+original100405 pathset restored and published8252c695d. Product897b unchanged.
+Off-tree ownsurface v4 is unapplied; actual failure boundaries must come from
+closed original rows before further interpretation. Source/provider HOLD.
 
 Current readiness refresh: root reports compiler58 closed 40PASS/18FAIL;
 LSP23 is running and Jim7v3 is the next root-allocated slot. Product remains

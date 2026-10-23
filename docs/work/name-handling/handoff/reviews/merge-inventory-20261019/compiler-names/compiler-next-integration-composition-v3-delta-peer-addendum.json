@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T07:55:08.655411+00:00",
+  "status": "Bounded static core17 delta and shared barrier ordering CLEAR",
+  "base_peer_sha256": "0561e6ad21cfe3d06a7dc664e769ee507e9c12d156e2d307da6e8c0d4a3db7f4",
+  "manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "combined_patch_sha256": "1a6a8943ea185327fbf92ce0d215c9d1fee9d7b669b0080be8fb5784ce64a65c",
+  "delta_from_core15": "Exactly compiler_inventory.rs (nestedv4) and source_structure.rs (readonly+ILX union) finals differ, plus one newchanged source_transition_advice/source_class.rs (Jimcell). All other26 path finalhashes byte-identical core15. No oldpaths removed.",
+  "shared_barrier_order": [
+    "Already-stamped tokens Readonly binding field log",
+    "ILX identity wrapper evaluates original realm.original_source_registry_barrier once",
+    "ILX existing binding-present field log",
+    "Readonly logs computed blocked bool",
+    "Original blocked refusal and existing routing order unchanged"
+  ],
+  "checks": "Reconstructed exact percomponent original changedfragment union including insertion adjacent to barrier replacement; no merged semantic synthesis. Independent all17component and29wholeunion zero-fuzz/nooffset apply/finalchecks PASS; all46 current baseline finalpins valid; format29receipt pinned.",
+  "CCG_shared_union_peer_sha256": "ac111488f836d31bda851e22929d7661a2c768cce9599beb8e995d6d20780899",
+  "limits": "Alias excluded. VM Jimcell semantics owned independent peer71237485 as rootreports. No Cargo/typing/runtime/GO/source changes; integration remains rootscope after currentqueue. Earlier probes and row22/readonly exact causes unmeasured."
+}

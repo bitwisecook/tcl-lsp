@@ -1,0 +1,31 @@
+{
+  "schema": "immutable-composition-v1-readiness-addendum",
+  "utc": "2026-10-23T07:43:19.463720+00:00",
+  "predecessor_manifest_sha256": "62e054a576fa446ebe81ecbe385f31df29fb6d769b07e2de4adac2a0af6d9f06",
+  "meaning": "Completes pending format and SH peer metadata in original immutable manifest; no patch/source/final-map refresh.",
+  "selected_for_review_only": "core15-without-alias",
+  "root_scope": "Core15 only; root reviews integration scope after current frozen runtime queue. Static clear does not authorize typing or integration.",
+  "format_receipt_sha256": "b5adc65188bff3a7fa3f1aa9619adabc944fab9873a1b6ec715ee5c617581ee9",
+  "format": "all28 core +all28 aliasreview owner-Cargo-edition rustfmt skip_children checksPASS; check-only, no formatter merge",
+  "SH_peer": {
+    "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/peer-source46-sh21-var-escape-20261023.txt",
+    "sha256": "c8e76156da40aced3cbdd6c299e6d90114910ad10c76075292659617c5e83b5e",
+    "covers": "SH26f151be and varhelper3a108644 bounded static review"
+  },
+  "Jim_metadata": "eca80f8b finalv4 docpeer6824c3f4 inherits semanticv3peer59d686ba; original11 unchanged, new isolated custom-first metadata purity test unrun",
+  "pending": [
+    "Core15 whole union peer Names (Normal/E003/G4/varhelper/body) and CCG (Jim/BPF/Exprfold/source_structure) requested",
+    "Alias fixture domain/purpose admissibility separate pending; no accepted Native coverage reduction and no actual Logical pair result",
+    "readonlyheadtracefd55 pending peer and row22 alternative positive pending diagnosis; excluded",
+    "All combined Rust typing/current finite original/new controls/runtime/lifetime/perf acceptance UNRUN"
+  ],
+  "held_excluded": [
+    "normal-owner-v1: HELD derived Eq regression",
+    "empty allocated a9c4: NOT APPLICABLE to actual Installed E003",
+    "Jim canonical v1/v2 HELD first-call/read purity; v3 doc predecessor",
+    "importcapture2f8d HELD/OFFTARGET: capture succeeds, child completion missing",
+    "readonly-head replacement and alternative positive: no frozen eligible proposal; diagnosis pending"
+  ],
+  "guards": "No Cargo/Git/GO/canonical writes; exact current897b/tree0b11/f756; existing source46 protocols remain frozen.",
+  "temporary_cleanup": "All puretrace cfg/env additions are measurement-only and must be removed/reviewed before release; preserve oracle/evidence and meaningful unchanged-positive/foreign/stale controls."
+}

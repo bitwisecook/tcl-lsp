@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-23T07:48:44.987064+00:00",
+  "status": "Bounded static CLEAR pure diagnostic successor; no source integration/typing/actualquery evidence",
+  "patch_sha256": "c1d9cc066f36d0998fccd57533528b5432bd16409999fe45042b5eef75814189",
+  "peer_sha256": "f0d3d3e848c5133c85e57befc6d5cd477d8e6da4715445d6726bc1ef6577604f",
+  "archive_sha256": "3627a6ceeca9109e9b7a05fdf2495f276e9afea88b3fa800bf9a56a8afaaa167",
+  "archive_files": {
+    "actual/compiler_lib-03.process.json": "63de1d9a7f947d3a05f801480ea1b3e793aa555eef46b0de14eb1a9927bdd8a5",
+    "actual/compiler_lib-03.result.json": "fdd7f979e62ff6bf7065fe20ecc642fbe3b56f9eb70d43324661e72e14d257c4",
+    "actual/compiler_lib-03.stderr": "b974212ede655bb4e0d374ad708aecf2a340d546d34955d33403287c8c24befc",
+    "actual/compiler_lib-03.stdout": "8f7be215b5ce23a8a41dd11c573b221dcad47e4da34c8d9763b782741cd2bcb3",
+    "candidate/ccg-static-peer.txt": "f0d3d3e848c5133c85e57befc6d5cd477d8e6da4715445d6726bc1ef6577604f",
+    "candidate/independent-check.json": "032d64e73065b78268535861205fec270e7857dd703fb516778ae1f488df7a29",
+    "candidate/manifest.json": "c3d49a3fc4ec1292465da8548e2bba51d9149a3aa46d6a9d91662ad90cb73021",
+    "candidate/prepare.py": "a88f20e27435799b13c059f18edd2c7eb99f65f620e2f3f99e7367d770e0efba",
+    "candidate/proposal.patch": "c1d9cc066f36d0998fccd57533528b5432bd16409999fe45042b5eef75814189",
+    "current/rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+    "current/rust/tcl-compiler/src/command_binding/retained_source.rs": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+    "current/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+    "predecessor-v3/complete-diagnostic-predecessors-peers-and-actual-first-gates.tar.gz": "891d027f697b429ac6c0df8e3f8607fd49c1f29bbe83562d1dc441ec921890c1",
+    "predecessor-v3/receipt.json": "5e448446170f4065472871b0bcc37ca5bfb14dab601423c15bc161c5b19ac577",
+    "proposed/rust/tcl-compiler/src/command_binding/compiler_inventory.rs": "c133fd7d875308c534e92fa7b120104f7922a1be283f9cfca4beace8b1e21cd4",
+    "proposed/rust/tcl-compiler/src/command_binding/retained_source.rs": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+    "proposed/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5"
+  },
+  "delta": "Only compiler_inventory adds generic Option/bool identity helpers and traces existing central all-actual-alternatives query guards. Logs actual parsed vector+original visit vectors, direct/child visit presence and ordered per-visit refusal; preserves all v3 census/nestedfields/querycode. No new semanticquery/token/lookup, firstonly/filter/missing reduction, assertion or policy change. Source image/input/owner/registry/config/realm guards and collect<Option> failclosed preserved.",
+  "actual_row22": "Initial alternatives unwrapNone before all later negatives. Fixture uses suffix from innerif through outerprocclose; exact-vector hypothesis unproved. No fixture trim/relex or assertion correction; future authentic retained carrier only if measured.",
+  "scope": "Preserves v3 census/nested carrier logs and source syntax query trace; central allactual alternatives firstgates now logged for directbindings row22 and retained body queries.",
+  "limits": "No assertion/productfix, sourcebodycarrier reconstruction, suffixtrim/relex fallback, semantic newquery, Normal/Native/body grant, error suppression or policy/Eq change. Later row22 adversarial assertions UNREACHED in predecessor. Raw bodycontext does not proveownership; parentnestedlog conditional on sourcebinding. All actualgate diagnoses unmeasured."
+}

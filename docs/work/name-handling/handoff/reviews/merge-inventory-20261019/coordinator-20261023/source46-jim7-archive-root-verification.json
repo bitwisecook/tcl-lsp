@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T07:54:12.222039+00:00",
+  "manifest_sha256": "bc5dd539ebb84674c07696e21cd7c17645db6e2356c93e451e52b78728dda6c5",
+  "logical_payloads": 165,
+  "unique_blobs": 149,
+  "every_decompressed_hash_and_current_original_bytes_verified": true,
+  "runtime_pass": 1,
+  "runtime_fail": 6,
+  "release_admissions": []
+}

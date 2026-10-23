@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-23T07:45:09.459811+00:00",
+  "status": "CLEAR bounded exact component-union preservation; core15 scope only, review16 alias admissibility remains held separately",
+  "manifest_sha256": "62e054a576fa446ebe81ecbe385f31df29fb6d769b07e2de4adac2a0af6d9f06",
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "current46_match": 46,
+  "independently_applied_component_patches": [
+    "normal-owner-v2",
+    "empty-installed-v1",
+    "jim-canonical-v4",
+    "var-helper-v2",
+    "g4-supplement-v2",
+    "bpf-row30-v1",
+    "bom-fixture-v1",
+    "nested-census-v3",
+    "hosted-event-v1",
+    "ilx-words-v1",
+    "sh-producer-v1",
+    "rbs-read-v1",
+    "exprfold-v6",
+    "taint-ingress-v1",
+    "import-child-v1",
+    "alias-supported-v1"
+  ],
+  "variants": [
+    {
+      "id": "core15-without-alias",
+      "paths": 28,
+      "combined_patch_sha256": "459fda103f200816af33ac72b246f003359c040c913ea84200c4b53eb033a89c",
+      "all_component_changed_fragments_exact": true,
+      "no_missing_or_added_fragments": true,
+      "independent_reapply_zero_fuzz_zero_offset": true,
+      "all_final_hashes": true
+    },
+    {
+      "id": "review16-with-alias",
+      "paths": 28,
+      "combined_patch_sha256": "4111adddfa5df460bfcb8e490eed3c91278561746937f1a451b0f34ce555675f",
+      "all_component_changed_fragments_exact": true,
+      "no_missing_or_added_fragments": true,
+      "independent_reapply_zero_fuzz_zero_offset": true,
+      "all_final_hashes": true
+    }
+  ],
+  "format_receipt_sha256": "b5adc65188bff3a7fa3f1aa9619adabc944fab9873a1b6ec715ee5c617581ee9",
+  "reviewed_semantics": [
+    "Normal-only strict analysisowner ptrjoin and EXACT old4field seedEq bytes retained from peer6ae79; no global/report/runtime Eq policy change",
+    "Installedempty guard requires exactcurrent typed installedcard/allocation/source/span/root/namespace; existing arbitraryempty/outofrange/duplicate refusal unchanged from ede9",
+    "Body correspondence core union combines only Installed production/test changes and hosted puretrace; review16 adds only independently held alias testfixture, no new production bodyrole change",
+    "G4 lifecycle/namespace purpose fixture obligations and all original tails retained exactly; actual Conditional/runtime premises still UNRUN",
+    "Var helper retains heldCU and original_procedure_for_body pointer/module-issuedID/uniqueLabel/Named-orOriginalDeclaration gating exactly; IR-only path named-only",
+    "All shared file modifications are exact disjoint original changed fragments from immutable peer-reviewed components; no semantic merge synthesis or assertion loss"
+  ],
+  "limits": "No source application/Cargo/Git/GO/typing/runtime/complete report/perf acceptance. Jim/BPF/Exprfold/source_structure semantic peers owned CCG/VM; this checks their exact component preservation only. Pure traces require release cleanup. Core15 root scope not integration authorization; readonlyfd55/newrow22 sourcequery successor excluded."
+}

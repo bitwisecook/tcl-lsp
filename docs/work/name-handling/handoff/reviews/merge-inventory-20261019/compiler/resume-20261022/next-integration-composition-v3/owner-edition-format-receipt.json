@@ -1,0 +1,243 @@
+{
+  "status": "PASS29 pinned Cargo-owner-edition rustfmt skip_children checks, check-only no merge",
+  "composition_manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "checks": [
+    {
+      "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/bpf-tcl-ir/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/script_binds.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/shimmer/use_site.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-compiler/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-lsp-core/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-registry/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-spectcl/src/core_surfaces.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-spectcl/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "edition": "2024",
+      "Cargo_manifest": "rust/tcl-spectcl/Cargo.toml",
+      "workspace_manifest": "Cargo.toml",
+      "status": "PASS",
+      "output": ""
+    }
+  ],
+  "only_final_paths_changed_from_core15": [
+    "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+  ]
+}

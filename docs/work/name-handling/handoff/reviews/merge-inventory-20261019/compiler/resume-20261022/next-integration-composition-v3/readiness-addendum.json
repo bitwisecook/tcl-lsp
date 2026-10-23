@@ -1,0 +1,28 @@
+{
+  "status": "Frozen core17 candidate only; root integration/runtime allocation pending queue closure and union review",
+  "utc": "2026-10-23T07:51:43.284122+00:00",
+  "manifest_sha256": "d1601b31ee6ab6b6be58cbc1db4a8b4658b938da292d2533b938cfbe19bc20e6",
+  "combined_patch_sha256": "1a6a8943ea185327fbf92ce0d215c9d1fee9d7b669b0080be8fb5784ce64a65c",
+  "source46_approved_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "source46_approved_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "exact_new_batch_path_count": 29,
+  "proposed_cumulative_vs_3b1_path_count": 64,
+  "cumulative_candidate_map_sha256": "3be4d3ffac367a4c1c521c221b078e7c2891503252375bb25356ae45687ed196",
+  "format_receipt_sha256": "30e0a654d92a4d2fc3fd5a08cf24639d6bee4c92b8570096e4bcbb56e7465bec",
+  "format": "PASS29 owneredition check-only with skip_children=true; no Cargo/typecheck",
+  "component_scope": "core15 replaces nestedv3 with reviewed nestedv4 and adds readonlyfd55 and reviewedJimcell62f85b91. Alias EXCLUDED. Oldcore15/review16/core16 frozen unchanged.",
+  "union": "source_structure boundary insertion union only; readonlybindinglog before originalbarrier query, ILXidentity preservesqueryonce, ILXbindinglog then readonlybarrierlog afterward. Remaining original operations/shortcircuit/order unmodified. Exact fragments/finals listed; union peers pending.",
+  "static_peers_pending": [
+    "Names exactcore17 component/fragment delta/typedguard preservation",
+    "CCG source_structure readonly/ILX boundary union and scope delta"
+  ],
+  "testing_gaps": [
+    "No combined Cargo/Rusttyping or runtime",
+    "Original failing/newcontrols need fresh correct-artifact bounded execution after actual integratedproduct+allsource/provider/envguards and actualeightpkgPASS0W",
+    "Genuine Logical dual-role alias positive remains unrun and excluded",
+    "Jim celltrace does not diagnose olderJim authoredreceiptrows3/4 and grants no familyconversion/Native/Normal authority",
+    "Perf all-old/mixed fullproofs remain separateowner and blocked until authenticated fullreport controls meetpolicy"
+  ],
+  "cleanup": "Remove temporary puretrace source/log/env additions before release; retain meaningful tests/oracles/evidence; no new allows, assertion rewrites or current protocols refreshed."
+}

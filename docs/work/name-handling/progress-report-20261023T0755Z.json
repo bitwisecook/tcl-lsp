@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T07:55:37.535504+00:00",
+  "scheduled_report_utc": "2026-10-23T07:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T08:25:37+00:00",
+  "change_since_previous_report": [
+    "06:55:37reporton time, activee1548731c normalpublished fefa1e468 at06:56:56 after freshdepth1fetch/rebase/productdiff0. Currentproduct897b/tree0b11/mapf756 unchanged.",
+    "Compiler58 actualCLOSED06:54:45:35filters58tests40PASS18FAIL/0W, allrawbuild/input/source/provider/artifact/timer/process/launcher guards rootindependentlyverified. Complete322payloadarchive23fc259d rootverified, finala2543f18/launcherae69b4eb; failed-valid runtime, allF/audit0. RootnextLSP23allocation; remainingJim7/CCG3/hook2/Native15GOsabsent.",
+    "Originaldiagnostic11=10PASS1FAIL versus historical1PASS10FAIL exactselectorjoin9FAIL\u2192PASS (G4documentedpolicy/oraclecorrectionscaveat). Additionalowner4=3/1; actualforeignanalysismemoownerfailure6ae79v2 staticCLEARbothpeers, seedEq/cachepreserved; typing/runtimeunrun. E003Installedede9+Jimcanonicaleca8+alias86eb+escapehelper3a10+BPFfixture d1a3 off-tree/staticCLEAR only; puretracesawaitactualmeasurement. No sourceintegration since897b.",
+    "SupportedNode26.12.1 off-tree twoJSONlayout tscPASS451actualinputs/12803canonical/dependencyentriesunchanged. Canonical exacttwo copy-only prerequisitesremainqueued; noshippinghostacceptance. ExternalBIGIP/perfheadersstale, reviewtriageCOMPLETE; no duplicates/takeover.",
+    "CI5206OLD5a418completedfailure06:58:42. Fresh07:03full47jobs7success22failure2cancelled16skip rawb49250b5; newlyvisibleaggregation/release-skippedjobsmeanroster grewfrom31. Directcheckannotations prove main2/nativee2e1maximum6h0m0stimeouts; native1also3panic-regexmatchertimeouts, main2missingresultartifact. No rootcancellationaction, no reason/outcomesinferredfromcancelstatusalone. MCPlogTransportclosed/threeboundedGHjoblogsForbidden; rawsignederrorURLskeptprivate, exactremainingnamedresultsunknown. Read-onlyCIcaptureaudit underway beforefuturerun; no timeout/testbudgetincrease/duplicateCI.",
+    "LSP23 actual runtime closed07:33:39 at17PASS/6FAIL over23 exact selectors; all five fresh target builds0W and protocol source/provider/artifact seals valid, with root raw evidence verification in progress. Jim7/CCG3/additional livehook2/Native15 remain unrun. The six failures are factorial/default nested Expr output, source-only factorial full output, contradictory BOM refusal fixture (genuine Skip correction off-tree/peer-cleared), Readonly body admitted after argument replacement, and initial compiler syntax-alternatives positive unavailable. Later assertions within failed tests remain unreached.",
+    "CI capture audit complete: current raw nextest path lacks20MB filter and incremental terminals; Rust preselection occurs after execution and is skipped on cancellation. Pinned reporter feasibility proposed off-tree only; no budget/test/assertion changes or CI rerun.",
+    "LSP23 closure17PASS6FAIL/23/allguards0W independentlyrootverified (58stages,5builds) and273payloadarchivepublished65ac33fad07:36:37. Evidenceonlyoracle.tcl inadvertentlyenteredfullsourceinventory; Jimallocator refusednoGO/noCargo. Ownerpreservedexactbytesoracle.tcl.txt andpriorreceipt; rootexact100405pathset restored/published8252c695d07:39:16; retry90875 willrecheckallhashes withoutguardchange.",
+    "CurrentJim7v3 run074026.424485Z root90875 actualGOeace0/durablelauncher074007 afterrestoredfullsourceproof; firsttargetbuild0W andsecondbuilding, no runtimeoutcomesyet. ConnectedCI5206main2logretry07:43 returnsTransportclosed, namedoutcomesstayunknown.",
+    "Jim7 CLOSED07:52:50 actual1PASS6FAIL/7, twofreshCargoartifacts0W andallraw/source100405/provider/input/GO/launcher/process/counts/exit/artifact/HEAD guards independentlyrootverified. Final88a78c7e/launcher017858af. Full165logical149gzipblobarchivebc5dd539 independentlyrootverifiedallpayloads+originalbytes. Root90875CLOSED1/LOCK_RELEASED; nextCCGdirect3 actualallocation66773 started, nofutureGOs.",
+    "Off-tree core17 aliasEXCLUDED combined1a6a8943/manifestd1601b31/29paths/proposed64cumulative; exactcomponentcategories={'functional': 3, 'fixture': 4, 'pure-diagnostic': 9, 'pure-diagnostic-root-scope-review': 1}. Format/component/unionreviewsstaticonly, finalNamespreservationpeerpending. No sourceintegration/newtyping/runtime claim.",
+    "CI5206smallartifactinventory actual13files; bothboundedGHdownloadsfailed. Freshno-cacheGitHubAPI302 issuedvalid07:48:55\u219207:58:55 redirect toproductionresultssa3.blob.core.windows.net, actualdownloadblockedbyproxyCONNECT403. No expired-linktheory/approvalrejection, no signedURL/tokenprinted. Exactnamedoutcomesunavailable; connectorlogretryTransportclosed."
+  ],
+  "committed": [
+    "78966ead5dbe7316ea759342402e1600f0640e01"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Allocate CCGdirect3 fromactualv9 proof, then separate livehook2 andNative15 sequentially; source/providerHOLD.",
+    "Afterfrozenqueuecloses reviewexactcore17 scope, integratefunctionalfixes/justifiedfixtures/puretraces withnewactualsourceidentity andfreshalltargettyping/runtime; noaliasfixtureadmission.",
+    "Completeauthenticatedperf allold/mixed proof, SpecTclC1C2/UPF17/strict0W/notom16/shippinghost/repositorygates andexactorigin/rustzeroP2F. AllF/audit0; PRonlyexplicituserrequest."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Compiler58closed40PASS18FAIL/58; LSP23closed17PASS6FAIL/23; Jim7closed1PASS6FAIL/7. AllzeroW/rawguardsandfullarchives independentlyrootverified; actualv9alltargettypingPASS0E0W. Product897b/tree0b11/mapf756 unchanged; nofullbaseline/release/unitadmissions.",
+  "disk_free_bytes": 8925716480,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

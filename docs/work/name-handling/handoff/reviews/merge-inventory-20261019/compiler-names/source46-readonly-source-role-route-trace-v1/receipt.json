@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T07:43:08.898693+00:00",
+  "status": "Bounded static CLEAR pure issuer-route diagnostic only; actual source/role donor and typing UNRUN",
+  "patch_sha256": "fd55fed4c1f0217283474f760358fc8839d959aaa32bf3c4e8901b1d422674af",
+  "peer_sha256": "64029ba0711373ce55324fce90bdd3de49a5eafc538edf31c994b559f1e58014",
+  "archive_sha256": "350e074e99ddd9d51a12076706f95ba88354055c07489e9757239c964073c728",
+  "archive_files": {
+    "actual/core_lib-11.process.json": "f2d5e4ac34bc8196a565ee781271fcb1b6d4466d26ad419c44a584102fe88db0",
+    "actual/core_lib-11.result.json": "e5560985d06e3a540b84f090d4c354f87fb20d827cdb9bac830e049d0b769b21",
+    "actual/core_lib-11.stderr": "bff1cbcce9a41418ec681f2f5b892fc4f5d79d7b9ce5c545eb30340d3e38853d",
+    "actual/core_lib-11.stdout": "554b43f10c0ada5326cdc920351f526cdd76575da82427633f4266c2c548da94",
+    "candidate/ccg-static-peer.txt": "64029ba0711373ce55324fce90bdd3de49a5eafc538edf31c994b559f1e58014",
+    "candidate/independent-check.json": "239f94e3ce068fe1e44d9d38539939aa7f3114b76e69878b9fec32332579d65a",
+    "candidate/manifest.json": "c0a25f19e50794896c51764366ee2d4173915d9c8ae12dbc9d92adfb6c0a4901",
+    "candidate/prepare.py": "6e7268c3f81289b952404b1f30678dc525095c196515014c0357f23b0fe0941d",
+    "candidate/proposal.patch": "fd55fed4c1f0217283474f760358fc8839d959aaa32bf3c4e8901b1d422674af",
+    "current/rust/tcl-compiler/src/registry_invocation/source_structure.rs": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+    "proposed/rust/tcl-compiler/src/registry_invocation/source_structure.rs": "61b25cb99ad86e9899d0062bf7e182e8927f658bc9b4453942c42800576f23ea"
+  },
+  "scope": "Original declared primary/authored and registry scoped/selected/native/prefix/member and metadata retained/point/future fallback paths wrapped in identity helpers; same old queries once/or_else lazy order/returns. Read stamped binding existing target/state/admission fields and returned carrier sourcekind/roles/preserve flag only. Logical/vendor/definition routes unchanged (fixed fixture plainNative).",
+  "actual": "row18 Readonly firstassert body data incorrectly Script; source-only newSyntaxCompaction branch excluded bypurpose. Actual returned issuer route unmeasured; authored declaredfallback refuses nonempty actualtargets. No inferred repair.",
+  "limits": "No assertion/fixture/proof/Eq/cache/Normal/Native/body authority or barrier/fallback logic change. No semantic extraquery. PinnedfmtparsePASS, Rusttyping/runtime/sourceapply/Cargo/Git/GO absent."
+}

@@ -1,0 +1,65 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs
+@@ -609,7 +609,10 @@
+         &self,
+         head: &[u8],
+     ) -> Option<(Arc<OriginalSourceClassDeclaration>, Vec<SourceAdviceWord>)> {
+-        let mut key = self.selected_head_key(head)?;
++        let mut key = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.selected_head_key",
++            self.selected_head_key(head),
++        )?;
+         let mut seen = Vec::new();
+         let mut prefix = Vec::new();
+         let mut lineage = Vec::new();
+@@ -618,7 +621,20 @@
+                 return None;
+             }
+             seen.push(key.clone());
+-            match self.cells.get(&key)? {
++            let cell = self.cells.get(&key);
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
++                let kind = cell.map(|cell| match cell {
++                    AdviceCell::SourceClass(_) => "SourceClass",
++                    AdviceCell::AuthoredJimClass(_) => "AuthoredJimClass",
++                    AdviceCell::Alias { .. } => "Alias",
++                    _ => "Other",
++                });
++                eprintln!(
++                    "JIM_SOURCE_OWNER stage=constructor.graph_cell head={head:?} kind={kind:?}"
++                );
++            }
++            match cell? {
+                 AdviceCell::SourceClass(class) => {
+                     let mut class = class.as_ref().clone();
+                     class.lineage.extend(lineage);
+@@ -1018,10 +1034,26 @@
+         native: &[NativeWord],
+         written: &[SourceAdviceWord],
+     ) -> bool {
+-        let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
++            eprintln!(
++                "JIM_SOURCE_OWNER stage=constructor.retain_attempt offset={:?} words={}",
++                native.first().map(|word| word.span().start()),
++                native.len()
++            );
++        }
++        let Some(head) = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.written_head",
++            written.first().and_then(|word| word.input.as_ref()),
++        ) else {
+             return false;
+         };
+-        let Some((class, mut arguments)) = graph.resolve_source_class(head) else {
++        let Some((class, mut arguments)) =
++            crate::registry_invocation::source_structure::trace_jim_source_option(
++                "constructor.source_class",
++                graph.resolve_source_class(head),
++            )
++        else {
+             return false;
+         };
+         for (ordinal, word) in arguments.iter_mut().enumerate() {
