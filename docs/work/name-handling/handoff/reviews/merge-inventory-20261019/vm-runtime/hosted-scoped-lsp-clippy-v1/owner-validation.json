@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T17:28:39.166736+00:00",
+  "patch_sha256": "fea9221dd01014331c3f7d8e1661a940487ebc7e4141fb988919edd3e194d0d4",
+  "copy_apply_zero_fuzz_no_offset_exactfinal": true,
+  "yaml_and_bash_syntax": "PASS",
+  "old_fulltom_paired_notom_jobs_equal": "PASS",
+  "inline_python_extracted_exact": "PASS",
+  "ruff": "0.17.1 canonicalconfig format/check PASS",
+  "ty": "0.0.88 projectisolated Python3.12 PASS (initial --no-project invocation rejected beforeanalysis; corrected --project invocation passed)",
+  "pyright": "1.1.414 STANDARD Python3.12 actualfilesAnalyzed1 errorCount0 warningCount0",
+  "mock_controls_sha256": "13c19e2ceda6bd3a18d2c5b42eea45d52b25a92f910c306cc4c4198dd69e30fa",
+  "no_cargo_dispatch_or_sourcewrites": true
+}

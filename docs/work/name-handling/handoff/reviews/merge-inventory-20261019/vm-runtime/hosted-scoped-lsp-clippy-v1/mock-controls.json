@@ -1,0 +1,107 @@
+{
+  "utc": "2026-10-23T17:27:52.117054+00:00",
+  "scope": "Pure mock Popen/BytesIO and mocked disk data; NO Cargo or external process launched. Production20MiBconstant only lowered in ephemeral exec for bounded cap control, frozen code unchanged.",
+  "inline_code_sha256": "888ee39b7760e89c631a83f75bb5a32d163c26ddb88b3d2db38611b4fb4857d3",
+  "controls": [
+    {
+      "control": "ordinary-fail-continues",
+      "actual_process_launches": 0,
+      "all3mockargvs": [
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-core",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-db",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-server",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ]
+      ],
+      "all3real_mock_exits": [
+        0,
+        7,
+        0
+      ],
+      "wrapper_exit": 1,
+      "captured_bytes": 84,
+      "PASS": true
+    },
+    {
+      "control": "cap-drains-preserves-exits",
+      "actual_process_launches": 0,
+      "all3mockargvs": [
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-core",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-db",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-server",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ]
+      ],
+      "all3real_mock_exits": [
+        0,
+        7,
+        0
+      ],
+      "wrapper_exit": 125,
+      "captured_bytes": 16,
+      "PASS": true
+    }
+  ]
+}

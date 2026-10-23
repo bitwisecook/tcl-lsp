@@ -1,0 +1,9 @@
+{
+  "status": "STATIC_WORK_ONLY_DIAGNOSTIC_CLEAR",
+  "utc": "2026-10-23T17:29:43.454844+00:00",
+  "patch_sha256": "fea9221dd01014331c3f7d8e1661a940487ebc7e4141fb988919edd3e194d0d4",
+  "manifest_sha256": "2423e61b89b4b56b3b28d71908ba8c66cdf974a035820a6895d268e004ec5145",
+  "checks": "Actual publisher Gitblob beforepin/copiedapply0/nooffset/final, YAML deepcompare all oldjobs unchanged except two explicit newmode exclusions, bash-n allsteps and exact extracted inline Python AST PASS. Three exact original scoped locked/no-deps/all-target/all-feature Clippy -Dwarnings commands; ordinary nonzero remains actual CLOSED exit and continues, signal sets incomplete; shared20MiB retained output cap drains excess without SIGPIPE, truncation explicit125. Full source/tool/clean checks after capture, always-upload evidence; input fullSHA equals current dispatchSHA.",
+  "boundaries": "60minute hosted job bound, not local88125 or independent per-command deadline. Unexpected spawn/I/O exceptions remain RUNNING/UNREACHED plus nonzero infrastructure failure, never CLOSED/PASS. Scope is Clippy census, not semantic tests/fullpackage gate; default source/provider backend may report build warnings, no zero-warning acceptance inferred solely from staticreview or exit. WORK-only no releasecarry.",
+  "execution": "No Cargo, hosted dispatch, actual Clippy, source mutation or gate acceptance."
+}

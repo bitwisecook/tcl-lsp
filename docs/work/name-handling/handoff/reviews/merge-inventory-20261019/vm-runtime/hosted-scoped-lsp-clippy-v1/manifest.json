@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T17:27:27.173282+00:00",
+  "head": "1e8c2757624e7fe0ce08a4342aaf357c5fafa165",
+  "status": "TEMP_WORK_ONLY_FROZEN_PEER_PENDING_NO_DISPATCH",
+  "files": [
+    {
+      "path": ".github/workflows/perf.yml",
+      "before_sha256": "9f47db3b0bec464fb2e6a752e3efb46b6d179b67a3620b3b0f3881bf06f8447a",
+      "after_sha256": "0acdcfd0e22fac1d097da0f49368ba613cb8418c6f36538c4faddac925e3a3fc"
+    }
+  ],
+  "patch_sha256": "fea9221dd01014331c3f7d8e1661a940487ebc7e4141fb988919edd3e194d0d4",
+  "notes": [
+    "Three separate original strict scoped Clippy commands; loop never stops merely for previous nonzero Cargoexit, all actual statuses retained.",
+    "Fresh sharedtarget samechecked-outWORK, debug0/incremental0/jobs2,2GiBbeforeaftereachcommand,20MiBaggregate capturedoutput; logcap drains excess without changing originalCargoexit and flagsincomplete125.",
+    "OriginalfullTom/paired/NoTom modes unchanged; diagnostic never carriesrelease and never waives finalstrictallpackages or otherallowsaudit."
+  ],
+  "python_checks": "Ruff0.17.1 format/check canonicalconfig PASS, ty0.0.88 PASS, Pyright1.1.414 STANDARD Python3.12 actual1file0errors0warnings"
+}

@@ -2,11 +2,26 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T17:19:35.328606+00:00 (hostedFullTomv2 STATIC CLEAR08dd3cb1 readyrootpublish; actual114FAIL/SIGSEGV unresolved)
+Last updated: 2026-10-23T17:30:31.694847+00:00 (scoped LSPClippy STATIC CLEAR161c0d92 readyrootpublish; actualruntime114FAIL/SIGSEGV unresolved)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root-authorised TEMP WORK-only scoped LSPClippy diagnostic frozenofftree
+/workspace/naming-proof-storage/vm-hosted-scoped-lsp-clippy-v1/ proposalfea9221d,
+manifest2423e61b, before9f47db3b/fullTomv2 exactpreserved, final0acdcfd0.
+Three independent originalstrict commands tcl-lsp-core/db/server, alltargets+
+allfeatures/locked/no-deps/-Dwarnings; actualexit retained/ordinaryfail continues,
+allrowsdurable. Fresh sharedtarget/debug0/incremental0/jobs2, exactsource==event
+SHA/workonly,2GiBprepost,20MiBaggregate drainedlogs/cap=>incomplete125, finalsource/
+toolseals/gitclean/artifactalways. YAML/bash/copyapply0/finals and extractedinline
+Python Ruff0.17.1+ty0.0.88+Pyright1.1.414 STANDARD actual1file0/0PASS. Puremock
+controls13c19e2c executeNO actualprocess/Cargo, proveall3statuses0/7/0+capdrain.
+CCG STATIC CLEAR161c0d92; no actualcensus measured/no allpackagesgate or allowwaiver.
+Durable own hosted-scoped-lsp-clippy-v1/ archivesexactworkflow/inlinecodegzip
+andproposal/pins/toolcontrols/peer; root has publish/dispatch CLI.
+No VMsource/Cargo/Git/push/dispatch. Runtime114/SIGSEGV remains actualunresolved.
 
 Temporary WORK-only hosted FullTom nextestv2 frozenf660c5d9/manifest a795e2ff,
 CCG STATIC CLEAR08dd3cb1. Exactbefore3f2dee19/final9f47db3b; YAML/bash-n/current

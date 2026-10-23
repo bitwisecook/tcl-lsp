@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T17:26:38.454734+00:00
+Last updated: 2026-10-23T17:59:34.090719+00:00
 
 ## In progress
 
@@ -47,13 +47,12 @@ Last updated: 2026-10-23T17:26:38.454734+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (17:25 UTC)
+### Current cycle and routing (17:55 UTC)
 
-- Canonical7f3 normalpush confirmed. It includes all six observed compiler error repairs, SSA6 and independently reviewed26 further compilerlengthsites. Activeproductmirror8332e7f3/tree51b7cf exactlymatches7f3.
-- Original13 successorv8 launched17:11:06 with reviewed closedfailedparent cacheonly,100654source map and17500provider seal. First compilerlib build stillrunning without observed compiler errors/warnings; no selectedbuildsuccess or runtime outcome yet. Root7032 owns onlybuildslot.
-- Cleanrelease next26v2carriedb637 afterindependentpeer caughtv1omittedlogicalparameter helper. Hostedrooted-headrepair+SSA6+sixtypingrepairs and two staleWASMdesignrefs alreadycarried. Candidate remains red and has noPR.
-- FullTom release88runtime endedSIGSEGV11 at17:06:28 after1960closedrows/1959unique/114uniqueFAIL; fullinventoryunknown. Priorfatalfixture,clock,numeric_tower nowPASS;24additionalfailures newlyreached, notassumedregressions. StrictNoTom17typed+1refusalPASS.
-- Work-only isolatedFullTomnextest diagnosticworkflow v2 independentlyclear: preservesoriginalengine/locked cases, separateprocesscrashidentity, fullpanicpayloads and boundedlogs withcompleteactualroster; docs excludedexplicitly, notsemanticgatewaiver. Publication/dispatchpendingroot.
-- Finalquality audit proved3newcratewide LSPtoo_many_lines suppressions absentbaseline; removedinpublisher1e8, samefunctionalreleasecarrypending. Static266longfunctioncandidates isnotactualClippyfindings. Otherdiff-addedattrs requireowner/baselinecorrespondenceadjudication beforeclaimnewcount.
-- Freshreleasechaffcensus scanned10974trackedfiles/no missing on eaa102. Current1224regexhits retainedas semanticcontrols/terminology;106changedfilehits contextreviewed,1118byte-identicalinheritpriorclassification. Priorstaleresidueclaimsretractedafterrootlivefilecheck; no blanketauditprose/runtimeclaim.
-- Externalperf17:00:04 reports serviceinterruption/currentcorpusunverified; preserveexistingSpecTcl1P2F andrecoveryprocesses. BIGIP13:17 completedstampstale>60/newheavyblockersalreadyrouted; no duplicateexternalroles.
+- Original13 v8 ended at17:52:25 overallFAIL: original compiler build2400s owned timeout, then original finalprovider30s owned timeout. Both processgroups closed and lock released; all13 runtime rows UNRUN. Final stability false means unsealed, not observed hash mismatch. Failed parent cannot admit cache/artifact results.
+- All123 original compiler Clippy sites now have intended fixes integrated locally throughunit4v3 3ea; six actual compiler typing repairs already published7f3. New compiler test helper allowance removedbefd. No new measured Clippy/type pass inferred; exact source attribution retained.
+- Names19 new registry/syntax allowances all have independently reviewed off-tree source fixes, exact WORK19 composition pending. Three baseline allowances retained; assertions unchanged.
+- Release9c normalpush confirmed; three new LSP cratewide suppressions removed. Fresh ordinary CI39996625386 has successful actual server ci-profile build, Python and cargo-deny, but strict and editor failures. Targeted scopedClippy39996600299 completedFAIL; actual findings being retrieved.
+- FullTom isolated original inventory diagnostic39995195040 running, unchanged original assertions. Prior release88 SIGSEGV11/114partial uniqueFAIL remains unresolved; no full inventory or crashing selector yet. Eight new Spec/Studio allowance fixes prepared for semantic peer.
+- Externalperf17:27 recovered. Controls failed known six compiler errors before any tests; repaired-source controls and complete old/mixed proof still required. Latest complete SpecTcl1P2F retained. BIGIP13:17 stale>60min usernotified; no external role duplicated.
+- Lossless closed-evidence JSON hardlinking and hash-verified old extracted shipping binaries reclaimed234168320bytes, retained ZIPs preserve originals. No target deletion or test executable deletion; build disk floor retained. Six-hour target missed; release remains blocked, no PR.

@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T17:29:58.483982+00:00",
+  "scheduled": "2026-10-23T17:25:37+00:00",
+  "source_snapshot": "9ac5d4ce793fada061092ecee911883c4b02f174",
+  "published_snapshot": "d25c6705ef85f2defe60239f396cecbf6920407a",
+  "source_commits": [
+    "9ac5d4ce793fada061092ecee911883c4b02f174"
+  ],
+  "product_tree_diff": [
+    ".github/workflows/perf.yml",
+    "rust/tcl-lsp-core/src/lib.rs",
+    "rust/tcl-lsp-db/src/lib.rs",
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "external_product_base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "external_changes_preserved_not_validated": true,
+  "remote_confirmed": "d25c6705ef85f2defe60239f396cecbf6920407a",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

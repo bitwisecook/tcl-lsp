@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T17:59:34.538171+00:00",
+  "scheduled_report_utc": "2026-10-23T17:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T18:25:37+00:00",
+  "change_since_previous_report": [
+    "Original13 v8 ended at17:52:25 overallFAIL: original compiler build2400s owned timeout, then original finalprovider30s owned timeout. Both processgroups closed and lock released; all13 runtime rows UNRUN. Final stability false means unsealed, not observed hash mismatch. Failed parent cannot admit cache/artifact results.",
+    "All123 original compiler Clippy sites now have intended fixes integrated locally throughunit4v3 3ea; six actual compiler typing repairs already published7f3. New compiler test helper allowance removedbefd. No new measured Clippy/type pass inferred; exact source attribution retained.",
+    "Names19 new registry/syntax allowances all have independently reviewed off-tree source fixes, exact WORK19 composition pending. Three baseline allowances retained; assertions unchanged.",
+    "Release9c normalpush confirmed; three new LSP cratewide suppressions removed. Fresh ordinary CI39996625386 has successful actual server ci-profile build, Python and cargo-deny, but strict and editor failures. Targeted scopedClippy39996600299 completedFAIL; actual findings being retrieved.",
+    "FullTom isolated original inventory diagnostic39995195040 running, unchanged original assertions. Prior release88 SIGSEGV11/114partial uniqueFAIL remains unresolved; no full inventory or crashing selector yet. Eight new Spec/Studio allowance fixes prepared for semantic peer.",
+    "Externalperf17:27 recovered. Controls failed known six compiler errors before any tests; repaired-source controls and complete old/mixed proof still required. Latest complete SpecTcl1P2F retained. BIGIP13:17 stale>60min usernotified; no external role duplicated.",
+    "Lossless closed-evidence JSON hardlinking and hash-verified old extracted shipping binaries reclaimed234168320bytes, retained ZIPs preserve originals. No target deletion or test executable deletion; build disk floor retained. Six-hour target missed; release remains blocked, no PR."
+  ],
+  "committed": [
+    "9ac5d4ce793fada061092ecee911883c4b02f174"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Freshfetch/rebase and normalpush integrated compiler fixes, cycle WIP report, rearm18:25 reminder.",
+    "Compose/integrate reviewed Names19 and clean release compiler carry while preserving release cleanup.",
+    "Capture separate current endpoints and prepare explicit cache-only bridge to fresh selected production-server startup/Context diagnostic; no failed-run repair or semantic-budget changes.",
+    "Retrieve actual scopedClippy/editor/FullTom failures and fix root causes; complete full baseline comparison, accepted Tcl performance, all required gates and final release cleanup before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T17:27:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or validated-row changes. Original13 allUNRUN with failed build/finalprovider timeouts. Actual release server buildPASS does not establish fulltyping/Clippy/runtime. Wholebaseline unknown; runtime/hosts/performance and known P2F blockPR.",
+  "disk_free_bytes": 2760749056,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
