@@ -1106,6 +1106,34 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `-force` is positional in the same way: only `objv[1]` is read as the flag,
 /// and every later word is a pattern — including a trailing `-force`, which
 /// then fails the "the pattern must name a source namespace" check.
+fn import_source_name_patterns(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let operation = match crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+    {
+        Ok(operation) => operation,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    for pattern in rest {
+        let reached = tcl_syntax::value::ValueOps::native_string_bytes(vm, pattern);
+        if let Err(error) = operation.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let original = match reached {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return crate::command::completion_from_cmd_error(vm, error.into());
+            }
+        };
+        let result = vm.import_source_names(&original, &operation);
+        if let Err(error) = operation.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if result.code != Code::Ok {
+            return result;
+        }
+    }
+    ok(Value::empty())
+}
+
 fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let original_names =
         match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
@@ -1116,31 +1144,7 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if vm.dialect_profile().namespace_import_binding()
             == Some(tcl_dialect::NamespaceImportBinding::SourceName)
         {
-            let operation =
-                match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
-                    Ok(operation) => operation,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-            for pattern in rest {
-                let reached = tcl_syntax::value::ValueOps::native_string_bytes(vm, pattern);
-                if let Err(error) = operation.check(vm) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
-                let original = match reached {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return crate::command::completion_from_cmd_error(vm, error.into());
-                    }
-                };
-                let result = vm.import_source_names(&original, &operation);
-                if let Err(error) = operation.check(vm) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
-                if result.code != Code::Ok {
-                    return result;
-                }
-            }
-            return ok(Value::empty());
+            return import_source_name_patterns(vm, rest);
         }
         if rest.is_empty() {
             // Pinned C8.4 predates the later imported-command query form.
@@ -1593,198 +1597,173 @@ pub(crate) fn namespace_command_lookup_error(
     )
 }
 
+fn ns_ensemble_create_entered(
+    vm: &mut Vm,
+    args: &[Value],
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Completion<Value> {
+    use crate::command::EnsembleDef;
+    let Some(options) = vm
+        .native_invocation_dialect()
+        .native_ensemble_configuration_protocol()
+    else {
+        return vm.refuse_host_command("ensemble configuration options".into());
+    };
+    if !args.len().is_multiple_of(2) {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"namespace ensemble create ?option value ...?\"",
+        );
+    }
+    let ns_id = tcl_runtime_api::Namespaces::current(vm);
+    let mut command: Option<std::rc::Rc<[u8]>> = None;
+    let mut opts = EnsembleOptions {
+        map: Vec::new(),
+        originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
+        subcommands: None,
+        prefixes: true,
+        parameters: Vec::new(),
+        unknown: None,
+    };
+    for pair in args.as_chunks::<2>().0 {
+        let resolved = match vm.native_static_option_index_checked(
+            &pair[0],
+            options.create_options(),
+            false,
+            "option",
+        ) {
+            Ok(index) => options.create_option(index),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(shared) = resolved.shared() else {
+            // `-command` names the command rather than configuring it.
+            command = Some(match original_names.read(vm, &pair[1]) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            });
+            continue;
+        };
+        if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, true) {
+            return completion;
+        }
+    }
+    // The default command is the namespace itself; an explicit -command binds in
+    // the current namespace when unqualified.
+    let selected_current = vm.native_namespace_token_has_owner(ns_id);
+    if let Err(error) = original_names.require(
+        vm,
+        selected_current,
+        "selected original ensemble creation namespace",
+    ) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let slot = match vm.native_namespace_ensemble_publication_slot(command.as_deref()) {
+        Ok(slot) => slot,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let mut reporting = b"::".to_vec();
+    reporting.extend_from_slice(&vm.command_slot_display_bytes(&slot));
+    let def = EnsembleDef {
+        originals: opts.originals,
+        native: None,
+        namespace: ns_id,
+        map: opts.map,
+        subcommands: opts.subcommands,
+        prefixes: opts.prefixes,
+        parameters: opts.parameters,
+        unknown: opts.unknown,
+    };
+    let token = std::rc::Rc::new(
+        tcl_cmd_core::ensemble::EnsembleToken::with_configuration_retirement(
+            def,
+            tcl_core_types::NameBytes::from(reporting.as_slice()),
+            tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+            crate::command::native_ensemble_objects::retire_configuration,
+        ),
+    );
+    let selected_current = vm.native_namespace_token_has_owner(ns_id);
+    if let Err(error) = original_names.require(
+        vm,
+        selected_current,
+        "selected original ensemble holder before publication",
+    ) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    vm.register_namespace_ensemble_slot(slot, &token);
+    if let Err(error) = original_names.check(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let selected_current = !token.is_deleted() && vm.native_namespace_token_has_owner(ns_id);
+    if let Err(error) = original_names.require(
+        vm,
+        selected_current,
+        "selected original ensemble before object-role adoption",
+    ) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    token.config().originals.activate();
+    ok(Value::from_native_string_bytes(reporting))
+}
+
 fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let original_names =
         match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
             Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-    let reached = (|| {
-        use crate::command::EnsembleDef;
-        let Some(options) = vm
-            .native_invocation_dialect()
-            .native_ensemble_configuration_protocol()
-        else {
-            return vm.refuse_host_command("ensemble configuration options".into());
-        };
-
-        if !args.len().is_multiple_of(2) {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"namespace ensemble create ?option value ...?\"",
-            );
-        }
-        let ns_id = tcl_runtime_api::Namespaces::current(vm);
-        let mut command: Option<std::rc::Rc<[u8]>> = None;
-        let mut opts = EnsembleOptions {
-            map: Vec::new(),
-            originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
-            subcommands: None,
-            prefixes: true,
-            parameters: Vec::new(),
-            unknown: None,
-        };
-        for pair in args.as_chunks::<2>().0 {
-            let resolved = match vm.native_static_option_index_checked(
-                &pair[0],
-                options.create_options(),
-                false,
-                "option",
-            ) {
-                Ok(index) => options.create_option(index),
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            let Some(shared) = resolved.shared() else {
-                // `-command` names the command rather than configuring it.
-                command = Some(match original_names.read(vm, &pair[1]) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                });
-                continue;
-            };
-            if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, true) {
-                return completion;
-            }
-        }
-        // The default command is the namespace itself; an explicit -command binds in
-        // the current namespace when unqualified.
-        let selected_current = vm.native_namespace_token_has_owner(ns_id);
-        if let Err(error) = original_names.require(
-            vm,
-            selected_current,
-            "selected original ensemble creation namespace",
-        ) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let slot = match vm.native_namespace_ensemble_publication_slot(command.as_deref()) {
-            Ok(slot) => slot,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let mut reporting = b"::".to_vec();
-        reporting.extend_from_slice(&vm.command_slot_display_bytes(&slot));
-        let def = EnsembleDef {
-            originals: opts.originals,
-            native: None,
-            namespace: ns_id,
-            map: opts.map,
-            subcommands: opts.subcommands,
-            prefixes: opts.prefixes,
-            parameters: opts.parameters,
-            unknown: opts.unknown,
-        };
-        let token = std::rc::Rc::new(
-            tcl_cmd_core::ensemble::EnsembleToken::with_configuration_retirement(
-                def,
-                tcl_core_types::NameBytes::from(reporting.as_slice()),
-                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
-                crate::command::native_ensemble_objects::retire_configuration,
-            ),
-        );
-        let selected_current = vm.native_namespace_token_has_owner(ns_id);
-        if let Err(error) = original_names.require(
-            vm,
-            selected_current,
-            "selected original ensemble holder before publication",
-        ) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        vm.register_namespace_ensemble_slot(slot, &token);
-        if let Err(error) = original_names.check(vm) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let selected_current = !token.is_deleted() && vm.native_namespace_token_has_owner(ns_id);
-        if let Err(error) = original_names.require(
-            vm,
-            selected_current,
-            "selected original ensemble before object-role adoption",
-        ) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        token.config().originals.activate();
-        ok(Value::from_native_string_bytes(reporting))
-    })();
+    let reached = ns_ensemble_create_entered(vm, args, &original_names);
     if let Err(error) = original_names.finish(vm) {
         return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
 }
 
-/// `namespace ensemble configure cmdname ?-option? ?value ...?`
-/// (`tclEnsemble.c:377-630`): with no options an ordered key/value List of settings, with a
-/// single option that option's value, otherwise `-option value` updates.
-/// `ensembleConfigOptions` differs from the create table — it carries
-/// `-namespace` (readable, never writable) and has no `-command`.
-fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let original_names =
-        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
-            Ok(scope) => scope,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
-    let reached = (|| {
-        const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
-        let Some(options) = vm
-            .native_invocation_dialect()
-            .native_ensemble_configuration_protocol()
-        else {
-            return vm.refuse_host_command("ensemble configuration options".into());
-        };
+type NamespaceEnsembleToken = std::rc::Rc<
+    tcl_cmd_core::ensemble::EnsembleToken<crate::command::EnsembleDef, tcl_core_types::NameBytes>,
+>;
 
-        let Some((cmd_val, rest)) = args.split_first() else {
-            return crate::command::native_wrong_arguments_message(vm, USAGE);
-        };
-        // C's arity gate: one bare option word is a read, anything else must be
-        // `-option value` pairs.
-        if rest.len() > 1 && !rest.len().is_multiple_of(2) {
-            return crate::command::native_wrong_arguments_message(vm, USAGE);
-        }
-        let written = match original_names.read(vm, cmd_val) {
-            Ok(bytes) => bytes,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
-        // `Tcl_FindEnsemble` reports the two failures separately: a name that
-        // resolves to no command at all is `unknown command "x"` (the
-        // `Tcl_FindCommand` miss), while a name that *is* a command but carries a
-        // different implementation is `"x" is not an ensemble command`. Collapsing
-        // them into the second message misreports a plain typo.
-        let selected = match vm
-            .lookup_command_bytes_checked(tcl_runtime_api::Namespaces::current(vm), &written)
-        {
+fn lookup_namespace_ensemble_token(
+    vm: &mut Vm,
+    written: &[u8],
+) -> Result<NamespaceEnsembleToken, Completion<Value>> {
+    let selected =
+        match vm.lookup_command_bytes_checked(tcl_runtime_api::Namespaces::current(vm), written) {
             Ok(selected) => selected,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
         };
-        let token = match selected {
-            Some((_, crate::command::Command::Ensemble(token))) => token,
-            Some(_) => {
-                return namespace_command_lookup_error(
-                    vm,
-                    &written,
-                    b"",
-                    b" is not an ensemble command",
-                    b"ENSEMBLE",
-                );
-            }
-            None => {
-                return namespace_command_lookup_error(
-                    vm,
-                    &written,
-                    b"unknown command ",
-                    b"",
-                    b"COMMAND",
-                );
-            }
-        };
-        let selected_current = !token.is_deleted();
-        if let Err(error) =
-            original_names.require(vm, selected_current, "selected original ensemble token")
-        {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let def = token.config();
-        if rest.is_empty() {
-            return ensemble_configuration_snapshot(vm, &def, options);
-        }
-        if let [only] = rest {
-            return match vm.native_static_option_index_checked(
+    match selected {
+        Some((_, crate::command::Command::Ensemble(token))) => Ok(token),
+        Some(_) => Err(namespace_command_lookup_error(
+            vm,
+            written,
+            b"",
+            b" is not an ensemble command",
+            b"ENSEMBLE",
+        )),
+        None => Err(namespace_command_lookup_error(
+            vm,
+            written,
+            b"unknown command ",
+            b"",
+            b"COMMAND",
+        )),
+    }
+}
+
+fn report_namespace_ensemble_configuration(
+    vm: &mut Vm,
+    token: &NamespaceEnsembleToken,
+    def: &crate::command::EnsembleDef,
+    rest: &[Value],
+    options: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Option<Completion<Value>> {
+    if rest.is_empty() {
+        return Some(ensemble_configuration_snapshot(vm, def, options));
+    }
+    if let [only] = rest {
+        return Some(
+            match vm.native_static_option_index_checked(
                 only,
                 options.configure_options(),
                 false,
@@ -1798,11 +1777,11 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         selected_current,
                         "selected original ensemble report target",
                     ) {
-                        return crate::command::completion_from_cmd_error(vm, error);
+                        return Some(crate::command::completion_from_cmd_error(vm, error));
                     }
                     match ensemble_option_value(
                         vm,
-                        &def,
+                        def,
                         options.configure_option(index),
                         NativeEnsembleNamespaceResultStage::Option,
                     ) {
@@ -1811,75 +1790,137 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     }
                 }
                 Err(error) => crate::command::completion_from_cmd_error(vm, error),
-            };
-        }
-        let mut opts = EnsembleOptions::from_def(&def);
-        // `apply_shared_option` qualifies relative `-map` targets against `vm`'s
-        // current namespace, which is what CONF_MAP wants here: it uses
-        // `TclGetCurrentNamespace(interp)` — the namespace current at the
-        // `configure` call, NOT the ensemble's own namespace (which CRT_MAP uses
-        // at create time). They coincide in the common
-        // `namespace eval M {namespace ensemble configure …}` shape, but
-        // configuring an ensemble from outside its namespace resolves relative
-        // targets against the caller.
-        for pair in rest.as_chunks::<2>().0 {
-            let resolved = match vm.native_static_option_index_checked(
-                &pair[0],
-                options.configure_options(),
-                false,
-                "option",
-            ) {
-                Ok(index) => options.configure_option(index),
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            let selected_current =
-                !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
-            if let Err(error) = original_names.require(
-                vm,
-                selected_current,
-                "selected original ensemble target after option getter",
-            ) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            let Some(shared) = resolved.shared() else {
-                return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");
-            };
-            if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, false) {
-                return completion;
-            }
-        }
+            },
+        );
+    }
+    None
+}
+
+fn ns_ensemble_configure_entered(
+    vm: &mut Vm,
+    args: &[Value],
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Completion<Value> {
+    const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
+    let Some(options) = vm
+        .native_invocation_dialect()
+        .native_ensemble_configuration_protocol()
+    else {
+        return vm.refuse_host_command("ensemble configuration options".into());
+    };
+    let Some((cmd_val, rest)) = args.split_first() else {
+        return crate::command::native_wrong_arguments_message(vm, USAGE);
+    };
+    // C's arity gate: one bare option word is a read, anything else must be
+    // `-option value` pairs.
+    if rest.len() > 1 && !rest.len().is_multiple_of(2) {
+        return crate::command::native_wrong_arguments_message(vm, USAGE);
+    }
+    let written = match original_names.read(vm, cmd_val) {
+        Ok(bytes) => bytes,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    // `Tcl_FindEnsemble` reports the two failures separately: a name that
+    // resolves to no command at all is `unknown command "x"` (the
+    // `Tcl_FindCommand` miss), while a name that *is* a command but carries a
+    // different implementation is `"x" is not an ensemble command`. Collapsing
+    // them into the second message misreports a plain typo.
+    let token = match lookup_namespace_ensemble_token(vm, &written) {
+        Ok(token) => token,
+        Err(error) => return error,
+    };
+    let selected_current = !token.is_deleted();
+    if let Err(error) =
+        original_names.require(vm, selected_current, "selected original ensemble token")
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let def = token.config();
+    if let Some(report) =
+        report_namespace_ensemble_configuration(vm, &token, &def, rest, options, original_names)
+    {
+        return report;
+    }
+    let mut opts = EnsembleOptions::from_def(&def);
+    // `apply_shared_option` qualifies relative `-map` targets against `vm`'s
+    // current namespace, which is what CONF_MAP wants here: it uses
+    // `TclGetCurrentNamespace(interp)` — the namespace current at the
+    // `configure` call, NOT the ensemble's own namespace (which CRT_MAP uses
+    // at create time). They coincide in the common
+    // `namespace eval M {namespace ensemble configure …}` shape, but
+    // configuring an ensemble from outside its namespace resolves relative
+    // targets against the caller.
+    for pair in rest.as_chunks::<2>().0 {
+        let resolved = match vm.native_static_option_index_checked(
+            &pair[0],
+            options.configure_options(),
+            false,
+            "option",
+        ) {
+            Ok(index) => options.configure_option(index),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
         let selected_current =
             !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
         if let Err(error) = original_names.require(
             vm,
             selected_current,
-            "selected original ensemble target before adoption",
+            "selected original ensemble target after option getter",
         ) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
-        opts.originals.activate();
-        token.configure(crate::command::EnsembleDef {
-            originals: opts.originals,
-            native: def.native,
-            namespace: def.namespace,
-            map: opts.map,
-            subcommands: opts.subcommands,
-            prefixes: opts.prefixes,
-            parameters: opts.parameters,
-            unknown: opts.unknown,
-        });
-        let selected_current =
-            !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
-        if let Err(error) = original_names.require(
-            vm,
-            selected_current,
-            "selected original ensemble after configuration retirement",
-        ) {
-            return crate::command::completion_from_cmd_error(vm, error);
+        let Some(shared) = resolved.shared() else {
+            return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");
+        };
+        if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, false) {
+            return completion;
         }
-        vm.note_ensemble_configuration_changed(&token);
-        ok(Value::empty())
-    })();
+    }
+    let selected_current =
+        !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+    if let Err(error) = original_names.require(
+        vm,
+        selected_current,
+        "selected original ensemble target before adoption",
+    ) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    opts.originals.activate();
+    token.configure(crate::command::EnsembleDef {
+        originals: opts.originals,
+        native: def.native,
+        namespace: def.namespace,
+        map: opts.map,
+        subcommands: opts.subcommands,
+        prefixes: opts.prefixes,
+        parameters: opts.parameters,
+        unknown: opts.unknown,
+    });
+    let selected_current =
+        !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+    if let Err(error) = original_names.require(
+        vm,
+        selected_current,
+        "selected original ensemble after configuration retirement",
+    ) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    vm.note_ensemble_configuration_changed(&token);
+    ok(Value::empty())
+}
+
+/// `namespace ensemble configure cmdname ?-option? ?value ...?`
+/// (`tclEnsemble.c:377-630`): with no options an ordered key/value List of settings, with a
+/// single option that option's value, otherwise `-option value` updates.
+/// `ensembleConfigOptions` differs from the create table — it carries
+/// `-namespace` (readable, never writable) and has no `-command`.
+fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = ns_ensemble_configure_entered(vm, args, &original_names);
     if let Err(error) = original_names.finish(vm) {
         return crate::command::completion_from_cmd_error(vm, error);
     }
