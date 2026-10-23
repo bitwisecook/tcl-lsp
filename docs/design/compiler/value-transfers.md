@@ -2576,6 +2576,24 @@ Taint never reads values and is untouched. Tests:
 narrowing, and the nested-`if` program decides through `tcl diag` and
 `tcl opt`.
 
+Original Native calls use `NativeSummaryContext` independently of the
+Logical source-summary context. Both the strict selected invocation and its
+`NormalTransferInvocation` must come from the current retained interpreter,
+registry, original words and source origin. A normal-transfer schema describes
+the successful continuation; it does not assert that the invocation completed.
+Literal child commands still run through their declared Direct or
+Implementation route, and their actual normal outcome and closed effects are
+required before a result reaches the parent's ordered store.
+
+The Native parent bridge admits one unobserved bounded scalar receiver at the
+handler's `AfterArguments` binding phase. Its canonical cell key must equal
+the sole SSA definition's cell key at the unique original statement in the
+current body. Point and global spelling projections must select that same
+symbol before the existing place adapter can use its display name. A missing
+body owner, ambiguous projection, foreign frame, variable-valued child or
+stateful child withholds this path. Original declaration syntax alone supplies
+neither a cell, body entry, normal completion nor rewrite permission.
+
 ## Proc-level transfer summaries
 
 A private procedure needs no spec: the argument-sensitive O103 path
@@ -3095,6 +3113,9 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape
 - `rust/tcl-registry/src/substitution.rs` — `tp_*`, `fp_*`: the kinds oracle
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `rust/tcl-lsp-core/src/refactor/extract_proc.rs` — `proc_subst_nocommands_*`, `detects_*`, `rejects_factory_with_computed_subst_switch`, `tp_a_substituting_call_can_switch_its_variable_reads_off`, `tp_a_substituted_bracket_*`: the four template consumers
+
+- `rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs` — exact Native receiver/SSA ownership and child refusal controls
+- `rust/tcl-spectcl/tests/native_normal_store.rs` — real pack Implementation outcomes at the original Native parent store
 
 ## Related docs
 
