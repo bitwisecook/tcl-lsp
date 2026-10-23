@@ -66,8 +66,56 @@ pub(super) fn source_outline(
             scopes.entry(span).or_insert_with(Vec::new).push(scope);
         }
     }
+    extend_symbol_outline(analysis, (source, &image, config, &index), &mut nodes);
+    extend_vendor_outline(analysis, (source, &image, config, &index), &mut nodes);
+    extend_namespace_outline(
+        analysis,
+        (source, &image, config, &index),
+        &scopes,
+        &mut nodes,
+    );
+    extend_procedure_outline(
+        analysis,
+        (source, &image, config, &index),
+        &lexical_scopes,
+        &mut nodes,
+    );
+    extend_class_outline(analysis, (source, &image, config, &index), &mut nodes);
+    let mut variables = crate::variable_symbol::VariableSymbolMap::default();
+    let mut declarations: Vec<_> = analysis
+        .original_variable_symbols
+        .iter()
+        .filter(|occurrence| occurrence.is_declaration() && occurrence.symbol().is_namespace())
+        .collect();
+    declarations.sort_by_key(|occurrence| occurrence.span().start());
+    extend_namespace_variable_outline(
+        analysis,
+        (source, &image, config, &index),
+        declarations,
+        &mut variables,
+        &mut nodes,
+    );
+    // Conditional write-name cards need no selected cell. An existing symbol
+    // declaration covers the same syntax; aliases and navigation still use
+    // their independently retained symbol inventory.
+    let mut written = Vec::new();
+    extend_write_outline(
+        analysis,
+        (source, &image, config, &index),
+        &mut written,
+        &mut nodes,
+    );
+    Some(assemble(nodes))
+}
+
+fn extend_symbol_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    nodes: &mut Vec<Node>,
+) {
+    let (source, image, config, index) = position;
     for declaration in analysis.original_symbol_declarations() {
-        if !declaration.matches_source(&image, config) {
+        if !declaration.matches_source(image, config) {
             continue;
         }
         let input = declaration.name_input();
@@ -78,8 +126,8 @@ pub(super) fn source_outline(
                 name,
                 detail: metadata.detail.clone().filter(|detail| !detail.is_empty()),
                 kind: SymbolKind::from(declaration.descriptor().kind),
-                range: span_to_range(source, &index, metadata.full_span),
-                selection_range: span_to_range(source, &index, declaration.span()),
+                range: span_to_range(source, index, metadata.full_span),
+                selection_range: span_to_range(source, index, declaration.span()),
                 children: Vec::new(),
             },
             namespace: None,
@@ -88,6 +136,14 @@ pub(super) fn source_outline(
                 .map(|namespace| (namespace.clone(), input.policy())),
         });
     }
+}
+
+fn extend_vendor_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    nodes: &mut Vec<Node>,
+) {
+    let (source, image, config, index) = position;
     if let Some(declarations) = crate::vendor_declaration::declarations(source, analysis) {
         for declaration in declarations {
             let Some(name) =
@@ -95,7 +151,7 @@ pub(super) fn source_outline(
             else {
                 continue;
             };
-            let selection = span_to_range(source, &index, declaration.span());
+            let selection = span_to_range(source, index, declaration.span());
             let (kind, body, detail) = if let Some(metadata) = declaration.procedure_metadata() {
                 (
                     SymbolKind::Function,
@@ -125,7 +181,7 @@ pub(super) fn source_outline(
                     name,
                     detail,
                     kind,
-                    range: merge_ranges(selection, span_to_range(source, &index, body)),
+                    range: merge_ranges(selection, span_to_range(source, index, body)),
                     selection_range: selection,
                     children: Vec::new(),
                 },
@@ -138,7 +194,7 @@ pub(super) fn source_outline(
             .filter(|advice| advice.is_source_root())
         {
             let input = advice.input().original_occurrence().name_input();
-            if !input.matches_source(&image, config) {
+            if !input.matches_source(image, config) {
                 continue;
             }
             let name = advice
@@ -149,7 +205,7 @@ pub(super) fn source_outline(
             let Some(name) = name else {
                 continue;
             };
-            let range = span_to_range(source, &index, advice.span());
+            let range = span_to_range(source, index, advice.span());
             nodes.push(Node {
                 symbol: DocumentSymbol {
                     name,
@@ -164,6 +220,15 @@ pub(super) fn source_outline(
             });
         }
     }
+}
+
+fn extend_namespace_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    scopes: &FxHashMap<tcl_lexer::Span, Vec<&tcl_compiler::analyser::Scope>>,
+    nodes: &mut Vec<Node>,
+) {
+    let (source, _, config, index) = position;
     for reference in analysis
         .namespace_refs
         .iter()
@@ -192,13 +257,13 @@ pub(super) fn source_outline(
         if bodies.iter().any(|scope| scope.body_span != Some(body)) {
             continue;
         }
-        let selection = span_to_range(source, &index, reference.span);
+        let selection = span_to_range(source, index, reference.span);
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,
                 detail: None,
                 kind: SymbolKind::Namespace,
-                range: merge_ranges(selection, span_to_range(source, &index, body)),
+                range: merge_ranges(selection, span_to_range(source, index, body)),
                 selection_range: selection,
                 children: Vec::new(),
             },
@@ -206,9 +271,18 @@ pub(super) fn source_outline(
             home: None,
         });
     }
+}
+
+fn extend_procedure_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    lexical_scopes: &[&tcl_compiler::analyser::Scope],
+    nodes: &mut Vec<Node>,
+) {
+    let (source, image, config, index) = position;
     for declaration in analysis.original_procedure_declarations() {
         let key = declaration.name_input();
-        if key.source_image() != &image || key.lexer_config() != config {
+        if key.source_image() != image || key.lexer_config() != config {
             continue;
         }
         let name = label(
@@ -217,13 +291,13 @@ pub(super) fn source_outline(
             config,
         );
         let metadata = declaration.metadata();
-        let selection = span_to_range(source, &index, key.span());
+        let selection = span_to_range(source, index, key.span());
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,
                 detail: Some(format_param_list(&metadata.params)),
                 kind: SymbolKind::Function,
-                range: merge_ranges(selection, span_to_range(source, &index, metadata.body_span)),
+                range: merge_ranges(selection, span_to_range(source, index, metadata.body_span)),
                 selection_range: selection,
                 children: Vec::new(),
             },
@@ -238,9 +312,17 @@ pub(super) fn source_outline(
             .flatten(),
         });
     }
+}
+
+fn extend_class_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    nodes: &mut Vec<Node>,
+) {
+    let (source, image, config, index) = position;
     for declaration in analysis.original_class_declarations() {
         let key = declaration.name_input();
-        if key.source_image() != &image || key.lexer_config() != config {
+        if key.source_image() != image || key.lexer_config() != config {
             continue;
         }
         let name = label(
@@ -249,7 +331,7 @@ pub(super) fn source_outline(
             config,
         );
         let metadata = declaration.metadata();
-        let selection = span_to_range(source, &index, key.span());
+        let selection = span_to_range(source, index, key.span());
         // Special-member keywords report the original class body. Named
         // methods and properties use their own folded source inventories;
         // canonical declarations remain available separately for navigation.
@@ -259,85 +341,22 @@ pub(super) fn source_outline(
             .chain(metadata.class_methods.values())
             .map(|method| method.name_span)
             .collect();
-        let mut children = class_member_symbols(source, metadata, &index);
+        let mut children = class_member_symbols(source, metadata, index);
         children.retain(|child| {
             child.kind != SymbolKind::Property
                 && !named_spans
                     .iter()
-                    .any(|span| span_to_range(source, &index, *span) == child.selection_range)
+                    .any(|span| span_to_range(source, index, *span) == child.selection_range)
         });
         let mut seen = FxHashSet::default();
-        for side in [
-            tcl_compiler::analyser::types::MemberSide::ClassObject,
-            tcl_compiler::analyser::types::MemberSide::Instance,
-        ] {
-            let Some(methods) = metadata.original_members.methods(side) else {
-                continue;
-            };
-            for member in methods {
-                let original = member.declaration().original_word();
-                if original.image() != &image || original.config() != config {
-                    continue;
-                }
-                let identity = (
-                    original.span(),
-                    member.original_name_input().bytes().to_vec(),
-                );
-                if member.native_class_delegate() && !seen.insert(identity) {
-                    continue;
-                }
-                let name = crate::original_oo::method_label(&member);
-                let method = member.metadata();
-                let name_span = member
-                    .original_name_input()
-                    .original_word_key()
-                    .filter(|key| key.source_image() == &image && key.lexer_config() == config)
-                    .map_or(
-                        original.span(),
-                        tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::span,
-                    );
-                let selection = span_to_range(source, &index, name_span);
-                let parameters = format_param_list(&method.params);
-                let detail = if side == tcl_compiler::analyser::types::MemberSide::ClassObject {
-                    format!("classmethod {parameters}")
-                } else {
-                    parameters
-                };
-                children.push(DocumentSymbol {
-                    name,
-                    detail: Some(detail),
-                    kind: SymbolKind::Method,
-                    range: merge_ranges(selection, span_to_range(source, &index, method.body_span)),
-                    selection_range: selection,
-                    children: Vec::new(),
-                });
-            }
-            if let Some(properties) = metadata.original_properties.properties(side) {
-                for property in properties {
-                    let original = property.declaration().name_input();
-                    if original.source_image() != &image || original.lexer_config() != config {
-                        continue;
-                    }
-                    let name = label(original.bytes(), original.policy(), config);
-                    let range = span_to_range(source, &index, original.span());
-                    children.push(DocumentSymbol {
-                        name,
-                        detail: Some(property.kind().name().to_owned()),
-                        kind: SymbolKind::Property,
-                        range,
-                        selection_range: range,
-                        children: Vec::new(),
-                    });
-                }
-            }
-        }
+        extend_class_source_members(metadata, position, &mut children, &mut seen);
         let detail = super::class_detail(metadata);
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,
                 detail: (!detail.is_empty()).then_some(detail),
                 kind: SymbolKind::Class,
-                range: merge_ranges(selection, span_to_range(source, &index, metadata.body_span)),
+                range: merge_ranges(selection, span_to_range(source, index, metadata.body_span)),
                 selection_range: selection,
                 children,
             },
@@ -345,13 +364,91 @@ pub(super) fn source_outline(
             home: command_home(declaration.name()),
         });
     }
-    let mut variables = crate::variable_symbol::VariableSymbolMap::default();
-    let mut declarations: Vec<_> = analysis
-        .original_variable_symbols
-        .iter()
-        .filter(|occurrence| occurrence.is_declaration() && occurrence.symbol().is_namespace())
-        .collect();
-    declarations.sort_by_key(|occurrence| occurrence.span().start());
+}
+
+fn extend_class_source_members(
+    metadata: &tcl_compiler::analyser::ClassDef,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    children: &mut Vec<DocumentSymbol>,
+    seen: &mut FxHashSet<(tcl_lexer::Span, Vec<u8>)>,
+) {
+    let (source, image, config, index) = position;
+    for side in [
+        tcl_compiler::analyser::types::MemberSide::ClassObject,
+        tcl_compiler::analyser::types::MemberSide::Instance,
+    ] {
+        let Some(methods) = metadata.original_members.methods(side) else {
+            continue;
+        };
+        for member in methods {
+            let original = member.declaration().original_word();
+            if original.image() != image || original.config() != config {
+                continue;
+            }
+            let identity = (
+                original.span(),
+                member.original_name_input().bytes().to_vec(),
+            );
+            if member.native_class_delegate() && !seen.insert(identity) {
+                continue;
+            }
+            let name = crate::original_oo::method_label(&member);
+            let method = member.metadata();
+            let name_span = member
+                .original_name_input()
+                .original_word_key()
+                .filter(|key| key.source_image() == image && key.lexer_config() == config)
+                .map_or(
+                    original.span(),
+                    tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::span,
+                );
+            let selection = span_to_range(source, index, name_span);
+            let parameters = format_param_list(&method.params);
+            let detail = if side == tcl_compiler::analyser::types::MemberSide::ClassObject {
+                format!("classmethod {parameters}")
+            } else {
+                parameters
+            };
+            children.push(DocumentSymbol {
+                name,
+                detail: Some(detail),
+                kind: SymbolKind::Method,
+                range: merge_ranges(selection, span_to_range(source, index, method.body_span)),
+                selection_range: selection,
+                children: Vec::new(),
+            });
+        }
+        if let Some(properties) = metadata.original_properties.properties(side) {
+            for property in properties {
+                let original = property.declaration().name_input();
+                if original.source_image() != image || original.lexer_config() != config {
+                    continue;
+                }
+                let name = label(original.bytes(), original.policy(), config);
+                let range = span_to_range(source, index, original.span());
+                children.push(DocumentSymbol {
+                    name,
+                    detail: Some(property.kind().name().to_owned()),
+                    kind: SymbolKind::Property,
+                    range,
+                    selection_range: range,
+                    children: Vec::new(),
+                });
+            }
+        }
+    }
+}
+
+fn extend_namespace_variable_outline(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    declarations: Vec<
+        &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    >,
+    variables: &mut crate::variable_symbol::VariableSymbolMap<()>,
+    nodes: &mut Vec<Node>,
+) {
+    let (source, _, config, index) = position;
     for occurrence in declarations {
         if variables.get(occurrence.symbol()).is_some() {
             continue;
@@ -367,7 +464,7 @@ pub(super) fn source_outline(
         }
         let name = label(input.bytes(), input.policy(), config);
         let _ = variables.insert(occurrence.symbol().clone(), ());
-        let range = span_to_range(source, &index, occurrence.span());
+        let range = span_to_range(source, index, occurrence.span());
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,
@@ -381,10 +478,18 @@ pub(super) fn source_outline(
             home: None,
         });
     }
-    // Conditional write-name cards need no selected cell. An existing symbol
-    // declaration covers the same syntax; aliases and navigation still use
-    // their independently retained symbol inventory.
-    let mut written = Vec::new();
+}
+
+fn extend_write_outline<'a>(
+    analysis: &'a AnalysisResult,
+    position: (&str, &SourceImage, tcl_lexer::LexerConfig, &LineIndex),
+    written: &mut Vec<(
+        tcl_lexer::Span,
+        &'a tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
+    )>,
+    nodes: &mut Vec<Node>,
+) {
+    let (source, _, config, index) = position;
     for advice in &analysis.original_variable_write_advice {
         if advice.original_frame().is_some_and(|frame| {
             !matches!(
@@ -426,7 +531,7 @@ pub(super) fn source_outline(
         };
         let name = label(projection.root().selected(), input.policy(), config);
         written.push((advice.span(), input));
-        let range = span_to_range(source, &index, advice.span());
+        let range = span_to_range(source, index, advice.span());
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,
@@ -440,7 +545,6 @@ pub(super) fn source_outline(
             home: None,
         });
     }
-    Some(assemble(nodes))
 }
 
 fn command_home(

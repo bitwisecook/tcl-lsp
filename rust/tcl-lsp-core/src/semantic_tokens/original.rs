@@ -50,36 +50,7 @@ impl OriginalTokenRoles {
         let Some(config) = analysis.body_lexer_config else {
             return roles;
         };
-        for declaration in analysis.original_vendor_procedure_declarations() {
-            roles.vendor_name(
-                &image,
-                declaration.name_input(),
-                declaration.purpose(),
-                ArgOverride::ProcNameDef,
-            );
-        }
-        for declaration in analysis.original_vendor_class_declarations() {
-            roles.vendor_name(
-                &image,
-                declaration.name_input(),
-                declaration.purpose(),
-                ArgOverride::ClassNameDef,
-            );
-        }
-        for declaration in analysis.original_vendor_symbol_declarations() {
-            let kind = match declaration.metadata().kind {
-                tcl_registry::DefinedSymbolKind::Event => super::TokenKind::Event,
-                tcl_registry::DefinedSymbolKind::Test => super::TokenKind::Function,
-                tcl_registry::DefinedSymbolKind::Constraint => super::TokenKind::Variable,
-                tcl_registry::DefinedSymbolKind::Matcher => super::TokenKind::Operator,
-            };
-            roles.vendor_name(
-                &image,
-                declaration.name_input(),
-                declaration.purpose(),
-                ArgOverride::Kind(kind),
-            );
-        }
+        roles.capture_vendor_names(&image, analysis);
         for declaration in analysis.original_procedure_declarations() {
             roles.name(&image, declaration.name_input(), ArgOverride::ProcNameDef);
         }
@@ -137,6 +108,39 @@ impl OriginalTokenRoles {
             }
         }
         roles
+    }
+
+    fn capture_vendor_names(&mut self, image: &SourceImage, analysis: &AnalysisResult) {
+        for declaration in analysis.original_vendor_procedure_declarations() {
+            self.vendor_name(
+                image,
+                declaration.name_input(),
+                declaration.purpose(),
+                ArgOverride::ProcNameDef,
+            );
+        }
+        for declaration in analysis.original_vendor_class_declarations() {
+            self.vendor_name(
+                image,
+                declaration.name_input(),
+                declaration.purpose(),
+                ArgOverride::ClassNameDef,
+            );
+        }
+        for declaration in analysis.original_vendor_symbol_declarations() {
+            let kind = match declaration.metadata().kind {
+                tcl_registry::DefinedSymbolKind::Event => super::TokenKind::Event,
+                tcl_registry::DefinedSymbolKind::Test => super::TokenKind::Function,
+                tcl_registry::DefinedSymbolKind::Constraint => super::TokenKind::Variable,
+                tcl_registry::DefinedSymbolKind::Matcher => super::TokenKind::Operator,
+            };
+            self.vendor_name(
+                image,
+                declaration.name_input(),
+                declaration.purpose(),
+                ArgOverride::Kind(kind),
+            );
+        }
     }
 
     fn member(
