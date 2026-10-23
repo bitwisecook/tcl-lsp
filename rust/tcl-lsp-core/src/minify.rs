@@ -1338,50 +1338,14 @@ fn compact_names(
     // asserts a closed world (`isolated`) AND no command-name
     // reflection or computed command name is present.
     if isolated && !barriers.procs {
-        let mut proc_gen = AuthoredCompactNameSequence::new(input.lexer_config());
-        let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
-        let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
-        proc_keys.sort();
-        for qname in proc_keys {
-            let proc_def = &analysis.all_procs[qname];
-            let name = &proc_def.name;
-            if name.len() <= 1 || tcl_syntax::naming::is_qualified(name.as_bytes()) {
-                continue;
-            }
-            // A proc that overrides a registry-known command (`proc unknown
-            // …`, an `auto_*` replacement, a shadowed builtin) is invoked by
-            // the interpreter or library through that exact spelling — its
-            // name is load-bearing.
-            if builtin_names.contains(name.as_str()) {
-                continue;
-            }
-            let Some(short) = proc_gen.next_avoiding_observed(
-                |name| builtin_names.contains(name) || used_proc_names.contains(name),
-                None,
-            ) else {
-                continue;
-            };
-            let short = short.into_name();
-            if short.len() >= name.len() {
-                continue;
-            }
-            used_proc_names.insert(short.clone());
-
-            let r = proc_def.name_span;
-            let actual = slice(source, r);
-            let def_key = (r.start() as usize, actual.len());
-            if actual == *name {
-                edits.push((r.start() as usize, actual.len(), short.clone()));
-            }
-            for call in current_proc_call_sites(source, proc_def, &analysis) {
-                let call_text = slice(source, call);
-                let key = (call.start() as usize, call_text.len());
-                if key != def_key && call_text == *name {
-                    edits.push((call.start() as usize, call_text.len(), short.clone()));
-                }
-            }
-            symbol_map.procs.insert(name.clone(), short);
-        }
+        compact_isolated_procedure_names(
+            source,
+            input,
+            &analysis,
+            &builtin_names,
+            &mut symbol_map,
+            &mut edits,
+        );
     }
 
     compact_logical_formals(
@@ -1395,6 +1359,60 @@ fn compact_names(
     );
     let result = apply_edits(source, edits);
     (result, symbol_map)
+}
+
+fn compact_isolated_procedure_names(
+    source: &str,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    analysis: &AnalysisResult,
+    builtin_names: &FxHashSet<&str>,
+    symbol_map: &mut SymbolMap,
+    edits: &mut Vec<Edit>,
+) {
+    let mut proc_gen = AuthoredCompactNameSequence::new(input.lexer_config());
+    let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
+    let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
+    proc_keys.sort();
+    for qname in proc_keys {
+        let proc_def = &analysis.all_procs[qname];
+        let name = &proc_def.name;
+        if name.len() <= 1 || tcl_syntax::naming::is_qualified(name.as_bytes()) {
+            continue;
+        }
+        // A proc that overrides a registry-known command (`proc unknown
+        // …`, an `auto_*` replacement, a shadowed builtin) is invoked by
+        // the interpreter or library through that exact spelling — its
+        // name is load-bearing.
+        if builtin_names.contains(name.as_str()) {
+            continue;
+        }
+        let Some(short) = proc_gen.next_avoiding_observed(
+            |name| builtin_names.contains(name) || used_proc_names.contains(name),
+            None,
+        ) else {
+            continue;
+        };
+        let short = short.into_name();
+        if short.len() >= name.len() {
+            continue;
+        }
+        used_proc_names.insert(short.clone());
+
+        let r = proc_def.name_span;
+        let actual = slice(source, r);
+        let def_key = (r.start() as usize, actual.len());
+        if actual == *name {
+            edits.push((r.start() as usize, actual.len(), short.clone()));
+        }
+        for call in current_proc_call_sites(source, proc_def, analysis) {
+            let call_text = slice(source, call);
+            let key = (call.start() as usize, call_text.len());
+            if key != def_key && call_text == *name {
+                edits.push((call.start() as usize, call_text.len(), short.clone()));
+            }
+        }
+        symbol_map.procs.insert(name.clone(), short);
+    }
 }
 
 /// The isolated Logical formal purpose has its own exact binding inventory.
