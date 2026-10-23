@@ -375,6 +375,47 @@ impl OriginalNativeProcedureBody {
     ) -> bool {
         matches!(&self.recipe, OriginalNativeProcedureRecipe::Source(source) if std::sync::Arc::ptr_eq(source, declaration))
     }
+    /// Original read-flow geometry only; the caller retains current body membership.
+    pub(crate) fn owns_original_read_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        self.original_read_tokens(tokens, input, registry).is_some()
+    }
+
+    fn original_read_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<()> {
+        let OriginalNativeProcedureRecipe::ReadFlow(flow) = &self.recipe else {
+            return None;
+        };
+        self.matches_source(self.site().source.source_image(), input, registry)
+            .then_some(())?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let site = binding.invocation_site()?;
+        let (command, original) = binding.original_recorded_command()?;
+        let snapshot = &flow.read_flow.snapshot.state;
+        let snapshot_input = snapshot.baseline.metadata_context.source_analysis_input()?;
+        (tokens.synthetic.is_none()
+            && original.words() == tokens.words()
+            && command.words.first()?.span().start() == site.offset
+            && command.span.start() == site.offset
+            && !command.is_partial
+            && std::sync::Arc::ptr_eq(&site.source, &flow.read_flow.header.declaration.source)
+            && flow.read_flow.read.owns_original_read(command.span)
+            && snapshot.current_source_origin.as_ref()
+                == Some(&flow.read_flow.header.declaration.source)
+            && snapshot.variable_frame == flow.read_flow.header.frame
+            && (snapshot_input == input || snapshot_input == &input.for_nested_source()))
+            .then_some(())
+    }
+
     pub(crate) fn retain_lowered_body(
         mut self,
         body: &crate::ir::Script,
@@ -559,6 +600,58 @@ impl SourceCommandBindings {
 
 #[cfg(test)]
 mod original_native_body_tests {
+
+    #[test]
+    fn original_read_card_requires_its_actual_vector_origin_and_snapshot() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let text = "proc p {} {set known [string length abcde]; return $known}\n";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            text, registry, false, "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let (id, card) = module
+            .original_native_declaration_body_units
+            .iter()
+            .next()
+            .unwrap();
+        assert!(matches!(
+            card.recipe,
+            super::OriginalNativeProcedureRecipe::ReadFlow(_)
+        ));
+        let tokens = module.body_units[id].body.statements[0].tokens().unwrap();
+        assert!(card.owns_original_read_tokens(tokens, input, registry));
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(!card.owns_original_read_tokens(&changed, input, registry));
+        let mut changed = tokens.clone();
+        changed.source_binding = None;
+        assert!(!card.owns_original_read_tokens(&changed, input, registry));
+        assert!(!card.owns_original_read_tokens(
+            tokens,
+            input,
+            &tcl_registry::CommandRegistry::build_default()
+        ));
+        let other = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            text, registry, false, "tcl8.6",
+        );
+        let foreign = other
+            .ir_module
+            .original_native_declaration_body_units
+            .values()
+            .next()
+            .unwrap();
+        assert!(!foreign.owns_original_read_tokens(tokens, input, registry));
+        let mut changed = card.as_ref().clone();
+        let super::OriginalNativeProcedureRecipe::ReadFlow(flow) = &mut changed.recipe else {
+            unreachable!()
+        };
+        std::sync::Arc::make_mut(&mut flow.read_flow.snapshot)
+            .state
+            .current_source_origin = None;
+        assert!(!changed.owns_original_read_tokens(tokens, input, registry));
+    }
 
     fn module(source: &str, environment: &str) -> crate::ir::Module {
         let context = tcl_registry::model::ingress::resolve_environment(environment)
