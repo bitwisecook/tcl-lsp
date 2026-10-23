@@ -501,23 +501,30 @@ jobs:
       CARGO_TERM_COLOR: never
       RUST_BACKTRACE: short
     steps:
+      - name: Record diagnostic deadline
+        timeout-minutes: 1
+        run: echo "RUNTIME_DIAGNOSTIC_DEADLINE=$(( $(date +%s) + 3000 ))" >> "$GITHUB_ENV"
       - name: Checkout exact work revision
+        timeout-minutes: 8
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.runtime_sha }}
           fetch-depth: 1
           persist-credentials: false
       - name: Install Rust
+        timeout-minutes: 3
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           build-warnings: deny
           cache: false
       - name: Install cargo-nextest
+        timeout-minutes: 3
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: nextest@0.9.148
       - name: Validate revision and record original source
+        timeout-minutes: 3
         env:
           EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
           OUT: ${{ runner.temp }}/runtime-fulltom-output
@@ -538,11 +545,13 @@ jobs:
           printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
           printf '%s\n' 'DIAGNOSTIC ONLY: original standalone lib/integration tests, actual selected roster authoritative. nextest excludes doctests. No full cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
       - name: Fetch the Tcl 9.0.4 source (libtommath)
+        timeout-minutes: 3
         run: |
           set -euo pipefail
           .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
           test -f tmp/tcl9.0.4/libtommath/tommath.h
       - name: Capture complete isolated original runtime inventory
+        timeout-minutes: 50
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-fulltom-target
           OUT: ${{ runner.temp }}/runtime-fulltom-output
@@ -555,51 +564,171 @@ jobs:
             test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
           done
           find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-before.sha256"
-          printf '%s\n' '[profile.default]' 'slow-timeout = { period = "60s", terminate-after = 3 }' > "$OUT/nextest.toml"
-          cargo nextest list --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --message-format json > "$OUT/selected.json" 2> "$OUT/build.stderr"
+          printf '%s\n' '[profile.default]' 'slow-timeout = { period = "60s", terminate-after = 3 }' '[profile.default.junit]' "path = \"$OUT/process-outcomes.xml\"" 'store-success-output = false' 'store-failure-output = false' > "$OUT/nextest.toml"
+          printf '%s\n' "$RUNTIME_DIAGNOSTIC_DEADLINE" > "$OUT/capture-deadline-epoch.txt"
+          remaining=$(( RUNTIME_DIAGNOSTIC_DEADLINE - $(date +%s) ))
+          if (( remaining <= 0 )); then
+            printf '%s\n' 'deadline elapsed before build; diagnostic incomplete' > "$OUT/deadline-incomplete.txt"
+            exit 125
+          fi
+          # Drain capped build streams. GNU timeout owns the build process group;
+          # its absolute deadline leaves time for final seals and evidence upload.
+          set +e
+          timeout --signal=INT --kill-after=20s "$remaining" python3 - <<'BUILD'
+          import os
+          import selectors
+          import signal
+          import subprocess
+          from pathlib import Path
+          from typing import BinaryIO, cast
+
+          out = Path(os.environ["OUT"])
+          argv = [
+              "cargo",
+              "nextest",
+              "list",
+              "--locked",
+              "--manifest-path",
+              "runtime/rust/Cargo.toml",
+              "--features",
+              "engine",
+              "--config-file",
+              str(out / "nextest.toml"),
+              "--message-format",
+              "json",
+          ]
+          # Keep draining when timeout interrupts the group; exec resets this handler in Cargo.
+          signal.signal(signal.SIGINT, lambda _signal, _frame: None)
+          process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          streams = selectors.DefaultSelector()
+          streams.register(cast(BinaryIO, process.stdout), selectors.EVENT_READ, "selected.json")
+          streams.register(cast(BinaryIO, process.stderr), selectors.EVENT_READ, "build.stderr")
+          files = {name: (out / name).open("wb") for name in ("selected.json", "build.stderr")}
+          remaining = {"selected.json": 16777216, "build.stderr": 2000000}
+          truncated = False
+          try:
+              while streams.get_map():
+                  for key, _ in streams.select(1):
+                      data = os.read(key.fd, 65536)
+                      if not data:
+                          streams.unregister(key.fileobj)
+                          continue
+                      kept = data[: remaining[key.data]]
+                      files[key.data].write(kept)
+                      remaining[key.data] -= len(kept)
+                      truncated |= len(kept) != len(data)
+          finally:
+              for file in files.values():
+                  file.close()
+          code = process.wait()
+          (out / "build-exit.txt").write_text(str(code) + "\n")
+          (out / "build-incomplete.txt").write_text(str(int(truncated)) + "\n")
+          raise SystemExit(125 if truncated else code if code >= 0 else 128 - code)
+          BUILD
+          build_result=$?
+          set -e
+          printf '%s\n' "$build_result" > "$OUT/build-capture-exit.txt"
+          if (( build_result != 0 )); then
+            printf '%s\n' 'build did not complete successfully; test inventory unrun' > "$OUT/build-capture-incomplete.txt"
+            exit "$build_result"
+          fi
           for output in "$CARGO_TARGET_DIR"/debug/build/tcl-runtime-*/output; do
             test -f "$output"
             grep -F 'cargo:rustc-cfg=have_tommath' "$output"
             printf '\nBUILD_OUTPUT %s\n' "$output" >> "$OUT/backend-output.txt"
             cat "$output" >> "$OUT/backend-output.txt"
           done
-          # The capture validates every selected terminal and owns the bash,
-          # nextest and tee descendants. Full JSON retains actual panic text;
-          # console markers remain bounded by the existing 20MB capture cap.
-          export OUT
+          # Original cases retain their 180-second timeout and assertions.
+          # The capture owns and drains nextest directly, retaining full reporter
+          # JSON within its bound. JUnit preserves exits, signals and timeouts.
+          remaining=$(( RUNTIME_DIAGNOSTIC_DEADLINE - $(date +%s) ))
+          if (( remaining <= 0 )); then
+            printf '%s\n' 'deadline elapsed before tests; diagnostic incomplete' > "$OUT/deadline-incomplete.txt"
+            exit 125
+          fi
+          if (( remaining > 2700 )); then remaining=2700; fi
+          printf '%s\n' "$remaining" > "$OUT/capture-deadline-seconds.txt"
           set +e
-          python3 scripts/dev/nextest-terminal-capture.py --selected-json "$OUT/selected.json" --output-dir "$OUT/terminal" --console-cap 20000000 -- bash -o pipefail -c '
-            cargo nextest run --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --no-fail-fast --message-format libtest-json-plus --message-format-version 0.1 2> >( (ulimit -f 10240; exec tee "$OUT/nextest.stderr") >&2) | (ulimit -f 10240; exec tee "$OUT/nextest.raw.jsonl")
-          '
+          python3 scripts/dev/nextest-terminal-capture.py --selected-json "$OUT/selected.json" --output-dir "$OUT/terminal" --console-cap 20000000 --raw-cap 20000000 --deadline-seconds "$remaining" --min-free-bytes 2147483648 -- \
+            cargo nextest run --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --no-fail-fast --message-format libtest-json-plus --message-format-version 0.1
           result=$?
           set -e
           printf '%s\n' "$result" > "$OUT/capture-exit.txt"
-          incomplete=0
-          for raw in "$OUT/nextest.raw.jsonl" "$OUT/nextest.stderr"; do
-            if [[ ! -f "$raw" ]] || [[ "$(stat -c %s "$raw")" -ge 10485760 ]]; then
-              incomplete=1
-            fi
-          done
+          incomplete=$(python3 - <<'COMPLETE'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          out = Path(os.environ["OUT"])
+          errors = []
+          process_rows = []
+          try:
+              summary = json.loads((out / "terminal/summary.json").read_text())
+              if summary["capture_errors"] or summary["missing_terminal"]:
+                  errors.append("terminal capture is incomplete")
+              report = out / "process-outcomes.xml"
+              if report.stat().st_size > 16777216:
+                  raise ValueError("process outcome XML exceeds 16MiB")
+              tree = ET.parse(report)
+              actual = {}
+              for case in tree.iter("testcase"):
+                  key = (case.attrib["classname"], case.attrib["name"])
+                  if key in actual:
+                      raise ValueError("duplicate process outcome identity")
+                  failures = [
+                      {"kind": item.tag, "attributes": item.attrib, "description": item.text}
+                      for item in case
+                      if item.tag in ("failure", "error")
+                  ]
+                  actual[key] = bool(failures)
+                  process_rows.append({"binary_id": key[0], "test": key[1], "failures": failures})
+              expected = {}
+              for line in (out / "terminal/terminal.jsonl").read_text().splitlines():
+                  row = json.loads(line)
+                  if row["status"] != "ignored":
+                      expected[(row["binary_id"], row["test"])] = row["status"] == "failed"
+              if actual != expected:
+                  errors.append(
+                      "process outcome identities/statuses differ from terminal capture"
+                  )
+          except (OSError, ValueError, KeyError, ET.ParseError) as exc:
+              errors.append(f"process outcome validation failed: {exc}")
+          (out / "process-outcomes.json").write_text(json.dumps(process_rows, indent=2) + "\n")
+          (out / "diagnostic-completeness.json").write_text(
+              json.dumps({"incomplete": bool(errors), "errors": errors}, indent=2) + "\n"
+          )
+          print(int(bool(errors)))
+          COMPLETE
+          )
           printf '%s\n' "$incomplete" > "$OUT/raw-capture-incomplete.txt"
-          # Each raw tee file is capped at10MiB; hitting a cap is an incomplete
-          # diagnostic, never an ordinary passing outcome. Original assertions
-          # and every selected nonignored test remain unchanged.
           find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-after.sha256"
           cmp "$OUT/tommath-before.sha256" "$OUT/tommath-after.sha256"
           sha256sum -c "$OUT/tracked-source-before.sha256" > "$OUT/source-after.txt"
           git status --porcelain > "$OUT/git-after.txt"
           test ! -s "$OUT/git-after.txt"
           if [[ "$incomplete" == 1 ]]; then
-            echo "::error::raw capture missing or reached its cap; diagnostic incomplete"
+            echo "::error::bounded diagnostic evidence is missing, incomplete or inconsistent"
             exit 125
           fi
           exit "$result"
       - name: Upload full diagnostic evidence
+        timeout-minutes: 5
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: runtime-fulltom-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/runtime-fulltom-output
+          path: |
+            ${{ runner.temp }}/runtime-fulltom-output/*.txt
+            ${{ runner.temp }}/runtime-fulltom-output/*.sha256
+            ${{ runner.temp }}/runtime-fulltom-output/*.json
+            ${{ runner.temp }}/runtime-fulltom-output/*.xml
+            ${{ runner.temp }}/runtime-fulltom-output/*.toml
+            ${{ runner.temp }}/runtime-fulltom-output/build.stderr
+            ${{ runner.temp }}/runtime-fulltom-output/terminal/*.json
+            ${{ runner.temp }}/runtime-fulltom-output/terminal/*.jsonl
+            ${{ runner.temp }}/runtime-fulltom-output/terminal/*.txt
+          compression-level: 0
           if-no-files-found: error
           retention-days: 30
 

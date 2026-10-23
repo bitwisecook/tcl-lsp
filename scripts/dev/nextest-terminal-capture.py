@@ -29,6 +29,7 @@ import os
 import re
 import secrets
 import selectors
+import shutil
 import signal
 import subprocess
 import sys
@@ -155,10 +156,11 @@ class EventStream:
                             self.unicode_left = 4
                     elif ch < 32:
                         raise CaptureError("raw control byte in output string")
-                    self.output_len += 1
-                    self.output_hash.update(bytes((ch,)))
-                    if len(self.output_sample) < 128:
-                        self.output_sample.append(ch)
+                    if ch != 34 or self.escaped:
+                        self.output_len += 1
+                        self.output_hash.update(bytes((ch,)))
+                        if len(self.output_sample) < 128:
+                            self.output_sample.append(ch)
                 else:
                     self.line.append(ch)
                     if len(self.current) < MAX_NAME:
@@ -293,7 +295,7 @@ def group_scan(pgid):
 
 
 class Recorder:
-    def __init__(self, listing, out, cap):
+    def __init__(self, listing, out, cap, raw_cap=0):
         self.list_digest, self.by_suite, self.selected, self.ignored = roster(listing)
         self.out = Path(out)
         self.out.mkdir(parents=True, exist_ok=True)
@@ -308,6 +310,14 @@ class Recorder:
         self.finished = {}
         self.invalid = []
         self.parser = EventStream()
+        self.raw_cap = raw_cap
+        self.raw_size = 0
+        self.raw_truncated = False
+        self.raw = (
+            (self.out / "reporter.raw.jsonl").open("wb", buffering=0)
+            if raw_cap
+            else None
+        )
         self.terminal = (self.out / "terminal.jsonl").open("wb", buffering=0)
         self.terminal_size = 0
         self.stderr = (self.out / "nextest-stderr.txt").open("wb", buffering=0)
@@ -490,6 +500,7 @@ class Recorder:
             "status": status,
             "retry_count": retry,
             "exec_time": event.get("exec_time"),
+            "reason": event.get("reason"),
             "output_encoded_bytes": output_len,
             "output_encoded_sha256": output_sha,
             "output_sample_base64": base64.b64encode(output_sample).decode(),
@@ -501,6 +512,14 @@ class Recorder:
         elif "terminal JSONL cap exceeded" not in self.invalid:
             self.invalid.append("terminal JSONL cap exceeded")
         self.marker({"kind": "terminal", **row})
+
+    def raw_bytes(self, data):
+        if self.raw is not None:
+            kept = data[: max(0, self.raw_cap - self.raw_size)]
+            self.raw.write(kept)
+            self.raw_size += len(kept)
+            if len(kept) != len(data):
+                self.raw_truncated = True
 
     def stdout_bytes(self, data):
         for item in self.parser.feed(data):
@@ -526,6 +545,10 @@ class Recorder:
     def finish(self, exit_code, error=None, lifecycle=None):
         if error:
             self.invalid.append(str(error))
+        if self.raw_truncated:
+            self.invalid.append("raw reporter JSONL cap exceeded")
+        if self.raw is not None and self.stderr_truncated:
+            self.invalid.append("runner stderr cap exceeded")
         try:
             self.parser.eof()
         except CaptureError as exc:
@@ -554,6 +577,8 @@ class Recorder:
             "capture_errors": self.invalid,
         }
         result["stderr_truncated"] = self.stderr_truncated
+        result["raw_reporter_bytes"] = self.raw_size
+        result["raw_reporter_truncated"] = self.raw_truncated
         result["lifecycle"] = lifecycle
         (self.out / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
         self.marker(
@@ -565,6 +590,8 @@ class Recorder:
         )
         self.terminal.close()
         self.stderr.close()
+        if self.raw is not None:
+            self.raw.close()
         return result
 
 
@@ -612,14 +639,30 @@ def run(argv):
     parser.add_argument("--selected-json", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--console-cap", type=int, default=CONSOLE_CAP)
+    parser.add_argument("--raw-cap", type=int, default=0)
+    parser.add_argument("--deadline-seconds", type=int, default=0)
+    parser.add_argument("--min-free-bytes", type=int, default=0)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     if not args.command or args.command[0] != "--" or len(args.command) < 2:
         parser.error("expected -- command ...")
+    if min(args.raw_cap, args.deadline_seconds, args.min_free_bytes) < 0:
+        parser.error("capture bounds must be nonnegative")
     try:
-        rec = Recorder(args.selected_json, args.output_dir, args.console_cap)
+        rec = Recorder(
+            args.selected_json, args.output_dir, args.console_cap, args.raw_cap
+        )
     except (CaptureError, ValueError, OSError) as exc:
         rec = InvalidRosterRecorder(args.output_dir, str(exc))
+    if args.min_free_bytes:
+        floor = min(shutil.disk_usage(path).free for path in (Path.cwd(), rec.out))
+        if floor < args.min_free_bytes:
+            rec.finish(
+                125,
+                "disk below configured floor before launch",
+                {"child_spawned": False, "disk_free_bytes": floor},
+            )
+            return 125
     env = dict(os.environ)
     env["NEXTEST_EXPERIMENTAL_LIBTEST_JSON"] = "1"
     cmd = args.command[1:]
@@ -635,19 +678,23 @@ def run(argv):
         rec.finish(127, f"launch failed: {exc}")
         return 127
     parent_start_ticks = start_ticks(proc.pid)
+    external_signals = []
     lifecycle = {
+        "child_spawned": True,
         "parent_pid": proc.pid,
         "parent_start_ticks": parent_start_ticks,
         "owned_pgid": proc.pid,
         "group_scan_attempts": 0,
         "group_empty_before_parent_reap": False,
         "cleanup_signals": [],
+        "external_signals": external_signals,
     }
     stopped = False
 
     def forward(sig, _frame):
         nonlocal stopped
         stopped = True
+        external_signals.append(signal.Signals(sig).name)
         try:
             if start_ticks(proc.pid) == parent_start_ticks:
                 os.killpg(proc.pid, sig)
@@ -666,10 +713,28 @@ def run(argv):
     cleanup_started_at = None
     cleanup_stage = 0
     empty_scans = 0
+    started_at = time.monotonic()
+    next_disk_check = started_at
     try:
         while True:
             now = time.monotonic()
             parent = parent_observation(proc.pid)
+            if cleanup_started_at is None and (
+                args.deadline_seconds and now - started_at >= args.deadline_seconds
+            ):
+                error = "capture deadline exceeded; selected tests may be incomplete"
+                cleanup_started_at = now
+            if args.min_free_bytes and now >= next_disk_check:
+                next_disk_check = now + 1
+                floor = min(
+                    shutil.disk_usage(path).free for path in (Path.cwd(), rec.out)
+                )
+                lifecycle["last_disk_free_bytes"] = floor
+                if floor < args.min_free_bytes and cleanup_started_at is None:
+                    error = (
+                        "disk below configured floor; selected tests may be incomplete"
+                    )
+                    cleanup_started_at = now
             if stopped and cleanup_started_at is None:
                 error = "external signal forwarded"
                 cleanup_started_at = now
@@ -723,14 +788,17 @@ def run(argv):
                 data = os.read(key.fd, 65536)
                 if not data:
                     selector.unregister(key.fileobj)
-                elif key.data == "stdout" and not stdout_invalid:
-                    try:
-                        rec.stdout_bytes(data)
-                    except CaptureError as exc:
-                        if error is None:
-                            error = str(exc)
-                        # Continue draining even after capture invalidation.
-                        stdout_invalid = True
+                elif key.data == "stdout":
+                    if isinstance(rec, Recorder):
+                        rec.raw_bytes(data)
+                    if not stdout_invalid:
+                        try:
+                            rec.stdout_bytes(data)
+                        except CaptureError as exc:
+                            if error is None:
+                                error = str(exc)
+                            # Continue draining even after capture invalidation.
+                            stdout_invalid = True
                 elif key.data == "stderr":
                     rec.stderr_bytes(data)
         exit_code = proc.wait(timeout=1)
