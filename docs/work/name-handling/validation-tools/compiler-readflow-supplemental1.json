@@ -1,0 +1,22 @@
+{
+  "approved_owner_repair": {
+    "independent_peer_sha256": "b26de306f64138cbe5527fdec2650f998734d9ba27e85048ff17d8cde191bfe4",
+    "source_patch_sha256": "cc4fcea66f779f835e82715c3a4c30236368a2649b67d2a35d085f21b412374f",
+    "test_assertions": "Unchanged genuine/vector/missing-binding/wrong-registry/foreign-card/changed-snapshot original assertions. No expected failure status or substitution.",
+    "work_commit": "0f4b8e199"
+  },
+  "env": {},
+  "expected_selected": 1,
+  "kind": [
+    "lib"
+  ],
+  "package": "tcl-compiler",
+  "scope": "Separate unchanged original ReadFlow issuer conformance test; not part of original58 or the separate Native35three/SH21two diagnostic groups. Reuses the same freshly built selected compilerlib artifact.",
+  "selectors": [
+    "command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot"
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "fce78aeb2f2197fa38ed1f16190bbb958a7ac4e08e9afdf6930534cfaf33464c"
+  },
+  "target": "tcl_compiler"
+}

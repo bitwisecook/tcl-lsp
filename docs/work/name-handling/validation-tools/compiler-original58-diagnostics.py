@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only original58, separate Native35three and SH21two diagnostic duplicates."""
+"""WORK-only original58 with separate Native35three, SH21two and ReadFlowone groups."""
 
 import argparse
 import datetime
@@ -128,13 +128,29 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
-    if prefix.startswith(("original58-", "supplemental-native35-", "supplemental-sh21-", "list-", "select-")):
+    if prefix.startswith(
+        (
+            "original58-",
+            "supplemental-native35-",
+            "supplemental-sh21-",
+            "supplemental-readflow1-",
+            "list-",
+            "select-",
+        )
+    ):
         require(
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
     seconds = min(seconds, available)
-    if prefix.startswith(("original58-", "supplemental-native35-", "supplemental-sh21-")):
+    if prefix.startswith(
+        (
+            "original58-",
+            "supplemental-native35-",
+            "supplemental-sh21-",
+            "supplemental-readflow1-",
+        )
+    ):
         argv = [
             str(tools["python"]),
             str(tools["table_filter"]),
@@ -264,7 +280,8 @@ require(
     "supplemental roster overlaps original58",
 )
 require(
-    sha(BASE / "compiler-sh21-supplemental2.json") == "0add8b781c91a7a522f77363242381e6c308e3abd20dbb604f71627a1a3213cc",
+    sha(BASE / "compiler-sh21-supplemental2.json")
+    == "0add8b781c91a7a522f77363242381e6c308e3abd20dbb604f71627a1a3213cc",
     "exact separate SH21 diagnostic duplicate input pin",
 )
 sh21_diagnostic = json.loads((BASE / "compiler-sh21-supplemental2.json").read_text())
@@ -274,7 +291,11 @@ require(
     and sh21_diagnostic["target"] == "tcl_compiler"
     and sh21_diagnostic["expected_selected"] == 2
     and sh21_diagnostic["env"] == {"TCL_LSP_TRACE_SH21_PRODUCER": "1"}
-    and sh21_diagnostic["selectors"] == ['analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent', 'analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires'],
+    and sh21_diagnostic["selectors"]
+    == [
+        "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+        "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+    ],
     "separate SH21 diagnostic duplicate roster or flags differ",
 )
 sh21_rows = [
@@ -290,15 +311,65 @@ sh21_rows = [
     for selector in sh21_diagnostic["selectors"]
 ]
 require(
-    all(sum(row["selector"] == duplicate["selector"] for row in original_rows) == 1
-        for duplicate in sh21_rows),
+    all(
+        sum(row["selector"] == duplicate["selector"] for row in original_rows) == 1
+        for duplicate in sh21_rows
+    ),
     "diagnostic SH21 rows must duplicate exactly the existing original58 identities",
 )
-rows = original_rows + supplemental_rows + sh21_rows
 require(
-    len({(row["group"], row["package"], tuple(row["kind"]), row["target"], row["selector"])
-         for row in rows}) == 63,
-    "separate original58/native35three/SH21two group identity conflict",
+    sha(BASE / "compiler-readflow-supplemental1.json")
+    == "142e58518dbb68ddec64c302c2a0ec60d4f178a3ff09ff9177247299d22d099c",
+    "exact separate ReadFlow1 input pin",
+)
+readflow = json.loads((BASE / "compiler-readflow-supplemental1.json").read_text())
+require(
+    readflow["package"] == "tcl-compiler"
+    and readflow["kind"] == ["lib"]
+    and readflow["target"] == "tcl_compiler"
+    and readflow["expected_selected"] == 1
+    and readflow["env"] == {}
+    and readflow["selectors"]
+    == [
+        "command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot"
+    ],
+    "separate ReadFlow1 roster or environment differs",
+)
+readflow_rows = [
+    {
+        "group": "supplemental-readflow1",
+        "package": readflow["package"],
+        "kind": readflow["kind"],
+        "target": readflow["target"],
+        "selector": selector,
+        "env": readflow["env"],
+        "state": "UNRUN",
+    }
+    for selector in readflow["selectors"]
+]
+require(
+    not {(row["target"], row["selector"]) for row in readflow_rows}.intersection(
+        (row["target"], row["selector"])
+        for row in original_rows + supplemental_rows + sh21_rows
+    ),
+    "separate ReadFlow1 selector overlaps an existing group",
+)
+rows = original_rows + supplemental_rows + sh21_rows + readflow_rows
+require(
+    len(
+        {
+            (
+                row["group"],
+                row["package"],
+                tuple(row["kind"]),
+                row["target"],
+                row["selector"],
+            )
+            for row in rows
+        }
+    )
+    == 64,
+    "separate original58/native35three/SH21two/ReadFlowone group identity conflict",
 )
 expected_targets = [
     ("tcl-compiler", ["lib"], "tcl_compiler", 52),
@@ -345,7 +416,11 @@ try:
         raise RuntimeError("rustup absent")
     tools = {"python": Path(sys.executable).resolve(), "executor": executor}
     table_filter = BASE / "compiler-original58-table-filter.py"
-    require(sha(table_filter) == "44f950671a170b963c5375a3841a03fea5b46e23db54805c84cacd2b0e552844", "exact bounded table transport pin")
+    require(
+        sha(table_filter)
+        == "44f950671a170b963c5375a3841a03fea5b46e23db54805c84cacd2b0e552844",
+        "exact bounded table transport pin",
+    )
     tools["table_filter"] = table_filter
     for name in ["cargo", "rustc"]:
         tools[name] = Path(
@@ -395,7 +470,8 @@ try:
     versions = {
         name: subprocess.check_output([str(path), "--version"], text=True)
         for name, path in tools.items()
-        if name not in ["executor", "jimsh", "table_filter"] and not name.startswith("tclsh")
+        if name not in ["executor", "jimsh", "table_filter"]
+        and not name.startswith("tclsh")
     }
     versions["rustc_verbose"] = subprocess.check_output(
         [str(tools["rustc"]), "-vV"], text=True
@@ -516,6 +592,7 @@ try:
                 **roster["source_pins"],
                 **supplemental["source_pins"],
                 **sh21_diagnostic["source_pins"],
+                **readflow["source_pins"],
             }.items()
         ),
         "original test/observer input changed",
@@ -567,7 +644,7 @@ try:
                 "dependency_fetch_seconds": 600,
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Only exact ORIGINAL_COMMAND_INSTALLED SourceCommandTable observer lines become counted SHA256 summaries; every other stderr byte and all stdout remain verbatim.",
-                "execution_order": "Separate Native35three then SH21two diagnostic duplicates first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
+                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
@@ -576,6 +653,7 @@ try:
             "original_inputs_and_environment": roster,
             "separate_supplemental3": supplemental,
             "separate_sh21_diagnostic2": sh21_diagnostic,
+            "separate_readflow1": readflow,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -612,7 +690,7 @@ try:
     require(bool(dependency_roots), "resolved Cargo dependency inputs absent")
     dependencies_before = files(dependency_roots)
     save(out / "dependencies-before-build.json", dependencies_before)
-    execution_rows = supplemental_rows + sh21_rows + original_rows
+    execution_rows = supplemental_rows + sh21_rows + readflow_rows + original_rows
     for target_spec in roster["targets"]:
         package = target_spec["package"]
         target_name = target_spec["name"]
@@ -741,7 +819,7 @@ try:
                 row["target"] == target_name
                 and row["package"] == package
                 and row["kind"] == target_kind
-                for row in supplemental_rows + sh21_rows
+                for row in supplemental_rows + sh21_rows + readflow_rows
             ),
             "original actual roster mismatch: " + target_name,
         )
@@ -760,7 +838,12 @@ try:
                 remaining > 512 * 1024, "insufficient log budget before original test"
             )
             prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
-            print("SELECT original " + selector, flush=True)
+            group_label = (
+                "supplemental"
+                if row["group"] == "supplemental-readflow1"
+                else "original"
+            )
+            print("SELECT " + group_label + " " + selector, flush=True)
             runtime_env = env.copy()
             selected_env = row["env"]
             if not isinstance(selected_env, dict):
@@ -806,7 +889,7 @@ try:
             )
             row["state"] = "RUNNING"
             save(out / "outcomes.json", rows)
-            print("RUN original " + selector, flush=True)
+            print("RUN " + group_label + " " + selector, flush=True)
             receipt = execute(
                 [
                     str(executable),
@@ -825,13 +908,16 @@ try:
             remaining -= receipt["retained_bytes"]
             transport_path = out / (prefix + ".transport.json")
             if lifecycle(receipt):
-                require(transport_path.is_file(), "completed test transport summary missing")
+                require(
+                    transport_path.is_file(), "completed test transport summary missing"
+                )
                 transport = json.loads(transport_path.read_text())
                 require(
                     transport["child_exit_code"] == receipt["exit_code"]
                     and transport["ordinary_stderr_verbatim"] is True
                     and transport["stdout_verbatim"] is True
-                    and transport["retained_stderr_bytes"] == (out / (prefix + ".stderr")).stat().st_size,
+                    and transport["retained_stderr_bytes"]
+                    == (out / (prefix + ".stderr")).stat().st_size,
                     "transport child status or byte census mismatch",
                 )
             row.update(
@@ -860,7 +946,8 @@ try:
         len(original_rows) == 58
         and len(supplemental_rows) == 3
         and len(sh21_rows) == 2
-        and len(rows) == 63
+        and len(readflow_rows) == 1
+        and len(rows) == 64
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -943,6 +1030,11 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in sh21_rows
             ),
             "sh21_diagnostic2_outcomes": sh21_rows,
+            "required_separate_readflow_tests": 1,
+            "readflow_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in readflow_rows
+            ),
+            "readflow1_outcomes": readflow_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
