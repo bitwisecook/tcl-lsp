@@ -1,0 +1,47 @@
+--- /tmp/vm-runtime-full-tommath5-v3/run.py
++++ /tmp/vm-runtime-full-tommath5-v4/run.py
+@@ -17,10 +17,10 @@
+ 
+ ROOT = Path('/workspace/naming-migration-active/tcl-lsp')
+ PUBLISHER = Path('/workspace/naming-migration-publish/tcl-lsp')
+-BASE = Path('/tmp/vm-runtime-full-tommath5-v3')
++BASE = Path('/tmp/vm-runtime-full-tommath5-v4')
+ CAP = 20 * 1024**2
+ FLOOR = 2 * 1024**3
+-PLANS = {'full_tommath5': 'e9778397aa8bef8ec363c8a15d7470e61bd35b16913adb48e20cf7f32c72ab72'}
++PLANS = {'full_tommath5': '226d74031caf8bdb370607a817fc75e5175dad1cca5b6ab11de9ce963a151551'}
+ MIRROR = Path('/tmp/vm-runtime-full-tommath')
+ TARGET = Path('/tmp/vm-runtime-full-tommath-target-20261022')
+ TOMMATH = Path('/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath')
+@@ -49,15 +49,19 @@
+ 
+ def mirror_invariants():
+     assert (MIRROR / 'rust').resolve() == ROOT / 'rust'
++    for name in ['Cargo.toml', 'Cargo.lock']:
++        assert (MIRROR / name).is_symlink()
++        assert (MIRROR / name).resolve() == ROOT / name, 'mirror root binding changed'
++        assert digest(MIRROR / name) == digest(ROOT / name), 'mirror root bytes changed'
+     assert (MIRROR / 'experiments').resolve() == ROOT / 'experiments'
+     assert not (MIRROR / 'tmp').exists(), 'no-tommath fallback must stay absent'
+ 
+ def prepare_mirror(out):
+     MIRROR.mkdir(exist_ok=True)
+-    for name in ['rust', 'experiments']:
++    for name in ['rust', 'experiments', 'Cargo.toml', 'Cargo.lock']:
+         link = MIRROR / name
+         if not link.exists():
+-            link.symlink_to(ROOT / name, target_is_directory=True)
++            link.symlink_to(ROOT / name, target_is_directory=(ROOT / name).is_dir())
+     (MIRROR / 'runtime/rust').mkdir(parents=True, exist_ok=True)
+     mirror_invariants()
+     current = runtime_files(ROOT / 'runtime/rust')
+@@ -132,6 +136,9 @@
+     mirror_invariants()
+     assert runtime_files(ROOT / 'runtime/rust') == runtime_files(MIRROR / 'runtime/rust'), 'mirror drift'
+     visit(MIRROR / 'runtime/rust', set())
++    for name in ['Cargo.toml', 'Cargo.lock']:
++        result[str(MIRROR / name) + ':symlink'] = os.readlink(MIRROR / name)
++        result[str(MIRROR / name)] = digest(MIRROR / name)
+     return result
+ 
+ def providers(out, phase):

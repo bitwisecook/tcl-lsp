@@ -1,0 +1,33 @@
+{
+  "reviewer": "compiler-names",
+  "capture_v3_patch_sha256": "ce81ffc3e1e60ca1f9dd973bc782aafd820145975b63280f2bee5b862438d179",
+  "cumulative_v5_patch_sha256": "a91c282c5ef5054f2a7afaa64139556c75c9b4900b8ce34302714801c9a9b47a",
+  "status": "v3 capture-only bounded static owner review; v5 comparator HOLD pending accepted successor fixes; untyped/unrun",
+  "examined": [
+    "actual diagnostic-CU capture request; private complete prepared snapshot accessor, no CU rebuild",
+    "complete Named/Unit/Carried/Method/Definition census with issued IDs and duplicate IDs terminal",
+    "total unique role/source bijection and definition-parent pair joins",
+    "hosted source entry/current producer card checks separate from Native eligibility",
+    "all90 explicit report field inventory/all12 typed diagnostic branches; strict nested mismatch unavailable",
+    "sealed current-output E003 analysis owner pair replaces only actual analysis_owner after each matches_analysis; exact input/inherited/procedure/caller guards",
+    "logical candidate current-output retained realm Arc/full source input before old report_parts",
+    "old Eq/cache/countguard/Native eligibility unchanged"
+  ],
+  "accepted_successor_repairs": [
+    "physical/Normal ownerbearing mismatch must be Unavailable before Difference",
+    "exact complete OriginalClass owner inventory before advisory value comparison",
+    "missing logical candidate carrier on one side must be Unavailable",
+    "DefinitionScript and method definition parent require actual Definition census role",
+    "retain full actual source entry domain for all prepared units, not only hosted"
+  ],
+  "remaining_census_query": [
+    "explicit reverse Event and hosted OriginalDeclaration card coverage preferred; source producer currently creates these cards alongside corresponding body rows"
+  ],
+  "legacy_report_source_policy": "derived old comparator cache may remain unused under separate independently authenticated complete actual-body report issuer; this changes no old Eq or eligibility",
+  "limits": [
+    "No Rust typecheck or runtime controls",
+    "No E003/aliases/hosted/coldwarm perf proof",
+    "83 structured fields exact-or-Unavailable can conservatively refuse ordinary independent analyses; no report support inferred from explicit inventory alone",
+    "Frozenv5 known object module ordering formatting fix remains routine successor work"
+  ]
+}

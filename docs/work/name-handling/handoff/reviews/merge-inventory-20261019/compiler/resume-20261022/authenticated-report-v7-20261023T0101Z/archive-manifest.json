@@ -1,0 +1,42 @@
+{
+  "immutable_patch": true,
+  "no_raw_rust_or_c_sources": true,
+  "members": [
+    {
+      "path": "api-handoff.json",
+      "bytes": 2985,
+      "sha256": "fdd04d2f73995e849f049f9ec703947f2db98b48d56ae45c7989b833b7957ed2"
+    },
+    {
+      "path": "controls-inventory.json",
+      "bytes": 3196,
+      "sha256": "e7531fa266be079a86bf2810125b1bd6184ce2b8120a7ea674c1a9028bdded34"
+    },
+    {
+      "path": "current-pin-check.json",
+      "bytes": 3641,
+      "sha256": "1c82d06b25b5ebed4a658691c858eefc97107aa872767fb051f0444b4f0e679a"
+    },
+    {
+      "path": "original-alias-fixture.json",
+      "bytes": 389,
+      "sha256": "4ca74ad366ff149a1a9ad4498aa0507d5d8e9b6ffa659cfbbedf235d36fce2fd"
+    },
+    {
+      "path": "proposal.patch",
+      "bytes": 79216,
+      "sha256": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 4105,
+      "sha256": "6d0679fdeebb0b2c610766d6adebf7bc9c48a0f869015fa9ef97b6f2f9de9986"
+    },
+    {
+      "path": "v6-delta.patch",
+      "bytes": 2604,
+      "sha256": "23109b16fe549f341c4781b0b1f033b0371a61a4af213f8f7b602e968b8fefc8"
+    }
+  ],
+  "review_pending": true
+}

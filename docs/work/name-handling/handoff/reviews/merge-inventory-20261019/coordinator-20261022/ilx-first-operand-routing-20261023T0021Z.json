@@ -18,5 +18,13 @@
     "published_source_at_this_observation": false,
     "typing": "Six-package all-target check active; no final result",
     "runtime": "Unrun; original16 and consumer wiring remain required"
+  },
+  "latest_publication": {
+    "utc": "2026-10-23T00:48:04.062877+00:00",
+    "work_sha": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+    "active_product_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "typing": "PASS six packages all targets0errors0warnings,6542source/providers stable at00:39:40UTC",
+    "runtime_controls": "Unrun; compiler4 and BIG-IP original16 still required",
+    "CI": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39879737945"
   }
 }

@@ -1,0 +1,66 @@
+--- a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -549,6 +549,63 @@
+     }
+ 
+     #[test]
++    fn original_aliases_keep_both_actual_roles_at_the_shared_declaration() {
++        let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
++        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let a = &left
++            .current_capture()
++            .expect("actual original alias diagnostics CU")
++            .bodies;
++        let b = &right
++            .current_capture()
++            .expect("independent original alias diagnostics CU")
++            .bodies;
++        let named = a
++            .bodies
++            .iter()
++            .find(|body| {
++                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
++                    && a.bodies.iter().any(|other| {
++                        matches!(
++                            other.role,
++                            ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
++                        ) && body.site.is_some()
++                            && body.site == other.site
++                            && body.declaration == other.declaration
++                    })
++            })
++            .expect("actual Named and NamespaceScript owners at one original declaration");
++        let joined = a
++            .bodies
++            .iter()
++            .filter(|body| body.site == named.site && body.declaration == named.declaration)
++            .collect::<Vec<_>>();
++        assert_eq!(
++            joined.len(),
++            2,
++            "both original actual roles remain present, never deduplicated"
++        );
++        assert_ne!(joined[0].id, joined[1].id);
++        let correspondence = ReportBodyCorrespondence::capture(a, b)
++            .expect("complete unique actual owner correspondence");
++        for row in joined {
++            assert_eq!(
++                correspondence
++                    .pairs
++                    .iter()
++                    .filter(|(left, _)| *left == row.id)
++                    .count(),
++                1
++            );
++        }
++        assert_eq!(
++            left.compare(&right),
++            super::super::AnalysisReportComparison::Equal
++        );
++    }
++
++    #[test]
+     fn actual_body_census_retains_the_complete_source_entry_domain() {
+         let left = actual();
+         let mut right = actual();

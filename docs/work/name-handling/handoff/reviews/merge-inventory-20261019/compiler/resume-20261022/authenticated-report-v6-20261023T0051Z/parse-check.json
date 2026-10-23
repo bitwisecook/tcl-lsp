@@ -1,0 +1,71 @@
+{
+  "status": "PARSE/FORMAT ONLY; no type/runtime proof",
+  "all_pass": true,
+  "rows": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/mod.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types.rs",
+      "exit": 0,
+      "output": ""
+    }
+  ]
+}

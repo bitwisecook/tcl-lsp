@@ -2,11 +2,50 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T00:16Z (VM181 old inventory static applicability checked; all31 composition base paths match current; full5-v3 observer remains primary next; no Clippy/build/queue)
+Last updated: 2026-10-23T00:54Z (actual full5-v4 closed4PASS1FAIL; full44804source/7545providers/artifacts stable; original catch unresolved; no further Cargo)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual fullTomMath5-v4 closed00:52:55Z on activeb19ab38/product3b1a750,
+published5a4182df, session24002 reaped and independent wholelock free.
+Genuine Cargo have_tommath cfg,0typed/build warnings, artifact `41563b5f`.
+All5 original exact cases completed once/zeroignored: Jim import PASS,
+three C84 boundary controls PASS, original C84 catch FAIL with missing
+`::errorCode`/nativeNone. Full44804 source/7545provider/artifact guards stable;
+logs294890bytes, no timeout/abort/cleanup. Complete lossless archive and
+bounded diagnosis: `vm-runtime/runs/full5-attempt2-20261023T005255Z/`.
+
+Catch observer shows body returns with legacy_copy=true/already_logged=true,
+private originals absent and native_cells0; publish enters then clears the
+exception without entering compatibility-global setter path. Static
+publish_error skips that branch for C84 when legacy_copy is already true.
+The later missing-variable error reaches C84 setters, after the decisive read.
+This isolates flag/publication inconsistency but does not identify the unique
+earlier flag issuer. Original catch remains confirmed baseline regression
+in BOTH backends. Jim's full-backend PASS does not close its unsupported
+no-TomMath bootstrap case or establish whole pack acceptance. Original
+scripts/assertions retained. No further Cargo authorized or queued.
+
+
+Full5-v3 actual attempt closed00:42:08Z, session41907 reaped/wholelock free.
+Cargo exited101 before compilation because mirror path-dependency manifests
+inherit workspace.package.edition but mirror root Cargo.toml was absent.
+Observed0/expected5, no artifacts/actual have_tommath/test results; this is
+harness setup failure, not runtime acceptance. Full44800 source and7545
+provider seals matched; docs-only active/publisher HEAD movement is recorded.
+Logs309bytes, minimum free4.97GB, no cleanup. Lossless round-trip archive:
+`vm-runtime/runs/full5-attempt1-20261023T004208Z/manifest.json`.
+
+Off-tree v4 successor at `/tmp/vm-runtime-full-tommath5-v4/` has runner
+`96112ea3`, plan `226d7403`, patch `b81c7aab`. It adds only authentic root
+Cargo.toml/Cargo.lock symlinks at preparation, with exact resolved-target,
+symlink-text and byte guards before/after; cases/targets/observer/backend
+requirements/budgets unchanged. Coordination independent review requested.
+No mirror mutation/retry/new Cargo/queue occurred. A fresh explicit GO is
+required after review; primary goal remains actual original full5 diagnostic.
+
 
 VM181 static inventory review at00:16Z: historical181 findings comprise67
 function-length,43 collapsible-if,19 by-value/API-borrow,9 let-else,7 argument

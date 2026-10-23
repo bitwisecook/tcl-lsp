@@ -1,0 +1,77 @@
+{
+  "prepared_utc": "2026-10-23T00:49:53.599311+00:00",
+  "status": "OFFTREE full comparator draft, untyped/unrun; peer v6 delta pending. NOT perf-ready/fullproof closure; independent E003/aliases/oldmixed/hosted corpus proof outstanding.",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "before_sha256": null,
+      "after_sha256": "77b6c5d21fc5e4468e36b713a99fee563812eb9a93786905c9791c83195bce26"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "before_sha256": null,
+      "after_sha256": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": null,
+      "after_sha256": "94757f7ccb8bffc22b503476f4c5951fc54fdac9318b95bdef0c0b08b188afed"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "before_sha256": "3cc924569d825b4e5b399b6f89384c70e93235068892bd4bcf6156706b358c2e",
+      "after_sha256": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "before_sha256": "058c540c510fd84032265302b50b8bc872c102581a5720de263eb4e04c21c7f1",
+      "after_sha256": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/mod.rs",
+      "before_sha256": "9550ef401ee80f594f253ba736691453649a4c9c0b3b1a6014f56ea7c51f2e53",
+      "after_sha256": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "43883e216d0a50c89ebc568c5b78b3d36f0fc7bfb7ee17e6fbbc8a064ee875ed",
+      "after_sha256": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "before_sha256": "4d34f256a857290482d3b48d064645b41afd93b870dd729c512e49b7f1fba1a6",
+      "after_sha256": "b98a368f62e619ed4d2878843af1c6cbf742f0905af7f07d25569a8135061e74"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "before_sha256": "3e2177ed83ba187555ce1a3711f1759cd075d39cb4f7346b1f7208c16572c697",
+      "after_sha256": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "before_sha256": "97bdc8d2b8da3854bd76c6216598af45416d5b1b0eb639e21a0dadec31156a6b",
+      "after_sha256": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "before_sha256": null,
+      "after_sha256": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "before_sha256": "3893c509904c7ef411fd213add9c52ee6904423ae36ad526831d249634e89c1f",
+      "after_sha256": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types.rs",
+      "before_sha256": "28ea3229204b2bb3da61a80def8612efb4d07d37bd797cdcab3125e4ebb85abe",
+      "after_sha256": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2"
+    }
+  ],
+  "patch_sha256": "e290fc200ccf38e72eb7ffe23d68101b097d580ae7b8aaabc59c943037c2ed5d",
+  "v5_delta_sha256": "c28be476f0f3ffdcbc3560b92842cacd7a31a36a8066b23c47b6b113b5578207",
+  "successor_to": "a91c282c5ef5054f2a7afaa64139556c75c9b4900b8ce34302714801c9a9b47a",
+  "delta": "Accepted peer repairs: physical/Normal strict mismatch Unavailable; exact complete OriginalClass owner inventory; one-sided logical candidate issuer unavailable; genuine Definition parent/type checks; full source-entry domain all units. Reverse required Event cards; OriginalDeclaration source purpose classified from exact single actual allocation/native/logical/authored/hosted owner and reborrowed current card coverage both directions. Hosted declarations require genuine hosted card, no label inference. Module-order formatting fixed; one new genuine source-entry withdrawal control unrun.",
+  "limits": "83 structured facets exact-or-Unavailable; exhaustive policy alone does not prove independent equality. Old Eq/cache/countguard/native eligibility unchanged.",
+  "canonical_unchanged": true
+}

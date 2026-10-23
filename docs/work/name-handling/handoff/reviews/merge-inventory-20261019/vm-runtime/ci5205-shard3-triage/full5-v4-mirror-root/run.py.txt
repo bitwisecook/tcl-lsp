@@ -1,0 +1,378 @@
+#!/usr/bin/env python3
+"""Finite exact selectors. Do not execute without coordinator GO."""
+import argparse
+import datetime
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import resource
+import selectors
+import shutil
+import signal
+import subprocess
+import time
+
+ROOT = Path('/workspace/naming-migration-active/tcl-lsp')
+PUBLISHER = Path('/workspace/naming-migration-publish/tcl-lsp')
+BASE = Path('/tmp/vm-runtime-full-tommath5-v4')
+CAP = 20 * 1024**2
+FLOOR = 2 * 1024**3
+PLANS = {'full_tommath5': '226d74031caf8bdb370607a817fc75e5175dad1cca5b6ab11de9ce963a151551'}
+MIRROR = Path('/tmp/vm-runtime-full-tommath')
+TARGET = Path('/tmp/vm-runtime-full-tommath-target-20261022')
+TOMMATH = Path('/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath')
+EXCLUDE = {'.git', 'target', 'node_modules', '.worktrees', '__pycache__'}
+
+def utc():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def digest(path):
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+def write(out, name, value):
+    (out / name).write_text(json.dumps(value, sort_keys=True, indent=2) + '\n')
+
+def disk():
+    return min(shutil.disk_usage(ROOT).free, shutil.disk_usage('/tmp').free)
+
+def git_identity(path):
+    return {key: subprocess.check_output(['git', 'rev-parse', expr], cwd=path, text=True).strip()
+            for key, expr in [('head', 'HEAD'), ('tree', 'HEAD^{tree}')]}
+
+def runtime_files(root):
+    return {str(p.relative_to(root)): digest(p) for p in root.rglob('*')
+            if p.is_file() and 'target' not in p.relative_to(root).parts}
+
+def mirror_invariants():
+    assert (MIRROR / 'rust').resolve() == ROOT / 'rust'
+    for name in ['Cargo.toml', 'Cargo.lock']:
+        assert (MIRROR / name).is_symlink()
+        assert (MIRROR / name).resolve() == ROOT / name, 'mirror root binding changed'
+        assert digest(MIRROR / name) == digest(ROOT / name), 'mirror root bytes changed'
+    assert (MIRROR / 'experiments').resolve() == ROOT / 'experiments'
+    assert not (MIRROR / 'tmp').exists(), 'no-tommath fallback must stay absent'
+
+def prepare_mirror(out):
+    MIRROR.mkdir(exist_ok=True)
+    for name in ['rust', 'experiments', 'Cargo.toml', 'Cargo.lock']:
+        link = MIRROR / name
+        if not link.exists():
+            link.symlink_to(ROOT / name, target_is_directory=(ROOT / name).is_dir())
+    (MIRROR / 'runtime/rust').mkdir(parents=True, exist_ok=True)
+    mirror_invariants()
+    current = runtime_files(ROOT / 'runtime/rust')
+    old = runtime_files(MIRROR / 'runtime/rust')
+    assert not set(old).difference(current), 'removed source requires reviewed successor'
+    changed = []
+    for relative, expected in current.items():
+        if old.get(relative) == expected:
+            continue
+        path = MIRROR / 'runtime/rust' / relative
+        if path.exists():
+            saved = out / 'prior-source' / (relative + '.txt')
+            saved.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, saved)
+            assert digest(saved) == old[relative]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / 'runtime/rust' / relative, path)
+        changed.append({'path': relative, 'before': old.get(relative), 'after': expected})
+    assert runtime_files(MIRROR / 'runtime/rust') == current == runtime_files(ROOT / 'runtime/rust')
+    preserved = []
+    for path in sorted((TARGET / 'debug/deps').glob('tcl_runtime-*')):
+        if not path.is_file() or not os.access(path, os.X_OK):
+            continue
+        assert disk() >= FLOOR
+        original_hash = digest(path)
+        saved = out / 'prior-artifacts' / (path.name + '-' + original_hash)
+        saved.parent.mkdir(exist_ok=True)
+        shutil.copy2(path, saved)
+        assert digest(saved) == original_hash
+        preserved.append({'source': str(path), 'retained': str(saved), 'sha256': original_hash})
+    write(out, 'mirror-preparation.json', {'utc': utc(), 'changed': changed, 'preserved_artifacts': preserved,
+                                         'mirror_exact': True, 'cleanup': 'none; no canonical/provider/target writes'})
+
+def source_inputs():
+    result = {}
+    def visit(path, ancestors):
+        resolved = path.resolve()
+        if resolved in ancestors:
+            raise RuntimeError('source symlink cycle: ' + str(path))
+        if path.is_symlink():
+            result[str(path) + ':symlink'] = os.readlink(path)
+        if path.is_dir():
+            for child in sorted(path.iterdir()):
+                if child.name not in EXCLUDE:
+                    visit(child, ancestors | {resolved})
+        elif path.is_file():
+            result[str(path)] = digest(path)
+    for prefix in ['rust', 'runtime/rust', 'experiments', 'specs', '.cargo']:
+        path = ROOT / prefix
+        result[str(path) + ':present'] = path.exists()
+        if path.exists():
+            visit(path, set())
+    for path in [ROOT / n for n in ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Makefile']]:
+        if path.exists():
+            result[str(path)] = digest(path)
+    for path in [Path('/tmp/tcl-lsp-naming-env.sh'), Path(os.environ['CARGO_HOME']) / 'config.toml']:
+        if path.exists():
+            result[str(path)] = digest(path)
+    source_suffixes = {'.rs', '.c', '.h', '.cc', '.cpp', '.cxx', '.hh', '.hpp', '.hxx', '.m', '.mm', '.s', '.S'}
+    for base, dirs, names in os.walk(ROOT):
+        directory = Path(base)
+        if directory == ROOT / 'docs/work/name-handling':
+            dirs[:] = []
+            continue
+        dirs[:] = [name for name in dirs if name not in EXCLUDE]
+        for name in names:
+            path = directory / name
+            if path.suffix in source_suffixes or name in {'Cargo.toml', 'Cargo.lock', 'build.rs'}:
+                result[str(path)] = digest(path)
+    for path in [Path(__file__), BASE / 'provider-chain.py', BASE / 'observer-proposal.patch', *[BASE / (name + '-plan.json') for name in PLANS]]:
+        result[str(path)] = digest(path)
+    mirror_invariants()
+    assert runtime_files(ROOT / 'runtime/rust') == runtime_files(MIRROR / 'runtime/rust'), 'mirror drift'
+    visit(MIRROR / 'runtime/rust', set())
+    for name in ['Cargo.toml', 'Cargo.lock']:
+        result[str(MIRROR / name) + ':symlink'] = os.readlink(MIRROR / name)
+        result[str(MIRROR / name)] = digest(MIRROR / name)
+    return result
+
+def providers(out, phase):
+    setup_path = Path('/tmp/naming-oracle-setup.json')
+    setup = json.loads(setup_path.read_text())
+    paths = {setup_path, Path('/tmp/tcl-lsp-naming-env.sh')}
+    for row in setup['tcl']:
+        paths.update(Path(row[key]) for key in ['interpreter', 'wrapper'])
+        tree = Path(row['source_tree'])
+        paths.update(p for p in (tree / 'library').rglob('*') if p.is_file())
+        paths.update(p for p in (tree / 'unix').glob('libtcl*') if p.is_file())
+    sdk = next(row for row in setup['tcl'] if row['patchlevel'] == '9.0.4')
+    archive = Path(sdk['source_archive'])
+    assert digest(archive) == sdk['source_archive_sha256'] == '8c01bac92a9a8ce271b63d3aa28f09cde2c6762d6719ca671cdc8aee25391234'
+    assert (TOMMATH / 'tommath.h').is_file()
+    paths.add(archive)
+    for directory in [TOMMATH, Path('/usr/include'), Path('/usr/lib/gcc')]:
+        paths.update(path for path in directory.rglob('*') if path.is_file())
+    paths.add(Path(setup['jim']['interpreter']))
+    paths.add(Path(setup['jim']['source_tree']) / 'jim-config.h')
+    toolchain = Path(os.environ['RUSTUP_HOME']) / 'toolchains/1.99.1-x86_64-unknown-linux-gnu/bin'
+    paths.update(toolchain / name for name in ['cargo', 'rustc', 'rustfmt'])
+    facts = {str(path): digest(path) for path in sorted(paths)}
+    assert facts[setup['jim']['interpreter']] == '4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e'
+    chain_path = out / (phase + '-provider-chain.json')
+    subprocess.run([os.environ.get('PYTHON', 'python'), str(BASE / 'provider-chain.py'), str(chain_path)], check=True)
+    facts['recursive_ELF_proxy_chain'] = json.loads(chain_path.read_text())
+    facts['C_source_symlink_bindings'] = {str(path): os.readlink(path) for directory in [TOMMATH, Path('/usr/include'), Path('/usr/lib/gcc')] for path in directory.rglob('*') if path.is_symlink()}
+    return facts
+
+def snapshot(out, phase):
+    facts = {'utc': utc(), 'active_git': git_identity(ROOT),
+             'publisher_git': git_identity(PUBLISHER), 'source': source_inputs(), 'providers': providers(out, phase)}
+    write(out, phase + '-inputs.json', facts)
+    return facts
+
+class Capture:
+    def __init__(self, out):
+        self.out = out
+        self.retained = 0
+        self.results = []
+
+    def run(self, label, argv, env, deadline=None):
+        if disk() < FLOOR:
+            raise RuntimeError('disk below2GiB before ' + label)
+        handles = {name: (self.out / (label + '.' + name)).open('wb') for name in ['stdout', 'stderr']}
+        started = utc()
+        proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, start_new_session=True)
+        write(self.out, label + '-started.json', {'utc': started, 'argv': argv, 'pid': proc.pid, 'process_group': proc.pid})
+        poller = selectors.DefaultSelector()
+        poller.register(proc.stdout, selectors.EVENT_READ, 'stdout')
+        poller.register(proc.stderr, selectors.EVENT_READ, 'stderr')
+        begin = time.monotonic()
+        count = 0
+        stopped = None
+        stop_at = None
+        last_signal = 0
+        minimum = disk()
+        while poller.get_map() or proc.poll() is None:
+            now = time.monotonic()
+            minimum = min(minimum, disk())
+            if minimum < FLOOR and stopped is None:
+                stopped = 'disk below2GiB'
+            if deadline is not None and now - begin >= deadline and stopped is None:
+                stopped = 'per-selector deadline exceeded'
+            if stopped and stop_at is None:
+                stop_at = now
+            if stop_at is not None:
+                # Keep the parent unreaped while draining its pipes: the original
+                # group stays ours even if only its child still holds a pipe.
+                stage = 3 if now - stop_at >= 30 else (2 if now - stop_at >= 15 else 1)
+                if stage > last_signal:
+                    try:
+                        os.killpg(proc.pid, [signal.SIGINT, signal.SIGTERM, signal.SIGKILL][stage - 1])
+                    except ProcessLookupError:
+                        pass
+                    last_signal = stage
+            for key, _ in poller.select(1):
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    poller.unregister(key.fileobj)
+                    continue
+                count += len(chunk)
+                room = max(0, CAP - self.retained)
+                keep = chunk[:room]
+                handles[key.data].write(keep)
+                handles[key.data].flush()
+                self.retained += len(keep)
+                if len(keep) != len(chunk) and stopped is None:
+                    stopped = 'aggregate20MiB log cap exceeded'
+        rc = proc.wait()
+        for handle in handles.values():
+            handle.close()
+        result = {'label': label, 'argv': argv, 'cwd': str(ROOT), 'exit': rc,
+                  'started_utc': started, 'ended_utc': utc(), 'stdout_stderr_bytes': count,
+                  'aggregate_retained_bytes': self.retained, 'stopped': stopped,
+                  'deadline_seconds': deadline, 'minimum_free_bytes': minimum}
+        self.results.append(result)
+        write(self.out, label + '-result.json', result)
+        print(json.dumps({'label': label, 'exit': rc, 'stopped': stopped}), flush=True)
+        if stopped not in [None, 'per-selector deadline exceeded']:
+            raise RuntimeError(stopped)
+        return result
+
+def artifact_from_build(out, label, target, rc):
+    rows = [json.loads(line) for line in (out / (label + '.stdout')).read_text().splitlines() if line]
+    assert rc == 0, 'Cargo failed; no artifact fallback'
+    finished = [r for r in rows if r.get('reason') == 'build-finished']
+    assert len(finished) == 1 and finished[0]['success']
+    warnings = [r for r in rows if r.get('reason') == 'compiler-message' and r['message']['level'] in ['warning', 'error']]
+    assert not warnings, 'typed compiler warning/error terminal'
+    notices = [line for line in (out / (label + '.stderr')).read_text().splitlines() if 'warning:' in line]
+    assert not notices, 'full-TomMath build warning terminal'
+    scripts = [r for r in rows if r.get('reason') == 'build-script-executed' and 'tcl-runtime' in r.get('package_id', '')]
+    assert len(scripts) == 1 and 'have_tommath' in scripts[0].get('cfgs', []), 'genuine full numeric backend not enabled'
+    artifacts = [r for r in rows if r.get('reason') == 'compiler-artifact' and r.get('executable')
+                 and r.get('profile', {}).get('test') and r['target']['name'] == target['target']
+                 and target['kind'] in r['target']['kind'] and r['target']['kind'] == target['target_kinds']
+                 and str(Path(r['manifest_path']).resolve()) == target['manifest_path']]
+    assert len(artifacts) == 1, 'ambiguous/missing actual target artifact'
+    result = dict(artifacts[0])
+    result['build_warnings'] = notices
+    result['have_tommath'] = True
+    result['zero_warning_claim'] = True
+    result['executable_sha256'] = digest(Path(result['executable']))
+    result['executable_stat'] = {'size': Path(result['executable']).stat().st_size,
+                                 'mtime_ns': Path(result['executable']).stat().st_mtime_ns}
+    write(out, label + '-artifact.json', result)
+    return result
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--execute', action='store_true', required=True)
+    parser.add_argument('--phase', choices=PLANS, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    assert str(args.output).startswith('/tmp/')
+    plan_path = BASE / (args.phase + '-plan.json')
+    assert digest(plan_path) == PLANS[args.phase], 'immutable plan changed'
+    plan = json.loads(plan_path.read_text())
+    args.output.mkdir(exist_ok=False)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    env = os.environ.copy()
+    expected = {'CARGO_BUILD_JOBS': '2', 'CARGO_INCREMENTAL': '0', 'CARGO_PROFILE_TEST_DEBUG': '0',
+                'CARGO_PROFILE_DEV_DEBUG': '0', 'RUSTUP_TOOLCHAIN': '1.99.1', 'TCL_LSP_REQUIRE_TCLSH': '9.0,8.6'}
+    assert all(env.get(k) == value for k, value in expected.items()), 'source /tmp/tcl-lsp-naming-env.sh first'
+    assert Path(env['CARGO_TARGET_DIR']).resolve() == ROOT / 'target'
+    env.pop('TCL_LSP_RUNTIME_C84_EPISODE_DIAGNOSTIC', None)
+    env.update(TCL_TOMMATH_DIR=str(TOMMATH), CC='/usr/bin/cc', AR='/usr/bin/ar')
+    env.update(CARGO_TERM_COLOR='never', CARGO_TARGET_DIR=str(TARGET))
+    lock = open('/tmp/tcl-lsp-naming-build.lock', 'a')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    assert disk() >= FLOOR, 'disk below2GiB'
+    write(args.output, 'plan.json', plan)
+    write(args.output, 'environment.json', {k: env.get(k) for k in [*expected, 'CARGO_TARGET_DIR', 'TCL_LSP_JIMSH', 'TCL_TOMMATH_DIR']})
+    write(args.output, 'runner-identity.json', {'path': __file__, 'sha256': digest(__file__), 'plan_sha256': digest(plan_path), 'utc': utc()})
+    try:
+        if args.phase == 'full_tommath5':
+            assert 'Jim import: native refusal before projection' in (ROOT / 'runtime/rust/src/cmd_namespace.rs').read_text(), 'root-applied failure diagnostic required'
+        for relative, expected_hash in plan['diagnostic']['required_canonical_after_sha256'].items():
+            assert digest(ROOT / relative) == expected_hash, 'reviewed observer source prerequisite changed'
+        prepare_mirror(args.output)
+        before = snapshot(args.output, 'before')
+    except BaseException as error:
+        write(args.output, 'not-started.json', {'utc': utc(), 'reason': repr(error), 'cargo_or_tests_started': False, 'initial_guard_incomplete': True})
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+        return 1
+    capture = Capture(args.output)
+    outcomes = []
+    artifacts = []
+    failure = None
+    try:
+        for index, target in enumerate(plan['targets'], 1):
+            label = f'build-{index}'
+            built = capture.run(label, target['cargo_build_argv'], env)
+            artifact = artifact_from_build(args.output, label, target, built['exit'])
+            artifacts.append(artifact)
+            executable = artifact['executable']
+            listed = capture.run(label + '-roster', [executable, '--list', '--format', 'terse'], env, 180)
+            assert listed['exit'] == 0 and listed['stopped'] is None
+            roster = (args.output / (label + '-roster.stdout')).read_text().splitlines()
+            selected = [x for x in plan['cases'] if x['package'] == target['package']]
+            for case in selected:
+                assert roster.count(case['selector'] + ': test') == 1, 'missing/ambiguous exact selector'
+            for case in selected:
+                number = len(outcomes) + 1
+                test_label = f'test-{number:02}'
+                case_env = env.copy()
+                diagnostic = plan['diagnostic']
+                if case['selector'] == diagnostic['enabled_selector']:
+                    case_env[diagnostic['env_key']] = diagnostic['env_value']
+                result = capture.run(test_label, [executable, case['selector'], '--exact', '--nocapture', '--test-threads', '1'], case_env, 180)
+                text = (args.output / (test_label + '.stdout')).read_text(errors='replace')
+                summary = re.findall(r'test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored;', text)
+                completed_one = len(summary) == 1 and int(summary[0][1]) + int(summary[0][2]) == 1 and int(summary[0][3]) == 0
+                row = {'case': case, 'artifact': executable, 'artifact_sha256': artifact['executable_sha256'],
+                       'process': result, 'started_exactly_one': bool(re.search(r'\brunning 1 test\b', text)),
+                       'completed_exactly_one_zero_ignored': completed_one,
+                       'diagnostic_enabled': case['selector'] == plan['diagnostic']['enabled_selector'],
+                       'passed': result['exit'] == 0 and result['stopped'] is None and completed_one and summary[0][0] == 'ok'}
+                outcomes.append(row)
+                write(args.output, 'outcomes.json', outcomes)
+            assert digest(executable) == artifact['executable_sha256'], 'artifact changed during execution'
+    except BaseException as error:
+        failure = repr(error)
+    finally:
+        try:
+            after = snapshot(args.output, 'after')
+            source_same = before['source'] == after['source']
+            providers_same = before['providers'] == after['providers']
+            artifact_same = all(digest(a['executable']) == a['executable_sha256'] for a in artifacts)
+        except BaseException as error:
+            after = {'active_git': None, 'publisher_git': None}
+            source_same = providers_same = artifact_same = False
+            failure = 'Final guard unavailable: ' + repr(error) + '; previous failure=' + str(failure)
+            write(args.output, 'guard-incomplete.json', {'utc': utc(), 'reason': failure, 'passed': False})
+        summary = {'utc': utc(), 'phase': args.phase, 'expected': plan['expected_selected'], 'observed': len(outcomes),
+                   'passes': sum(x['passed'] for x in outcomes), 'failure': failure,
+                   'source_count': len(before['source']), 'provider_count': len(before['providers']),
+                   'source_unchanged': source_same, 'providers_unchanged': providers_same, 'artifacts_unchanged': artifact_same,
+                   'active_git_before': before['active_git'], 'active_git_after': after['active_git'],
+                   'publisher_git_before': before['publisher_git'], 'publisher_git_after': after['publisher_git'],
+                   'publisher_equivalence_claim': False, 'retained_stdout_stderr_bytes': capture.retained,
+                   'log_cap_bytes': CAP, 'cleanup': 'none; all artifacts retained',
+                   'passed': failure is None and len(outcomes) == plan['expected_selected'] and all(x['passed'] for x in outcomes)
+                             and source_same and providers_same and artifact_same}
+        write(args.output, 'summary.json', summary)
+        write(args.output, 'lock-released.json', {'utc': utc(), 'pid': os.getpid()})
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+        print(json.dumps(summary), flush=True)
+    return 0 if summary['passed'] else 1
+
+if __name__ == '__main__':
+    raise SystemExit(main())

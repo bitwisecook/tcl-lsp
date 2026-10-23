@@ -1,0 +1,95 @@
+{
+  "status": "actual full-backend finite5 closes4PASS1FAIL; original catch remains confirmed P2F; no general runtime closure",
+  "zero_typed_or_build_warnings": true,
+  "actual_have_tommath_cfg": true,
+  "artifact_sha256": "41563b5f4fde355fc93a004575b80ddbaab46cebe5d44eaca816fccf28b64726",
+  "outcomes": [
+    {
+      "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+      "passed": true,
+      "process_exit": 0,
+      "complete_one_zero_ignored": true
+    },
+    {
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "passed": false,
+      "process_exit": 101,
+      "complete_one_zero_ignored": true
+    },
+    {
+      "selector": "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+      "passed": true,
+      "process_exit": 0,
+      "complete_one_zero_ignored": true
+    },
+    {
+      "selector": "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+      "passed": true,
+      "process_exit": 0,
+      "complete_one_zero_ignored": true
+    },
+    {
+      "selector": "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+      "passed": true,
+      "process_exit": 0,
+      "complete_one_zero_ignored": true
+    }
+  ],
+  "catch_observed_trace": [
+    {
+      "stderr_LF_line": 44,
+      "text": "ZZ_C84_EPISODE stage=catch.enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77970 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 46,
+      "text": "ZZ_C84_EPISODE stage=catch.body_return_error owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8c85e40 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 48,
+      "text": "ZZ_C84_EPISODE stage=catch.before_publish owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8c85e40 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 50,
+      "text": "ZZ_C84_EPISODE stage=publish.enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8c85e40 info_present=true info_len=Some(91) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 52,
+      "text": "ZZ_C84_EPISODE stage=catch.after_publish owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8c85e40 info_present=false info_len=None code=[] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 54,
+      "text": "ZZ_C84_EPISODE stage=log.command_info_enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=false info_len=None code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 56,
+      "text": "ZZ_C84_EPISODE stage=log.command_bytes_enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=false info_len=None code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 58,
+      "text": "ZZ_C84_EPISODE stage=log.seed_success owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(42) code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 60,
+      "text": "ZZ_C84_EPISODE stage=c84.append_enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(117) code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 62,
+      "text": "ZZ_C84_EPISODE stage=c84.first_episode owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(117) code=[78, 79, 78, 69] legacy_copy=false global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=None"
+    },
+    {
+      "stderr_LF_line": 64,
+      "text": "ZZ_C84_EPISODE stage=c84.store_error_info_ok owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(117) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 66,
+      "text": "ZZ_C84_EPISODE stage=c84.store_error_code_ok owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(117) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=true private_info=false private_code=false native_cells=Some(0) outcome=Some(true)"
+    },
+    {
+      "stderr_LF_line": 68,
+      "text": "ZZ_C84_EPISODE stage=publish.enter owner=0x7fd3f80c8b80 epoch=Some(1) runtime=V8_4 result=0x7fd3f8d77c10 info_present=true info_len=Some(117) code=[78, 79, 78, 69] legacy_copy=true global_code_set=false already_logged=false private_info=false private_code=false native_cells=Some(0) outcome=None"
+    }
+  ],
+  "bounded_static_interpretation": "catch enters epoch1 legacy_copyfalse/native_cells0; body returns error with info/code NONE legacy_copytrue/already_loggedtrue/private originals absent; publish enters then exception resets without compatibility setter observer. publish_error compatibility branch is skipped for C84 when legacy_copy is already true. Later missing ::errorCode read causes fresh logging that reaches setters. This narrows flag/publication seam but does not identify the unique earlier flag issuer or justify fallback/test weakening.",
+  "Jim_flavour_limit": "new Jim import selector was absent baseline; actual full backend PASS establishes only this selector, with noTommath FAIL caused by omitted if bootstrap remaining separately scoped",
+  "next": "inspect earlier error construction/return/compile-option flag issuer under C84; original scripts/assertions unchanged; no further Cargo authorized"
+}

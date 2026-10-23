@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-23T00:43:02.352406+00:00",
+  "started_utc": "2026-10-23T00:42:44.663901+00:00",
+  "workflow": "ci.yml",
+  "ref": "work",
+  "inputs": {
+    "rust_tests_runner": "hosted",
+    "native_release_build_proof": false
+  },
+  "expected_published_source": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "active_source_snapshot": "b19ab38c7a0ecb1fa4f600c7f5dd1b7e556e7955",
+  "active_product_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "local_typecheck": "Cargo0/0errors/0warnings,6542source/providers stable at00:39:40UTC",
+  "active_work_runs_before": [],
+  "post_succeeded": true,
+  "identified_run": {
+    "conclusion": "",
+    "createdAt": "2026-10-23T00:42:48Z",
+    "databaseId": 39879737945,
+    "event": "workflow_dispatch",
+    "headSha": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+    "status": "in_progress"
+  },
+  "run_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39879737945",
+  "source_identity_verified": true,
+  "purpose": "Fresh current-source broad gates and exact named comparison to origin/rust5203; no PR/merge/release or acceptance",
+  "authorization": "user-decisions-20261019T1420Z.json ci_dispatch",
+  "baseline_run": 39816429638,
+  "cancellation_or_rerun": false,
+  "next_action": "Monitor read-only; if no identified run, do not dispatch again without inspecting pending result"
+}

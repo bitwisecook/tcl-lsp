@@ -1,0 +1,2066 @@
+--- /dev/null
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -0,0 +1,657 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Complete report-only body owners from the actual diagnostic source unit.
++
++use std::sync::Arc;
++
++use crate::command_binding::{
++    CommandAllocationSite, ExecutedScriptSource, SourceNamespaceKey, SourceOriginId,
++    SourceOriginKind,
++};
++use crate::compilation_unit::OriginalOptimiserPreparedUnit;
++use crate::ir::{MethodKind, Procedure, ProcedureBodyKind, ProcedureId};
++use tcl_core_types::ProcedureModuleId;
++use tcl_lexer::{NativeWord, Span};
++use tcl_registry::CommandRegistry;
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum ReportBodyRole {
++    Named(ProcedureBodyKind),
++    Unit(ProcedureBodyKind),
++    Carried(ProcedureBodyKind),
++    Method(MethodKind),
++    Definition(tcl_registry::definer::DefinerFamily),
++}
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum ReportDeclarationPurpose {
++    AllocatedSource,
++    NativeSource,
++    LogicalSource,
++    AuthoredSource,
++    HostedSource,
++}
++
++struct ReportBodyOwner {
++    id: ProcedureId,
++    role: ReportBodyRole,
++    declaration_purpose: Option<ReportDeclarationPurpose>,
++    declaration: Span,
++    site: Option<CommandAllocationSite>,
++    body_offset: Option<u32>,
++    source: Option<Arc<ExecutedScriptSource>>,
++    namespace: Option<Box<SourceNamespaceKey>>,
++    original_word: Option<NativeWord>,
++    definition_parent: Option<ProcedureId>,
++}
++
++/// The prepared owner keeps the private complete production snapshot alive.
++/// Coordinates select candidates only after that actual issuer is authenticated.
++pub(super) struct ReportBodyInventory {
++    prepared: OriginalOptimiserPreparedUnit,
++    entry: crate::command_binding::SourceAnalysisEntry,
++    hosted_entry: Option<crate::command_binding::SourceAnalysisEntry>,
++    root: Arc<SourceOriginId>,
++    module: ProcedureModuleId,
++    bodies: Vec<ReportBodyOwner>,
++}
++
++impl ReportBodyInventory {
++    pub(super) fn capture(
++        prepared: OriginalOptimiserPreparedUnit,
++        registry: &CommandRegistry,
++    ) -> Option<Self> {
++        if !prepared.is_whole_source_unit() || !prepared.origin().is_current_analysis_context() {
++            return None;
++        }
++        let module = &prepared.unit().ir_module;
++        let retained = module.retained_source_bindings.as_ref()?;
++        let bindings = retained.positioned_for_module(module, registry)?;
++        let root = Arc::clone(bindings.source_origin()?);
++        let input = module.source_metadata_input.as_ref()?;
++        // Hosted source is a separate actual-entry domain, never inferred from
++        // a dialect label and never promoted to Native execution eligibility.
++        let hosted_entry = if input.has_hosted_source_name_context() {
++            if module.source_entry.vendor_source_input.as_ref() != Some(input)
++                || module.source_entry.native_entry.is_some()
++            {
++                return None;
++            }
++            Some(module.source_entry.clone())
++        } else {
++            if module.source_entry.vendor_source_input.is_some() {
++                return None;
++            }
++            None
++        };
++        for (id, card) in &module.original_hosted_declaration_body_units {
++            let body = module.body_units.get(id)?;
++            if hosted_entry.is_none() || !card.matches_procedure(module, body, registry) {
++                return None;
++            }
++        }
++        let mut bodies = Vec::new();
++        for (id, body) in &module.procedures {
++            Self::push(
++                &mut bodies,
++                module,
++                *id,
++                Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
++            )?;
++        }
++        for (id, body) in module.body_lowerings() {
++            let role = if module.body_units.contains_key(id) {
++                ReportBodyRole::Unit(body.body_kind)
++            } else {
++                ReportBodyRole::Carried(body.body_kind)
++            };
++            Self::push(
++                &mut bodies,
++                module,
++                *id,
++                Self::procedure(module, *id, body, role)?,
++            )?;
++        }
++        for (id, body) in &module.methods {
++            Self::push(
++                &mut bodies,
++                module,
++                *id,
++                ReportBodyOwner {
++                    id: *id,
++                    role: ReportBodyRole::Method(body.kind),
++                    declaration_purpose: None,
++                    declaration: body.span?,
++                    site: None,
++                    body_offset: None,
++                    source: body.body.executed_source.clone(),
++                    namespace: body.body.namespace_context.clone(),
++                    original_word: None,
++                    definition_parent: body.definition_scope,
++                },
++            )?;
++        }
++        for id in module.original_definition_scripts.keys() {
++            let body = module.original_definition_script_source(*id, registry)?;
++            Self::push(
++                &mut bodies,
++                module,
++                *id,
++                ReportBodyOwner {
++                    id: *id,
++                    role: ReportBodyRole::Definition(body.family()),
++                    declaration_purpose: None,
++                    declaration: body.declaration_span(),
++                    site: None,
++                    body_offset: Some(body.content_span().start()),
++                    source: None,
++                    namespace: None,
++                    original_word: Some(body.body_word().clone()),
++                    definition_parent: None,
++                },
++            )?;
++        }
++        for (purpose, ids) in [
++            (
++                ReportDeclarationPurpose::AllocatedSource,
++                module
++                    .original_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect::<Vec<_>>(),
++            ),
++            (
++                ReportDeclarationPurpose::NativeSource,
++                module
++                    .original_native_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::LogicalSource,
++                module
++                    .original_logical_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::AuthoredSource,
++                module
++                    .original_authored_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::HostedSource,
++                module
++                    .original_hosted_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++        ] {
++            if ids.iter().any(|id| {
++                !bodies
++                    .iter()
++                    .any(|body| body.id == *id && body.declaration_purpose == Some(purpose))
++            }) {
++                return None;
++            }
++        }
++        // Every additional event card must join an actual retained body, and
++        // each original event word belongs to this complete source generation.
++        for (id, card) in &module.irules_event_bodies {
++            let body = module
++                .procedures
++                .get(id)
++                .or_else(|| module.body_lowering(id))?;
++            if !card.owns_procedure(body, &module.source, module.native_lexer_config(), registry) {
++                return None;
++            }
++            let row = bodies.iter_mut().find(|row| row.id == *id)?;
++            if row.original_word.is_some() {
++                return None;
++            }
++            row.original_word = Some(
++                card.event_word(&module.source, module.native_lexer_config(), registry)?
++                    .clone(),
++            );
++        }
++        // A reference into a definition scope must join this same complete
++        // inventory; a foreign ID or omitted parent never becomes a free label.
++        if bodies.iter().any(|body| {
++            body.definition_parent.is_some_and(|parent| {
++                !bodies.iter().any(|candidate| {
++                    candidate.id == parent
++                        && matches!(candidate.role, ReportBodyRole::Definition(_))
++                })
++            })
++        }) {
++            return None;
++        }
++        let module_id = module.procedure_ids.module_id();
++        let entry = module.source_entry.clone();
++        Some(Self {
++            prepared,
++            entry,
++            hosted_entry,
++            root,
++            module: module_id,
++            bodies,
++        })
++    }
++
++    fn procedure(
++        module: &crate::ir::Module,
++        id: ProcedureId,
++        body: &Procedure,
++        role: ReportBodyRole,
++    ) -> Option<ReportBodyOwner> {
++        if body.body_kind == ProcedureBodyKind::Event
++            && !module.irules_event_bodies.contains_key(&id)
++        {
++            return None;
++        }
++        let purposes = [
++            (
++                ReportDeclarationPurpose::AllocatedSource,
++                module.original_declaration_body_units.contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::NativeSource,
++                module
++                    .original_native_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::LogicalSource,
++                module
++                    .original_logical_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::AuthoredSource,
++                module
++                    .original_authored_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::HostedSource,
++                module
++                    .original_hosted_declaration_body_units
++                    .contains_key(&id),
++            ),
++        ];
++        let mut present = purposes
++            .into_iter()
++            .filter_map(|(purpose, present)| present.then_some(purpose));
++        let declaration_purpose = if body.body_kind == ProcedureBodyKind::OriginalDeclaration {
++            let purpose = present.next()?;
++            if present.next().is_some()
++                || !module
++                    .body_units
++                    .get(&id)
++                    .is_some_and(|held| std::ptr::eq(held, body))
++                || !module
++                    .original_source_procedure_bodies()
++                    .any(|(candidate, held)| *candidate == id && std::ptr::eq(held, body))
++                || (module
++                    .source_metadata_input
++                    .as_ref()?
++                    .has_hosted_source_name_context()
++                    && purpose != ReportDeclarationPurpose::HostedSource)
++            {
++                return None;
++            }
++            Some(purpose)
++        } else {
++            if present.next().is_some() {
++                return None;
++            }
++            None
++        };
++        Some(ReportBodyOwner {
++            id,
++            role,
++            declaration_purpose,
++            declaration: body.span,
++            site: body.declaration_site.clone(),
++            body_offset: Some(body.body_offset),
++            source: body.body.executed_source.clone(),
++            namespace: body.body.namespace_context.clone(),
++            original_word: None,
++            definition_parent: None,
++        })
++    }
++
++    fn push(
++        bodies: &mut Vec<ReportBodyOwner>,
++        module: &crate::ir::Module,
++        id: ProcedureId,
++        body: ReportBodyOwner,
++    ) -> Option<()> {
++        if !module.procedure_ids.owns(id)
++            || bodies.iter().any(|held| held.id == id)
++            || module
++                .source
++                .bytes()
++                .get(body.declaration.as_range())
++                .is_none_or(|source| source.is_empty())
++        {
++            return None;
++        }
++        bodies.push(body);
++        Some(())
++    }
++
++    #[cfg(test)]
++    pub(super) fn hosted_domain_for_test(&self) -> bool {
++        self.hosted_entry.is_some()
++    }
++
++    pub(super) fn same_request(
++        &self,
++        origin: &crate::compilation_unit::OriginalOptimiserSourceOrigin,
++    ) -> bool {
++        self.prepared.origin().same_request_allocation(origin)
++            && self.prepared.origin().is_current_analysis_context()
++            && self.entry == self.prepared.unit().ir_module.source_entry
++    }
++}
++
++/// A total bijection between actual issued bodies, never a replacement ID or
++/// runtime equality. Every role at a shared declaration remains represented.
++pub(crate) struct ReportBodyCorrespondence<'a> {
++    left: &'a ReportBodyInventory,
++    right: &'a ReportBodyInventory,
++    pairs: Vec<(ProcedureId, ProcedureId)>,
++}
++
++impl<'a> ReportBodyCorrespondence<'a> {
++    pub(super) fn capture(
++        left: &'a ReportBodyInventory,
++        right: &'a ReportBodyInventory,
++    ) -> Option<Self> {
++        if left.bodies.len() != right.bodies.len()
++            || left.root.kind() != right.root.kind()
++            || left.entry != right.entry
++            || left.hosted_entry != right.hosted_entry
++        {
++            return None;
++        }
++        let mut pairs = Vec::new();
++        for body in &left.bodies {
++            let mut matching = right
++                .bodies
++                .iter()
++                .filter(|candidate| Self::same_source(left, body, right, candidate));
++            let matched = matching.next()?;
++            if matching.next().is_some() || pairs.iter().any(|(_, held)| *held == matched.id) {
++                return None;
++            }
++            pairs.push((body.id, matched.id));
++        }
++        if pairs.len() != left.bodies.len() || pairs.len() != right.bodies.len() {
++            return None;
++        }
++        for (a, b) in &pairs {
++            let a = left.bodies.iter().find(|body| body.id == *a)?;
++            let b = right.bodies.iter().find(|body| body.id == *b)?;
++            match (a.definition_parent, b.definition_parent) {
++                (None, None) => {}
++                (Some(a), Some(b)) if pairs.contains(&(a, b)) => {}
++                _ => return None,
++            }
++        }
++        Some(Self { left, right, pairs })
++    }
++
++    fn same_source(
++        left: &ReportBodyInventory,
++        a: &ReportBodyOwner,
++        right: &ReportBodyInventory,
++        b: &ReportBodyOwner,
++    ) -> bool {
++        if a.role != b.role
++            || a.declaration_purpose != b.declaration_purpose
++            || a.declaration != b.declaration
++            || a.body_offset != b.body_offset
++            || a.namespace != b.namespace
++            || a.original_word != b.original_word
++        {
++            return false;
++        }
++        match (&a.site, &b.site) {
++            (None, None) => {}
++            (Some(a), Some(b))
++                if a.offset == b.offset
++                    && Self::origins(&a.source, &left.root, &b.source, &right.root) => {}
++            _ => return false,
++        }
++        match (&a.source, &b.source) {
++            (None, None) => true,
++            (Some(a), Some(b)) => {
++                a.text == b.text
++                    && a.mapping == b.mapping
++                    && Self::origins(&a.origin, &left.root, &b.origin, &right.root)
++            }
++            _ => false,
++        }
++    }
++
++    fn origins(
++        mut a: &Arc<SourceOriginId>,
++        left: &Arc<SourceOriginId>,
++        mut b: &Arc<SourceOriginId>,
++        right: &Arc<SourceOriginId>,
++    ) -> bool {
++        loop {
++            match (Arc::ptr_eq(a, left), Arc::ptr_eq(b, right)) {
++                (true, true) => return true,
++                (true, false) | (false, true) => return false,
++                (false, false) => {}
++            }
++            match (a.kind(), b.kind()) {
++                (
++                    SourceOriginKind::Derived {
++                        parent: x,
++                        arguments: xa,
++                        source: xs,
++                        kind: xk,
++                    },
++                    SourceOriginKind::Derived {
++                        parent: y,
++                        arguments: ya,
++                        source: ys,
++                        kind: yk,
++                    },
++                ) if x.offset == y.offset && xa == ya && xs == ys && xk == yk => {
++                    a = &x.source;
++                    b = &y.source;
++                }
++                (
++                    SourceOriginKind::ConditionalField {
++                        parent: x,
++                        argument: xa,
++                        field: xf,
++                        source: xs,
++                    },
++                    SourceOriginKind::ConditionalField {
++                        parent: y,
++                        argument: ya,
++                        field: yf,
++                        source: ys,
++                    },
++                ) if x.offset == y.offset && xa == ya && xf == yf && xs == ys => {
++                    a = &x.source;
++                    b = &y.source;
++                }
++                _ => return false,
++            }
++        }
++    }
++
++    pub(crate) fn contains_definition(&self, id: ProcedureId, left: bool) -> bool {
++        let inventory = if left { self.left } else { self.right };
++        inventory
++            .bodies
++            .iter()
++            .any(|body| body.id == id && matches!(body.role, ReportBodyRole::Definition(_)))
++    }
++    pub(crate) fn contains_body(&self, id: ProcedureId, left: bool) -> bool {
++        let inventory = if left { self.left } else { self.right };
++        inventory.bodies.iter().any(|body| body.id == id)
++    }
++    pub(crate) fn contains_module(&self, id: ProcedureModuleId, left: bool) -> bool {
++        (if left { self.left } else { self.right }).module == id
++    }
++    pub(crate) fn bodies(&self, left: ProcedureId, right: ProcedureId) -> bool {
++        self.pairs.contains(&(left, right))
++    }
++    pub(crate) fn modules(&self, left: ProcedureModuleId, right: ProcedureModuleId) -> bool {
++        self.left.module == left && self.right.module == right
++    }
++}
++
++#[cfg(test)]
++mod owner_controls {
++    use super::*;
++    use crate::analyser::Analyser;
++
++    fn actual() -> super::super::AuthenticatedAnalysisReport {
++        let report = Analyser::new().analyse_for_report(
++            "namespace eval ::owned { proc retained {} { return VALUE } }",
++            "tcl8.6",
++        );
++        assert!(report.current_capture().is_ok());
++        assert!(!report.current_capture().unwrap().bodies.bodies.is_empty());
++        report
++    }
++
++    #[test]
++    fn actual_complete_body_inventory_is_total_and_role_sensitive() {
++        let left = actual();
++        let right = actual();
++        let a = &left.current_capture().unwrap().bodies;
++        let b = &right.current_capture().unwrap().bodies;
++        let joined = ReportBodyCorrespondence::capture(a, b).expect("actual complete owners");
++        assert_eq!(joined.pairs.len(), a.bodies.len());
++        assert_eq!(joined.pairs.len(), b.bodies.len());
++        assert!(joined.modules(a.module, b.module));
++        for (a, b) in &joined.pairs {
++            assert!(joined.bodies(*a, *b));
++        }
++    }
++
++    #[test]
++    fn original_aliases_keep_both_actual_roles_at_the_shared_declaration() {
++        let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
++        let left = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let a = &left
++            .current_capture()
++            .expect("actual original alias diagnostics CU")
++            .bodies;
++        let b = &right
++            .current_capture()
++            .expect("independent original alias diagnostics CU")
++            .bodies;
++        let named = a
++            .bodies
++            .iter()
++            .find(|body| {
++                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
++                    && a.bodies.iter().any(|other| {
++                        matches!(
++                            other.role,
++                            ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
++                        ) && body.site.is_some()
++                            && body.site == other.site
++                            && body.declaration == other.declaration
++                    })
++            })
++            .expect("actual Named and NamespaceScript owners at one original declaration");
++        let joined = a
++            .bodies
++            .iter()
++            .filter(|body| body.site == named.site && body.declaration == named.declaration)
++            .collect::<Vec<_>>();
++        assert_eq!(
++            joined.len(),
++            2,
++            "both original actual roles remain present, never deduplicated"
++        );
++        assert_ne!(joined[0].id, joined[1].id);
++        let correspondence = ReportBodyCorrespondence::capture(a, b)
++            .expect("complete unique actual owner correspondence");
++        for row in joined {
++            assert_eq!(
++                correspondence
++                    .pairs
++                    .iter()
++                    .filter(|(left, _)| *left == row.id)
++                    .count(),
++                1
++            );
++        }
++        assert_eq!(
++            left.compare(&right),
++            super::super::AnalysisReportComparison::Equal
++        );
++    }
++
++    #[test]
++    fn actual_body_census_retains_the_complete_source_entry_domain() {
++        let left = actual();
++        let mut right = actual();
++        let capture = right.capture.as_mut().unwrap();
++        capture.bodies.entry.unknown_entry = !capture.bodies.entry.unknown_entry;
++        assert!(!capture.bodies.same_request(&capture.origin));
++        assert!(
++            ReportBodyCorrespondence::capture(
++                &left.current_capture().unwrap().bodies,
++                &capture.bodies,
++            )
++            .is_none()
++        );
++    }
++
++    #[test]
++    fn omitted_or_duplicate_actual_body_role_is_unavailable() {
++        let left = actual();
++        let mut right = actual();
++        right.capture.as_mut().unwrap().bodies.bodies.pop().unwrap();
++        assert!(
++            ReportBodyCorrespondence::capture(
++                &left.current_capture().unwrap().bodies,
++                &right.capture.as_ref().unwrap().bodies,
++            )
++            .is_none()
++        );
++        let mut right = actual();
++        let bodies = &mut right.capture.as_mut().unwrap().bodies.bodies;
++        assert!(
++            bodies.len() >= 2,
++            "the genuine namespace and procedure roles are retained"
++        );
++        bodies[1].role = bodies[0].role;
++        bodies[1].declaration = bodies[0].declaration;
++        bodies[1].body_offset = bodies[0].body_offset;
++        bodies[1].site = bodies[0].site.clone();
++        bodies[1].source = bodies[0].source.clone();
++        bodies[1].namespace = bodies[0].namespace.clone();
++        bodies[1].original_word = bodies[0].original_word.clone();
++        assert!(
++            ReportBodyCorrespondence::capture(
++                &left.current_capture().unwrap().bodies,
++                &right.capture.as_ref().unwrap().bodies,
++            )
++            .is_none()
++        );
++    }
++}
+--- /dev/null
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs
+@@ -0,0 +1,360 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Exhaustive full-output policy. Authority-bearing facets stay strict unless
++//! a distinct actual producer correspondence is explicitly supplied below.
++use super::body_correspondence::ReportBodyCorrespondence;
++use super::{AnalysisReportComparison, AnalysisReportUnavailable};
++use crate::analyser::{AnalysisResult, DiagnosticSubject};
++use tcl_lexer::SourceImage;
++use tcl_registry::RegistrySemanticKey;
++
++fn subjects(
++    a: &DiagnosticSubject,
++    b: &DiagnosticSubject,
++    output: &super::ReportOutputCorrespondence<'_>,
++) -> Option<bool> {
++    // Every variant is explicit. Distinct unjoined authority stays unavailable.
++    match a {
++        DiagnosticSubject::PrivateTclNamespace(a) => match b {
++            DiagnosticSubject::PrivateTclNamespace(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::UserSourceArity(a) => match b {
++            DiagnosticSubject::UserSourceArity(b) => a.authenticated_report_eq(b, output),
++            _ => None,
++        },
++        DiagnosticSubject::CallbackSourceArity(a) => match b {
++            DiagnosticSubject::CallbackSourceArity(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::ObjectSourceArity(a) => match b {
++            DiagnosticSubject::ObjectSourceArity(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::CommandAvailability(a) => match b {
++            DiagnosticSubject::CommandAvailability(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::DeclaredSource(a) => match b {
++            DiagnosticSubject::DeclaredSource(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::RegisteredInstanceSource(a) => match b {
++            DiagnosticSubject::RegisteredInstanceSource(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::RegistrySource(a) => match b {
++            DiagnosticSubject::RegistrySource(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::ConditionalInterpreterVisibility(a) => match b {
++            DiagnosticSubject::ConditionalInterpreterVisibility(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::RequiredPackage(a) => match b {
++            DiagnosticSubject::RequiredPackage(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::UnresolvedCommand(a) => match b {
++            DiagnosticSubject::UnresolvedCommand(b) if a == b => Some(true),
++            _ => None,
++        },
++        DiagnosticSubject::UnresolvedMathFunction(a) => match b {
++            DiagnosticSubject::UnresolvedMathFunction(b) if a == b => Some(true),
++            _ => None,
++        },
++    }
++}
++
++pub(super) fn compare(
++    a: &AnalysisResult,
++    b: &AnalysisResult,
++    bodies: &ReportBodyCorrespondence<'_>,
++    image: &SourceImage,
++    registry: &RegistrySemanticKey,
++    output: &super::ReportOutputCorrespondence<'_>,
++) -> AnalysisReportComparison {
++    // Exhaustive inventory, including every non-diagnostic report field.
++    let AnalysisResult {
++        optimiser_source_origin: _,
++        analysis_context_unavailable: _,
++        command_realm: _,
++        original_command_world: _,
++        original_source_region: _,
++        lexical_declaration_advice: _,
++        resolved_input: _,
++        original_vendor_source_names: _,
++        original_vendor_variable_advice: _,
++        original_vendor_variable_bodies: _,
++        global_scope: _,
++        all_procs: _,
++        original_procedure_metadata: _,
++        original_vendor_procedure_metadata: _,
++        original_vendor_class_metadata: _,
++        original_symbol_metadata: _,
++        original_vendor_symbol_metadata: _,
++        proc_declaration_sites: _,
++        superseded_procs: _,
++        all_classes: _,
++        logical_procedure_declarations: _,
++        logical_class_declarations: _,
++        original_class_metadata: _,
++        original_class_configuration_metadata: _,
++        original_object_configuration_metadata: _,
++        superseded_classes: _,
++        class_body_spans: _,
++        all_variables: _,
++        all_defined_symbols: _,
++        diagnostics: _,
++        command_invocations: _,
++        package_requires: _,
++        package_provides: _,
++        package_ifneededs: _,
++        package_prefer_latest: _,
++        has_dynamic_providers: _,
++        source_targets: _,
++        path_constant_assignments: _,
++        command_aliases: _,
++        alias_offsets: _,
++        renamed_commands: _,
++        rename_offsets: _,
++        ensemble_subcommand_targets: _,
++        prefixless_ensembles: _,
++        namespace_imports: _,
++        namespace_forgets: _,
++        original_namespace_patterns: _,
++        destroyed_commands: _,
++        namespace_exports: _,
++        original_namespace_exports: _,
++        original_namespace_export_unknowns: _,
++        namespace_paths: _,
++        namespace_path_computed: _,
++        auto_path_entries: _,
++        qualified_var_refs: _,
++        original_variable_symbols: _,
++        original_variable_write_advice: _,
++        original_variable_symbol_conflicts: _,
++        original_variable_roots: _,
++        original_variable_alias_sites: _,
++        original_variable_name_unknowns: _,
++        original_variable_alias_obligations: _,
++        original_variable_alias_operands: _,
++        original_variable_alias_source_operands: _,
++        original_variable_alias_receipts: _,
++        namespace_refs: _,
++        namespace_name_unknowns: _,
++        dynamic_variable_names: _,
++        namespace_overrides: _,
++        stub_commands: _,
++        stub_expr_defs: _,
++        regex_patterns: _,
++        suppressed_lines: _,
++        unknown_proc_info: _,
++        instance_classes: _,
++        object_handle_facts: _,
++        created_instance_commands: _,
++        instance_command_bindings: _,
++        ambiguous_instance_names: _,
++        object_methods: _,
++        object_member_state: _,
++        unresolved_command_sites: _,
++        scoped_command_regions: _,
++        original_scoped_bodies: _,
++        original_conditional_registry_metadata: _,
++        scoped_sibling_defs: _,
++        hierarchy_cache: _,
++        dialect: _,
++        body_lexer_config: _,
++        library_versions: _,
++    } = a;
++    // Strict typed equality can prove these facets unchanged. If it cannot,
++    // there is no implicit replacement of a nested issuer or authority.
++    macro_rules! require_exact_owners {
++        ($($field:ident),* $(,)?) => { $(
++            if a.$field != b.$field {
++                return AnalysisReportComparison::Unavailable(
++                    AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable);
++            }
++        )* };
++    }
++    require_exact_owners!(
++        optimiser_source_origin,
++        analysis_context_unavailable,
++        command_realm,
++        original_command_world,
++        original_source_region,
++        lexical_declaration_advice,
++        resolved_input,
++        original_vendor_source_names,
++        original_vendor_variable_advice,
++        original_vendor_variable_bodies,
++        global_scope,
++        all_procs,
++        original_procedure_metadata,
++        original_vendor_procedure_metadata,
++        original_vendor_class_metadata,
++        original_symbol_metadata,
++        original_vendor_symbol_metadata,
++        proc_declaration_sites,
++        superseded_procs,
++        all_classes,
++        logical_procedure_declarations,
++        logical_class_declarations,
++        original_class_metadata,
++        original_class_configuration_metadata,
++        original_object_configuration_metadata,
++        superseded_classes,
++        class_body_spans,
++        all_variables,
++        all_defined_symbols,
++        command_invocations,
++        package_requires,
++        package_provides,
++        package_ifneededs,
++        package_prefer_latest,
++        source_targets,
++        path_constant_assignments,
++        command_aliases,
++        alias_offsets,
++        renamed_commands,
++        rename_offsets,
++        ensemble_subcommand_targets,
++        prefixless_ensembles,
++        namespace_imports,
++        namespace_forgets,
++        original_namespace_patterns,
++        destroyed_commands,
++        namespace_exports,
++        original_namespace_exports,
++        original_namespace_export_unknowns,
++        namespace_paths,
++        namespace_path_computed,
++        auto_path_entries,
++        qualified_var_refs,
++        original_variable_symbols,
++        original_variable_write_advice,
++        original_variable_symbol_conflicts,
++        original_variable_roots,
++        original_variable_alias_sites,
++        original_variable_name_unknowns,
++        original_variable_alias_obligations,
++        original_variable_alias_operands,
++        original_variable_alias_source_operands,
++        original_variable_alias_receipts,
++        namespace_refs,
++        namespace_name_unknowns,
++        dynamic_variable_names,
++        namespace_overrides,
++        stub_commands,
++        stub_expr_defs,
++        regex_patterns,
++        unknown_proc_info,
++        instance_classes,
++        created_instance_commands,
++        instance_command_bindings,
++        ambiguous_instance_names,
++        object_methods,
++        object_member_state,
++        unresolved_command_sites,
++        scoped_command_regions,
++        original_scoped_bodies,
++        original_conditional_registry_metadata,
++        scoped_sibling_defs,
++        hierarchy_cache,
++    );
++    // Authenticate every typed body/candidate reference before any Difference.
++    let Some(input) = a.resolved_input.as_ref() else {
++        return AnalysisReportComparison::Unavailable(
++            AnalysisReportUnavailable::CurrentOwnerUnavailable,
++        );
++    };
++    let Some(object_facts_equal) = a.object_handle_facts.authenticated_full_report_eq(
++        &b.object_handle_facts,
++        bodies,
++        image,
++        input,
++        registry,
++        output,
++    ) else {
++        return AnalysisReportComparison::Unavailable(
++            AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
++        );
++    };
++    if a.diagnostics.len() != b.diagnostics.len() {
++        return AnalysisReportComparison::Unavailable(
++            AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
++        );
++    }
++    let mut diagnostics_equal = true;
++    for (a, b) in a.diagnostics.iter().zip(&b.diagnostics) {
++        // A new Diagnostic facet must also be given an explicit policy.
++        let crate::analyser::Diagnostic {
++            subject: _,
++            code: _,
++            span: _,
++            message: _,
++            severity: _,
++            fixes: _,
++        } = a;
++        let subject_equal = match (&a.subject, &b.subject) {
++            (None, None) => true,
++            (Some(a), Some(b)) => match subjects(a, b, output) {
++                Some(equal) => equal,
++                None => {
++                    return AnalysisReportComparison::Unavailable(
++                        AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
++                    );
++                }
++            },
++            _ => {
++                return AnalysisReportComparison::Unavailable(
++                    AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
++                );
++            }
++        };
++        diagnostics_equal &= subject_equal
++            && a.code == b.code
++            && a.span == b.span
++            && a.message == b.message
++            && a.severity == b.severity
++            && a.fixes == b.fixes;
++    }
++    // Only plain value facets and fully authenticated compared data may issue
++    // Difference. Missing correspondence above is always terminal.
++    if a.has_dynamic_providers != b.has_dynamic_providers {
++        return AnalysisReportComparison::Different {
++            field: "has_dynamic_providers",
++        };
++    }
++    if a.suppressed_lines != b.suppressed_lines {
++        return AnalysisReportComparison::Different {
++            field: "suppressed_lines",
++        };
++    }
++    if a.dialect != b.dialect {
++        return AnalysisReportComparison::Different { field: "dialect" };
++    }
++    if a.body_lexer_config != b.body_lexer_config {
++        return AnalysisReportComparison::Different {
++            field: "body_lexer_config",
++        };
++    }
++    if a.library_versions != b.library_versions {
++        return AnalysisReportComparison::Different {
++            field: "library_versions",
++        };
++    }
++    if !diagnostics_equal {
++        return AnalysisReportComparison::Different {
++            field: "diagnostics",
++        };
++    }
++    if !object_facts_equal {
++        return AnalysisReportComparison::Different {
++            field: "object_handle_facts",
++        };
++    }
++    AnalysisReportComparison::Equal
++}
+--- /dev/null
++++ b/rust/tcl-compiler/src/analyser/authenticated_report.rs
+@@ -0,0 +1,499 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Opt-in full-report capture, separate from runtime and cache equality.
++//!
++//! Complete comparison retains strict typed facets except explicitly issued
++//! actual-owner pairs. Missing correspondence is unavailable, never a fallback.
++
++pub(crate) mod body_correspondence;
++mod field_comparison;
++
++use body_correspondence::{ReportBodyCorrespondence, ReportBodyInventory};
++use std::sync::{Arc, Mutex};
++
++use super::{Analyser, AnalysisResult, ResolvedAnalysisInput};
++use crate::command_binding::{OriginalSourceAnalysisOwner, RetainedSourceModuleBindings};
++use crate::compilation_unit::{CompilationUnit, OriginalOptimiserSourceOrigin};
++use tcl_lexer::SourceImage;
++use tcl_registry::{CommandRegistry, RegistrySnapshot};
++
++/// Result of a complete, explicitly requested reporting comparison.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum AnalysisReportComparison {
++    /// Every field and typed subject has a complete current correspondence.
++    Equal,
++    /// An authenticated report field differs.
++    Different {
++        /// Field whose reporting values differ.
++        field: &'static str,
++    },
++    /// A required issuer or complete correspondence is unavailable.
++    Unavailable(AnalysisReportUnavailable),
++}
++
++/// Terminal refusal of reporting correspondence, never evidence of equality.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum AnalysisReportUnavailable {
++    /// The real diagnostics path did not supply a compilation unit.
++    MissingActualCompilationUnit,
++    /// More than one unit attempted to supply the same report request.
++    AmbiguousCompilationUnit,
++    /// A source, input, Registry, evaluator or actual owner no longer joins.
++    CurrentOwnerUnavailable,
++    /// Independent results do not share the complete source/input context
++    /// required by this reporting purpose.
++    IncompatibleSourceContext,
++    /// The output does not retain the actual diagnostic producer's facts.
++    ChangedProducedFacts,
++    /// Complete typed-field correspondence is not implemented for this stage.
++    CompleteFieldCorrespondenceUnavailable,
++    /// A poisoned capture cannot establish a complete request inventory.
++    CaptureUnavailable,
++}
++
++/// Immutable result of one actual report request. No mutable result reference
++/// or public carrier constructor can donate a current source owner.
++pub struct AuthenticatedAnalysisReport {
++    analysis: AnalysisResult,
++    capture: Result<ActualReportCapture, AnalysisReportUnavailable>,
++}
++
++impl AuthenticatedAnalysisReport {
++    /// Full analysis, with its ordinary strict runtime/cache equality intact.
++    #[must_use]
++    pub const fn analysis(&self) -> &AnalysisResult {
++        &self.analysis
++    }
++
++    /// Compare reporting data only after both real request owners rejoin.
++    /// Missing coverage is terminal; ordinary equality is never a fallback.
++    #[must_use]
++    pub fn compare(&self, other: &Self) -> AnalysisReportComparison {
++        let left = match self.current_capture() {
++            Ok(value) => value,
++            Err(reason) => return AnalysisReportComparison::Unavailable(reason),
++        };
++        let right = match other.current_capture() {
++            Ok(value) => value,
++            Err(reason) => return AnalysisReportComparison::Unavailable(reason),
++        };
++        if left.input != right.input || left.image != right.image || left.registry != right.registry
++        {
++            return AnalysisReportComparison::Unavailable(
++                AnalysisReportUnavailable::IncompatibleSourceContext,
++            );
++        }
++        let Some(bodies) = ReportBodyCorrespondence::capture(&left.bodies, &right.bodies) else {
++            return AnalysisReportComparison::Unavailable(
++                AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
++            );
++        };
++        field_comparison::compare(
++            &self.analysis,
++            &other.analysis,
++            &bodies,
++            &left.image,
++            &left.registry.semantic_key(),
++            &ReportOutputCorrespondence {
++                left: &self.analysis,
++                right: &other.analysis,
++                left_owner: &left.realm_owner,
++                right_owner: &right.realm_owner,
++            },
++        )
++    }
++
++    fn current_capture(&self) -> Result<&ActualReportCapture, AnalysisReportUnavailable> {
++        let capture = self.capture.as_ref().map_err(|reason| *reason)?;
++        capture.matches_output(&self.analysis)?;
++        Ok(capture)
++    }
++}
++
++impl std::fmt::Debug for AuthenticatedAnalysisReport {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("AuthenticatedAnalysisReport")
++            .field("capture_available", &self.capture.is_ok())
++            .finish_non_exhaustive()
++    }
++}
++
++/// Only the same analyser's real diagnostic CU may fulfil this request. A Weak
++/// field in the analyser cannot keep a completed or unwound request active.
++#[derive(Debug, Default)]
++pub(super) struct ReportCaptureRequest(Mutex<CaptureState>);
++
++#[derive(Default)]
++enum CaptureState {
++    #[default]
++    Pending,
++    Captured(Box<ActualReportCapture>),
++    Refused(AnalysisReportUnavailable),
++}
++
++impl std::fmt::Debug for CaptureState {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter.write_str(match self {
++            Self::Pending => "Pending",
++            Self::Captured(_) => "Captured",
++            Self::Refused(_) => "Refused",
++        })
++    }
++}
++
++impl ReportCaptureRequest {
++    pub(super) fn capture(
++        &self,
++        analysis: &AnalysisResult,
++        unit: &CompilationUnit,
++        registry: &CommandRegistry,
++    ) {
++        let Ok(mut state) = self.0.lock() else {
++            return;
++        };
++        if !matches!(*state, CaptureState::Pending) {
++            *state = CaptureState::Refused(AnalysisReportUnavailable::AmbiguousCompilationUnit);
++            return;
++        }
++        *state = match ActualReportCapture::from_actual_unit(analysis, unit, registry) {
++            Some(capture) => CaptureState::Captured(Box::new(capture)),
++            None => CaptureState::Refused(AnalysisReportUnavailable::CurrentOwnerUnavailable),
++        };
++    }
++
++    fn finish(&self, analysis: AnalysisResult) -> AuthenticatedAnalysisReport {
++        let capture = match self.0.lock() {
++            Ok(mut state) => match std::mem::take(&mut *state) {
++                CaptureState::Pending => {
++                    Err(AnalysisReportUnavailable::MissingActualCompilationUnit)
++                }
++                CaptureState::Captured(capture) => Ok(*capture),
++                CaptureState::Refused(reason) => Err(reason),
++            },
++            Err(_) => Err(AnalysisReportUnavailable::CaptureUnavailable),
++        };
++        let mut report = AuthenticatedAnalysisReport { analysis, capture };
++        if let Err(reason) = report.current_capture() {
++            report.capture = Err(reason);
++        }
++        report
++    }
++}
++
++/// Sealed current actual diagnostic-output pair. Only successful full capture
++/// and complete source/input/registry/body joins can construct this token.
++pub(crate) struct ReportOutputCorrespondence<'a> {
++    left: &'a AnalysisResult,
++    right: &'a AnalysisResult,
++    left_owner: &'a Arc<OriginalSourceAnalysisOwner>,
++    right_owner: &'a Arc<OriginalSourceAnalysisOwner>,
++}
++impl ReportOutputCorrespondence<'_> {
++    pub(crate) fn analyses(&self) -> (&AnalysisResult, &AnalysisResult) {
++        (self.left, self.right)
++    }
++    pub(crate) fn analysis_owners(
++        &self,
++        left: &Arc<OriginalSourceAnalysisOwner>,
++        right: &Arc<OriginalSourceAnalysisOwner>,
++    ) -> bool {
++        Arc::ptr_eq(left, self.left_owner) && Arc::ptr_eq(right, self.right_owner)
++    }
++}
++
++struct ActualReportCapture {
++    image: SourceImage,
++    input: ResolvedAnalysisInput,
++    registry: RegistrySnapshot,
++    origin: OriginalOptimiserSourceOrigin,
++    realm_owner: Arc<OriginalSourceAnalysisOwner>,
++    module_owner: Arc<OriginalSourceAnalysisOwner>,
++    positioned: Arc<RetainedSourceModuleBindings>,
++    facts: crate::object_types::ObjectHandleFacts,
++    bodies: ReportBodyInventory,
++}
++
++impl ActualReportCapture {
++    fn from_actual_unit(
++        analysis: &AnalysisResult,
++        unit: &CompilationUnit,
++        registry: &CommandRegistry,
++    ) -> Option<Self> {
++        let input = analysis.resolved_input.as_ref()?;
++        let realm = analysis.retained_command_realm()?;
++        let bindings = realm.source_bindings_ref();
++        let realm_owner = bindings.original_analysis_owner()?;
++        let module = &unit.ir_module;
++        let positioned = module.retained_source_bindings.as_ref()?;
++        let module_bindings = positioned.positioned_for_module(module, registry)?;
++        let module_owner = module_bindings.original_analysis_owner()?;
++        let image = realm.original_source_image()?;
++        let origin = unit.original_optimiser_source_origin()?;
++        let prepared = unit.original_full_report_prepared_unit(registry)?;
++        let bodies = ReportBodyInventory::capture(prepared, registry)?;
++        if analysis.analysis_context_unavailable.is_some()
++            || analysis.original_source_region.is_some()
++            || !realm_owner.matches(bindings, input)
++            || !module_owner.matches(module_bindings, input)
++            || image != &module.source
++            || image.try_text().ok()? != unit.source
++            || module.source_metadata_input.as_ref() != Some(input)
++            || !analysis.matches_original_source_image(image, input.lexer_config())
++            || registry.snapshot() != input.borrowed_context_registry().commands().snapshot()
++            || !analysis
++                .optimiser_source_origin
++                .as_ref()?
++                .same_request_allocation(origin)
++        {
++            return None;
++        }
++        Some(Self {
++            image: image.clone(),
++            input: input.clone(),
++            registry: registry.snapshot(),
++            origin: origin.clone(),
++            realm_owner: Arc::clone(realm_owner),
++            module_owner: Arc::clone(module_owner),
++            positioned: Arc::clone(positioned),
++            facts: analysis.object_handle_facts.clone(),
++            bodies,
++        })
++    }
++
++    fn matches_output(&self, analysis: &AnalysisResult) -> Result<(), AnalysisReportUnavailable> {
++        let unavailable = AnalysisReportUnavailable::CurrentOwnerUnavailable;
++        let source = self.image.try_text().map_err(|_| unavailable)?;
++        let registry = analysis.resolved_registry().ok_or(unavailable)?;
++        let origin = analysis
++            .original_optimiser_request_owner(source, registry)
++            .ok_or(unavailable)?;
++        let realm = analysis.retained_command_realm().ok_or(unavailable)?;
++        let bindings = realm.source_bindings_ref();
++        let owner = bindings.original_analysis_owner().ok_or(unavailable)?;
++        if analysis.resolved_input.as_ref() != Some(&self.input)
++            || registry.snapshot() != self.registry
++            || !self.origin.same_request_allocation(origin)
++            || !self.bodies.same_request(origin)
++            || !Arc::ptr_eq(owner, &self.realm_owner)
++            || !self.realm_owner.matches(bindings, &self.input)
++            || !analysis.matches_original_source_image(&self.image, self.input.lexer_config())
++            || !self.positioned.matches_full_report_capture_owner(
++                &self.image,
++                &self.input,
++                registry,
++                &self.module_owner,
++            )
++        {
++            return Err(unavailable);
++        }
++        if analysis.object_handle_facts != self.facts {
++            return Err(AnalysisReportUnavailable::ChangedProducedFacts);
++        }
++        Ok(())
++    }
++}
++
++impl Analyser {
++    /// Capture an actual complete analysis for the separate reporting API.
++    /// This does not alter diagnostics, runtime equality or cache eligibility.
++    pub fn analyse_for_report(
++        &mut self,
++        source: &str,
++        dialect: &str,
++    ) -> AuthenticatedAnalysisReport {
++        self.capture_report(|analyser| analyser.analyse(source, dialect))
++    }
++
++    /// Capture the existing per-item analysis path, including its original
++    /// fallbacks, with the same separate full-report obligations.
++    pub fn analyse_per_item_for_report(
++        &mut self,
++        source: &str,
++        dialect: &str,
++    ) -> AuthenticatedAnalysisReport {
++        self.capture_report(|analyser| analyser.analyse_per_item(source, dialect))
++    }
++
++    fn capture_report(
++        &mut self,
++        run: impl FnOnce(&mut Self) -> AnalysisResult,
++    ) -> AuthenticatedAnalysisReport {
++        let request = Arc::new(ReportCaptureRequest::default());
++        let previous = self
++            .authenticated_report_request
++            .replace(Arc::downgrade(&request));
++        let analysis = run(self);
++        self.authenticated_report_request = previous;
++        request.finish(analysis)
++    }
++}
++
++#[cfg(test)]
++mod capture_controls {
++    use super::*;
++
++    fn actual_report() -> AuthenticatedAnalysisReport {
++        let report = Analyser::new().analyse_for_report("set value VALUE", "tcl8.6");
++        assert!(
++            report.current_capture().is_ok(),
++            "a genuine diagnostics CU is required"
++        );
++        report
++    }
++
++    #[test]
++    fn report_capture_self_comparison_requires_complete_current_owners() {
++        let report = actual_report();
++        assert!(report.analysis() == report.analysis());
++        assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
++    }
++
++    #[test]
++    fn actual_e003_subjects_join_their_current_diagnostic_output_owners() {
++        let source = "proc retained {} {}\nretained EXTRA";
++        let mut analyser = Analyser::new();
++        let left = analyser.analyse_for_report(source, "tcl8.6");
++        let right = analyser.analyse_for_report(source, "tcl8.6");
++        assert!(
++            left.analysis.diagnostics.iter().any(|diagnostic| matches!(
++                diagnostic.subject,
++                Some(crate::analyser::DiagnosticSubject::UserSourceArity(_))
++            )),
++            "genuine original user arity producer required"
++        );
++        assert!(left.current_capture().is_ok());
++        assert!(right.current_capture().is_ok());
++        assert_eq!(left.compare(&right), AnalysisReportComparison::Equal);
++    }
++
++    #[test]
++    fn e003_equal_source_foreign_diagnostic_attachment_is_unavailable() {
++        let source = "proc retained {} {}\nretained EXTRA";
++        let mut left = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let right = Analyser::new().analyse_for_report(source, "tcl8.6");
++        let foreign = Analyser::new().analyse_for_report(source, "tcl8.6");
++        assert!(
++            !Arc::ptr_eq(
++                &left.current_capture().unwrap().realm_owner,
++                &foreign.current_capture().unwrap().realm_owner
++            ),
++            "independent actual analysis issuers required"
++        );
++        let subject = foreign
++            .analysis
++            .diagnostics
++            .iter()
++            .find_map(|diagnostic| match &diagnostic.subject {
++                Some(crate::analyser::DiagnosticSubject::UserSourceArity(subject)) => {
++                    Some(subject.clone())
++                }
++                _ => None,
++            })
++            .expect("genuine E003 source subject");
++        let target = left
++            .analysis
++            .diagnostics
++            .iter_mut()
++            .find(|diagnostic| {
++                matches!(
++                    &diagnostic.subject,
++                    Some(crate::analyser::DiagnosticSubject::UserSourceArity(_))
++                )
++            })
++            .unwrap();
++        target.subject = Some(crate::analyser::DiagnosticSubject::UserSourceArity(subject));
++        assert!(
++            left.current_capture().is_ok(),
++            "outer output owner alone does not authenticate a transplanted subject"
++        );
++        assert_eq!(
++            left.compare(&right),
++            AnalysisReportComparison::Unavailable(
++                AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable
++            )
++        );
++    }
++
++    #[test]
++    fn genuine_hosted_event_report_retains_a_separate_actual_domain() {
++        let report = Analyser::new()
++            .analyse_for_report("when HTTP_REQUEST { set value VALUE }", "f5-irules");
++        let capture = report
++            .current_capture()
++            .expect("actual hosted diagnostics CU");
++        assert!(capture.input.has_hosted_source_name_context());
++        assert!(capture.bodies.hosted_domain_for_test());
++        assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
++    }
++
++    #[test]
++    fn changed_plain_report_value_is_a_difference_after_current_owners_join() {
++        let left = actual_report();
++        let mut right = actual_report();
++        right.analysis.library_versions.tool_version = Some("VERSION".into());
++        assert_eq!(
++            left.compare(&right),
++            AnalysisReportComparison::Different {
++                field: "library_versions"
++            }
++        );
++    }
++
++    #[test]
++    fn report_capture_rejects_equal_source_foreign_output_attachment() {
++        let mut report = actual_report();
++        let foreign = actual_report();
++        report.analysis.command_realm = foreign.analysis.command_realm;
++        assert_eq!(
++            report.current_capture().err(),
++            Some(AnalysisReportUnavailable::CurrentOwnerUnavailable)
++        );
++    }
++
++    #[test]
++    fn report_capture_requires_its_actual_source_build_request() {
++        let mut report = actual_report();
++        let foreign = actual_report();
++        report.analysis.optimiser_source_origin = foreign.analysis.optimiser_source_origin;
++        assert_eq!(
++            report.current_capture().err(),
++            Some(AnalysisReportUnavailable::CurrentOwnerUnavailable)
++        );
++    }
++
++    #[test]
++    fn report_capture_rejects_changed_producer_facts_and_unavailable_output() {
++        let mut report = actual_report();
++        report
++            .analysis
++            .object_handle_facts
++            .any_scope
++            .insert("changed".into(), Default::default());
++        assert_eq!(
++            report.current_capture().err(),
++            Some(AnalysisReportUnavailable::ChangedProducedFacts)
++        );
++        let mut unavailable = actual_report();
++        unavailable.analysis.body_lexer_config = None;
++        assert_eq!(
++            unavailable.current_capture().err(),
++            Some(AnalysisReportUnavailable::CurrentOwnerUnavailable)
++        );
++    }
++
++    #[test]
++    fn completed_report_request_cannot_capture_a_later_ordinary_analysis() {
++        let mut analyser = Analyser::new();
++        let report = analyser.analyse_for_report("set value VALUE", "tcl8.6");
++        assert!(report.current_capture().is_ok());
++        assert!(analyser.authenticated_report_request.is_none());
++        let ordinary = analyser.analyse("set other OTHER", "tcl8.6");
++        assert!(analyser.authenticated_report_request.is_none());
++        assert!(report.current_capture().is_ok());
++        assert!(report.analysis().resolved_input.is_some());
++        assert!(!ordinary.all_variables.is_empty());
++    }
++}
+--- a/rust/tcl-compiler/src/analyser/diagnostic_subject.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostic_subject.rs
+@@ -351,6 +351,28 @@
+ }
+ 
+ impl SourceUserCallAritySubject {
++    pub(crate) fn authenticated_report_eq(
++        &self,
++        other: &Self,
++        output: &super::authenticated_report::ReportOutputCorrespondence<'_>,
++    ) -> Option<bool> {
++        let Self {
++            original: _,
++            arity: _,
++            obligations: _,
++        } = self;
++        let originals = match (&self.original, &other.original) {
++            (OriginalUserCallOwner::NativeSource(a), OriginalUserCallOwner::NativeSource(b)) => {
++                a.authenticated_report_eq(b, output)?
++            }
++            (OriginalUserCallOwner::Logical(a), OriginalUserCallOwner::Logical(b)) if a == b => {
++                true
++            }
++            _ => return None,
++        };
++        Some(originals && self.arity == other.arity && self.obligations == other.obligations)
++    }
++
+     pub(crate) fn capture(
+         source: &str,
+         analysis: &super::AnalysisResult,
+--- a/rust/tcl-compiler/src/analyser/diagnostics.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics.rs
+@@ -506,6 +506,13 @@
+         facts.retain_logical_source_candidates(&self.result, cu, registry);
+         facts.retain_report_source(&self.result, cu, registry);
+         self.result.object_handle_facts = facts;
++        if let Some(request) = self
++            .authenticated_report_request
++            .as_ref()
++            .and_then(std::sync::Weak::upgrade)
++        {
++            request.capture(&self.result, cu, registry);
++        }
+     }
+ 
+     /// Emit the CFG/SSA-derived diagnostics from an already-built
+--- a/rust/tcl-compiler/src/analyser/mod.rs
++++ b/rust/tcl-compiler/src/analyser/mod.rs
+@@ -37,6 +37,11 @@
+ //!
+ //! This pure analyser is consumed directly by the native
+ //! `tcl-lsp-server`.
++
++pub(crate) mod authenticated_report;
++pub use authenticated_report::{
++    AnalysisReportComparison, AnalysisReportUnavailable, AuthenticatedAnalysisReport,
++};
+ 
+ pub mod bounds_checks;
+ pub mod class_hierarchy;
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -330,6 +330,8 @@
+ #[allow(clippy::struct_excessive_bools)]
+ #[derive(Debug)]
+ pub struct Analyser {
++    pub(super) authenticated_report_request:
++        Option<std::sync::Weak<super::authenticated_report::ReportCaptureRequest>>,
+     pub(super) resolved_input: Option<super::input::ResolvedAnalysisInput>,
+     /// Public accumulator returned by [`Analyser::analyse`].
+     pub result: AnalysisResult,
+@@ -1549,6 +1551,7 @@
+     #[must_use]
+     pub fn with_disabled_diagnostics(disabled: HashSet<String>) -> Self {
+         Self {
++            authenticated_report_request: None,
+             result: AnalysisResult::default(),
+             current_scope_path: Vec::new(),
+             source: String::new(),
+--- a/rust/tcl-compiler/src/command_binding/retained_source.rs
++++ b/rust/tcl-compiler/src/command_binding/retained_source.rs
+@@ -151,6 +151,29 @@
+ }
+ 
+ impl RetainedSourceModuleBindings {
++    /// Reborrow the actual immutable CU-side attachment for full-report
++    /// capture only. This grants no module, body, lookup or runtime authority.
++    pub(crate) fn matches_full_report_capture_owner(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        registry: &CommandRegistry,
++        owner: &Arc<super::OriginalSourceAnalysisOwner>,
++    ) -> bool {
++        self.source == *image
++            && self.grammar == input.lexer_config()
++            && self.entry.metadata_context.source_analysis_input() == Some(input)
++            && self.registry == registry.snapshot().semantic_key()
++            && self
++                .positioned
++                .original_analysis_owner()
++                .is_some_and(|actual| Arc::ptr_eq(actual, owner))
++            && owner.matches(&self.positioned, input)
++            && self
++                .positioned
++                .matches_original_source_image(image, input.lexer_config())
++    }
++
+     pub(crate) fn retain(
+         bindings: &SourceCommandBindings,
+         module: &Module,
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs
+@@ -33,6 +33,49 @@
+     inherited_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
+ }
+ impl OriginalSourceProcedureCall {
++    /// Separate diagnostic-report purpose: replace only the actual analysis
++    /// owner pair after the sealed complete current output attests both sides.
++    /// Runtime Eq and source-call applicability are unchanged.
++    pub(crate) fn authenticated_report_eq(
++        &self,
++        other: &Self,
++        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
++    ) -> Option<bool> {
++        let (left, right) = output.analyses();
++        let Self {
++            original: _,
++            procedure: _,
++            prefix: _,
++            caller: _,
++            uncertain_operations: _,
++            future_body: _,
++            input: _,
++            analysis_owner: _,
++            inherited_entry: _,
++        } = self;
++        if !self.matches_analysis(left)
++            || !other.matches_analysis(right)
++            || !output.analysis_owners(
++                self.analysis_owner.as_ref()?,
++                other.analysis_owner.as_ref()?,
++            )
++            || self.input != other.input
++            || self.inherited_entry != other.inherited_entry
++        {
++            return None;
++        }
++        // These retained typed structures have no replacement projection here.
++        // A distinct nested issuer cannot be relabelled as semantic Difference.
++        if self.procedure != other.procedure || self.caller != other.caller {
++            return None;
++        }
++        Some(
++            self.original == other.original
++                && self.prefix == other.prefix
++                && self.uncertain_operations == other.uncertain_operations
++                && self.future_body == other.future_body,
++        )
++    }
+     /// Actual complete written vector; reporting invocation labels do not issue it.
+     #[must_use]
+     pub fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+--- a/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs
++++ b/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs
+@@ -213,6 +213,23 @@
+             .filter(|owner| owner.matches_worker(self, registry, dialect))
+             .cloned()
+     }
++    /// Retain this exact whole production snapshot for report-only owners.
++    /// This neither rebuilds a unit nor changes runtime or host eligibility.
++    pub(crate) fn original_full_report_prepared_unit(
++        &self,
++        registry: &CommandRegistry,
++    ) -> Option<OriginalOptimiserPreparedUnit> {
++        self.optimiser_source_owner
++            .as_ref()
++            .filter(|owner| {
++                owner.is_whole_source_unit()
++                    && owner.matches_unit(self)
++                    && owner.0.origin.0.registry == registry.snapshot()
++                    && owner.origin().is_current_analysis_context()
++            })
++            .cloned()
++    }
++
+     pub(crate) fn original_optimiser_source_origin(
+         &self,
+     ) -> Option<&OriginalOptimiserSourceOrigin> {
+--- /dev/null
++++ b/rust/tcl-compiler/src/object_types/authenticated_report.rs
+@@ -0,0 +1,255 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Separate complete-report comparison against actual issued body pairs.
++use super::{ObjectFactOwner, ObjectHandleFacts};
++use crate::analyser::ResolvedAnalysisInput;
++use crate::analyser::authenticated_report::body_correspondence::ReportBodyCorrespondence;
++use std::collections::{HashMap, HashSet};
++use tcl_core_types::BodyFrameId;
++use tcl_lexer::SourceImage;
++use tcl_registry::RegistrySemanticKey;
++
++fn frame_valid(map: &ReportBodyCorrespondence<'_>, frame: BodyFrameId, left: bool) -> bool {
++    match frame {
++        BodyFrameId::Top(id) => map.contains_module(id, left),
++        BodyFrameId::Body(id) => map.contains_body(id, left),
++    }
++}
++fn frame_pair(map: &ReportBodyCorrespondence<'_>, a: BodyFrameId, b: BodyFrameId) -> bool {
++    match (a, b) {
++        (BodyFrameId::Top(a), BodyFrameId::Top(b)) => map.modules(a, b),
++        (BodyFrameId::Body(a), BodyFrameId::Body(b)) => map.bodies(a, b),
++        _ => false,
++    }
++}
++fn owner_valid(map: &ReportBodyCorrespondence<'_>, owner: &ObjectFactOwner, left: bool) -> bool {
++    match owner {
++        ObjectFactOwner::Frame(frame) => frame_valid(map, *frame, left),
++        ObjectFactOwner::DefinitionScript { definition, .. } => {
++            map.contains_definition(*definition, left)
++        }
++        ObjectFactOwner::OriginalClass { .. } => true,
++    }
++}
++fn owner_pair(
++    map: &ReportBodyCorrespondence<'_>,
++    a: &ObjectFactOwner,
++    b: &ObjectFactOwner,
++) -> bool {
++    match (a, b) {
++        (ObjectFactOwner::Frame(a), ObjectFactOwner::Frame(b)) => frame_pair(map, *a, *b),
++        (
++            ObjectFactOwner::DefinitionScript {
++                definition: a,
++                receiver: ar,
++            },
++            ObjectFactOwner::DefinitionScript {
++                definition: b,
++                receiver: br,
++            },
++        ) => ar == br && map.bodies(*a, *b),
++        (
++            ObjectFactOwner::OriginalClass {
++                allocation: a,
++                receiver: ar,
++            },
++            ObjectFactOwner::OriginalClass {
++                allocation: b,
++                receiver: br,
++            },
++        ) => ar == br && a == b,
++        _ => false,
++    }
++}
++fn owner_map_equal<V: PartialEq>(
++    map: &ReportBodyCorrespondence<'_>,
++    a: &HashMap<ObjectFactOwner, V>,
++    b: &HashMap<ObjectFactOwner, V>,
++) -> bool {
++    a.len() == b.len()
++        && a.iter().all(|(owner, value)| {
++            let mut matches = b.iter().filter(|(other, _)| owner_pair(map, owner, other));
++            matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
++        })
++}
++fn owner_set_equal(
++    map: &ReportBodyCorrespondence<'_>,
++    a: &HashSet<ObjectFactOwner>,
++    b: &HashSet<ObjectFactOwner>,
++) -> bool {
++    a.len() == b.len()
++        && a.iter().all(|owner| {
++            b.iter()
++                .filter(|other| owner_pair(map, owner, other))
++                .count()
++                == 1
++        })
++}
++
++impl ObjectHandleFacts {
++    /// Ordinary Eq, old eligibility and physical result/read facets stay exact.
++    pub(crate) fn authenticated_full_report_eq(
++        &self,
++        other: &Self,
++        map: &ReportBodyCorrespondence<'_>,
++        image: &SourceImage,
++        input: &ResolvedAnalysisInput,
++        registry: &RegistrySemanticKey,
++        output: &crate::analyser::authenticated_report::ReportOutputCorrespondence<'_>,
++    ) -> Option<bool> {
++        // Exhaustive inventory: any new field requires a deliberate policy.
++        let Self {
++            report_source: _,
++            logical_source_candidates: _,
++            any_scope: _,
++            by_scope: _,
++            proven_reads: _,
++            physical_type_reads: _,
++            owner_spans: _,
++            collections: _,
++            returns_object: _,
++            normal_procedure_results: _,
++            global_object_cells: _,
++        } = self;
++        // Physical result/read facets retain their complete strict owners. A
++        // distinct nested issuer is unsupported here, never a report Difference.
++        if self.proven_reads != other.proven_reads
++            || self.physical_type_reads != other.physical_type_reads
++            || self.normal_procedure_results != other.normal_procedure_results
++        {
++            return None;
++        }
++        let mut original_classes = [HashSet::new(), HashSet::new()];
++        for (facts, left) in [(self, true), (other, false)] {
++            let inventory = &mut original_classes[usize::from(!left)];
++            for owner in facts.by_scope.keys().map(|(owner, _)| owner).chain(
++                facts
++                    .owner_spans
++                    .iter()
++                    .filter_map(|row| row.class_owner.as_ref()),
++            ) {
++                if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
++                    inventory.insert(owner.clone());
++                }
++            }
++            if facts
++                .by_scope
++                .keys()
++                .any(|(owner, _)| !owner_valid(map, owner, left))
++                || facts.owner_spans.iter().any(|row| {
++                    !frame_valid(map, row.frame, left)
++                        || row
++                            .class_owner
++                            .as_ref()
++                            .is_some_and(|owner| !owner_valid(map, owner, left))
++                })
++                || facts
++                    .returns_object
++                    .keys()
++                    .any(|id| !map.contains_body(*id, left))
++            {
++                return None;
++            }
++        }
++        let candidate_pair = match (
++            &self.logical_source_candidates,
++            &other.logical_source_candidates,
++        ) {
++            (None, None) => true,
++            (Some(a), Some(b)) => {
++                let (left_output, right_output) = output.analyses();
++                let a = a.authenticated_report_parts(self, left_output, image, input, registry)?;
++                let b =
++                    b.authenticated_report_parts(other, right_output, image, input, registry)?;
++                for (parts, left) in [(&a, true), (&b, false)] {
++                    let inventory = &mut original_classes[usize::from(!left)];
++                    for owner in parts
++                        .instance_variables
++                        .keys()
++                        .chain(parts.original_classes.iter())
++                        .chain(parts.definition_classes.iter())
++                    {
++                        if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
++                            inventory.insert(owner.clone());
++                        }
++                    }
++                    if parts
++                        .instance_variables
++                        .keys()
++                        .chain(parts.original_classes.iter())
++                        .chain(parts.definition_classes.iter())
++                        .any(|owner| !owner_valid(map, owner, left))
++                        || parts
++                            .frames
++                            .iter()
++                            .any(|frame| !frame_valid(map, *frame, left))
++                    {
++                        return None;
++                    }
++                }
++                owner_map_equal(map, a.instance_variables, b.instance_variables)
++                    && owner_set_equal(map, a.original_classes, b.original_classes)
++                    && owner_set_equal(map, a.definition_classes, b.definition_classes)
++                    && a.frames.len() == b.frames.len()
++                    && a.frames
++                        .iter()
++                        .all(|a| b.frames.iter().filter(|b| frame_pair(map, *a, **b)).count() == 1)
++            }
++            _ => return None,
++        };
++        // These actual allocation owners have no alternate projection. Require
++        // a complete exact correspondence before reporting advisory differences.
++        if original_classes[0] != original_classes[1] {
++            return None;
++        }
++        let classes_equal = self.by_scope.len() == other.by_scope.len()
++            && self.by_scope.iter().all(|((owner, name), value)| {
++                let mut matches =
++                    other
++                        .by_scope
++                        .iter()
++                        .filter(|((candidate, candidate_name), _)| {
++                            name == candidate_name && owner_pair(map, owner, candidate)
++                        });
++                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
++            });
++        let scopes_equal = self.owner_spans.len() == other.owner_spans.len()
++            && self
++                .owner_spans
++                .iter()
++                .zip(&other.owner_spans)
++                .all(|(a, b)| {
++                    a.span == b.span
++                        && a.unit == b.unit
++                        && a.class == b.class
++                        && frame_pair(map, a.frame, b.frame)
++                        && match (&a.class_owner, &b.class_owner) {
++                            (None, None) => true,
++                            (Some(a), Some(b)) => owner_pair(map, a, b),
++                            _ => false,
++                        }
++                });
++        let returns_equal = self.returns_object.len() == other.returns_object.len()
++            && self.returns_object.iter().all(|(id, value)| {
++                let mut matches = other
++                    .returns_object
++                    .iter()
++                    .filter(|(other, _)| map.bodies(*id, **other));
++                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
++            });
++        Some(
++            candidate_pair
++                && classes_equal
++                && scopes_equal
++                && returns_equal
++                && self.any_scope == other.any_scope
++                && self.collections == other.collections
++                && self.global_object_cells == other.global_object_cells
++                && self.proven_reads == other.proven_reads
++                && self.physical_type_reads == other.physical_type_reads
++                && self.normal_procedure_results == other.normal_procedure_results,
++        )
++    }
++}
+--- a/rust/tcl-compiler/src/object_types/logical_source_candidates.rs
++++ b/rust/tcl-compiler/src/object_types/logical_source_candidates.rs
+@@ -61,6 +61,25 @@
+ }
+ 
+ impl LogicalSourceCandidateOwner {
++    pub(super) fn authenticated_report_parts<'a>(
++        &'a self,
++        facts: &ObjectHandleFacts,
++        analysis: &AnalysisResult,
++        image: &SourceImage,
++        input: &ResolvedAnalysisInput,
++        registry: &RegistrySemanticKey,
++    ) -> Option<LogicalCandidateReport<'a>> {
++        let realm = analysis.retained_command_realm_arc()?;
++        if !Arc::ptr_eq(&self.realm, realm)
++            || !realm.matches_resolved_analysis_input(input)
++            || analysis.resolved_input.as_ref() != Some(input)
++            || !analysis.matches_original_source_image(image, input.lexer_config())
++        {
++            return None;
++        }
++        self.report_parts(facts, image, input, registry)
++    }
++
+     pub(super) fn report_parts<'a>(
+         &'a self,
+         facts: &ObjectHandleFacts,
+@@ -382,6 +401,54 @@
+     }
+ 
+     #[test]
++    fn full_report_candidates_require_the_actual_diagnostic_output_realm() {
++        let source = "oo::class create C {method m {} {}}\nset object [C new]\n$object m";
++        let left = Analyser::new().analyse(source, "tcl");
++        let right = Analyser::new().analyse(source, "tcl");
++        let owner = left
++            .object_handle_facts
++            .logical_source_candidates
++            .as_ref()
++            .expect("genuine logical candidate producer");
++        let input = left.resolved_input.as_ref().unwrap();
++        let image = left
++            .retained_command_realm()
++            .unwrap()
++            .original_source_image()
++            .unwrap();
++        let registry = left.resolved_registry().unwrap().snapshot().semantic_key();
++        assert!(
++            owner
++                .authenticated_report_parts(
++                    &left.object_handle_facts,
++                    &left,
++                    image,
++                    input,
++                    &registry
++                )
++                .is_some()
++        );
++        assert!(
++            !Arc::ptr_eq(
++                left.retained_command_realm_arc().unwrap(),
++                right.retained_command_realm_arc().unwrap()
++            ),
++            "independent actual output realms required"
++        );
++        assert!(
++            owner
++                .authenticated_report_parts(
++                    &left.object_handle_facts,
++                    &right,
++                    image,
++                    input,
++                    &registry
++                )
++                .is_none()
++        );
++    }
++
++    #[test]
+     fn logical_receiver_candidates_keep_original_scope_and_unknown_contents() {
+         let source = "oo::class create C {method longMethod {} {}}\nset {two words} [C new]\n${two words} longMet";
+         let analysis = Analyser::new().analyse(source, "tcl");
+--- a/rust/tcl-compiler/src/object_types.rs
++++ b/rust/tcl-compiler/src/object_types.rs
+@@ -277,6 +277,7 @@
+     pub global_object_cells: HashMap<String, HashSet<String>>,
+ }
+ 
++mod authenticated_report;
+ mod logical_source_candidates;
+ mod report_comparison;
+ pub use logical_source_candidates::LogicalSourceReceiverClassCandidates;

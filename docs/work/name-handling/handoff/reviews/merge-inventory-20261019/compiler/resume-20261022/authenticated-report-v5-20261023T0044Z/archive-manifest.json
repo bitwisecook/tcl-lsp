@@ -1,0 +1,8 @@
+{
+  "status": "Frozen off-tree draft; no canonical source integration. Peer review pending; all typing/runtime/oldmixed/hosted corpus controls unrun; no perf/fullproof closure.",
+  "files": {
+    "receipt.json": "59e2a11b058b70dc7353891ad72d723ac274f3a1959698bc1d0c082f4012da33",
+    "proposal.patch": "a91c282c5ef5054f2a7afaa64139556c75c9b4900b8ce34302714801c9a9b47a",
+    "v4-delta.patch": "68708e86a650448a26ab35326e8c0cd529ce8fd71271531c0adbcc4c0a1e93cc"
+  }
+}

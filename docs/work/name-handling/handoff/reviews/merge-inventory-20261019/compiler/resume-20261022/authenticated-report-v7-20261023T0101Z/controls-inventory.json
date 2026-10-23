@@ -1,0 +1,89 @@
+{
+  "total": 14,
+  "expected_report_prefix_tests": 13,
+  "filters": [
+    {
+      "selector": "analyser::authenticated_report::",
+      "expected": 13,
+      "exact": false
+    },
+    {
+      "selector": "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "expected": 1,
+      "exact": true
+    }
+  ],
+  "controls": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "report_capture_self_comparison_requires_complete_current_owners",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "actual_e003_subjects_join_their_current_diagnostic_output_owners",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "genuine_hosted_event_report_retains_a_separate_actual_domain",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "changed_plain_report_value_is_a_difference_after_current_owners_join",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "report_capture_rejects_equal_source_foreign_output_attachment",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "report_capture_requires_its_actual_source_build_request",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "report_capture_rejects_changed_producer_facts_and_unavailable_output",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "name": "completed_report_request_cannot_capture_a_later_ordinary_analysis",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "name": "full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "name": "actual_complete_body_inventory_is_total_and_role_sensitive",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "name": "original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "name": "actual_body_census_retains_the_complete_source_entry_domain",
+      "status": "UNRUN"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "name": "omitted_or_duplicate_actual_body_role_is_unavailable",
+      "status": "UNRUN"
+    }
+  ],
+  "execution": "NONE; root GO and source-slot coordination required"
+}

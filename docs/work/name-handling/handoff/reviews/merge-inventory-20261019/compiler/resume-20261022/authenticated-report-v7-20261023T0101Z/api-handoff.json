@@ -1,0 +1,42 @@
+{
+  "status": "OFFTREE_PREPARATION_ONLY; untyped/unrun; not approved for perf patch acceptance",
+  "owner": "compiler API; existing separate external perf session owns harness and corpus proofs",
+  "patch_sha256": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b",
+  "api": {
+    "exports": "tcl_compiler::analyser::{AuthenticatedAnalysisReport, AnalysisReportComparison, AnalysisReportUnavailable}",
+    "capture": [
+      "Analyser::analyse_for_report(&mut self, source: &str, dialect: &str) -> AuthenticatedAnalysisReport",
+      "Analyser::analyse_per_item_for_report(&mut self, source: &str, dialect: &str) -> AuthenticatedAnalysisReport"
+    ],
+    "read": "AuthenticatedAnalysisReport::analysis(&self) -> &AnalysisResult",
+    "compare": "AuthenticatedAnalysisReport::compare(&self, other: &Self) -> AnalysisReportComparison",
+    "outcomes": [
+      "Equal: complete authenticated full report; only this can pass report equivalence",
+      "Different { field }: authenticated semantic field mismatch",
+      "Unavailable(reason): missing/stale/foreign/unsupported/ambiguous/incomplete proof; fails equivalence"
+    ]
+  },
+  "contract": [
+    "90 explicit report fields and12 typed diagnostic subjects; complete unique actual source/full input/registry/body owner correspondence required before any semantic Difference",
+    "Capture same actual production diagnostics CU; no fresh owner rebuild, text/ID/pointer/debug normalisation or public carrier construction",
+    "Retain actual Named/Unit/Carried/Method/Definition roles including distinct Named and NamespaceScript at one declaration; total unique bijection",
+    "Keep actual full source entry; hosted reports require separate genuine Hosted domain/card",
+    "Global AnalysisResult Eq, runtime owner Eq, old countguard, cache/Salsa and host eligibility remain strict; report comparison supplies no execution authority"
+  ],
+  "required_external_evidence": [
+    "Independent complete actual all-old and mixed corpora report comparison, raw global Eq separately recorded",
+    "Actual aliases/E003/hosted usable equality and strict foreign/currentness refusal controls",
+    "Exhaustive90-field/12-subject policy plus missing/duplicate/changed/stale/foreign source/input/registry/body coverage",
+    "Shipping performance evidence with full diagnostics and exact source/provider/artifact pins; no sample-only acceptance"
+  ],
+  "next": [
+    "Names bounded static review of exact v7 delta; retain review in archive",
+    "Root decides whether/when canonical source integration and focused14 testing are appropriate after active LSP slot",
+    "External perf may inspect/prepare harness off-tree only; no patch acceptance or forwarding before full old/mixed proofs"
+  ],
+  "limits": [
+    "14 controls inventoried, all UNRUN; two filters do not establish exhaustive validation",
+    "No compiler Cargo queued; source/test/provider HOLD active",
+    "No duplicate external perf/BIG-IP/triage role"
+  ]
+}

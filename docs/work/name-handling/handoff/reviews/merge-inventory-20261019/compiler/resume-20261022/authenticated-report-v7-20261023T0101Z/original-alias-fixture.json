@@ -1,0 +1,6 @@
+{
+  "fixture": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/tests/data/name-consumers/aliases.tcl",
+  "bytes": 661,
+  "sha256": "0c00c8c5c27f5b0a9262a7105652c689b55860ddc2cc96d5eed0025c5caf5118",
+  "purpose": "Original alias diagnostic exact source retained; no assertion or fixture modification. New explicit full-report control is separate from old globalEq control."
+}

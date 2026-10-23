@@ -1,0 +1,32 @@
+{
+  "reviewer": "compiler-names",
+  "kind": "bounded static cumulative v3/v5 plus exact v6 delta review",
+  "patch_sha256": "e290fc200ccf38e72eb7ffe23d68101b097d580ae7b8aaabc59c943037c2ed5d",
+  "v5_delta_sha256": "c28be476f0f3ffdcbc3560b92842cacd7a31a36a8066b23c47b6b113b5578207",
+  "status": "BOUNDED STATIC CLEAR; no remaining concrete blocker in examined joins; untyped/unrun",
+  "examined": [
+    "same actual diagnostic CU request and private complete prepared snapshot accessor; no rebuild or fresh owner",
+    "current source/full input/registry/evaluator/request/realm/CU-side owner guards",
+    "complete Named/Unit/Carried/Method/Definition census and total unique source-role body bijection",
+    "full actual source-entry domain for all units, separate hosted card domain",
+    "reverse Event card requirement; exact sole Allocated/Native/Logical/Authored/Hosted OriginalDeclaration purpose with actual body-unit/current source reborrow; all card purpose maps covered both directions",
+    "actual Definition role for method parent and DefinitionScript object owner",
+    "all90 explicit fields/all12 typed subjects,83 exact-or-Unavailable plus5 plain/diagnostics/object policy",
+    "all nested owner authentication before semantic Difference",
+    "sealed current-output E003 analysis_owner pair after both matches_analysis, full input/inherited entry and strict procedure/caller",
+    "logical candidate same actual output realm Arc/full source/input and existing reportparts",
+    "physical/Normal mismatches, missing candidate carrier and unpaired exact OriginalClass inventory unavailable",
+    "object advisory frame/body ID pairs only through authenticated complete census; legacy report_source is old derived receipt, new issuer independent",
+    "strict Eq/countguard/cache/Native eligibility unchanged"
+  ],
+  "checks": [
+    "canonical git apply --check --whitespace=error passed",
+    "compiler parse-check.json reports13/13 format checks pass; reviewed receipt only"
+  ],
+  "limits": [
+    "No Rust typing or runtime controls by names",
+    "No E003/aliases/hosted/old-old/mixed external performance corpus acceptance",
+    "83 structured fields exact-or-Unavailable can conservatively refuse independent reports; exhaustive policy is not proof of usable equality",
+    "No runtime/cache equality, source/Native execution authority or required release gate is waived"
+  ]
+}

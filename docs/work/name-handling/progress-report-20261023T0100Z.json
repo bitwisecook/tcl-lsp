@@ -1,0 +1,82 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T01:00:42.086131+00:00",
+  "scheduled_report_utc": "2026-10-23T00:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T01:25:37+00:00",
+  "change_since_previous_report": [
+    "Primary goal remains clean LSP merge/release readiness from rust before deferred parity. Normal pushes only to work; no PR/merge/tag/release. All eight section F boxes/audit admissions stay open.",
+    "00:25 cycle published e1038728526d8181669d8d9de88e9be2511b6e56 after fresh depth1fetch/FF/rebase and zero product diff; active df683 mapped. Official progress-report-20261023T0025Z, freshness/disk receipt retained. Next00:55:37 reminder session40624 rearmed; no target/executable cleanup.",
+    "Second six-package all-target check closed00:28:16 Cargo0 with0errors/7Rustwarning instances in4server source groups. All6541source and fullprovider seals unchanged; no cap/disk abort. Canonical full archive typecheck-six-20261023T002816Z, manifestc262cd49. Not a green zero-warning gate, no runtime acceptance.",
+    "Peer-cleared fixed pair bcd49 integrated00:29:32 under free whole lock with exact4before/final hashes and review/API pins. Full WIP3b1a750be337 includes ILXfac707 compiler firstoperand API plus zero-warning cleanup3dd. Exact RBS delta retained via two-order zero-fuzz proof904569; pinnedfmt empty. Original future prepared timestamp corrected to observed UTC with original manifest preserved, no source change.",
+    "ILXfac707 preserves user2231 stop-after-opaque: full conditional resolver/effect/transition chains refuse and typed intrinsic If alone descends; source-owner/setter/sole-constructor/read associations carry debts, no Native/Normal/runtime target/completeness grant. Exact frozen API/review routed existing separate BIG-IP for off-tree adapter prep. Four real Rust controls/original16 remain unrun at preparation.",
+    "Native15-v3 explicit successor changes only reviewed serverlib77e4246c\u2192daa7e038 plus relocated paths; all15rows/other11pins/assertions/providers/budgets/artifact seals unchanged. Helper peer-clearc3c94284, static only. Finite20-v3 unchanged and peer-clear; fullTommath5-v3/CCGnative1+N17two/VMrepresentative19 prepared and unqueued.",
+    "Compiler focused successor preserves original8G4, measured source/frontier/body guards, versions frontier11, removes already-diagnosed unchanged aliasEq probe, adds RBS3/AuthoredSimulation2/nested1/inherited1/BPF1 plus4ILX real controls:36filters49tests in explicit v2. BPF uses its actual package/artifact. Requested v3 documentation-only descendant HEAD tolerance preserves exact product equality/all source/provider/tool/artifact/180s/log/disk guards; missed fast watchdog observations fail closed.",
+    "Historical strictClippy666 partition rechecked: compiler485=380general/104names/1CCG, VM181. Sole ownCCGcmd_subst fix alreadyapplied; no historical service/const_subst rows. VM31draft bases current, mechanical/API first, structural extraction requires originalstack3. Current strict gate unrun; zeroRustwarnings cannot closeClippy.",
+    "Cycle performs fresh depth1fetch/FF, official writer/table/freshness/fullWIP excludingzzprobes, freshfetch/rebase/normalpush productequality, actual target+tmp disk check and rearm01:25:37UTC. No assertion weakening, new allows or target/executable deletion.",
+    "Third six-package all-target metadata PASS00:39:40 on3b1a750: Cargo0/0errors/0warnings,6542source/fullprovider seals unchanged,417003logbytes/no truncation or disk abort. Full canonical archive typecheck-six-20261023T003940Z manifest04b9a98b. No tests/strictClippy/hosts/performance/release admission.",
+    "Typed source adhoc normal-pushed5a4182dfefc4 at00:41:27 after fresh depth1fetch/rebase/productdiff0; sourceb19ab maps5a418 and source3b1 maps532174607. Regular00:55:37 timer unchanged. Existing BIG-IP routed exact published typed API; original16/compiler4 remain unrun.",
+    "CI5205 is complete7success/20failure/3skip; latestmain5 log request Transport closed/no bytes, unknown named outcomes. Fresh read-only gitlsremote confirms origin/rust stillfcb7927. After verifying no active workCI, root dispatched CI5206 id39879737945 on exactpublished5a418 with hosted broad tests/native_release_build_proof=false at00:42:48. Newrun verifiedin_progress; no PR/release/cancel/rerun.",
+    "Full5-v3 setup0/5 build101 archived separately; explicit mirror-root v4 successor completed actual00:52:55 exact5 with4PASS1FAIL, fullTommath true,44804source/7545providers/artifact stable,294890logbytes/0warnings. Jim import-prefix-after-source-deletion and3C84 controlsPASS; original eight_four_catch_takes_no_options_variable stillFAIL against baselinePASS. Full archive manifest00b6e954; no whole runtime or SpecTcl acceptance.",
+    "Authenticated report v6 full90fields/12subjects core peer reviewed2050e45b, off-tree/untyped/unrun; v7 adds genuine aliases same-site Named/NamespaceScript completeness control only, peer review pending. Global/runtimeEq, cache cutoffs, count/host eligibility guards unchanged; no perf proof or patch acceptance.",
+    "At environment interruption00:54 and recovery00:58 the LSPfinite20-v3 process/Cargo survived; actualstart00:53:44, source-before40936files/fullprovider snapshot retained. Server-lib compilation still active, no selector verdict. Source/test/provider HOLD and docs-only WIP permitted by runner.",
+    "Lost role bindings required restarting five implementation roles and a read-only coordination checker in shared tree. No duplicated external roles or Cargo queues. Overdue00:55 checkpoint records actual publication time separately; next cycle remains01:25:37UTC.",
+    "CI5206 exact5a418 is active;00:54 complete22-job roster3success17in_progress2skip, no named test verdict. CI5205 terminal7success20failure3skip remains older-source evidence; missing named logs unknown. No cancel/rerun or duplicate dispatch.",
+    "External owner headers BIG-IP18:08/perf21:00/completed triage19:57:30 remain over60minutes old; user notified, root routes blockers without taking over or refreshing their headers."
+  ],
+  "committed": [
+    "b19ab38c7a0ecb1fa4f600c7f5dd1b7e556e7955"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish surviving finite LSP20 guarded run, then assign native protocol15 and compiler49/CCG diagnostics under sole build lock.",
+    "Diagnose exact Tcl8.4 catch regression at actual producer, and complete typed authenticated report API before external perf full old/mixed proof.",
+    "Resolve exact current origin/rust regressions and sectionF host/SpecTcl/transformation/performance/strict repository gates before any user-requested PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Latest six-package all-target typing PASS0errors0warnings on3b1 (scoped typing only). Full5 runtime4PASS1FAIL, original Tcl8.4 catch remains exact baseline regression. LSP20 compiling and CI5206 active. StrictClippy/full baseline comparison/sectionF all open; no audit admissions. Delayed00:55 cycle follows environment interruption; actual timestamps preserved.",
+  "disk_free_bytes": 11561218048,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

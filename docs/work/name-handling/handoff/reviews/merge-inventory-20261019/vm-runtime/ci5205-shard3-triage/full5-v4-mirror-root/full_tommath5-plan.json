@@ -1,0 +1,139 @@
+{
+  "prepared_utc": "2026-10-22T23:33:52.884363+00:00",
+  "status": "IMMUTABLE PREPARATION ONLY; no Cargo GO/queue/execution",
+  "phase": "full_tommath5",
+  "root": "/workspace/naming-migration-active/tcl-lsp",
+  "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
+  "expected_selected": 5,
+  "targets": [
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "manifest_path": "/tmp/vm-runtime-full-tommath/runtime/rust/Cargo.toml",
+      "cargo_build_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/tmp/vm-runtime-full-tommath/runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "target_kinds": [
+        "rlib",
+        "cdylib",
+        "staticlib"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+      "classification": "original-import-regression-diagnostic",
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "classification": "exact-baseline-PASS-in-both-full-and-no-tommath-flavors",
+      "baseline_status": "PASS-job119956196088-both-flavors"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+      "classification": "existing-unchanged-narrow-boundary",
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+      "classification": "existing-unchanged-narrow-boundary",
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+      "classification": "existing-unchanged-narrow-boundary",
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim"
+    }
+  ],
+  "ordering": "Separate finite full-backend job; no queue until root explicit GO; compiler35 currently owns slot. Does not replace no-Tommath regression evidence.",
+  "feature_contract": {
+    "source": "Makefile runtime-rust-test documented full numeric backend + engine; baseline actual job119956196088 full753/753",
+    "flavour": "genuine Tcl9.0.4 bundled libtommath, build.rs unchanged; have_tommath cfg positively required from actual Cargo build-script event",
+    "target_dir": "/tmp/vm-runtime-full-tommath-target-20261022",
+    "mirror": "/tmp/vm-runtime-full-tommath",
+    "source_sdk": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath",
+    "source_archive_sha256": "8c01bac92a9a8ce271b63d3aa28f09cde2c6762d6719ca671cdc8aee25391234",
+    "CC": "/usr/bin/cc",
+    "AR": "/usr/bin/ar"
+  },
+  "guards": {
+    "lock": "/tmp/tcl-lsp-naming-build.lock nonblocking; whole source/provider preguard, Cargo, fresh artifact identity/roster, per-selector execution, postguard, receipt",
+    "source": "all present files under rust/, runtime/rust/, experiments/, specs/ and .cargo/ excluding target/node_modules/.git; root Cargo.toml/Cargo.lock, rust-toolchain.toml, Makefile and environment/provider manifest; explicit scope in full inventories PLUS root-wide Rust/C-family/Cargo/build inputs outside those prefixes, excluding mutable docs/work/name-handling and generated target/Git/node_modules trees; exact script/plan/helper/environment hashes.",
+    "providers": "all5 pinned Tcl actual executable+wrapper+libtcl shared/static archives+library scripts; Jim actual exe+config+provisioning manifest; full before-after SHA256 PLUS frozen existing compiler provider helper recursive ELF dependencies, realpath/proxy bindings and actual Rust tools; no dependency/chain equivalence inferred. PLUS pinned SDK every file/symlink, original source archive SHA, actual CC/AR/as/ld and GCC cc1/collect2 with ELF chains, compiler headers/system include/libgcc inventory.",
+    "artifact": "current Cargo JSON exact manifest_path,target.name,kind,test profile only; executable streamed SHA256 before and after. No stale fallback. Active and publisher Git HEAD/tree recorded independently; no published artifact equivalence inferred.",
+    "logs": "aggregate subprocess stdout/stderr retained <=20MiB; drain and stop owned process group on overflow; inventories/receipts separate bounded proof data",
+    "disk": "stop own process group below2GiB on workspace or /tmp, prefer>=2.3GiB before build; never remove targets/artifacts",
+    "warnings": "No typed compiler warning/error or build warning; no no-tommath exception in this full flavor.",
+    "selector_deadline_seconds": 180,
+    "summary": "each selector exact --nocapture --test-threads 1, nonzero exact roster before execution, started exactly1 and completed1 with0ignored; timeout/abort/incomplete retained separately and continue independent selectors unless log/disk/source/provider guard fails",
+    "cleanup": "none; all fresh executables and target files retained, no source/provider/Make fixture mutations"
+  },
+  "limits": "Finite5 only. Jim absent baseline; catch exact baseline PASS in both flavors. No test change, no no-Tommath repair/unsupported decision, no full suite/release acceptance claim.",
+  "build_flavor": "Full native Tommath with --features engine; separate owned mirror/target; no canonical Make fixture mutation.",
+  "mirror_preparation": "Under wholelock only after GO: create/refresh dedicated exact current runtime mirror, rust+experiments symlinks; copy only bytechanged source; retain all old artifacts outside target; no source/target cleanup.",
+  "optional_prerequisite": "Root must integrate exact peer-reviewed c0c5ad46 observer; all3 canonical afterhashes required before initial full seal; no own canonical apply.",
+  "artifact_identity_evidence": {
+    "source": "/tmp/vm-runtime-ci5205-six-postfix/build.stdout actual successful Cargo JSON",
+    "manifest_path": "/tmp/vm-runtime-full-tommath/runtime/rust/Cargo.toml",
+    "target_name": "tcl_runtime",
+    "target_kind": [
+      "rlib",
+      "cdylib",
+      "staticlib"
+    ],
+    "test_profile": true,
+    "note": "CLI --lib is not Cargo target.kind=lib for this standalone crate."
+  },
+  "diagnostic": {
+    "patch_sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+    "required_canonical_after_sha256": {
+      "runtime/rust/src/cmd_error.rs": "ac849810947a15d1ad789459151bab2b034c60bcdf4f4f52f9fcbca9d7e58c0e",
+      "runtime/rust/src/interp.rs": "abe76cef6c84e0a96cb8bd6cfe85b595e08df6f9f7b6131385721aa303cc227d",
+      "runtime/rust/src/interp/native_error_variables.rs": "91d70ce66ffa1d0016851cf0209f80c14df294492e6d6ca2abbb96b572c67605"
+    },
+    "env_key": "TCL_LSP_RUNTIME_C84_EPISODE_DIAGNOSTIC",
+    "env_value": "c84-episode-v1",
+    "enabled_selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "review": "compiler and CCG bounded static clear, untyped/unrun; CCG9fb431852b079fc3f840ae8c0500b97ac630f450e794280a9a873daee4cebd0c",
+    "limits": "retained-field observer only, original script/assertions/guards; stdout-stderr20MiB whole cap, no local truncation"
+  },
+  "mirror_root_contract": {
+    "root_manifest": "exact canonical Cargo.toml symlink, original workspace package/dependency/lint metadata",
+    "root_lock": "exact canonical Cargo.lock symlink",
+    "guards": "exact resolved roots and symlink text plus contents before/after; existing rust/experiments symlinks unchanged",
+    "cause": "v3 build101 before compilation because path dependencies inherit edition from missing mirror root"
+  }
+}

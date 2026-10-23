@@ -1,0 +1,386 @@
+--- a/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
++++ b/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs
+@@ -25,9 +25,19 @@
+     Definition(tcl_registry::definer::DefinerFamily),
+ }
+ 
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum ReportDeclarationPurpose {
++    AllocatedSource,
++    NativeSource,
++    LogicalSource,
++    AuthoredSource,
++    HostedSource,
++}
++
+ struct ReportBodyOwner {
+     id: ProcedureId,
+     role: ReportBodyRole,
++    declaration_purpose: Option<ReportDeclarationPurpose>,
+     declaration: Span,
+     site: Option<CommandAllocationSite>,
+     body_offset: Option<u32>,
+@@ -41,6 +51,7 @@
+ /// Coordinates select candidates only after that actual issuer is authenticated.
+ pub(super) struct ReportBodyInventory {
+     prepared: OriginalOptimiserPreparedUnit,
++    entry: crate::command_binding::SourceAnalysisEntry,
+     hosted_entry: Option<crate::command_binding::SourceAnalysisEntry>,
+     root: Arc<SourceOriginId>,
+     module: ProcedureModuleId,
+@@ -87,7 +98,7 @@
+                 &mut bodies,
+                 module,
+                 *id,
+-                Self::procedure(*id, body, ReportBodyRole::Named(body.body_kind)),
++                Self::procedure(module, *id, body, ReportBodyRole::Named(body.body_kind))?,
+             )?;
+         }
+         for (id, body) in module.body_lowerings() {
+@@ -96,7 +107,12 @@
+             } else {
+                 ReportBodyRole::Carried(body.body_kind)
+             };
+-            Self::push(&mut bodies, module, *id, Self::procedure(*id, body, role))?;
++            Self::push(
++                &mut bodies,
++                module,
++                *id,
++                Self::procedure(module, *id, body, role)?,
++            )?;
+         }
+         for (id, body) in &module.methods {
+             Self::push(
+@@ -106,6 +122,7 @@
+                 ReportBodyOwner {
+                     id: *id,
+                     role: ReportBodyRole::Method(body.kind),
++                    declaration_purpose: None,
+                     declaration: body.span?,
+                     site: None,
+                     body_offset: None,
+@@ -125,6 +142,7 @@
+                 ReportBodyOwner {
+                     id: *id,
+                     role: ReportBodyRole::Definition(body.family()),
++                    declaration_purpose: None,
+                     declaration: body.declaration_span(),
+                     site: None,
+                     body_offset: Some(body.content_span().start()),
+@@ -135,6 +153,56 @@
+                 },
+             )?;
+         }
++        for (purpose, ids) in [
++            (
++                ReportDeclarationPurpose::AllocatedSource,
++                module
++                    .original_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect::<Vec<_>>(),
++            ),
++            (
++                ReportDeclarationPurpose::NativeSource,
++                module
++                    .original_native_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::LogicalSource,
++                module
++                    .original_logical_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::AuthoredSource,
++                module
++                    .original_authored_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++            (
++                ReportDeclarationPurpose::HostedSource,
++                module
++                    .original_hosted_declaration_body_units
++                    .keys()
++                    .copied()
++                    .collect(),
++            ),
++        ] {
++            if ids.iter().any(|id| {
++                !bodies
++                    .iter()
++                    .any(|body| body.id == *id && body.declaration_purpose == Some(purpose))
++            }) {
++                return None;
++            }
++        }
+         // Every additional event card must join an actual retained body, and
+         // each original event word belongs to this complete source generation.
+         for (id, card) in &module.irules_event_bodies {
+@@ -157,14 +225,20 @@
+         // A reference into a definition scope must join this same complete
+         // inventory; a foreign ID or omitted parent never becomes a free label.
+         if bodies.iter().any(|body| {
+-            body.definition_parent
+-                .is_some_and(|parent| !bodies.iter().any(|candidate| candidate.id == parent))
++            body.definition_parent.is_some_and(|parent| {
++                !bodies.iter().any(|candidate| {
++                    candidate.id == parent
++                        && matches!(candidate.role, ReportBodyRole::Definition(_))
++                })
++            })
+         }) {
+             return None;
+         }
+         let module_id = module.procedure_ids.module_id();
++        let entry = module.source_entry.clone();
+         Some(Self {
+             prepared,
++            entry,
+             hosted_entry,
+             root,
+             module: module_id,
+@@ -172,10 +246,79 @@
+         })
+     }
+ 
+-    fn procedure(id: ProcedureId, body: &Procedure, role: ReportBodyRole) -> ReportBodyOwner {
+-        ReportBodyOwner {
++    fn procedure(
++        module: &crate::ir::Module,
++        id: ProcedureId,
++        body: &Procedure,
++        role: ReportBodyRole,
++    ) -> Option<ReportBodyOwner> {
++        if body.body_kind == ProcedureBodyKind::Event
++            && !module.irules_event_bodies.contains_key(&id)
++        {
++            return None;
++        }
++        let purposes = [
++            (
++                ReportDeclarationPurpose::AllocatedSource,
++                module.original_declaration_body_units.contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::NativeSource,
++                module
++                    .original_native_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::LogicalSource,
++                module
++                    .original_logical_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::AuthoredSource,
++                module
++                    .original_authored_declaration_body_units
++                    .contains_key(&id),
++            ),
++            (
++                ReportDeclarationPurpose::HostedSource,
++                module
++                    .original_hosted_declaration_body_units
++                    .contains_key(&id),
++            ),
++        ];
++        let mut present = purposes
++            .into_iter()
++            .filter_map(|(purpose, present)| present.then_some(purpose));
++        let declaration_purpose = if body.body_kind == ProcedureBodyKind::OriginalDeclaration {
++            let purpose = present.next()?;
++            if present.next().is_some()
++                || !module
++                    .body_units
++                    .get(&id)
++                    .is_some_and(|held| std::ptr::eq(held, body))
++                || !module
++                    .original_source_procedure_bodies()
++                    .any(|(candidate, held)| *candidate == id && std::ptr::eq(held, body))
++                || (module
++                    .source_metadata_input
++                    .as_ref()?
++                    .has_hosted_source_name_context()
++                    && purpose != ReportDeclarationPurpose::HostedSource)
++            {
++                return None;
++            }
++            Some(purpose)
++        } else {
++            if present.next().is_some() {
++                return None;
++            }
++            None
++        };
++        Some(ReportBodyOwner {
+             id,
+             role,
++            declaration_purpose,
+             declaration: body.span,
+             site: body.declaration_site.clone(),
+             body_offset: Some(body.body_offset),
+@@ -183,7 +326,7 @@
+             namespace: body.body.namespace_context.clone(),
+             original_word: None,
+             definition_parent: None,
+-        }
++        })
+     }
+ 
+     fn push(
+@@ -217,6 +360,7 @@
+     ) -> bool {
+         self.prepared.origin().same_request_allocation(origin)
+             && self.prepared.origin().is_current_analysis_context()
++            && self.entry == self.prepared.unit().ir_module.source_entry
+     }
+ }
+ 
+@@ -235,6 +379,7 @@
+     ) -> Option<Self> {
+         if left.bodies.len() != right.bodies.len()
+             || left.root.kind() != right.root.kind()
++            || left.entry != right.entry
+             || left.hosted_entry != right.hosted_entry
+         {
+             return None;
+@@ -273,6 +418,7 @@
+         b: &ReportBodyOwner,
+     ) -> bool {
+         if a.role != b.role
++            || a.declaration_purpose != b.declaration_purpose
+             || a.declaration != b.declaration
+             || a.body_offset != b.body_offset
+             || a.namespace != b.namespace
+@@ -350,6 +496,13 @@
+         }
+     }
+ 
++    pub(crate) fn contains_definition(&self, id: ProcedureId, left: bool) -> bool {
++        let inventory = if left { self.left } else { self.right };
++        inventory
++            .bodies
++            .iter()
++            .any(|body| body.id == id && matches!(body.role, ReportBodyRole::Definition(_)))
++    }
+     pub(crate) fn contains_body(&self, id: ProcedureId, left: bool) -> bool {
+         let inventory = if left { self.left } else { self.right };
+         inventory.bodies.iter().any(|body| body.id == id)
+@@ -393,6 +546,22 @@
+         for (a, b) in &joined.pairs {
+             assert!(joined.bodies(*a, *b));
+         }
++    }
++
++    #[test]
++    fn actual_body_census_retains_the_complete_source_entry_domain() {
++        let left = actual();
++        let mut right = actual();
++        let capture = right.capture.as_mut().unwrap();
++        capture.bodies.entry.unknown_entry = !capture.bodies.entry.unknown_entry;
++        assert!(!capture.bodies.same_request(&capture.origin));
++        assert!(
++            ReportBodyCorrespondence::capture(
++                &left.current_capture().unwrap().bodies,
++                &capture.bodies,
++            )
++            .is_none()
++        );
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/object_types/authenticated_report.rs
++++ b/rust/tcl-compiler/src/object_types/authenticated_report.rs
+@@ -28,7 +28,7 @@
+     match owner {
+         ObjectFactOwner::Frame(frame) => frame_valid(map, *frame, left),
+         ObjectFactOwner::DefinitionScript { definition, .. } => {
+-            map.contains_body(*definition, left)
++            map.contains_definition(*definition, left)
+         }
+         ObjectFactOwner::OriginalClass { .. } => true,
+     }
+@@ -113,7 +113,27 @@
+             normal_procedure_results: _,
+             global_object_cells: _,
+         } = self;
++        // Physical result/read facets retain their complete strict owners. A
++        // distinct nested issuer is unsupported here, never a report Difference.
++        if self.proven_reads != other.proven_reads
++            || self.physical_type_reads != other.physical_type_reads
++            || self.normal_procedure_results != other.normal_procedure_results
++        {
++            return None;
++        }
++        let mut original_classes = [HashSet::new(), HashSet::new()];
+         for (facts, left) in [(self, true), (other, false)] {
++            let inventory = &mut original_classes[usize::from(!left)];
++            for owner in facts.by_scope.keys().map(|(owner, _)| owner).chain(
++                facts
++                    .owner_spans
++                    .iter()
++                    .filter_map(|row| row.class_owner.as_ref()),
++            ) {
++                if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
++                    inventory.insert(owner.clone());
++                }
++            }
+             if facts
+                 .by_scope
+                 .keys()
+@@ -144,6 +164,17 @@
+                 let b =
+                     b.authenticated_report_parts(other, right_output, image, input, registry)?;
+                 for (parts, left) in [(&a, true), (&b, false)] {
++                    let inventory = &mut original_classes[usize::from(!left)];
++                    for owner in parts
++                        .instance_variables
++                        .keys()
++                        .chain(parts.original_classes.iter())
++                        .chain(parts.definition_classes.iter())
++                    {
++                        if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
++                            inventory.insert(owner.clone());
++                        }
++                    }
+                     if parts
+                         .instance_variables
+                         .keys()
+@@ -166,8 +197,13 @@
+                         .iter()
+                         .all(|a| b.frames.iter().filter(|b| frame_pair(map, *a, **b)).count() == 1)
+             }
+-            _ => false,
++            _ => return None,
+         };
++        // These actual allocation owners have no alternate projection. Require
++        // a complete exact correspondence before reporting advisory differences.
++        if original_classes[0] != original_classes[1] {
++            return None;
++        }
+         let classes_equal = self.by_scope.len() == other.by_scope.len()
+             && self.by_scope.iter().all(|((owner, name), value)| {
+                 let mut matches =
+--- a/rust/tcl-compiler/src/object_types.rs
++++ b/rust/tcl-compiler/src/object_types.rs
+@@ -277,9 +277,9 @@
+     pub global_object_cells: HashMap<String, HashSet<String>>,
+ }
+ 
++mod authenticated_report;
+ mod logical_source_candidates;
+ mod report_comparison;
+-mod authenticated_report;
+ pub use logical_source_candidates::LogicalSourceReceiverClassCandidates;
+ 
+ impl ObjectHandleFacts {

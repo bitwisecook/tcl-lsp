@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T00:48:04.062877+00:00",
+  "id": 39879737945,
+  "run_number": 5206,
+  "head_sha": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "active_product_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "head_branch": "work",
+  "event": "workflow_dispatch",
+  "created_at": "2026-10-23T00:42:48Z",
+  "status_last_observed": "in_progress",
+  "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39879737945",
+  "origin_rust_ls_remote": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "baseline5203_unchanged": true,
+  "release_or_regression_acceptance": false
+}

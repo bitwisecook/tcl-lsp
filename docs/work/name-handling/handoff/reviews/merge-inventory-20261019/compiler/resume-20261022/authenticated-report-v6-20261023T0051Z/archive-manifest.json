@@ -1,0 +1,10 @@
+{
+  "status": "Frozen off-tree draft, bounded static peer CLEAR. No canonical source integration. All typing/runtime/oldoldmixed/hosted corpus controls unrun; no perf/fullproof closure.",
+  "files": {
+    "receipt.json": "8eb6ee597b51d5c8a9a5281dd52db3eff69f12c6dfbe0fba8289a8b1d4e9e64e",
+    "v5-delta.patch": "c28be476f0f3ffdcbc3560b92842cacd7a31a36a8066b23c47b6b113b5578207",
+    "proposal.patch": "e290fc200ccf38e72eb7ffe23d68101b097d580ae7b8aaabc59c943037c2ed5d",
+    "compiler-names-review.json": "2050e45b9b6a1d16533b5a910b058ec3fa003d49cc0f423fa77f77d9b29b7f22",
+    "parse-check.json": "c7eb96d897004ee3e6d7bfb9e6f64e0e89c6885b8af689fe0290eab5e0c86325"
+  }
+}
