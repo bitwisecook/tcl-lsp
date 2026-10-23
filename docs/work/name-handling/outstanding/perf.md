@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 17:43 UTC
+Last updated: 2026-10-23 17:59 UTC
 
 ## Resume
 
@@ -193,3 +193,20 @@ naturally before releasing server then SpecTcl readiness. No runtime is paused.
 Current b6 Clippy has2 unrelated empty-line-after-doc-comment errors; a separate
 whitespace repair is included with this publication. Full current Clippy is
 not yet green, and no new semantic proof is inferred from that repair.
+
+B6 Clippy is COMPLETE/FAILED:62 lint diagnostics, zero in the six owned files,
+no compiler type error. Full JSON/stderr + clippy-summary.json are retained in
+current-b6ea6dc5/. Two doc-spacing errors were fixed separately0f1d32b8; the
+remaining baseline lints route to compiler. No workspace-green claim and no
+new suppression/assertion weakening. Runtime proof builds still execute.
+
+Correction to the broader Clippy classification:1 of62 is NEW in the routed
+realm hunk: query_memo: Default::default() at realm.rs688 triggers
+default_trait_access. Before final delivery, spell the existing resolved
+constructor as crate::command_binding::original_name_value::
+OriginalRealmQueryMemo::default(). This is a type-qualified spelling of the
+same constructor, with no changed runtime behavior. Preserve frozen source
+while builders/controls/corpus are active; record the mechanical delta and
+verify scoped fmt/typecheck before readiness. The other routed interprocedural
+scan_statement length warning predates its two call-site changes. Six owned
+files have zero diagnostics. No full-workspace Clippy success is claimed.

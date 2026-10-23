@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 17:35 UTC
+Last updated: 2026-10-23 17:59 UTC
 
 **Environment recovered; canonical proof retry required.** Frozen a3 control
 and opt1 builds fail the same6 upstream compiler type errors, zero warnings /
@@ -260,3 +260,10 @@ Both proof sources are rebased tob6ea6dc5 with fresh independent builds.
 Exact six/two split + ordered application, scope fmt, toggle reconstruction
 and clean6 match PASS. Clean6 opt1 lexer586/586 BOTH passes without warnings;
 compiler/control/corpus acceptance remains pending. No perf production commit.
+
+B6 broad Clippy completed with62 diagnostics, zero in the six owned files.
+One is new in the routed realm constructor spelling (Default::default), to
+qualify before delivery; the remaining issues are retained/routed. Separate
+0f1d32b8 removed2 pre-existing doc-spacing errors, scope fmt passes. No full
+workspace lint success or new runtime outcome is claimed. Both compiler
+libraries still build; no frozen source was edited to address lint meanwhile.

@@ -1,0 +1,9 @@
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lexer)
+    Checking tcl-syntax v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bytecode)
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-compiler)
+error: could not compile `tcl-compiler` (lib) due to 62 previous errors

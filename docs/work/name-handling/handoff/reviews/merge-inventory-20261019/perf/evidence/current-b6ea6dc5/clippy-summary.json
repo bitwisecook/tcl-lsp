@@ -1,0 +1,882 @@
+{
+  "diagnostics": [
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::empty_line_after_doc_comments",
+        "explanation": null
+      },
+      "message": "empty line after doc comment",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+          469
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::empty_line_after_doc_comments",
+        "explanation": null
+      },
+      "message": "empty line after doc comment",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+          508
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (223/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          62
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (104/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          297
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (122/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          1728
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (111/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          2115
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (147/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+          1787
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (113/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/diagnostics.rs",
+          535
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (146/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/handlers.rs",
+          7440
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (200/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/param_traits.rs",
+          890
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::assert_is_empty",
+        "explanation": null
+      },
+      "message": "used `assert!` to check that a value is empty",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/per_item.rs",
+          2216
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::assert_is_empty",
+        "explanation": null
+      },
+      "message": "used `assert!` to check that a value is empty",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/per_item.rs",
+          2255
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::assert_is_empty",
+        "explanation": null
+      },
+      "message": "used `assert!` to check that a value is empty",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/per_item.rs",
+          2259
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::assert_is_empty",
+        "explanation": null
+      },
+      "message": "used `assert!` to check that a value is empty",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/per_item.rs",
+          2263
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (101/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/state.rs",
+          2347
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (130/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+          52
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (185/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/body_analysis_capsule.rs",
+          492
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (129/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          591
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::needless_pass_by_value",
+        "explanation": null
+      },
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          2315
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (127/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          977
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (125/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          416
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::redundant_closure_for_method_calls",
+        "explanation": null
+      },
+      "message": "redundant closure",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/command_publication.rs",
+          249
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (120/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs",
+          245
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (117/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          263
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (103/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          391
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::question_mark",
+        "explanation": null
+      },
+      "message": "this block may be rewritten with the `?` operator",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+          285
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (110/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+          652
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::large_types_passed_by_value",
+        "explanation": null
+      },
+      "message": "this argument (400 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          7305
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (128/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          7524
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::used_underscore_binding",
+        "explanation": null
+      },
+      "message": "used underscore-prefixed binding",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          7696
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::used_underscore_binding",
+        "explanation": null
+      },
+      "message": "used underscore-prefixed binding",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          7700
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::items_after_statements",
+        "explanation": null
+      },
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          9756
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (120/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/command_binding.rs",
+          10875
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (214/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/compilation_unit.rs",
+          1841
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (155/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/compilation_unit.rs",
+          3115
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (204/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/compilation_unit.rs",
+          3861
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (198/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/compilation_unit.rs",
+          4239
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (129/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/compilation_unit.rs",
+          5179
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (158/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/interprocedural.rs",
+          3876
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (173/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/irules_checks.rs",
+          555
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (125/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/irules_checks.rs",
+          1450
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (152/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+          1619
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::default_trait_access",
+        "explanation": null
+      },
+      "message": "calling `OriginalRealmQueryMemo::default()` is more clear than this expression",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/realm.rs",
+          688
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (148/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/lowering/mod.rs",
+          4765
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (232/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+          166
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (142/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+          629
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (147/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+          93
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (129/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          272
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (174/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          2043
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (105/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          3640
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (176/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs",
+          187
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::type_complexity",
+        "explanation": null
+      },
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/ssa.rs",
+          8556
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::elidable_lifetime_names",
+        "explanation": null
+      },
+      "message": "the following explicit lifetimes could be elided: 'a",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          3744
+        ],
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          3744
+        ],
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          3744
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (112/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          3756
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (308/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          4117
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (116/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          5312
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (150/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          5559
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (120/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint.rs",
+          5937
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (122/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint_interproc.rs",
+          975
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (123/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint_interproc.rs",
+          1230
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (147/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/taint_interproc.rs",
+          1511
+        ]
+      ]
+    },
+    {
+      "level": "error",
+      "code": {
+        "code": "clippy::too_many_lines",
+        "explanation": null
+      },
+      "message": "this function has too many lines (214/100)",
+      "spans": [
+        [
+          "rust/tcl-compiler/src/word_subst.rs",
+          716
+        ]
+      ]
+    }
+  ],
+  "owned_diagnostics": [],
+  "scope": "B6 full switched source; whole gate failed; source doc spacing fixed separately0f1d32b8, no acceptance inferred"
+}
