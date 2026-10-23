@@ -2753,9 +2753,7 @@ impl Analyser {
                         trimmed,
                         &assistance,
                         &parsed,
-                        op.as_str(),
-                        left,
-                        right,
+                        (op.as_str(), left, right),
                     )
                 }
                 _ => None,
@@ -2810,9 +2808,7 @@ impl Analyser {
         trimmed: &str,
         assistance: &tcl_syntax::expr::parser::ExprParseContext,
         parsed: &ExprNode,
-        op: &str,
-        left: &ExprNode,
-        right: &ExprNode,
+        (op, left, right): (&str, &ExprNode, &ExprNode),
     ) -> Option<String> {
         let config = self.file_lexer_config();
         let image = tcl_lexer::SourceImage::document(&self.source);

@@ -59,7 +59,7 @@ pub enum SourceMemberKind {
     /// policy; they are not decoded as Unicode report text.
     NativeMethod {
         /// Actual canonical declared name input, without a new byte recipe.
-        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        input: Box<crate::signature_scan::scope::SignatureSourceNameInput>,
         /// Actual definition receiver table, independent of receiver entry.
         side: super::types::MemberSide,
     },
@@ -187,7 +187,7 @@ fn original_scope_member(
         }
         let member = if let Some(method) = context.ordinary_method() {
             SourceMemberKind::NativeMethod {
-                input: method.declaration().original_name_input().clone(),
+                input: Box::new(method.declaration().original_name_input().clone()),
                 side: context.side(),
             }
         } else {
@@ -211,7 +211,7 @@ fn original_scope_member(
             return None;
         }
         let member = SourceMemberKind::NativeMethod {
-            input: context.method().declaration().original_name_input().clone(),
+            input: Box::new(context.method().declaration().original_name_input().clone()),
             side: context.side(),
         };
         (class, context.body_word(), member)

@@ -3738,9 +3738,7 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             registry,
             TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
             &shadowed,
-            module_traces,
-            &identities,
-            Some(&cu.ir_module),
+            (module_traces, &identities, Some(&cu.ir_module)),
         ));
         // Only an explicitly standalone Module and CFG may use the legacy
         // source-warning utilities. Missing or withdrawn supplied input keeps
@@ -5016,9 +5014,11 @@ pub fn taint_warning_report_for_module_function<
         registry,
         TaintSourceContext::for_module_function(registry, module, fu),
         shadowed_builtins,
-        module_traces,
-        crate::realm::CommandBindingRealm::none(),
-        Some(module),
+        (
+            module_traces,
+            crate::realm::CommandBindingRealm::none(),
+            Some(module),
+        ),
     )
 }
 
@@ -5044,9 +5044,7 @@ fn find_taint_warnings_for_function_with_identities<
         registry,
         source,
         shadowed_builtins,
-        module_traces,
-        identities,
-        None,
+        (module_traces, identities, None),
     )
     .warnings
 }
@@ -5062,9 +5060,11 @@ fn taint_warning_report_for_function_with_identities<
     registry: &CommandRegistry,
     source: TaintSourceContext<'_>,
     shadowed_builtins: &HashSet<String, H>,
-    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
-    identities: &crate::realm::CommandBindingRealm,
-    original_module: Option<&crate::ir::Module>,
+    (module_traces, identities, original_module): (
+        crate::compilation_unit::ModuleTraceFacts<'_>,
+        &crate::realm::CommandBindingRealm,
+        Option<&crate::ir::Module>,
+    ),
 ) -> TaintWarningReport {
     taint_warning_report_impl(
         &fu.cfg,

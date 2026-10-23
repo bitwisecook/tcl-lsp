@@ -315,7 +315,7 @@ impl DirectProcDecline {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectProcDecision {
     /// A target-neutral direct call is authorised.
-    Selected(DirectProcEvidence),
+    Selected(Box<DirectProcEvidence>),
     /// The generic Tcl invocation remains required.
     Declined(DirectProcDecline),
 }
@@ -406,7 +406,7 @@ pub enum SemanticCallDecline {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SemanticCallDecision {
     /// Common analysis proved registry semantics and live binding identity.
-    Selected(SemanticCallEvidence),
+    Selected(Box<SemanticCallEvidence>),
     /// The call remains a general Tcl boundary.
     Declined(SemanticCallDecline),
 }
@@ -1400,7 +1400,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
             arguments.push(SemanticCallArgument::Value { outer_argument });
         }
     }
-    SemanticCallDecision::Selected(SemanticCallEvidence {
+    SemanticCallDecision::Selected(Box::new(SemanticCallEvidence {
         operation: facts.operation,
         form: facts.form.clone().map(SemanticFormIdentity),
         context: input.context,
@@ -1412,7 +1412,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         dispatch_dependencies: facts.dispatch_dependencies,
         traits: facts.traits,
         arguments,
-    })
+    }))
 }
 
 fn command_has_execution_trace(
@@ -1922,7 +1922,7 @@ fn select_direct_evidence(
     let body = direct_body_decision(input, formals);
     let frame_elidable =
         matches!(body, DirectProcBodyDecision::Selected(_)) && summary.safe_for_frame_elision();
-    DirectProcDecision::Selected(DirectProcEvidence {
+    DirectProcDecision::Selected(Box::new(DirectProcEvidence {
         callee: ProcedureIdentity {
             id: input.callee_id,
             qualified_name: input.callee_name.to_owned(),
@@ -1945,7 +1945,7 @@ fn select_direct_evidence(
         body,
         frame_escape_private: summary.safe_for_frame_elision(),
         frame_elidable,
-    })
+    }))
 }
 
 fn direct_formal_bindings(
@@ -3931,14 +3931,17 @@ mod tests {
         assert!(matches!(direct.body, DirectProcBodyDecision::Selected(_)));
         assert!(plan.semantic_calls().any(|(_, decision)| matches!(
             decision,
-            SemanticCallDecision::Selected(SemanticCallEvidence {
-                operation: SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite),
-                arguments,
-                ..
-            }) if matches!(
-                arguments.as_slice(),
-                [SemanticCallArgument::NestedDirect { outer_argument: 0, call }]
-                    if call == direct_site
+            SemanticCallDecision::Selected(evidence) if matches!(
+                evidence.as_ref(),
+                SemanticCallEvidence {
+                    operation: SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite),
+                    arguments,
+                    ..
+                } if matches!(
+                    arguments.as_slice(),
+                    [SemanticCallArgument::NestedDirect { outer_argument: 0, call }]
+                        if call == direct_site
+                )
             )
         )));
     }
@@ -3951,13 +3954,16 @@ mod tests {
         assert!(plan.direct_calls().any(|(_, decision)| {
             matches!(
                 decision,
-                DirectProcDecision::Selected(DirectProcEvidence {
-                    body: DirectProcBodyDecision::Declined(
-                        DirectProcBodyDecline::FrameElisionPassDisabled
-                    ),
-                    frame_elidable: false,
-                    ..
-                })
+                DirectProcDecision::Selected(evidence) if matches!(
+                    evidence.as_ref(),
+                    DirectProcEvidence {
+                        body: DirectProcBodyDecision::Declined(
+                            DirectProcBodyDecline::FrameElisionPassDisabled
+                        ),
+                        frame_elidable: false,
+                        ..
+                    }
+                )
             )
         }));
     }
@@ -4022,12 +4028,15 @@ mod tests {
         assert!(
             proof.direct_calls().any(|(_, decision)| matches!(
                 decision,
-                DirectProcDecision::Selected(DirectProcEvidence {
-                    body: DirectProcBodyDecision::Declined(
-                        DirectProcBodyDecline::InternalDispatchUntrusted { .. }
-                    ),
-                    ..
-                })
+                DirectProcDecision::Selected(evidence) if matches!(
+                    evidence.as_ref(),
+                    DirectProcEvidence {
+                        body: DirectProcBodyDecision::Declined(
+                            DirectProcBodyDecline::InternalDispatchUntrusted { .. }
+                        ),
+                        ..
+                    }
+                )
             )),
             "{proof:#?}"
         );

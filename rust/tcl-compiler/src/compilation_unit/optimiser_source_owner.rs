@@ -378,9 +378,7 @@ impl OriginalOptimiserSourceOrigin {
                     },
                     None,
                     None,
-                    None,
-                    None,
-                    None,
+                    (None, None, None),
                 )
             }
             OriginalSourceBuildIngress::RetainedEntry => {
