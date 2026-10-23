@@ -3289,9 +3289,21 @@ impl Interp {
     /// chooses the store in production: the generation the interpreter is
     /// pinned to.
     fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        let c_lookup = matches!(
+            self.namespaces.borrow().variable_name_protocol,
+            Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+        );
         for name in registry.command_names() {
             let Some(spec) = registry.get_exact(name) else {
                 continue;
+            };
+            let early_generation = if c_lookup {
+                let Some(generation) = self.shipped_builtin_generation(spec.name.as_bytes()) else {
+                    continue;
+                };
+                Some(generation)
+            } else {
+                None
             };
             let identities: std::collections::BTreeSet<GuardIdentity> = spec
                 .intrinsic_ids()
@@ -3305,7 +3317,9 @@ impl Interp {
             if identities.is_empty() {
                 continue;
             }
-            let Some(generation) = self.shipped_builtin_generation(spec.name.as_bytes()) else {
+            let Some(generation) =
+                early_generation.or_else(|| self.shipped_builtin_generation(spec.name.as_bytes()))
+            else {
                 continue;
             };
             self.attest(generation, None, identities);
