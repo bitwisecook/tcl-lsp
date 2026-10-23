@@ -958,6 +958,69 @@ fn unresolved_class_relation_row(class: &str, written: &str) -> String {
     format!("@unresolvedclass@{class} {written}")
 }
 
+struct ClassLinearisationMaps {
+    mro_map: HashMap<String, Vec<String>>,
+    errors: Vec<String>,
+    spine_map: HashMap<String, Vec<String>>,
+}
+
+fn build_class_linearisation_maps(
+    classes: &HashMap<String, ClassDef>,
+    supers_map: &HashMap<String, Vec<String>>,
+    mixins_map: &HashMap<String, Vec<String>>,
+) -> ClassLinearisationMaps {
+    // Compute MRO for every class. `build_mro_map` walks `supers_map.keys()`
+    // only; classes that appear as parents but aren't in the index get a
+    // single-element MRO when queried directly.
+    let (mro_map_raw, errors_pass1) = build_mro_map(supers_map, mixins_map);
+    let mut mro_map: HashMap<String, Vec<String>> = mro_map_raw;
+    let mut errors = errors_pass1;
+    for qname in classes.keys() {
+        if has_relation_cycle(qname, supers_map, mixins_map) {
+            let error = format!("cycle detected in class relation hierarchy for {qname}");
+            if !errors.contains(&error) {
+                errors.push(error);
+            }
+        }
+    }
+    for qname in classes.keys() {
+        if !mro_map.contains_key(qname) {
+            mro_map.insert(qname.clone(), vec![qname.clone()]);
+        }
+    }
+    // Re-run linearise for classes that got the backfilled self-only MRO;
+    // build_mro_map may have stopped at a cycle before visiting them.
+    for qname in classes.keys() {
+        if mro_map[qname] == vec![qname.clone()] && !classes[qname].superclasses.is_empty() {
+            match tcloo_linearise(qname, supers_map, mixins_map) {
+                Ok(mro) => {
+                    mro_map.insert(qname.clone(), mro);
+                }
+                Err(e) => {
+                    if !errors.iter().any(|s| s == &e.message) {
+                        errors.push(e.message);
+                    }
+                }
+            }
+        }
+    }
+
+    // The mixin-free spine uses the same resolved superclasses, with only
+    // mixin edges withheld, and is backfilled so every indexed class exists.
+    let no_mixins: HashMap<String, Vec<String>> = HashMap::new();
+    let (mut spine_map, _spine_errors) = build_mro_map(supers_map, &no_mixins);
+    for qname in classes.keys() {
+        if !spine_map.contains_key(qname) {
+            spine_map.insert(qname.clone(), vec![qname.clone()]);
+        }
+    }
+    ClassLinearisationMaps {
+        mro_map,
+        errors,
+        spine_map,
+    }
+}
+
 /// Build the supers/mixins maps used by the MRO algorithm.
 fn build_supers_mixins_maps(
     classes: &HashMap<String, ClassDef>,
@@ -1109,62 +1172,11 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
         }
     }
 
-    // Compute MRO for every class.  ``build_mro_map`` walks
-    // ``supers_map.keys()`` only; classes that appear as parents
-    // but aren't in the index get a single-element MRO when
-    // queried via ``tcloo_linearise`` directly — for our
-    // ``classes``-only walk that's fine.
-    let (mro_map_raw, errors_pass1) = build_mro_map(&supers_map, &mixins_map);
-
-    // Backfill: classes whose MRO landed in errors get a
-    // single-element chain (themselves only) so downstream
-    // lookups don't return ``None``.
-    let mut mro_map: HashMap<String, Vec<String>> = mro_map_raw;
-    let mut errors = errors_pass1;
-    for qname in classes.keys() {
-        if has_relation_cycle(qname, &supers_map, &mixins_map) {
-            let error = format!("cycle detected in class relation hierarchy for {qname}");
-            if !errors.contains(&error) {
-                errors.push(error);
-            }
-        }
-    }
-    for qname in classes.keys() {
-        if !mro_map.contains_key(qname) {
-            mro_map.insert(qname.clone(), vec![qname.clone()]);
-        }
-    }
-    // Also include single-pass-fail classes: re-run linearise
-    // for any class missing a successful MRO entry above; this
-    // catches the case where ``build_mro_map`` short-circuited
-    // the iteration on a cycle and never visited some classes.
-    for qname in classes.keys() {
-        if mro_map[qname] == vec![qname.clone()] && !classes[qname].superclasses.is_empty() {
-            // Try a fresh linearise; if it still errors, leave
-            // the single-element MRO and record the error.
-            match tcloo_linearise(qname, &supers_map, &mixins_map) {
-                Ok(mro) => {
-                    mro_map.insert(qname.clone(), mro);
-                }
-                Err(e) => {
-                    if !errors.iter().any(|s| s == &e.message) {
-                        errors.push(e.message);
-                    }
-                }
-            }
-        }
-    }
-
-    // The mixin-free spine, from the same resolved `supers_map` and the same
-    // linearisation owner — only the mixin edges are withheld.  Backfilled
-    // identically, so every indexed class has an entry.
-    let no_mixins: HashMap<String, Vec<String>> = HashMap::new();
-    let (mut spine_map, _spine_errors) = build_mro_map(&supers_map, &no_mixins);
-    for qname in classes.keys() {
-        if !spine_map.contains_key(qname) {
-            spine_map.insert(qname.clone(), vec![qname.clone()]);
-        }
-    }
+    let ClassLinearisationMaps {
+        mro_map,
+        errors,
+        spine_map,
+    } = build_class_linearisation_maps(&classes, &supers_map, &mixins_map);
 
     // Build direct-subclass map.  Initialise with empty sets
     // for every class so callers see a non-None entry even when

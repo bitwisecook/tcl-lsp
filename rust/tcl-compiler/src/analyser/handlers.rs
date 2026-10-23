@@ -804,6 +804,33 @@ fn static_variables(
         .collect()
 }
 
+struct ApplyLambdaSourceFacts {
+    body_ns: String,
+    original_namespace: Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterSourceDomain>>,
+    )>,
+    logical_formals: Option<(Vec<ParamDef>, Vec<Span>)>,
+    logical_namespace_source:
+        Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterLambdaBody>>,
+}
+
+struct ApplyLambdaBody {
+    params: Vec<ParamDef>,
+    original_param_spans: Option<Vec<Span>>,
+    params_tok: Token,
+    body_text: std::sync::Arc<str>,
+    body_tok: Token,
+    body_ns: String,
+    scope_name: String,
+    original_namespace: Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterSourceDomain>>,
+    )>,
+    logical_namespace_source:
+        Option<std::sync::Arc<super::interp_visibility::OriginalInterpreterLambdaBody>>,
+}
+
 impl Analyser {
     /// Bind the variable a direct one-target write names to the value word
     /// it stores — `set name value` — for any invocation whose declared
@@ -910,49 +937,7 @@ impl Analyser {
                     .flatten()
             })
         {
-            // `set VAR [interp create ?-safe? ?--? ?path?]` — bind VAR, in
-            // this scope, to the interpreter-domain key this call records.
-            // The substitution is read as a call and resolved like any
-            // other, so what it creates is its
-            // `InterpreterTransition::Create`, never its spelling. Mirrors
-            // `record_instance_creation`'s TclOO `set g [Foo new]` value-flow
-            // shape, but scope-chain-aware like `const_strings` rather than
-            // flat like `instance_classes` — see `interp_var_bindings`'s doc
-            // for why.
-            self.clear_const_string(name, scope_path);
-            match path {
-                Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
-                    // A dynamic path argument (not just a missing one) —
-                    // mirrors `handle_interp_create_command`'s own handling
-                    // of the identical shape: existence becomes unknowable
-                    // file-wide, nothing recorded.
-                    self.dynamic_interp_ops = true;
-                    self.clear_interp_var_binding(name, scope_path);
-                }
-                path => {
-                    // A literal path resolves to its qualified key; a missing
-                    // path (Tcl auto-generates a fresh, always-unique name)
-                    // gets a synthetic per-call-site key — mirrors
-                    // `handle_namespace_eval_command`'s `@dynns@<offset>`
-                    // pattern — so two unrelated `set VAR [interp create
-                    // -safe]` call sites never collide just because they
-                    // wrote the same variable name.
-                    let key = match path {
-                        Some(tcl_registry::TransitionSubject::Literal(p)) => {
-                            self.qualified_interp_key(&p)
-                        }
-                        _ => self.mint_synthetic_offset_name("@autoname@", value_tok.span.start()),
-                    };
-                    self.interpreters.insert(
-                        key.clone(),
-                        super::state::InterpState {
-                            safe,
-                            ..Default::default()
-                        },
-                    );
-                    self.set_original_logical_interp_var_binding(name, key, value_tok, scope_path);
-                }
-            }
+            self.bind_created_interpreter_value(path, safe, name, value_tok, scope_path);
         } else if single
             && value_tok.kind == TokenType::Cmd
             && let Some(folded) =
@@ -969,6 +954,41 @@ impl Analyser {
         } else {
             self.clear_const_string(name, scope_path);
             self.clear_interp_var_binding(name, scope_path);
+        }
+    }
+
+    fn bind_created_interpreter_value(
+        &mut self,
+        path: Option<tcl_registry::TransitionSubject>,
+        safe: bool,
+        name: &str,
+        value_tok: Token,
+        scope_path: &[usize],
+    ) {
+        // The substitution's registry transition, not its spelling, names the
+        // created interpreter. Keep the variable binding in the scope chain.
+        self.clear_const_string(name, scope_path);
+        match path {
+            Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
+                self.dynamic_interp_ops = true;
+                self.clear_interp_var_binding(name, scope_path);
+            }
+            path => {
+                let key = match path {
+                    Some(tcl_registry::TransitionSubject::Literal(p)) => {
+                        self.qualified_interp_key(&p)
+                    }
+                    _ => self.mint_synthetic_offset_name("@autoname@", value_tok.span.start()),
+                };
+                self.interpreters.insert(
+                    key.clone(),
+                    super::state::InterpState {
+                        safe,
+                        ..Default::default()
+                    },
+                );
+                self.set_original_logical_interp_var_binding(name, key, value_tok, scope_path);
+            }
         }
     }
 
@@ -3356,22 +3376,11 @@ impl Analyser {
                 return true;
             }
         }
-        // A lambda needs at least a parameter list and a body.
-        if elements.len() < 2 {
+        let Some((params_tok, body_tok)) = self.apply_lambda_body_tokens(&elements) else {
             return true;
-        }
-        let (params_tok, params_text) = (elements[0].0, elements[0].1.as_str());
-        let (body_tok, body_text) = (elements[1].0, elements[1].1.as_str());
-
-        // The body must itself be a braced literal to walk statically (matching
-        // `analyse_body`'s own `TokenType::Str` guard); a bare / substituted
-        // body is left un-analysed, identically on the inline and per-item
-        // paths so the two never diverge.
-        if body_tok.kind != TokenType::Str
-            || self.source.as_bytes().get(body_tok.span.start() as usize) != Some(&b'{')
-        {
-            return true;
-        }
+        };
+        let params_text = elements[0].1.as_str();
+        let body_text = elements[1].1.as_str();
 
         // `apply` runs the lambda body in the namespace named by lambda element
         // 2, or the *global* namespace when it is absent — never the caller's
@@ -3389,6 +3398,60 @@ impl Analyser {
             }
             _ => "::".to_string(),
         };
+        let source_facts = self.resolve_apply_lambda_source_facts(
+            &elements, arg_tokens, original, body_tok, params_tok, body_ns,
+        );
+        let ApplyLambdaSourceFacts {
+            body_ns,
+            original_namespace,
+            logical_formals,
+            logical_namespace_source,
+        } = source_facts;
+        let (params, original_param_spans) = match logical_formals {
+            Some((parameters, spans)) => (parameters, Some(spans)),
+            None => (parse_param_list(params_text, self.word_rules()), None),
+        };
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
+        // Anonymous, but keyed by source position so two lambdas never collide
+        // in `all_variables` (keyed `"<scope_name>::<var>"`).
+        let scope_name = format!("apply@{}", arg_tokens[0].span.start());
+
+        self.finish_apply_lambda_body(ApplyLambdaBody {
+            params,
+            original_param_spans,
+            params_tok,
+            body_text,
+            body_tok,
+            body_ns,
+            scope_name,
+            original_namespace,
+            logical_namespace_source,
+        })
+    }
+
+    fn apply_lambda_body_tokens(&self, elements: &[(Token, String)]) -> Option<(Token, Token)> {
+        if elements.len() < 2 {
+            return None;
+        }
+        let params_tok = elements[0].0;
+        let body_tok = elements[1].0;
+        if body_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(body_tok.span.start() as usize) != Some(&b'{')
+        {
+            return None;
+        }
+        Some((params_tok, body_tok))
+    }
+
+    fn resolve_apply_lambda_source_facts(
+        &mut self,
+        elements: &[(Token, String)],
+        arg_tokens: &[Token],
+        original: Option<super::interp_visibility::OriginalInterpreterLambdaBody>,
+        body_tok: Token,
+        params_tok: Token,
+        body_ns: String,
+    ) -> ApplyLambdaSourceFacts {
         let original_namespace = original.as_ref().and_then(|original| {
             original.for_body_token(&self.source, &self.resolved_analysis_input(), body_tok)
         });
@@ -3405,7 +3468,7 @@ impl Analyser {
                         formals
                             .parameters()
                             .iter()
-                            .map(|parameter| crate::signature_scan::types::ParamDef {
+                            .map(|parameter| ParamDef {
                                 name: parameter.name.clone(),
                                 has_default: parameter.default.is_some(),
                                 default_value: parameter.default.clone(),
@@ -3449,7 +3512,7 @@ impl Analyser {
                     ));
             }
         } else {
-            self.record_apply_namespace_reference(&elements, &body_ns, arg_tokens);
+            self.record_apply_namespace_reference(elements, &body_ns, arg_tokens);
         }
         let logical_namespace_source = original
             .filter(|original| {
@@ -3465,32 +3528,31 @@ impl Analyser {
                 )
             })
             .unwrap_or(body_ns);
+        ApplyLambdaSourceFacts {
+            body_ns,
+            original_namespace,
+            logical_formals,
+            logical_namespace_source,
+        }
+    }
 
-        let (params, original_param_spans) = match logical_formals {
-            Some((parameters, spans)) => (parameters, Some(spans)),
-            None => (parse_param_list(params_text, self.word_rules()), None),
-        };
-        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
+    fn finish_apply_lambda_body(&mut self, apply: ApplyLambdaBody) -> bool {
+        let ApplyLambdaBody {
+            params,
+            original_param_spans,
+            params_tok,
+            body_text,
+            body_tok,
+            body_ns,
+            scope_name,
+            original_namespace,
+            logical_namespace_source,
+        } = apply;
         let body_span = body_tok.span;
-        // Anonymous, but keyed by source position so two lambdas never collide
-        // in `all_variables` (keyed `"<scope_name>::<var>"`).
-        let scope_name = format!("apply@{}", arg_tokens[0].span.start());
-
-        // Record the namespace override for `tcl-lsp-core`'s command-
-        // resolution lookups: the `Scope` subtree
-        // rooted below, via `reconstruct_proc_scope`, sits under fresh
-        // `body_span`-less namespace wrapper nodes the ordinary lexical
-        // span-containment walk can never reach — `namespace_overrides` is
-        // a separate, flat, span-keyed fast path consulted ahead of that
-        // walk. Pushed once regardless of the inline/deferred split below.
+        // Record the namespace override for command-resolution lookups.
         self.result
             .namespace_overrides
             .push((body_span, body_ns.clone()));
-
-        // Root the lambda scope at `body_ns` under the global scope — NOT under
-        // the caller — via the same `reconstruct_proc_scope` the per-item path
-        // uses, so the inline (full) and per-item (incremental) walks build
-        // byte-identical structure and nested definitions resolve to `body_ns`.
         let child_path = super::per_item::reconstruct_proc_scope(
             &mut self.result.global_scope,
             &body_ns,
@@ -3507,10 +3569,6 @@ impl Analyser {
                 scope.original_logical_lambda_namespace = logical_namespace_source;
             }
         }
-
-        // Parameters become locals, each anchored to its name in the param-list
-        // literal so go-to-definition / references / rename on a
-        // formal resolve to the parameter, not the `apply` call.
         let param_spans = original_param_spans
             .unwrap_or_else(|| param_name_spans_for_token(&self.source, params_tok));
         for (i, p) in params.iter().enumerate() {
@@ -3523,9 +3581,6 @@ impl Analyser {
             );
         }
         self.emit_w218_args_not_final(&params, &param_spans, params_tok);
-
-        // Save / restore last_comment around the body walk, as `proc` does, so a
-        // doc-comment inside the lambda body doesn't bleed to what follows.
         let saved_comment = std::mem::take(&mut self.last_comment);
         if self.defer_proc_bodies {
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
@@ -3540,8 +3595,6 @@ impl Analyser {
                 scope_name,
                 params,
                 seeded_variables: Vec::new(),
-                // Attached later by `fill_deferred_bodies` for bodies with a
-                // fold candidate.
                 command_trust: None,
                 ensemble_targets: Vec::new(),
                 prefixless_ensembles: Vec::new(),
@@ -7552,7 +7605,16 @@ impl Analyser {
                 && expressions == expected_expressions)
                 .then_some(clauses)
         })??;
-        let bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+        let branches = Self::original_if_body_branches(&words, clauses, &context)?;
+        self.resolve_possible_if_branches(seg, &branches)
+    }
+
+    fn original_if_body_branches(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        clauses: Vec<(Option<usize>, usize)>,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Vec<(Option<usize>, Span)>> {
+        let bodies = words.source_script_bodies_for_mutation_coverage(context)?;
         if bodies.len() != clauses.len() {
             return None;
         }
@@ -7570,7 +7632,15 @@ impl Analyser {
             }
             branches.push((condition, body.extent_span()));
         }
-        for &(condition, body) in &branches {
+        Some(branches)
+    }
+
+    fn resolve_possible_if_branches(
+        &self,
+        seg: &SegmentedCommand,
+        branches: &[(Option<usize>, Span)],
+    ) -> Option<(Vec<Span>, bool)> {
+        for &(condition, body) in branches {
             match condition {
                 None => return Some((vec![body], false)),
                 Some(condition) => {

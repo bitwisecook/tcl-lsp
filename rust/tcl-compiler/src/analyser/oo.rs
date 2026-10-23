@@ -2030,17 +2030,29 @@ impl Analyser {
                 .unwrap_or_else(|| Span::new(body_start, body_start));
             self.define_var(base, mb.body_tok, &method_path, false, Some(def_span));
         }
+        self.finish_method_body_walk(
+            class_variables,
+            mb,
+            scope_path,
+            method_path,
+            method_qn,
+            (oo_defining_class, oo_global_resolution),
+        );
+    }
+
+    fn finish_method_body_walk(
+        &mut self,
+        class_variables: &[String],
+        mb: &CollectedMethodBody,
+        scope_path: &[usize],
+        method_path: Vec<usize>,
+        method_qn: String,
+        (oo_defining_class, oo_global_resolution): (Option<String>, bool),
+    ) {
         // Per-item shell pass: defer the method body for an isolated pass like
-        // `handle_proc_command`.  Carry the method's qualified name as
-        // `scope_name` (so the duplicate detector keys each method distinctly),
-        // the class's *defining* namespace (so command/var resolution in the
-        // isolated `Method` scope matches the whole-file walk), the formal
-        // params, and the class instance variables (pre-bound in every method).
+        // `handle_proc_command`. Carry the qualified name, defining namespace,
+        // formal parameters, and pre-bound class instance variables.
         if self.defer_proc_bodies {
-            // Same rule `handle_proc_command` records for a deferred proc body:
-            // the command-resolution namespace, so the isolated per-item rebuild
-            // and the whole-file walk agree even when the class definer ran
-            // inside a qualified-name proc.
             let namespace = self.command_resolution_namespace(scope_path);
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
@@ -2053,12 +2065,9 @@ impl Analyser {
                 namespace,
                 scope_name: method_qn,
                 params: mb.params.clone(),
-                // The shell walk above already seeded these with their real
-                // declaration spans; the graft keeps the shell's span, so
-                // the deferred body pass only needs the names.
+                // The shell walk already seeded real declaration spans; the
+                // graft retains them, so this pass needs only variable names.
                 seeded_variables: class_variables.to_vec(),
-                // Attached later by `fill_deferred_bodies` for bodies with a
-                // fold candidate.
                 command_trust: None,
                 ensemble_targets: Vec::new(),
                 prefixless_ensembles: Vec::new(),
@@ -3435,6 +3444,18 @@ fn walk_unknown_stmt(
     if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
         return;
     }
+    update_unknown_statement_facts(stmt, script, context, metadata, first_param, info);
+    walk_unknown_stmt_children(stmt, context, metadata, first_param, info, depth);
+}
+
+fn update_unknown_statement_facts(
+    stmt: &Statement,
+    script: &crate::ir::Script,
+    context: &tcl_registry::model::ContextRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    first_param: &str,
+    info: &mut UnknownProcInfo,
+) {
     // Select the purpose only after this original carrier agrees with the
     // complete supplied source owner. Availability-only metadata cannot turn
     // an original Logical carrier into the Native route.
@@ -3487,71 +3508,90 @@ fn walk_unknown_stmt(
         }
         info.case_body_residuals.push(case.body_operands().clone());
     }
+    if matches!(
+        stmt,
+        Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. }
+    ) {
+        record_unknown_invocation_facts(stmt, script, context, source_metadata, info);
+    }
+}
+
+fn record_unknown_invocation_facts(
+    stmt: &Statement,
+    script: &crate::ir::Script,
+    context: &tcl_registry::model::ContextRegistry,
+    source_metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    info: &mut UnknownProcInfo,
+) {
+    // naming.compiler.original-unknown-handler-source-context
+
+    // Logical advice selects the exact operation; Native still needs its
+    // independent proved target.
+    let invocation = source_metadata.and_then(|metadata| {
+        if script
+            .retained_source_tokens_for_statement(stmt)?
+            .source_binding
+            .as_ref()?
+            .original_invocation_source_purpose(
+                script.retained_source_tokens_for_statement(stmt)?,
+                metadata,
+                context.commands(),
+            )?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+        {
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                context.commands(),
+                metadata,
+                stmt.tokens()?,
+            )
+        } else {
+            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                context.commands(),
+                Some(metadata),
+                stmt,
+            )
+        }
+    });
+    if let Some(invocation) = invocation {
+        info.chains_original |= chains_original_unknown(&invocation.facts);
+        info.has_exec |= spawns_process(&invocation.facts);
+        info.has_auto_load |= loads_external_unit(&invocation.facts);
+    }
+}
+
+fn walk_unknown_stmt_children(
+    stmt: &Statement,
+    context: &tcl_registry::model::ContextRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    first_param: &str,
+    info: &mut UnknownProcInfo,
+    depth: u32,
+) {
     match stmt {
         Statement::Switch { arms, .. } => {
             // Recurse into arm bodies (a switch arm may contain
             // an exec or auto_load that should still register).
             for arm in arms {
                 if let Some(body) = &arm.body {
-                    for inner in &body.statements {
-                        walk_unknown_stmt(
-                            inner,
-                            body,
-                            context,
-                            metadata,
-                            first_param,
-                            info,
-                            depth + 1,
-                        );
-                    }
+                    walk_unknown_script(body, context, metadata, first_param, info, depth + 1);
                 }
-            }
-        }
-        Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
-            // naming.compiler.original-unknown-handler-source-context
-
-            // Logical source advice describes the exact selected operation;
-            // Native execution still needs its independent proved target.
-            let invocation = source_metadata.and_then(|metadata| {
-                if script.retained_source_tokens_for_statement(stmt)?
-            .source_binding.as_ref()?.original_invocation_source_purpose(
-                script.retained_source_tokens_for_statement(stmt)?, metadata, context.commands(),
-            )? == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
-                    crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-                        context.commands(), metadata, stmt.tokens()?,
-                    )
-                } else {
-                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-                        context.commands(), Some(metadata), stmt,
-                    )
-                }
-            });
-            if let Some(invocation) = invocation {
-                info.chains_original |= chains_original_unknown(&invocation.facts);
-                info.has_exec |= spawns_process(&invocation.facts);
-                info.has_auto_load |= loads_external_unit(&invocation.facts);
             }
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for clause in clauses {
-                for inner in &clause.body.statements {
-                    walk_unknown_stmt(
-                        inner,
-                        &clause.body,
-                        context,
-                        metadata,
-                        first_param,
-                        info,
-                        depth + 1,
-                    );
-                }
+                walk_unknown_script(
+                    &clause.body,
+                    context,
+                    metadata,
+                    first_param,
+                    info,
+                    depth + 1,
+                );
             }
             if let Some(body) = else_body {
-                for inner in &body.statements {
-                    walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
-                }
+                walk_unknown_script(body, context, metadata, first_param, info, depth + 1);
             }
         }
         Statement::For { body, .. }
@@ -3560,9 +3600,7 @@ fn walk_unknown_stmt(
         | Statement::Catch { body, .. }
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => {
-            for inner in &body.statements {
-                walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
-            }
+            walk_unknown_script(body, context, metadata, first_param, info, depth + 1);
         }
         Statement::Try {
             body,
@@ -3570,26 +3608,19 @@ fn walk_unknown_stmt(
             finally_body,
             ..
         } => {
-            for inner in &body.statements {
-                walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
-            }
+            walk_unknown_script(body, context, metadata, first_param, info, depth + 1);
             for handler in handlers {
-                for inner in &handler.body.statements {
-                    walk_unknown_stmt(
-                        inner,
-                        &handler.body,
-                        context,
-                        metadata,
-                        first_param,
-                        info,
-                        depth + 1,
-                    );
-                }
+                walk_unknown_script(
+                    &handler.body,
+                    context,
+                    metadata,
+                    first_param,
+                    info,
+                    depth + 1,
+                );
             }
             if let Some(body) = finally_body {
-                for inner in &body.statements {
-                    walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
-                }
+                walk_unknown_script(body, context, metadata, first_param, info, depth + 1);
             }
         }
         Statement::AssignConst { .. }
@@ -3597,7 +3628,23 @@ fn walk_unknown_stmt(
         | Statement::AssignValue { .. }
         | Statement::Incr { .. }
         | Statement::ExprEval { .. }
+        | Statement::Call { .. }
+        | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Return { .. } => {}
+    }
+}
+
+fn walk_unknown_script(
+    script: &crate::ir::Script,
+    context: &tcl_registry::model::ContextRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    first_param: &str,
+    info: &mut UnknownProcInfo,
+    depth: u32,
+) {
+    for stmt in &script.statements {
+        walk_unknown_stmt(stmt, script, context, metadata, first_param, info, depth);
     }
 }
 

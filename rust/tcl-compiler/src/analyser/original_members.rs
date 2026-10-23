@@ -1157,37 +1157,12 @@ impl Producer<'_> {
             self.name_purpose,
         )?
         .with_source_installer(self.source_installer.clone())?;
-        let delegate = self
-            .grammar
-            .native_classmethod_declaration(member, self.dialect.surface);
-        // A Registry type-object method (snit `typemethod`) lives in the class
-        // object's own table, as the class model's `class_methods` files it,
-        // because the type command's two-word form dispatches it. An Itcl
-        // class-scoped `proc` is not two-word dispatchable: `Class name` always
-        // constructs (`DefinitionBodyGrammar::conditional_construction_name_at`)
-        // and the proc is reached only as `Class::proc`
-        // (`OriginalSourceClassProcCall`), so it stays out of that table.
-        let type_object_method = self.grammar.family != DefinerFamily::Itcl
-            && matches!(
-                member.effect,
-                tcl_registry::definer::MemberEffect::Callable {
-                    receiver: tcl_registry::definer::MemberReceiver::TypeObject,
-                    role: tcl_registry::definer::CallableRole::Method,
-                    ..
-                }
-            );
-        let side = if delegate || type_object_method {
-            MemberSide::ClassObject
-        } else {
-            side
-        };
-        let exported = member
-            .declared_visibility_for_in(args, self.dialect.surface)
-            .or(wrapper_visibility)
-            .map_or_else(
-                || self.grammar.member_default_exported_bytes(name.bytes()),
-                |visibility| visibility == DeclaredMemberVisibility::Public,
-            );
+        let flags = self.method_member_flags(member, args, name.bytes(), side, wrapper_visibility);
+        let MemberFlags {
+            side,
+            exported,
+            delegate,
+        } = flags;
         if member
             .indices_for_call_in(args, self.dialect.surface, ArgRole::Body)
             .next()
@@ -1204,16 +1179,7 @@ impl Producer<'_> {
             forward_prefix,
             parameters,
             body,
-        } = self.method_parts(
-            member,
-            command,
-            &occurrence,
-            MemberFlags {
-                side,
-                exported,
-                delegate,
-            },
-        )?;
+        } = self.method_parts(member, command, &occurrence, flags)?;
         if delegate {
             // Registry owns the two products of classmethod: the class-side
             // delegate and the instance-side forward. Neither is a native
@@ -1246,6 +1212,47 @@ impl Producer<'_> {
             .with_definition_parent(self.class_relation_body)?,
         );
         Some(())
+    }
+
+    fn method_member_flags(
+        &self,
+        member: &MemberSpec,
+        args: &[String],
+        name_bytes: &[u8],
+        side: MemberSide,
+        wrapper_visibility: Option<DeclaredMemberVisibility>,
+    ) -> MemberFlags {
+        let delegate = self
+            .grammar
+            .native_classmethod_declaration(member, self.dialect.surface);
+        // Registry type-object methods live in the class object's own table.
+        // Itcl class-scoped procs remain reachable only through `Class::proc`.
+        let type_object_method = self.grammar.family != DefinerFamily::Itcl
+            && matches!(
+                member.effect,
+                tcl_registry::definer::MemberEffect::Callable {
+                    receiver: tcl_registry::definer::MemberReceiver::TypeObject,
+                    role: tcl_registry::definer::CallableRole::Method,
+                    ..
+                }
+            );
+        let side = if delegate || type_object_method {
+            MemberSide::ClassObject
+        } else {
+            side
+        };
+        let exported = member
+            .declared_visibility_for_in(args, self.dialect.surface)
+            .or(wrapper_visibility)
+            .map_or_else(
+                || self.grammar.member_default_exported_bytes(name_bytes),
+                |visibility| visibility == DeclaredMemberVisibility::Public,
+            );
+        MemberFlags {
+            side,
+            exported,
+            delegate,
+        }
     }
 
     fn member_formal_count(

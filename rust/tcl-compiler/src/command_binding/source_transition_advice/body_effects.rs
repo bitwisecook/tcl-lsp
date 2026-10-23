@@ -946,19 +946,7 @@ impl BodyWalk<'_, '_> {
                 .dialect
                 .expression_parse_context(self.context.context.commands().profile());
             context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
-            let substitutions = match self.context.policy {
-                AdviceNamingPolicy::Logical(input) if input.has_logical_source_name_context() => {
-                    tcl_syntax::expr::checked_source_expression_substitutions(source, &context)
-                }
-                AdviceNamingPolicy::Logical(_) => None,
-                AdviceNamingPolicy::Native(_) => {
-                    if graph.c_source_namespace.is_some() && !graph.native_baseline {
-                        tcl_syntax::expr::checked_source_expression_substitutions(source, &context)
-                    } else {
-                        tcl_syntax::expr::checked_expression_substitutions(source, &context)
-                    }
-                }
-            };
+            let substitutions = self.checked_body_expression_substitutions(graph, source, &context);
             let substitutions = substitutions?;
             // A condition of a selected first-match chain runs once, before any
             // clause body, so its command children are ordered by threading each
@@ -1023,6 +1011,27 @@ impl BodyWalk<'_, '_> {
             }
         }
         Some(())
+    }
+
+    fn checked_body_expression_substitutions(
+        &self,
+        graph: &AdviceGraph,
+        source: &str,
+        context: &tcl_syntax::expr::parser::ExprParseContext,
+    ) -> Option<tcl_syntax::expr::LiveExpressionSubstitutions> {
+        match self.context.policy {
+            AdviceNamingPolicy::Logical(input) if input.has_logical_source_name_context() => {
+                tcl_syntax::expr::checked_source_expression_substitutions(source, context)
+            }
+            AdviceNamingPolicy::Logical(_) => None,
+            AdviceNamingPolicy::Native(_) => {
+                if graph.c_source_namespace.is_some() && !graph.native_baseline {
+                    tcl_syntax::expr::checked_source_expression_substitutions(source, context)
+                } else {
+                    tcl_syntax::expr::checked_expression_substitutions(source, context)
+                }
+            }
+        }
     }
 
     fn script(&mut self, graph: &mut AdviceGraph, span: Span, depth: usize) -> Option<()> {
@@ -1092,28 +1101,7 @@ impl BodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         self.mark_child_header(native)?;
-        let syntax_body = self
-            .member_catalogue_body
-            .as_ref()
-            .map(|body| super::OriginalSourceCatalogueBody::Member(Arc::clone(body)))
-            .or_else(|| self.catalogue_body.clone())
-            .or_else(|| {
-                self.source_body
-                    .as_ref()
-                    .map(|body| super::OriginalSourceCatalogueBody::Script(Arc::clone(body)))
-            });
-        if let Some(body) = syntax_body {
-            let tape = self
-                .inventory
-                .as_mut()
-                .unwrap_or(&mut self.authored_prefixes);
-            tape.retain_logical_body_words(self.context, &native.words, body.clone());
-            tape.retain_logical_absolute_navigation(graph, &native.words, body);
-        }
-        if let (Some(tape), Some(scope)) = (&mut self.inventory, &self.logical_scope) {
-            tape.retain_logical_summary_scope(&native.words, scope);
-            tape.retain_logical_navigation(graph, &native.words, scope);
-        }
+        self.retain_original_body_word_syntax(graph, native);
         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
             && matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
             && self.context.retain_original_body_constructor_calls(
@@ -1215,9 +1203,48 @@ impl BodyWalk<'_, '_> {
             self.unavailable_lifecycle_effects = true;
             return Some(());
         }
+        self.finish_original_body_command(graph, native, invocation, &schema, depth)
+    }
+    fn retain_original_body_word_syntax(
+        &mut self,
+        graph: &AdviceGraph,
+        native: &NativeScriptCommandWords,
+    ) {
+        let syntax_body = self
+            .member_catalogue_body
+            .as_ref()
+            .map(|body| super::OriginalSourceCatalogueBody::Member(Arc::clone(body)))
+            .or_else(|| self.catalogue_body.clone())
+            .or_else(|| {
+                self.source_body
+                    .as_ref()
+                    .map(|body| super::OriginalSourceCatalogueBody::Script(Arc::clone(body)))
+            });
+        if let Some(body) = syntax_body {
+            let tape = self
+                .inventory
+                .as_mut()
+                .unwrap_or(&mut self.authored_prefixes);
+            tape.retain_logical_body_words(self.context, &native.words, body.clone());
+            tape.retain_logical_absolute_navigation(graph, &native.words, body);
+        }
+        if let (Some(tape), Some(scope)) = (&mut self.inventory, &self.logical_scope) {
+            tape.retain_logical_summary_scope(&native.words, scope);
+            tape.retain_logical_navigation(graph, &native.words, scope);
+        }
+    }
+
+    fn finish_original_body_command(
+        &mut self,
+        graph: &mut AdviceGraph,
+        native: &NativeScriptCommandWords,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        depth: usize,
+    ) -> Option<()> {
         let immediate = self
             .context
-            .authored_roles(&schema)
+            .authored_roles(schema)
             .0
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
@@ -1226,14 +1253,14 @@ impl BodyWalk<'_, '_> {
                 .traits
                 .contains(tcl_registry::Traits::DEFERS_BODY)
             && schema.authored_source_procedure_arguments().is_none();
-        let advice = boxed_body_advice(self.context, invocation, graph, &schema)?;
-        if self.expressions(graph, &advice, &schema, depth).is_none() {
+        let advice = boxed_body_advice(self.context, invocation, graph, schema)?;
+        if self.expressions(graph, &advice, schema, depth).is_none() {
             graph.widen(&native.words);
         }
         if !immediate {
-            self.member_catalogue_possible_bodies(graph, &advice, &schema, depth.checked_add(1)?);
+            self.member_catalogue_possible_bodies(graph, &advice, schema, depth.checked_add(1)?);
         } else if self
-            .regions(graph, &advice, &schema, depth.checked_add(1)?)
+            .regions(graph, &advice, schema, depth.checked_add(1)?)
             .is_none()
         {
             // A `TclOO` definition script runs in a new frame in its definer's
@@ -1425,6 +1452,97 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        self.retain_original_body_catalogues(graph, invocation, schema)?;
+        if let (Some(tape), None) = (&mut self.inventory, &self.source_body) {
+            // Immediate original operands use their root point, not a made-up
+            // body descriptor or a future frame's applicability.
+            if graph.blocks_registry_source(invocation.head) {
+                tape.registry_barriers
+                    .insert(invocation.native.first()?.span().start());
+                return Some(());
+            }
+            return self.context.retain_source_inventory(
+                tape,
+                invocation,
+                graph,
+                schema,
+                None,
+                self.logical_scope.as_ref().map_or(
+                    super::logical_navigation::LogicalCallbackScope::Unavailable,
+                    super::logical_navigation::LogicalCallbackScope::Declared,
+                ),
+            );
+        }
+        let retained_producer = if let Some(body) = &self.source_body {
+            let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+            Self::retain_source_body(self.context.policy, &mut advice, body);
+            if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+                advice.logical_scope.clone_from(&self.logical_scope);
+            }
+            Some(advice)
+        } else {
+            None
+        };
+        self.context.retain_authored_command_prefix(
+            &mut self.authored_prefixes,
+            invocation,
+            graph,
+            schema,
+            retained_producer.as_ref(),
+        );
+        let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body) else {
+            return Some(());
+        };
+        self.context
+            .retain_source_callback_targets(tape, invocation, graph, schema);
+        self.context.retain_logical_callback_candidates(
+            tape,
+            invocation,
+            graph,
+            schema,
+            self.logical_scope.as_ref().map_or(
+                super::logical_navigation::LogicalCallbackScope::Unavailable,
+                super::logical_navigation::LogicalCallbackScope::Declared,
+            ),
+        );
+        // naming.source.original-editor-body-structure
+
+        if graph.blocks_registry_source(invocation.head) {
+            tape.registry_barriers
+                .insert(invocation.native.first()?.span().start());
+            return Some(());
+        }
+        let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+        Self::retain_source_body(self.context.policy, &mut advice, body);
+        if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+            advice.logical_scope.clone_from(&self.logical_scope);
+        }
+        if let Some(previous) = tape.advice.get(&advice.site.offset) {
+            if previous != &advice {
+                tape.advice.remove(&advice.site.offset);
+                tape.registry_barriers.insert(advice.site.offset);
+                return Some(());
+            }
+        } else if tape.registry_barriers.contains(&advice.site.offset) {
+            return Some(());
+        }
+        self.context.retain_produced_command_prefixes(
+            tape,
+            invocation,
+            graph,
+            schema,
+            Some(&advice),
+        );
+        tape.advice.insert(advice.site.offset, advice);
+        Some(())
+    }
+
+    fn retain_original_body_catalogues(
+        &mut self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> Option<()> {
         // Retain possible case syntax from the actual operand walk separately
         // from an ordinary invocation or any entered-body inventory.
         if matches!(self.context.policy, AdviceNamingPolicy::Native(_))
@@ -1509,87 +1627,6 @@ impl BodyWalk<'_, '_> {
                 );
             }
         }
-        if let (Some(tape), None) = (&mut self.inventory, &self.source_body) {
-            // Immediate original operands use their root point, not a made-up
-            // body descriptor or a future frame's applicability.
-            if graph.blocks_registry_source(invocation.head) {
-                tape.registry_barriers
-                    .insert(invocation.native.first()?.span().start());
-                return Some(());
-            }
-            return self.context.retain_source_inventory(
-                tape,
-                invocation,
-                graph,
-                schema,
-                None,
-                self.logical_scope.as_ref().map_or(
-                    super::logical_navigation::LogicalCallbackScope::Unavailable,
-                    super::logical_navigation::LogicalCallbackScope::Declared,
-                ),
-            );
-        }
-        let retained_producer = if let Some(body) = &self.source_body {
-            let mut advice = self.context.schema_advice(invocation, graph, schema)?;
-            Self::retain_source_body(self.context.policy, &mut advice, body);
-            if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
-                advice.logical_scope.clone_from(&self.logical_scope);
-            }
-            Some(advice)
-        } else {
-            None
-        };
-        self.context.retain_authored_command_prefix(
-            &mut self.authored_prefixes,
-            invocation,
-            graph,
-            schema,
-            retained_producer.as_ref(),
-        );
-        let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body) else {
-            return Some(());
-        };
-        self.context
-            .retain_source_callback_targets(tape, invocation, graph, schema);
-        self.context.retain_logical_callback_candidates(
-            tape,
-            invocation,
-            graph,
-            schema,
-            self.logical_scope.as_ref().map_or(
-                super::logical_navigation::LogicalCallbackScope::Unavailable,
-                super::logical_navigation::LogicalCallbackScope::Declared,
-            ),
-        );
-        // naming.source.original-editor-body-structure
-
-        if graph.blocks_registry_source(invocation.head) {
-            tape.registry_barriers
-                .insert(invocation.native.first()?.span().start());
-            return Some(());
-        }
-        let mut advice = self.context.schema_advice(invocation, graph, schema)?;
-        Self::retain_source_body(self.context.policy, &mut advice, body);
-        if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
-            advice.logical_scope.clone_from(&self.logical_scope);
-        }
-        if let Some(previous) = tape.advice.get(&advice.site.offset) {
-            if previous != &advice {
-                tape.advice.remove(&advice.site.offset);
-                tape.registry_barriers.insert(advice.site.offset);
-                return Some(());
-            }
-        } else if tape.registry_barriers.contains(&advice.site.offset) {
-            return Some(());
-        }
-        self.context.retain_produced_command_prefixes(
-            tape,
-            invocation,
-            graph,
-            schema,
-            Some(&advice),
-        );
-        tape.advice.insert(advice.site.offset, advice);
         Some(())
     }
 
