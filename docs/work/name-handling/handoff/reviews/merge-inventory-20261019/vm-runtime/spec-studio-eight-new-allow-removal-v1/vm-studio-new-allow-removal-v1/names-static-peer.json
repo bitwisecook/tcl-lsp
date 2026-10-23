@@ -1,0 +1,37 @@
+{
+  "utc": "2026-10-23T17:59:25.185856+00:00",
+  "reviewer_role": "compiler-names",
+  "verdict": "STATIC CLEAR",
+  "proposal": "/workspace/naming-proof-storage/vm-studio-new-allow-removal-v1",
+  "patch_sha256": "16888ec88f514eb101e0890140e3bce08906c8701a8f8b6e2d8e8202a182a5f5",
+  "manifest_sha256": "5b056185d34d81b6a2ce4faaa56c9f93c04fff3e8d47b5af87d5645e17c33635",
+  "current_work_head": "befd42f2285f104478b5b05a38a54453a8ac362b",
+  "checks": [
+    "Every original before hash matches current WORK gitblob; no lazy fetch.",
+    "Independent copied whole patch apply and reverse: zero fuzz, zero offsets; exact final/original hashes.",
+    "Pinned rustfmt1.99.1 edition2024 check passes on every final path."
+  ],
+  "semantic_review": [
+    "Four length attrs removed. Draft SubCommand value/effect inserts retain original ordered key/value/lost-state operations after execution fields; command codegen keys retain exact insertion point/order.",
+    "Definition-body source hint helper keeps same null/default String, values/prefix validation and shortcircuit ?/None refusal before family lookup; no generated format literal changes.",
+    "Spectcl renderer helper appends member-body-command and bare-word rows under same borrowed Out/lost; caller retains body/lost ownership until original lost check and exact output publication. No guards, serialized strings or assertions changed."
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-spec-studio/src/draft.rs",
+      "before_sha256": "4a04f4e2aa98c7413f2eab2f1949e30a8d982debadb4dca254e9941b1354ff83",
+      "after_sha256": "53276ac662b530170ca44c78f5e25295fe29312bafc4bfa1be9978960a787d53"
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/render_rs.rs",
+      "before_sha256": "27092e3beaa0bbd3dd25b88288712dc7cea599a0d2faff7bfc2fff947b473acd",
+      "after_sha256": "9e6aa313f4e0028c354f9b9bf8895f7ceec7082896cd2ef1d284878396bbc107"
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+      "before_sha256": "79ac3d37d59c2f865e48e93964d52fb8267cbb9ef9656abb8e15d9271ca66c49",
+      "after_sha256": "e2e70ed5c89c7657ba3483d9aa68ee776bbf6c4cb3e055b2f93afc84287b9aff"
+    }
+  ],
+  "limits": "No Cargo/rustc/Clippy/test/runtime/performance execution. Static review does not prove typing or lint reduction. No source/Git mutations."
+}

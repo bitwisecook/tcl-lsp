@@ -1,0 +1,411 @@
+--- a/rust/tcl-spec-studio/src/draft.rs
++++ b/rust/tcl-spec-studio/src/draft.rs
+@@ -1439,6 +1439,89 @@
+     }
+ }
+ 
++fn subcommand_value_and_effect_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
++    d.insert(
++        "closed_value_args".into(),
++        index_list(sub.closed_value_args),
++    );
++    d.insert(
++        "arg_values_accept_prefix".into(),
++        json!(sub.arg_values_accept_prefix),
++    );
++    d.insert(
++        "body_arg_implicit_args".into(),
++        json!(sub.body_arg_implicit_args),
++    );
++    d.insert("taint_transform".into(), taint(sub.taint_transform));
++    d.insert(
++        "taint_transform_when".into(),
++        sub.taint_transform_when
++            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
++    );
++    d.insert(
++        "taint_double_encode_colour".into(),
++        taint(sub.taint_double_encode_colour),
++    );
++    d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
++    d.insert(
++        "channel_configuration".into(),
++        sub.channel_configuration.map_or(Value::Null, |descriptor| {
++            json!(catalogue::variant_name(&descriptor))
++        }),
++    );
++    d.insert("credential_arg".into(), opt_index(sub.credential_arg));
++    d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
++    d.insert(
++        "pattern_type".into(),
++        sub.pattern_type
++            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
++    );
++    d.insert(
++        "format_string_type".into(),
++        sub.format_string_type
++            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
++    );
++    d.insert(
++        "side_effects".into(),
++        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
++    );
++    d.insert("destructive".into(), json!(sub.destructive));
++    d.insert("returns_path".into(), json!(sub.returns_path));
++    d.insert(
++        "source_index_bounds".into(),
++        sub.source_index_bounds.map_or(Value::Null, |operation| {
++            json!(catalogue::variant_name(&operation))
++        }),
++    );
++    d.insert(
++        "source_path_operation".into(),
++        sub.source_path_operation.map_or(Value::Null, |operation| {
++            json!(catalogue::variant_name(&operation))
++        }),
++    );
++    d.insert(
++        "source_configuration_reference".into(),
++        sub.source_configuration_reference
++            .map_or(Value::Null, |layout| {
++                json!(catalogue::variant_name(&layout))
++            }),
++    );
++    d.insert("is_unescape".into(), json!(sub.is_unescape));
++    d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
++    d.insert(
++        "sub_subcommands".into(),
++        nested_rows(sub.sub_subcommands, "sub_subcommands", lost, sub_subcommand),
++    );
++    d.insert(
++        "defines_command_at".into(),
++        opt_index(sub.defines_command_at),
++    );
++    d.insert(
++        "max_leading_option_words".into(),
++        opt_index(sub.max_leading_option_words),
++    );
++}
++
+ /// Seed a draft from a live [`SubCommand`].
+ #[must_use]
+ pub fn from_subcommand(sub: &SubCommand) -> Draft {
+@@ -1940,7 +2023,6 @@
+     );
+ }
+ 
+-#[allow(clippy::too_many_lines)]
+ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+     subcommand_option_surface(d, sub, lost);
+     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
+@@ -1980,86 +2062,7 @@
+             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+     );
+     subcommand_execution_fields(d, sub, lost);
+-    d.insert(
+-        "closed_value_args".into(),
+-        index_list(sub.closed_value_args),
+-    );
+-    d.insert(
+-        "arg_values_accept_prefix".into(),
+-        json!(sub.arg_values_accept_prefix),
+-    );
+-    d.insert(
+-        "body_arg_implicit_args".into(),
+-        json!(sub.body_arg_implicit_args),
+-    );
+-    d.insert("taint_transform".into(), taint(sub.taint_transform));
+-    d.insert(
+-        "taint_transform_when".into(),
+-        sub.taint_transform_when
+-            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+-    );
+-    d.insert(
+-        "taint_double_encode_colour".into(),
+-        taint(sub.taint_double_encode_colour),
+-    );
+-    d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
+-    d.insert(
+-        "channel_configuration".into(),
+-        sub.channel_configuration.map_or(Value::Null, |descriptor| {
+-            json!(catalogue::variant_name(&descriptor))
+-        }),
+-    );
+-    d.insert("credential_arg".into(), opt_index(sub.credential_arg));
+-    d.insert("sensitive_headers".into(), str_list(sub.sensitive_headers));
+-    d.insert(
+-        "pattern_type".into(),
+-        sub.pattern_type
+-            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+-    );
+-    d.insert(
+-        "format_string_type".into(),
+-        sub.format_string_type
+-            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+-    );
+-    d.insert(
+-        "side_effects".into(),
+-        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
+-    );
+-    d.insert("destructive".into(), json!(sub.destructive));
+-    d.insert("returns_path".into(), json!(sub.returns_path));
+-    d.insert(
+-        "source_index_bounds".into(),
+-        sub.source_index_bounds.map_or(Value::Null, |operation| {
+-            json!(catalogue::variant_name(&operation))
+-        }),
+-    );
+-    d.insert(
+-        "source_path_operation".into(),
+-        sub.source_path_operation.map_or(Value::Null, |operation| {
+-            json!(catalogue::variant_name(&operation))
+-        }),
+-    );
+-    d.insert(
+-        "source_configuration_reference".into(),
+-        sub.source_configuration_reference
+-            .map_or(Value::Null, |layout| {
+-                json!(catalogue::variant_name(&layout))
+-            }),
+-    );
+-    d.insert("is_unescape".into(), json!(sub.is_unescape));
+-    d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
+-    d.insert(
+-        "sub_subcommands".into(),
+-        nested_rows(sub.sub_subcommands, "sub_subcommands", lost, sub_subcommand),
+-    );
+-    d.insert(
+-        "defines_command_at".into(),
+-        opt_index(sub.defines_command_at),
+-    );
+-    d.insert(
+-        "max_leading_option_words".into(),
+-        opt_index(sub.max_leading_option_words),
+-    );
++    subcommand_value_and_effect_fields(d, sub, lost);
+ }
+ 
+ /// Seed a draft from a live [`CommandSpec`].
+@@ -2255,7 +2258,6 @@
+ }
+ 
+ /// Constant folders, compiler / analyser hooks, and effects.
+-#[allow(clippy::too_many_lines)]
+ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
+     d.insert(
+         "const_fold".into(),
+@@ -2284,24 +2286,7 @@
+         spec.lowering_hook
+             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+     );
+-    d.insert(
+-        "codegen_hook".into(),
+-        spec.codegen_hook
+-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+-    );
+-    d.insert(
+-        "inline_codegen_hook".into(),
+-        spec.inline_codegen_hook
+-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+-    );
+-    d.insert(
+-        "codegen_hook_windows".into(),
+-        stamp_windows(spec.codegen_hook_windows, hook_name),
+-    );
+-    d.insert(
+-        "inline_codegen_hook_windows".into(),
+-        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
+-    );
++    command_codegen_hooks(d, spec);
+     d.insert(
+         "analyser_hook".into(),
+         spec.analyser_hook
+@@ -2360,6 +2345,27 @@
+         "inferred_storage_type".into(),
+         spec.inferred_storage_type
+             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
++    );
++}
++
++fn command_codegen_hooks(d: &mut Draft, spec: &CommandSpec) {
++    d.insert(
++        "codegen_hook".into(),
++        spec.codegen_hook
++            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
++    );
++    d.insert(
++        "inline_codegen_hook".into(),
++        spec.inline_codegen_hook
++            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
++    );
++    d.insert(
++        "codegen_hook_windows".into(),
++        stamp_windows(spec.codegen_hook_windows, hook_name),
++    );
++    d.insert(
++        "inline_codegen_hook_windows".into(),
++        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
+     );
+ }
+ 
+--- a/rust/tcl-spec-studio/src/render_rs.rs
++++ b/rust/tcl-spec-studio/src/render_rs.rs
+@@ -260,7 +260,6 @@
+ /// whole grammar as an inline literal — every member row, built-in method,
+ /// member-body command and manufacturer a struct literal — promoted to
+ /// `'static` exactly as the shipped grammars' constants are.
+-#[allow(clippy::too_many_lines)]
+ fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
+     if let Some(name) = value.as_str() {
+         tcl_spectcl::SHIPPED_DEFINITION_BODIES
+@@ -307,25 +306,8 @@
+     } else {
+         "None"
+     };
+-    let source_hint = match grammar.get("bare_word_construction_source_hint") {
+-        None | Some(Value::Null) => "None".to_owned(),
+-        Some(hint) => {
+-            let values = hint.get("values")?.as_array()?;
+-            let prefixes = hint.get("prefixes")?.as_array()?;
+-            if !values.iter().all(Value::is_string)
+-                || !prefixes
+-                    .iter()
+-                    .all(|value| value.as_str().is_some_and(|prefix| !prefix.is_empty()))
+-            {
+-                return None;
+-            }
+-            format!(
+-                "Some(crate::definer::BareWordConstructionSourceHint {{ values: {}, prefixes: {} }})",
+-                str_slice(values),
+-                str_slice(prefixes)
+-            )
+-        }
+-    };
++    let source_hint =
++        bare_word_source_hint_expr(grammar.get("bare_word_construction_source_hint"))?;
+     let family = grammar.get("family").and_then(Value::as_str)?;
+     Some(format!(
+         "Some(&crate::definer::DefinitionBodyGrammar {{\n\
+@@ -365,6 +347,28 @@
+         })?,
+         accessors = strs("property_accessor_methods"),
+     ))
++}
++
++fn bare_word_source_hint_expr(value: Option<&Value>) -> Option<String> {
++    Some(match value {
++        None | Some(Value::Null) => "None".to_owned(),
++        Some(hint) => {
++            let values = hint.get("values")?.as_array()?;
++            let prefixes = hint.get("prefixes")?.as_array()?;
++            if !values.iter().all(Value::is_string)
++                || !prefixes
++                    .iter()
++                    .all(|value| value.as_str().is_some_and(|prefix| !prefix.is_empty()))
++            {
++                return None;
++            }
++            format!(
++                "Some(crate::definer::BareWordConstructionSourceHint {{ values: {}, prefixes: {} }})",
++                str_slice(values),
++                str_slice(prefixes)
++            )
++        }
++    })
+ }
+ 
+ /// `Some(expr)` of a present key, `None` for a null one.
+--- a/rust/tcl-spec-studio/src/render_spectcl.rs
++++ b/rust/tcl-spec-studio/src/render_spectcl.rs
+@@ -3287,7 +3287,6 @@
+ /// one `member` row per member — each with its `-effect`, and a wrapper's
+ /// `-shift` — one `member_option` row per accepted optional word, and the
+ /// object-model rows a class family declares.
+-#[allow(clippy::too_many_lines)]
+ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+     let Some(value) = draft
+         .get("definition_body")
+@@ -3356,6 +3355,29 @@
+         body.row(&row, "-detail");
+     }
+     list_row(&mut body, &mut lost, value, "builtin_terminating_methods");
++    definition_body_command_rows(&mut body, &mut lost, value);
++    if value["dynamic_method_dispatch"].as_bool() == Some(true) {
++        body.line("dynamic_method_dispatch");
++    }
++    for method in as_array(&value["manufacturers"]) {
++        body.row(&manufacturer_row(method), "");
++    }
++    if let Some(name) = value["unknown_dispatch_method"].as_str() {
++        let mut row = vec!["unknown_dispatch_method".to_owned()];
++        push_word(&mut row, &mut lost, word(name));
++        body.row(&row, "");
++    }
++    list_row(&mut body, &mut lost, value, "property_accessor_methods");
++    if lost {
++        unwritable(out, "definition_body");
++        return;
++    }
++    out.line("definition_body {");
++    out.block(&body);
++    out.line("}");
++}
++
++fn definition_body_command_rows(body: &mut Out, lost: &mut bool, value: &Value) {
+     for command in as_array(&value["member_body_commands"]) {
+         let mut row = vec![
+             "member_body_command".to_owned(),
+@@ -3363,17 +3385,12 @@
+         ];
+         push_flag(
+             &mut row,
+-            &mut lost,
++            lost,
+             "-detail",
+             braced(str_of(&command["detail"])),
+         );
+         if let Some(expr) = command["binds_handle"].as_str() {
+-            push_flag(
+-                &mut row,
+-                &mut lost,
+-                "-binds-handle",
+-                binds_handle_word(expr),
+-            );
++            push_flag(&mut row, lost, "-binds-handle", binds_handle_word(expr));
+         }
+         body.row(&row, "-binds-handle");
+     }
+@@ -3393,32 +3410,13 @@
+                 if let Some(values) = rendered {
+                     row.push(format!("{{{}}}", values.join(" ")));
+                 } else {
+-                    lost = true;
++                    *lost = true;
+                     row.push("{}".to_owned());
+                 }
+             }
+         }
+         body.row(&row, "");
+     }
+-    if value["dynamic_method_dispatch"].as_bool() == Some(true) {
+-        body.line("dynamic_method_dispatch");
+-    }
+-    for method in as_array(&value["manufacturers"]) {
+-        body.row(&manufacturer_row(method), "");
+-    }
+-    if let Some(name) = value["unknown_dispatch_method"].as_str() {
+-        let mut row = vec!["unknown_dispatch_method".to_owned()];
+-        push_word(&mut row, &mut lost, word(name));
+-        body.row(&row, "");
+-    }
+-    list_row(&mut body, &mut lost, value, "property_accessor_methods");
+-    if lost {
+-        unwritable(out, "definition_body");
+-        return;
+-    }
+-    out.line("definition_body {");
+-    out.block(&body);
+-    out.line("}");
+ }
+ 
+ /// A `KEY {word …}` row for a non-empty name list of a definition body.

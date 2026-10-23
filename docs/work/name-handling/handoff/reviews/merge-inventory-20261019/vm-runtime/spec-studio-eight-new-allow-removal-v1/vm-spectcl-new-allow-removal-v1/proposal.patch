@@ -1,0 +1,231 @@
+--- a/rust/tcl-spectcl/src/loader.rs
++++ b/rust/tcl-spectcl/src/loader.rs
+@@ -8468,7 +8468,6 @@
+ /// instead of all of them. Only the fields a [`CommandForm`] carries are legal
+ /// here; anything else is an unknown property, so a fact that belongs on the
+ /// parent cannot be quietly lost inside a form.
+-#[allow(clippy::too_many_lines)]
+ fn apply_refine_stmt(
+     form: &mut CommandForm,
+     acc: &mut RefineAcc,
+@@ -8520,22 +8519,7 @@
+         },
+         "selector" => form.literal_argument_prefix = selector_row(stmt, log),
+         "arg" => acc.args.apply(stmt, tables, log),
+-        "option" => {
+-            let (row, evaluation) = semantics::option_flags(stmt, log);
+-            let (option, hook) = option_row(&row, tables, log);
+-            if let Some(evaluation) = evaluation {
+-                acc.declarations
+-                    .decline_option(&option, evaluation, stmt.line, log);
+-                form.semantics = acc.declarations.declaration(&scope).0;
+-            }
+-            if hook.is_some() {
+-                log.say(
+-                    stmt.line,
+-                    "a form option's Tcl hook is dropped: hooks bind at command scope",
+-                );
+-            }
+-            acc.options.push(option);
+-        }
++        "option" => apply_refine_option(form, acc, stmt, tables, &scope, log),
+         "option_conflict" => acc.option_relations.push(option_relation_row(
+             stmt,
+             tcl_registry::RelationKind::MutuallyExclusive,
+@@ -8592,6 +8576,30 @@
+         "codegen_hook" => form_codegen_hook(form, stmt, log),
+         _ => log.unknown_property(stmt),
+     }
++}
++
++fn apply_refine_option(
++    form: &mut CommandForm,
++    acc: &mut RefineAcc,
++    stmt: &Stmt,
++    tables: &PackTables,
++    scope: &semantics::Scope<'_>,
++    log: &mut Log,
++) {
++    let (row, evaluation) = semantics::option_flags(stmt, log);
++    let (option, hook) = option_row(&row, tables, log);
++    if let Some(evaluation) = evaluation {
++        acc.declarations
++            .decline_option(&option, evaluation, stmt.line, log);
++        form.semantics = acc.declarations.declaration(scope).0;
++    }
++    if hook.is_some() {
++        log.say(
++            stmt.line,
++            "a form option's Tcl hook is dropped: hooks bind at command scope",
++        );
++    }
++    acc.options.push(option);
+ }
+ 
+ /// A form's `semantic_operation` row, which is the plain stamp or nothing.
+--- a/rust/tcl-spectcl/src/loader/eval.rs
++++ b/rust/tcl-spectcl/src/loader/eval.rs
+@@ -746,9 +746,16 @@
+     had_body: bool,
+ }
+ 
++/// Independently retained declared support and its unavailable-input obligation.
++/// The unavailable flag never supplies an unstated surface default.
++#[derive(Default)]
++struct DeclaredSupport {
++    surface: Option<&'static [SpecSurface]>,
++    unavailable: bool,
++}
++
+ /// Everything the evaluation stages before replay.
+ #[derive(Default)]
+-#[allow(clippy::struct_excessive_bools)] // independent staging flags, not a state machine
+ struct State {
+     pack_nodes: Vec<PackNode>,
+     /// Open capture scopes, innermost last, each with its collected nodes.
+@@ -772,9 +779,7 @@
+     /// The union of the pack's declared support so far (`default
+     /// available` / `default dialects`), the set `available?` answers
+     /// against. `None` = nothing declared = everything.
+-    declared_surface: Option<&'static [SpecSurface]>,
+-    /// Explicit unrepresented support cannot become an unstated query default.
+-    declared_surface_unavailable: bool,
++    declared_support: DeclaredSupport,
+     /// The file's declarative skeleton, verbatim, for line-exact body
+     /// evaluation. Its second layer builds only if a body reaches the
+     /// interpreter.
+@@ -929,14 +934,14 @@
+     match args.first().map(String::as_str) {
+         Some("dialects") => {
+             if let Some(set) = parse_dialects(args.get(1).map_or("", |a| a), line, &mut scratch) {
+-                state.declared_surface = Some(set);
++                state.declared_support.surface = Some(set);
+             }
+         }
+         Some("available") => {
+             let availability = available::from_texts(&args[1..], line, &mut scratch);
+-            state.declared_surface_unavailable |= availability.is_unavailable();
++            state.declared_support.unavailable |= availability.is_unavailable();
+             if let Some(set) = availability.surface() {
+-                state.declared_surface = Some(set);
++                state.declared_support.surface = Some(set);
+             }
+         }
+         _ => {}
+@@ -1405,9 +1410,19 @@
+     })
+ }
+ 
++fn capture_surface_include(state: &Rc<RefCell<State>>, words: &[&str], line: u32) -> bool {
++    if !super::surface_roster::is_surface_row(words) {
++        return false;
++    }
++    let mut st = state.borrow_mut();
++    let owned: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
++    let stmt = st.captured("include", &owned, line);
++    st.push_node(Node::Row(stmt));
++    true
++}
++
+ /// Resolve and evaluate one `include` row. Shared by the host command and
+ /// the static driver, so the two evaluation paths cannot drift.
+-#[allow(clippy::too_many_lines)]
+ fn stage_include(
+     drive: Drive<'_, '_>,
+     state: &Rc<RefCell<State>>,
+@@ -1422,11 +1437,7 @@
+     // command surface, not a file: there is nothing to resolve and nothing
+     // to evaluate, so it is captured as an ordinary row and read by
+     // `apply_pack_stmt` — the one parser both routes share.
+-    if super::surface_roster::is_surface_row(words) {
+-        let mut st = state.borrow_mut();
+-        let owned: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
+-        let stmt = st.captured("include", &owned, line);
+-        st.push_node(Node::Row(stmt));
++    if capture_surface_include(state, words, line) {
+         return Ok(());
+     }
+     let name = match super::include_name(words, line) {
+@@ -1776,12 +1787,12 @@
+         let line = st.absolute_line(ctx.line());
+         let mut scratch = Log::default();
+         let requirement = available::from_texts(args, line, &mut scratch);
+-        if requirement.is_unavailable() || st.declared_surface_unavailable {
++        if requirement.is_unavailable() || st.declared_support.unavailable {
+             return Err("availability query has an explicit unavailable provider/window; no boolean answer or unrestricted default is inferred".to_owned());
+         }
+         // An unstated surface on either side names no provider to disagree
+         // with, so the guard holds.
+-        let answer = match (requirement.surface(), st.declared_surface) {
++        let answer = match (requirement.surface(), st.declared_support.surface) {
+             (Some(required), Some(declared)) => surfaces_overlap(required, declared),
+             _ => true,
+         };
+@@ -2187,7 +2198,6 @@
+ 
+ /// Turn a completed evaluation's staging into a [`Pack`] through the
+ /// vocabulary's row readers.
+-#[allow(clippy::too_many_lines)]
+ fn replay(state: State, options: &EvalOptions) -> Pack {
+     let mut log = Log {
+         context: "pack".to_owned(),
+@@ -2270,8 +2280,26 @@
+         }
+     }
+ 
++    replay_commands(&state.pack_nodes, &tables, &mut pack, &mut log);
++
++    pack.registrations = registrations;
++
++    // Sites the capture layer consumed itself (`include`): logged here so
++    // they get the same per-site vocabulary-consistency notices a row the
++    // readers saw would.
++    for (line, word) in &state.newer_word_sites {
++        log.since(*line, word, "2.0");
++    }
++    super::finish_pack_cores(&mut pack, &mut log);
++    finish_newer_words(&pack, &mut log);
++    pack.notices = log.notices;
++    pack.notices.extend(state.eval_notices);
++    pack
++}
++
++fn replay_commands(nodes: &[PackNode], tables: &PackTables, pack: &mut Pack, log: &mut Log) {
+     // Pass 2: the staged commands, through the shared builder.
+-    for node in &state.pack_nodes {
++    for node in nodes {
+         let PackNode::Command(staged) = node else {
+             continue;
+         };
+@@ -2294,28 +2322,14 @@
+             &staged.name,
+             staged.overrides,
+             staged.line,
+-            &tables,
+-            &mut log,
+-            |spec, acc, log| fill_command_nodes(body, &tables, spec, acc, log),
++            tables,
++            log,
++            |spec, acc, log| fill_command_nodes(body, tables, spec, acc, log),
+         );
+         if let Some(command) = built {
+             pack.commands.push(command);
+         }
+     }
+-
+-    pack.registrations = registrations;
+-
+-    // Sites the capture layer consumed itself (`include`): logged here so
+-    // they get the same per-site vocabulary-consistency notices a row the
+-    // readers saw would.
+-    for (line, word) in &state.newer_word_sites {
+-        log.since(*line, word, "2.0");
+-    }
+-    super::finish_pack_cores(&mut pack, &mut log);
+-    finish_newer_words(&pack, &mut log);
+-    pack.notices = log.notices;
+-    pack.notices.extend(state.eval_notices);
+-    pack
+ }
+ 
+ /// Replay one evaluated `environment` / `dialect` declaration through its

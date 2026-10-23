@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T18:03:14.153439+00:00",
+  "status": "EIGHT_NEW_ATTRS_STATIC_CLEAR_UNTYPED_UNRUN",
+  "scope": "5originalsameownerfiles,8newattrs removed via narrow ordered helper/private typedgroup changes. Baseline actualfcb API fileblob references; no measured8warnings claim. Root owns WORKintegration/candidatecarry/Cargo.",
+  "files": {
+    "frozen-cohorts.tar.gz": "e8e3e1d49c700c7fcc174ee82bacc3ca197e7b83b3323f425b51cf9eb40b03fc",
+    "confirmed-eight-adjudication.json": "c1f8ca1ec3b740bd051b09463ab7f991da4f70851f20b8dccfb654beef7c0a0b",
+    "baseline-owner-evidence.json": "9ebc076ac2e30c64d9b8c9ffe2621da15d8678d9352d77799eeb9c18c860c742",
+    "vm-spectcl-new-allow-removal-v1/proposal.patch": "2f0a35c099465b42b2ccae48a769a5aa183ea59e949e9870a46b9995c72ed8fc",
+    "vm-spectcl-new-allow-removal-v1/names-static-peer.json": "b59d3861d8d61a492b9bd13f9aa576b28d003d341755e21d09357788a3ea0389",
+    "vm-spectcl-new-allow-removal-v1/manifest.json": "01b7ddce08bb31669ebaf4f5e9ce4baa6df77636c32ec9c5fdb91769b409dbda",
+    "vm-studio-new-allow-removal-v1/proposal.patch": "16888ec88f514eb101e0890140e3bce08906c8701a8f8b6e2d8e8202a182a5f5",
+    "vm-studio-new-allow-removal-v1/names-static-peer.json": "660ad8cf0e84bb18f585a70b2c65fd65d7726679978b70a725447460c656a2e5",
+    "vm-studio-new-allow-removal-v1/manifest.json": "5b056185d34d81b6a2ce4faaa56c9f93c04fff3e8d47b5af87d5645e17c33635"
+  }
+}

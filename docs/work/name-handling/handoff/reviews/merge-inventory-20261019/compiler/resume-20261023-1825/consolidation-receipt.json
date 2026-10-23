@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T18:25:06.321309+00:00",
+  "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261023-1825/compiler-before-consolidation.md.gz",
+  "archive_sha256": "8ee13e6df32e4548492827f7b8788b8143cdfad498e795f1102a9ba58a117175",
+  "original_document_sha256": "278e4d5c27d30e962532da292affe16190347b9c48e611114e7867e1ced52a91",
+  "decompressed_exact": true,
+  "preserved_completed_and_coordinator_suffix_sha256": "82947992e86916532e30cb27d31460b96a56bddd9328538172fac60751095d68",
+  "new_document_sha256": "942c542f56865e9c171a3edf5d96088f4347793c8d14bbe002954f3b6b850e9d",
+  "lines": 73,
+  "scope": "Owned documentation consolidation only. Complete old document losslessly archived; completed evidence/coordinator suffix exact; no product/admission/validated row changes."
+}

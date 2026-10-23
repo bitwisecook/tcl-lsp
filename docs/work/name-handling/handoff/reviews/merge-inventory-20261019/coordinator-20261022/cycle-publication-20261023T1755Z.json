@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-23T18:06:27.693524+00:00",
+  "scheduled": "2026-10-23T17:55:37+00:00",
+  "source_snapshot": "e9e65fba9bccca1a555293300f2c19c283e37bb5",
+  "published_snapshot": "a18fd0a5a5727078f71e67704da739c1b42662c4",
+  "source_commits": [
+    "e9e65fba9bccca1a555293300f2c19c283e37bb5"
+  ],
+  "product_tree_diff": [
+    ".github/workflows/perf.yml",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+    "rust/tcl-compiler/src/analyser/param_traits.rs",
+    "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+    "rust/tcl-compiler/src/body_analysis_capsule.rs",
+    "rust/tcl-compiler/src/compilation_unit.rs",
+    "rust/tcl-compiler/src/interprocedural.rs",
+    "rust/tcl-compiler/src/irules_checks.rs",
+    "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+    "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+    "rust/tcl-compiler/src/object_types/report_comparison.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+    "rust/tcl-compiler/src/taint.rs",
+    "rust/tcl-compiler/src/taint_interproc.rs",
+    "rust/tcl-compiler/src/word_subst.rs",
+    "rust/tcl-compiler/tests/pipeline_coverage.rs",
+    "rust/tcl-compiler/tests/support/body_identity.rs",
+    "rust/tcl-compiler/tests/support/body_identity_lookup.rs",
+    "rust/tcl-lsp-core/src/lib.rs",
+    "rust/tcl-lsp-db/src/lib.rs",
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "external_product_base": "26260dace903672cabfbc0e64f0e17c70e7274c9",
+  "external_changes_preserved_not_validated": true,
+  "remote_confirmed": "a18fd0a5a5727078f71e67704da739c1b42662c4",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

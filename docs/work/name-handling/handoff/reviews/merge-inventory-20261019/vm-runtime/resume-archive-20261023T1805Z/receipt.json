@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-23T18:05:02.001030+00:00",
+  "scope": "Lossless preceding Resume section only; current snapshot replaces repeated historical entries, all other outstanding sections unchanged.",
+  "original_bytes": 142562,
+  "original_sha256": "d611d3bfb12042e89dd91fb262feedfa92875d44e19c55487d59c1fd9339a4e2",
+  "gzip_sha256": "2a6b080de9691a7b02bc3cb08c9effe3bc2b48fc7376b00c9732cc92306b76c3"
+}

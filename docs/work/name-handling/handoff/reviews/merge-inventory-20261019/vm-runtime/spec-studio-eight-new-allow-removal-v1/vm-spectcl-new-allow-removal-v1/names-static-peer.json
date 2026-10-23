@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-23T17:59:36.702245+00:00",
+  "reviewer_role": "compiler-names",
+  "verdict": "STATIC CLEAR",
+  "proposal": "/workspace/naming-proof-storage/vm-spectcl-new-allow-removal-v1",
+  "patch_sha256": "2f0a35c099465b42b2ccae48a769a5aa183ea59e949e9870a46b9995c72ed8fc",
+  "manifest_sha256": "01b7ddce08bb31669ebaf4f5e9ce4baa6df77636c32ec9c5fdb91769b409dbda",
+  "current_work_head": "befd42f2285f104478b5b05a38a54453a8ac362b",
+  "checks": [
+    "Every original before hash matches current WORK gitblob; no lazy fetch.",
+    "Independent copied whole patch apply and reverse: zero fuzz, zero offsets; exact final/original hashes.",
+    "Pinned rustfmt1.99.1 edition2024 check passes on every final path."
+  ],
+  "semantic_review": [
+    "Four attrs removed. Refine option helper borrows original form/acc/scope/log and preserves option_flags -> option_row -> decline/declaration -> hook notice -> push sequence. Actual Scope lifetime/type read from current semantics module.",
+    "DeclaredSupport privately groups Option<static slice> and bool with identical Default(None,false), unchanged independent writes and unavailable shortcircuit/read order. All original read/write sites mapped; no state enum, custom Drop, normalisation, Eq or authority changes.",
+    "Surface include helper retains initial is_surface_row guard and same RefCell borrow/capture/node push. RefMut retires before the original immediate success return; no intervening productive operation.",
+    "Command replay helper borrows existing state.pack_nodes and tables under same caller-owned state/tables/pack/log; same ordered continues, body check, command_from_parts callback and command push. Registrations, newer-word notices, core finishing, notices move and original early returns remain in original caller/order."
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "before_sha256": "d44c4558a7fdc8ca7e170e01185bdf0885b8f09309cf2c733fd95e3f11a89d62",
+      "after_sha256": "be7212de3dfe259cdfb623ce990d48192fea17af7ac2eacf82a2ace960b79deb"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "before_sha256": "45c6a4e1ff7e24b992be22627546df1a0aca42d8160ca2f994d4f9377a3c4999",
+      "after_sha256": "b8957413f8e51c6559e7180c7794b35aaae58ba3daeb87fc81a337994228c054"
+    }
+  ],
+  "limits": "No Cargo/rustc/Clippy/test/runtime/performance execution. Static review does not prove typing or lint reduction. No source/Git mutations."
+}

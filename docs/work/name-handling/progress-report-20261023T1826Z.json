@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T18:26:45.035769+00:00",
+  "scheduled_report_utc": "2026-10-23T18:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T18:55:37+00:00",
+  "change_since_previous_report": [
+    "17:55 scheduled snapshot e9e65 published a18fd0a5 at18:06:27 after freshdepth1fetch/rebase preserved concurrent external0f1 compiler docattachment and perf checkpoints; initial normalpush rejection reconciled without force. Reminder rearmed18:25 then currentcycle18:55.",
+    "Original13 v8 remains failed with build2400s timeout/finalprovider30s timeout and all13UNRUN. Separate endpoint120s v3 also timed out in provider hashing; both failures retained. Exactworker600s housekeeping successorv4 independently reviewed and completed18:13:46 exit0/groupclosed with full100654source/17500provider/GO/tools endpoints equal. No original-run repair or old typing/test/artifact admission.",
+    "Root caught selectedserver protocol still repeating knowninsufficient30s provider timers beforelaunch. Independently reviewed immutablev5 uses600s provider housekeeping and honest same2700 total reservation while preserving originalselectedbuild2400/client180/request limits. Root launched18:18:12, run181834; initialfullproviderPASS27.138s, actualserverbuildrunning/no selectedartifact or runtime outcome yet.",
+    "Workb718 published VM8 allowances removal, Names19, CLI/engine4,3 new compiler helper fixes and4 Core mechanical fixes. Independent current-source composition/semantic reviews preserve assertions, guards and query ordering. Further explorer/xtask3 integrated1ab734 andcompletion5 integrated96d820; publication pending freshfetch/rebase.",
+    "Actual release9c strictcompiler26 maps23 existing reviewed source fixes plus3 newly measured helper fixes. Currentclean release has local6cedbdf9 all23+supporthelper,77af63e89CLI4 and7ad0bc4VM8, preserving removed observers/chaff; no current lint/type/runtime green inferred. Names19 and other clean counterparts in preparation.",
+    "Freshscoped LSP diagnostic39996600299 completed with402 unique findings (Core90/DB39/Server273), no RustEcode observed and incomplete targetinventory. Originalserverfuture136warnings share severalcalleefamilies; a single coldreloadfuture boundary experiment is prepared, unvalidated. Server78 and DB39fixcohorts underway, no blanket suppression/assertionweakening.",
+    "Fresh9c actual server ci-profile build/Python/cargo-deny pass; editor multi-folder10P4F Context, extpart2 elevenFAIL, browser/WASI postbuild source/hover/rename failures remain. Completebaseline24,312namedPASS comparison unknown; previous heavy16P2F andSpecTcl1P2F retained. No PR.",
+    "Externalperf17:59 repaired-source builds continue; clean6lexer586/586 both environments is scopedpositive only, fullproof pending. BIGIP13:17 completedstamp remains stale>60min and usernotified, newfunctionalblockers routedwithouttakeover. Reviewtriagecompletedoldstamp retained.",
+    "Diskworkspace about2.38GB above2GiB mandatoryfloor; currentexecutor stops automaticallybelowfloor. Root requested readonly non-target duplicate-reclaim inventory. No targetcleanup or testexecutable deletion. Automatic safetyfilter stopped runtimehelper before any new C oracle; existing hostedruntime diagnostics continue underroot."
+  ],
+  "committed": [
+    "e9e65fba9bccca1a555293300f2c19c283e37bb5"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish reviewed work and clean release carries, official18:25WIPreport/snapshot; rearm18:55.",
+    "Complete fresh selectedserver source8332 build and originalstartup/Context diagnostic, inspect exact first-declining gate.",
+    "Integrate peer-cleared actual LSP/compiler warnings and clean counterparts; finish remaining warning causes and current wholeworkspace formatting/codegen/gates.",
+    "Close original FullTom inventory/VM-SpecTcl acceptance, browser/WASI/editor failures, fullbaseline comparison and acceptedTclperformance before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T17:59:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or validated-row changes. Endpoint600success is housekeeping only, original13 allUNRUN. Actual source refactors are unvalidated until fresh builds/checks. Current server build running; fullbaseline and performance unknown, existing runtime/host/P2F failures blockPR.",
+  "disk_free_bytes": 2325172224,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

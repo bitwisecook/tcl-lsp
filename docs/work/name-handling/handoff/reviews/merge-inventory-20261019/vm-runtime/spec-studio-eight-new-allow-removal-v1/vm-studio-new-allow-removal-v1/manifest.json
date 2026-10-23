@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T17:55:53.473291+00:00",
+  "head": "3ea918c3a59b63789d4117077f994f2fe123f860",
+  "files": [
+    {
+      "path": "rust/tcl-spec-studio/src/draft.rs",
+      "before_sha256": "4a04f4e2aa98c7413f2eab2f1949e30a8d982debadb4dca254e9941b1354ff83",
+      "after_sha256": "53276ac662b530170ca44c78f5e25295fe29312bafc4bfa1be9978960a787d53"
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/render_rs.rs",
+      "before_sha256": "27092e3beaa0bbd3dd25b88288712dc7cea599a0d2faff7bfc2fff947b473acd",
+      "after_sha256": "9e6aa313f4e0028c354f9b9bf8895f7ceec7082896cd2ef1d284878396bbc107"
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+      "before_sha256": "79ac3d37d59c2f865e48e93964d52fb8267cbb9ef9656abb8e15d9271ca66c49",
+      "after_sha256": "e2e70ed5c89c7657ba3483d9aa68ee776bbf6c4cb3e055b2f93afc84287b9aff"
+    }
+  ],
+  "patch_sha256": "16888ec88f514eb101e0890140e3bce08906c8701a8f8b6e2d8e8202a182a5f5",
+  "baseline_owner_evidence": "/workspace/naming-proof-storage/vm-spec-allow-adjudication-v1/baseline-owner-evidence.json",
+  "baseline_owner_evidence_sha256": "9ebc076ac2e30c64d9b8c9ffe2621da15d8678d9352d77799eeb9c18c860c742",
+  "status": "STATIC_PREPARED_UNTYPED_UNRUN",
+  "scope": "Remove4 newlyintroduced sameowner length allows only; exact ordered field insert/row rendering and all Option refusal/serializedbytes/assertions preserved, borrowed helper boundaries only. No newallow/expect."
+}

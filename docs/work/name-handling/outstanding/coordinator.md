@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T17:59:34.090719+00:00
+Last updated: 2026-10-23T18:26:44.710893+00:00
 
 ## In progress
 
@@ -47,12 +47,14 @@ Last updated: 2026-10-23T17:59:34.090719+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (17:55 UTC)
+### Current cycle and routing (18:25 UTC)
 
-- Original13 v8 ended at17:52:25 overallFAIL: original compiler build2400s owned timeout, then original finalprovider30s owned timeout. Both processgroups closed and lock released; all13 runtime rows UNRUN. Final stability false means unsealed, not observed hash mismatch. Failed parent cannot admit cache/artifact results.
-- All123 original compiler Clippy sites now have intended fixes integrated locally throughunit4v3 3ea; six actual compiler typing repairs already published7f3. New compiler test helper allowance removedbefd. No new measured Clippy/type pass inferred; exact source attribution retained.
-- Names19 new registry/syntax allowances all have independently reviewed off-tree source fixes, exact WORK19 composition pending. Three baseline allowances retained; assertions unchanged.
-- Release9c normalpush confirmed; three new LSP cratewide suppressions removed. Fresh ordinary CI39996625386 has successful actual server ci-profile build, Python and cargo-deny, but strict and editor failures. Targeted scopedClippy39996600299 completedFAIL; actual findings being retrieved.
-- FullTom isolated original inventory diagnostic39995195040 running, unchanged original assertions. Prior release88 SIGSEGV11/114partial uniqueFAIL remains unresolved; no full inventory or crashing selector yet. Eight new Spec/Studio allowance fixes prepared for semantic peer.
-- Externalperf17:27 recovered. Controls failed known six compiler errors before any tests; repaired-source controls and complete old/mixed proof still required. Latest complete SpecTcl1P2F retained. BIGIP13:17 stale>60min usernotified; no external role duplicated.
-- Lossless closed-evidence JSON hardlinking and hash-verified old extracted shipping binaries reclaimed234168320bytes, retained ZIPs preserve originals. No target deletion or test executable deletion; build disk floor retained. Six-hour target missed; release remains blocked, no PR.
+- 17:55 scheduled snapshot e9e65 published a18fd0a5 at18:06:27 after freshdepth1fetch/rebase preserved concurrent external0f1 compiler docattachment and perf checkpoints; initial normalpush rejection reconciled without force. Reminder rearmed18:25 then currentcycle18:55.
+- Original13 v8 remains failed with build2400s timeout/finalprovider30s timeout and all13UNRUN. Separate endpoint120s v3 also timed out in provider hashing; both failures retained. Exactworker600s housekeeping successorv4 independently reviewed and completed18:13:46 exit0/groupclosed with full100654source/17500provider/GO/tools endpoints equal. No original-run repair or old typing/test/artifact admission.
+- Root caught selectedserver protocol still repeating knowninsufficient30s provider timers beforelaunch. Independently reviewed immutablev5 uses600s provider housekeeping and honest same2700 total reservation while preserving originalselectedbuild2400/client180/request limits. Root launched18:18:12, run181834; initialfullproviderPASS27.138s, actualserverbuildrunning/no selectedartifact or runtime outcome yet.
+- Workb718 published VM8 allowances removal, Names19, CLI/engine4,3 new compiler helper fixes and4 Core mechanical fixes. Independent current-source composition/semantic reviews preserve assertions, guards and query ordering. Further explorer/xtask3 integrated1ab734 andcompletion5 integrated96d820; publication pending freshfetch/rebase.
+- Actual release9c strictcompiler26 maps23 existing reviewed source fixes plus3 newly measured helper fixes. Currentclean release has local6cedbdf9 all23+supporthelper,77af63e89CLI4 and7ad0bc4VM8, preserving removed observers/chaff; no current lint/type/runtime green inferred. Names19 and other clean counterparts in preparation.
+- Freshscoped LSP diagnostic39996600299 completed with402 unique findings (Core90/DB39/Server273), no RustEcode observed and incomplete targetinventory. Originalserverfuture136warnings share severalcalleefamilies; a single coldreloadfuture boundary experiment is prepared, unvalidated. Server78 and DB39fixcohorts underway, no blanket suppression/assertionweakening.
+- Fresh9c actual server ci-profile build/Python/cargo-deny pass; editor multi-folder10P4F Context, extpart2 elevenFAIL, browser/WASI postbuild source/hover/rename failures remain. Completebaseline24,312namedPASS comparison unknown; previous heavy16P2F andSpecTcl1P2F retained. No PR.
+- Externalperf17:59 repaired-source builds continue; clean6lexer586/586 both environments is scopedpositive only, fullproof pending. BIGIP13:17 completedstamp remains stale>60min and usernotified, newfunctionalblockers routedwithouttakeover. Reviewtriagecompletedoldstamp retained.
+- Diskworkspace about2.38GB above2GiB mandatoryfloor; currentexecutor stops automaticallybelowfloor. Root requested readonly non-target duplicate-reclaim inventory. No targetcleanup or testexecutable deletion. Automatic safetyfilter stopped runtimehelper before any new C oracle; existing hostedruntime diagnostics continue underroot.

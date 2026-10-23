@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T17:57:06.267569+00:00",
+  "head": "3ea918c3a59b63789d4117077f994f2fe123f860",
+  "files": [
+    {
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "before_sha256": "d44c4558a7fdc8ca7e170e01185bdf0885b8f09309cf2c733fd95e3f11a89d62",
+      "after_sha256": "be7212de3dfe259cdfb623ce990d48192fea17af7ac2eacf82a2ace960b79deb"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "before_sha256": "45c6a4e1ff7e24b992be22627546df1a0aca42d8160ca2f994d4f9377a3c4999",
+      "after_sha256": "b8957413f8e51c6559e7180c7794b35aaae58ba3daeb87fc81a337994228c054"
+    }
+  ],
+  "patch_sha256": "2f0a35c099465b42b2ccae48a769a5aa183ea59e949e9870a46b9995c72ed8fc",
+  "baseline_owner_evidence": "/workspace/naming-proof-storage/vm-spec-allow-adjudication-v1/baseline-owner-evidence.json",
+  "baseline_owner_evidence_sha256": "9ebc076ac2e30c64d9b8c9ffe2621da15d8678d9352d77799eeb9c18c860c742",
+  "status": "STATIC_PREPARED_UNTYPED_UNRUN",
+  "scope": "Remove4 newlyintroduced sameowner attrs only. Exact original option arm, surface include capture and command replay loops become borrowed helpers; all guard/notice/output/registration order preserved. State originalOption-surface+unavailablebool grouped privately as DeclaredSupport, preserving independentvalues and every originalwrite/read/guard/default; no stateenum/newallow/Eq/refusal/assertion change."
+}

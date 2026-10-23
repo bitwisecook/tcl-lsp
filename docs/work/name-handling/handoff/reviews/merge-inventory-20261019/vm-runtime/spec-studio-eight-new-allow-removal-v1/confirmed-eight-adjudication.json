@@ -1,0 +1,56 @@
+{
+  "utc": "2026-10-23T17:57:31.616226+00:00",
+  "baseline": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "evidence_sha256": "9ebc076ac2e30c64d9b8c9ffe2621da15d8678d9352d77799eeb9c18c860c742",
+  "rows": [
+    {
+      "owner": "subcommand_rest",
+      "path": "rust/tcl-spec-studio/src/draft.rs",
+      "baseline_git_blob_sha": "c47e9d451e404c4828cfa3294c3420b46377b1bf",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "command_hooks",
+      "path": "rust/tcl-spec-studio/src/draft.rs",
+      "baseline_git_blob_sha": "c47e9d451e404c4828cfa3294c3420b46377b1bf",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "definition_body_expr",
+      "path": "rust/tcl-spec-studio/src/render_rs.rs",
+      "baseline_git_blob_sha": "65a776a0890cd72ef09c44aba4c834be98e06d76",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "definition_body_block",
+      "path": "rust/tcl-spec-studio/src/render_spectcl.rs",
+      "baseline_git_blob_sha": "55133391c65f536d92d03247fe75fd60d79f1d17",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "apply_refine_stmt",
+      "path": "rust/tcl-spectcl/src/loader.rs",
+      "baseline_git_blob_sha": "fd8f35f88bd968dc730061b73dffb268716643e5",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "stage_include",
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "baseline_git_blob_sha": "dbae5bb06a16cc893b2efdc183152bf057b1664b",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "replay",
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "baseline_git_blob_sha": "dbae5bb06a16cc893b2efdc183152bf057b1664b",
+      "confirmed_new_allow": true
+    },
+    {
+      "owner": "State",
+      "path": "rust/tcl-spectcl/src/loader/eval.rs",
+      "baseline_git_blob_sha": "dbae5bb06a16cc893b2efdc183152bf057b1664b",
+      "confirmed_new_allow": true
+    }
+  ],
+  "limits": "These are new attrs, not measured Clippy diagnostics. Static body size/field census guides narrow fixes; actual fresh Clippy remains required."
+}
