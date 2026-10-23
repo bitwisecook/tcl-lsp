@@ -2,13 +2,17 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T06:51:51.347715+00:00 (RBS1c6a puretraceNamesCLEAR8ef561cb; SH26f151 CCGCLEAR; integrationevalsink currentcauseunmeasured; full58 ACTIVE)
+Last updated: 2026-10-23T07:30:40.591115+00:00 (compiler58 CLOSED40PASS18FAIL allguards0W; taintpuretrace4a1d659d peerpending; LSP23 active/rootHOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Actual compiler58 FULL CLOSED per root:** 35filters58tests40PASS18FAIL, all lifecycle/source/provider/artifact/process guards valid,0warnings; parent archived322files and independently reconciled. Prior partial ACTIVE statements below are historical snapshots. Current product897b/tree0b11/source46mapf756 unchanged; LSP23 root active, source/provider/Cargo/Git HOLD. No green release/perf claim.
+
+**Taint first ingress measurement PREPARED, not a fix:** `taint-cu-ingress-diagnostic-v1/proposal.patch.txt` SHA4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda, one exactcurrent taint.rs6ad17839→913867c6. Existing HOSTED_TAINT begins after unlogged positioned-module realm/current-shadow gates, so new debug_assertions/TAINT_CU_INGRESS identity traces those original Options and same per-function TaintSourceContext, with existing metadata/count fields only. All queries once/order/refusal/context value/tests/assertions unchanged. Zero-fuzz/finalhash/pinnedfmt PASS; Names bounded peer pending, typing/runtime UNRUN. Future exact original integration taint/dangerous_sinks::eval_sink1 should enable both TAINT_CU_INGRESS and HOSTED_TAINT under fresh-artifact/fullguards successor; no runner/GO minted and no oldprotocolrefresh. Current missing T100 cause remains unknown. BPFrow30 CCG fixture d1a3b85c bounded compiler staticCLEAR0a3b6cf9, oldpass retained explicit SocketFilternegative and all lostselection assertions exact; no productionchange/runtimeclaim.
 
 **RBS separate declared-read first-refusal probe PREPARED:** `rbs-declared-read-stage-diagnostic-v1/proposal.patch.txt` SHA1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73, dataflow75e692fb→9bd5b2a6 and script_binds47f424ab→3da13e3b. Names bounded staticCLEAR8ef561cbfe90469fe4b3062caa88745ede9264ec456e11f417a6eb3b8839e3bc. Scope cfg(test)/RBS_SOURCE_OWNER; exact existing flow/or_else/recipe/current-frame/potential read guards once, no producer fallback/definiteness/assertion change. Complements old physical W210 trace, whose zero read events cannot establish failure of authentic declared-read fallback. Typing/runtime and actual first declining recipe/flow stage UNRUN. SH26f151 CCG staticCLEAR received (receipt pending), ILXdeb1a18c NamesCLEAR, alias86ebb8c4 Names fixture-onlyCLEAR with Logical pair stillunrun; all off-tree, source/provider/Cargo/Git HOLD.
 

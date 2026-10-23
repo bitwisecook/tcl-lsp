@@ -1,0 +1,23 @@
+{
+  "actual_utc": "2026-10-23T07:27:02.006428+00:00",
+  "scope": "Root-authorized test-only fixture correction; no production changes, no assertion changes, no Rust runtime/type proof",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "before_sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+      "final_sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469"
+    }
+  ],
+  "patch_sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f",
+  "change": "Only the exact existing FEFF refusal source uses explicit fullinput LeadingBom::Skip. Same expected quoted output, every other loop source/expectation and separate Content positive unchanged.",
+  "contract": [
+    "LexerConfig Default Content lexer.rs269",
+    "from_grammar inherits default full policy",
+    "for_profile uses from_grammar",
+    "lexical_unicode_source_word_matches reparses standalone proposal under actual config",
+    "Skip proposal leadingFEFF cannot match full span/value; Content matches"
+  ],
+  "prepatch_evidence": "lsp/quote-bom-row8-diagnosis-20261023/diagnosis.json",
+  "manual_tcl": "Same archived5release quoted/bare scalar values; no policy donation",
+  "status": "Off-tree pinnedfmt/dry-run pending; no canonical writes/Cargo/Git/GO"
+}

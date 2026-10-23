@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-23T07:31:40.672865+00:00",
+  "verdict": "CLEAR bounded pure CU ingress trace; Rust typing/runtime UNRUN",
+  "pins": {
+    "status": "OFFTREE pure CU ingress diagnostic; syntax/zero-fuzz PASS, untyped/unrun",
+    "patch_sha256": "4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda",
+    "path": "rust/tcl-compiler/src/taint.rs",
+    "before_sha256": "6ad178394b614b18d4a7c226d19079793a14f6c51fd28e53c27fac1ac9059126",
+    "after_sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6",
+    "env": {
+      "TCL_LSP_TRACE_TAINT_CU_INGRESS": "1",
+      "TCL_LSP_TRACE_HOSTED_TAINT": "1"
+    },
+    "selector": {
+      "package": "tcl-compiler",
+      "target": "integration taint",
+      "filter": "dangerous_sinks::eval_sink",
+      "exact": true,
+      "expected": 1
+    },
+    "reason": "Existing HOSTED_TAINT begins inside per-function block scan, after module positioned realm and current-shadow gates; neither earlier return is logged. New debug_assertions dedicated flag exposes exact original Option results and existing fields only.",
+    "contract": "Same Option or TaintSourceContext value returned, original single evaluation/order/continue/refusal unchanged. No extra source/registry/realm/taint queries, no assertions/fixtures/guards/Eq changes.",
+    "limits": "No runner, Cargo, GO or cause claim. Future strict actual-artifact selector should enable both flags on validated successor source; existing source46 selector env remains frozen."
+  },
+  "checks": [
+    "Independent currentbefore/final/patch pins; zero-fuzz/nooffset shadowapply; pinnedfmt edition2024 PASS",
+    "Option helper returns same ownership/value; original module realm and current-shadow queries once, original letelse/refusal/continue order preserved",
+    "Explicit lifetime TaintSourceContext identity returns same carrier; metadata/dialect pub(super) fields accessible from parent taint.rs; len/is_some observe existing fields only",
+    "All new output cfgdebug_assertions+dedicatedenv; no extra source, realm, registry, taint or observer query; no fallback/authority/assertion changes",
+    "Test suffix after function unchanged byte-for-byte"
+  ],
+  "limits": "No source application, Cargo, GO, protocol edit, actual firstgate/cause claim or typed runtime acceptance."
+}

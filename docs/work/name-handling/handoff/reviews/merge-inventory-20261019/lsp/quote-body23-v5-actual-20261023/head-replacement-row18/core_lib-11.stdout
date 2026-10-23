@@ -1,0 +1,11 @@
+
+running 1 test
+test source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head ... FAILED
+
+failures:
+
+failures:
+    source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3503 filtered out; finished in 2.93s
+

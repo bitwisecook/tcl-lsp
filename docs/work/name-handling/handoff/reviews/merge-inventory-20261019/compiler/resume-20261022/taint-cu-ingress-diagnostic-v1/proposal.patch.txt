@@ -1,0 +1,90 @@
+--- a/rust/tcl-compiler/src/taint.rs
++++ b/rust/tcl-compiler/src/taint.rs
+@@ -3687,6 +3687,28 @@
+     .warnings
+ }
+ 
++fn trace_taint_cu_ingress_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!("TAINT_CU_INGRESS stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = stage;
++    value
++}
++
++fn trace_taint_cu_ingress_context<'a>(source: TaintSourceContext<'a>) -> TaintSourceContext<'a> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!(
++            "TAINT_CU_INGRESS stage=function_source_context metadata={} dialect={}",
++            source.metadata.is_some(),
++            source.dialect.is_some()
++        );
++    }
++    source
++}
++
+ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
+     cu: &crate::compilation_unit::CompilationUnit,
+     registry: &CommandRegistry,
+@@ -3694,12 +3716,21 @@
+     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+ ) -> TaintWarningReport {
+     let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++        eprintln!(
++            "TAINT_CU_INGRESS stage=module retained_bindings={} supplied_input={}",
++            cu.ir_module.retained_source_bindings.is_some(),
++            cu.ir_module.source_metadata_input.is_some()
++        );
++    }
+     // naming.source.retained-positioned-command-realm
+     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+     // Missing original ownership is terminal for this whole-unit query.
+-    let Some(identities) =
+-        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+-    else {
++    let Some(identities) = trace_taint_cu_ingress_option(
++        "positioned_module_realm",
++        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry),
++    ) else {
+         out.replays = TaintReplayAnalysis::unavailable();
+         return out;
+     };
+@@ -3726,7 +3757,19 @@
+             &fu.ssa,
+             module_traces,
+         );
+-        let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
++            eprintln!(
++                "TAINT_CU_INGRESS stage=function body_id={} executable_blocks={} taint_values={}",
++                fu.body_id.is_some(),
++                exec.len(),
++                taints.len()
++            );
++        }
++        let Some(shadowed) = trace_taint_cu_ingress_option(
++            "current_shadowed_names",
++            shadowed_builtin_names_for_module_function(fu, cu, registry),
++        ) else {
+             out.replays.merge(TaintReplayAnalysis::unavailable());
+             continue;
+         };
+@@ -3735,7 +3778,11 @@
+             &taints,
+             exec,
+             registry,
+-            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
++            trace_taint_cu_ingress_context(TaintSourceContext::for_module_function(
++                registry,
++                &cu.ir_module,
++                fu,
++            )),
+             &shadowed,
+             module_traces,
+             &identities,

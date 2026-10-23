@@ -1,0 +1,77 @@
+{
+  "utc": "2026-10-23T07:34:33.369445+00:00",
+  "scope": "Exact original LSP23 runtime; no release or whole-host admission",
+  "run": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+  "actual_direct_parent": {
+    "kind": "root-observed-direct-parent-closure",
+    "tool_session_id": 10730,
+    "actual_suite_pid": 307040,
+    "observed_utc": "2026-10-23T07:34:04.906655+00:00",
+    "suite_finished_utc": "2026-10-23T07:33:39.518246+00:00",
+    "exit_code": 1,
+    "observation": "write_stdin returned exit_code=1 and FAIL exact23; direct sh run.sh executed suite.py, protocol launch.py was not used",
+    "root_cargo_build_command_complete": true,
+    "no_protocol_launcher_receipt_claimed": true
+  },
+  "summary_sha256": "7dc78ab93a317b9458a7baed6791c05cbad0c6a34b9798b557aeaf4c62b888cd",
+  "summary": {
+    "actual_head_after_final_seals": "9f596325350482f87f7e556d4b92066e1eea08f1",
+    "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+    "artifact_stable": true,
+    "count": 23,
+    "finished_utc": "2026-10-23T07:33:39.518246+00:00",
+    "go_sha256": "05e73d29c7243d159764c63094e4d57a7ff6e236e0092fa80cf03157203f5d17",
+    "passed": false,
+    "source_provider_stable": true
+  },
+  "observed": 23,
+  "passed": 17,
+  "failed": 6,
+  "failed_identities": [
+    [
+      "tcl-lsp-core",
+      "--test lsp_edit_workspace",
+      "minify_strips_comments_and_collapses_whitespace_factorial"
+    ],
+    [
+      "tcl-lsp-core",
+      "--test minify_residual",
+      "default_minify_compacts_expression_gaps_and_preserves_oracle_results"
+    ],
+    [
+      "tcl-lsp-core",
+      "--lib",
+      "minify::original::tests::native_minifier_uses_separate_authentic_body_syntax_without_native_word_admission"
+    ],
+    [
+      "tcl-lsp-core",
+      "--lib",
+      "minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries"
+    ],
+    [
+      "tcl-lsp-core",
+      "--lib",
+      "source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head"
+    ],
+    [
+      "tcl-compiler",
+      "--lib",
+      "command_binding::compiler_inventory::source_syntax_alternative_tests::source_syntax_requires_every_actual_alternative_and_full_input"
+    ]
+  ],
+  "source_snapshot_count": 58,
+  "source_sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+  "provider_snapshot_count": 58,
+  "provider_sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+  "zero_warnings": true,
+  "raw_status_counts_lifecycle_artifact_input_source_provider_guards_independently_verified": true,
+  "builds": [
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.process.json",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.process.json",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.process.json",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.process.json",
+    "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.process.json"
+  ],
+  "all_release_boxes_remain_open": true
+}

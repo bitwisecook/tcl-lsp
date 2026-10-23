@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T07:28:18.192053+00:00",
+  "verdict": "CLEAR bounded test-only BOM fixture input correction; runtime UNRUN",
+  "patch_sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f",
+  "before_sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+  "final_sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469",
+  "checks": [
+    "Independent exactcurrent before and finalshadow identity; zero-fuzz/nooffset apply and pinnedfmt edition2024 PASS",
+    "Wholefile restores byte-identical by replacing sole new conditional analysis construction with original analysis_for_profile call: all source/expected rows and assertions/other test bodies retained",
+    "Default for_profile->from_grammar->Default is Content; analysis_for_profile explicitly supplies that fullinput; file_lexer_config preserves supplied configuration",
+    "Only exact FEFF42 refusal source selects Skip; same profile/context generation/registry store as old helper; separate Content positive unchanged",
+    "Configured lexical standalone proposal may strip leadingFEFF underSkip, so original Unicode value equality refuses deletion; whole source starts puts and is unaffected by document prologue skipping"
+  ],
+  "limits": "No production edit, Cargo, Rust typing, runtime oracle/test, source application, GO or policy change. C oracle equivalence alone does not grant syntax receipt."
+}

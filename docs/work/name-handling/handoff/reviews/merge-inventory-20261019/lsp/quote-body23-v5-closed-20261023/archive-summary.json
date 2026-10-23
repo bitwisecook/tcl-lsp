@@ -1,0 +1,1123 @@
+{
+  "actual_utc": "2026-10-23T07:35:01.882086+00:00",
+  "scope": "Closed actual run archival only; incomplete/unexecuted controls remain unknown",
+  "run": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z",
+  "root_parent_closure": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/root-observed-direct-parent-closure.json",
+  "root_parent_exit": 1,
+  "launch_kind": "root observed direct sh run.sh tool session10730 (not PID); protocol launch.py was NOT used",
+  "observed_rows": 23,
+  "observed_selected": 23,
+  "passed": 17,
+  "failed": 6,
+  "unexecuted_selectors": [],
+  "full23_terminal": true,
+  "terminal_original": {
+    "actual_head_after_final_seals": "9f596325350482f87f7e556d4b92066e1eea08f1",
+    "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+    "artifact_stable": true,
+    "count": 23,
+    "finished_utc": "2026-10-23T07:33:39.518246+00:00",
+    "go_sha256": "05e73d29c7243d159764c63094e4d57a7ff6e236e0092fa80cf03157203f5d17",
+    "passed": false,
+    "source_provider_stable": true
+  },
+  "source_provider_stable": true,
+  "artifact_stable": true,
+  "files": {
+    "root-parent-closure/root-observed-direct-parent-closure.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/root-observed-direct-parent-closure.json",
+      "sha256": "21f4acf3818f48483471bc3fc93badf0c5587f0b1c3d6c94f88f848e2d3841b8"
+    },
+    "run/after.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/after.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/after.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/after.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/before.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/before.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/before.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/before.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/build-compiler_lib.argv.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.argv.json",
+      "sha256": "a0f14540ac56c0ddde40384db3531d0594d9165fb39fdae894cd424f5a6fd805"
+    },
+    "run/build-compiler_lib.artifact.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.artifact.json",
+      "sha256": "86e9d854f601db6779762180160efc63306e5bf558fae113702eb5cc94939e05"
+    },
+    "run/build-compiler_lib.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.process.json",
+      "sha256": "d8ade144d99489fe6db5c5860647c86ea2f9dd5d1b990e276cbe822ad49a4694"
+    },
+    "run/build-compiler_lib.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.stderr",
+      "sha256": "f6d5c3a4c126654c3b5db30aa97a2b3e9d603a03f58754654aac1d1ddf74d6ab"
+    },
+    "run/build-compiler_lib.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.stdout",
+      "sha256": "8eb7e6861222ccb0a4358f76192cc60ac0577a90ff555cf2de8697aab3b12b57"
+    },
+    "run/build-compiler_lib.warnings.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-compiler_lib.warnings.json",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+    },
+    "run/build-core_lib.argv.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.argv.json",
+      "sha256": "d3f78210faae4903ceb3e6cfce235fe6d4ffc11cbafeb0ad6d802859177d0d0d"
+    },
+    "run/build-core_lib.artifact.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.artifact.json",
+      "sha256": "ae223e4f1ae0a11cb0c7fb9554aa551877d015a5120ed195b3cabcfef42c57c3"
+    },
+    "run/build-core_lib.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.process.json",
+      "sha256": "00e0e20f0e3027861c4ac148dba0dee77f872a6dd294341465a2a8b9907639f9"
+    },
+    "run/build-core_lib.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.stderr",
+      "sha256": "cd6715a81c95d8d341d01e3b0b6b761e3dcf0cf07855edc7704254abc192fe1e"
+    },
+    "run/build-core_lib.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.stdout",
+      "sha256": "b4e6a571acf1c6e00e96930bf0088c29b17e489aedd1c54cee2700860f318f24"
+    },
+    "run/build-core_lib.warnings.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-core_lib.warnings.json",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+    },
+    "run/build-environment.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-environment.json",
+      "sha256": "6fcd3d07249d5195fffea29a469d84363dd7c425462227d48aa7b488ef622c05"
+    },
+    "run/build-lsp_core_residual.argv.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.argv.json",
+      "sha256": "4951a2ba0bd8f6d5dd9b723ecd3a04496b333d5f108503858ab813ed4caa0372"
+    },
+    "run/build-lsp_core_residual.artifact.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.artifact.json",
+      "sha256": "6a03a2665c6e8a43c068e1b9bb3a69d76d6e39c2ff1fed44122ef1ed419670de"
+    },
+    "run/build-lsp_core_residual.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.process.json",
+      "sha256": "590ee50344933bf0bd010ad72df47c814a7b619648d38bf6872a730071ffc139"
+    },
+    "run/build-lsp_core_residual.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.stderr",
+      "sha256": "1b9ad8be7950500f6b1927be9868c77bfb7d36e37d34489914770c36ba42daa9"
+    },
+    "run/build-lsp_core_residual.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.stdout",
+      "sha256": "f5ca6f320a893e0cef06b04f76c72d446689224649f43fb66ff35cf44eefc339"
+    },
+    "run/build-lsp_core_residual.warnings.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_core_residual.warnings.json",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+    },
+    "run/build-lsp_edit_workspace.argv.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.argv.json",
+      "sha256": "f985f4225e2bd6c9597d179dbe960ead48a088ad746ed3dd87524ec4773f025f"
+    },
+    "run/build-lsp_edit_workspace.artifact.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.artifact.json",
+      "sha256": "ef59c0b2ecf7f343575aba15513a0f94eb2c536752826e290a2a882b192eae4b"
+    },
+    "run/build-lsp_edit_workspace.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.process.json",
+      "sha256": "d924244cdc78e5d94bbcd0ca0fde548ab3b162caf80757dbbef8d07b5f2a8d06"
+    },
+    "run/build-lsp_edit_workspace.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.stderr",
+      "sha256": "80a96170914704ee9e0986adbc29bc22aff08ba3593d28af3bd66132c5ef41b9"
+    },
+    "run/build-lsp_edit_workspace.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.stdout",
+      "sha256": "aa88e6f84c961ba76a5883cc81680e62b86d0f936ea159c487336331c5ebf40c"
+    },
+    "run/build-lsp_edit_workspace.warnings.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-lsp_edit_workspace.warnings.json",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+    },
+    "run/build-minify_residual.argv.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.argv.json",
+      "sha256": "67624a28bc63c88d72a5c7d8862e64cdb80a5c0490c8560a85fde054614ef63b"
+    },
+    "run/build-minify_residual.artifact.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.artifact.json",
+      "sha256": "ae843681d9e5fe91ed55086816501bad04d89d187eed133a03ff3a53d90cbe66"
+    },
+    "run/build-minify_residual.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.process.json",
+      "sha256": "49b1c43b7e3873e7b96145917f9b1d927e92069410b4844a6a4117fe8b0c39fd"
+    },
+    "run/build-minify_residual.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.stderr",
+      "sha256": "ff24aff3b457e0fe413d956303ee1bbd8755b4efb394038a5a7f779417883499"
+    },
+    "run/build-minify_residual.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.stdout",
+      "sha256": "397fc76c0427fba008abf647a8dfabd09b2790d3704df4f80fb78ab97585bdcd"
+    },
+    "run/build-minify_residual.warnings.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/build-minify_residual.warnings.json",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+    },
+    "run/compiler_lib-00.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-00.process.json",
+      "sha256": "e851af935092369671912465db2a57946e50bcc0b92718c33d67b81ee55d5fe2"
+    },
+    "run/compiler_lib-00.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-00.result.json",
+      "sha256": "16ad8f9b77e5ff35bdecf8580292efdbd80c9119f13247af3d3c281d7ed3512c"
+    },
+    "run/compiler_lib-00.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-00.stderr",
+      "sha256": "1e98b5ea6834acd1fc85fe11c57c5dca76144064758165a90d7226ed8eadac0f"
+    },
+    "run/compiler_lib-00.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-00.stdout",
+      "sha256": "9b9e9f00deb4df2a90459352899b65fb8c613b92612c5ffbd53ceab6ec4196ea"
+    },
+    "run/compiler_lib-01.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-01.process.json",
+      "sha256": "2e15f63093e831cb468dfd204caaec68182d0d3f85f7ae063206e0eace84bd1c"
+    },
+    "run/compiler_lib-01.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-01.result.json",
+      "sha256": "e135f3b22d68dfa51255be749b9dd8248b5bd2aa40a82d7dae79814f233138eb"
+    },
+    "run/compiler_lib-01.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-01.stderr",
+      "sha256": "8a98d356cfad7531956036edbd0dcdb3866d8efc26c2ae09776fa3cc8c601aa9"
+    },
+    "run/compiler_lib-01.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-01.stdout",
+      "sha256": "792f38dd506a3e7978bdf04089e3f2b66a8d27553f1ab87bf58b67d867ff95f0"
+    },
+    "run/compiler_lib-02.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-02.process.json",
+      "sha256": "c4f8a9e55e961442a95dfb4ddd6ae5d8ba946ece14926d0e4f5560a3b81f423a"
+    },
+    "run/compiler_lib-02.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-02.result.json",
+      "sha256": "fd0b36ccbc0e9ce076bb9677d77f5f173a05a734b4c1fe71664297fa82007584"
+    },
+    "run/compiler_lib-02.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-02.stderr",
+      "sha256": "d10d591397d32fc2756b2702833df493d759f3fb6777d92dbd6f817d262998ee"
+    },
+    "run/compiler_lib-02.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-02.stdout",
+      "sha256": "29e7a8a86209b7f632da4b4f0194d6b71ca116e8bf7c9ed235557e407f5629b0"
+    },
+    "run/compiler_lib-03.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-03.process.json",
+      "sha256": "63de1d9a7f947d3a05f801480ea1b3e793aa555eef46b0de14eb1a9927bdd8a5"
+    },
+    "run/compiler_lib-03.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-03.result.json",
+      "sha256": "fdd7f979e62ff6bf7065fe20ecc642fbe3b56f9eb70d43324661e72e14d257c4"
+    },
+    "run/compiler_lib-03.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-03.stderr",
+      "sha256": "b974212ede655bb4e0d374ad708aecf2a340d546d34955d33403287c8c24befc"
+    },
+    "run/compiler_lib-03.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-03.stdout",
+      "sha256": "8f7be215b5ce23a8a41dd11c573b221dcad47e4da34c8d9763b782741cd2bcb3"
+    },
+    "run/compiler_lib-04.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-04.process.json",
+      "sha256": "a3e5624228b39cf1d657e1a2e35f0d6928d06333f1bd163120f98a02445aa34e"
+    },
+    "run/compiler_lib-04.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-04.result.json",
+      "sha256": "8cde4fa1ff0f7691f60aeba144f09bf98dd99046cddb68fbb767bcd34857827d"
+    },
+    "run/compiler_lib-04.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-04.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/compiler_lib-04.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-04.stdout",
+      "sha256": "ec01a1ac4a21333ab04f01f6a4b24dee82669e7ca661f94621fec3ed916129c4"
+    },
+    "run/compiler_lib-postbuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-postbuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-postbuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-posttest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-posttest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-posttest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-posttest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-posttest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-posttest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-posttest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-posttest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-posttest-4.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-4.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-posttest-4.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-prebuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-prebuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-prebuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-pretest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-pretest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-pretest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-pretest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-pretest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-pretest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-pretest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-pretest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/compiler_lib-pretest-4.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-4.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/compiler_lib-pretest-4.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-00.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-00.process.json",
+      "sha256": "4965522c63ce1478a36e74143f38811b224a78effb813f6cc3e0fe8f16c84284"
+    },
+    "run/core_lib-00.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-00.result.json",
+      "sha256": "9e98fd4e8cf6c66589124053cb645afc9df718502c3e6b56fc1abffb6df45e93"
+    },
+    "run/core_lib-00.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-00.stderr",
+      "sha256": "315026450324e720cf73076684ee10dfdf40c841b4bca0b3fed1d14c629dd950"
+    },
+    "run/core_lib-00.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-00.stdout",
+      "sha256": "dba493335b0e6d83de82abcbb822ae84cc46333209ed57f983b95f1395a7fbb5"
+    },
+    "run/core_lib-01.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-01.process.json",
+      "sha256": "5114a1c441a9861167478ff8c28cac8ff5fdd5330e555725bbfddc88291cc778"
+    },
+    "run/core_lib-01.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-01.result.json",
+      "sha256": "05b98bda42f9af5a7239fcab478c05afa019d37352f3ccbc8a60950d87442010"
+    },
+    "run/core_lib-01.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-01.stderr",
+      "sha256": "40b2ffc79d15b82e91b4a2b7b786ef50bdd871bae8fdd0ea778beaeef200d8e2"
+    },
+    "run/core_lib-01.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-01.stdout",
+      "sha256": "d027602176f3211241ceeea79958e332bb9e7fdb70ce250029af22eb4f604e88"
+    },
+    "run/core_lib-02.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-02.process.json",
+      "sha256": "cc534760d24debf9e891ed372b2ab1a6bf1c68107a1f31916882552a76861e47"
+    },
+    "run/core_lib-02.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-02.result.json",
+      "sha256": "021ab8a1554bfdb0101d8858bbc92b5eb70c2bed90a40dd8de51a33ba9207c9d"
+    },
+    "run/core_lib-02.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/core_lib-02.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-02.stdout",
+      "sha256": "978c833327ec002089ddbf04ffe8bd728112245a8a4ce44e0e67214d28b3128b"
+    },
+    "run/core_lib-03.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-03.process.json",
+      "sha256": "c7d1a9a633d66013986d43e6f57aedda1ff91b01c4f5c8e3c930ea949bff616a"
+    },
+    "run/core_lib-03.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-03.result.json",
+      "sha256": "dc3c936230f9e1edde81fbf247b3f1fe18b0653745578f5fde2da000ba6f2aa0"
+    },
+    "run/core_lib-03.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-03.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/core_lib-03.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-03.stdout",
+      "sha256": "7696ba2264812c9a4e18004fb026f467ffe91421cfea23ed0823728549e2ae66"
+    },
+    "run/core_lib-04.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-04.process.json",
+      "sha256": "59f264e441aa7d571dcfa83d09fb0a5444d0aaf32e9a072c11bc22c0a14c74b5"
+    },
+    "run/core_lib-04.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-04.result.json",
+      "sha256": "4eb4653bb762839c8a325947f72f065cf0fc88ccf68ab9dc80d3bed8b9f625fc"
+    },
+    "run/core_lib-04.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-04.stderr",
+      "sha256": "d84d9e89bf66e9dc129a403b1fda26af2e3bc498d3965b3beacf0cadac3882ad"
+    },
+    "run/core_lib-04.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-04.stdout",
+      "sha256": "50e424ffa261dcef14e381213e29a98446c0bc1253d5213334e950c791cf7dd6"
+    },
+    "run/core_lib-05.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-05.process.json",
+      "sha256": "74d34179e99d08dec75738e72567f5ba36eccbff68f0255ce9516a21b6715f07"
+    },
+    "run/core_lib-05.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-05.result.json",
+      "sha256": "4872be5eec04cb097233950a26d652173a8fa3d4e3fac7239c331fe5950c5d15"
+    },
+    "run/core_lib-05.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-05.stderr",
+      "sha256": "3937835073e705a261501da21147a59841a8828f5acc04ff2da783df5ffab7a1"
+    },
+    "run/core_lib-05.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-05.stdout",
+      "sha256": "f8a10dc99dd179aaf3c1e28b973d418d0df55cc1e053170ecc98857e90dea9a3"
+    },
+    "run/core_lib-06.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-06.process.json",
+      "sha256": "6047ce9589ad21967ce982b817d153092f5c1c0834c4c2f9a2cda68d86f97a12"
+    },
+    "run/core_lib-06.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-06.result.json",
+      "sha256": "16ca74aecf3489347885881e6bc436808ed21d6110a70fb39a33a7ad6676cb6d"
+    },
+    "run/core_lib-06.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-06.stderr",
+      "sha256": "b6583ad4bb0a7f462a818017074611232b40c42d0bb5d7b2cde8d554793ee12f"
+    },
+    "run/core_lib-06.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-06.stdout",
+      "sha256": "c698dc30876d107edbdc60eca2163d5b748c07ca72e21c2070751dbc4db0db1b"
+    },
+    "run/core_lib-07.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-07.process.json",
+      "sha256": "fc9ef2d785fb7fdc132e864b2cfacc372d177a133ed9a3d73b15cac3f7421255"
+    },
+    "run/core_lib-07.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-07.result.json",
+      "sha256": "7f0840ad41522975b779ca3d21c2d323824f1a651bbb03d4924c83d778b58722"
+    },
+    "run/core_lib-07.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-07.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/core_lib-07.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-07.stdout",
+      "sha256": "80f5a0b86a74e472163dc7ee495bb5cce7b70e0d53114ed3bcbcc69d92af5379"
+    },
+    "run/core_lib-08.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-08.process.json",
+      "sha256": "67452644593c1da1f555c565d8b4246a313eb1c1ff8de110f7a2ce036e114f18"
+    },
+    "run/core_lib-08.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-08.result.json",
+      "sha256": "2ae2e58479ae7f30fb14f098a0ffa5e5b48473ca4b0de61520e35d9f0f9e515d"
+    },
+    "run/core_lib-08.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-08.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/core_lib-08.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-08.stdout",
+      "sha256": "8e725f01f8f9770385497cc3b6536b3c884b5129c21cba4d727777f0ff4d36cd"
+    },
+    "run/core_lib-09.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-09.process.json",
+      "sha256": "3095ea6dd93d5c6bdb53786e5fcfc7d549631d9c21aa8e88456dc8c6b1a797f6"
+    },
+    "run/core_lib-09.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-09.result.json",
+      "sha256": "585568ddda53ca1e4a5610c3410e8caf685ddd0e46ef69213a7c1d467449d95d"
+    },
+    "run/core_lib-09.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-09.stderr",
+      "sha256": "4839d49de33080bb4693964dd25fa1e93ebd4952669c29c19a263ac970577dee"
+    },
+    "run/core_lib-09.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-09.stdout",
+      "sha256": "415055b105abf98c9b2a623bbf0435f61411b39b6ba662fb0d701081929c2529"
+    },
+    "run/core_lib-10.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-10.process.json",
+      "sha256": "906690587ecef2e1d1de852a1ca3a7d311e74d2985dd1e9b295b7f44d9331b81"
+    },
+    "run/core_lib-10.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-10.result.json",
+      "sha256": "2693c3123f9ea318aea57b50fec51cfb1de55f55b9ba63c153486ced701b2c33"
+    },
+    "run/core_lib-10.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-10.stderr",
+      "sha256": "d59c95f7c746dd8b26b309eb549d51ff117cbb425f934c28762c690305059e85"
+    },
+    "run/core_lib-10.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-10.stdout",
+      "sha256": "d328aacce45d45ed05e70823a019044c60901682e9c15c65083aa09d9d4bfcb6"
+    },
+    "run/core_lib-11.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-11.process.json",
+      "sha256": "f2d5e4ac34bc8196a565ee781271fcb1b6d4466d26ad419c44a584102fe88db0"
+    },
+    "run/core_lib-11.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-11.result.json",
+      "sha256": "e5560985d06e3a540b84f090d4c354f87fb20d827cdb9bac830e049d0b769b21"
+    },
+    "run/core_lib-11.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-11.stderr",
+      "sha256": "bff1cbcce9a41418ec681f2f5b892fc4f5d79d7b9ce5c545eb30340d3e38853d"
+    },
+    "run/core_lib-11.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-11.stdout",
+      "sha256": "554b43f10c0ada5326cdc920351f526cdd76575da82427633f4266c2c548da94"
+    },
+    "run/core_lib-postbuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-postbuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-postbuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-10.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-10.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-10.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-10.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-11.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-11.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-11.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-11.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-4.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-4.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-4.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-5.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-5.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-5.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-5.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-6.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-6.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-6.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-6.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-7.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-7.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-7.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-7.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-8.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-8.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-8.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-8.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-posttest-9.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-9.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-posttest-9.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-9.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-prebuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-prebuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-prebuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-10.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-10.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-10.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-10.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-11.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-11.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-11.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-11.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-4.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-4.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-4.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-5.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-5.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-5.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-5.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-6.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-6.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-6.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-6.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-7.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-7.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-7.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-7.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-8.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-8.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-8.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-8.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/core_lib-pretest-9.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-9.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/core_lib-pretest-9.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-9.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/go.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/go.json",
+      "sha256": "05e73d29c7243d159764c63094e4d57a7ff6e236e0092fa80cf03157203f5d17"
+    },
+    "run/head-samples.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/head-samples.json",
+      "sha256": "ab3bf0a8abc286eafa551514baeed4ebadc7e241497b4c3c4047934e4ce68e0b"
+    },
+    "run/lock-released.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lock-released.json",
+      "sha256": "979bdf7e6ed8d21f0f5c4e7b5b8219cb747998b574475ac20b663b208a29ccc3"
+    },
+    "run/lsp_core_residual-00.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-00.process.json",
+      "sha256": "77a85538f42a3fcf8a2c6fe91fd0bdecae74d92b5ccf2fecc122f07fb12acfbf"
+    },
+    "run/lsp_core_residual-00.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-00.result.json",
+      "sha256": "169d52c8787114b3dcb5ae64c541052f50aedd349dde5d47226d9dd1ef3277a6"
+    },
+    "run/lsp_core_residual-00.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-00.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/lsp_core_residual-00.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-00.stdout",
+      "sha256": "4c82a30a7a5e6f70b136d8d6d7c6cddba611ae13da3569388e581b0215e11c46"
+    },
+    "run/lsp_core_residual-01.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-01.process.json",
+      "sha256": "b4420ce0309876c1a27ceee44c708111f995b9d210405b902cab01be508b7557"
+    },
+    "run/lsp_core_residual-01.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-01.result.json",
+      "sha256": "c08a4a8b4d8ee6c3ac204a26d6ae63c94731caec191adac27eee7b4f9479f119"
+    },
+    "run/lsp_core_residual-01.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-01.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/lsp_core_residual-01.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-01.stdout",
+      "sha256": "67bebf127fd454d73272067ec396a5de564b021a387de6f59afd0e907fee540d"
+    },
+    "run/lsp_core_residual-02.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-02.process.json",
+      "sha256": "7f3f31ff2fc781fd17548afc2230dfcfcaa43a8251c2c4491b543004703545a2"
+    },
+    "run/lsp_core_residual-02.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-02.result.json",
+      "sha256": "577d26968bda1537ec6a6e167bac9423f40815f0ca36d28a6108efefe3dab9ff"
+    },
+    "run/lsp_core_residual-02.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/lsp_core_residual-02.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-02.stdout",
+      "sha256": "a94634171ad3c72c8db7ad13e8b603dcfd5b2534eb85aa26d9722263c096ebc4"
+    },
+    "run/lsp_core_residual-03.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-03.process.json",
+      "sha256": "cf899039a908815312647af3d61a44944c87407ecab202df683b1fdc70ba3045"
+    },
+    "run/lsp_core_residual-03.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-03.result.json",
+      "sha256": "7ab1b98f7fca4e39848bdd3fd43e8d3b88e5cda49aab8f6acb31951d9bb0245e"
+    },
+    "run/lsp_core_residual-03.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-03.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "run/lsp_core_residual-03.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-03.stdout",
+      "sha256": "b6e559c25cd663c5d65c110eeaa7e15679997fe56991c4655d1aea8fadf315e9"
+    },
+    "run/lsp_core_residual-postbuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-postbuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-postbuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-posttest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-posttest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-posttest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-posttest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-posttest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-posttest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-posttest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-posttest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-prebuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-prebuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-prebuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-pretest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-pretest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-pretest-1.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-1.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-pretest-1.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-pretest-2.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-2.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-pretest-2.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_core_residual-pretest-3.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-3.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_core_residual-pretest-3.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_edit_workspace-00.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.process.json",
+      "sha256": "83fe4db1fe28aed51b9e5af52f37e0774d610c10e77eff20f18269eaddd61689"
+    },
+    "run/lsp_edit_workspace-00.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.result.json",
+      "sha256": "9a3ae700fc9bad11b03c33a446af0cea798a4226721f34d4d16ed6e72bb4c56d"
+    },
+    "run/lsp_edit_workspace-00.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.stderr",
+      "sha256": "b7d735d2e9ddab213c158bb9f9d340185bdb579fa60de7f16f9fe5457f31dc35"
+    },
+    "run/lsp_edit_workspace-00.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-00.stdout",
+      "sha256": "95167190d58509907c6255adff12718e86658dd8a344279e90c172eac4628c03"
+    },
+    "run/lsp_edit_workspace-postbuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-postbuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_edit_workspace-postbuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_edit_workspace-posttest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-posttest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_edit_workspace-posttest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_edit_workspace-prebuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-prebuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_edit_workspace-prebuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/lsp_edit_workspace-pretest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-pretest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/lsp_edit_workspace-pretest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/minify_residual-00.process.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-00.process.json",
+      "sha256": "529afb59c52e00decebd1af22b12c2910bb6bb49599f84cae178068f3a51a8eb"
+    },
+    "run/minify_residual-00.result.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-00.result.json",
+      "sha256": "43d9e5a6799ee8d7a6cb5bd44938c3ea27415832c6ac79fba670da6645676237"
+    },
+    "run/minify_residual-00.stderr": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-00.stderr",
+      "sha256": "335341a6faa51c3ca037b0291b841097e4407c7dbfb058753dcd441c40fa38a5"
+    },
+    "run/minify_residual-00.stdout": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-00.stdout",
+      "sha256": "4a59d0e7383327d9f79249620bd1c11a23ceeb1fc8d71c9ef716d3c177dde817"
+    },
+    "run/minify_residual-postbuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-postbuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/minify_residual-postbuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/minify_residual-posttest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-posttest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/minify_residual-posttest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/minify_residual-prebuild.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-prebuild.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/minify_residual-prebuild.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/minify_residual-pretest-0.providers.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-pretest-0.providers.json",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    "run/minify_residual-pretest-0.source.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad"
+    },
+    "run/plan.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/plan.json",
+      "sha256": "ec115c6e7374af9e67ce1b67771052dce7f5c31bd0f903990c97ac1ba2aa9e67"
+    },
+    "run/results.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/results.json",
+      "sha256": "3a55e577dd76982a24529b3d149ac5fe7654705615d7be23bf4e0aecd8576a01"
+    },
+    "run/root-observed-direct-parent-closure.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/root-observed-direct-parent-closure.json",
+      "sha256": "21f4acf3818f48483471bc3fc93badf0c5587f0b1c3d6c94f88f848e2d3841b8"
+    },
+    "run/summary.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/summary.json",
+      "sha256": "7dc78ab93a317b9458a7baed6791c05cbad0c6a34b9798b557aeaf4c62b888cd"
+    },
+    "protocol/__pycache__/guarded-exec.cpython-312.pyc": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/__pycache__/guarded-exec.cpython-312.pyc",
+      "sha256": "df66314d86113cb3d5f8d9fcb8616bf2d4012c7ab3691a85f2cfdcd71e6203a5"
+    },
+    "protocol/guarded-exec.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    "protocol/launch.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/launch.py",
+      "sha256": "9421b300f0ce47c7a7645a940f3f49ebb946c8a44c99f870b19fcf7050e865ea"
+    },
+    "protocol/plan.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/plan.json",
+      "sha256": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b"
+    },
+    "protocol/predecessor-compiler-names-peer-review.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/predecessor-compiler-names-peer-review.json",
+      "sha256": "15f617690f8bdf55acc7e368188f77cba6db84fe8571316d47446eda6f229a3f"
+    },
+    "protocol/predecessor-compiler58-Jim7-dedup.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/predecessor-compiler58-Jim7-dedup.json",
+      "sha256": "f37fa50c3be6aeeaa68ecf3ead5269601abde275f156c2d11a6ca4e30f3bc5b4"
+    },
+    "protocol/predecessor-launch-preflight-refusal.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/predecessor-launch-preflight-refusal.json",
+      "sha256": "03d0e391da7b51325ffeab068062da03b4d0cbb224a6d7b71c02cfdcc0e483ae"
+    },
+    "protocol/preparation-receipt.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/preparation-receipt.json",
+      "sha256": "fab0e14fcb236213de664f10437e198934efd28f4792738f2fc9ae475d488f6d"
+    },
+    "protocol/providers.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/providers.py",
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8"
+    },
+    "protocol/root-go.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/root-go.json",
+      "sha256": "05e73d29c7243d159764c63094e4d57a7ff6e236e0092fa80cf03157203f5d17"
+    },
+    "protocol/run.sh": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/run.sh",
+      "sha256": "f6a2871658aee61a6baf270c9c68192229cfde4c6a58dbc409efa4e8720c6cea"
+    },
+    "protocol/runner-input-manifest.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/runner-input-manifest.json",
+      "sha256": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73"
+    },
+    "protocol/suite.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/suite.py",
+      "sha256": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98"
+    },
+    "transitive-inputs/0-tcl-lsp-naming-env.sh": {
+      "original_path": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    "transitive-inputs/1-capture-inputs.py": {
+      "original_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py",
+      "sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474"
+    },
+    "transitive-inputs/2-_paths.py": {
+      "original_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py",
+      "sha256": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c"
+    },
+    "transitive-inputs/3-source46-manifest.json": {
+      "original_path": "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7"
+    },
+    "transitive-inputs/4-plan.json": {
+      "original_path": "/tmp/name-handling-eight-package-check-v9-source46/plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e"
+    },
+    "transitive-inputs/5-inventory.json": {
+      "original_path": "/tmp/lsp-nextbatch-quote-body-finite-inventory-v1/inventory.json",
+      "sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790"
+    },
+    "transitive-inputs/6-run.sh": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/run.sh",
+      "sha256": "f6a2871658aee61a6baf270c9c68192229cfde4c6a58dbc409efa4e8720c6cea"
+    },
+    "transitive-inputs/7-suite.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/suite.py",
+      "sha256": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98"
+    },
+    "transitive-inputs/8-launch.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/launch.py",
+      "sha256": "9421b300f0ce47c7a7645a940f3f49ebb946c8a44c99f870b19fcf7050e865ea"
+    },
+    "transitive-inputs/9-guarded-exec.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    "transitive-inputs/10-providers.py": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/providers.py",
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8"
+    },
+    "transitive-inputs/11-plan.json": {
+      "original_path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23/plan.json",
+      "sha256": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b"
+    },
+    "transitive-inputs/12-naming-source46-repaired-identity.json": {
+      "original_path": "/tmp/naming-source46-repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594"
+    }
+  },
+  "all_gzip_roundtrips_verified": true,
+  "all_original_bytes_stable_during_copy": true
+}

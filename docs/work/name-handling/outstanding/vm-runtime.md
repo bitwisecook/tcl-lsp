@@ -2,11 +2,29 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T06:25:46Z (UPF17 exact2/97-call static audit; original3 scope clarified; current guarded UPF2 remains unrun)
+Last updated: 2026-10-23T07:27:19.850452+00:00 (Jim7v3 frozen pins rechecked; root LSP23 running, Jim7 next; compiler58 closed 40PASS/18FAIL)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Current readiness refresh: root reports compiler58 closed 40PASS/18FAIL;
+LSP23 is running and Jim7v3 is the next root-allocated slot. Product remains
+897b4f9b/tree0b11e3a0 (repaired source46); v9 typing PASS0W is a typing result,
+not Jim runtime acceptance. Read-only verification of
+`/tmp/compiler-jim7-source46-v3` confirms plan ed19181d, inputs4ab415b1,
+all frozen input hashes, all46 integration after-pins, and all7 original
+selector source pins unchanged. Exact7 = jim_document source-owner5 plus
+jim_own_surface proc-row2; two fresh Cargo-JSON artifacts are required.
+Original own-surface assertions still require pointer identity and retain
+NATIVE_JIM_ROWS=[alias,exists]; no assertion or exception-list change.
+The frozen protocol retains root GO, strict7-count/status/process checks,
+88125 lifecycle, source/provider/tool/env seals, 180s/20MiB/2GiB and0W.
+No launch or new GO performed. Off-tree canonicalidentity v4 remains static
+peer-CLEAR only, unapplied and untyped/unrun. Jim7 cannot close all11 own-surface
+controls or whole Jim/C1–C2 acceptance. UPF2, originalSpec3 and noTom16 remain
+unrun; registry/worker/LSP/reload/context gaps and general VM baseline gates
+remain separate. Root remains sole Cargo/Git/GO/source owner; source/provider HOLD.
 
 UPF17 release-gap audit completed read-only. Existing tcl-spectcl::upf_hooks
 exact2 selectors really execute17 productionplanned bodies on TclVmEngine:
@@ -28,8 +46,7 @@ server reload or worker host lifecycle. Exact paths/selectors and remaining
 C1–C2 limits are recorded in
 `vm-runtime/upf17-original3-coverage-addendum-20261023.txt`.
 No duplicate runner: root schedules UPF2 after current108/source decision.
-Source/providerHOLD; rootcompiler58run77511 remains active, Jim7 afterLSP23
-unrun; v4ownsurface staticCLEAR only. No Cargo/Git/source/GO or budget changes.
+Source/providerHOLD; rootcompiler58 closed 40PASS/18FAIL, LSP23 running and Jim7 next/unrun; v4ownsurface staticCLEAR only. No Cargo/Git/source/GO or budget changes.
 
 
 Ownsurface canonicalidentity v4 final off-tree candidate staticpeerCLEAR:
@@ -44,15 +61,14 @@ keepsrawNone; existingtrustedregisterhelper Someidentity/memo/oldpredicate
 unchanged. Alloriginal11source/assertions/[alias,exists] unchangeda62d6bc9.
 Independentzero-fuzz/3joins/fmt/staticsemantic+docreviews only; no Rusttyping,
 runtime, actualownsurface2 or broaderacceptance. Rootawaits actualJim7 before
-integrationdecision; source/providerHOLD/currentcompiler58run untouched.
+integrationdecision; source/providerHOLD; completed compiler58 outcomes remain separate.
 Losslesscandidate/peers/beforeafter:
 `vm-runtime/jim-own-surface-canonical-identity-v4/manifest.txt`.
 No canonical/Cargo/Git/source actions; v1/v2held,v3preserved.
 
 
 Actual repairedsource46 eightpackagev9 typing PASS0W05:41:37 per root,
-confirmed finalreceipt status/PASS-warning seal; compiler58 actualbuild is
-rootallocated, no Jim7/ownsurface runtimeyet. Previousv8FAIL preserved.
+confirmed finalreceipt status/PASS-warning seal; compiler58 closed40PASS/18FAIL per root; LSP23 is running, with no Jim7/ownsurface runtime yet. Previousv8FAIL preserved.
 Canonicalidentity v1/v2 bothheld: v2 initialensure couldreset independently
 registered customactive rows, violating pure firstcall metadataaccessor.
 V3 frozen `/tmp/vm-jim-core-canonical-identity-v3/proposal.patch`

@@ -1,0 +1,20 @@
+{
+  "actual_utc": "2026-10-23T07:35:29.635505+00:00",
+  "failed_exact_selectors": [
+    "minify_strips_comments_and_collapses_whitespace_factorial",
+    "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+    "minify::original::tests::native_minifier_uses_separate_authentic_body_syntax_without_native_word_admission",
+    "minify::original::tests::native_static_quote_edits_keep_whole_script_word_boundaries",
+    "source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head",
+    "command_binding::compiler_inventory::source_syntax_alternative_tests::source_syntax_requires_every_actual_alternative_and_full_input"
+  ],
+  "unreached_within_failed_tests": [
+    "default_minify: assertion stops first tcl8.4 nested-expression case; later profiles/controls unproven",
+    "native_minifier authentic body ingress: initial nonempty if-source proofs passed, output assertion fails before foreign/stale/config negatives",
+    "static quote boundaries: first3 loop cases passed, fourthFEFF fails; subsequent cases unproven",
+    "head-replacement body-role: first Readonly negative fails; SyntaxCompaction negative and later controls unreached",
+    "compiler all-alternatives/fullinput: initial authentic alternatives Option unwrap fails at364; later mutations/negative controls unreached"
+  ],
+  "separate_actual_pass": "Content BOM configuration positive passed independently; no donation to failed quote loop",
+  "whole_suite_scope": "23 original assertions executed17PASS6FAIL, stable source/provider/artifact final guards; not release/zeroP2F/wholehost closure"
+}

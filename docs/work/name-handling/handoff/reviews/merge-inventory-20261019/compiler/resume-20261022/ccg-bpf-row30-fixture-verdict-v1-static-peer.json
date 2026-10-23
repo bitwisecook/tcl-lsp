@@ -1,0 +1,13 @@
+{
+  "verdict": "bounded static fixture/authority CLEAR, typing/runtime UNRUN",
+  "patch_sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8",
+  "evidence": "Production lower_verdict explicitly rejects pass for SocketFilter with OutOfSubset and accept/drop hint. Positive baseline now accept; original selected pass retained independently as exact incompatible verdict negative before all unchanged lost-selection controls. No producer/selection/guard/assertion weakening.",
+  "checks": [
+    "Independent exactcurrent zero-fuzz shadow apply/pinnedfmt PASS",
+    "Existing lost-selection mutation/assertion tail unchanged",
+    "No production edit or authority/currentness change"
+  ],
+  "limits": [
+    "New negative preparation and final selector must run; no runtime proof from static contract."
+  ]
+}

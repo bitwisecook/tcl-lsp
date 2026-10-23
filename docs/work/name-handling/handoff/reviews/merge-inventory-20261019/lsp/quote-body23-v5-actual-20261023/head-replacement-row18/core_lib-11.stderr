@@ -1,0 +1,5 @@
+
+thread 'source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head' (315531) panicked at rust/tcl-lsp-core/src/source_structure.rs:2943:9:
+assertion failed: !has_script(&readonly, source,
+        "  set ::builtin_ran BUILTIN  ; list {  VALUE  }  ")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T07:09:43+00:00 (ACTIVE; supplemental G4 fixture-purpose static peer)
+Last updated: 2026-10-23T07:27:06+00:00 (ACTIVE; nextest capture feasibility and nested compiler trace peer)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Nextest 0.9.148 incremental capture feasibility, 07:27Z:** bounded pinned-source proposal `/tmp/ccg-nextest-capture-feasibility-v1/proposal.txt` SHA `778f677a` confirms opt-in `libtest-json-plus` v0.1 flushes each event, while plain `libtest-json` buffers by suite. A selected JSON roster must precede execution and join reporter `package::binary$test` display names to canonical binary IDs; failed events may carry unbounded output, so capture needs a streaming bounded parser and compact terminal JSONL. Existing selection, assertions, exit semantics and six-hour cap must stay. A six-hour external kill can skip every later artifact upload, so this design cannot guarantee remote terminal artifacts or an explicit final unreached set after hard kill without an early independent checkpoint or reserved upload time. No workflow edit, Cargo, CI dispatch, or local nextest binary run.
+
+**Nested compiler body pure trace v3, 07:27Z:** names-owned off-tree `/tmp/compiler-names-body-nested-compiler-census-v3/proposal.patch` SHA `03e603db` has bounded static CLEAR receipt `/tmp/compiler-names-body-nested-compiler-census-v3/ccg-static-peer.txt` SHA `569b551e`. V1 was held because numeric outer-body filtering could omit materialised child source visits. V2/V3 enumerate every retained direct and child compiler visit with source identity and record existing parent nested-binding offsets; the body label is context, not ownership proof. Existing query results/order and debug/env gates remain; actual trace and Rust typing are **UNRUN**. No canonical source/Cargo/Git/GO action by this role.
 
 **Supplemental G4 source46 fixture-purpose v2, 07:09Z:** names-owned test-only `/tmp/compiler-names-g4-supplement-fixture-purpose-v2/proposal.patch` SHA `874d5f49` has bounded independent static CLEAR. It keeps measured Reached/noNative refusals in the original controls and moves scoped lifecycle/body namespace positives to independent actual-source Conditional fixtures with explicit owner, config and observation premises; original tails and negatives remain. The five C profiles' 25/25 oracle outcomes are semantic evidence, not Rust issuer proof. Both original Rust selectors and Conditional/provider/namespace positive premises are **UNRUN**; no runtime green claim or product API change. Owned receipt `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/g4-supplement-fixture-purpose-v2-static-peer.txt` SHA `9e2c5ea7`. No source/Cargo/Git/GO by this role.
 

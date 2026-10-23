@@ -1,0 +1,11 @@
+{
+  "actual_utc": "2026-10-23T07:30:50.347331+00:00",
+  "scope": "Root-authorized off-tree test-only genuine Skip fixture; production and all original assertions unchanged",
+  "patch_sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f",
+  "peer": "compiler-names/lsp-quote-bom-skip-fixture-v1-static-peer.json",
+  "peer_sha256": "38cd3cf456e525b4e115a93bcb6f1f794f6f3787c7705a1c7c5a6573e174b5fc",
+  "checks": "Pinned1.99.1 rustfmtcheck+zero-fuzz/nooffsetapply/staticpeer PASS",
+  "runtime": "UNRUN",
+  "canonical_application": false,
+  "closure_helper": "Prepared only; requires root-observed direct tool_session_id10730 closure, actual suitePID307040 optional, observed_utc separate from suite finish; no protocol launcher exists"
+}

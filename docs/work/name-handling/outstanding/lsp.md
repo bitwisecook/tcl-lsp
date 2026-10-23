@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T07:23:53Z: actual LSP23v5 root10730 remains open. Original factorial row0 FAIL: if gaps compact but nested expr62/80 spaces remain; genuine nested compiler-token inventory query diagnostic owned Names, no fallback. Quote row8 FAIL at leadingFEFF fourth loop case; separate explicitContent BOM row9 PASS. Current configs appear identicalContent, so no legitimate config-only product fix yet; Names independent contract review requested, assertions unchanged. Later row8 loop cases unreached; no whole23 final guard/admission. Root owns source/Cargo/Git/GO; source/provider HOLD. SupportedNode26 off-tree TS PASS remains separately scoped.
+Current status 2026-10-23T07:35:29Z: actual LSP23v5 CLOSED07:33:39 on897b source46:23selected17PASS6FAIL, source/provider/artifact finalguards TRUE; actual root-observed toolsession10730 exit1, suitePID307040 lockreleased07:33:39, no protocol launcher used. Complete lossless archive `lsp/quote-body23-v5-closed-20261023/archive-summary.json` includes every raw run/protocol/transitive byte with verified gzip roundtrips/currentpins. Failures: original factorial; default nested-expression oracle; authentic Core body-source minifier output; quoteBOM boundary fixture; head-replacement Readonly negative; compiler every-alternative/fullinput initial positive. Unreached subcases remain unvalidated. BOM test-only Skip correction off-tree peerCLEAR; nested compiler census and head-replacement diagnosis open. No canonical source/Cargo/Git/GO byLSP, no release/host claim.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T07:23:53Z
+Last updated: 2026-10-23T07:35:29Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T07:23:53Z: read actual `lsp/quote-body23-v5-actual-20261023/factorial-row00/triage.json` and `lsp/quote-bom-row8-diagnosis-20261023/diagnosis.json`. Current actual LSP23 run `/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z` still open; Names owns pure nested-body census proposal, LSP owns quote/BOM contract diagnosis awaiting peer. Preserve failed and passing original assertions, no Native/source-purpose grant or fake explicit-config marker. No whole23/host claim; no Cargo/source/Git/GO byLSP.
+Latest resume pointer 2026-10-23T07:35:29Z: read `lsp/quote-body23-v5-closed-20261023/archive-summary.json` then outcome-caveats.json (exact6selectors and unreached subcases). Actual23 closure17/6 has stable source/provider/artifact seals; root observed direct toolsession10730/suitePID307040, no launcher fiction. Off-tree BOM fixture c00a8a7d peer38cdCLEAR preserves all original assertions with genuine Skip input; Names owns nested-body census; head-replacement producer firstissuer still unmeasured. Retain user1317 whitespace expectations/2231 opaque stop/allguards. Root alone allocates next runtime/source slots; no LSP Cargo/Git/GO.
 
 
 

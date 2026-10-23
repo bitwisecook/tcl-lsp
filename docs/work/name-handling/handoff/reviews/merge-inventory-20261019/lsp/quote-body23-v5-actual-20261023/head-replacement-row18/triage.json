@@ -1,0 +1,15 @@
+{
+  "actual_utc": "2026-10-23T07:31:17.080392+00:00",
+  "scope": "Actual completed row18 only; full23 final guards PENDING",
+  "selector": "source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head",
+  "first_failure": "Readonly !has_script at source_structure.rs2943; SyntaxCompaction assertion is unreached",
+  "consumer": "New compilerBody SourceSyntax route is exclusively CapturePurpose::SyntaxCompaction; first failure can instead enter readonly_command_bodies/source_declared_command_words or legacy source_registry_words. Current raw trace does not identify which issuer admitted body.",
+  "producer_route": "Names informed exact readonly issuer/present-refusal/argument replacement seam. No guessed correction or patch.",
+  "assertions_changed": false,
+  "files": {
+    "core_lib-11.stdout": "554b43f10c0ada5326cdc920351f526cdd76575da82427633f4266c2c548da94",
+    "core_lib-11.result.json": "e5560985d06e3a540b84f090d4c354f87fb20d827cdb9bac830e049d0b769b21",
+    "core_lib-11.process.json": "f2d5e4ac34bc8196a565ee781271fcb1b6d4466d26ad419c44a584102fe88db0",
+    "core_lib-11.stderr": "bff1cbcce9a41418ec681f2f5b892fc4f5d79d7b9ce5c545eb30340d3e38853d"
+  }
+}

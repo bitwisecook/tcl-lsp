@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T07:34:49.008804+00:00",
+  "status": "HELD/OFFTARGET; never integrated/run",
+  "patch_sha256": "2f8db4205f652155c7e66c2a96b4593edcee4e8b8a93c11f58db45a809a98da0",
+  "correction": "Earlier filtered display omitted BODY_FINISH. Actual original stderr contains both site33/site86 normal=true child_complete=false abrupt=1. Capture succeeds; capture-tail probe is off-target. Static identity-safety peer remains bounded but does not justify integration. Trace actual child Error producer/completion next.",
+  "policy": "Existing real abrupt alternatives must remain; afterload13:17 does not erase them.",
+  "archive_sha256": "da6d33fc30f0976aa2953e21d8d2c7c1ec231fe23b15ebab04e67562db7ed8c5",
+  "archive_files": {
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.command": "cbdea74ea4041b7dfa85d81f6a52b0a3464bbb6b8f1c31498c43e2249aad6dad",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.env.json": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.process.json": "04d6efaa1394cf860f706106a94883b27a7ab0ca66d088e24451468fec9e771d",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.result.json": "256b61606421042f1fb151730e8504418678653cbb595d86879de92b371fbe63",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.sha256.json": "fb7979622f5c1acf60337fe4f0d03e3f7ed2c355451de80890462bddf41758cd",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.stderr": "78a1caaaca86f2438f12df4571381fca0a27733890336a33769ae46679809934",
+    "actual/35-35-g4-original4-supplement-original_namespace_import_keeps_the_source_declaration_allocation.stdout": "dc9cfa38e98520656bb5c99b249af593a331774b036bd72302ec3829bcedc6d1",
+    "current/rust/tcl-compiler/src/command_binding/original_namespace_body.rs": "ae6bdba9d89dbfd7cc5cb3d48bed0d5b4c1d19382577fb148e2533e052cf5ebc",
+    "held-candidate/ccg-static-peer.txt": "e42284d317dfd900b82b064743eab28214e5515ca909ece15e5d41c91259e005",
+    "held-candidate/held-addendum.json": "7a03642b41565071c7a270520d09bfd9af59c9732b2042287b386e395d42ca20",
+    "held-candidate/independent-check.json": "fd9f25ba55aec37c49848d8887bc77875407739a7fe9987bde8c943341561fda",
+    "held-candidate/manifest.json": "1145dd0d3ad1707d8b11ed85a4614887d4485d4e9de01a1374df672d6ecc1421",
+    "held-candidate/proposal.patch": "2f8db4205f652155c7e66c2a96b4593edcee4e8b8a93c11f58db45a809a98da0",
+    "held-proposed/rust/tcl-compiler/src/command_binding/original_namespace_body.rs": "00da8a979a3b3dba2164f8ebfa7e2aa3fd5be20aad6dcb7ba193dcd7d122e5da"
+  }
+}
