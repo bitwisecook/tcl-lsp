@@ -856,12 +856,12 @@ fn collect_format_string_hints(
                 let Some(word) = operand.original.word.as_ref() else {
                     continue;
                 };
-                let Some(content) =
+                let Some(computed_contents) =
                     crate::original_invocation::known_word_contents(cu, registry, word.span())
                 else {
                     continue;
                 };
-                for (_, label) in format_specifier_labels(&content, kind, profile) {
+                for (_, label) in format_specifier_labels(&computed_contents, kind, profile) {
                     // Computed contents have no per-character source mapping.
                     push_format_hint(
                         label,
