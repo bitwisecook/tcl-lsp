@@ -1,0 +1,14 @@
+{
+  "pid": 47490,
+  "started_unix": 1792785494.4820907,
+  "waiting_for": {
+    "pid": 41020,
+    "original": {
+      "start": "7591661",
+      "state": "S"
+    }
+  },
+  "reason": "Allow full compiler new/old runtime to finish naturally before restarting only the resource-deferred clean6 unit build; completed library retained. No runtime paused.",
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "rust_diff_sha256": "4232942fc9906bb9f46fc32642f1dc0a82b3592988c0d36aed244750b9ee1677"
+}

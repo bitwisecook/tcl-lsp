@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 19:41 UTC
+Last updated: 2026-10-23 20:00 UTC
 
 ## Resume
 
@@ -15,20 +15,42 @@ Both normal compiler libraries and the combined unit-test executable built
 with zero Rust warnings. ALL16 report/actual-realm controls PASS BOTH modes
 (new38.705s, old67.329s), source seal unchanged and executable deleted. This
 proves the19936 hosted control repair on b6, including both when spellings.
-The build guard resumed clean6 rustc40734 and exited; no process remains held.
+The initial build guard resumed clean6 rustc40734 and exited; no process is held.
+That unit build was later deferred for the memory reason below, before any
+compiler test executable existed. Its normal library remains complete/cached.
 Combined switched lexer586/586 PASS BOTH (4.427/2.879s), zero warnings, removed.
 Clean6 lexer586/586 PASS BOTH (2.993/4.237s), zero warnings, removed; the old
 variable is ignored in that no-switch source.
 
-Full corpus preflight has passed and its examples are building. Selected
-compiler229-case NEW run has started, including the exact original non-UTF8
-native-array control; complete BOTH-mode comparison remains pending. Server /
-SpecTcl builds have started and wait for the later quiet window. No full corpus,
-compiler-filter, server or SpecTcl acceptance is claimed yet.
+Corpus examples built with zero warnings; first22 all-old Tcl fixtures return
+all3 Equal comparisons. Full102+15+synthetics/mixed/PackSet remain pending.
+Compiler NEW has completed228/229 tests (142 pass,86 fail); the remaining
+1000-level deeply_nested_if_survives_interprocedural_scan is still active.
+Original native0xff array fixture PASSES. OLD and complete P2F verdict pending.
+Both SpecTcl eval_loader/golden_packs executables built with zero warnings and
+wait for the quiet window; server still compiles. No complete acceptance yet.
+
+At19:57, selected runtime RSS grew to about7GiB and cgroup anon14.68GiB.
+Cold-cache advisory eviction helped, but the runtime kept growing. SIGINT was
+sent ONLY to owned-tree rustc40734 (unit compilation), freeing about4GiB, to
+preserve runtime and the completed normal library. No runtime was signalled.
+Interrupted build exit101, zero warnings, zero compiler tests; preserve its
+receipt, do not call it a semantic regression or completed clean6 comparison.
+OOM/oom_kill remain0. clean6-unit-memory-deferral.json/cold-build-cache receipts
+record the resource action. Source/configuration/assertions/budgets unchanged.
+Clean6 retry waiter47490, /tmp/perf-b6-clean6-after-memory.log, waits until full
+selected compiler BOTH-mode runtime exits naturally, then rebuilds/runs/deletes
+only the clean6 compiler unit executable, original8 filters BOTH modes.
+Evidence: current-b6ea6dc5-clean6-after-memory-deferral/.
+Quiet guard session37197 was re-registered BEFORE either readiness release to wait
+for this successor47490 as well as the full compiler/corpus workers. Its source
+is /tmp/perf-b6-quiet-tests-after-memory.py; log shares that basename. Old guard
+state and worker-registration-after-memory-deferral.json remain preserved.
 
 Active roots/logs (terminal handles lost at18:41; use PIDs/files):
 - Controls34585: /tmp/perf-b6-controls.log; current-b6ea6dc5-controls/.
-- Clean634692: /tmp/perf-b6-clean6.log; current-b6ea6dc5-clean6/.
+- Original clean634692 finished with the resource-deferred unit build;
+  successor47490 waits, as above. Original log /tmp/perf-b6-clean6.log retained.
 - Compiler-filter waiter41020: /tmp/perf-watch-compiler-b6.log. Copies the
   exact SHA-verified control ELF, waits for controls cleanup, runs original8
   filters PLUS the original non-UTF8 native-array control, BOTH modes.
@@ -39,7 +61,8 @@ Active roots/logs (terminal handles lost at18:41; use PIDs/files):
 - Combined lexer36947: /tmp/perf-b6-lexer.log, queued on the Cargo lock.
 - Remaining-suite builder: /tmp/perf-b6-remaining-suites.log. Waits for the
   control executable, then builds server(default0) and SpecTcl(opt1).
-- Quiet guard: /tmp/perf-b6-quiet-tests.log. Waits for all other workers and
+- Quiet guard successor: /tmp/perf-b6-quiet-tests-after-memory.log. Waits for
+  all other workers and
   rustc processes to finish naturally, then releases server and SpecTcl in
   order with original assertions/timeouts/budgets. No readiness flag released.
 
@@ -51,12 +74,19 @@ Pinned Tcl9.0.4/8.6.18/Jim0.84; publisher/tmp resolves to the same oracle tree.
 Build/run/delete remain one command per driver, including private ELF cleanup.
 
 Current b6 Clippy FAILED62 diagnostics, zero in the six owned files and no
-compiler type errors. One NEW routed realm warning needs mechanical cleanup
-AFTER frozen proof: spell query_memo's existing resolved constructor as
-crate::command_binding::original_name_value::OriginalRealmQueryMemo::default().
-Record that spelling-only delta and scoped fmt/typecheck before readiness.
+compiler type errors. Corrected classification: the one new Default lint is
+ONLY in the temporary-switch source. The existing no-switch batch path already
+qualifies query_memo's constructor, so the deliverable needs no style repair.
+The routed interprocedural length lint predates its two call substitutions.
 Two unrelated doc-spacing lints were fixed separately0f1d32b8; other baseline
 lints route to compiler. No workspace-green claim or suppression.
+
+Off-tree refresh on29c2f89e: clean split ordered application and scoped fmt
+PASS; all six files byte-identical to the active clean6 proof snapshot. The
+interprocedural call sites moved into an owner-extracted helper; the refreshed
+two hunks still perform the same substitutions. latest-patch-context-check.json
+records exact hashes and the Clippy correction. No new semantic proof or change
+to the frozen Rust sources is implied. Public patches still pin their own base.
 
 Latest necessary hosted repair19936eb9 compares source when and retained
 ::when through the existing rooted-key helper, preserving all guards; its

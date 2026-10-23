@@ -1,0 +1,126 @@
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling zeroize v1.9.1
+   Compiling subtle v2.6.1
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.10.1
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling const-oid v0.10.2
+   Compiling ctutils v0.4.4
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling num-integer v0.1.47
+   Compiling memchr v2.8.3
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling libm v0.2.16
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lexer)
+   Compiling sha2 v0.11.1
+   Compiling num-bigint v0.5.1
+   Compiling base64ct v1.8.3
+   Compiling pem-rfc7468 v1.0.0
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-syntax)
+   Compiling cpubits v0.1.1
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-platform)
+   Compiling crypto-bigint v0.7.5
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-runtime-api)
+   Compiling der v0.8.2
+   Compiling smallvec v1.16.3
+   Compiling spki v0.8.1
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling ff v0.14.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-cmd-core)
+   Compiling aho-corasick v1.1.5
+   Compiling regex-syntax v0.8.11
+   Compiling regex-automata v0.4.18
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-regex)
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling minimal-lexical v0.2.1
+   Compiling rustc-hash v2.1.3
+   Compiling base16ct v1.0.0
+   Compiling serde_core v1.0.229
+   Compiling sec1 v0.8.1
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-registry)
+   Compiling nom v7.1.3
+   Compiling unicode-general-category v1.1.0
+   Compiling regex v1.13.1
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-bytecode)
+   Compiling deranged v0.5.9
+   Compiling time-core v0.1.9
+   Compiling powerfmt v0.2.1
+   Compiling num-conv v0.2.2
+   Compiling time v0.3.55
+   Compiling zmij v1.0.23
+   Compiling rusticata-macros v4.1.0
+   Compiling elliptic-curve v0.14.1
+   Compiling primefield v0.14.0
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling hashbrown v0.17.1
+   Compiling equivalent v1.0.3
+   Compiling indexmap v2.14.2
+   Compiling serde_json v1.0.154
+   Compiling asn1-rs v0.7.2
+   Compiling rfc6979 v0.6.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-host-c-abi)
+   Compiling wnaf v0.14.1
+   Compiling foldhash v0.2.0
+   Compiling itoa v1.0.18
+   Compiling oid-registry v0.8.1
+   Compiling serde v1.0.229
+   Compiling ring v0.17.14
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling nix v0.31.3
+   Compiling num-bigint v0.4.8
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-compiler)
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling crossbeam-utils v0.8.23
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling data-encoding v2.11.1
+   Compiling lazy_static v1.5.1
+   Compiling x509-parser v0.18.1
+   Compiling crossbeam-epoch v0.9.21
+   Compiling ref-cast v1.0.27
+   Compiling rsa v0.10.0-rc.18
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-host-native)
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling base64 v0.23.1
+   Compiling crossbeam-deque v0.8.8
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-sslictcl)
+   Compiling parking_lot_core v0.9.12
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-irules)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-api)
+   Compiling borrow-or-share v0.2.4
+   Compiling scopeguard v1.2.0
+   Compiling ipnet v2.12.2
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-bigip)
+   Compiling lock_api v0.4.14
+   Compiling rayon-core v1.13.0
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-tclvm)
+   Compiling parking_lot v0.12.5
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-userdirs)
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spectcl)
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-test-support)
+error: could not compile `tcl-compiler` (lib test)
+
+Caused by:
+  process didn't exit successfully: `/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_compiler --edition=2024 rust/tcl-compiler/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C opt-level=1 -C embed-bitcode=no '--warn=clippy::pedantic' --forbid=unsafe_code --warn=unexpected_cfgs '--allow=clippy::module_name_repetitions' '--allow=clippy::missing_panics_doc' '--allow=clippy::missing_errors_doc' --check-cfg 'cfg(tokio_unstable)' --check-cfg 'cfg(tokio_taskdump)' -C debug-assertions=on --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=dce5c5e795e0a8f8 -C extra-filename=-4d0d220b10221392 --out-dir /workspace/tcl-lsp-owned/target/debug/deps -C strip=debuginfo -L dependency=/workspace/tcl-lsp-owned/target/debug/deps --extern bitflags=/workspace/tcl-lsp-owned/target/debug/deps/libbitflags-dbc8fb2050b308b4.rlib --extern num_bigint=/workspace/tcl-lsp-owned/target/debug/deps/libnum_bigint-6ebac370cfc010ee.rlib --extern num_integer=/workspace/tcl-lsp-owned/target/debug/deps/libnum_integer-083c1e9a0ed581a1.rlib --extern num_traits=/workspace/tcl-lsp-owned/target/debug/deps/libnum_traits-f8179a221e4195a8.rlib --extern rayon=/workspace/tcl-lsp-owned/target/debug/deps/librayon-095f23f1383a0a12.rlib --extern regex=/workspace/tcl-lsp-owned/target/debug/deps/libregex-6be0a88023cdfe96.rlib --extern rustc_hash=/workspace/tcl-lsp-owned/target/debug/deps/librustc_hash-92e9905c259a906a.rlib --extern serde_json=/workspace/tcl-lsp-owned/target/debug/deps/libserde_json-e8c7648dbd30c56c.rlib --extern tcl_bytecode=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_bytecode-cdfb076bc68a49ad.rlib --extern tcl_cmd_core=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_cmd_core-26b8a3a437cec554.rlib --extern tcl_core_types=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_core_types-6e6e4b40c41cd79e.rlib --extern tcl_dialect=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_dialect-4f4415e365709c75.rlib --extern tcl_lexer=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_lexer-914941f149e77bfd.rlib --extern tcl_registry=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_registry-9bbb53551b00db59.rlib --extern tcl_runtime_api=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_runtime_api-c4888e07e3ec820e.rlib --extern tcl_spectcl=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_spectcl-e9784beec3425079.rlib --extern tcl_syntax=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_syntax-6317eb859eff9e7e.rlib --extern tcl_test_support=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_test_support-925c689b799ef541.rlib --extern tcl_vm=/workspace/tcl-lsp-owned/target/debug/deps/libtcl_vm-6790161de4884440.rlib --extern temp_env=/workspace/tcl-lsp-owned/target/debug/deps/libtemp_env-7a1a08216bd58d95.rlib --extern thiserror=/workspace/tcl-lsp-owned/target/debug/deps/libthiserror-1853c7b68aebf03a.rlib --extern unicode_general_category=/workspace/tcl-lsp-owned/target/debug/deps/libunicode_general_category-8b0f7ecbeed10ca2.rlib -L native=/workspace/tcl-lsp-owned/target/debug/build/ring-c8a8ac9097b5eaec/out -L native=/workspace/tcl-lsp-owned/target/debug/build/tcl-host-c-abi-9619e85611e69493/out` (exit status: 1)

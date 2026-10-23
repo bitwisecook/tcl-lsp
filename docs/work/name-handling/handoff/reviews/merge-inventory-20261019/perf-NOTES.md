@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 19:41 UTC
+Last updated: 2026-10-23 20:00 UTC
 
 **Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
 All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
@@ -11,9 +11,14 @@ the build-only guard resumed the six-file compiler and exited.
 Switched lexer586/586 passes BOTH (4.427/2.879s); clean6 lexer586/586 passes
 BOTH (2.993/4.237s), zero warnings and executables removed. The old variable
 is ignored in the clean6 no-switch build. These are contended test durations,
-not latency benchmarks. Full corpus examples build after successful preflight;
-selected229 compiler tests are running. Server / SpecTcl builds have started
-with their original budgets held for the quiet window. No full corpus or
+not latency benchmarks. Full corpus examples built cleanly; first22 all-old text fixtures have all3
+Equal pairs. Selected compiler NEW228/229 complete (142 pass/86 fail), with
+its1000-level interprocedural scan still running; original native-byte control
+passes. OLD/comparison pending. Both SpecTcl executables built cleanly and
+wait for their quiet window; server builds. The clean6 unit compilation was
+resource-deferred to preserve the growing7GiB runtime (no test paused, no OOM);
+its retry waits for the full compiler comparison to finish naturally. Normal
+clean6 library stays cached. Exact resource and worker receipts are retained. No full corpus or
 complete selected-suite verdict yet; six-file perf code remains unlanded.
 See outstanding/perf.md for exact workers and evidence. Historical failures
 and timings below keep their original source/profile scope.

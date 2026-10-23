@@ -1,0 +1,36 @@
+{
+  "started_unix": 1792781652.0945377,
+  "policy": "Wait for other owned compiler/corpus/lexer jobs to finish naturally. Never pause runtime tests; retain all original budgets.",
+  "workers": [
+    {
+      "pid": 34692,
+      "state": "S",
+      "start": "7096802",
+      "argv": "python3 /tmp/perf-b6-clean6-checks.py "
+    },
+    {
+      "pid": 34585,
+      "state": "S",
+      "start": "7093633",
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py /workspace/tcl-lsp-perf-latest --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-controls "
+    },
+    {
+      "pid": 41020,
+      "state": "S",
+      "start": "7591661",
+      "argv": "python3 /tmp/perf-watch-compiler-b6.py "
+    },
+    {
+      "pid": 35120,
+      "state": "S",
+      "start": "7102709",
+      "argv": "python3 /tmp/perf-corpus-b6-after-controls.py "
+    },
+    {
+      "pid": 36947,
+      "state": "S",
+      "start": "7120970",
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage lexer --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5/crate-tests-opt1 "
+    }
+  ]
+}

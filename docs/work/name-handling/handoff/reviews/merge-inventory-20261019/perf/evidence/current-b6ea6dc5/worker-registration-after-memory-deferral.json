@@ -1,0 +1,8 @@
+{
+  "observed_unix": 1792785520.1205816,
+  "old_guard": 41029,
+  "old_worker": 34692,
+  "new_worker": 47490,
+  "all_readiness_flags_absent": true,
+  "policy": "Quiet guard now waits for clean6 resource-deferred compiler retry to finish naturally, as well as original full filters and corpus. No runtime is paused."
+}

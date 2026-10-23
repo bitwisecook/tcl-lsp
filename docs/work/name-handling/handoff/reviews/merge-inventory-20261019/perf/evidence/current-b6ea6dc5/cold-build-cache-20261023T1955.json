@@ -1,0 +1,43 @@
+{
+  "reason": "At16GiB cgroup limit during code generation; advisory eviction of cold completed build files only. No file contents, permissions or mtimes changed. This is resource management, not latency evidence.",
+  "started_unix": 1792785284.1552927,
+  "before": {
+    "current": 17179869184,
+    "stat": {
+      "anon": 12681928704,
+      "file": 4088659968,
+      "kernel": 409137152,
+      "file_mapped": 440434688,
+      "file_dirty": 250290176,
+      "pgscan_direct": 1091704
+    }
+  },
+  "files": 3639,
+  "bytes_advised": 14631501876,
+  "errors": [],
+  "roots": [
+    "/workspace/tcl-lsp-perf-latest/target",
+    "/workspace/tcl-lsp-perf-latest/target-lexer-controls",
+    "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1",
+    "/workspace/tcl-lsp-owned/target-lexer",
+    "/workspace/tcl-lsp-owned/target",
+    "/workspace/tcl-lsp-work/target",
+    "/workspace/tcl-lsp-work/target-check",
+    "/workspace/tcl-lsp-work/target-tests",
+    "/workspace/tcl-lsp-work/target-latest",
+    "/workspace/tcl-lsp-current/target",
+    "/workspace/tcl-lsp-rust/target"
+  ],
+  "after": {
+    "current": 15436734464,
+    "stat": {
+      "anon": 12950499328,
+      "file": 2129838080,
+      "kernel": 355741696,
+      "file_mapped": 421560320,
+      "file_dirty": 254402560,
+      "pgscan_direct": 1092439
+    }
+  },
+  "finished_unix": 1792785293.3160906
+}

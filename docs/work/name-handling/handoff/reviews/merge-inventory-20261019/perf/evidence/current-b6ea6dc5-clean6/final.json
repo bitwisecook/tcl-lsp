@@ -1,0 +1,15 @@
+{
+  "results": [
+    {
+      "stage": "lexer",
+      "exit": 0
+    },
+    {
+      "stage": "compiler",
+      "exit": 1
+    }
+  ],
+  "finished_unix": 1792785457.3325198,
+  "head": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "switch_absent": true
+}

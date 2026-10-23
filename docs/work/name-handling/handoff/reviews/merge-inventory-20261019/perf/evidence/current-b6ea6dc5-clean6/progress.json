@@ -2,5 +2,9 @@
   {
     "stage": "lexer",
     "exit": 0
+  },
+  {
+    "stage": "compiler",
+    "exit": 1
   }
 ]

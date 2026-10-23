@@ -1,0 +1,27 @@
+from pathlib import Path
+import json,os,time
+os.sched_setaffinity(0,{0,1})
+roots=[]
+for root in ['/workspace/tcl-lsp-perf-latest','/workspace/tcl-lsp-owned','/workspace/tcl-lsp-work','/workspace/tcl-lsp-current','/workspace/tcl-lsp-rust']:
+ roots += [p for p in Path(root).glob('target*') if p.is_dir()]
+def memory():
+ return {'current':int(Path('/sys/fs/cgroup/memory.current').read_text()),'stat':{l.split()[0]:int(l.split()[1]) for l in Path('/sys/fs/cgroup/memory.stat').read_text().splitlines() if l.split()[0] in ['anon','file','kernel','file_dirty','file_mapped','pgscan_direct']}}
+receipt={'reason':'At16GiB cgroup limit during code generation; advisory eviction of cold completed build files only. No file contents, permissions or mtimes changed. This is resource management, not latency evidence.','started_unix':time.time(),'before':memory(),'files':0,'bytes_advised':0,'errors':[],'roots':list(map(str,roots))}
+cut=time.time()-300
+for root in roots:
+ for directory,_,files in os.walk(root):
+  for name in files:
+   p=Path(directory)/name
+   if p.suffix not in ['.rlib','.rmeta','.o']:continue
+   try:
+    st=p.stat()
+    if st.st_mtime>cut:continue
+    fd=os.open(p,os.O_RDONLY)
+    try:os.posix_fadvise(fd,0,0,os.POSIX_FADV_DONTNEED)
+    finally:os.close(fd)
+    receipt['files']+=1;receipt['bytes_advised']+=st.st_size
+   except FileNotFoundError:pass
+   except OSError as e:receipt['errors'].append({'path':str(p),'error':str(e)})
+receipt['after']=memory();receipt['finished_unix']=time.time()
+p=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5/cold-build-cache-20261023T1955.json');p.write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps({k:receipt[k] for k in ['files','bytes_advised','before','after','errors']},indent=2),flush=True)

@@ -1,0 +1,14 @@
+{
+  "server/startup/new": {
+    "status": "pending"
+  },
+  "server/startup/old": {
+    "status": "pending"
+  },
+  "server/workspace_symbol/new": {
+    "status": "pending"
+  },
+  "server/workspace_symbol/old": {
+    "status": "pending"
+  }
+}
