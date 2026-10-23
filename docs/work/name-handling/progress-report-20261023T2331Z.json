@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T23:31:31.687042+00:00",
+  "scheduled_report_utc": "2026-10-23T23:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T23:55:37+00:00",
+  "change_since_previous_report": [
+    "Latest2d8 startup actual run40034876814 fullsource/provider/deps/tools and ownedlifecycles sealed: strictserver build0/0W907.46s, coldtokens124.536msPASS, originalworkspace30sFAIL. First tclIndex8.4 analysis takes21011ms for7347B/75nativecommands; next8.5 unreachedcompletion. Context2assertionsPASS with16Cancelled warning. Original provider map omits actual system auto_path inputs, explicitly limits consumed-graph claim; new driver seals and records those exact bytes before/final.",
+    "Integrated reviewed Core2 tuple aliases preserving all5independentlifetimes/bodies, WORKscan2Displaylintcausefix, Native1 Arc return annotation/pin, conservative unclosedworldpresenceUnknown with genuine closed/unclosedcontrols, and SH scalarprewriteV4. Product fixes WORKfirst/CLEAN; temporary observers and protocol fixes WORKonly. All original assertions remain unchanged.",
+    "SH V4 source repair requires both originalwritten/effective argv literal, selected registry READS_BEFORE_WRITE+VarWrite, literal scalar target, nonzero actual SSAuses and exact current represented reaching_binding equality. Arrays/dynamic argv refuse; no new execution/native/Normal grant. Independent deep product review75d434fa and independent tiny metadata review82db3641. Existing wholeSSA recomputation may cost pereligibleRMWtarget; full Tcl corpus measurement remains required.",
+    "Compiler protocol now uses independently reviewed pure strict source-pin helper. Explicit source maps original58/Native3/SH2/Spec/Jim allPASS onb52ff0b6c after rebase/push. Runtime supplement roster has no source_pins map and is explicitly outside this helper claim; its original fullsource/ELF/provider seals remain mandatory. No tests run from a metadata PASS.",
+    "WORK-only fresh protocol adds14exact baseline regressions plus separate stackcase under sameoriginalfullTomELF and original percase budgets, isolated output/statuscounts and process cleanup. Original3selectors/env/order/assertions remain. New original812 C84 archive/image proof mode retains original probe/rows/admission guards and exact provider/compiler/header/archive/image/source checks. No actual execution/admission yet.",
+    "Fresh7mode wave includes startup, runtime, Jim, compileroriginal58+Native3+SH2, Specoriginal11+Native1, strictCore/DB/ServerClippy and original812C84. Cleanrelease full CI/nativebuildproof is also requested. Previous failed/incomplete runs remain preserved. No same-mode active run knowingly canceled; previous diagnostic wave allclosed.",
+    "Strict2d8 DB alltarget/allfeature requested command passes0/0W; Core4/Server131 oldactualfindings remain until rerun. Configuration future boundary already committed; additional miss-onlyfuture proposal remains HOLD pending independent complete trait/layout proof. No invented frame-size improvement or blanket callerboxing.",
+    "FullCIcleanccf FAIL70jobsclosed/12of28nativeproofPASS. Origin/rust nextest24312namedPASS comparison stillUNKNOWN; separate fullTomruntime998baseline gives602retainedPASS14P2F382UNKNOWN. Runtime binary is not joined to nextest by basename. All required sectionF/host/WASM/browser/editor/generated/lint/Tclperformance gates remain open.",
+    "Externalcf80remote preserved bynormalrebase; perfheader23:23fresh. ExtraordinaryReadFlow foreign-cardnegativeFAILBOTH routedcompiler with exactnote, while22actualreportAPIcontrolsPASSBOTHseparate. EarlierSpecTcl28+3BOTH0W scopedPASS retained. CurrentTclcorpus/client/sixfileoptimisation/realmproof remainunaccepted. BIGIP13:17 over60minstale usernotified/no takeover; reviewtriageCOMPLETE oldstampnotunfinished.",
+    "Bothfilesystems below2GiB: no localbuilds or target/youngexe deletion. Six-hourdeadline remains missed and reported. User capability-split/runtime-refusal decisions recorded124104 and binding; pending publicInstructionbools and numericfixture questions remain unanswered. No PR/merge/tag/publish."
+  ],
+  "committed": [
+    "7e3986f3862a112f397476075ac56081eb154fba"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Authenticate new7diagnostic runs plus cleanfullCI/nativeproof onexactpushedsources; fixactualcauses without inferringclosure from staticreviews.",
+    "Repair actual21sstartup/cancellation producer, Jim method/nestedworld, compiler ILX/RBS/SH and Specderived folds, runtime14regressions/stack/append cost.",
+    "Complete strict Core/Server lints, all required host/browser/WASI/editor/sectionF and full noP2Fbaseline +accepted Tclcorpus performance.",
+    "Finish release documentation/comments/processchaff audit, finalformat/rust-check/prep-pr and only then open authorized PR into rust."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 23:23 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No sectionF/PR/admission/zeroP2F/performance gate advances. Actual narrow DB/O129/olderJim/coldtokens results retained with limits; failures and UNRUN remain explicit.",
+  "disk_free_bytes": 1920299008,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

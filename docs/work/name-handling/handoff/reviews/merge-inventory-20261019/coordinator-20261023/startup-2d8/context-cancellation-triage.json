@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T23:13:19.840573+00:00",
+  "source": "2d8d5e8f22cdf25339a2d8f19888c24705b1f301",
+  "path": "rust/tcl-lsp-server/src/lib.rs",
+  "actual_context": "16 Cancelled rounds same sync handle0x59f8eb6854e0; later different sync0x59f8eaae0360 Settled0. This is outcome evidence only.",
+  "candidate_cancelled_fanins": [
+    "snapshot_from returns None: publication intent may reject capture before blocking computation",
+    "spawn_blocking result not Ok(Some): JoinError or caught Salsa cancellation",
+    "publication compare captured vs current Salsa revision differs"
+  ],
+  "not_proved": [
+    "Which actual fanin caused each cancellation",
+    "That a particular runtime write starved or a scheduling yield/gate change would fix it",
+    "That old generic metaclass-depth warning describes these actual cancellations"
+  ],
+  "next_observer": "/tmp/lsp-workspace-phase-cancel-observer-v2 adds only existingbranch staticlabels/capturedrevision; original checks/queries/cancelbehaviour unchanged"
+}

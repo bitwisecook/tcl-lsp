@@ -1,0 +1,122 @@
+{
+  "utc": "2026-10-23T23:21:56.135124+00:00",
+  "reviewer": "compiler-proof",
+  "verdict": "STATIC SEMANTIC AND SOURCE-PRODUCER CLEAR; actual typing, functional closure and performance UNRUN",
+  "proposal": "/workspace/naming-proof-storage/compiler-sh21-literal-target-read-v4",
+  "authenticated_lanes": {
+    "work": {
+      "base_commit": "fdfe6f9fb7e625b24adecb5c6ce1dea77f421e04",
+      "patch_sha256": "a9494c8443b64008b6c328b4d0d6c81bc98a8c03354fa73e343b0c237282a9c9",
+      "manifest_sha256": "ed9c6f329a0b3b7d9a36cc41196db42d279d08d84be4de98ce0cec1f609697f2",
+      "files": {
+        "rust/tcl-compiler/src/shimmer/hints.rs": {
+          "before_sha256": "8af67601ac33fae3f819ce7c07059965287a8a7d6b25d904a76a95906346bd72",
+          "after_sha256": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1"
+        },
+        "rust/tcl-compiler/src/shimmer/use_site.rs": {
+          "before_sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70",
+          "after_sha256": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce"
+        },
+        "rust/tcl-compiler/src/shimmer/commit.rs": {
+          "before_sha256": "eb401b42025698e455d7f8838dfa913ed1f3e4f56bdaca8df85bdbd42831dc0b",
+          "after_sha256": "bddae8076596052c843b81f344b89174ae659540a8bf69c7e7c43c2591d9e0c6"
+        }
+      },
+      "copied_roundtrip": [
+        {
+          "reverse": false,
+          "side": "after",
+          "exit": 0,
+          "output": ""
+        },
+        {
+          "reverse": true,
+          "side": "before",
+          "exit": 0,
+          "output": ""
+        },
+        {
+          "reverse": false,
+          "side": "after",
+          "exit": 0,
+          "output": ""
+        }
+      ],
+      "original_testmodules_unchanged": true
+    },
+    "clean": {
+      "base_commit": "62d583c78dfd69896ffdf146d0af83c315cfa709",
+      "patch_sha256": "73f43065a9be414142150bb00fc8ebd1dd97fad979f0120d689e1d579d928139",
+      "manifest_sha256": "eca655c657b2572e20b1662dcc4f9f7c54cd078598362f5fa962dded6de3d68e",
+      "files": {
+        "rust/tcl-compiler/src/shimmer/hints.rs": {
+          "before_sha256": "8af67601ac33fae3f819ce7c07059965287a8a7d6b25d904a76a95906346bd72",
+          "after_sha256": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1"
+        },
+        "rust/tcl-compiler/src/shimmer/use_site.rs": {
+          "before_sha256": "43b80adac48b842decfd28f573908e20021a997670a8ed7dab62c5b1a09efb93",
+          "after_sha256": "c3892190405a4163f4eaa127a3ead3f92492a8653d2545da395c4b1335f10f21"
+        },
+        "rust/tcl-compiler/src/shimmer/commit.rs": {
+          "before_sha256": "340054c5fcb9d303386f47ded718fa9799a18d462460c2bf1fbc20b5e7d24da0",
+          "after_sha256": "c5374d96e7c0143d24e3362273da096c67d96af4cc38f8d41413025ac3fbac7c"
+        }
+      },
+      "copied_roundtrip": [
+        {
+          "reverse": false,
+          "side": "after",
+          "exit": 0,
+          "output": ""
+        },
+        {
+          "reverse": true,
+          "side": "before",
+          "exit": 0,
+          "output": ""
+        },
+        {
+          "reverse": false,
+          "side": "after",
+          "exit": 0,
+          "output": ""
+        }
+      ],
+      "original_testmodules_unchanged": true
+    }
+  },
+  "scope": "Only selected normal-representation READS_BEFORE_WRITE + VarWrite scalar literal target transport into existing shimmer use/commit consumers. No execution/Native entry/normal completion authority added.",
+  "resolved_findings": [
+    "Original positioned source_tokens words AND effective words must all be Literal/BracedLiteral. Canonicalized effective head or discarded selector cannot hide effectful original argv.",
+    "Actual positioned native operand symbol and nonzero uses reference must equal SsaSourceView::reaching_binding of complete target under current registry. Unknown current read, observer, canonical cell, Defined presence, store error, contents origin, represented origin or version fails closed without fallback.",
+    "All split_element_ref targets rejected. No array element to aggregate projection; complete unchanged scalar name supplied to both owner lookups."
+  ],
+  "proofs": [
+    "NormalRepresentationInvocation remains existing selected-handler/arity contract, not successful execution receipt. Argument hint and exact VarWrite offset govern selection; dynamic target does not fall back to reading the name-value variable.",
+    "SsaSourceView is positioned at actual statement in both use-site and commit walker; lifted substitutions have target_uses None, so cannot borrow parent uses. Current source symbol comes only from exact point symbols; native operand producer uses actual NormalTransfer variable place and canonical binding key.",
+    "reaching_binding resolves current literal access with TraceOperation::Read, rejects observed/undefined/error/Unknown contents, and requires represented contents origin including SSA clobbers to match. Candidate version equality preserves alias/current scope and stale-version refusal.",
+    "Existing Known lattice, array symbol exclusion, captured native read advice, representation cost, first conversion, warning emission and commitment mechanics remain unchanged. No new public SSA accessor, parser, command-name branch or policy."
+  ],
+  "positive_fixture_source_chain": {
+    "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+    "source": "set bad hello\nincr bad\n",
+    "ingress": "fp/mod.rs codes selects static tcl8.6 registry/profile then CompilationUnit::build_for_profile with no supplied entry; run_all_checks consumes same CU.",
+    "entry": "command_binding::initial_entry_from_baseline creates namespace :: and Global variable frame even when native_entry absent; optional runtime entry installation is separate. No added helper requires module Execution purpose or EnteredFrame.",
+    "store": "Existing selected set write form has exact two args and nonconditional VarWrite. transfer_native_invocation -> transfer_native_namespace_writes (or NormalContinuation completion-output alternative) -> transfer_source_namespace_cells_with_input records write; source_literal_store selects set literal hello and publish_captured_store records Defined/WrittenAt(0).",
+    "point": "build_point_resolve_contexts_with_entry refresh_source_context before each actual statement uses exact original binding-site/token variable context. Thus incr point retains source set contents, not only a guessed CFG prior transfer.",
+    "ssa": "represented_contents_origins maps definite non-may/non-destruction set def to WrittenAt(0); actual incr prewrite uses selects this canonical scalar version. Fresh global ordinary bad is not an implicit special-variable read hook. These existing producers can satisfy the new join without new authority.",
+    "limit": "Static reachable producer chain only; no authentic current SH point dump or functional PASS observed. Existing command resolution/def/type gates can still fail closed and must be assessed by original hosted selectors."
+  },
+  "validation": {
+    "both_lanes_original_testmodules": "byte-identical from #[cfg(test)] mod tests onward",
+    "copy_checks": "independent exact cached Git bases; forward/reverse/forward; --fuzz=0; zero output/offset; exact all file hashes",
+    "execution": "No local Cargo/build/test/native execution performed",
+    "earlier_check_note": "Initial test-module extractor matched test-only macro cfg rather than module boundary; corrected marker to #[cfg(test)] newline mod tests. Product unaffected; final byte comparisons pass."
+  },
+  "risks_and_required_followup": [
+    "reaching_binding recomputes represented_contents_origins over full SSA for each eligible operand. No measured performance claim; full corpus/performance gate remains required.",
+    "Typing, Clippy and original functional assertions UNRUN. This is a standalone source-coverage fix, not a causal SH2 closure claim.",
+    "Refresh WORK SH2 required use_site.rs full-file pin and driver manifest hash after root integration; preserve original selectors/env/order/budgets/assertions.",
+    "No canonical edits, Git mutations or dispatch performed by reviewer."
+  ]
+}

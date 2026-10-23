@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T23:06:54.952749+00:00",
+  "assessment_sha256": "7bc517f3114e820ace00580318464b40dfd20e412f6781cbb14df4bd087040b8",
+  "scope_correction": "Declared provider/source/dependency/tool seals are stable. Actual dynamically discovered system Tcl installation paths /usr/share/tcltk and /usr/share/tcltk/tcl8.6/tclIndex are absent from provider inventory. Coarse measured index path7347B/stage21011ms is genuine but no full consumed input identity or crossmachine byte equality can be claimed. Next diagnostic must authenticate discovered install roots beforeworkers/final and retain index bytes.",
+  "local_readonly_candidate": {
+    "path": "/usr/share/tcltk/tcl8.6/tclIndex",
+    "bytes": 7347,
+    "sha256": "e7620c3c29c497f6c0119b63b27d95df9da4d7d3a478bef138fb45b1a39452a3",
+    "same_runner_input": "UNPROVEN"
+  }
+}

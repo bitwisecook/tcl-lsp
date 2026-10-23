@@ -1,0 +1,466 @@
+{
+  "CRC_safe_member_inventory": true,
+  "ZIP_bytes": 10139322,
+  "ZIP_sha256": "c62870b722ba6267bff80a47e0e5a6e5dea827db7d376a9341befbd5b9334e9d",
+  "all_final_source_provider_tool_dependency_seals": true,
+  "artifact_id": 12536339984,
+  "authenticated_current_input_pins": {
+    ".github/workflows/perf.yml": "4220c905f293347811c2405847532ba46e36a5772c363ec247b6ffc78e82a22e",
+    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "docs/work/name-handling/validation-tools/spectcl-fold-diagnostics.py": "7d84a78a2c9f0e4e31eeb855bdecb3c65165bb9db300b0dfaba8e6b2dba7c240",
+    "docs/work/name-handling/validation-tools/spectcl-fold-roster.json": "6f02d1641ee2bc5e5f16d6f4609069cb4624da2b30e26436e971b4f124121c37",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/compilation_unit.rs": "6dc0590c3dfe0d6a6ead54c16d955f4c64f61671f189cd867a9728b15bbf167a",
+    "rust/tcl-compiler/src/const_subst.rs": "d7ffe07d80a6bcaca96c0083dbeb95fc4d59b3d2459d8c2d7ed764651dc15c2f",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+    "rust/tcl-spectcl/tests/native_normal_store.rs": "4dca0d3d39e0693d0a7b22148e70fc2e70164ffd6cb18d16f06fd3cc13015d3a",
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "509ccdf0f93da16f1dfdef1a42d3a324471c7406ebd010c45400239db336d07b",
+    "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
+    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "scripts/dev/ensure-test-deps.sh": "d0ebdb903e5746957616deabc24b9b44e294700abb8f2c6a652b27c3b5f53b49",
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+  },
+  "final_errors": [],
+  "full_seal_counts": {
+    "dependencies": 21500,
+    "providers": 2466,
+    "source": 125367,
+    "tools": 8
+  },
+  "infrastructure_error": "RuntimeError('selected target build failed or unclosed: native_normal_store')",
+  "job_id": 120691816698,
+  "largeJSON_ZIP_only_no_extraction": true,
+  "original_outcomes": [
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-00.process.json",
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-00.stderr",
+      "stdout": "pack_source_e2e-00.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "pack_source_e2e-01.process.json",
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "state": "FAIL",
+      "stderr": "pack_source_e2e-01.stderr",
+      "stdout": "pack_source_e2e-01.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "pack_source_e2e-02.process.json",
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "state": "FAIL",
+      "stderr": "pack_source_e2e-02.stderr",
+      "stdout": "pack_source_e2e-02.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-03.process.json",
+      "selector": "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-03.stderr",
+      "stdout": "pack_source_e2e-03.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-04.process.json",
+      "selector": "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-04.stderr",
+      "stdout": "pack_source_e2e-04.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-05.process.json",
+      "selector": "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-05.stderr",
+      "stdout": "pack_source_e2e-05.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-06.process.json",
+      "selector": "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-06.stderr",
+      "stdout": "pack_source_e2e-06.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-07.process.json",
+      "selector": "the_loader_carries_the_declared_inputs",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-07.stderr",
+      "stdout": "pack_source_e2e-07.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-08.process.json",
+      "selector": "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-08.stderr",
+      "stdout": "pack_source_e2e-08.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-09.process.json",
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-09.stderr",
+      "stdout": "pack_source_e2e-09.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "cmd_control_e2e-00.process.json",
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "state": "PASS",
+      "stderr": "cmd_control_e2e-00.stderr",
+      "stdout": "cmd_control_e2e-00.stdout",
+      "target": "cmd_control_e2e"
+    }
+  ],
+  "outcomes": [
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-00.process.json",
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-00.stderr",
+      "stdout": "pack_source_e2e-00.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "pack_source_e2e-01.process.json",
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "state": "FAIL",
+      "stderr": "pack_source_e2e-01.stderr",
+      "stdout": "pack_source_e2e-01.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "pack_source_e2e-02.process.json",
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "state": "FAIL",
+      "stderr": "pack_source_e2e-02.stderr",
+      "stdout": "pack_source_e2e-02.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-03.process.json",
+      "selector": "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-03.stderr",
+      "stdout": "pack_source_e2e-03.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-04.process.json",
+      "selector": "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-04.stderr",
+      "stdout": "pack_source_e2e-04.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-05.process.json",
+      "selector": "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-05.stderr",
+      "stdout": "pack_source_e2e-05.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-06.process.json",
+      "selector": "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-06.stderr",
+      "stdout": "pack_source_e2e-06.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-07.process.json",
+      "selector": "the_loader_carries_the_declared_inputs",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-07.stderr",
+      "stdout": "pack_source_e2e-07.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-08.process.json",
+      "selector": "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-08.stderr",
+      "stdout": "pack_source_e2e-08.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "pack_source_e2e-09.process.json",
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "state": "PASS",
+      "stderr": "pack_source_e2e-09.stderr",
+      "stdout": "pack_source_e2e-09.stdout",
+      "target": "pack_source_e2e"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "cmd_control_e2e-00.process.json",
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "state": "PASS",
+      "stderr": "cmd_control_e2e-00.stderr",
+      "stdout": "cmd_control_e2e-00.stdout",
+      "target": "cmd_control_e2e"
+    },
+    {
+      "group": "supplemental_native_parent_store",
+      "selector": "native_parent_store_uses_the_actual_pack_implementation_normal_outcome",
+      "state": "UNRUN",
+      "target": "native_normal_store"
+    }
+  ],
+  "overall_exit": 2,
+  "processes": [
+    {
+      "deadline_seconds": 600,
+      "elapsed_seconds": 3.172783102,
+      "exit_code": 0,
+      "minimum_free_bytes": 75673747456,
+      "prefix": "fetch"
+    },
+    {
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 133.432977116,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279596032,
+      "prefix": "build-pack_source_e2e"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.382595166,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279579648,
+      "prefix": "list-pack_source_e2e"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 5.271944484,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279555072,
+      "prefix": "pack_source_e2e-00"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 4.989120382,
+      "exit_code": 101,
+      "minimum_free_bytes": 74279534592,
+      "prefix": "pack_source_e2e-01"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 5.862864503,
+      "exit_code": 101,
+      "minimum_free_bytes": 74279501824,
+      "prefix": "pack_source_e2e-02"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 3.353663564,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279489536,
+      "prefix": "pack_source_e2e-03"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 3.432404663,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279473152,
+      "prefix": "pack_source_e2e-04"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 2.529781345,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279452672,
+      "prefix": "pack_source_e2e-05"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 2.664055518,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279440384,
+      "prefix": "pack_source_e2e-06"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.383675459,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279432192,
+      "prefix": "pack_source_e2e-07"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 2.86576698,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279419904,
+      "prefix": "pack_source_e2e-08"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 3.68714355,
+      "exit_code": 0,
+      "minimum_free_bytes": 74279403520,
+      "prefix": "pack_source_e2e-09"
+    },
+    {
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 101.201696636,
+      "exit_code": 0,
+      "minimum_free_bytes": 73304850432,
+      "prefix": "build-cmd_control_e2e"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.365241144,
+      "exit_code": 0,
+      "minimum_free_bytes": 73413664768,
+      "prefix": "list-cmd_control_e2e"
+    },
+    {
+      "deadline_seconds": 180,
+      "elapsed_seconds": 3.797738555,
+      "exit_code": 0,
+      "minimum_free_bytes": 73413644288,
+      "prefix": "cmd_control_e2e-00"
+    },
+    {
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 1.369413774,
+      "exit_code": 101,
+      "minimum_free_bytes": 73413484544,
+      "prefix": "build-native_normal_store"
+    }
+  ],
+  "run_id": 40034888243,
+  "selected_artifact_seal": true,
+  "semantic_acceptance_or_shipping_or_eightpackage_gate": false,
+  "source_sha": "2d8d5e8f22cdf25339a2d8f19888c24705b1f301",
+  "source_tree": "28c1d54b2b7cedc962cdf37824c1f713acf6f7e8",
+  "strict_fresh_selected_target_artifacts": [
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/spectcl-fold-target/debug/deps/pack_source_e2e-d053eabb6fc3aef2",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/spectcl-fold-target/debug/deps/pack_source_e2e-d053eabb6fc3aef2"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "pack_source_e2e",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/tests/pack_source_e2e.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/spectcl-fold-target/debug/deps/pack_source_e2e-d053eabb6fc3aef2",
+      "sha256": "c549396be39082a7aab79d629aa05b1754263a24d23e644eebf7c8216902a423",
+      "strict_Rust_0w": true,
+      "target": "pack_source_e2e"
+    },
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/spectcl-fold-target/debug/deps/cmd_control_e2e-407a4dcf7a332a7e",
+        "features": [
+          "default",
+          "js-clock",
+          "test-support"
+        ],
+        "filenames": [
+          "/home/runner/work/_temp/spectcl-fold-target/debug/deps/cmd_control_e2e-407a4dcf7a332a7e"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "cmd_control_e2e",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/spectcl-fold-target/debug/deps/cmd_control_e2e-407a4dcf7a332a7e",
+      "sha256": "c89bd017fea508fab7f724520a6d01c43965940970331d3325c0533f20cb433c",
+      "strict_Rust_0w": true,
+      "target": "cmd_control_e2e"
+    }
+  ],
+  "supplemental_outcomes": [
+    {
+      "group": "supplemental_native_parent_store",
+      "selector": "native_parent_store_uses_the_actual_pack_implementation_normal_outcome",
+      "state": "UNRUN",
+      "target": "native_normal_store"
+    }
+  ],
+  "tracked_source_paths": 125367,
+  "utc": "2026-10-23T22:57:19.472013+00:00",
+  "verdict": "AUTHENTICATED_CURRENT_ORIGINAL_TEST_DIAGNOSTIC"
+}

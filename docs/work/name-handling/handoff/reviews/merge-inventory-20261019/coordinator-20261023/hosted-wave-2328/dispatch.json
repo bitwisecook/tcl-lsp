@@ -1,0 +1,36 @@
+{
+  "work_sha": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "release_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+  "requests": [
+    {
+      "mode": "lsp-startup-diagnostics",
+      "utc": "2026-10-23T23:29:06.522560+00:00"
+    },
+    {
+      "mode": "runtime-fulltom-focused-diagnostics",
+      "utc": "2026-10-23T23:29:08.126841+00:00"
+    },
+    {
+      "mode": "jim-source-diagnostics",
+      "utc": "2026-10-23T23:29:09.924647+00:00"
+    },
+    {
+      "mode": "compiler-original58-diagnostics",
+      "utc": "2026-10-23T23:29:11.618836+00:00"
+    },
+    {
+      "mode": "spectcl-fold-diagnostics",
+      "utc": "2026-10-23T23:29:12.916102+00:00"
+    },
+    {
+      "mode": "scoped-lsp-clippy-diagnostics",
+      "utc": "2026-10-23T23:29:14.418403+00:00"
+    },
+    {
+      "mode": "c84-formatter-diagnostics",
+      "utc": "2026-10-23T23:29:16.168029+00:00"
+    }
+  ],
+  "original_budgets_assertions_retained": true,
+  "no_PR_merge_tag_publish": true
+}

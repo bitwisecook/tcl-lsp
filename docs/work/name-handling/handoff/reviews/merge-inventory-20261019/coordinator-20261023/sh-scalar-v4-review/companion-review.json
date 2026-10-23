@@ -1,0 +1,14 @@
+{
+  "verdict": "STATIC METADATA CLEAR",
+  "base": "adf9d6b3c0906e7d75c23f702ef6b712820f1142",
+  "patch_sha256": "7f0e4c40b3dba31c1fb989c2fd2b221edea96ab39a3867946e1db87b86a7f128",
+  "manifest_sha256": "7d0f9c202af1fffd55eaa6ba6d06ef2afddb3c9fcd0f8dc2960969b6604a1adf",
+  "copied_roundtrip": "forward/reverse/forward exact hashes zero fuzz/offset/output",
+  "actual_all_three_V4_after_hash_binding": true,
+  "original_sh_test_hash_unchanged": true,
+  "all_other_roster_fields_unchanged": true,
+  "driver_only_expected_manifest_hash_literal_changed": true,
+  "all_driver_function_ASTs_unchanged": true,
+  "functional_execution": "UNRUN",
+  "source_peer_sha256": "75d434faa335f36427b598b565cac1c0e7dfd702d51a8316f9d047ae5215fafe"
+}

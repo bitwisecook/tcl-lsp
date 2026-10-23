@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-23T23:27:31.908393+00:00",
+  "source": "31388669080b61fc6e64a326d9b4d004be24bf2b",
+  "after_source": "31388669080b61fc6e64a326d9b4d004be24bf2b",
+  "pure_helper_sha256": "a0b74f1e54d61339d4b418ea4a23e0e7df995a937097243167c86c040777cc97",
+  "rosters": [
+    {
+      "name": "compiler-original58-inputs.json",
+      "sha256": "6711798b5e8d3cafd7dbbe21e0998a4bf0a43d6531aad28f5f0981365b81929e",
+      "source_pins": 7,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-native35-supplemental3.json",
+      "sha256": "8fc382cfe187b718bfbbb2401549bf7fdc897526428ca98ef0ec5905c30aa310",
+      "source_pins": 3,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "compiler-sh21-supplemental2.json",
+      "sha256": "0add8b781c91a7a522f77363242381e6c308e3abd20dbb604f71627a1a3213cc",
+      "source_pins": 4,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "spectcl-fold-roster.json",
+      "sha256": "d530b27d17bdf93a2e0cbdebbd2aa36bbb75418cb35775ac5fc253b7437c4050",
+      "source_pins": 5,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "jim-source-roster.json",
+      "sha256": "9d9f62271aeabc687d7e869070c431f21ebe1d8b9638bf87efb4f527d1c589dc",
+      "source_pins": 6,
+      "explicit_pin_map_present": true
+    },
+    {
+      "name": "runtime-baseline-supplement-roster.json",
+      "sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "source_pins": null,
+      "explicit_pin_map_present": false
+    }
+  ],
+  "failures": [],
+  "result": "PASS",
+  "scope": "Only explicit required-source pin maps; exact Git blobs with no lazyfetch, zero builds/processes under test. Does not claim unpinned startup/provider/fullprotocol acceptance."
+}

@@ -1,0 +1,41 @@
+{
+  "utc": "2026-10-23T23:11:10.316739+00:00",
+  "purpose": "File-only compiler/performance source-owner routing; no performance or release admission",
+  "latest_actual": {
+    "run_id": 40034885359,
+    "job_id": 120691807361,
+    "commit": "2d8d5e8f22cdf25339a2d8f19888c24705b1f301",
+    "artifact_id": 12536587555,
+    "artifact_zip_sha256": "37c9e10fe5626ba30f4f9e5fede11520e70447605b508ade68a3e1e0ac7bdb82",
+    "assessment": "/tmp/compiler-original63-40034885359/assessment.json",
+    "assessment_sha256": "6754111cb425dbb65591ec80d26c28212906f2cf5d7a55e9bce93e04af51b436",
+    "status": "REQUIRED_SOURCE_PIN_REFUSAL_BEFORE_ANY_BUILD_OR_TEST",
+    "original58_UNRUN": 58,
+    "separateNative35_UNRUN": 3,
+    "separateSH21_UNRUN": 2,
+    "native_capture_stage": null,
+    "cause": "Native35 roster still pinned full authenticated_report.rs before separately approved ce6facfb1 report repair; exact one mismatch, all original58/SH2 pins match. Required source guard correctly refused.",
+    "seals": "Source125367/provider10202 independently equal; tools19 equality driver-report only because no job/beforetools manifest; dependencies baseline not reached/cleanup NameError; artifacts false/no processes."
+  },
+  "report_repair": {
+    "external_commit": "ce6facfb1ce00ab325924cb567c1ffdd4cff1168",
+    "status": "REPORT_ONLY_PRODUCT_REPAIR_PUBLISHED_WORK2D8; NO_OPTIMISATION_PATCH_ACCEPTANCE",
+    "independent_semantic_clean_carry_receipt": "/workspace/naming-proof-storage/compiler-peer/report-empty-allocated-clean-v1/receipt.json",
+    "receipt_sha256": "56d4d71c82a869e37826f520c072ee0967545a6721a8d387e4c54b581a562108",
+    "guards": "Current empty Unit(OriginalDeclaration)/Allocated only; complete positioned source/module/registry/id/allocation/site/root/source Arc/namespace/span/offset/contiguous mapping card. Installed and duplicate/out-of-range/hosted-purpose restrictions unchanged.",
+    "external_results_root_reported": "Quiet19 bothPASS, original Native35/compact all3pairs bothEqual. External canonical22/fullcorpus/realm/performance acceptance remains open; not independently rerun by compiler role."
+  },
+  "retry_repair": {
+    "path": "/workspace/naming-proof-storage/compiler-original58-approved-pin-refresh-v3",
+    "patch_sha256": "aac46c03e8a8c1a3a4becd591552608cf6b6b64de758beff026596ecf94f4c18",
+    "independent_peer": "/tmp/ccg-peer-compiler-required-pins-v3/review.json",
+    "peer_sha256": "5d3bd32b3b5611f5aced4dbbd6d9bc3e586445bada507e8cefeed7f641248d5b",
+    "status": "INDEPENDENT_STATIC_CLEAR_ROOT_INTEGRATION_AND_DISPATCH_PENDING",
+    "scope": "Approved report source pins refreshed, both API files pinned, three added controls separately named without adding selectors; original58/35flags/Native3/SH2/assertions/order/cap/guards unchanged. Missing dependencies capture explicit false seal, no false success."
+  },
+  "limits": [
+    "No new compiler shared build, Native35 private capture, SH2 stage or C6 runtime verdict in latest2d8 run.",
+    "Original1000-depth OLD/NEW both OOM near16.4GB and original whole inventory resourceFAILED remain obligations; no lowered depth/stack/assertions or external run takeover.",
+    "No realm correspondence or full corpus/performance admission from this source/carry/pin review."
+  ]
+}

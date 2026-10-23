@@ -2,9 +2,19 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T22:52:40.638435+00:00
+Last updated: 2026-10-23T23:30:01.813517+00:00
 
 ## Resume
+
+23:29 UTC fresh wave ACTUAL b52ff0b6c7ef223da6b920031be4d6b314346311:
+runtime focused3+separate14+stack1 run40039936892/job120708383217 and C84 original812
+run40039950003/job120708423833 currentlycheckout. Source expected fullGitmembership
+125491 +key13runtime/key10C84 pinned under /tmp/vm-runtime-actual-40039936892 and
+/tmp/vm-c84-actual-40039950003; no test/native outcome yet. Root integrated both
+protocols WORKadf9 then SH fix beforefreshsource.
+Own monitor+artifact/source/provider/lifecycle joins, native812 admission remains
+unmodified/unproven, numericfixturepolicy still USERPENDING/noassumption.
+No local builds/deletions; workspace1.92GB/tmp1.67GB below2GiB.
 
 LATEST actual2d8 focused40034879796/job120691788852 CLOSEDFAIL/uploadSUCCESS,
 artifact12536843298 ZIP27000201 SHA8efcc8488c2835773a21e777cdc06c986486c4eea9523b8090c65f2bf0aed2af,
@@ -20,13 +30,29 @@ Borrowed-context puremetadata equality f5794662 independently CCGclearfc13b612,
 WORK649ebe769/CLEAN9891aaa57 integrated; savedownedcurrency+allguards unchanged.
 Source prune-scheduling-reviewe12279d5 HELD anyduplicate-prune removal: cleanup
 prunes BEFORE native owner/callback release, so later scan notprovedredundant.
-No cache/schedule/guard deletion authored. Rootprioritynewdraft separate14exact
-baseline regressions+isolated stack1 after original3 on same sealedELF; fresh
-/workflow source unchanged until immutablepeer. /tmp/vm-runtime-baseline-supplement-v1
-currentlyDRAFTNOTFROZEN (Ruff/ty/Pyright firstpassclear, controls/finalpinspending).
-C84 original812 existingprobe SHA2c1e656d has actual archive+dlopenimage branches;
-route makeTCL_LSP_TCL_RELEASES=8.4ensure-tcl-deps selects existingGNU17bootstrap.
-No newChelper/admission edit/execution; futureboundedmode afterbaseline14freeze.
+No cache/schedule/guard deletion authored. Baseline14+separatestack1 additive
+protocol V2 STATIC CLEAR, root integrated fdfe6f9f workflow3ce044de; exact
+/tmp/vm-runtime-baseline-supplement-v2/ patch90366ba4/manifestba41b7ab,
+independent Astra receiptbba42d4a. Original3 literal roster/order/argv/assertions
+unchanged; same actualELF SHA sealed, each supplement own180s/PG/20s cleanup,
+2400s suite+absolute deadline with205s reserve/recheck/postcase overrun refusal.
+Separate3/14/1 totals; original812/native/Cargo execution UNRUN. V1HELD immutable
+(deadline reserve+coverage corrected only inV2). Fresh actual dispatch pending.
+C84 original812 separate mode FROZEN /tmp/vm-c84-formatter-original812-v1/,
+manifestf49c1973/patchb0e4119e, exactfdfe6f9f workflow3ce044de→6b7d6057,
+newdriver6a7f1052. CCG independent STATIC CLEAR receipt
+/tmp/ccg-peer-c84-original812-v1/review.json SHA79b4015ed6d9840fb5af0a75ed373f3bde9b656317c41ae2ecb54a0e411642ee;
+36copied/pin/current/YAML/bash checks plus18independentmetadata controls and all4argv/
+timer/cap/floor/cwd checks PASS. Ready root integration/dispatch, stillUNRUN. Exact unchangedprobe2c1e+fixture
+cc19, original4commands and existingGNU17 makeTCL_LSP_TCL_RELEASES=8.4ensure-tcl-deps
+bootstrap; distinct archive/header/config/image/probe SHAs/allbytes retained,
+strict fullsource+provider+toolbeforeafter/ownedgroups/floors/20MiBchildlog guard.
+Nativeinputs copied before link so failedlink still diagnoses exactbuildpair.
+All existingjobs includingruntime supplements unchanged. Job50min/steps49,
+absolute2100s experiment+upload5. Ruff/fmt/ty/Pyright/staticYAML/copiedboth0/nooffset
+and18metadata-only fake-owner lifecycle negatives PASS; nativebootstrap/original812
+UNRUN. No newCcallback/oracle/nativepurpose/admissiontable or runtimefixturechange.
+
 
 APPEND constructor-stage diagnostics V2 root independent STATICCLEAR4d7c250d,
 WORK-integrated/pushed2aa5346904f477e09bdc4b05a03adcd3e8b549ae: /tmp/vm-runtime-constructor-stage-diagnostics-v2/, patch
