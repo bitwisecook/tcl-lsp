@@ -612,6 +612,36 @@ impl OriginalPackageInfo {
     }
 }
 
+fn analyse_package_index(
+    content: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: &tcl_registry::CommandRegistry,
+    config: LexerConfig,
+    path: &Path,
+    native_commands: Option<usize>,
+) -> tcl_compiler::analyser::AnalysisResult {
+    let trace = std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some();
+    let started = trace.then(std::time::Instant::now);
+    if trace {
+        eprintln!(
+            "[workspace_scan] package.analysis.begin path={path:?} bytes={} profile={} native_commands={native_commands:?}",
+            content.len(),
+            profile.name
+        );
+    }
+    let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
+    if let Some(started) = started {
+        eprintln!(
+            "[workspace_scan] package.analysis.end path={path:?} elapsed_ms={} commands={} procedures={} classes={}",
+            started.elapsed().as_millis(),
+            analysis.command_invocations.len(),
+            analysis.all_procs.len(),
+            analysis.all_classes.len()
+        );
+    }
+    analysis
+}
+
 fn original_package_entries(
     content: &str,
     directory: &Path,
@@ -631,7 +661,7 @@ fn original_package_entries(
         tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
-    let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
+    let analysis = analyse_package_index(content, profile, registry, config, index, None);
     let Some(bindings) = analysis.retained_command_realm() else {
         return Vec::new();
     };
@@ -886,7 +916,14 @@ fn survey_index_entries(
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-    let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
+    let analysis = analyse_package_index(
+        content,
+        profile,
+        registry,
+        config,
+        index_dir,
+        Some(plan.commands.len()),
+    );
     let Some(registry_context) = analysis
         .resolved_input
         .as_ref()

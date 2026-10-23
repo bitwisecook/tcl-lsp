@@ -421,6 +421,7 @@ try:
         env.update(
             TCL_LSP_TRACE_COARSE_SOURCE="1",
             TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD="1",
+            TCL_LSP_TRACE_WORKSPACE_SCAN="1",
             TCL_LSP_DIAGNOSTIC_ROOT=str(root),
             TCL_LSP_WIP_WIRE_CAP=str(wire_cap),
             TCL_LSP_CONTEXT_WIRE_CAP=str(wire_cap),

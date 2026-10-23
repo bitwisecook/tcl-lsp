@@ -6473,6 +6473,14 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> CrossFileEvidenc
 /// rather than spinning the diagnostics worker forever.
 const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 
+macro_rules! workspace_scan_trace {
+    ($($arg:tt)*) => {
+        if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
+            eprintln!("[workspace_scan] {}", format_args!($($arg)*));
+        }
+    };
+}
+
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::workspace_class_factories`]
 /// — the workspace's user-defined `TclOO` metaclasses — to a
 /// **fixpoint**, and report the union of the URIs whose oracle moved across
@@ -6545,17 +6553,27 @@ async fn sync_workspace_class_factories(
     let mut changed: Vec<Uri> = Vec::new();
     let mut seen: HashSet<Uri> = HashSet::new();
     let mut settled = false;
-    for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
+    for round in 0..CLASS_FACTORY_SYNC_ROUNDS {
+        workspace_scan_trace!(
+            "factory.round.begin sync={handles:p} round={round} wake={}",
+            wake.is_some()
+        );
         match sync_workspace_class_factories_round(handles).await {
             // The fixpoint: every file already carries the index the project
             // proves, so another round would recompute a byte-identical one
             // off unchanged inputs.
             ClassFactoryRound::Settled => {
+                workspace_scan_trace!("factory.round.settled sync={handles:p} round={round}");
                 settled = true;
                 break;
             }
-            ClassFactoryRound::Cancelled => {}
+            ClassFactoryRound::Cancelled => {
+                workspace_scan_trace!("factory.round.cancelled sync={handles:p} round={round}");
+            }
             ClassFactoryRound::Moved(moved) => {
+                workspace_scan_trace!(
+                    "factory.round.moved sync={handles:p} round={round} uris={moved:?}"
+                );
                 if let Some(wake) = wake.as_ref() {
                     reschedule_peers(wake.slots, wake.self_uri, moved.clone()).await;
                 }
@@ -29332,7 +29350,9 @@ impl Backend {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate`.
+        workspace_scan_trace!("scan.gate.wait");
         let _scan_guard = self.workspace_scan_gate.lock().await;
+        workspace_scan_trace!("scan.gate.acquired");
         self.workspace_scan_ready.mark_started();
         self.workspace_index
             .write()
@@ -29345,6 +29365,7 @@ impl Backend {
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
         let roots_count = roots.len();
+        workspace_scan_trace!("scan.roots roots={roots:?}");
         // Capture the host's actual source-store census before scanning. Any
         // byte mutation while the index is assembled makes the receipt stale;
         // the final rename gate rechecks it against the live store.
@@ -29376,8 +29397,13 @@ impl Backend {
             drop(analyser_inputs_guard);
             epoch
         };
+        workspace_scan_trace!("scan.package.begin open={}", open.len());
         let (resolver, files, mut scan_complete) =
             self.build_package_db_and_candidates(roots).await;
+        workspace_scan_trace!(
+            "scan.package.end elapsed_ms={} complete={scan_complete} files={files:?}",
+            scan_started.elapsed().as_millis()
+        );
         // Package discovery is asynchronous and may outlast a dialect change.
         // Snapshot the inputs only after it completes, under the same gate that
         // serialises analyser configuration mutations.
@@ -29435,6 +29461,10 @@ impl Backend {
         // Read and analyse the candidate files across a bounded worker
         // pool, merging into `workspace_index` / the salsa `Project` in
         // batches as they complete.
+        workspace_scan_trace!(
+            "scan.merge.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         let (resolver, files_count, scan_inputs_current, scan_coverage_complete) = self
             .analyse_and_merge_scanned_files(
                 files,
@@ -29450,6 +29480,11 @@ impl Backend {
             )
             .await?;
 
+        workspace_scan_trace!(
+            "scan.merge.end elapsed_ms={} files={files_count} inputs_current={scan_inputs_current} coverage_complete={scan_coverage_complete}",
+            scan_started.elapsed().as_millis()
+        );
+
         // The resolver is a second publication boundary: a later batch may
         // have been accepted under this snapshot, then the configuration may
         // move while analysis is still running. Do not donate those rows' Tcl
@@ -29463,8 +29498,20 @@ impl Backend {
             )
             .await;
         scan_complete &= resolver_published && scan_coverage_complete;
+        workspace_scan_trace!(
+            "scan.resolver.published elapsed_ms={} published={resolver_published} files={files_count} inputs_current={scan_inputs_current} coverage_complete={scan_coverage_complete}",
+            scan_started.elapsed().as_millis()
+        );
         // Re-home sourced documents under their source-site namespaces.
+        workspace_scan_trace!(
+            "scan.rehome.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         self.refresh_source_rehoming().await?;
+        workspace_scan_trace!(
+            "scan.rehome.end elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         // Warm the deep salsa tier for documents already open so their first
         // hover / semantic-tokens / diagnostics request is a cache hit;
         // unopened files stay at the
@@ -29490,17 +29537,47 @@ impl Backend {
             live_publication_gate: Arc::clone(&self.live_publication_gate),
             class_factory_generation: Arc::clone(&self.class_factory_generation),
         };
+        workspace_scan_trace!(
+            "scan.factory.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
+        workspace_scan_trace!(
+            "scan.factory.end elapsed_ms={} moved={} affected={}",
+            scan_started.elapsed().as_millis(),
+            factory_sync.moved.len(),
+            factory_sync.affected_names.len()
+        );
         // …then re-index the unopened documents that oracle can change
         // Must follow the publish: the classes a cross-file
         // metaclass manufactures only exist in an analysis that carried the
         // oracle, and the scan's own pass could not have.
+        workspace_scan_trace!(
+            "scan.factory_reindex.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
+        workspace_scan_trace!(
+            "scan.factory_reindex.end elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         // The subclass-provided-method view, published once the
         // scan's index is complete so the first document opened is analysed
         // with the workspace's subclass evidence already in place.  No peers
         // to wake: nothing has published diagnostics yet.
+        workspace_scan_trace!(
+            "scan.subclass.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         sync_workspace_subclass_methods(&scan_handles).await;
+        workspace_scan_trace!(
+            "scan.subclass.end elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
+        workspace_scan_trace!(
+            "scan.inventory.begin elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         let inventory_class_factory_generation = scan_class_factory_generation;
         self.publish_workspace_scan_inventory_if_current(
             source_inventory_provider,
@@ -29510,9 +29587,17 @@ impl Backend {
             inventory_class_factory_generation,
         )
         .await;
+        workspace_scan_trace!(
+            "scan.inventory.end elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
+        workspace_scan_trace!(
+            "scan.ready elapsed_ms={}",
+            scan_started.elapsed().as_millis()
+        );
         // Readiness signal for `package_resolver` / `workspace_index` having
         // just been (re)built from disk — a client (or a test) that needs to
         // know the autoload / cross-file workspace state is current rather
@@ -29577,9 +29662,13 @@ impl Backend {
         // async mutex by design.
         let max_files = *self.workspace_scan_max_files.lock().await;
         crate::rt::spawn_blocking(move || {
+            workspace_scan_trace!("discovery.begin");
             let discovered = discovered_cell.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
+            workspace_scan_trace!(
+                "discovery.end installations={discovered:?} editor_paths={editor_library_paths:?}"
+            );
             let resolver = build_package_resolver(
                 scan_store.as_ref(),
                 &roots,
@@ -29590,7 +29679,12 @@ impl Backend {
             let mut files: Vec<PathBuf> = Vec::new();
             let mut complete = true;
             for root in &roots {
+                workspace_scan_trace!("candidates.begin root={root:?} max_files={max_files}");
                 complete &= collect_tcl_files(scan_store.as_ref(), root, max_files, &mut files);
+                workspace_scan_trace!(
+                    "candidates.end root={root:?} complete={complete} count={}",
+                    files.len()
+                );
             }
             (resolver, files, complete)
         })
@@ -29769,19 +29863,23 @@ impl Backend {
                         &folder_dialects,
                         &default_dialect,
                     );
+                    workspace_scan_trace!("candidate.analysis.begin path={path:?} bytes={} dialect={dialect}", text.len());
                     match driver.analyse(&text, &dialect, None) {
-                        Ok(seed) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
-                            Box::new(ScannedDocument {
-                                uri,
-                                text,
-                                dialect,
-                                expected_analyser_inputs_epoch: Some(scan_analyser_inputs_epoch),
-                                expected_class_factory_generation: Some(
-                                    scan_class_factory_generation,
-                                ),
-                                seed,
-                            }),
-                        )),
+                        Ok(seed) => {
+                            workspace_scan_trace!("candidate.analysis.end path={path:?} commands={} procedures={} classes={}", seed.analysis.command_invocations.len(), seed.analysis.all_procs.len(), seed.analysis.all_classes.len());
+                            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
+                                Box::new(ScannedDocument {
+                                    uri,
+                                    text,
+                                    dialect,
+                                    expected_analyser_inputs_epoch: Some(scan_analyser_inputs_epoch),
+                                    expected_class_factory_generation: Some(
+                                        scan_class_factory_generation,
+                                    ),
+                                    seed,
+                                }),
+                            ))
+                        },
                         Err(error) => {
                             WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(error))
                         }
@@ -38424,10 +38522,15 @@ fn build_package_resolver(
 ) -> PackageResolver {
     let mut resolver = PackageResolver::new();
     for root in roots {
+        workspace_scan_trace!("package.tree.begin root={root:?} dir_cap={dir_cap}");
         resolver.scan_tree_in(store, root, dir_cap);
+        workspace_scan_trace!("package.tree.end root={root:?}");
     }
+    workspace_scan_trace!("package.auto_path.begin");
     for dir in effective_auto_path(store, roots, editor_library_paths, discovered) {
+        workspace_scan_trace!("package.path.begin path={dir:?}");
         resolver.scan_path_in(store, &dir);
+        workspace_scan_trace!("package.path.end path={dir:?}");
     }
     resolver
 }
