@@ -3203,7 +3203,7 @@ impl Backend {
                         tcl_lsp_core::original_source_views::take_prepare_refusal_trace()
                 {
                     detail.push_str(" core_prepare_refusal=");
-                    detail.push_str(refusal);
+                    detail.push_str(&refusal);
                 }
                 let selected = selected?;
                 if references != Some(false) {

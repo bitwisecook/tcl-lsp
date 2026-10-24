@@ -9,11 +9,71 @@
 use crate::original_declaration::{
     OriginalDeclarationDocument, OriginalDeclarationIdentity, OriginalSourceViewPublication,
 };
+use std::fmt::Write as _;
 use tcl_compiler::command_binding::OriginalSourceProcedureCall;
 use tcl_lexer::Span;
 
+#[derive(Default)]
+struct PrepareHeldTrace {
+    detail: String,
+    heads_seen: usize,
+}
+
 thread_local! {
     static PREPARE_REFUSAL_TRACE: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+    static PREPARE_HELD_TRACE: std::cell::RefCell<PrepareHeldTrace> = const { std::cell::RefCell::new(PrepareHeldTrace { detail: String::new(), heads_seen: 0 }) };
+}
+
+fn trace_prepare_held(record: impl FnOnce(&mut PrepareHeldTrace)) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        PREPARE_HELD_TRACE.with(|trace| record(&mut trace.borrow_mut()));
+    }
+}
+
+fn trace_prepare_inventory(owner: &OriginalSourceViewDocument<'_>, offset: u32, calls: usize) {
+    trace_prepare_held(|trace| {
+        let _ = write!(
+            trace.detail,
+            " offset={offset} calls={calls} selected_analysis={:p} selected_region={}",
+            owner.document.analysis,
+            owner.region.is_some(),
+        );
+    });
+}
+
+fn trace_prepare_head(span: Option<Span>, owned: bool, matches: bool) {
+    trace_prepare_held(|trace| {
+        trace.heads_seen += 1;
+        if trace.heads_seen <= 16 {
+            let _ = write!(
+                trace.detail,
+                " head[{}]={span:?}:owned={owned}:matches={matches}",
+                trace.heads_seen,
+            );
+        } else if trace.heads_seen == 17 {
+            trace.detail.push_str(" head_rows_truncated=true");
+        }
+    });
+}
+
+fn trace_prepare_uncertainty(operations: &[std::sync::Arc<[tcl_lexer::NativeWord]>]) {
+    trace_prepare_held(|trace| {
+        let _ = write!(trace.detail, " uncertainty_count={}", operations.len());
+        for (ordinal, operation) in operations.iter().take(16).enumerate() {
+            let first = operation.first();
+            let _ = write!(
+                trace.detail,
+                " debt[{ordinal}]=words:{}:head:{:?}:last:{:?}:image_bytes:{:?}",
+                operation.len(),
+                first.map(tcl_lexer::NativeWord::span),
+                operation.last().map(tcl_lexer::NativeWord::span),
+                first.map(|word| word.image().bytes().len()),
+            );
+        }
+        if operations.len() > 16 {
+            trace.detail.push_str(" debt_rows_truncated=true");
+        }
+    });
 }
 
 fn trace_prepare_refusal(stage: &'static str) {
@@ -36,9 +96,11 @@ fn prepare_required<T>(value: Option<T>, stage: &'static str) -> Option<T> {
 /// Drain the first refusal from the existing synchronous prepare computation.
 /// This observes no additional semantic query or currentness decision.
 #[must_use]
-pub fn take_prepare_refusal_trace() -> Option<&'static str> {
+pub fn take_prepare_refusal_trace() -> Option<String> {
     if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        PREPARE_REFUSAL_TRACE.with(|trace| trace.take())
+        let stage = PREPARE_REFUSAL_TRACE.with(|trace| trace.take());
+        let held = PREPARE_HELD_TRACE.with(|trace| std::mem::take(&mut *trace.borrow_mut()));
+        stage.map(|stage| format!("{stage}{}", held.detail))
     } else {
         None
     }
@@ -274,11 +336,18 @@ pub fn prepare(
         );
     }
     let calls = prepare_required(owner.procedure_calls(), "prepare.procedure-call-inventory")?;
+    trace_prepare_inventory(owner, offset, calls.len());
     let mut matching = calls.iter().filter(|call| {
-        call.original_words().first().is_some_and(|head| {
-            owner.owns_command(head.span().start())
-                && head.span().start() <= offset
-                && offset < head.span().end()
+        let head = call.original_words().first();
+        if head.is_none() {
+            trace_prepare_head(None, false, false);
+        }
+        head.is_some_and(|head| {
+            let span = head.span();
+            let owned = owner.owns_command(span.start());
+            let matches = owned && span.start() <= offset && offset < span.end();
+            trace_prepare_head(Some(span), owned, matches);
+            matches
         })
     });
     let call = prepare_required(matching.next(), "prepare.matching-call")?;
@@ -286,7 +355,9 @@ pub fn prepare(
         matching.all(|other| other == call).then_some(()),
         "prepare.unique-call",
     )?;
-    if !call.uncertain_operations().is_empty() {
+    let uncertainty = call.uncertain_operations();
+    if !uncertainty.is_empty() {
+        trace_prepare_uncertainty(uncertainty);
         trace_prepare_refusal("prepare.call-uncertainty");
         return None;
     }
