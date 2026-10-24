@@ -4535,7 +4535,7 @@ fn eval_original_uplevel(
 /// Declare namespace variables and link them into the active variable frame.
 pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(grammar) = vm
-        .native_invocation_dialect()
+        .actual_native_invocation_dialect()
         .native_variable_declaration_protocol()
     else {
         return vm
@@ -6121,3 +6121,63 @@ mod native_completion_option_tests;
 mod original_string_stage_tests;
 
 mod native_frame_numeric;
+
+#[cfg(test)]
+mod physical_variable_declaration_tests {
+    use crate::{Value, Vm};
+    use tcl_runtime_api::Code;
+    use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn namespace_variable_declaration_uses_the_supplied_host_with_separate_source_policy() {
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let source = tcl_dialect::DialectProfile::irules();
+        let mut vm = crate::native_fixture::core(host);
+        vm.set_dialect_profile(source);
+        assert!(vm.set_command_surface_profile(host));
+        let policy = vm.native_compiler_policy();
+        assert!(vm.native_invocation_dialect().execution_point().is_none());
+        assert_eq!(
+            vm.try_invoke_command("variable", &[]).unwrap().code,
+            Code::Ok
+        );
+        let args = [
+            Value::new_native_string_bytes(b"host_variable".as_slice()),
+            Value::new_native_string_bytes(b"VALUE".as_slice()),
+        ];
+        assert_eq!(
+            vm.try_invoke_command("variable", &args).unwrap().code,
+            Code::Ok
+        );
+        let value = vm
+            .get_var("host_variable")
+            .expect("actual declared namespace cell");
+        assert_eq!(vm.native_string_bytes(&value).unwrap().as_ref(), b"VALUE");
+        assert!(vm.execution_refusal.is_none());
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert_eq!(
+            vm.actual_native_execution_profile().cache_key(),
+            host.cache_key()
+        );
+        assert_eq!(vm.native_compiler_policy(), policy);
+    }
+
+    #[test]
+    fn namespace_variable_declaration_keeps_missing_host_and_release_arity_closed() {
+        let source = tcl_dialect::DialectProfile::irules();
+        let mut missing = Vm::new();
+        missing.set_dialect_profile(source);
+        assert!(!missing.set_native_engine_profile(source));
+        assert_eq!(super::cmd_variable(&mut missing, &[]).code, Code::Error);
+        assert!(missing.execution_refusal.is_some());
+        let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
+        let mut original = crate::native_fixture::core(host);
+        original.set_dialect_profile(source);
+        assert_eq!(super::cmd_variable(&mut original, &[]).code, Code::Error);
+        assert!(original.execution_refusal.is_none());
+        assert_eq!(
+            original.actual_native_execution_profile().cache_key(),
+            host.cache_key()
+        );
+    }
+}
