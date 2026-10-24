@@ -912,7 +912,7 @@ impl ResolvedContext {
     ) -> Option<&'static CommandSpec> {
         let query = self.authoring_query().with_realm(realm);
         registry.get_for_surface(name, Some(query)).filter(|spec| {
-            self.spec_available_under(spec, query) && self.roster_admits(name, spec, &query)
+            self.spec_available_under(spec, query) && self.roster_admits(spec, &query)
         })
     }
 
@@ -926,7 +926,9 @@ impl ResolvedContext {
     /// it here, so both answer alike: a `jim` document has no `coroutine`.
     /// A spec with a row of the document's own family, or a package row, or
     /// no row at all, is not the roster's to filter.
-    fn roster_admits(&self, name: &str, spec: &CommandSpec, query: &SurfaceQuery<'_>) -> bool {
+    // Membership belongs to the selected registry descriptor. A rooted
+    // fallback query retains its spelling independently of that roster key.
+    fn roster_admits(&self, spec: &CommandSpec, query: &SurfaceQuery<'_>) -> bool {
         if query.realm == tcl_dialect::model::InvocationRealm::InterpreterRuntime
             && query
                 .core
@@ -949,7 +951,7 @@ impl ResolvedContext {
             any_row_reaches_here = true;
             let passes = match row.provider {
                 SpecProvider::Core(source) => {
-                    self.inherited_surface_admits(name, &Provider::Core(source))
+                    self.inherited_surface_admits(spec.name, &Provider::Core(source))
                 }
                 SpecProvider::Package(_) => true,
             };

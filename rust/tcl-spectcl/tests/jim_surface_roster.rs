@@ -155,3 +155,80 @@ fn a_roster_row_survives_export_and_reload() {
     let reloaded = tcl_spectcl::loader::evaluate_pack(&exported);
     assert_eq!(reloaded.surface_rosters, pack.surface_rosters);
 }
+
+#[test]
+fn rooted_source_metadata_uses_the_selected_jim_roster_descriptor() {
+    use tcl_dialect::{
+        DialectProfile,
+        model::{DialectPoint, InvocationRealm, Release},
+    };
+    tcl_spectcl::core_surfaces::ensure();
+    let logical = DialectProfile::projected_from_point(
+        "jim-rooted-roster-logical079",
+        &[],
+        "Rooted Logical Jim source metadata",
+        DialectPoint::canonical(Release::JIM_0_79),
+    )
+    .intern();
+    let modern = resolve_environment("jim").unit_profile();
+    for profile in [logical, modern] {
+        let generation = tcl_registry::model::ingress::context_for_profile(profile);
+        let registry = generation.commands();
+        let context = generation.context();
+        for realm in [
+            InvocationRealm::RuleLoader,
+            InvocationRealm::InterpreterRuntime,
+        ] {
+            for name in ["if", "proc", "set"] {
+                let bare = context
+                    .resolve_spec_in_realm(registry, name, realm)
+                    .unwrap();
+                let rooted = context
+                    .resolve_spec_in_realm(registry, &format!("::{name}"), realm)
+                    .unwrap();
+                assert!(std::ptr::eq(bare, rooted), "{name}");
+            }
+            for name in ["coroutine", "trace", "yieldto"] {
+                assert!(
+                    context
+                        .resolve_spec_in_realm(registry, name, realm)
+                        .is_none()
+                );
+                assert!(
+                    context
+                        .resolve_spec_in_realm(registry, &format!("::{name}"), realm)
+                        .is_none()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn an_exact_rooted_descriptor_keeps_its_own_inherited_roster_key() {
+    static ROOTED_IF: tcl_registry::CommandSpec = tcl_registry::CommandSpec {
+        name: "::if",
+        surface: Some(tcl_dialect::model::SpecSurface::ALL_TCL),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    tcl_spectcl::core_surfaces::ensure();
+    let generation = resolve_environment("jim").default_context_registry();
+    let context = generation.context();
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.insert_static(&ROOTED_IF);
+    assert!(std::ptr::eq(
+        registry
+            .get_for_surface("::if", Some(context.authoring_query()))
+            .unwrap(),
+        &ROOTED_IF,
+    ));
+    assert!(
+        context
+            .resolve_spec_in_realm(
+                &registry,
+                "::if",
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .is_none()
+    );
+}
