@@ -149,6 +149,7 @@ impl SourceScan<'_> {
             metadata,
             footprint.bindings().invocation_realm(),
             |schema| {
+                trace_deferred_value_gate("schema-entered");
                 selected_values(
                     schema,
                     source_purpose
@@ -414,13 +415,18 @@ fn selected_values(
         schema.authored_source_argument_roles()
     };
     if !complete {
+        trace_deferred_value_gate("roles-incomplete");
         return None;
     }
     let scripts = if logical {
         schema.authored_logical_source_plain_script_arguments()
     } else {
         schema.authored_source_plain_script_arguments()
-    }?;
+    };
+    let Some(scripts) = scripts else {
+        trace_deferred_value_gate("plain-scripts-unavailable");
+        return None;
+    };
     let arguments = schema.words.arguments();
     let facts = schema.facts();
     let mut values = SelectedValues {
@@ -472,7 +478,10 @@ fn selected_values(
                 }
             }
             Some(ScriptTiming::SameInvocation | ScriptTiming::ReferenceOnly) => {}
-            None => return None,
+            None => {
+                trace_deferred_value_gate("timing-unavailable");
+                return None;
+            }
         }
     }
     for (index, role) in roles {
@@ -485,6 +494,12 @@ fn selected_values(
         }
     }
     Some(values)
+}
+
+fn trace_deferred_value_gate(stage: &str) {
+    if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+        eprintln!("TCL_LSP_TRACE_DEFERRED_VALUE_GATE {stage}");
+    }
 }
 
 // Temporary deferred-write diagnostic; remove before release.
