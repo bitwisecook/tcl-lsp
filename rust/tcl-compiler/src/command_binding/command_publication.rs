@@ -129,6 +129,15 @@ pub(super) struct SourceFreshProcedureTraceAbsence {
 }
 
 impl SourceFreshProcedureTraceAbsence {
+    fn profile_point_matches(
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        entry.execution_point.is_some_and(|point| {
+            tcl_registry::InvocationDialect::of_profile(profile).execution_point() == Some(point)
+        })
+    }
+
     pub(super) fn capture(
         publication: &PreservingCommandPublication,
         native: SourceNativeInvocation<'_>,
@@ -143,7 +152,7 @@ impl SourceFreshProcedureTraceAbsence {
             || !entry.closed
             || entry.profile != profile.cache_key()
             || entry.invocation_policy.as_ref() != Some(&entry.profile)
-            || entry.execution_point != profile.core_point
+            || !Self::profile_point_matches(entry, profile)
             || state.baseline.dialect != Some(tcl_registry::InvocationDialect::of_profile(profile))
             || state.baseline.source_point_entry.is_some()
             || state.baseline.unknown_entry
@@ -444,6 +453,30 @@ fn closed_definition_bodies(
 #[cfg(test)]
 mod tests {
     use super::super::{SourceAnalysisOptions, SourceCommandBindings, SourceVariableAccess};
+
+    #[test]
+    fn native_profile_point_uses_the_actual_entry_and_checked_catalogue_release() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        assert!(profile.core_point.is_none());
+        assert!(entry.execution_point.is_some());
+        assert_ne!(entry.execution_point, profile.core_point);
+        assert!(super::SourceFreshProcedureTraceAbsence::profile_point_matches(&entry, profile));
+        let mut changed = (*entry).clone();
+        changed.execution_point = None;
+        assert!(!super::SourceFreshProcedureTraceAbsence::profile_point_matches(&changed, profile));
+        for foreign in ["tcl8.6", "tcl9.1"] {
+            let foreign = tcl_dialect::DialectProfile::find(foreign).unwrap();
+            changed.execution_point =
+                tcl_registry::InvocationDialect::of_profile(foreign).execution_point();
+            assert!(
+                !super::SourceFreshProcedureTraceAbsence::profile_point_matches(&changed, profile)
+            );
+            assert!(
+                !super::SourceFreshProcedureTraceAbsence::profile_point_matches(&entry, foreign)
+            );
+        }
+    }
 
     #[test]
     fn fresh_procedure_publication_preserves_only_unaffected_receiver_tables() {
