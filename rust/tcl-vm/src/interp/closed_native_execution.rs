@@ -208,6 +208,8 @@ impl Vm {
         if completion.code != Code::Ok || self.execution_refusal.is_some() {
             return Err(ClosedSourceRefusal::Execution);
         }
+        drop(completion);
+        drop(prepared);
         Ok(())
     }
 }

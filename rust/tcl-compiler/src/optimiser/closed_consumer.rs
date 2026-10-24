@@ -382,7 +382,7 @@ impl PlanBuilder<'_> {
             return Err(ClosedSourceRefusal::Source);
         }
         self.commands
-            .push(invocation.facts.canonical_command.to_owned());
+            .push(invocation.facts.canonical_command.clone());
         match invocation.facts.operation {
             SemanticOperationId::StructuredLowering(LoweringHookId::Set) => {
                 self.assignment(tokens.words())
@@ -514,7 +514,7 @@ impl PlanBuilder<'_> {
             return Err(ClosedSourceRefusal::Source);
         }
         self.commands
-            .push(child_invocation.facts.canonical_command.to_owned());
+            .push(child_invocation.facts.canonical_command.clone());
         let mut nodes = 0;
         let number = bounded_arithmetic(prepared.tree(), &self.env, self.policy, 0, &mut nodes)?;
         Ok(PlanOutput {
