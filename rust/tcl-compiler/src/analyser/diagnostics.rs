@@ -889,6 +889,83 @@ impl Analyser {
     ) {
         self.emit_method_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
         self.emit_lambda_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
+        self.emit_original_native_declaration_diagnostics(cu, registry, (unit_commands, module));
+    }
+
+    /// Inspect statement reads in retained original Native declarations.
+    /// Unused parameters, stores and other diagnostic families require their
+    /// own liveness proofs and are not entered through this source-only route.
+    fn emit_original_native_declaration_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
+    ) {
+        for function in cu.body_units.values() {
+            let Some(procedure) = cu.original_native_declaration_for_function(function, registry)
+            else {
+                continue;
+            };
+            let mut known_bound: HashSet<String> = procedure.params.iter().cloned().collect();
+            known_bound.extend(
+                crate::interprocedural::collect_positioned_opaque_callee_name_args(
+                    &function.cfg,
+                    &|statement| unit_commands.resolves(statement),
+                ),
+            );
+            self.emit_original_native_declaration_reads(function, procedure, &known_bound, module);
+        }
+    }
+
+    fn emit_original_native_declaration_reads(
+        &mut self,
+        function: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        known_bound: &HashSet<String>,
+        module: &crate::interprocedural::ModuleProcedures<'_>,
+    ) {
+        let context = self.analysis_context();
+        let registry = self.registry.as_deref().unwrap_or(context.commands());
+        let Some(metadata) = module.invocation_metadata_context_for_function(function, registry)
+        else {
+            return;
+        };
+        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
+            &function.cfg,
+            registry,
+            Some(metadata),
+        );
+        let global_aliases =
+            crate::optimiser::elimination::scan_global_scope_aliases_with_metadata_context(
+                &function.cfg,
+                registry,
+                Some(metadata),
+            );
+        let defined = collect_defined_vars(&function.cfg);
+        let considered = semantic_diagnostic_blocks(function);
+        let supp = build_undef_suppression(
+            function,
+            &considered,
+            false,
+            &global_aliases,
+            self.undef_suppression_semantics(&context, Some(module)),
+        );
+        self.emit_read_before_set_diagnostics(
+            function,
+            Some(procedure),
+            &dataflow::ReadBeforeSetCtx {
+                initial_global: false,
+                global_aliases: &global_aliases,
+                defined_vars: &defined,
+                scope_aliases: &scope_aliases,
+                extra_known_defined: known_bound,
+                cell_facts: &helpers::DiagnosticCellFacts::default(),
+                supp: &supp,
+            },
+        );
     }
 
     /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
