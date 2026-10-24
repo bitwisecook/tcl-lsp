@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-24T08:21:26.320261+00:00
+Last updated: 2026-10-24T08:55:50.663100+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Productive CST V3 independentCLEAR 2026-10-24T08:55:50.663100+00:00: names-peer-lsp-cst-reuse-v3/receipt.json SHA7453335654ac2ddd10c6c952b7ad9892f8a570ad92fe39ef1cde3e7acdec3164. Fullactualcapture/memo/nativevector/CST/Documentchannel/bothbuilderkernels/geometry/owner/drop proof; twoactualproductionseams+solepositiveassertion inversewholebytes, current807343/8349 targets/copied0/fmt4/counts. Existingfirst/last/sourcebounds/terminalNone/fallbackVecscope/currentstamps unchanged; namedArcownsCowthroughreturn. Noactualtyping/unit/startup/perfclaim. JimordinarymethodpublicationV2 now Runtime072541e9 CLEAR/rootintegrated807343b804de/CLEAN8349c2b29; necessaryproducer only, latest7946P1F method322 stillactual. Inheritance draft sourcecomplete/unfrozen with realCow API/aliasprefixcounts/currentowner/allErrorstates, bindingtosamecurrentmethodstage beforepins next; no futurecaller/prelude/worldconsumerguardchange authored.
+
+Method ordinary-publication producer V2 FROZEN 2026-10-24T08:32:49.716162+00:00: names-jim-stock-method-publication-v2 WORK9d05309a/c2711838 exact66cf+CLEAN9454174f/e4d0c97f exacta169; source-only actualstockdispatcher+creatorallocations/member/formals/body/freshordinaryledger +Errorprefixes, noNative/enteredframe/prelude closure. Authorc2754a6b fulloldsourceinverse/current/copy0/fmt8/bodymax82/alloldassertions and explicitmapnointersection. Rootpeerrequested; V1oldunrebaseddraftheld. Sole794method322stillfailsfutureUnknown; no claim repaired. Inheritance concretecontracta715cac8 oneemptybaseparent/exact13current inventory/noforeignbindings/realaliasprefixallocationorder andmergedsourcekeys; implementation next. Stockobject/new/ref cannotdonatequietworld dueGC; actualsourceconditionalframeproducer mustbeproved, notClassDef/display authority.
 
 Merge1V4 independentCLEAR 2026-10-24T08:21:26.320261+00:00: receipt9a298abafa70e9856f3d7a71e8272507815d6306b16a177d167b89a71deafa83 at names-peer-lsp-merge-v4; fullactualhelpers+entireparentonlyseam/fulloutsidebyteinverse/currentonce/copy0/fmt2/bothlanes; owned11capturepacket/synchronousenqueue/errorDisplay/permit/cancel/batchsetrowskeepalives/drop/types read. Allhelpersdepth1inherentbeforeTrait; currentunion required preservingpriornamesmembershiprepair. Root+LSPnotified; no actualRust/perfacceptance. Jim794actual6P1F0a41/05f3 unchanged; genuine stockclass/ordinarywrapper/futurecaller producer implementation resumes, overrides/unknown/prioropacity retained.
 

@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T08:59:55.142671+00:00",
+  "scheduled_report_utc": "2026-10-24T08:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T09:25:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product fixes are pushed on work at a079ef42037b35409f133630039ebc377a6170a5 and carried to the release cleanup branch at 1ed96e4fc55023651118b74661af34e556bf30a4. Shallow refresh and ordinary pushes are confirmed. The six-hour target was missed. No PR, merge, tag or release; section F, green shipping gates and complete zero baseline regressions still apply.",
+    "Fresh authenticated server run40076487581 on79495f701 builds the selected optimized CI server with zero warnings. Cold nonempty semantic tokens pass at81.509ms; both original Context fixtures pass complete/current checks with exact publication fields and noW123. Source126059 membership,10critical+13input pins, all provider/dependency/system/tool endpoint records and four empty owned process groups are retained in f2deee03. This is one scoped run, not global race or editor acceptance. The original30s workspace scan still fails; later typical assertions are UNRUN. Five Tcl index profiles complete in3.05\u20133.48s each; first Tk analysis reaches parameter definitions12.33s into its analysis, then remains unfinished. These inclusive completed phases do not establish a sole performance cause.",
+    "The reviewed diagnostic syntax reuse is integrated at a079ef420/1ed96e4fc. It borrows the native word vector and immutable command CST from the same retained original projection, preserving full source/channel/config/vector/geometry checks, terminal refusal and the original parser fallback. Independent74533356 checks source/type/owner/current carry, Arc lifetime, fallback drop scope and the added whole-CST equality assertion. It adds no new cache, cutoff or authority. A fresh startup/performance result is required; no speedup is claimed.",
+    "Compiler794 full67 authentication77ab5617: original58 remains52P6F, six controls PASS, catch diagnostic FAIL, new2 diagnostics FAIL, all145process groups closed and source/provider/dependency/tool records stable. The existing eight taint admission guards actually pass eval_sink; downstream SSA has no taint values. Missing script-source symbol transport and a separate strict sink-candidate schema seam are under source review; neither is assumed the sole cause. The new negative control now requires a provably different statement before the unchanged refusal assertion; independentef3ce7d4 preserves all production bytes and exact input guards. It is not a semantic fix.",
+    "Runtime794 fullreceipt18509ecb authenticates original3 allPASS, append170.901s, and unchanged supplement results8P6F/stackABORT/4P99F/prune6P1F/targeted3P. All131invocations and443members are accounted for; CFI remains incomplete. The Native MapHost numeric-provider fixture correction is integrated after root8101df84 review, preserving all scripts/assertions/errno and production Host defaults. Fresh results are pending. The99failure inventorydfdf9a8c separates observed first refusals from source-linked candidates. Three further fixture prerequisite repairs are being frozen: genuine ORIGINAL and LATER legacy descriptor registration, plus forwarding the existing native list-sorting provider. No blanket provider cause, guard relaxation or assertion change is inferred.",
+    "Jim794 remains6P1F in authenticated0a41c127; all six nested iterations pass, original method322 still fails. A genuine stock method-publication source owner is integrated at807343b80/8349c2b29 after independent Runtime072541e9 review. It retains current dispatcher/creator allocations, original member/formals/body and error alternatives, and grants no caller/frame/wrapper/Native entry. Inheritance and selected source caller ownership remain separate drafts and unvalidated.",
+    "Latest authenticated SpecTcl remains9P2F plus Native supplementFAIL; Heavy0/3; realWASM22/25. Actual Spec retained deferred-write-any barrier is traced through held module facts to SCCP; the existing producer diagnostic is now enabled under a neutral name, without changing guards or original12cases. The bounded original-word preflight facet is integrated after55567ce9 review and preserves updated registry pins. C9 literal-index string-range support is a source draft only; its actual body identity, implementation and tests remain unaccepted.",
+    "The remaining four registry length fixes, server hover helper and generic nonempty completion assertion are integrated after bounded source/type/assertion reviews. All original predicates and test bodies remain intact. A proposed BIGIP assertion inverse was rejected before integration and corrected in a separate frozen held proposal; external ownership is unchanged. The seven standalone patched security locks remain integrated, with cargo-deny rerun still required. Last full release formatting passes bind a16937bb3 before later source changes; final-tip formatting/generated/documentation checks are still open.",
+    "All eight focused modes were dispatched successfully on exact worka079ef42037b35409f133630039ebc377a6170a5: Spec, compiler67, Jim, strict LSP Clippy, startup, full-TomMath runtime, functional preflight and realWASM. Source preflightV8 passed startup13/runners27/wholeguards13 immediately before dispatch. Brief executor unavailability did not lose the scripts or committed state; terminal and local source tips were checked before retrying, and no duplicate dispatch was made. New actual results are pending.",
+    "Paired Tcl shipping-performance run40077894896 remains active on cleana16937bb3 versus origin/rustfcb7927f02. All six Linux/macOS small/medium/full jobs reached paired builds/measurements with no failed step at the last poll. The scopes exclude dedicated iRules performance. Results are not yet accepted, and later functional/performance source changes require final-candidate validation. Old full CI remains red; complete baseline pass-to-fail joins and section F scenarios remain required.",
+    "All primary-role trackers are recent. BIGIP and perf external trackers remain over60minutes old; the user is notified without taking their work over. Review triage is complete. Workspace free disk is roughly1.8GB and tmp roughly65MB, so local builds remain stopped. Earlier obsolete-target recovery preserved all source, receipts and young executables. Next scheduled report09:25UTC."
+  ],
+  "committed": [
+    "01a5df8156fb51706228ad3e29aac21fe0377ab6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish08:55snapshot/report and rearm09:25reminder.",
+    "Authenticate the eight a079 focused runs and ongoing paired Tcl benchmarks.",
+    "Complete genuine SCRIPT symbol/sink transport, inherited Jim method scope, Spec deferred producer and literal-index string-range capability.",
+    "Peer and integrate proven fixture prerequisites; finish baseline joins, green final CI, final cleanup/docs/comments/generated/format and shipping performance before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global release, audit-unit or baseline admissions. Actual scoped server Context/cold progress is distinguished from the still-failing scan and unvalidated candidate changes.",
+  "disk_free_bytes": 1814257664,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

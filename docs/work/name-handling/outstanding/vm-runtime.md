@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T08:08:14Z
+Last updated: 2026-10-24T08:58:22.607004+00:00
 
 ## Resume and rules
 
@@ -19,15 +19,87 @@ Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz 
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
 
-## Active fresh79495f runtime: original outcomes PENDING
+## Current Resume 08:58 UTC
 
-Rootwave runtime40076490175/job120820821931 discoveredactivecapture08:08:14Z on
-79495f701e107271e04ac7ba52eb043a785305da. Source includes EnvFailureSnapshot and
-FIRST_UPVAR_FAILURE; no actualcompile/phase/refusalcase resultknownyet. Same131planned
-invocations/rosters/budgets/guards; no duplicate dispatch orlocalbuild. Evidence next
-vm-runtime-actual-40076490175; ZIP-only large maps. Earlierdd9 outcomes below remain
-independentactual; freshobserver notretroactive cause proof. WASM40076494620 separate
-CCGowner, runtimeactualinterrupts further cosmetic/source peers.
+Root integrated genuine Env MapHost numeric provider WORK08daba2de/CLEAN289e987f2,
+independently source-cleared8101df8499ed9adf6580dcf8c135ce2822f5ca75e5a142f4fa5d98768b533b8d.
+No errno reset/policy/assertion change; fresh original4 outcomes pending. Root starts
+fresh coherent a079ef42037b35409f133630039ebc377a6170a5 wave now; no runtime ID supplied yet.
+Prior794 receipt18509e and dd9b83f remain immutable. Original3 PASS, baseline8P6F,
+stackABORT,other4P99F,oldprune6P1F,new3P; CFI unknowns keep wholeprotocol incomplete.
+Two original command-guard policy answers still pending; preserve all tests/guards.
+
+Names stock method V2 independent substantive source/API/owner+CARRY CLEAR:
+vm-peer-names-stock-method-publication-v2/review.json
+SHA072541e9c643d389cedfb3991548cb98664e91cf9b84b33bbb689e50f85598d6.
+Exact both current preimages/full source/CJim oo.tcl57–70+Jim proc/current allocation
+and owner/source lineage/Error alternatives/copiesF-R-F0/fmt8. Necessary ordinary
+method publication only: NO wrapper/object/frame/Native/Normal/inheritance grant,
+original322 actualFAIL remains. Fresh unit/strict/functional execution required.
+
+Other99 exact actual+source inventory frozen vm-other99-fixture-triage-v1/inventory.json
+SHAdfdf9a8c1bd6781565f206e2f8d20bf78e8a69c7dabe4e62542878c98a32a525.
+All99 test identities unique in genuine794 source, file/body hashes+original payloads.
+Observed panic forms:14 explicit error/refusal values,16 Guest Error-vs-Ok,
+16 expected-artifact/unwrap panics,53 other physical/assertion observations.
+These are observations, NOT common-cause findings; most first-held causes unprinted.
+No skip/exclusion/parity waiver inferred from new names; all repoCI remains required.
+
+Root-authorized three tiny genuine fixture prerequisites being frozen separately:
+vm-original-fixture-capabilities-v1 WORK+CLEAN bothpatch
+c62df56c9d726cbba8c91bc25387c0d50d3761fea78d59eabf0ecb7cedc52c79.
+1 Shared original List conversion ORIGINAL descriptor unregistered -> Unknown ->
+Length protocol refuses before real converter/free callback. Two direct current/
+retired compiledList tests explicitly report object list length storage; ArrayFor
+and compiled scalar Length use same fixture, first cause not printed there.
+2 Separate local LATER descriptor in list_index_using similarly unregistered,
+explicit same actual refusal. Register actual existing immortal descriptors via
+existing register_legacy_extension_type, preserve Unknown-negative controls.
+3 ImportOutputHost omits native_list_sorting_environment while actual NativeHost
+supplies real producer; actual deep-import546 firstcause matches omitted capability.
+Forward exact underlying provider, no alternative sorting/comparator/ABI algorithm.
+All three assertions/callbacks/guards/budgets remain unchanged. All new outcomes
+UNRUN; source-only proposal still requires independent peer and later fresh run.
+Jim_frame neutral native_wide_int helper explicitly supplies environment=None and
+actual ScalarNumericInputUnavailable; distinct pending fixture-input triage, no
+reset or production default inferred.
+
+## Latest actual79495f: first Env cause identified, fixture prerequisite pending
+
+vm-runtime-actual-40076490175/receipt.json
+SHA18509ecbf53c43ac5c33f934a5c84d169358dc1a17e5f494a2312072f1a0ed60.
+Exact79495f701e107271e04ac7ba52eb043a785305da run40076490175/job120820821931,
+artifact12553504050 ZIP28985998 SHAe9b4a6cdd7433f5e8d43d90da0b6c07bb66e1710b3e71ccfe3ba0bb3173fb43b.
+All443CRC/SHA;126059strictsourceBEFORE+AFTER/fullGitmembership+35keyGitblobs
+includingEnv/frame/Hostcauses; sixC84maps/ownedbootstrap/Tommath/cleanGit/backend JOIN.
+Build0. Original3ALLPASS: PublicC3.669172542s, numeric16.484054587s,
+append170.901457311s ORIGINAL1035/180. SuccessoutputSUPPRESSED: no row/countermarkers.
+128ALLreal/closed/complete: baseline8P6F, stackABORT, other4P99F, oldprune6P1F,
+targeted3P; noUNRUN/unknown. CFI21843unknownCFA/6unparsednm/237gaps/25706omissions
+keep WHOLEPROTOCOL INCOMPLETE; no rootcause/branch/depth/performance acceptance.
+
+All4Env POSTeval/PREoldresultgetter held firstrefusal =
+ValueAccessRefusal(ScalarNumericInputUnavailable); separateaccess/admission/hostfields
+none/false. Threegenericupvarphase=(frame-selection,Error,None), every_kindphaseNone.
+Concrete3cause: EnvMapHost omitsnumeric_environment, realHostdefaultNone;
+OriginalLevel::environment actualhostnumericNone→sameerror. with_hostdiagnostic
+armed/root/traceRoot/refusalNone wasBEFOREscript, neverfinalrefusalproof.
+Fourthactualwriterresultg, NOT proved incr failure. Native compiledUPVAR directly
+calls SAMEcmd_eval::select_frame outsidegenericphaseobserver; exactactivecompiled
+branch unobserved. No newbinding/getter/guard relaxed or fourthPASS claimed.
+
+RootauthorizedgenuineNativefixtureprerequisite (nozeroerrnoexpansion). Frozen
+vm-env-native-numeric-fixture-v1 masterc885f29257d4cf97e64da865af99a18404376fa49de4b9702afbd755d220ec62.
+WORK4181552a75c3e9f1ebdbd49714699554044a97f0275b0eef398a53c14bca1072
+manifestabc5470176a458e2156c6b38daa1051f400fda079ad2439d1c04b35284a8275b;
+CLEAN3135f365e88499e34df85419e0996b4d61bbb526e0a84711490b99be794e09c1
+manifest74f00023b52302d70e91d5cc4a778d9e45b9c19f00e04ea3fda6418696262cd5.
+Proofcc9f5e8164b2ea41206a52d15ed8d3eb9f5f617df6f96dde42159fdfcc7b2149.
+SoleMapHost numeric_environment sameNativeHost staticstateless NativeNumericEnvironment
++supported gate; no newfield/ABI/dependency/state/reset/query/MapEnv/capabilitychange.
+Allscripts/asserts/observers unchanged; bothcurrentpins/wholeinverse/F-R-F0/fmt2 PASS.
+Rootindependentpeer8101df84 CLEAR and fixture integrated08daba/289e; freshoriginal4outcomes UNRUN. Other2guardtests unchanged/
+userpolicy pending. Earlieractualfailuresremainhistorical, no waiver fornewtests.
 
 ## Latest actual dd9: original3 PASS, supplement negative, CFI incomplete
 
