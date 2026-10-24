@@ -22,6 +22,8 @@ use crate::registry_invocation::{
     InvocationMetadataContext, original_callback_invocation_with_metadata_context,
 };
 
+type SelectedScriptOperands = (Vec<(u8, ArgRole)>, Vec<usize>);
+
 pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> DeferredWrites {
     if InvocationMetadataContext::for_module(registry, module).is_none() {
         return DeferredWrites {
@@ -94,7 +96,7 @@ impl SourceScan<'_> {
                         let procedure = self.module.body_lowering(id)?;
                         (self.module.procedure_ids.owns(*id)
                             && card.matches_procedure(self.module, procedure))
-                        .then(|| procedure.declaration_site.as_ref())
+                        .then_some(procedure.declaration_site.as_ref())
                         .flatten()
                     })
                     .collect::<HashSet<_>>()
@@ -426,7 +428,7 @@ impl SourceScan<'_> {
 fn selected_script_operands(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     logical: bool,
-) -> Option<(Vec<(u8, ArgRole)>, Vec<usize>)> {
+) -> Option<SelectedScriptOperands> {
     let (roles, complete) = if logical {
         schema.authored_logical_source_argument_roles()
     } else {
@@ -514,7 +516,7 @@ fn selected_values(
                 values.deferred.push(ScriptValue {
                     text: value,
                     scope: facts.script_lookup_scope(ordinal),
-                })
+                });
             }
             Some(ScriptTiming::SameInvocation)
                 if schema.semantics.body_kind == BodyKind::Plain
