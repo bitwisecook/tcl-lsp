@@ -253,7 +253,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "8fc382cfe187b718bfbbb2401549bf7fdc897526428ca98ef0ec5905c30aa310",
+    == "4d7b0c6c74474e91d10a7e3ceee7fc388bf14ba0a4ad1a58b992e8d6561bf47f",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -404,7 +404,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "e2fa758f80adfeeb401f6b5dd1e07dbf9b0f048fadd0d029d92844bbfaeac8b5",
+    == "ac9932ddb2552dfd729f580eeda8a480ab6d3dcb905d046fde432778cb7a5953",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
