@@ -1395,7 +1395,22 @@ impl BodyWalk<'_, '_> {
         // The independent readonly catalogue owns Jim source syntax even when
         // this walk has no execution/mutation-completeness inventory.
         let jim_parent = self.source_body.as_ref().or(match &self.catalogue_body {
-            Some(super::OriginalSourceCatalogueBody::Script(body)) => Some(body),
+            Some(super::OriginalSourceCatalogueBody::Script(body)) => {
+                // A syntax-only Logical catalogue cannot borrow the enclosing
+                // graph's namespace. Its own selected body scope must agree.
+                let owned = match self.context.policy {
+                    AdviceNamingPolicy::Logical(input) => {
+                        self.logical_scope.as_ref().is_some_and(|scope| {
+                            scope.matches_input(input)
+                                && scope.body_arc() == body
+                                && graph.logical_namespace.as_ref()
+                                    == Some(scope.namespace_recipe())
+                        })
+                    }
+                    AdviceNamingPolicy::Native(_) => true,
+                };
+                owned.then_some(body)
+            }
             _ => None,
         });
         let authored_jim = jim_parent.and_then(|body| {
