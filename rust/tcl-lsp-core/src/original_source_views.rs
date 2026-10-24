@@ -247,6 +247,13 @@ fn region_owns_cursor(owner: &OriginalSourceViewDocument<'_>, offset: u32) -> Op
     }) {
         return Some(true);
     }
+    if owner.procedure_calls()?.iter().any(|call| {
+        call.original_words().first().is_some_and(|head| {
+            contains(head.span()) && region.owns_original_command_at(analysis, head.span().start())
+        })
+    }) {
+        return Some(true);
+    }
     let image = tcl_lexer::SourceImage::document(owner.document.source);
     let config = analysis.body_lexer_config?;
     Some(analysis.command_invocations.iter().any(|call| {
@@ -544,5 +551,190 @@ mod nested_procedure_navigation_tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.rfind("host_old 8").unwrap()).unwrap();
         assert!(select(source, &analysis, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+mod region_call_cursor_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, AnalysisResult};
+    use tcl_compiler::command_binding::OriginalSourceConditionalRegion;
+
+    const CHILD: &str = "proc helper {} {}";
+
+    fn fixture(
+        source: &str,
+    ) -> (
+        AnalysisResult,
+        AnalysisResult,
+        OriginalSourceConditionalRegion,
+        AnalysisResult,
+    ) {
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let load =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &parent, 0,
+            )
+            .unwrap();
+        let point = load.source_point_entry(&parent).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(CHILD, "tcl8.6", &point)
+            .unwrap();
+        let continuation = load.conditional_continuation(&parent, &child).unwrap();
+        let regions = continuation.source_regions(&parent, &child).unwrap();
+        let region = regions.regions()[0].clone();
+        let caller = Analyser::new()
+            .analyse_source_region(&region, &parent, &child)
+            .unwrap();
+        (parent, child, region, caller)
+    }
+
+    #[test]
+    fn region_call_cursor_uses_retained_call_after_reporting_rows_clear() {
+        let source = "source child.tcl; helper";
+        let (parent, child, region, mut caller) = fixture(source);
+        caller.command_invocations.clear();
+        let root = OriginalSourceViewPublication::retain(1_u8);
+        let loaded = OriginalSourceViewPublication::retain(2_u8);
+        let suffix = OriginalSourceViewPublication::retain(3_u8);
+        let ancestors = [loaded.clone(), root.clone()];
+        let inventory = [
+            OriginalSourceViewDocument {
+                publication: &root,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &parent,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &loaded,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: CHILD,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &suffix,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &caller,
+                },
+                region: Some(&region),
+                ancestors: &ancestors,
+            },
+        ];
+        let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+        assert_eq!(
+            cursor_publications("file:///main.tcl", offset, &inventory),
+            Some(vec![suffix.clone()])
+        );
+        let selected = prepare(&suffix, offset, &inventory).unwrap();
+        assert_eq!(selected.publication, loaded);
+        assert_eq!(&CHILD[selected.identity.span().as_range()], "helper");
+        assert_eq!(
+            cursor_publications("file:///main.tcl", 0, &inventory),
+            Some(vec![root])
+        );
+
+        let changed = "source other.tcl; helper";
+        let stale = [OriginalSourceViewDocument {
+            publication: &suffix,
+            document: OriginalDeclarationDocument {
+                uri: "file:///main.tcl",
+                source: changed,
+                analysis: &caller,
+            },
+            region: Some(&region),
+            ancestors: &ancestors,
+        }];
+        assert!(cursor_publications("file:///main.tcl", offset, &stale).is_none());
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let foreign = [OriginalSourceViewDocument {
+            publication: &suffix,
+            document: OriginalDeclarationDocument {
+                uri: "file:///main.tcl",
+                source,
+                analysis: &foreign,
+            },
+            region: Some(&region),
+            ancestors: &ancestors,
+        }];
+        assert!(cursor_publications("file:///main.tcl", offset, &foreign).is_none());
+    }
+
+    #[test]
+    fn region_cursor_claim_cannot_donate_target_or_clear_earlier_debt() {
+        for source in [
+            "source child.tcl; helper",
+            "source child.tcl; opaque; helper",
+        ] {
+            let (parent, child, region, mut caller) = fixture(source);
+            caller.command_invocations.clear();
+            let root = OriginalSourceViewPublication::retain(1_u8);
+            let loaded = OriginalSourceViewPublication::retain(2_u8);
+            let suffix = OriginalSourceViewPublication::retain(3_u8);
+            let ancestors = [loaded.clone(), root];
+            let load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(source, &parent, 0).unwrap();
+            let point = load.source_point_entry(&parent).unwrap();
+            let foreign = Analyser::new()
+                .analyse_with_source_point_entry(CHILD, "tcl8.6", &point)
+                .unwrap();
+            let inventory = [
+                OriginalSourceViewDocument {
+                    publication: &loaded,
+                    document: OriginalDeclarationDocument {
+                        uri: "file:///child.tcl",
+                        source: CHILD,
+                        analysis: &foreign,
+                    },
+                    region: None,
+                    ancestors: &[],
+                },
+                OriginalSourceViewDocument {
+                    publication: &suffix,
+                    document: OriginalDeclarationDocument {
+                        uri: "file:///main.tcl",
+                        source,
+                        analysis: &caller,
+                    },
+                    region: Some(&region),
+                    ancestors: &ancestors,
+                },
+            ];
+            let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+            assert!(prepare(&suffix, offset, &inventory).is_none());
+            if source.contains("opaque") {
+                let inventory = [
+                    OriginalSourceViewDocument {
+                        publication: &loaded,
+                        document: OriginalDeclarationDocument {
+                            uri: "file:///child.tcl",
+                            source: CHILD,
+                            analysis: &child,
+                        },
+                        region: None,
+                        ancestors: &[],
+                    },
+                    OriginalSourceViewDocument {
+                        publication: &suffix,
+                        document: OriginalDeclarationDocument {
+                            uri: "file:///main.tcl",
+                            source,
+                            analysis: &caller,
+                        },
+                        region: Some(&region),
+                        ancestors: &ancestors,
+                    },
+                ];
+                assert!(prepare(&suffix, offset, &inventory).is_none());
+            }
+        }
     }
 }
