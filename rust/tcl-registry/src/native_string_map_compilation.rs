@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The C9 private String-map compiler's Basic2Arg fallback.
+//! The C9 private String-map compiler's `Basic2Arg` fallback.
 //!
-//! TclCompileStringMapCmd parses the compile-known map in a fresh private
-//! temporary. A non-two-element list selects TclCompileBasic2ArgCmd after
+//! `TclCompileStringMapCmd` parses the compile-known map in a fresh private
+//! temporary. A non-two-element list selects `TclCompileBasic2ArgCmd` after
 //! releasing that temporary. The inline two-element path stays unresolved.
 
 use crate::native_compilation::{
