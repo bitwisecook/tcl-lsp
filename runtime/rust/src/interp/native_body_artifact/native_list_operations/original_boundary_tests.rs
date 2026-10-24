@@ -211,6 +211,7 @@ fn original_list_index_using_checks_scalar_and_list_cache_before_later_original_
             interpreter.set_result_bytes(b"PRIOR");
             let prior = interpreter.result_obj();
             let original = BodyObjectOperation::capture(&interpreter).unwrap();
+            obj::register_legacy_extension_type(&LATER);
             let list = obj::Owned::fresh(obj::alloc_typed(&LATER, 0));
             let index = source(b"0");
             reset(mode);

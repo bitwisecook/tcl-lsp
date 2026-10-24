@@ -59,6 +59,11 @@ impl Host for ImportOutputHost {
     fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
         self.actual.numeric_environment()
     }
+    fn native_list_sorting_environment(
+        &self,
+    ) -> Option<&dyn tcl_platform::NativeListSortingEnvironment> {
+        self.actual.native_list_sorting_environment()
+    }
     fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
         self.actual.native_integer_formatter()
     }
