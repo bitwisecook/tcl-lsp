@@ -1,6 +1,11 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-24T21:12:39Z
+Last updated: 2026-10-24T21:26:08Z
+
+Resume 2026-10-24T21:26:08Z: Root reports nested-lockV2/dirtypathV2 integrated WORK8986/baf9 and CLEANb4e, dispatched freshoriginalhosts+separateunit exactd62cf52d55e0bf89aabc5048f63480c6efdf4a09. Run40133524482 ACTIVE: unit120990113132/browser120990113390/WASI120990113411, noartifacts/outcomes available yet. LSP owns full ZIP authentication; purpose jobs polls every40s active. Exact NULsource membership at /workspace/naming-proof-storage/lsp-d62-host-wave-evidence-index-v1/source-membership.json count126218/tree347421627547b782506647f27d0c16a3d2e08562/NULSHA88d5d6b9f77d76f9b80d8e56b8b597dee43030d2fe163b268c248dc6d002de4d. Validators prepared: full equal aftersource maps mandatory for hostFULLAUTH; iffailed, explicit PRECHECKONLY with new bounded dirtypaths retained and no consumedsource claim. Original571ce preliminarytrace remains PRECHECKONLY sourceafterFAILED, not newsource result.
+
+No sourcepolicy/navigationguard/puts uncertainty bypass. NativeC86 oracle3f408d0e only shows callbackpossibility, never actualWASM/WASIchannel authority. Largerworlddesign PAUSED until actualsealedcause. Readonly currentcode lead: cursor_publications region_owns_cursor uses reportingcommand_invocations+original_name_input while prepare uses retainedprocedure_calls; no patch/solecause until authenticatedactual. Root owns canonical Git/push/dispatch, no localbuild or canonicalproductwriter.
+
 
 Resume 2026-10-24T21:12:39Z: Root integrated CItoolV7 CURRENT WORK70a4cd54cecee9e50ad60d6fefd4e1d22b4989d2 / CLEANc08fe16ca84c54063d4e5598bcec526b4482ca2c; requested immutable V2 lock companion/dirtyobserver successor preserving new CI062cd06dd344b3294b5f1d08a3c0610e90e8e856d1c3c68bede210a17a21c62e. FROZEN /workspace/naming-proof-storage/lsp-host-nested-lock-edge-v2: WORKpatch66c39590146f83a04c2a8131a6a629023d4e111f06e7d2657efd778fc9025cd2 manifestc78fe34d0672e8b20dc37ae2450d112bab4a60c4e75a2f3683e18a4fbfd20ea1; CLEANpatch61fafdfa0c969cf588e5a3e9dddd29b453d7ea49c11d14d0ce739f8da2466bdc manifesta5a7cf49447ae46cf99e11f1ffad84c2d32d256c9993a17c0bbacfc53bb3a2b8; audit36a2f41b2761be145796bd0d25dd16bdcb30a1f5f6759ce984efe116363584b4. ALL four lock before/after payloads byteexactV1; only local tcl-platform edge, no versions/packages/checksums/devdeps.
 

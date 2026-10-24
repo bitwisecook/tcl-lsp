@@ -1,0 +1,404 @@
+{
+  "utc": "2026-10-24T21:27:17.795112+00:00",
+  "schema": "root-strict920-fullauth-v1",
+  "status": "AUTHENTIC_ORIGINAL_STRICT_COMMAND_FAIL_THREE_REACHED_PRIMARY_LINTS",
+  "source_commit": "920115d455492259c4c9798aef4f8841ebed7dcd",
+  "source_tree": "05e92a81ba2eaaecf72b7b3ab2a55f0bf3444a1f",
+  "run_id": 40129022743,
+  "job_id": 120976549135,
+  "artifact_id": 12574841970,
+  "artifact_sha256": "9f028df7f3c471b87f77a1eb8f008b614bdb8a2f5ca0340de260e7b6e0a1ab52",
+  "artifact_size_bytes": 4012896,
+  "api_job": {
+    "id": 120976549135,
+    "run_id": 40129022743,
+    "workflow_name": "Performance",
+    "head_branch": "work",
+    "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/40129022743",
+    "run_attempt": 1,
+    "node_id": "CR_kwDORmQgMc8AAAAcKsOlDw",
+    "head_sha": "920115d455492259c4c9798aef4f8841ebed7dcd",
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120976549135",
+    "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40129022743/job/120976549135",
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-10-24T20:16:16Z",
+    "started_at": "2026-10-24T20:16:18Z",
+    "completed_at": "2026-10-24T20:22:11Z",
+    "name": "release-rust-check-diagnostics",
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1,
+        "started_at": "2026-10-24T20:16:19Z",
+        "completed_at": "2026-10-24T20:16:20Z"
+      },
+      {
+        "name": "Record diagnostic deadline",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2,
+        "started_at": "2026-10-24T20:16:20Z",
+        "completed_at": "2026-10-24T20:16:20Z"
+      },
+      {
+        "name": "Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3,
+        "started_at": "2026-10-24T20:16:20Z",
+        "completed_at": "2026-10-24T20:18:13Z"
+      },
+      {
+        "name": "Set up Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4,
+        "started_at": "2026-10-24T20:18:13Z",
+        "completed_at": "2026-10-24T20:18:34Z"
+      },
+      {
+        "name": "Validate revision and record source and tools",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5,
+        "started_at": "2026-10-24T20:18:34Z",
+        "completed_at": "2026-10-24T20:19:12Z"
+      },
+      {
+        "name": "Fetch pinned Tcl 9.0.4 TomMath sources",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6,
+        "started_at": "2026-10-24T20:19:12Z",
+        "completed_at": "2026-10-24T20:19:14Z"
+      },
+      {
+        "name": "Capture the original global strict command",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 7,
+        "started_at": "2026-10-24T20:19:14Z",
+        "completed_at": "2026-10-24T20:21:27Z"
+      },
+      {
+        "name": "Verify source and tools after capture",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8,
+        "started_at": "2026-10-24T20:21:27Z",
+        "completed_at": "2026-10-24T20:22:01Z"
+      },
+      {
+        "name": "Upload bounded diagnostic evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9,
+        "started_at": "2026-10-24T20:22:01Z",
+        "completed_at": "2026-10-24T20:22:03Z"
+      },
+      {
+        "name": "Post Set up Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 17,
+        "started_at": "2026-10-24T20:22:03Z",
+        "completed_at": "2026-10-24T20:22:10Z"
+      },
+      {
+        "name": "Post Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 18,
+        "started_at": "2026-10-24T20:22:10Z",
+        "completed_at": "2026-10-24T20:22:10Z"
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 19,
+        "started_at": "2026-10-24T20:22:10Z",
+        "completed_at": "2026-10-24T20:22:10Z"
+      }
+    ],
+    "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120976549135",
+    "labels": [
+      "ubuntu-26.04"
+    ],
+    "runner_id": 1000059694,
+    "runner_name": "GitHub Actions 1000059694",
+    "runner_group_id": 0,
+    "runner_group_name": "GitHub Actions"
+  },
+  "api_artifact": {
+    "id": 12574841970,
+    "node_id": "MDg6QXJ0aWZhY3QxMjU3NDg0MTk3MA==",
+    "name": "release-rust-check-diagnostics-920115d455492259c4c9798aef4f8841ebed7dcd-1",
+    "size_in_bytes": 4012896,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12574841970",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12574841970/zip",
+    "expired": false,
+    "digest": "sha256:9f028df7f3c471b87f77a1eb8f008b614bdb8a2f5ca0340de260e7b6e0a1ab52",
+    "created_at": "2026-10-24T20:22:02Z",
+    "updated_at": "2026-10-24T20:22:02Z",
+    "expires_at": "2026-11-23T20:22:02Z",
+    "workflow_run": {
+      "id": 40129022743,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "work",
+      "head_sha": "920115d455492259c4c9798aef4f8841ebed7dcd"
+    }
+  },
+  "zip_crc_paths_unique_safe": true,
+  "members": {
+    "capture-exit.txt": {
+      "bytes": 2,
+      "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3"
+    },
+    "cargo-version.txt": {
+      "bytes": 36,
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    "clippy-version.txt": {
+      "bytes": 38,
+      "sha256": "514f4171a1bed07e7d27a872fc29ebb3e32360eb297e28acf00ab796f80e1038"
+    },
+    "coverage.txt": {
+      "bytes": 233,
+      "sha256": "f8d5622d0903bc52289b155cb5e030755a4e8e431a0672459a87e1fd5fd3fca3"
+    },
+    "git-after.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "git-before.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "job.txt": {
+      "bytes": 24,
+      "sha256": "8da705122ccaab98cffdc10f63503a1fe399a1fb5b3d37511b2414d269f6b393"
+    },
+    "make-rust-check.process.json": {
+      "bytes": 1956,
+      "sha256": "3b338bb2f0e74777a2d9a6881d62ca0c56c3fa09d3a62865d4081016978f754b"
+    },
+    "make-rust-check.stderr": {
+      "bytes": 11214,
+      "sha256": "9a17196be26b7a4adb0248a8accdc6492d3718278099af507453ea23827f3431"
+    },
+    "make-rust-check.stdout": {
+      "bytes": 899,
+      "sha256": "8cfd05025f609f811fad9750df3750f54ef69e5a8710f9e07281cb1a19cf3862"
+    },
+    "make-version.txt": {
+      "bytes": 300,
+      "sha256": "cb84250d994234272d0a465014ce2931be76e9e0cb114b9bffa078c3c211e8eb"
+    },
+    "original-exit.json": {
+      "bytes": 17,
+      "sha256": "0c0f888bbcfbebb60db029d9de74401c5105787fce727f52bdff37bcbcbdf33e"
+    },
+    "rustc-version.txt": {
+      "bytes": 196,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    "rustfmt-version.txt": {
+      "bytes": 46,
+      "sha256": "5599925a145edaa750ffdd40d2dc1adb031362d0932dd5935e20440a5f51d2be"
+    },
+    "seals-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "source-after.json": {
+      "bytes": 543,
+      "sha256": "e0d10c69a35d34fab6d93e474f2ffb206aee9fd17206b88ad7519a71eb9c2d2f"
+    },
+    "source-commit.txt": {
+      "bytes": 41,
+      "sha256": "ec6c1d18464ff10a6b69cd5b1153a630c812b8233941eeee6f787ccdf70c3fa6"
+    },
+    "source-tree.txt": {
+      "bytes": 41,
+      "sha256": "2a8e2975b3c3bee51cf0d74c3405a1a7aa9d1709145582a62c9e9f2ed68fa2ad"
+    },
+    "tools-after.txt": {
+      "bytes": 431,
+      "sha256": "c6f238d9a939c09b52284649e1e79182a5ca9a1c27824d8bcafd3cdc617c340e"
+    },
+    "tools.sha256": {
+      "bytes": 989,
+      "sha256": "24701916880477b753f8e4c9116ddc1f2edf5a22eba42f14b052322438babeb8"
+    },
+    "tracked-source-before.json": {
+      "bytes": 26516536,
+      "sha256": "e3c214869cf9fdcc6d0f24521f0bb08df5af1d5dc16ba8d3d2ac54dcb2556edc"
+    }
+  },
+  "source_manifest_sha256": "e3c214869cf9fdcc6d0f24521f0bb08df5af1d5dc16ba8d3d2ac54dcb2556edc",
+  "source_members": 126192,
+  "nul_git_membership_exact": true,
+  "nul_git_membership_sha256": "8a00c151632588288db2c53000f85c1b8d321a2397fdc1eb6bcaa6212e169a71",
+  "source_after_verifier": {
+    "status": "PASS",
+    "manifest_sha256": "e3c214869cf9fdcc6d0f24521f0bb08df5af1d5dc16ba8d3d2ac54dcb2556edc",
+    "source_commit": "920115d455492259c4c9798aef4f8841ebed7dcd",
+    "expected_source_commit": "920115d455492259c4c9798aef4f8841ebed7dcd",
+    "expected_file_count": 126192,
+    "current_tracked_file_count": 126192,
+    "checked_file_count": 126192,
+    "matched_file_count": 126192,
+    "stable_membership_during_verification": true,
+    "missing_tracked_paths": [],
+    "extra_tracked_paths": [],
+    "checksum_mismatches": [],
+    "read_errors": []
+  },
+  "critical_git_blob_sha256": {
+    ".github/workflows/perf.yml": "2699284d28cc123a96b2142d17473c7cb2e5e28bb61df53a82179c8f9af76511",
+    ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
+    "Makefile": "b1436acc2f05c29ccca44f2f375d408a6208c3942706d04b002b6362450f2210",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Cargo.lock": "a4f6ceda29b7f8d1dbb6dd40bda959e445fabc4bbd5dd93284455e02e600c602",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+    "scripts/dev/tracked-source-snapshot.py": "e6613bbd7cef5f002fceafa950a516905ece370e9242139ad3ad3eae3d8ed300",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+    "rust/tcl-diagram/Cargo.toml": "1664cfc0189bd2653b024fc1cca5979e8ceb209996f19971c20b6c865da6beb4",
+    "rust/tcl-diagram/src/attach.rs": "c3e829c817f2a95f0e9188375f996a514133ba8c5c052d638b0b4c72ca444e01",
+    "rust/tcl-diagram/src/data.rs": "77cf56119d05063c694fef29d9e92efa4aecf165cb2eff62ac559d87630fc13a",
+    "rust/tcl-vm/src/interp/closed_native_execution.rs": "fd4ee7690b25953e6aecdae47dd3521451774c7212c7b270f2964cbb66b3d353",
+    "rust/tcl-compiler/src/optimiser/closed_consumer.rs": "58dd45bbbc503bc43e0bf6b9355c7acd3389315d949dcd7d97a648acf30830fb",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "96ccebe5276aa2326d6bd378e288036b2efcf53d0456d05015a1d41e61412502",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "81825bc2bc47a0d21e6d4727348d1cb493b27ec267950cb3584f99cb8875d1f5",
+    "rust/tcl-lsp-core/src/original_source_views.rs": "f4e3275cde40d51a199e24a2995134849cc21e9fd9b7b7bd85dbb5a0689f0f6f",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "836c3220a156be1c46f0794d844345e05c984a01fafaaad499763b2a69755136"
+  },
+  "tools_before_hashes": {
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver": "89b6cc8d0d988b00a3f65bc90c76fedbaedb6bcb442b34563aefe3621f26544b",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598",
+    "/usr/bin/make": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "/usr/bin/git": "161ea2317033b937bca59ec228b80d60df8ebcf5abc260b52201eb3cf909fa4b",
+    "/usr/bin/python3": "be9a2a5eada8c89c1c399fdfb8397179e877c20d8db0739c802f726d4d0e69fd",
+    "/usr/bin/bash": "450c68376d14e5040d36cce58605c35b2211d244f3079297440dc9d602ee4994",
+    "/home/runner/.cargo/bin/rustup": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71"
+  },
+  "tools_after_all9_OK": true,
+  "versions": {
+    "cargo-version.txt": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "clippy-version.txt": "clippy 0.1.99 (58cf8f9c35 2026-10-13)\n",
+    "make-version.txt": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+    "rustc-version.txt": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "rustfmt-version.txt": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)\n"
+  },
+  "process": {
+    "argv": [
+      "/usr/bin/make",
+      "rust-check"
+    ],
+    "artifact": "/usr/bin/make",
+    "artifact_sha256_after": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_sha256_before": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 3095.7327818870544,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp",
+      "/usr/bin/make",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output"
+    ],
+    "elapsed_seconds": 132.82300744,
+    "ended_utc": "2026-10-24T20:21:27.090861+00:00",
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 74756628480,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 337149256433,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 2791,
+      "si_status": 2
+    },
+    "pid": 2791,
+    "pid_start_ticks": 20458,
+    "process_group": 2791,
+    "retained_bytes": 12113,
+    "spawn_return_monotonic_ns": 204588957455,
+    "spawn_return_utc": "2026-10-24T20:19:14.268687+00:00",
+    "stderr": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stderr",
+    "stderr_bytes": 11214,
+    "stdout": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stdout",
+    "stdout_bytes": 899,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 204588140081,
+    "timer_armed_utc": "2026-10-24T20:19:14.267870+00:00"
+  },
+  "primary_lints": [
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "path": "rust/tcl-vm/src/interp/closed_native_execution.rs",
+      "line": 200,
+      "column": 19,
+      "lint": "clippy::needless_pass_by_value"
+    },
+    {
+      "message": "implicitly cloning a `String` by calling `to_owned` on its dereferenced type",
+      "path": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "line": 385,
+      "column": 19,
+      "lint": "clippy::implicit_clone"
+    },
+    {
+      "message": "implicitly cloning a `String` by calling `to_owned` on its dereferenced type",
+      "path": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "line": 517,
+      "column": 19,
+      "lint": "clippy::implicit_clone"
+    }
+  ],
+  "warnings_classification": {
+    "ordinary_compiler_warnings": [],
+    "cargo_failure_summaries": [
+      "warning: build failed, waiting for other jobs to finish..."
+    ],
+    "strict_0W_gate": "FAIL: denied lints are fatal errors, never reported as green0W",
+    "source_pinned_clippy_flags": "-D warnings -A clippy::assert_is_empty (existing unchanged Makefile exception)"
+  },
+  "reached_scope": {
+    "top_workspace_fmt": "PASS inferred from same shell advancing past cargo fmt --all --check",
+    "top_workspace_clippy": "FAIL one needless_pass_by_value and two implicit_clone primaries; prior Diagram arc errors no longer reported",
+    "later_offline_x509_runtime_xtask_prerequisites": "UNRUN after original serial check-rust-pr failure; no later success inferred"
+  },
+  "coverage": "DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.",
+  "limitations": [
+    "Only exact920 WORK source. No later d62, CLEAN, host, editor, whole-suite, equality or performance acceptance.",
+    "No retained independent full environment-values object; pinned workflow hygiene/setup and original Makefile exact -D warnings -A clippy::assert_is_empty flags plus actual -D warnings fatal notes.",
+    "No Cargo JSON fresh/profile/executable payload proof and no full pre-build consumed-provider/dependency seal. Tool hashes are producer before/after attestations; tool binary payloads are absent.",
+    "Exact NUL Git membership/tree, full producer source-after verification,17 critical Git payloads independently checked; not every Git blob independently rehashed.",
+    "First reached primary cause only; later lint/check sites and unrun stages remain unknown. No local builds/canonical edits or workflow dispatch by author."
+  ]
+}

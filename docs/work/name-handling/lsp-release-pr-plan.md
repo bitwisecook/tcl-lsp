@@ -59,17 +59,14 @@ inputs; the fresh driver seals and retains them and identifies the internal
 analysis phase and cancellation reason. This needs a producer fix and a fresh
 successful protocol run, not a larger budget or skipped Tcl release.
 
-Latest authenticated focused results on24October are recorded in `current-state.md`: compiler55/58 with all9 controls passing; focused Spec11/11 and Native4/4 passing; Jim31/45; browser/WASI still failing with the separate navigation unit passing. Runtime's selected baseline14 pass, but984 original baseline identities remain unselected and the full comparison is incomplete. Strict has one reached receiver lint with a minimal repair committed for rerun. Heavy bootstrap still refuses a mismatched protocol/string purpose; two CLI cases pass. None of these bounded results closes sectionF.
+Latest authenticated focused results on24October remain compiler55/58 plus all9 existing controls; closed-consumer16 is12 pass/4 fail; focused Spec11/11 and Native4/4 pass; Jim is31/45. Runtime's selected baseline14 pass, but984 original baseline identities remain unselected. Fresh compiler99 and browser/WASI source-sealed runs on d62 are underway. Earlier571ce host traces remain preliminary because source-after failed. None of these bounded results closes section F.
 
 The active documentation checkout retains frozen older product bytes and must
 not be built or reported as the shipping source. Functional fixes land in the
 publisher's `work` first, then reviewed counterparts carry to release. Current
 source identities and immutable capture receipts live in `current-state.md`.
 
-The user-selected genuine closed-consumer capability is frozen for independent
-whole-cohort review and remains unexecuted. Both original expression-fold
-assertions stay intact. Complete current baseline, hosted correctness and
-shipping Tcl corpus performance proof are still required.
+The user-selected genuine closed-consumer capability is integrated and has actual initial NativeContext refusals. Both original expression-fold assertions stay intact; new passive first-stage observations will guide a producer repair. The native ancestry and readonly-body fixes are integrated, pending fresh actual results. Strict checks have three reached closed-consumer lint errors and two later ancestry method-reference errors. Full CI additionally exposes the Diagram local-Rc variant making the analysis driver non-Send; this must be corrected without unsafe traits or weakening the worker boundary. Two remaining nested engine lockfile edges also need repair. Complete current baseline, hosted correctness and shipping Tcl corpus performance remain required.
 
 1. Authenticate each current focused run and clean CI without canceling
    healthy runs. Preserve failures, resource stops and unreached tests. Required
