@@ -39,6 +39,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -135,7 +136,7 @@ def require_group_closed(
     if process.get("group_empty"):
         return True
     meta["invalid_reasons"].append(
-        f"{label}: owned process group remains live; stopping before the next build or trial"
+        f"{label}: owned process group is not proven closed; stopping before the next build or trial"
     )
     dump(out / "paired-summary.json", meta)
     return False
@@ -178,6 +179,7 @@ def preserve_failure(exc: Exception) -> None:
         meta["invalid_reasons"] = reasons
     reasons.append(reason)
     meta["failed_phase"] = FAILURE_STATE.get("phase")
+    meta["exception_traceback"] = traceback.format_exc(limit=12)[-8192:]
     try:
         dump(out / "paired-summary.json", meta)
         (out / "comparison.md").write_text(
@@ -197,7 +199,9 @@ def group_alive(pgid: int) -> bool:
         return True
 
 
-def stop_group(proc: subprocess.Popen, pgid: int) -> list[str]:
+def stop_group(
+    proc: subprocess.Popen, pgid: int, cleanup_errors: list[dict[str, Any]]
+) -> list[str]:
     sent = []
     for sig, seconds in ESCALATION:
         if not group_alive(pgid):
@@ -207,6 +211,18 @@ def stop_group(proc: subprocess.Popen, pgid: int) -> list[str]:
             sent.append(sig.name)
         except ProcessLookupError:
             break
+        except PermissionError as exc:
+            cleanup_errors.append(
+                {
+                    "operation": "killpg",
+                    "signal": sig.name,
+                    "error": type(exc).__name__,
+                    "errno": exc.errno,
+                    "message": str(exc),
+                    "traceback": traceback.format_exc(limit=12)[-8192:],
+                }
+            )
+            return sent
         until = time.monotonic() + seconds
         while time.monotonic() < until:
             if proc.poll() is None:
@@ -277,27 +293,33 @@ def run_bounded(
         t.start()
     reason = None
     signals = []
+    cleanup_errors: list[dict[str, Any]] = []
     while proc.poll() is None:
         if overflow.is_set():
             reason = "combined_log_cap"
-            signals = stop_group(proc, pgid)
+            signals = stop_group(proc, pgid, cleanup_errors)
             break
         if time.monotonic() - start >= timeout_s:
             reason = "deadline"
-            signals = stop_group(proc, pgid)
+            signals = stop_group(proc, pgid, cleanup_errors)
             break
         time.sleep(0.05)
-    rc = proc.wait()
+    if cleanup_errors:
+        reason = reason or "cleanup_permission_error"
+    # Denied cleanup cannot justify an unbounded wait on an unclosed child.
+    rc = proc.poll() if cleanup_errors else proc.wait()
     for t in threads:
         t.join(timeout=5)
     if any(t.is_alive() for t in threads):
         reason = reason or "pipe_drain_incomplete"
     if overflow.is_set():
         reason = reason or "combined_log_cap"
-    group_closed = not group_alive(pgid)
-    if not group_closed:
-        signals += stop_group(proc, pgid)
-        group_closed = not group_alive(pgid)
+    group_closed = not cleanup_errors and not group_alive(pgid)
+    if not group_closed and not cleanup_errors:
+        signals += stop_group(proc, pgid, cleanup_errors)
+        group_closed = not cleanup_errors and not group_alive(pgid)
+    if cleanup_errors:
+        reason = reason or "cleanup_permission_error"
     result = {
         "argv": argv,
         "cwd": str(cwd),
@@ -306,6 +328,8 @@ def run_bounded(
         "exit_code": rc,
         "stop_reason": reason,
         "cleanup_signals": signals,
+        "cleanup_errors": cleanup_errors,
+        "streams_complete": not any(t.is_alive() for t in threads),
         "group_empty": group_closed,
         "cap_bytes": cap_bytes,
         "combined_bytes_seen": sum(total.values()),
