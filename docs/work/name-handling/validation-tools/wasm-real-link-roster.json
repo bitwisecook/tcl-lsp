@@ -1,0 +1,55 @@
+{
+  "historical_authority": {
+    "job": 120708509505,
+    "original25_outcomes": {
+      "FAIL": 7,
+      "PASS": 18
+    },
+    "raw_log_sha256": "872864ad78562104c85567ebe2c2314ea8308413e3240cc60ad1a1f8b785515b",
+    "source": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+  },
+  "scope": "Original exact25 unchanged tests; isolated per-selector diagnostic only; shared-process shipping acceptance remains separate.",
+  "source_pins": {
+    ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+    ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
+    "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+    "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "c72183b108c7020856e6ae8f0be24dc3482aa94c8b673429d55eeaff69a2cfd7",
+    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "40922d52e5c57e6617ed3f23c1d342e0c5801c625c4330cbe6a58cf82665dd5d",
+    "rust/tcl-compiler/src/common_aot_plan.rs": "069f86c5fe0ce9e017c2175b22050e6404dd129891c43f2cd6105f6f81bfb8c8",
+    "rust/tcl-compiler/src/native_lowering/lower.rs": "1ecc5a4f6f07e8673360a6473ca0a6e617ebe7f04ff7df1752a50e708a7773a1",
+    "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "10e3e629bb3b7266aa16ab9dbd123d4b9a172ae9237b54809719c1109b3d71ed",
+    "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "de394bf032c7bf6ed67063c31aeb40682be368148668b8d1ef94114f38a3d73c"
+  },
+  "wasm_real_link": [
+    "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+    "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+    "a_compiled_script_calls_an_extension_registered_command",
+    "a_module_with_a_foreign_intrinsic_table_is_refused",
+    "analysed_compound_puts_word_reaches_the_runtime_intact",
+    "canonical_generic_argv_runs_against_the_real_runtime",
+    "compiled_argv_balances_allocations_in_the_real_runtime",
+    "compiled_argv_invocations_run_against_the_real_runtime",
+    "emitted_modules_run_against_the_real_runtime",
+    "general_original_definition_evaluates_its_name_once",
+    "general_original_definition_keeps_braced_body_text_inert",
+    "general_original_definition_materialises_its_body_once",
+    "general_original_definition_preserves_a_materialised_name_word",
+    "general_original_definition_preserves_a_renamed_stock_definer",
+    "general_original_definition_preserves_unknown_name_error",
+    "general_original_definition_resolves_a_replaced_definer",
+    "guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime",
+    "native_original_definition_preserves_a_replaced_definer",
+    "native_wide_int_codegen_abi_links_against_the_real_runtime",
+    "native_wide_int_link_probe_uses_the_shared_i64_descriptor_signature",
+    "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+    "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+    "root_colon_publication_runs_its_own_compiled_table_entry",
+    "sealed_native_i64_add_runs_and_trace_registration_falls_back",
+    "the_runtime_exports_a_growable_indirect_function_table"
+  ]
+}

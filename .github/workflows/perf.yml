@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1305,3 +1305,88 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 6
+
+  wasm-real-link-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'wasm-real-link-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+      TCL_REQUIRE_WASM_LINK: "1"
+    steps:
+      - name: Reserve time for bounded evidence upload
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 3600))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust with original WASI target
+        timeout-minutes: 10
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+          build-warnings: deny
+          cache: false
+      - name: Install original pinned Wasmtime CLI
+        timeout-minutes: 5
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasmtime@49.0.3
+      - name: Install original pinned wasi-sdk
+        timeout-minutes: 10
+        env:
+          WASI_SDK_VERSION: "34"
+          WASI_SDK_RELEASE: "34.0"
+          WASI_SDK_SHA256: b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4
+        run: |
+          set -euo pipefail
+          asset="wasi-sdk-${WASI_SDK_RELEASE}-x86_64-linux.tar.gz"
+          url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${asset}"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/wasm25-wasi-sdk.tar.gz" "$url"
+          echo "${WASI_SDK_SHA256}  $RUNNER_TEMP/wasm25-wasi-sdk.tar.gz" | sha256sum --check --strict -
+          sudo mkdir -p /opt/wasi-sdk
+          sudo tar -xzf "$RUNNER_TEMP/wasm25-wasi-sdk.tar.gz" -C /opt/wasi-sdk --strip-components=1
+          test -x /opt/wasi-sdk/bin/clang
+      - name: Fetch original Tcl 9.0.4 full TomMath source
+        timeout-minutes: 10
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run exact original WASM real-link25 with existing WORK witnesses
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/wasm-real-link-target
+          OUT: ${{ runner.temp }}/wasm-real-link-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload bounded original-test diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wasm-real-link-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wasm-real-link-output/*.json
+            ${{ runner.temp }}/wasm-real-link-output/*.stdout
+            ${{ runner.temp }}/wasm-real-link-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
