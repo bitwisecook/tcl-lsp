@@ -1,0 +1,73 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T23:03:27.285198+00:00",
+  "scheduled_report_utc": "2026-10-24T22:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T23:25:37+00:00",
+  "change_since_previous_report": [
+    "User requested all current work be pushed to GitHub. Reviewed functional commits through WORK2cc17f8516c20b5043786faba27285259171d9de and release cleanup through CLEAN028aec57a7f6fdd34bdec11c65f4592734e93596 are included. Normal depth1 origin/work fetch/rebase precedes push. Pending in-repository tracking and review receipts are checkpointed; no PR, merge, tag or release.",
+    "Fresh559 LSP full authentication closes native unit1PASS with genuine Send bounds compiled. Browser and WASI build warning-free but fail actual navigation. Unified evidence index9ad455f3 retains source/tool/process seals and failure causes. The later cursor owner repair is source-reviewed and integrated, actual retry UNRUN.",
+    "Compiler d62 authenticated original56/58 and old9PASS, closed12/16, readonly6/10, owner2/3, Native ancestry3/3. Fresh559 closed first4 positives now refuse ADD stage22/detail21/ordinal10 after NOP repair. No fold assertion or failed gate is weakened.",
+    "Logical declared read scopes now retain genuine Logical source ownership when catalogue layouts are absent. Present invalid rows remain terminal; full declared-body/input/config/namespace/source joins remain mandatory. New3 controls are unrun and the separately reviewed102 metadata companion is not yet integrated.",
+    "Jim V8 source and Jim51 protocol are integrated, but no actual improvement beyond historical31/45 is claimed. The new test has16 internal cases within one separately labelled test. Repeated source parsing remains an explicit performance concern.",
+    "Nextest V5 private source installation and post-PATH custody checks are integrated on both branches. Existing default validate-only mode and old workflow gates are preserved. Actual new install/verify execution remains unrun. Existing policy-fixture drift and new shell quoting repairs are pending, not waived.",
+    "WORK-only observer lint repairs and runtime foreach setup/body phase split are integrated with independent source/drop review. Strict and stack retries remain unrun. The original128 evaluation limit and original tests are unchanged.",
+    "All sectionF, complete current baseline zero-pass-to-fail, full green CI, accepted Tcl corpus performance, generated/editor/packaging checks and final documentation/comments/chaff/format/prep-pr gates remain open. Dedicated iRules timing alone is waived. The six-hour target was missed.",
+    "Disk remains below2GiB on both filesystems. No local Rust build, target deletion or young executable deletion. External BIGIP and perf tracker timestamps exceed60minutes; notification without takeover remains the rule. Review-triage reports complete."
+  ],
+  "committed": [
+    "5ea59c56fe14ae6b15cb18d78bab9050c10d8684"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Push both current branch tips and complete the overdue22:55 documentation checkpoint; re-arm23:25 reminder.",
+    "Integrate remaining reviewed diagnostic metadata and policy-fixture corrections, then run fresh hosted compiler/Jim/hosts/runtime/strict/fullCI checks.",
+    "Complete genuine closed-consumer implementation, baseline comparison, Tcl performance and release quality gates before opening the authorized PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global gate admissions; source reviews and compile-bound controls are scoped evidence. Actual failures and unrun scopes remain explicit.",
+  "disk_free_bytes": 34680832,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

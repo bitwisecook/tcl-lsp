@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-24T22:44:52.450322+00:00",
+  "status": "INDEPENDENT SOURCE/API/OWNER/PURPOSE/CURRENT STATIC CLEAR; actual Rust/tests/RBS/runtime/performance UNRUN",
+  "packet": "/workspace/naming-proof-storage/compiler-logical-declared-read-scope-v1",
+  "mechanical_sha256": "a95d1d7648005bbc2412342b6452dfa99b81a9dfdd570aa50e47cb701c5b06eb",
+  "independent_verifier_sha256": "ed0be7106774e61ded6d3d9fd4957f2095671949cd9f3fdb7795cd67ea047bac",
+  "source_owner_proof_sha256": "047a469ec644052894482656fe82548ea98250dde5dde87b03f35127a2559f40",
+  "author_controls_sha256": "5480a8111f82e551375af4f78f03ceefdc8b3a549cb5c9df0c88fa450481d54e",
+  "lanes": {
+    "work": {
+      "actual_current_head": "a05d78e23f6ce8892c733802f859ea0688d5ba00",
+      "patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
+      "manifest_sha256": "8bdbe458226b475016b92c646dcd52b0b634499e4ec6f6f28a3ab05ae6207eed"
+    },
+    "clean": {
+      "actual_current_head": "6096eda9b079fec0c2db3c8b9e668332dac5df69",
+      "patch_sha256": "63264670b2e98306ca852ade170108daf8c53bde255291b68bae5a86340a9170",
+      "manifest_sha256": "a6c7e11c90b66410b71ad92b2151e747b940a608982b06c5faba7cf47a52ca72"
+    }
+  },
+  "substantive_audit": [
+    "Only source_read_selection uses new DeclarationReadPointScope. Existing selection_scopes remains unchanged for ordinary selection and all other consumers. Its Some(scopes), including old behavior, remains the first branch. A present layout key after refusal returnsNone before new conditional source path.",
+    "Missing inventory only admits Existing(DeclaredProcedure); RootScript, Body, Receiver and separate Read frame variants do not acquire the fallback. No entry/frame/snapshot/lookup/point is synthesized. Existing retained points are filtered by exact declared frame and original dispatch/site/source predicates; reached point metadata and selected-target refusal remain unchanged.",
+    "Conditional scope final admission requires actual advice.logical_source_input and logical_source_scope; positive has_logical_source_name_context, exact lexerconfig, scope.matches_input and Procedure frame recipe. The original SourceTransitions header rejoins declaration site, exact full source origin/image, checked contiguous body extent, body.matches_source, authored namespace, original declaration name bytes and exact original formal NativeWord. Other-purpose/Native/absent input cannot satisfy this final join.",
+    "Existing SourceReadCatalogue full source/context/complete argv/ancestry/schema barrier and reached metadata/selected-target checks remain. Nested frame-changing or unrelated body membership cannot gain authority from span containment; catalogue ancestry owns each allowed hop. SourceReadScope is already an explicitly conditional source purpose.",
+    "Returned declaration_source_read_flow keeps schema_origin OriginalSourceCatalogue; caller aliases/lifecycle transitions still refused by existing projection. Existing strict report marks catalogue-only nodes unavailable and unavailable_before. Generic owns_original_procedure continues to exclude DeclaredProcedure; occurrence-only wrapper and conditional-warning filters remain. No new generic report interface, State/Eq/cache/SSA/value/Native/Normal/physical or erasure proof is added.",
+    "Both complete original files recovered byteexact by removing only actual new helper/enum/matcher/tests and restoring changed scope calls/predicate. This independently preserves all NameV8 additions, existing tests/assertions/allows and old guards. New enum/factory/matcher/three-test bytes identical across WORK/CLEAN.",
+    "API source read covers exact original_argument_word operand indexing/current image/config, Logical scope/input source recipes and accessors, DeclaredProcedure original producer, SourceReadCatalogue factory, SourceTransition matches_source/matches_context, source flow projection and all relevant report purpose/currentness boundaries. New test imports/call signatures/borrow lifetimes examined; no concrete static type issue found."
+  ],
+  "verification": [
+    "Both lane current2 products and10 inherited owner pins exact, plus3 extra API source pins retained in mechanical record",
+    "Independent tiny F/R/F0 zero-fuzz/output and actual edition2024 skip_children rustfmt for both lanes",
+    "8192 independent finite purpose-boundary model cases; models do not execute Rust",
+    "Tracked active validation-tools/scripts/.github JSON/Python/YAML consumer census: sole direct WORK consumer compiler-original58-inputs.json declaration_flow pin; CLEAN none"
+  ],
+  "limits": [
+    "No actual Rust build or any new/old test execution; all three added controls UNRUN and no actual remaining RBS closure claim",
+    "Extra source catalogue, word/schema and Logical correspondence queries/allocations on newly attempted missing Declared paths are unmeasured; final Logical eligibility is checked before returning flow, rather than asserted for every intermediate attempt",
+    "A versioned WORK original58 sourcepin and corresponding whole-roster driver hash companion is required before capture; do not apply stale whole roster",
+    "Present empty/corrupt inventory and reached metadata refusal remain terminal; new tests are meaningful source controls but unexecuted",
+    "No user policy change, unknown-writer barrier removal, physical absence/Normal or Native grant"
+  ],
+  "findings": []
+}

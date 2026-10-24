@@ -1,0 +1,56 @@
+{
+  "utc": "2026-10-24T22:42:34.262061+00:00",
+  "verdict": "INDEPENDENT_V5_ADOPTION_SOURCE_CUSTODY_GATE_CLEAR_ACTUAL_MODES_UNRUN",
+  "packet": "/workspace/naming-proof-storage/nextest-source-install-proposal-v5",
+  "work_patch": "adda5a0f8d60faf1b03d491f76067e2c30d3f66b886c816512cff67ef9cdd6f3",
+  "clean_patch": "408fe9d592aa2c08856ef3c31df9cabf8be102c3d67768df388ffaced06d188a",
+  "work_manifest": "501074945a31d970b6432f2af71c71c16913a6ccfe104c0ebf9761b94c3ebd91",
+  "clean_manifest": "ce31028b831fec1737290db13c1ec8bcb9c0b77842204d648e1ea7b494c999e4",
+  "reviewed_heads": {
+    "WORK": "a05d78e23f6ce8892c733802f859ea0688d5ba00",
+    "CLEAN": "6096eda9b079fec0c2db3c8b9e668332dac5df69"
+  },
+  "controls": {
+    "memory_current_payload_inverse": 6198,
+    "full_byte_CI_and_source_pins": 1218,
+    "publication_alias_metadata": 44,
+    "verify_metadata": 36,
+    "files": {
+      "checks.json": "dba28fa95a8d5603f94991a651d517d2791438968005f268181dd8c998b20f49",
+      "supplemental-checks.json": "72c831c8065122aad80ed065d30cefb80bc981e2bdcd0d3b13ef55dc2717a4bd"
+    },
+    "metadata_files": {
+      "publication-results.json": "0e837ebd3856a41038f036942e5c99cea692fc7c78ba5aacf20f5f09cf7a15c0",
+      "verify-results.json": "3a32c983f39212edc35a6982833a77c799f5a96053bb27fbff57339e9842e3b5"
+    },
+    "format_typing": "Independent Ruff check/format PASS exact repo ruff.toml; Ty/Pyright Python3.10 PASS all3 modules (Pyright0errors0warnings), WORK/CLEAN helper afterbytes identical."
+  },
+  "source_and_parser": [
+    "Only additive install/verify modes and shell forwarding are introduced. Unknown/multiple/empty explicit mode arguments refuse; default no-argument shell remains validate-only. Validate-only has no GITHUB_PATH/GITHUB_ENV reads and its entire original executable AST and exact success marker restore after erasing the two mode additions/helper.",
+    "Pinned source/tag/commit/Cargo.lock/reporter/patch/version/feature checks, private roots, all four plus/nonplus mixed/allignored smokes, optimized empty/malformed rejection, original commands/capturecheckers/selectors/guards and existing owner budgets remain unchanged. No old invalid capture is adopted.",
+    "Install publication occurs only after every original source build/smoke/negative guard plus private future-command resolution/alias checks. It writes exactly one CR/LF-free private bin path and task-specific binary/path/hash/version metadata to genuine GitHub command files. It never overwrites shared Cargo bins or resets global homes/aliases.",
+    "Missing/unwritable command files fail; partial PATH append followed by environment write failure remains a failed step and cannot admit later normal test steps. Original failure/skip semantics and adjacent matching verifier gate are retained."
+  ],
+  "pinned_Cargo_selection": [
+    "Authenticated measured Cargo1.99.1 short5f94 resolves unique full source5f94df4789f005f9a352888e8355ffc645b7ed0e. Retained source main blob748b74b1c482bb7583022a345f754d8a7703e06d selects first executable, inserting Cargo-home/bin first only when absent from PATH.",
+    "CLI blobb6039f4062f47cbf12fa886fddc215fb68a67a9e expands aliases first. Both phases reject env alias presence (including empty), require one non-alias absolute Cargo list row, but never mistake list last-wins displayed path for selected path.",
+    "Home sourceblob8c393a2a06590fb7ab682f43aae171a4bdbab1af resolves relative CARGO_HOME against cwd. Both V5 phases explicitly reject relative home, closing the V4 concrete stock-selection counterexample. Normal actual CI absolute/default homes retain behavior.",
+    "With exact absolute home/bin already in PATH, Cargo preserves PATH order; private first-executable path equality therefore binds actual external selection. Fresh next-step verifier checks actual GITHUB_PATH-updated PATH, exact binary identity and recorded SHA.",
+    "Verifier hashes before either Cargo probe, rejects mismatch before Nextest execution, refuses aliases, supervises actual Cargo list/version, hashes again afterward and refuses mutation. Version is additional smoke, not custody proof. All new Cargo commands use unchanged Linux process owner120s/default,2GiBfloor,20MiBcap/group closure and1800stotal/20scleanup. Verify mode never builds/smokes/publishes."
+  ],
+  "gate_and_dedup": [
+    "Exact original four install conditions and tag/already-green/skip behavior remain, and each new verifier is adjacent with identical condition.",
+    "Old dedicated validation condition implies original shard install condition in all432 feasible GitHub event/ref/flag cases. It fixes changed=true/shard1 and non-tag PR or allowed branch dispatch, satisfying all install clauses regardless already_green. Same job/setup remains. Thus removal saves duplicate source build without losing unique validation coverage.",
+    "New runner proof requires install mode, source/smoke/negative/publication order and bounded verifier under exact old install gate. Whole original CI bytes, including all oracle/fuzz/E2E comments, independently restore after reversing these precise changes."
+  ],
+  "pin_companions": [
+    "Six current CI fields and four dependent whole-roster literals have complete old JSON/driver byte inverses; all updated source_pin maps join current product overlay.",
+    "Current Owned-CU server pins, other source facts, historical startup provenance and current unrelated Names/NOP source metadata are preserved; no blind source-pin refresh."
+  ],
+  "remaining_obligations": [
+    "Existing test-rust-tests-runner.sh fixture still omits nextest-terminal-capture.py in its expected path list and expects uploads after test run despite actual fail-safe pre-run uploads. Root explicitly authorized separate test-only alignment. This failure is NOT waived and this receipt does not claim policy-script green.",
+    "Actual --install and --verify-install hosted trial UNRUN. Old d62 step8 validation-only success is authenticated log/step-result scope only; no per-process artifacts or aggregate CI/tool-adoption claim.",
+    "Root owns integration and actual complete required gates must pass."
+  ],
+  "blocking_adoption_source_findings": []
+}

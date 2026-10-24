@@ -1,0 +1,36 @@
+{
+  "verdict": "PAIRED STATIC SOURCE / API / OWNER / CURRENT PAYLOAD / INPUT CLEAR",
+  "packet": "/workspace/naming-proof-storage/lsp-region-call-cursor-v1",
+  "heads": {
+    "work": "a05d78e23f6ce8892c733802f859ea0688d5ba00",
+    "clean": "6096eda9b079fec0c2db3c8b9e668332dac5df69"
+  },
+  "lanes": {
+    "work": {
+      "patch_sha256": "7628e69adf82a881329b2f66a3ad200d7589969c09c47865d664a7d55962017a",
+      "manifest_sha256": "3964155451ec94e6d7c0b16b9da4a22d9f4fb63c8c1552da9ab02a75d9fa57b5"
+    },
+    "clean": {
+      "patch_sha256": "1cc082fe02f36eac296fbdb9e9b2def8f501ca402de8f9216e8accf7c25eb3cb",
+      "manifest_sha256": "ec41345dec04c36e1d12c0ce08d31c3940b59652f1edc0adbce057d04a195d59"
+    }
+  },
+  "checks": 87,
+  "checks_sha256": "d83505a284f5ade44939b044455d1fada77b38d33dbdf6a6956e29286a1b279c",
+  "review": [
+    "Full paired source delta and complete current original_source_views implementation read; all new genuine sourcepoint/child/continuation/region fixture controls read. Current beforeimages exact at WORKa05d78e23f6ce8892c733802f859ea0688d5ba00/CLEAN6096eda9b079fec0c2db3c8b9e668332dac5df69.",
+    "owner.current checks retained resolved input, lexer, command realm and exact source. For a region, matches_region_analysis joins exact region Arc and analysis owner, resolved input/source context and inherited point identity. original_procedure_calls repeats currentness, validates analysis owner/input and original transition catalogue purpose ConditionalRegion, filters source context and actual original command membership. This supplies authentic retained call words, not spans reconstructed from reporting rows.",
+    "New branch uses first original command head and half-open span, then exact region.owns_original_command_at. That issuer checks matching region analysis plus either retained actual selected body dispatch point or complete original-vector membership. Quoted/braced data or same text in a foreign analysis cannot create a claim. Duplicate/foreign matches cannot thereby donate a target.",
+    "Cursor claims only choose which same-URI retained publication to query and suppress its explicit ancestors. Unrelated physical interpretations remain required. Existing prepare still enforces unique selected owner, current owner/declaration inventory, unique call, no uncertain operations or lookup operand effects, and exact target declaration owner. target requires actual ancestor/dependency joins, current source and declaration identity; physical publication leases are separately rechecked in server rendering.",
+    "Both real server callers read: prepare_original_source_view_calls and original-source navigation calculation. Both propagate cursor None as unavailable and then independently prepare every selected publication. No new empty coverage, runtime world, collision absence, edit, Native/compiler/frame or target permission is introduced.",
+    "Explicit new availability behavior: procedure_calls()? is required before the old report-row branch when the existing declaration fast-path does not already return true. None therefore aborts cursor publication calculation, rather than falling back to reports/root. Some(empty) continues to the existing checked report-row branch. This is a conservative fail-closed dependency, not proof old report-only fallback remains equally available; no None-to-empty or permission conversion.",
+    "New controls construct genuine parent load, source point, child analysis, continuation and issued region analysis. They clear only reporting rows, require retained-call selection and child target, preserve root selection at the source command, and refuse changed source/foreign analysis/foreign target and opaque earlier debt. Tests are source/type reviewed but UNRUN; no claim that each specific refusal stage was observed.",
+    "All prior production and test bytes reconstruct exactly by removing the seven-line claim and appended new test module. WORK/CLEAN delta matches. Full copied forward/reverse/forward checks have zero fuzz/offset; rustfmt parse/check2 passes. No existing asserts, policy77 correction, ILX rules or downstream prepare/target guards changed.",
+    "Only two existing Core source pins and two sole roster hashes change in WORK input companion. Whole JSON bytes and whole driver bytes/AST inverses pass. All full source maps match current overlay; exact current direct consumer census is these two rosters. Selectors/environments/budgets/provider/process/other source pins remain byte-identical."
+  ],
+  "limits": [
+    "No local builds, actual typing/Clippy/new controls/host run or performance claim.",
+    "Actual browser prior selected-root failure motivates routing but does not prove current retained region call has no debt or that the host test now succeeds. Earlier puts/opaque debt remains refused by unchanged prepare.",
+    "Additional call inventory query/clones are unmeasured. Missing inventory is deliberately unavailable; previous reporting fallback availability is not guaranteed."
+  ]
+}

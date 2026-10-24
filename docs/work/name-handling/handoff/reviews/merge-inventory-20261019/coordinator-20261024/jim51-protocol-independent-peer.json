@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-24T22:36:06.386062+00:00",
+  "status": "INDEPENDENT STATIC PROTOCOL/SOURCE/OWNERSHIP CLEAR; no Rust build, native/test process, provider, hosted or performance execution",
+  "packet": "/workspace/naming-proof-storage/names-jim51-static-control-work-v1",
+  "proposal_sha256": "e7fb00240baf6dc30ed4efecf461384e99920b9ef95e06e00a701ab2fdc00492",
+  "patch_sha256": "a0ed574232b1d22a42aa3be65fde6204131bbec2865a8da5e1cf241d5e5d89c6",
+  "manifest_sha256": "44841933cdc7ee3fda79f9754f1ef80099e5918be6df7e2d3b5614267c965b31",
+  "census_correction_sha256": "71bee8e31dd2ce2e7113dfaaa2a94f14ff86b68c1dd3031f56c7e39e2366d902",
+  "mechanical_sha256": "83976338571657383d3a26c5ef122cf3ee8e8f84f182c2fd3193c58d8f9289cf",
+  "independent_verifier_sha256": "f6ae6c244b55c5de24b6d9dfbfe170e2a0e3478597201fc595ae54a3757d8eae",
+  "actual_checked_current_head": "3c2ba12344a59bb819480100f1b5b3377bba4984",
+  "scope": [
+    "Only existing WORK Jim diagnostic driver and one workflow command flag; no Rust fixture/assertion/source/roster changes",
+    "All old50 module AST recovered; original7/supplemental38/diagnostic5 order, row initializers, environments, execute/lifecycle/result semantics and final source/provider/dependency/tool/artifact seals preserved",
+    "New test is after all old50, fresh strict test/debug_assertions ELF and independent exact sole selector listing; full original admission guard body AST identical after label/roster/ledger normalization",
+    "Existing executor SHA, aggregate20MiB charging, floor2GiB, overall1h and exact180s list/test budget retained; only new target prefixes reserve30s; no duplicated precheck or old-prefix reserve",
+    "Actual retained helpers mocked at0/29/30/100/209.999/210/211 seconds with both child0 and101; insufficient budget persists UNRUN and starts no owner;210 admits full180; real101 remains FAIL",
+    "New state included in final inventory completeness and final status, even if all previous50 PASS; timeout/capture refusal remains a stop rather than acceptedFAIL",
+    "Workflow whole bytes restore by removing exactly one new flag; independent tiny copied F/R/F0, all22 activeJSON bodies/current pins and before/afterRuff check+format PASS"
+  ],
+  "limits": [
+    "Static evidence only; all new Rust/type/runtime/hosted outcomes UNRUN",
+    "New selector is one test with eight sources across two tiers; a failed assertion does not establish16 internal completions",
+    "Original f24545 remain31PASS14FAIL and diagnostic5FAIL until fresh actual; no shipping/performance/shared-process acceptance",
+    "Known V8 per-use whole-body parsing performance risk remains unchanged and unmeasured",
+    "README counttwenty superseded by authenticated22JSON addendum; independently22 current bodies checked, no direct path/hash consumers"
+  ],
+  "findings": []
+}

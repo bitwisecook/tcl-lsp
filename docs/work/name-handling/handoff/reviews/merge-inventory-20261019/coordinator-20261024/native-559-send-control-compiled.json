@@ -1,0 +1,79 @@
+{
+  "utc": "2026-10-24T22:25:24.043010+00:00",
+  "status": "ACTUAL_NATIVE_CI_SEND_CONTROL_COMPILED_ALL3_BOUNDS",
+  "source": "5593449b56c13c72aacc189f680dac0a01fab07c",
+  "server_source_sha256": "7f080724e4a8076836f29cc042cf5850f87386de6db50a8c47c7a2fadb97f97d",
+  "control_function": "    fn fresh_analysis_driver_preserves_native_send_boundary() {\n        fn require_send<T: Send>() {}\n\n        require_send::<Analyser>();\n        require_send::<Arc<tcl_compiler::compilation_unit::CompilationUnit>>();\n        require_send::<Box<FreshAnalysisDriver>>();\n    }",
+  "source_cfg": "native-only not wasm32 test, compiled in native CI serverlibtest containing every test body",
+  "exact_compiled_selector": "tests::fresh_analysis_driver_preserves_native_send_boundary",
+  "bounds": [
+    "Analyser:Send",
+    "Arc<CompilationUnit>:Send (therefore CompilationUnit Send+Sync under this build)",
+    "Box<FreshAnalysisDriver>:Send"
+  ],
+  "unit_fullauth_assessment_sha256": "f8557ea3d34a09caad0c56f5f93afabcf8606f15e3804059d909d9e1ff552de3",
+  "actual_build_argv": [
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+    "test",
+    "--locked",
+    "--profile",
+    "ci",
+    "-p",
+    "tcl-lsp-server",
+    "--lib",
+    "--no-run",
+    "--message-format=json-render-diagnostics",
+    "-j",
+    "2"
+  ],
+  "artifact": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-89aa702236f6eccf",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-89aa702236f6eccf"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "lib"
+        ],
+        "doc": true,
+        "doctest": true,
+        "edition": "2024",
+        "kind": [
+          "lib"
+        ],
+        "name": "tcl_lsp_server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/lib.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-89aa702236f6eccf",
+    "sha256": "9ad3d758badc138d397e1df1c2c590229e81f0e6c40748ffaf2f78a9d42e3346"
+  },
+  "selected_runtime_test": [
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "selector": "tests::public_navigation_waits_for_live_index_before_source_view_routing"
+    }
+  ],
+  "control_runtime_execution": "UNRUN; compile-time trait bounds proved by fresh successful native libtest build, not selector execution",
+  "inference_limits": [
+    "Exact559 native CI feature/profile/configuration only. No all-feature/all-target/compiler-general auto-trait theorem, no altered CU transfer contract or runtime source authority.",
+    "No native ELF payload in retainedZIP, producer ELF-magic/current Cargo event/path/hash; full env-values object absent, source-pinned driver hygiene guards remain basis.",
+    "Rust Send bounds at actual worker carrier compile; historical strict Clippy neitherSend/Sync message is not silently treated as harmless for every configuration.",
+    "Diagnostic/instrumented times only; no product navigation/policy/host aggregate/CLEAN/Eq/performance closure."
+  ]
+}

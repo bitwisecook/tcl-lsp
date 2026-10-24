@@ -1,0 +1,32 @@
+{
+  "verdict": "PAIRED STATIC SOURCE / TYPE / BORROW / OWNER / DROP / CURRENT PAYLOAD CLEAR",
+  "packet": "/workspace/naming-proof-storage/runtime-each-loop-setup-frame-v2",
+  "heads": {
+    "WORK": "13f0ee8124603c7102b2328cd03b618acf6690e3",
+    "CLEAN": "63b847bcd1d20693d0d34cd5e688ccba4b29433c"
+  },
+  "patch_sha256": "c7cf2dd9af4e96cce482d995f6fbcbd3cbfe100afc3704ed3a7d6694c7ceb7cb",
+  "WORK_manifest_sha256": "2dc7cba229005280f7d3daeb4e589d7fae630a7454ae566d055b5f9b07997db1",
+  "CLEAN_manifest_sha256": "2873fb75fd4e02910cfea96e28ede46b110926278a2386b1ccb61ff028f8d6e4",
+  "author_receipt_sha256": "b6611b6f07cd5af50c2087ce7d674df92ec7601e84267e63dc0b5d126cfa811d",
+  "independent_checks": 61,
+  "checks_sha256": "8261ee29bdc0c3a50cc8f491d6a79a98c0200459f19a6ab207993eda29141884",
+  "prior_V1_hold_sha256": "1706755eace83467e10319bf0fd232dfce62b2304f36ac6daf0daf3df95c47ad",
+  "review": [
+    "Full V1 paired patch and complete affected original/extracted functions read, then exact two-change V2 successor read. V2 fixes introduced question_mark/needless_return contexts without changing old operation order. Both current beforeimages exactly match WORK13f0ee8124603c7102b2328cd03b618acf6690e3/CLEAN63b847bcd1d20693d0d34cd5e688ccba4b29433c.",
+    "Preparation executes the old sequence once: kind, compiled-control query before arity, dialect/protocol/strings, groups/lengths, import scope, namespace-info scope, Jim context/result hold, padding, options check, cursor and collected vector. Error conversions/guest messages and short-circuit order remain. Extracted Jim helper returns the same actual Rc/Owned tuple without cloning or retaining another header.",
+    "EachLoopExecution owns collected,cursor,jim_empty,info,import,groups in that declaration order, matching old reverse-local native retirement order; remaining fields are Copy metadata. Reviewed cursor/import/info/group/Jim/Owned definitions contain heap/RC/raw-header identities, not self-address pointers requiring stack residence. Box moves those exact owners once. New heap allocation/deallocation is Rust allocation, not a Native header lease or shared object mutation.",
+    "OriginalArguments stays in unchanged each_loop outer scope across preparation, callbacks, packet destruction and arguments.finish(code). Raw argv/group/padding pointers retain their original NativeObjectLifetime/Owned/Jim context owners. No new caller/imported capability, Native entry, header retain, observer absence, frame grant or callback authority is introduced.",
+    "execute_each_loop and execute_each_loop_body borrow private packet fields; no RefCell guard spans guest body beyond prior behavior, and no packet/field reference escapes. Match-arm reborrows end before passing the packet to body/finish under nonlexical lifetimes. Protocol/recipe/kind/string/policy reads are Copy; actual import/info checks remain shared calls, cursor transitions and mutable groups remain same original state.",
+    "On lmap success mem::take replaces collected with an allocation-free empty Vec then drops the SAME old vector before interp.set_result. On Jim success Option::take moves the SAME tuple into the original branch pattern, preserving binding destruction before settle_control_options. Early returns drop packet fields in the old reverse-local order, then passive Box allocation, before outer argument finish. Existing Native cleanup/refusal observations remain protected by old outer owner.",
+    "Actual new helper bodies were inlined by a read/reviewed reconstruction script with only mechanical Result/Option/reborrow/take adapters reversed. Both COMPLETE originals reconstructed byte-exact after pinned rustfmt; independent output comparisons passed. All original tests/assertions/source before function are exact, including unchanged deep300/moderate/recursion fixtures,128 host evaluation limit and budgets.",
+    "Preparation/loop/body are explicitly noinline. Setup frame returns before a recursive body callback; loop/body execution holds borrows and Copy metadata rather than the large setup-owned locals/error temporaries. This is a source-level residency change, not a measured current stack bound or proof300depth passes.",
+    "Eleven author owner/API pins independently joined exact cached source and current content with no drift; three extra actual Copy/Owned definitions pinned. Paired copied forward/reverse/forward application is zero fuzz/offset with complete byte comparisons. Rustfmt parse/check2 passes. Current validation JSON/Python census has no direct source/hash consumer requiring refresh."
+  ],
+  "limits": [
+    "No local Cargo/rustc/native/test/driver execution. Static type/borrow review is not actual compiler acceptance or global Clippy pass.",
+    "No current CFI or stack-size measurement, native/moderate/deep loop outcome, leak/performance/release closure is claimed. Existing authenticated old frame lower bound is rationale only.",
+    "Added Rust Box allocation has allocator/OOM/cost behavior; no claim of allocation equivalence.",
+    "If another active frame still overflows, preserve original limits/assertions and investigate rather than changing stack size or Native guards."
+  ]
+}

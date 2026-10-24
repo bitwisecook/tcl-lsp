@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T21:57:09.969917+00:00
+Last updated: 2026-10-24T22:26:05.814370+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -21,7 +21,43 @@ preserves original2guards and all real dependency/Namespace/Unknown/Native inval
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
 
-## Current authenticated compiler99: first failure is real NOP boundary
+## Current source handoffs and fresh pending actuals
+
+Rootintegrated+pushedd62NOPfix WORK5593449b56c13c72aacc189f680dac0a01fab07c/
+CLEANe70967470c0bab05db7e868835693aad9c754000 after independentSpec910f1f28.
+Freshcompiler99 run40137082566/job121000771953 launched22:05 exact559; lastpollnoartifact.
+No duplicateZIP/dispatch. Neednewclosed16/oldfoldstages; laterguards notinferred.
+
+Measuredstrict559 observerlint2 WORKONLYfrozen closed-native-observer-two-measured-lints-v1:
+patche3f4384876acf6945f3928fbff7aaa8c43b560396ed039c140077790eac65d5e,
+man6b020ae925328ab9039a319d15edb6d0445d1f38f63f80e889001a7fecd83015,
+receipt9a64be67a6769fde49280d96f4de5147e6fa6bfffc5d4d775baf8dde09c59b58 base13f0.
+InherentResult::is_ok andOption<&Arc> samepostjoinfailed-onlyreport, zero newclone/
+query/I/Oworker; engine+oneclosed16pin+solewholehash only.19inverse/current/copy/fmt
+checksPASS, realClippyUNRUN; Rootindependentpeerpending. RootretainsstrictZIPonce,
+fullauthroutedLSP, no0Wclaim. CLEANnoobservercounterpart.
+
+Stack phase V2 ONLYeligible runtime-each-loop-setup-frame-v2: BOTHpatch
+c7cf2dd9af4e96cce482d995f6fbcbd3cbfe100afc3704ed3a7d6694c7ceb7cb,
+WORKman2dc7cba229005280f7d3daeb4e589d7fae630a7454ae566d055b5f9b07997db1,
+CLEAN2873fb75fd4e02910cfea96e28ede46b110926278a2386b1ccb61ff028f8d6e4,
+receiptb6611b6f07cd5af50c2087ce7d674df92ec7601e84267e63dc0b5d126cfa811d.
+Onecmd_control.rs. Noinline falliblesetup returnsoneprivateBox ofsameowners inold
+reverse-localdroporder; borrowedexecutor/body/finishhelpers<=83lines. CurrentBox
+wrapperdropsafterexecutorbeforeoldOriginalArgsfinish. Actualhelperinline inverse
+reconstructsENTIREoldfilesBYTEexact, alloldtests/asserts/guards/query/callback/order
+unchanged;71checks/copy/fmt2. ExtranonNativeBoxallocation/noerreset explicit.
+Specdeepowner/API read no finding; V1HOLDfor2newhelperstyleissues, V2tiny?+tailfix
+sourcecurrent/copy/finalpeerpending. NOactualcompile/currentframe/deep300/moderate50/
+1035/180/pass/perfclaim. No128/stack/test/budget change. No ordinaryNativegrant.
+
+Method-level extraction read-only receipt d57474753a01c459cff0f9d04a67e958a0339897e070d147dd0a1d1ac7f8a1f9
+(runtime-method-extraction-boundary-v1/receipt.json): Engineeval/guestgenericinvoke
+acceptarbitraryscripts/heads andnormalbuiltininstallreachesruntimehandlers. Normal
+LSPpackageexclusiondoesnotprovehandler/frame/var-ownerchangesremovablefromspecdev/
+WASMcompatibility. No rollback/drop/exclusion authored.
+
+## Prior authenticated compiler99: first failure is real NOP boundary
 
 Exact d62cf52d55e0bf89aabc5048f63480c6efdf4a09 run40133511279/job120990073267,
 artifact12576543168 ZIP12152114 SHAe4bd6628dd0fe5c9d01926ac01d5291e83641d224fcea3cd817a0ef2523bb559.

@@ -1,0 +1,59 @@
+{
+  "utc": "2026-10-24T22:27:35.605207+00:00",
+  "status": "ALL3_CLOSED_FULLAUTH_HOSTS_FAIL_UNIT_PASS1_NATIVE_SEND_BOUNDS_COMPILED",
+  "source": "5593449b56c13c72aacc189f680dac0a01fab07c",
+  "run": 40137084898,
+  "source_membership": {
+    "utc": "2026-10-24T22:20:04.707631+00:00",
+    "source": "5593449b56c13c72aacc189f680dac0a01fab07c",
+    "tree": "593b17e843a395ba56788fe7a7bfee0d2ab77b5c",
+    "count": 126239,
+    "nul_sha256": "83a04ec7876094e8582039e0db1a0f65bf20f4656ffac8cd79d3de0d0850a6c8",
+    "method": "git --no-lazy-fetch ls-tree -r --name-only -z exactsource; raw NUL digest/count, no duplicate disk copy due32MiB free"
+  },
+  "artifacts": {
+    "browser": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40137084898-actual-v1/assessment-v1.json",
+      "assessment_sha256": "dde72a0be914591b749348178d4fd47da0699ab088fab77e33e1585fe5dc521f",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL",
+      "zip_sha256": "b7e0466b9ecab7acbb2ac2dd7d37da40d5a7c16364105b58b6f1c044a3344f24",
+      "zip_bytes": 8075168,
+      "source_members": 126239,
+      "source_before_after_equal": true,
+      "observed_Rust_error_warning_lines": []
+    },
+    "wasi": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40137084898-actual-v1/assessment-v1.json",
+      "assessment_sha256": "00597426f55f7a2e6c36820498967fca430fd53dee20ff7cdd29f12a90fd244c",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL",
+      "zip_sha256": "5200b1e2917771a25e3364309834e6d5b0b5696be4e1a2a43761c45593b31c3f",
+      "zip_bytes": 8075686,
+      "source_members": 126239,
+      "source_before_after_equal": true,
+      "observed_Rust_error_warning_lines": []
+    },
+    "unit": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40137084898-actual-v1/assessment-v1.json",
+      "assessment_sha256": "f8557ea3d34a09caad0c56f5f93afabcf8606f15e3804059d909d9e1ff552de3",
+      "status": "AUTHENTIC_SEPARATE_UNIT_PASS",
+      "zip_sha256": "d64e04c04a514467343b113c31c63693a1b59174cabfb91858403d4d4acca182",
+      "zip_bytes": 10153272,
+      "source_members": 126239,
+      "source_before_after_equal": true
+    }
+  },
+  "protocol_companion_sha256": "dc8aba964246079fdc98306af6e3ffe64d00bcd632b687fe19ba9aedb35c56d1",
+  "native_Send_compiled_receipt_sha256": "5ef95e1bd5196effb07587db5d171f72c60d9222abde5e3de5370ef6014440fc",
+  "strict_same_source": {
+    "run": 40137082962,
+    "path": "/workspace/naming-proof-storage/strict-auth-559-40137082962/receipt.json",
+    "sha256": "ec89207151a73d32f945aeaabb62c600f2ae191d637e0f11baa7e7925db9c812",
+    "outcome": "FAIL two reached WORK engine observer lints; no strictgreen"
+  },
+  "final_api_sha256": "9216f663a218f63fc07878c63cce31dffbdb29f2cc789599ba8abbeec00cc4cd",
+  "validators": {
+    "host-author-validator.py": "447fc57b7eb83db78c4e9bc61536a0ef7fe1486cb14517c486dc406eac8b7f6e",
+    "selected-author-validator.py": "b9794ce64434142039aa404d6f42ed3411e265944c3fae83b32f99122e6c47ba"
+  },
+  "no_original_host_aggregate_performance_Eq_closure": true
+}
