@@ -23754,7 +23754,7 @@ impl Vm {
         tail: FatalTail,
         invoked: &Value,
     ) -> Completion<Value> {
-        let dialect = self.native_invocation_dialect();
+        let dialect = self.actual_native_invocation_dialect();
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(dialect)
         else {
             return self.refuse_host_command(

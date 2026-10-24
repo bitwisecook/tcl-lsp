@@ -4309,7 +4309,7 @@ impl Vm {
         usage: impl FnOnce(&mut Self) -> Result<Vec<u8>, Completion<Value>>,
     ) -> Result<Option<Completion<Value>>, Completion<Value>> {
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
-            self.native_invocation_dialect(),
+            self.actual_native_invocation_dialect(),
         ) else {
             return Err(self.refuse_host_command(
                 "native procedure activation protocol is unavailable".into(),
@@ -4387,7 +4387,7 @@ impl Vm {
             return Err(self.raise_native_compilation_failure(failure, Some(&name)));
         }
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
-            self.native_invocation_dialect(),
+            self.actual_native_invocation_dialect(),
         ) else {
             return Err(self.refuse_host_command(
                 "native procedure activation protocol is unavailable".into(),
@@ -11948,6 +11948,93 @@ mod tests {
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
     use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn procedure_activation_uses_the_supplied_host_without_changing_source_policy() {
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let source = tcl_dialect::DialectProfile::irules();
+        let mut vm = crate::native_fixture::core(host);
+        vm.set_dialect_profile(source);
+        let policy = vm.native_compiler_policy();
+        assert!(vm.native_invocation_dialect().execution_point().is_none());
+        assert_eq!(
+            vm.actual_native_execution_profile().cache_key(),
+            host.cache_key()
+        );
+        let body = Value::new_native_string_bytes(b"".as_slice());
+        let reached = vm.early_procedure_activation_inputs(
+            &[],
+            tcl_dialect::ParameterGrammar::Tcl,
+            &body,
+            &[],
+            |_| panic!("C activation does not inspect argument usage before its body"),
+        );
+        assert!(matches!(reached, Ok(None)));
+        assert!(vm.execution_refusal.is_none());
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert_eq!(vm.native_compiler_policy(), policy);
+    }
+
+    #[test]
+    fn procedure_activation_does_not_derive_an_engine_from_the_source_profile() {
+        let mut vm = Vm::new();
+        let source = tcl_dialect::DialectProfile::irules();
+        vm.set_dialect_profile(source);
+        assert!(!vm.set_native_engine_profile(source));
+        let body = Value::new_native_string_bytes(b"".as_slice());
+        let reached = vm.early_procedure_activation_inputs(
+            &[],
+            tcl_dialect::ParameterGrammar::Tcl,
+            &body,
+            &[],
+            |_| panic!("missing physical issuer must refuse before usage"),
+        );
+        assert!(reached.is_err());
+        assert!(matches!(
+            vm.execution_refusal,
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
+        ));
+        assert!(
+            vm.actual_native_invocation_dialect()
+                .execution_point()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn procedure_parse_failure_uses_the_host_but_keeps_missing_geometry_closed() {
+        let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
+        let source = tcl_dialect::DialectProfile::irules();
+        let mut vm = crate::native_fixture::core(host);
+        vm.set_dialect_profile(source);
+        let policy = vm.native_compiler_policy();
+        let invoked = Value::new_native_string_bytes(b"original-procedure".as_slice());
+        // A diagnostic geometry fixture grants no procedure-body execution.
+        let tail = tcl_runtime_api::FatalTail {
+            message: "missing close-brace".into(),
+            command_text: b"set x {".to_vec(),
+            compilation_command_text: Some(b"set x {".to_vec()),
+            line: 1,
+            compile_info: None,
+            error_code: None,
+        };
+        let reached = vm.raise_procedure_parse_failure(tail, &invoked);
+        assert_eq!(reached.code, tcl_runtime_api::Code::Error);
+        assert_eq!(
+            reached.result.string_bytes().as_ref(),
+            b"missing close-brace"
+        );
+        assert!(vm.execution_refusal.is_none());
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert_eq!(vm.native_compiler_policy(), policy);
+        let missing = tcl_runtime_api::FatalTail::message_only("missing close-brace".into());
+        let reached = vm.raise_procedure_parse_failure(missing, &invoked);
+        assert_eq!(reached.code, tcl_runtime_api::Code::Error);
+        assert!(matches!(
+            vm.execution_refusal,
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
+        ));
+    }
 
     #[test]
     fn procedure_activation_retains_original_invocation_references_until_exit() {
