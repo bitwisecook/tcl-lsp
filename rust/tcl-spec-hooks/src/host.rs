@@ -111,6 +111,8 @@ struct PinnedEngine<E: Engine> {
     handles: Vec<Option<E::Handle>>,
 }
 
+type PinnedEngineFactory<E> = dyn Fn(&str) -> Result<E, EngineError>;
+
 /// The `SpecTcl` hook host.
 ///
 /// Generic over the engine, never over an engine's *identity*: the host names
@@ -118,6 +120,7 @@ struct PinnedEngine<E: Engine> {
 /// under an unchanged host.
 pub struct HookHost<E: Engine> {
     engine_factory: Box<dyn Fn() -> E>,
+    pinned_engine_factory: Option<Box<PinnedEngineFactory<E>>>,
     config: HostConfig,
     packs: RefCell<Vec<PackRuntime<E>>>,
     slots: RefCell<HashMap<HookSlot, (usize, usize)>>,
@@ -139,12 +142,24 @@ impl<E: Engine> HookHost<E> {
     pub fn with_config(engine_factory: impl Fn() -> E + 'static, config: HostConfig) -> Self {
         Self {
             engine_factory: Box::new(engine_factory),
+            pinned_engine_factory: None,
             config,
             packs: RefCell::new(Vec::new()),
             slots: RefCell::new(HashMap::new()),
             crashes: RefCell::new(Vec::new()),
             error_log: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Select a fresh engine for a release before its sandbox or hooks are built.
+    /// A refused factory leaves that release unavailable, without a default engine.
+    #[must_use]
+    pub fn with_pinned_engine_factory(
+        mut self,
+        factory: impl Fn(&str) -> Result<E, EngineError> + 'static,
+    ) -> Self {
+        self.pinned_engine_factory = Some(Box::new(factory));
+        self
     }
 
     /// Compile one pack's hook bodies into their own engine and allocate a
@@ -215,7 +230,17 @@ impl<E: Engine> HookHost<E> {
         reading: &Rc<Reading>,
         release: Option<&str>,
     ) -> (E, Vec<String>) {
-        let mut engine = (self.engine_factory)();
+        self.sandboxed_engine_from((self.engine_factory)(), families, sink, reading, release)
+    }
+
+    fn sandboxed_engine_from(
+        &self,
+        mut engine: E,
+        families: &[HookFamily],
+        sink: &Rc<Sink>,
+        reading: &Rc<Reading>,
+        release: Option<&str>,
+    ) -> (E, Vec<String>) {
         let mut failures: Vec<String> = Vec::new();
         // Pinned first, as the engine contract asks: after the engine is
         // built and before anything is compiled on it.
@@ -270,8 +295,34 @@ impl<E: Engine> HookHost<E> {
         {
             return index;
         }
-        let (mut engine, failures) =
-            self.sandboxed_engine(&pack.families, &pack.sink, &pack.reading, Some(profile));
+        let prepared = if let Some(factory) = &self.pinned_engine_factory {
+            factory(profile).map(|engine| {
+                self.sandboxed_engine_from(
+                    engine,
+                    &pack.families,
+                    &pack.sink,
+                    &pack.reading,
+                    Some(profile),
+                )
+            })
+        } else {
+            Ok(self.sandboxed_engine(&pack.families, &pack.sink, &pack.reading, Some(profile)))
+        };
+        let (mut engine, failures) = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                self.error_log.borrow_mut().push(format!(
+                    "{}: no engine pinned to {profile}: {error}",
+                    pack.pack
+                ));
+                pack.pinned.push(PinnedEngine {
+                    profile: profile.to_owned(),
+                    engine: None,
+                    handles: Vec::new(),
+                });
+                return pack.pinned.len() - 1;
+            }
+        };
         let mut handles = Vec::with_capacity(pack.hooks.len());
         let engine = if let Some(failure) = failures.first() {
             self.error_log.borrow_mut().push(format!(

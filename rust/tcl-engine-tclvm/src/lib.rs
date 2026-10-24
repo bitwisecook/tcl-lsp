@@ -1955,26 +1955,52 @@ impl TclVmEngine {
         // release's grammar for the whole thread.
         let _grammar = GrammarGuard::keep();
         let native = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        Self::with_native_registry(registry, native).expect("the C9.0 native core")
+    }
+
+    /// A fresh engine whose actual native core is the requested measured release.
+    ///
+    /// # Errors
+    /// Refuses profiles without an original native execution point or bootstrap.
+    pub fn for_native_release(profile: &str) -> Result<Self, EngineError> {
+        let _grammar = GrammarGuard::keep();
+        let native = tcl_registry::model::ingress::resolve_known_environment(profile)
+            .and_then(|environment| environment.catalogue_profile())
+            .filter(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile)
+                    .execution_point()
+                    .is_some()
+            })
+            .ok_or(EngineError::Unsupported("creating a native release engine"))?;
+        let mut engine = Self::with_native_registry(CommandRegistry::build_default(), native)
+            .ok_or(EngineError::Unsupported("creating a native release engine"))?;
+        engine.release = Some(native.name);
+        Ok(engine)
+    }
+
+    fn with_native_registry(
+        registry: CommandRegistry,
+        native: &'static tcl_dialect::DialectProfile,
+    ) -> Option<Self> {
         let host = tcl_vm::standard_host();
         let mut vm = Vm::with_native_core(
             Box::new(std::io::stdout()),
             Rc::clone(&host),
             native,
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
-        )
-        .expect("the C9.0 native core");
+        )?;
         // The core bootstraps only the core's own roots; the embedding host
         // seeds its globals (`tcl_library`, `auto_path`, `env`, `tcl_platform`).
         vm.set_host(host);
         vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
-        Self {
+        Some(Self {
             vm,
             budget: Budget::default(),
             release: None,
             units: 0,
             host_commands: Rc::new(RefCell::new(Vec::new())),
             unit_commands: Vec::new(),
-        }
+        })
     }
 
     /// The underlying VM, for an embedder that needs a VM-specific facility
@@ -3271,6 +3297,43 @@ mod tests {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect("an early return is not an error");
         assert_eq!(abstained.as_str(), Some(""));
+    }
+
+    #[test]
+    fn a_fresh_native_release_selects_its_issuer_before_compilation() {
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let engine = TclVmEngine::for_native_release(name).expect("measured native core");
+            let expected = tcl_registry::model::ingress::resolve_environment(name).unit_profile();
+            assert_eq!(engine.release(), Some(expected.name));
+            assert_eq!(
+                engine.vm.native_scalar_carrier_dialect().execution_point(),
+                tcl_registry::InvocationDialect::of_profile(expected).execution_point()
+            );
+        }
+        for name in ["no-such-dialect", "", "tcl", "tk", "jim", "f5-irules"] {
+            assert!(TclVmEngine::for_native_release(name).is_err(), "{name}");
+        }
+    }
+
+    #[test]
+    fn fresh_native_engines_execute_their_own_units_and_refuse_foreign_handles() {
+        let mut engine = TclVmEngine::for_native_release("tcl8.6").expect("native C8.6");
+        let handle = engine
+            .compile(unit("return [expr {6 * 7}]"))
+            .expect("compiles");
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        assert_eq!(
+            engine.invoke(&handle, &arguments).unwrap().as_str(),
+            Some("42")
+        );
+        let mut foreign = TclVmEngine::for_native_release("tcl9.0").expect("native C9.0");
+        assert!(foreign.invoke(&handle, &arguments).is_err());
+        let actual = foreign.vm.native_scalar_carrier_dialect().execution_point();
+        foreign.set_release("tcl8.6").expect("source profile pins");
+        assert_eq!(
+            foreign.vm.native_scalar_carrier_dialect().execution_point(),
+            actual
+        );
     }
 
     /// `set_release` pins the VM's release: a leading zero is octal up to

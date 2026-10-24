@@ -558,3 +558,34 @@ fn a_declared_budget_above_the_hosts_runs_under_the_hosts() {
         HookAnswer::Fold("50".to_owned())
     );
 }
+
+#[test]
+fn a_refused_release_factory_cannot_run_on_the_default_engine() {
+    let invocations = Rc::new(Cell::new(0));
+    let attempts = Rc::new(Cell::new(0));
+    let factory_attempts = Rc::clone(&attempts);
+    let host = host(&invocations).with_pinned_engine_factory(move |_| {
+        factory_attempts.set(factory_attempts.get() + 1);
+        Err(EngineError::Unsupported("the requested native core"))
+    });
+    let installed = host.install_pack_hooks(PackPrograms::new("closed").with(
+        HookProgram::new("closed::fold", HookFamily::ConstFold, "folded").pinned_to_release(),
+    ));
+    let slot = installed[0].slot.expect("installed on the pack engine");
+    let words = [literal("x")];
+    let pinned = HookCall {
+        dialect: Some("tcl8.6"),
+        ..call(&words)
+    };
+    for _ in 0..2 {
+        assert_eq!(host.invoke(slot, &pinned), HookAnswer::Abstain);
+    }
+    assert_eq!(attempts.get(), 1, "the unavailable release is cached");
+    assert_eq!(
+        invocations.get(),
+        0,
+        "the default engine is never substituted"
+    );
+    assert_eq!(host.error_log().len(), 1);
+    assert!(!host.is_quarantined(slot));
+}
