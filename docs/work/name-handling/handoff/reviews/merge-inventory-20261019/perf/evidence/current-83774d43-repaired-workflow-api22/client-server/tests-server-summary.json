@@ -1,14 +1,58 @@
 {
   "server/startup/new": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 3.952,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-startup-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
   },
   "server/startup/old": {
-    "status": "pending"
+    "returncode": 101,
+    "seconds": 3.831,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-startup-old.out"
   },
   "server/workspace_symbol/new": {
-    "status": "pending"
+    "returncode": "timeout180",
+    "seconds": 180.02,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [
+      "tests::workspace_symbol_caps_its_answer"
+    ],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-workspace_symbol-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
   },
   "server/workspace_symbol/old": {
-    "status": "pending"
+    "returncode": "timeout180",
+    "seconds": 180.026,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [
+      "tests::workspace_symbol_caps_its_answer"
+    ],
+    "declared_count": 1,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-server-workspace_symbol-old.out"
   }
 }

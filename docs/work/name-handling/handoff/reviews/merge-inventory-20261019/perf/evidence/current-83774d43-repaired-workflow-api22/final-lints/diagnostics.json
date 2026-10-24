@@ -1,0 +1,786 @@
+[
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (104/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs"
+    ],
+    "owned": false,
+    "api_repair": true,
+    "rendered": "error: this function has too many lines (104/100)\n   --> rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:323:5\n    |\n323 | /     fn procedure(\n324 | |         module: &crate::ir::Module,\n325 | |         id: ProcedureId,\n326 | |         body: &Procedure,\n327 | |         role: ReportBodyRole,\n328 | |     ) -> Option<ReportBodyOwner> {\n    | |________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n    = note: `-D clippy::too-many-lines` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (122/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (122/100)\n    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1728:5\n     |\n1728 | /     pub(super) fn emit_read_before_set_diagnostics(\n1729 | |         &mut self,\n1730 | |         fu: &crate::compilation_unit::FunctionUnit,\n1731 | |         ir_proc: Option<&crate::ir::Procedure>,\n1732 | |         ctx: &ReadBeforeSetCtx<'_>,\n1733 | |     ) -> HashSet<String> {\n     | |________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (111/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (111/100)\n    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2115:5\n     |\n2115 | /     fn definite_missing_read_spans(\n2116 | |         &self,\n2117 | |         fu: &crate::compilation_unit::FunctionUnit,\n2118 | |         ctx: &ReadBeforeSetCtx<'_>,\n2119 | |         exists_guards: &[super::helpers::ExistenceGuard],\n2120 | |     ) -> std::collections::HashMap<String, tcl_lexer::Span> {\n     | |___________________________________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (147/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (147/100)\n    --> rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1787:5\n     |\n1787 | /     pub(super) fn emit_abstract_instantiation_diagnostics(\n1788 | |         &mut self,\n1789 | |         cu: &crate::compilation_unit::CompilationUnit,\n1790 | |     ) {\n     | |_____^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (113/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/diagnostics.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (113/100)\n   --> rust/tcl-compiler/src/analyser/diagnostics.rs:535:5\n    |\n535 | /     pub fn emit_cfg_ssa_diagnostics_with_cu(\n536 | |         &mut self,\n537 | |         cu: &crate::compilation_unit::CompilationUnit,\n538 | |         registry: &tcl_registry::CommandRegistry,\n539 | |     ) {\n    | |_____^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (146/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/handlers.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (146/100)\n    --> rust/tcl-compiler/src/analyser/handlers.rs:7440:5\n     |\n7440 | /     fn segment_invocation_completion(\n7441 | |         &self,\n7442 | |         seg: &SegmentedCommand,\n7443 | |     ) -> tcl_registry::registry::InvocationCompletion {\n     | |_____________________________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/analyser/param_traits.rs:992:9\n    |\n992 | /         let Some((params_text, body_text)) =\n993 | |             selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)\n994 | |         else {\n995 | |             return None;\n996 | |         };\n    | |__________^ help: replace it with: `let (params_text, body_text) = selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n    = note: `-D clippy::question-mark` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1001:9\n     |\n1001 | /         let Some(body_offset) = ctx\n1002 | |             .source_base\n1003 | |             .and_then(|base| body.content_span().start().checked_sub(base))\n1004 | |         else {\n1005 | |             return None;\n1006 | |         };\n     | |__________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\nhelp: replace it with\n     |\n1001 ~         let body_offset = ctx\n1002 +             .source_base\n1003 +             .and_then(|base| body.content_span().start().checked_sub(base))?;\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1009:9\n     |\n1009 | /         let Some((params, body, offset)) = selected_lambda_source(\n1010 | |             document,\n1011 | |             analysis,\n1012 | |             seg.argv\n...    |\n1018 | |             return None;\n1019 | |         };\n     | |__________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\nhelp: replace it with\n     |\n1009 ~         let (params, body, offset) = selected_lambda_source(\n1010 +             document,\n1011 +             analysis,\n1012 +             seg.argv\n1013 +                 .first()\n1014 +                 .and_then(|head| head.span.start().checked_add(ctx.source_base?)),\n1015 +             idx,\n1016 +             ctx.config,\n1017 +         )?;\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1022:9\n     |\n1022 | /         let Some(&tok) = seg.argv.get(idx + 1) else {\n1023 | |             return None;\n1024 | |         };\n     | |__________^ help: replace it with: `let &tok = seg.argv.get(idx + 1)?;`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1028:9\n     |\n1028 | /         let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {\n1029 | |             return None;\n1030 | |         };\n     | |__________^ help: replace it with: `let elems = crate::lambda_literal::split_lambda_literal(source, tok)?;`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1031:9\n     |\n1031 | /         let Some(body_span) = elems.body else {\n1032 | |             return None;\n1033 | |         };\n     | |__________^ help: replace it with: `let body_span = elems.body?;`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1034:9\n     |\n1034 | /         let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize)\n1035 | |         else {\n1036 | |             return None;\n1037 | |         };\n     | |__________^ help: replace it with: `let body_text = source.get(body_span.start() as usize..body_span.end() as usize)?;`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/param_traits.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n    --> rust/tcl-compiler/src/analyser/param_traits.rs:1038:9\n     |\n1038 | /         let Some(params_text) =\n1039 | |             source.get(elems.params.start() as usize..elems.params.end() as usize)\n1040 | |         else {\n1041 | |             return None;\n1042 | |         };\n     | |__________^ help: replace it with: `let params_text = source.get(elems.params.start() as usize..elems.params.end() as usize)?;`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::assert_is_empty",
+      "explanation": null
+    },
+    "message": "used `assert!` to check that a value is empty",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/per_item.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used `assert!` to check that a value is empty\n    --> rust/tcl-compiler/src/analyser/per_item.rs:2216:5\n     |\n2216 |     assert!(frag.private_ns_calls.is_empty());\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assert_is_empty\n     = note: `-D clippy::assert-is-empty` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`\nhelp: use `assert_eq!` to show the value on failure\n     |\n2216 -     assert!(frag.private_ns_calls.is_empty());\n2216 +     assert_eq!(frag.private_ns_calls, [] as [analyser::diagnostics::validity::PendingPrivateTclSourceAdvice; 0]);\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::assert_is_empty",
+      "explanation": null
+    },
+    "message": "used `assert!` to check that a value is empty",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/per_item.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used `assert!` to check that a value is empty\n    --> rust/tcl-compiler/src/analyser/per_item.rs:2255:5\n     |\n2255 |     assert!(frag.private_ns_calls.is_empty());\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assert_is_empty\nhelp: use `assert_eq!` to show the value on failure\n     |\n2255 -     assert!(frag.private_ns_calls.is_empty());\n2255 +     assert_eq!(frag.private_ns_calls, [] as [analyser::diagnostics::validity::PendingPrivateTclSourceAdvice; 0]);\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::assert_is_empty",
+      "explanation": null
+    },
+    "message": "used `assert!` to check that a value is empty",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/per_item.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used `assert!` to check that a value is empty\n    --> rust/tcl-compiler/src/analyser/per_item.rs:2259:5\n     |\n2259 |     assert!(frag.pending_ctor_arity.is_empty());\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assert_is_empty\nhelp: use `assert_eq!` to show the value on failure\n     |\n2259 -     assert!(frag.pending_ctor_arity.is_empty());\n2259 +     assert_eq!(frag.pending_ctor_arity, [] as [analyser::types::PendingCtorArity; 0]);\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::assert_is_empty",
+      "explanation": null
+    },
+    "message": "used `assert!` to check that a value is empty",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/per_item.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used `assert!` to check that a value is empty\n    --> rust/tcl-compiler/src/analyser/per_item.rs:2263:5\n     |\n2263 |     assert!(frag.pending_next_arity.is_empty());\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#assert_is_empty\nhelp: use `assert_eq!` to show the value on failure\n     |\n2263 -     assert!(frag.pending_next_arity.is_empty());\n2263 +     assert_eq!(frag.pending_next_arity, [] as [analyser::types::PendingNextArity; 0]);\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (101/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/analyser/state.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (101/100)\n    --> rust/tcl-compiler/src/analyser/state.rs:2347:5\n     |\n2347 |     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (129/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (129/100)\n   --> rust/tcl-compiler/src/command_binding/materialized_footprint.rs:591:5\n    |\n591 | /     pub(crate) fn original_materialized_footprint<'a>(\n592 | |         &'a self,\n593 | |         tokens: &CommandTokens,\n594 | |         source: &str,\n595 | |         registry: &'a CommandRegistry,\n596 | |         metadata: Option<InvocationMetadataContext<'a>>,\n597 | |     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {\n    | |________________________________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (127/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (127/100)\n   --> rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:977:5\n    |\n977 | /     fn expression_commands(\n978 | |         &mut self,\n979 | |         graph: &mut AdviceGraph,\n980 | |         advice: &OriginalSourceCommandTransitionAdvice,\n...   |\n983 | |         catalogue: bool,\n984 | |     ) -> Option<()> {\n    | |___________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (125/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (125/100)\n   --> rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:416:5\n    |\n416 | /     pub fn source_factory_attempt(\n417 | |         &self,\n418 | |         analysis: &AnalysisResult,\n419 | |     ) -> Option<OriginalSourceClassFactoryAttempt<'_>> {\n    | |______________________________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (120/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (120/100)\n   --> rust/tcl-compiler/src/command_binding/ensemble_compilation.rs:245:5\n    |\n245 | /     pub(super) fn actual_ensemble_plan(\n246 | |         &self,\n247 | |         target: &SourceCommandTarget,\n248 | |         head: &str,\n...   |\n253 | |         )>,\n254 | |     ) -> Option<ActualEnsemblePlan> {\n    | |___________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (117/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/compiler_inventory.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (117/100)\n   --> rust/tcl-compiler/src/command_binding/compiler_inventory.rs:263:5\n    |\n263 | /     pub(super) fn trace_original_body_compiler_census(\n264 | |         &self,\n265 | |         body: crate::ir::ProcedureId,\n266 | |         span: tcl_lexer::Span,\n267 | |         input: &crate::analyser::ResolvedAnalysisInput,\n268 | |         registry: &tcl_registry::CommandRegistry,\n269 | |     ) {\n    | |_____^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (103/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/compiler_inventory.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (103/100)\n   --> rust/tcl-compiler/src/command_binding/compiler_inventory.rs:391:5\n    |\n391 | /     pub(crate) fn original_compiler_syntax_alternatives<'a>(\n392 | |         &'a self,\n393 | |         tokens: &crate::ir::CommandTokens,\n394 | |         input: &crate::analyser::ResolvedAnalysisInput,\n395 | |         registry: &tcl_registry::CommandRegistry,\n396 | |     ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {\n    | |________________________________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this block may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/source_point_entry.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this block may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/command_binding/source_point_entry.rs:285:9\n    |\n285 | /         if self\n286 | |             .source_advice_graph(input.borrowed_context_registry())\n287 | |             .is_none()\n...   |\n296 | |             return None;\n297 | |         }\n    | |_________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\nhelp: replace it with\n    |\n285 ~         self\n286 +             .source_advice_graph(input.borrowed_context_registry())?;\n    |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (110/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding/source_point_entry.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (110/100)\n   --> rust/tcl-compiler/src/command_binding/source_point_entry.rs:652:5\n    |\n652 | /     pub(crate) fn original_source_point_entry(\n653 | |         &self,\n654 | |         input: &ResolvedAnalysisInput,\n655 | |         original: &[NativeWord],\n656 | |         path: usize,\n657 | |     ) -> Option<OriginalSourcePointEntry> {\n    | |_________________________________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::large_types_passed_by_value",
+      "explanation": null
+    },
+    "message": "this argument (400 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this argument (400 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)\n    --> rust/tcl-compiler/src/command_binding.rs:7305:13\n     |\n7305 |     before: Option<original_command_table::OriginalSourceQueryTotals>,\n     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider passing by reference instead: `&Option<original_command_table::OriginalSourceQueryTotals>`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#large_types_passed_by_value\n     = note: `-D clippy::large-types-passed-by-value` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::large_types_passed_by_value)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (128/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (128/100)\n    --> rust/tcl-compiler/src/command_binding.rs:7524:5\n     |\n7524 | /     fn analyse_source_in_frame_with_options(\n7525 | |         source: &str,\n7526 | |         image: &tcl_lexer::SourceImage,\n7527 | |         frame: &crate::var_resolve::VariableExecutionFrame,\n...    |\n7531 | |         entry: SourceInterpretationEntry,\n7532 | |     ) -> Self {\n     | |_____________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::used_underscore_binding",
+      "explanation": null
+    },
+    "message": "used underscore-prefixed binding",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used underscore-prefixed binding\n    --> rust/tcl-compiler/src/command_binding.rs:7696:25\n     |\n7696 |                     && (_root_index == 0\n     |                         ^^^^^^^^^^^\n     |\nnote: binding is defined here\n    --> rust/tcl-compiler/src/command_binding.rs:7691:18\n     |\n7691 |             for (_root_index, (root, entry)) in\n     |                  ^^^^^^^^^^^\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#used_underscore_binding\n     = note: `-D clippy::used-underscore-binding` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::used_underscore_binding)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::used_underscore_binding",
+      "explanation": null
+    },
+    "message": "used underscore-prefixed binding",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: used underscore-prefixed binding\n    --> rust/tcl-compiler/src/command_binding.rs:7700:92\n     |\n7700 | ...   \"SOURCE_DEFERRED_PROGRESS stage=entry iteration={iteration} index={_root_index} ms={} roots={root_count} bytes={} offset={} ...\n     |                                                                          ^^^^^^^^^^^\n     |\nnote: binding is defined here\n    --> rust/tcl-compiler/src/command_binding.rs:7691:18\n     |\n7691 |             for (_root_index, (root, entry)) in\n     |                  ^^^^^^^^^^^\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#used_underscore_binding\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::items_after_statements",
+      "explanation": null
+    },
+    "message": "adding items after statements is confusing, since items exist from the start of the scope",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: adding items after statements is confusing, since items exist from the start of the scope\n    --> rust/tcl-compiler/src/command_binding.rs:9756:9\n     |\n9756 |         use tcl_registry::native_compilation::NativeCompilationSelection;\n     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#items_after_statements\n     = note: `-D clippy::items-after-statements` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::items_after_statements)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (120/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/command_binding.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (120/100)\n     --> rust/tcl-compiler/src/command_binding.rs:10875:5\n      |\n10875 | /     fn walk_prepared_source_target(\n10876 | |         &mut self,\n10877 | |         native: SourceNativeInvocation<'_>,\n10878 | |         prepared: &PreparedSourceNativeInvocation<'_>,\n...     |\n10882 | |         incoming: &ModuleCommandBindings,\n10883 | |     ) -> SourceOutcomes {\n      | |_______________________^\n      |\n      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_pass_by_value",
+      "explanation": null
+    },
+    "message": "this argument is passed by value, but not consumed in the function body",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this argument is passed by value, but not consumed in the function body\n   --> rust/tcl-compiler/src/compilation_unit.rs:974:11\n    |\n974 |     full: FullSccpInputs<'_>,\n    |           ^^^^^^^^^^^^^^^^^^\n    |\nhelp: or consider marking this type as `Copy`\n   --> rust/tcl-compiler/src/compilation_unit.rs:910:1\n    |\n910 | struct FullSccpInputs<'a> {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value\n    = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`\nhelp: consider taking a reference instead\n    |\n974 |     full: &FullSccpInputs<'_>,\n    |           +\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_pass_by_value",
+      "explanation": null
+    },
+    "message": "this argument is passed by value, but not consumed in the function body",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this argument is passed by value, but not consumed in the function body\n    --> rust/tcl-compiler/src/compilation_unit.rs:3077:13\n     |\n3077 |     inputs: BodyMemoBuildInputs<'_>,\n     |             ^^^^^^^^^^^^^^^^^^^^^^^\n     |\nhelp: or consider marking this type as `Copy`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3063:1\n     |\n3063 | struct BodyMemoBuildInputs<'a> {\n     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value\nhelp: consider taking a reference instead\n     |\n3077 |     inputs: &BodyMemoBuildInputs<'_>,\n     |             +\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_pass_by_value",
+      "explanation": null
+    },
+    "message": "this argument is passed by value, but not consumed in the function body",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this argument is passed by value, but not consumed in the function body\n    --> rust/tcl-compiler/src/compilation_unit.rs:3282:12\n     |\n3282 |     input: ProcedureMemoInputs<'_>,\n     |            ^^^^^^^^^^^^^^^^^^^^^^^\n     |\nhelp: or consider marking this type as `Copy`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3266:1\n     |\n3266 | struct ProcedureMemoInputs<'a> {\n     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value\nhelp: consider taking a reference instead\n     |\n3282 |     input: &ProcedureMemoInputs<'_>,\n     |            +\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::large_enum_variant",
+      "explanation": null
+    },
+    "message": "large size difference between variants",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: large size difference between variants\n    --> rust/tcl-compiler/src/compilation_unit.rs:3463:1\n     |\n3463 | / enum PreparedProcedureBuild<'a> {\n3464 | |     Guarded(crate::ir::ProcedureId, FunctionUnit),\n     | |     --------------------------------------------- the largest variant contains at least 6424 bytes\n3465 | |     Ready(ProcedureBuildInfo<'a>),\n     | |     ----------------------------- the second-largest variant contains at least 144 bytes\n3466 | | }\n     | |_^ the entire enum is at least 6424 bytes\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#large_enum_variant\n     = note: `-D clippy::large-enum-variant` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`\nhelp: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum\n     |\n3464 -     Guarded(crate::ir::ProcedureId, FunctionUnit),\n3464 +     Guarded(crate::ir::ProcedureId, Box<FunctionUnit>),\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_option_as_deref",
+      "explanation": null
+    },
+    "message": "derefed type is same as origin",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: derefed type is same as origin\n    --> rust/tcl-compiler/src/compilation_unit.rs:3792:9\n     |\n3792 |         cache.as_deref_mut(),\n     |         ^^^^^^^^^^^^^^^^^^^^ help: try: `cache`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_option_as_deref\n     = note: `-D clippy::needless-option-as-deref` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::needless_option_as_deref)]`\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_pass_by_value",
+      "explanation": null
+    },
+    "message": "this argument is passed by value, but not consumed in the function body",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this argument is passed by value, but not consumed in the function body\n    --> rust/tcl-compiler/src/compilation_unit.rs:3813:12\n     |\n3813 |     input: RetainedProcedureBuildInputs<'_, '_, '_>,\n     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     |\nhelp: or consider marking this type as `Copy`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3802:1\n     |\n3802 | struct RetainedProcedureBuildInputs<'borrow, 'module, 'registry> {\n     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_pass_by_value\nhelp: consider taking a reference instead\n     |\n3813 |     input: &RetainedProcedureBuildInputs<'_, '_, '_>,\n     |            +\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_option_as_deref",
+      "explanation": null
+    },
+    "message": "derefed type is same as origin",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: derefed type is same as origin\n    --> rust/tcl-compiler/src/compilation_unit.rs:3877:9\n     |\n3877 |         cache.as_deref_mut(),\n     |         ^^^^^^^^^^^^^^^^^^^^ help: try: `cache`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_option_as_deref\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_option_as_deref",
+      "explanation": null
+    },
+    "message": "derefed type is same as origin",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: derefed type is same as origin\n    --> rust/tcl-compiler/src/compilation_unit.rs:4025:9\n     |\n4025 |         cache.as_deref_mut(),\n     |         ^^^^^^^^^^^^^^^^^^^^ help: try: `cache`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_option_as_deref\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_option_as_deref",
+      "explanation": null
+    },
+    "message": "derefed type is same as origin",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: derefed type is same as origin\n    --> rust/tcl-compiler/src/compilation_unit.rs:4120:9\n     |\n4120 |         cache.as_deref_mut(),\n     |         ^^^^^^^^^^^^^^^^^^^^ help: try: `cache`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_option_as_deref\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::needless_option_as_deref",
+      "explanation": null
+    },
+    "message": "derefed type is same as origin",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: derefed type is same as origin\n    --> rust/tcl-compiler/src/compilation_unit.rs:4739:24\n     |\n4739 |                 cache: cache.as_deref_mut(),\n     |                        ^^^^^^^^^^^^^^^^^^^^ help: try: `cache`\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_option_as_deref\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (129/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/compilation_unit.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (129/100)\n    --> rust/tcl-compiler/src/compilation_unit.rs:5740:5\n     |\n5740 | /     pub(crate) fn conditional_original_body_unit(\n5741 | |         &self,\n5742 | |         registry: &CommandRegistry,\n5743 | |         original_function: &FunctionUnit,\n5744 | |         parent: &crate::ir::CommandTokens,\n5745 | |         argument: usize,\n5746 | |     ) -> Option<FunctionUnit> {\n     | |_____________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (152/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/realm/source_transition_advice.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (152/100)\n    --> rust/tcl-compiler/src/realm/source_transition_advice.rs:1633:5\n     |\n1633 | /     fn retained_source_transition_value_advice(\n1634 | |         &self,\n1635 | |         context: &ContextRegistry,\n1636 | |         tokens: &crate::ir::CommandTokens,\n1637 | |     ) -> Option<OriginalSourceCommandTransitionAdvice> {\n     | |______________________________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (148/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/lowering/mod.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (148/100)\n    --> rust/tcl-compiler/src/lowering/mod.rs:4765:5\n     |\n4765 | /     fn original_when_event_word(\n4766 | |         &self,\n4767 | |         seg: &SegmentedCommand,\n4768 | |         event: &str,\n4769 | |         image: &tcl_lexer::SourceImage,\n4770 | |     ) -> Option<tcl_lexer::NativeWord> {\n     | |______________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/object_types/report_comparison.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:279:9\n    |\n279 | /         let Some(original) = image.bytes().get(procedure.span.as_range()) else {\n280 | |             return None;\n281 | |         };\n    | |__________^ help: replace it with: `let original = image.bytes().get(procedure.span.as_range())?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/object_types/report_comparison.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:313:9\n    |\n313 | /         let Some(span) = method.span else {\n314 | |             return None;\n315 | |         };\n    | |__________^ help: replace it with: `let span = method.span?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/object_types/report_comparison.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:316:9\n    |\n316 | /         let Some(original) = image.bytes().get(span.as_range()) else {\n317 | |             return None;\n318 | |         };\n    | |__________^ help: replace it with: `let original = image.bytes().get(span.as_range())?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/object_types/report_comparison.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:334:9\n    |\n334 | /         let Some(source) = module.original_definition_script_source(*id, registry) else {\n335 | |             return None;\n336 | |         };\n    | |__________^ help: replace it with: `let source = module.original_definition_script_source(*id, registry)?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::question_mark",
+      "explanation": null
+    },
+    "message": "this `let...else` may be rewritten with the `?` operator",
+    "primary_files": [
+      "rust/tcl-compiler/src/object_types/report_comparison.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this `let...else` may be rewritten with the `?` operator\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:338:9\n    |\n338 | /         let Some(original) = image.bytes().get(span.as_range()) else {\n339 | |             return None;\n340 | |         };\n    | |__________^ help: replace it with: `let original = image.bytes().get(span.as_range())?;`\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#question_mark\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (174/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (174/100)\n    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:2043:1\n     |\n2043 | / fn source_registry_words_with_definition_parent(\n2044 | |     source: &str,\n2045 | |     analysis: &AnalysisResult,\n2046 | |     segment: &crate::segmenter::SegmentedCommand,\n2047 | |     parent: Option<&super::source_scoped_body::OriginalSourceScriptBody>,\n2048 | | ) -> Option<OriginalRegistryWords> {\n     | |__________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (105/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (105/100)\n    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:3640:1\n     |\n3640 | / fn original_folded_case_subject(\n3641 | |     parent: &crate::ir::CommandTokens,\n3642 | |     subject: &crate::ir::WordExpr,\n3643 | |     registry: &CommandRegistry,\n3644 | |     metadata: super::InvocationMetadataContext<'_>,\n3645 | | ) -> Option<crate::ir::WordExpr> {\n     | |________________________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (176/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (176/100)\n   --> rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs:187:5\n    |\n187 | /     pub(crate) fn capture_with_nested_cuts(\n188 | |         image: &SourceImage,\n189 | |         words: &[WordExpr],\n190 | |         offset: u32,\n191 | |         config: LexerConfig,\n192 | |         nested_cuts: Option<&tcl_lexer::NestedBodyCutMemo>,\n193 | |     ) -> Option<Self> {\n    | |_____________________^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::elidable_lifetime_names",
+      "explanation": null
+    },
+    "message": "the following explicit lifetimes could be elided: 'a",
+    "primary_files": [
+      "rust/tcl-compiler/src/taint.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: the following explicit lifetimes could be elided: 'a\n    --> rust/tcl-compiler/src/taint.rs:3744:35\n     |\n3744 | fn trace_taint_cu_ingress_context<'a>(source: TaintSourceContext<'a>) -> TaintSourceContext<'a> {\n     |                                   ^^                             ^^                         ^^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#elidable_lifetime_names\n     = note: `-D clippy::elidable-lifetime-names` implied by `-D warnings`\n     = help: to override `-D warnings` add `#[allow(clippy::elidable_lifetime_names)]`\nhelp: elide the lifetimes\n     |\n3744 - fn trace_taint_cu_ingress_context<'a>(source: TaintSourceContext<'a>) -> TaintSourceContext<'a> {\n3744 + fn trace_taint_cu_ingress_context(source: TaintSourceContext<'_>) -> TaintSourceContext<'_> {\n     |\n\n"
+  },
+  {
+    "level": "error",
+    "code": {
+      "code": "clippy::too_many_lines",
+      "explanation": null
+    },
+    "message": "this function has too many lines (112/100)",
+    "primary_files": [
+      "rust/tcl-compiler/src/taint.rs"
+    ],
+    "owned": false,
+    "api_repair": false,
+    "rendered": "error: this function has too many lines (112/100)\n    --> rust/tcl-compiler/src/taint.rs:3756:1\n     |\n3756 | / fn taint_warning_report_for_cu_base_with_external_variable_seeds(\n3757 | |     cu: &crate::compilation_unit::CompilationUnit,\n3758 | |     registry: &CommandRegistry,\n3759 | |     dialect: Option<&'static tcl_dialect::DialectProfile>,\n3760 | |     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,\n3761 | | ) -> TaintWarningReport {\n     | |_______________________^\n     |\n     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_lines\n\n"
+  }
+]

@@ -1,0 +1,6 @@
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-version)
+    Checking tcl-lsp-server v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lsp-server)
+    Checking tcl-compiler v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-compiler)
+    Checking tcl-spectcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spectcl)
+    Checking tcl-lexer v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lexer)
+    Finished `dev` profile [unoptimized] target(s) in 7m 01s

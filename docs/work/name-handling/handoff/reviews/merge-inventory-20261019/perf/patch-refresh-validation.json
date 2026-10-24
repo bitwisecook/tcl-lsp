@@ -1,26 +1,22 @@
 {
-  "base": "211f702055cfe2e1601b344656f21527ab71eac9",
-  "frozen_proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
-  "checked_unix": 1792804693.4507344,
-  "clean_six_matches_active_owned_root": {
-    "rust/tcl-lexer/src/parse_cut.rs": true,
-    "rust/tcl-lexer/src/source_map.rs": true,
-    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
-    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
-    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true
-  },
-  "latest_toggled_snapshot_matches_active_full_root": {
-    "rust/tcl-lexer/src/lib.rs": true,
-    "rust/tcl-lexer/src/parse_cut.rs": true,
-    "rust/tcl-lexer/src/source_map.rs": true,
-    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
-    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
-    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true,
-    "rust/tcl-compiler/src/realm.rs": true,
-    "rust/tcl-compiler/src/interprocedural.rs": true
-  },
-  "scoped_rustfmt_clean": true,
-  "scope": "Exact six/two split generation and nine-file source reconstruction only. Dependencies changed after proof base; no successor semantic/test acceptance inferred."
+  "checked_unix": 1792810465.3248339,
+  "owned_commit": "9ffdce1364f286450499deaf915a037deea28117",
+  "owned_parent": "db3267eed849a59df3ab2973d83f43f20df0ad1a",
+  "routed_base": "9ffdce1364f286450499deaf915a037deea28117",
+  "unpatched_eight_source_bytes_identical_to_proof_base": true,
+  "landed_six_bytes_match_latest_checked_candidate": true,
+  "owned_files": [
+    "rust/tcl-lexer/src/parse_cut.rs",
+    "rust/tcl-lexer/src/source_map.rs",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs"
+  ],
+  "routed_files": [
+    "rust/tcl-compiler/src/realm.rs",
+    "rust/tcl-compiler/src/interprocedural.rs"
+  ],
+  "temporary_switch_in_production_commit": false,
+  "scope": "Patch/source reconstruction only; runtime proof source base837, no successor full corpus/test result inferred."
 }

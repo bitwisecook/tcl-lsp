@@ -1,0 +1,24 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import json,os,subprocess,time
+root=Path('/workspace/tcl-lsp-owned');out=Path('/tmp/perf-final-check-dir').read_text().strip();out=Path(out);lint=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-83774d43-repaired-workflow-api22/final-lints/final.json');record={'started_unix':time.time(),'pid':os.getpid(),'scope':'Latest canonical work plus exactly six unchanged candidate source files. Metadata/fmt verification, not a successor full corpus/test claim. Wait until all frozen-root runtime/lint work finishes.'};(out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
+while not lint.exists():time.sleep(2)
+os.sched_setaffinity(0,{0,1,2,3});env=dict(os.environ,CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_OPT_LEVEL='0',CARGO_PROFILE_TEST_OPT_LEVEL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_TEST_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true',CARGO_PROFILE_TEST_OVERFLOW_CHECKS='true');before=subprocess.check_output(['git','diff','--','rust'],cwd=root);paths=subprocess.check_output(['git','diff','--name-only','--','rust'],cwd=root,text=True).splitlines();assert len(paths)==6
+try:
+ for label,argv in [('fmt-six',['rustfmt','--edition','2024','--config','skip_children=true','--check',*paths]),('fmt-workspace',['cargo','fmt','--all','--','--check'])]:
+  with (out/(label+'.out')).open('w') as f:record[label+'_exit']=subprocess.run(argv,cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+ start=time.monotonic();argv=['cargo','check','--locked','-j1','-p','tcl-lexer','-p','tcl-compiler','-p','tcl-spectcl','-p','tcl-lsp-server','--tests','--message-format=json'];record['check_argv']=argv
+ with (out/'check.jsonl').open('w') as f,(out/'check.stderr').open('w') as e:record['check_exit']=subprocess.run(argv,cwd=root,env=env,stdout=f,stderr=e).returncode
+ record['check_wall_s']=time.monotonic()-start;messages=[];test_exes=[]
+ for line in (out/'check.jsonl').read_text().splitlines():
+  d=json.loads(line)
+  if d.get('reason')=='compiler-message':messages.append(d['message'])
+  if d.get('reason')=='compiler-artifact' and d.get('executable') and d.get('profile',{}).get('test'):test_exes.append(Path(d['executable']))
+ (out/'diagnostics.json').write_text(json.dumps(messages,indent=2)+'\n');record['warnings']=sum(d['level']=='warning' for d in messages);record['errors']=sum(d['level']=='error' for d in messages)
+ for p in test_exes:p.unlink(missing_ok=True)
+ record['check_test_executables_removed']=all(not p.exists() for p in test_exes)
+finally:
+ record.update(finished_unix=time.time(),latest_base=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),source_diff_unchanged=before==subprocess.check_output(['git','diff','--','rust'],cwd=root));(out/'final.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record),flush=True)
+assert record['fmt-six_exit']==0 and record['check_exit']==0 and record['warnings']==0 and record['source_diff_unchanged']

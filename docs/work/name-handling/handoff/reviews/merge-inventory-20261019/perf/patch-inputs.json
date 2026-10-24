@@ -1,5 +1,5 @@
 {
-  "base": "211f702055cfe2e1601b344656f21527ab71eac9",
+  "base": "db3267eed849a59df3ab2973d83f43f20df0ad1a",
   "owned": [
     "rust/tcl-lexer/src/parse_cut.rs",
     "rust/tcl-lexer/src/source_map.rs",
@@ -12,5 +12,10 @@
     "rust/tcl-compiler/src/realm.rs",
     "rust/tcl-compiler/src/interprocedural.rs"
   ],
-  "validation": "patch generation and formatting only; no semantic proof implied"
+  "validation": "Same eight unpatched source bytes at proof base and landed parent. Exactly six unchanged candidate files committed; two-file patch refreshed against landed commit. Runtime proofs remain scoped to frozen837+full batch; strict compiler/server/Clippy baseline gates failed. Current routed type check pending.",
+  "owned_commit": "9ffdce1364f286450499deaf915a037deea28117",
+  "routed_base": "9ffdce1364f286450499deaf915a037deea28117",
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "clean_integration_companion": "perf-routed-clean-only-helper.patch",
+  "companion_scope": "Apply only together with the two routed production files, without --zz. Old SourceCommandBindings wrapper is then referenced only by its unchanged tests; cfg(test) keeps all tests and assertions. Six-only commit still needs the production wrapper. No query/guard/body or memo-selection change. Do not apply to switched proof tree."
 }

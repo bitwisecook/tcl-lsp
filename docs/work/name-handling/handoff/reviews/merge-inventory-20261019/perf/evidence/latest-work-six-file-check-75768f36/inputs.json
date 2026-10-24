@@ -1,0 +1,16 @@
+{
+  "prepared_unix": 1792809026.395483,
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "latest_base": "75768f3659327b6dc8fe8c8748a5d76bbdf2b2fa",
+  "scope": "Prior frozen clean6 command FINISHED and removed all original/private ELFs before checkout. All six candidate source bytes exactly unchanged; other canonical dependencies updated. New metadata/fmt checks pending, no successor full corpus/test acceptance inferred. Full9 proof/clippy root remains unchanged.",
+  "six_candidate_sha256": {
+    "rust/tcl-lexer/src/parse_cut.rs": "3971e11ab5de25df5d09f975b8b629da892f6d39ec755e584f94c97ea21794fd",
+    "rust/tcl-lexer/src/source_map.rs": "933d5f3ac9a4feec4a3496d39d6f5e544641478aeb38d8049b7deb408ac040ff",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": "286e6edfeae6276d4689612df4180dd7cc4f8b8a993c7b40755f3399ce79d3ad",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "0988e30b254448bd01860f111d2ea549008b510f1002cb1a49ab1babc707b4ab",
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": "fdba14212b0774c1f7b146af62ff7f42be2c0cfcebee0fe039982d70d823de11",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "5edfd7baa5b66dbd6a43fc348af55ea64e6fd45bb8cbec3a0e4c517d5a0cba5c"
+  },
+  "same_six_candidate_bytes": true,
+  "status": "prepared, checks pending"
+}

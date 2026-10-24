@@ -1,6 +1,17 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 02:22 UTC
+Last updated: 2026-10-24 03:19 UTC
+
+**Six owned files landed in 9ffdce1364f286450499deaf915a037deea28117; no switch or routed source committed.**
+Latest-work six-only all4 crate --tests metadata and scoped/materialized-workspace
+fmt pass0errors/0warnings. Full corpus/orderedPackSet Equal and all actual
+nondeep outcomes retain0P2F; strict compiler inventory, server and Clippy gates
+remain failed as recorded below. Two-file clean integration needs the separate
+perf-routed-clean-only-helper.patch (cfg(test) keeps the unchanged old helper
+for tests). Compiler/server lib+test metadata retry is running; final handoff
+not yet claimed. All runtime/lint failures and original one-warning integration
+build retained. Final timing rewrite follows successful integration typecheck.
+
 
 **Current837 full report/PackSet proof COMPLETE/PASS; six-file perf code
 remains unlanded pending compiler/client/lint comparisons.** All22 report/realm

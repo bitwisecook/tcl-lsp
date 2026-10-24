@@ -65,10 +65,28 @@ with tempfile.TemporaryDirectory(prefix="zz_perf_refresh_") as temporary:
     output.mkdir(parents=True, exist_ok=True)
     (output / "perf-owned.patch").write_text("".join(owned))
     (output / "perf-realm-interprocedural.patch").write_text("".join(routed))
-    (output / "perf.patch").write_text("".join(owned + routed))
+    helper = paths[5]
+    helper_before = (snapshot / helper).read_text()
+    anchor = "    pub(crate) fn declaration_caller_alias_arguments(\n"
+    assert helper_before.count(anchor) == 1
+    helper_after = helper_before.replace(anchor, "    #[cfg(test)]\n" + anchor)
+    companion = "".join(difflib.unified_diff(
+        helper_before.splitlines(True), helper_after.splitlines(True),
+        fromfile=f"a/{helper}", tofile=f"b/{helper}",
+    )).replace("\n \n", "\n\n")
+    (output / "perf-routed-clean-only-helper.patch").write_text(companion)
+    integrated = {p: (snapshot / p).read_text() for p in paths[1:]}
+    integrated[helper] = helper_after
+    complete = "".join("".join(difflib.unified_diff(
+        original[p].splitlines(True), integrated[p].splitlines(True),
+        fromfile=f"a/{p}", tofile=f"b/{p}",
+    )) for p in paths[1:]).replace("\n \n", "\n\n")
+    (output / "perf.patch").write_text(complete)
     (output / "patch-inputs.json").write_text(json.dumps({
         "base": subprocess.check_output(["git", "rev-parse", args.base], cwd=root, text=True).strip(),
         "owned": paths[1:7], "routed": paths[7:],
+        "clean_integration_companion": "perf-routed-clean-only-helper.patch",
+        "companion_scope": "Apply only with the two routed files, without --zz; keep the old wrapper for unchanged unit tests. The six-only patch still needs it in production.",
         "validation": "patch generation and formatting only; no semantic proof implied",
     }, indent=2) + "\n")
     if args.check_toggled:

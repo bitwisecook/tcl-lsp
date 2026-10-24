@@ -1,0 +1,71 @@
+[
+  {
+    "rendered": "error: couldn't read `rust/tcl-lsp-server/tests/e2e/../../../../editors/vscode/testFixture/variableContexts.tcl`: No such file or directory (os error 2)\n   --> rust/tcl-lsp-server/tests/e2e/completion.rs:865:19\n    |\n865 |     let fixture = include_str!(\"../../../../editors/vscode/testFixture/variableContexts.tcl\");\n    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+    "$message_type": "diagnostic",
+    "children": [],
+    "level": "error",
+    "message": "couldn't read `rust/tcl-lsp-server/tests/e2e/../../../../editors/vscode/testFixture/variableContexts.tcl`: No such file or directory (os error 2)",
+    "spans": [
+      {
+        "byte_end": 30673,
+        "byte_start": 30598,
+        "column_end": 94,
+        "column_start": 19,
+        "expansion": {
+          "def_site_span": {
+            "byte_end": 47510,
+            "byte_start": 47486,
+            "column_end": 29,
+            "column_start": 5,
+            "expansion": null,
+            "file_name": "/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/macros/mod.rs",
+            "is_primary": false,
+            "label": null,
+            "line_end": 1327,
+            "line_start": 1327,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": []
+          },
+          "macro_decl_name": "include_str!",
+          "span": {
+            "byte_end": 30673,
+            "byte_start": 30598,
+            "column_end": 94,
+            "column_start": 19,
+            "expansion": null,
+            "file_name": "rust/tcl-lsp-server/tests/e2e/completion.rs",
+            "is_primary": false,
+            "label": null,
+            "line_end": 865,
+            "line_start": 865,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 94,
+                "highlight_start": 19,
+                "text": "    let fixture = include_str!(\"../../../../editors/vscode/testFixture/variableContexts.tcl\");"
+              }
+            ]
+          }
+        },
+        "file_name": "rust/tcl-lsp-server/tests/e2e/completion.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 865,
+        "line_start": 865,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 94,
+            "highlight_start": 19,
+            "text": "    let fixture = include_str!(\"../../../../editors/vscode/testFixture/variableContexts.tcl\");"
+          }
+        ]
+      }
+    ],
+    "code": null
+  }
+]

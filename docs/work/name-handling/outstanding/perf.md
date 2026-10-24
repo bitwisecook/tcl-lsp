@@ -2,9 +2,37 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 02:22 UTC
+Last updated: 2026-10-24 03:19 UTC
 
 ## Resume
+
+**SIX OWNED SOURCE FILES LANDED in 9ffdce1364f286450499deaf915a037deea28117.** Exactly six files in one
+source commit, no switch/realm/interprocedural. Latest-work six-only all4 crate
+--tests metadata and scoped/materialized-workspace fmt PASS0errors/0warnings
+at75768f36 after restoring canonical missing sparse fixtures. Initial missing
+fixture failure retained. All runtime attempts complete: full/clean6 observed
+nondeep outcomes identical/realOLD baseline0P2F; all4 depth1000 attempts OOM
+alone, strict inventory FAIL. Quiet server startup0vs1 BOTH, workspace-symbol
+180.020/180.026s timeout BOTH. Clippy56errors,0owned/routed; its API-file
+procedure function is byte-identical before ce6 repair. Every failure retained.
+
+Current remaining job: /tmp/perf-final-routed-retry.log, isolated owned root
+at9ffdce13 +2 routed files +separate one-line cfg(test) wrapper companion.
+No production query/memo-policy/assertion changes. The clean-only companion
+keeps the old now test-only wrapper available to unchanged unit tests, removes
+one clean-production dead-code warning, and must accompany compiler's2-file
+integration. Do not apply it to six-only or --zz builds. Compiler/server lib+
+test metadata repeat is still RUNNING; do not mark it accepted before final0.
+Original one-warning attempt remains. Sources stay unchanged until it finishes.
+After final0, run /tmp/perf-finalize-handoff.py, validate regenerated patches,
+publish final evidence/NOTES/outstanding normally and stop. Do not redo runtime
+proofs or commit the local routed source/companion. No PR/force.
+
+Full finalization script is prepared and requires the new typecheck final0;
+its ready statement stays unpublished until that gate. Source6commit already
+pushed2:50UTC. Current evidence checkpoint at2026-10-24 03:19 UTC. Final source/proof
+scope, failure details and all historical receipts remain below until rewrite.
+
 
 **No six-file perf commit or complete batch acceptance yet. Continue the active
 proofs below. Never commit realm/interprocedural, switches or zz_*probe*.rs.

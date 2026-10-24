@@ -1,0 +1,31 @@
+{
+  "started_unix": 1792809643.4414532,
+  "pid": 119515,
+  "scope": "Latest canonical work plus exactly six unchanged candidate source files. Metadata/fmt verification, not a successor full corpus/test claim. Wait until all frozen-root runtime/lint work finishes.",
+  "fmt-six_exit": 0,
+  "fmt-workspace_exit": 0,
+  "check_argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "-j1",
+    "-p",
+    "tcl-lexer",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-spectcl",
+    "-p",
+    "tcl-lsp-server",
+    "--tests",
+    "--message-format=json"
+  ],
+  "check_exit": 0,
+  "check_wall_s": 423.0708246659924,
+  "warnings": 0,
+  "errors": 0,
+  "check_test_executables_removed": true,
+  "finished_unix": 1792810171.3140502,
+  "latest_base": "75768f3659327b6dc8fe8c8748a5d76bbdf2b2fa",
+  "source_diff_unchanged": true
+}

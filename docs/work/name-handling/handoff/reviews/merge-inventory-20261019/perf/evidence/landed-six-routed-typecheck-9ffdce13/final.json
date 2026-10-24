@@ -1,0 +1,24 @@
+{
+  "landed_commit": "9ffdce1364f286450499deaf915a037deea28117",
+  "started_unix": 1792810541.9344432,
+  "scope": "Exactly two compiler-owned hunks applied only in isolated proof root after six-file commit. Compile latest clean full8 without temporary switches; no successor runtime corpus/test claim. Never commit these two files.",
+  "fmt_exit": 0,
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-server",
+    "--lib",
+    "--message-format=json"
+  ],
+  "check_exit": 0,
+  "warnings": 1,
+  "errors": 0,
+  "finished_unix": 1792810760.6177142,
+  "wall_s": 218.68275265100237,
+  "source_diff_unchanged": true
+}

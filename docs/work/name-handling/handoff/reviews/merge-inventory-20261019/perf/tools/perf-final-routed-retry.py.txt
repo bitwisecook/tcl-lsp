@@ -1,0 +1,18 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import os,json,subprocess,time
+root=Path('/workspace/tcl-lsp-owned');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');code=Path('/tmp/perf-owned-landed-commit').read_text().strip();out=Path('/workspace/tcl-lsp-work')/perf.relative_to('/workspace/tcl-lsp-publish')/'evidence'/('landed-six-routed-typecheck-'+code[:8])/'clean-only-test-helper-retry';out.mkdir(exist_ok=False);before=subprocess.check_output(['git','diff','--','rust'],cwd=root);(out/'source.patch').write_bytes(before);paths=subprocess.check_output(['git','diff','--name-only','--','rust'],cwd=root,text=True).splitlines();assert len(paths)==3 and 'rust/tcl-compiler/src/command_binding/formal_call_advice.rs' in paths;record={'landed_commit':code,'started_unix':time.time(),'scope':'Original proven two-file query changes plus separate clean-integration-only cfg(test) on unused old wrapper. Existing tests still compile the same helper and unchanged assertions. No memo-policy, query or runtime behavior change. Previous one-warning build receipt retained. No routed source committed.'};(out/'inputs.json').write_text(json.dumps(record,indent=2)+'\n');env=dict(os.environ,CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_OPT_LEVEL='0',CARGO_PROFILE_TEST_OPT_LEVEL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_TEST_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true',CARGO_PROFILE_TEST_OVERFLOW_CHECKS='true');start=time.monotonic()
+try:
+ with (out/'fmt.out').open('w') as f:record['fmt_exit']=subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true','--check',*paths],cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+ argv=['cargo','check','--locked','-j1','-p','tcl-compiler','-p','tcl-lsp-server','--lib','--tests','--message-format=json'];record['argv']=argv
+ with (out/'check.jsonl').open('w') as f,(out/'check.stderr').open('w') as e:record['check_exit']=subprocess.run(argv,cwd=root,env=env,stdout=f,stderr=e).returncode
+ messages=[]
+ for s in (out/'check.jsonl').read_text().splitlines():
+  d=json.loads(s)
+  if d.get('reason')=='compiler-message':messages.append(d['message'])
+ (out/'diagnostics.json').write_text(json.dumps(messages,indent=2)+'\n');record.update(warnings=sum(r['level']=='warning' for r in messages),errors=sum(r['level']=='error' for r in messages))
+finally:
+ record.update(finished_unix=time.time(),wall_s=time.monotonic()-start,source_diff_unchanged=before==subprocess.check_output(['git','diff','--','rust'],cwd=root));(out/'final.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record),flush=True)
+assert record['fmt_exit']==record['check_exit']==record['warnings']==record['errors']==0 and record['source_diff_unchanged']

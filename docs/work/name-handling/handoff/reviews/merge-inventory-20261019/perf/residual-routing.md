@@ -207,3 +207,16 @@ Logical currentness draft also refreshes with all existing checks preserved.
 These remain Blocked/routed to compiler-names and LSP, uncompiled and semantically
 unproven. No production sources are touched; neither draft establishes linear
 review4.1 scaling or resolves the deep1000 resource failure.
+
+## Final current context 9ffdce13
+
+Image/segment, nested Logical currentness and empty-checked-coverage drafts
+refresh against the landed six-file commit. Ordered image/segment application
+reconstructs the scoped formatted snapshot. All remain **Blocked/routed,
+uncompiled and semantically unproven**; no production files are changed by perf.
+Compiler-names owns the image/segment operation-admission work; LSP owns the
+request-scoped inventory/occurrence work; compiler owns the body/graph resource
+investigation. These drafts do not establish linear review4.1 scaling or repair
+the depth1000 OOM. The quiet server repeat still fails startup role0vs1 BOTH
+and times out workspace symbols at180.020/180.026s BOTH. Preserve all source,
+config, registry, unique-owner, body, partial-coverage and actual-reference guards.

@@ -1,0 +1,15 @@
+error: couldn't find file `/workspace/tcl-lsp-owned/rust/bigip-report-gen/rust/tests/../../../tcl-bigip-query/tests/common/ucs.rs`
+   --> /workspace/tcl-lsp-owned/rust/bigip-report-gen/rust/tests/certs.rs:570:1
+    |
+570 | mod certificate_test_fixture;
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error writing files: failed to resolve mod `certificate_test_fixture`: /workspace/tcl-lsp-owned/rust/bigip-report-gen/rust/tests/../../../tcl-bigip-query/tests/common/ucs.rs does not exist
+error: couldn't find file `/workspace/tcl-lsp-owned/rust/f5-cli/src/commands/../../../tcl-bigip-query/tests/common/ucs.rs`
+    --> /workspace/tcl-lsp-owned/rust/f5-cli/src/commands/query.rs:1162:1
+     |
+1162 | mod certificate_test_fixture;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error writing files: failed to resolve mod `certificate_test_fixture`: /workspace/tcl-lsp-owned/rust/f5-cli/src/commands/../../../tcl-bigip-query/tests/common/ucs.rs does not exist
+Error: file `/workspace/tcl-lsp-owned/rust/tcl-bigip-query/tests/x509_only.rs` does not exist

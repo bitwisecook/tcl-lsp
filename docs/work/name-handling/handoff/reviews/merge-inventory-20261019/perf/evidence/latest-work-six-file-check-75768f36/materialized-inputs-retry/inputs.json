@@ -1,0 +1,22 @@
+{
+  "prepared_unix": 1792809642.2530475,
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "latest_base": "75768f3659327b6dc8fe8c8748a5d76bbdf2b2fa",
+  "scope": "Prior metadata check failed only absent tracked sparse fixture; global fmt likewise lacked tracked BigIP test sources. Materialized canonical source without editing any fixture/assertion; same six candidate and HEAD. Repeat checks, preserve original failure.",
+  "six_candidate_sha256": {
+    "rust/tcl-lexer/src/parse_cut.rs": "3971e11ab5de25df5d09f975b8b629da892f6d39ec755e584f94c97ea21794fd",
+    "rust/tcl-lexer/src/source_map.rs": "933d5f3ac9a4feec4a3496d39d6f5e544641478aeb38d8049b7deb408ac040ff",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": "286e6edfeae6276d4689612df4180dd7cc4f8b8a993c7b40755f3399ce79d3ad",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "0988e30b254448bd01860f111d2ea549008b510f1002cb1a49ab1babc707b4ab",
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": "fdba14212b0774c1f7b146af62ff7f42be2c0cfcebee0fe039982d70d823de11",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "5edfd7baa5b66dbd6a43fc348af55ea64e6fd45bb8cbec3a0e4c517d5a0cba5c"
+  },
+  "same_six_candidate_bytes": true,
+  "status": "prepared, checks pending",
+  "prior_failed_check_receipt": "/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/latest-work-six-file-check-75768f36/final.json",
+  "canonical_materialized_sha256": {
+    "editors/vscode/testFixture/variableContexts.tcl": "4328bc3f5f6b9c065bd2a91c254b61c80f416233c3003faa58405a52fb3ce3c0",
+    "rust/tcl-bigip-query/tests/common/ucs.rs": "61f97a28b43fcc1efee2f394664ee97b3d0719aba63fa85f90762a4c6b74f09f",
+    "rust/tcl-bigip-query/tests/x509_only.rs": "bed1ea14a69419279ca7c2cccc5fd730f173f8eccddfea906d94861444f8934b"
+  }
+}

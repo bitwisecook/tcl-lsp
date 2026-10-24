@@ -1,0 +1,15 @@
+{
+  "started_unix": 1792797675.31223,
+  "pid": 86051,
+  "policy": "Wait all corpus/compiler/client cleanup; check scoped fmt and compiler all-target Clippy. Preserve every baseline diagnostic and classify six owned/API source spans; no suppressions or source formatting edits.",
+  "fmt_exit": 0,
+  "clippy_exit": 101,
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "clippy_wall_s": 173.85521860199515,
+  "diagnostics": 56,
+  "owned_diagnostics": 0,
+  "api_diagnostics": 1,
+  "rust_diff_unchanged": true,
+  "finished_unix": 1792809103.4339345,
+  "executables_removed": true
+}

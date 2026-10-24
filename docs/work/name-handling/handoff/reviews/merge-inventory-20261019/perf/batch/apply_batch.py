@@ -7,6 +7,11 @@ usage: apply_batch.py ROOT [--zz] [--only FILE,...] [--skip FILE,...]
 tcl_compiler::realm::ZZ_NO_MEMO) used by the in-process equality probes.
 Without --zz the result is the clean patch to land.
 Every replacement asserts its anchor occurs exactly once.
+
+After a full non-instrumented integration, apply
+perf-routed-clean-only-helper.patch: the old binding wrapper is then used only
+by its unchanged unit tests. Do not apply that companion to a six-only tree
+or a --zz tree. perf.patch already includes this clean integration companion.
 """
 import os
 import sys

@@ -1,0 +1,18 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import subprocess,json,hashlib,os,time
+root=Path('/workspace/tcl-lsp-owned');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');code=Path('/tmp/perf-owned-landed-commit').read_text().strip();meta=json.loads((perf/'patch-inputs.json').read_text());oldcheck=Path(Path('/tmp/perf-final-check-dir').read_text().strip());d=json.loads((oldcheck/'final.json').read_text());assert d['check_exit']==d['warnings']==d['errors']==d['fmt-six_exit']==d['fmt-workspace_exit']==0 and d['source_diff_unchanged'];oldbytes={p:(root/p).read_bytes() for p in meta['owned']};assert set(subprocess.check_output(['git','diff','--name-only'],cwd=root,text=True).splitlines())==set(meta['owned']);subprocess.run(['git','restore','--',*meta['owned']],cwd=root,check=True);subprocess.run(['git','fetch','origin','work'],cwd=root,check=True);subprocess.run(['git','checkout','--detach',code],cwd=root,check=True);assert all((root/p).read_bytes()==b for p,b in oldbytes.items());subprocess.run(['git','apply',str(perf/'perf-realm-interprocedural.patch')],cwd=root,check=True);assert set(subprocess.check_output(['git','diff','--name-only'],cwd=root,text=True).splitlines())==set(meta['routed']);out=Path('/workspace/tcl-lsp-work')/perf.relative_to('/workspace/tcl-lsp-publish')/'evidence'/('landed-six-routed-typecheck-'+code[:8]);out.mkdir(exist_ok=False);before=subprocess.check_output(['git','diff','--','rust'],cwd=root);(out/'routed-source.patch').write_bytes(before);record={'landed_commit':code,'started_unix':time.time(),'scope':'Exactly two compiler-owned hunks applied only in isolated proof root after six-file commit. Compile latest clean full8 without temporary switches; no successor runtime corpus/test claim. Never commit these two files.'};(out/'inputs.json').write_text(json.dumps(record,indent=2)+'\n');env=dict(os.environ,CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_OPT_LEVEL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true');start=time.monotonic()
+try:
+ with (out/'fmt.out').open('w') as f:record['fmt_exit']=subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true','--check',*meta['routed']],cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+ argv=['cargo','check','--locked','-j1','-p','tcl-compiler','-p','tcl-lsp-server','--lib','--message-format=json'];record['argv']=argv
+ with (out/'check.jsonl').open('w') as f,(out/'check.stderr').open('w') as e:record['check_exit']=subprocess.run(argv,cwd=root,env=env,stdout=f,stderr=e).returncode
+ messages=[]
+ for line in (out/'check.jsonl').read_text().splitlines():
+  r=json.loads(line)
+  if r.get('reason')=='compiler-message':messages.append(r['message'])
+ (out/'diagnostics.json').write_text(json.dumps(messages,indent=2)+'\n');record.update(warnings=sum(r['level']=='warning' for r in messages),errors=sum(r['level']=='error' for r in messages))
+finally:
+ record.update(finished_unix=time.time(),wall_s=time.monotonic()-start,source_diff_unchanged=before==subprocess.check_output(['git','diff','--','rust'],cwd=root));(out/'final.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record),flush=True)
+assert record['fmt_exit']==record['check_exit']==record['warnings']==record['errors']==0 and record['source_diff_unchanged']

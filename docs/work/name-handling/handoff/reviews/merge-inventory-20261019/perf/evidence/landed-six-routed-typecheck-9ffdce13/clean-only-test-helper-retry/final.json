@@ -1,0 +1,25 @@
+{
+  "landed_commit": "9ffdce1364f286450499deaf915a037deea28117",
+  "started_unix": 1792811573.648941,
+  "scope": "Original proven two-file query changes plus separate clean-integration-only cfg(test) on unused old wrapper. Existing tests still compile the same helper and unchanged assertions. No memo-policy, query or runtime behavior change. Previous one-warning build receipt retained. No routed source committed.",
+  "fmt_exit": 0,
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-server",
+    "--lib",
+    "--tests",
+    "--message-format=json"
+  ],
+  "check_exit": 0,
+  "warnings": 0,
+  "errors": 0,
+  "finished_unix": 1792811918.5420206,
+  "wall_s": 344.8925741569983,
+  "source_diff_unchanged": true
+}

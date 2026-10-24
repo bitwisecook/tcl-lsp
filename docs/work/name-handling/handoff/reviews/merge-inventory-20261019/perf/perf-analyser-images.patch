@@ -1,6 +1,6 @@
 --- a/rust/tcl-compiler/src/analyser/commands.rs
 +++ b/rust/tcl-compiler/src/analyser/commands.rs
-@@ -288,6 +288,20 @@
+@@ -290,6 +290,20 @@
  }
 
  impl Analyser {
@@ -21,7 +21,7 @@
      fn emit_body_depth_limit_if_exceeded(&mut self, span: tcl_lexer::Span) -> bool {
          if !MAX_BODY_DEPTH.exceeded(self.body_depth) {
              return false;
-@@ -503,7 +517,8 @@
+@@ -505,7 +519,8 @@
              return false;
          }
          let config = self.file_lexer_config();
@@ -31,7 +31,7 @@
          let child = descend_token(&sm, body_tok, config);
          if !child.is_terminated() {
              return false;
-@@ -654,7 +669,7 @@
+@@ -656,7 +671,7 @@
          if token.kind != TokenType::Var {
              return None;
          }
@@ -40,7 +40,7 @@
          let config = self.file_lexer_config();
          let word = if head {
              self.head_identities
-@@ -1031,7 +1046,7 @@
+@@ -1038,7 +1053,7 @@
          // Implementation contract: naming.source.original-command-token-memo
          // docs/design/analysis/name-resolution-proofs/original-command-token-memo.md
          self.head_identities.retained_original_tokens(
@@ -49,7 +49,7 @@
              self.file_lexer_config(),
              invocation_offset,
              argument_tokens,
-@@ -1050,7 +1065,7 @@
+@@ -1057,7 +1072,7 @@
          let Some(origin) = bindings.source_origin() else {
              return;
          };
@@ -58,7 +58,7 @@
          let config = self.file_lexer_config();
          if !bindings.matches_original_source_image(&image, config)
              || origin.source_image() != &image
-@@ -1192,8 +1207,9 @@
+@@ -1199,8 +1214,9 @@
              return None;
          }
          let segment = commands.pop()?;
@@ -69,7 +69,7 @@
              config,
              &segment,
          );
-@@ -1235,7 +1251,7 @@
+@@ -1242,7 +1258,7 @@
          let Some(origin) = bindings.source_origin() else {
              return;
          };
@@ -78,7 +78,7 @@
          let config = self.file_lexer_config();
          if !bindings.matches_original_source_image(&image, config)
              || origin.source_image() != &image
-@@ -1633,7 +1649,7 @@
+@@ -1640,7 +1656,7 @@
          let symbol_advice = (|| {
              let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens)?;
              if self.result.has_original_vendor_source_names() {
@@ -87,7 +87,7 @@
                  let config = self.file_lexer_config();
                  let original = self.result.original_vendor_source_name_in_source(
                      &image,
-@@ -2166,7 +2182,7 @@
+@@ -2173,7 +2189,7 @@
          let Some(input) = self.result.resolved_input.as_ref() else {
              return false;
          };
@@ -96,7 +96,7 @@
          if !self
              .result
              .matches_original_source_image(&image, input.lexer_config())
-@@ -2450,7 +2466,7 @@
+@@ -2457,7 +2473,7 @@
              return None;
          }
          let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
@@ -105,7 +105,7 @@
          let config = self.file_lexer_config();
          let native = crate::registry_invocation::original_native_compiler_words(
              &image,
-@@ -2549,7 +2565,8 @@
+@@ -2556,7 +2572,8 @@
          if token.kind != TokenType::Cmd || word.image().bytes() != self.source.as_bytes() {
              return None;
          }
@@ -115,7 +115,7 @@
          let descended = descend_token(&sm, *token, word.config());
          let mut segments = segments_from_tree(descended.tree(), &sm);
          if segments.len() != 1 {
-@@ -3118,7 +3135,7 @@
+@@ -3125,7 +3142,7 @@
          arg_single: &[bool],
          scope_path: &[usize],
      ) {
@@ -124,7 +124,7 @@
          let config = self.file_lexer_config();
          let Some(head) = tokens.words().first().and_then(|word| {
              self.result
-@@ -3910,7 +3927,7 @@
+@@ -3917,7 +3934,7 @@
          let Some(head_word) = tokens.words().first() else {
              return;
          };
@@ -133,7 +133,7 @@
          let config = self.file_lexer_config();
          let vendor = self
              .result
-@@ -4003,7 +4020,7 @@
+@@ -4010,7 +4027,7 @@
                  &tokens,
              )
          } else if self.vendor_source_name_policy().is_some() {
@@ -142,7 +142,7 @@
              tokens
                  .words()
                  .first()
-@@ -4412,7 +4429,7 @@
+@@ -4419,7 +4436,7 @@
          let Some(owner) = self.result.resolved_input.as_ref() else {
              return (None, None);
          };
@@ -151,7 +151,7 @@
          if !self
              .result
              .matches_original_source_image(&image, owner.lexer_config())
-@@ -5309,7 +5326,7 @@
+@@ -5316,7 +5333,7 @@
          if !self.result.allows_lexical_declaration_advice() {
              let generation = self.analysis_context();
              let registry = generation.commands();
@@ -160,7 +160,7 @@
              return self
                  .head_identities
                  .source_bindings_ref()
-@@ -6074,10 +6091,9 @@
+@@ -6081,10 +6098,9 @@
                      .snapshot()
                      .semantic_key()
              || self.file_lexer_config() != input.lexer_config()

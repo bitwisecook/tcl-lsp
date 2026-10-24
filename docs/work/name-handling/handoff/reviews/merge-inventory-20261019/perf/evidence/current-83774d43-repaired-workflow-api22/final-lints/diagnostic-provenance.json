@@ -1,0 +1,18 @@
+{
+  "checked_unix": 1792809217.4932632,
+  "clippy_errors": 56,
+  "six_owned_primary_diagnostics": 0,
+  "two_routed_primary_diagnostics": 0,
+  "api_file_diagnostic": {
+    "code": "clippy::too_many_lines",
+    "function": "ReportBodyOwner::procedure",
+    "before_and_after_repair_function_sha256": {
+      "ce6facfb^": "c4a266a02704c29c604a26be3d681881992f9a139c5cd041fe954e2446097030",
+      "ce6facfb": "c4a266a02704c29c604a26be3d681881992f9a139c5cd041fe954e2446097030",
+      "83774d43": "c4a266a02704c29c604a26be3d681881992f9a139c5cd041fe954e2446097030",
+      "HEAD": "c4a266a02704c29c604a26be3d681881992f9a139c5cd041fe954e2446097030"
+    },
+    "classification": "pre-existing function byte-identical before/after ce6 repair; not introduced by perf/API repair"
+  },
+  "scope": "All56 current errors retained. No lint suppression, source reformatting or assertion changes. Full all-target Clippy gate remains FAILED."
+}
