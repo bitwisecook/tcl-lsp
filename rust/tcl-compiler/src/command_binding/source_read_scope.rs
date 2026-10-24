@@ -129,7 +129,7 @@ impl SourceReadCatalogue {
             trace_rbs_condition(
                 parent.content_span() == body,
                 site.offset,
-                "scope.parent-span",
+                "scope.catalogue-parent-span",
             ) && parent.matches_context(&self.context)
                 && parent.matches_source(site.source.source_image(), config)
         } else {
@@ -143,7 +143,7 @@ impl SourceReadCatalogue {
             trace_rbs_condition(
                 parent.content_span() == body,
                 site.offset,
-                "scope.parent-span",
+                "scope.procedure-parent-span",
             ) && parent.matches_context(&self.context)
                 && parent.matches_source(site.source.source_image(), config)
         };
