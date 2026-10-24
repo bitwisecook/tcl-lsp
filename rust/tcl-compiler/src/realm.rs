@@ -130,6 +130,7 @@ pub struct CommandBindingRealm {
     original_tokens: original_tokens::OriginalCommandTokenCache,
     original_bindings: original_bindings::OriginalInvocationBindingCache,
     source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
+    query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo,
 }
 
 // Derived preparation does not change the immutable retained interpretation.
@@ -187,6 +188,21 @@ impl CommandBindingRealm {
     /// body for a secondary analysis. State snapshots share their allocation.
     pub(crate) fn source_bindings(&self) -> SourceCommandBindings {
         self.bindings.clone()
+    }
+
+    /// Original callee caller-alias arguments for one invocation, sharing the
+    /// invocation-independent callee survey across this realm's queries.
+    pub(crate) fn declaration_caller_alias_arguments(
+        &self,
+        invocation: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<String>> {
+        self.bindings.declaration_caller_alias_arguments_with(
+            invocation,
+            registry,
+            self.bindings.source_metadata_owner(),
+            Some(&self.query_memo),
+        )
     }
 
     /// Borrow the retained inventory for syntax navigation in the same source
@@ -290,7 +306,12 @@ impl CommandBindingRealm {
     /// Exact dispatch proof from the shared source interpreter.
     #[must_use]
     pub fn invocation_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
-        self.bindings.invocation_at_source(head, offset)
+        // The source query selects every dispatch point at `offset` whatever
+        // the presentation head, so the realm's per-offset memo is the same
+        // binding. Joining every activation's point is linear in the number
+        // of activations; repeated queries must not repeat it.
+        let _ = head;
+        self.retained_original_invocation(offset).as_ref().clone()
     }
 
     /// Original static naming producer from this realm's existing original
@@ -343,8 +364,12 @@ impl CommandBindingRealm {
         tcl_lexer::NativeWord,
         crate::command_binding::CommandAllocationSite,
     )> {
-        self.bindings
-            .original_written_head_at_span_in_source(image, span, config)
+        self.bindings.original_written_head_at_span_in_source_with(
+            image,
+            span,
+            config,
+            Some(&self.query_memo),
+        )
     }
 
     /// Genuine whole original word and parent head under exact source currency.
@@ -356,9 +381,12 @@ impl CommandBindingRealm {
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
     ) -> Option<(tcl_lexer::NativeWord, u32)> {
-        let written = self
-            .bindings
-            .original_written_word_at_span_in_source(image, span, config);
+        let written = self.bindings.original_written_word_at_span_in_source_with(
+            image,
+            span,
+            config,
+            Some(&self.query_memo),
+        );
         if !self
             .source_input
             .as_ref()
@@ -640,6 +668,8 @@ impl CommandBindingRealm {
             original_tokens: original_tokens::OriginalCommandTokenCache::default(),
             original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
             source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
+            query_memo:
+                crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
         };
         Some((script, realm))
     }
@@ -1071,6 +1101,7 @@ fn realm_from_source_bindings(
         original_tokens: original_tokens::OriginalCommandTokenCache::default(),
         original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
         source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
+        query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
     }
 }
 

@@ -96,6 +96,7 @@ impl SourceCommandBindings {
     /// Original callee formal operands used by registry-owned caller links.
     /// The returned names suppress caller diagnostics only. Unknown dispatch,
     /// alias installation, physical effects and a closed caller set stay open.
+    #[cfg(test)]
     pub(crate) fn declaration_caller_alias_arguments(
         &self,
         invocation: &crate::ir::CommandTokens,
