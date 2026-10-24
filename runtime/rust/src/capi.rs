@@ -753,3 +753,16 @@ pub extern "C" fn tcl_test_double_free_count() -> i64 {
 pub extern "C" fn tcl_test_finalize() -> i64 {
     crate::counters::finalize()
 }
+
+/// Copy already-held allocation roots for the opt-in failed-case diagnostic.
+///
+/// # Safety
+/// The currently installed interpreter must remain live for this call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_test_observe_heap_roots() {
+    let current = crate::codegen_abi::current_interp();
+    // SAFETY: the diagnostic caller retains its created interpreter throughout.
+    if let Some(interpreter) = unsafe { current.as_ref() } {
+        interpreter.observe_native_heap_roots();
+    }
+}

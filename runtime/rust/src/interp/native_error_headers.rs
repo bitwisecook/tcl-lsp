@@ -8,6 +8,83 @@ use tcl_runtime_api::error_stack::ErrorStackValueError;
 use tcl_runtime_api::error_stack::{ErrorStack, ErrorStackFrame};
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
 
+// Read-only diagnostic metadata: address, native refs, resident length, String
+// absence, descriptor address and internal bits. Never invoke an object getter.
+type HeldHeapHeader = (
+    usize,
+    crate::obj::TclSize,
+    crate::obj::TclSize,
+    bool,
+    usize,
+    u64,
+);
+
+impl super::Interp {
+    pub(crate) fn observe_native_heap_roots(&self) {
+        let inspect = |pointer: *mut TclObj| -> Option<HeldHeapHeader> {
+            // SAFETY: each caller below borrows an existing native owner; no
+            // callback, conversion or retirement occurs while copying fields.
+            let header = unsafe { pointer.as_ref() }?;
+            Some((
+                pointer as usize,
+                header.ref_count,
+                header.length,
+                header.bytes.is_null(),
+                header.type_ptr as usize,
+                header.internal_rep,
+            ))
+        };
+        let result = inspect(self.result.get());
+        let (info, code, exception_busy) = match self.exc.try_borrow() {
+            Ok(exception) => (
+                exception
+                    .native
+                    .info
+                    .as_ref()
+                    .and_then(|v| inspect(v.as_ptr())),
+                exception
+                    .native
+                    .code
+                    .as_ref()
+                    .and_then(|v| inspect(v.as_ptr())),
+                false,
+            ),
+            Err(_) => (None, None, true),
+        };
+        let (options, options_busy) = match self.return_options.try_borrow() {
+            Ok(options) => (options.header().and_then(inspect), false),
+            Err(_) => (None, true),
+        };
+        let (stack, inner, stack_busy, inner_busy) = match self.error_stack.try_borrow() {
+            Ok(stack) => {
+                let header = stack.header.as_ref().and_then(|v| inspect(v.as_ptr()));
+                let (inner, busy) = match &stack.inner_context {
+                    Some(context) => match context.try_borrow() {
+                        Ok(value) => (inspect(value.as_ptr()), false),
+                        Err(_) => (None, true),
+                    },
+                    None => (None, false),
+                };
+                (header, inner, false, busy)
+            }
+            Err(_) => (None, None, true, false),
+        };
+        let arrays = self.native_literal_arrays.try_borrow().ok().map(|arrays| {
+            (
+                arrays.len(),
+                arrays.iter().filter(|v| v.strong_count() != 0).count(),
+            )
+        });
+        // Every owner/RefCell borrow is already gone before the diagnostic I/O.
+        // The counters count native headers/buffers, not these copied Rust tuples.
+        eprintln!(
+            "WASM_HELD_HEAP objs={} bufs={} result={result:?} info={info:?} code={code:?} options={options:?} stack={stack:?} inner={inner:?} arrays={arrays:?} busy={exception_busy}/{options_busy}/{stack_busy}/{inner_busy}",
+            crate::counters::live_objs(),
+            crate::counters::live_bufs(),
+        );
+    }
+}
+
 #[derive(Clone, Default)]
 pub(super) struct NativeReturnOptions {
     incarnation: std::rc::Rc<()>,
