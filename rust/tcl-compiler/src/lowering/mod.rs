@@ -4775,6 +4775,99 @@ impl<'r> Lowerer<'r> {
         value
     }
 
+    fn original_hosted_when_event_word(
+        &self,
+        context: crate::registry_invocation::InvocationMetadataContext<'_>,
+        bindings: &crate::command_binding::SourceCommandBindings,
+        candidates: &[crate::command_binding::SourceRuleDeclarationCandidate],
+        source: (
+            &SegmentedCommand,
+            &tcl_lexer::SourceImage,
+            &CommandTokens,
+            &[tcl_lexer::NativeWord],
+        ),
+        word: &tcl_lexer::NativeWord,
+        event: &str,
+    ) -> Option<tcl_lexer::NativeWord> {
+        let (seg, image, tokens, words) = source;
+        let input =
+            Self::trace_report_event_option(context.source_analysis_input(), "hosted-input")?;
+        let owner =
+            Self::trace_report_event_option(bindings.original_analysis_owner(), "analysis-owner")?;
+        let root = Self::trace_report_event_option(bindings.source_origin(), "root-origin")?;
+        let binding =
+            Self::trace_report_event_option(tokens.source_binding.as_ref(), "token-binding")?;
+        let site = Self::trace_report_event_option(binding.invocation_site(), "invocation-site")?;
+        if Self::trace_report_event_refusal(tokens.synthetic.is_some(), "synthetic")
+            || Self::trace_report_event_refusal(
+                !tokens.original_words_match_argv_text(),
+                "original-argv",
+            )
+            || Self::trace_report_event_refusal(
+                words.iter().any(|word| word.group().expand),
+                "expanded",
+            )
+            || Self::trace_report_event_refusal(site.offset != seg.span.start(), "site-offset")
+            || Self::trace_report_event_refusal(
+                !std::sync::Arc::ptr_eq(&site.source, root),
+                "site-root-owner",
+            )
+            || Self::trace_report_event_refusal(
+                !owner.matches(bindings, input),
+                "analysis-owner-current",
+            )
+            || Self::trace_report_event_refusal(
+                bindings.source_origin()?.source_image() != image,
+                "root-image",
+            )
+            || Self::trace_report_event_refusal(input.lexer_config() != self.config, "input-config")
+            || Self::trace_report_event_refusal(
+                !context.matches_registry(self.registry),
+                "registry-current",
+            )
+        {
+            return None;
+        }
+        // The retained declaration owns source geometry, not a current
+        // dispatch cell or installation of this event handler.
+        let policy = Self::trace_report_event_option(input.vendor_source_policy().or_else(|| {
+            let hosted = tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+                &input.borrowed_context_registry().context().environment.id,
+            )?;
+            tcl_syntax::naming::VendorSourceNamePolicy::authored(hosted)
+        }), "hosted-policy")?;
+        let head = crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
+            words.first()?,
+            policy,
+        );
+        let written = std::str::from_utf8(Self::trace_report_event_option(
+            head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead),
+            "original-head-units",
+        )?)
+        .ok()?;
+        let command = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
+        if candidates.iter().any(|candidate| {
+            tcl_syntax::naming::unroot_rooted_key(&candidate.target.command)
+                .unwrap_or(&candidate.target.command)
+                != command
+        }) {
+            return None;
+        }
+        let input = crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
+            word, policy,
+        );
+        let literal = Self::trace_report_event_option(
+            input.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName),
+            "hosted-event-units",
+        )?;
+        Self::trace_report_event_option(
+            literal
+                .eq_ignore_ascii_case(event.as_bytes())
+                .then(|| word.clone()),
+            "hosted-event-value",
+        )
+    }
+
     /// Event geometry comes from the retained declaration and original words.
     /// A captured/derived argument cannot borrow a displayed event spelling.
     fn original_when_event_word(
@@ -4838,89 +4931,13 @@ impl<'r> Lowerer<'r> {
                 .source_analysis_input()
                 .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
         {
-            let input =
-                Self::trace_report_event_option(context.source_analysis_input(), "hosted-input")?;
-            let owner = Self::trace_report_event_option(
-                bindings.original_analysis_owner(),
-                "analysis-owner",
-            )?;
-            let root = Self::trace_report_event_option(bindings.source_origin(), "root-origin")?;
-            let binding =
-                Self::trace_report_event_option(tokens.source_binding.as_ref(), "token-binding")?;
-            let site =
-                Self::trace_report_event_option(binding.invocation_site(), "invocation-site")?;
-            if Self::trace_report_event_refusal(tokens.synthetic.is_some(), "synthetic")
-                || Self::trace_report_event_refusal(
-                    !tokens.original_words_match_argv_text(),
-                    "original-argv",
-                )
-                || Self::trace_report_event_refusal(
-                    words.iter().any(|word| word.group().expand),
-                    "expanded",
-                )
-                || Self::trace_report_event_refusal(site.offset != seg.span.start(), "site-offset")
-                || Self::trace_report_event_refusal(
-                    !std::sync::Arc::ptr_eq(&site.source, root),
-                    "site-root-owner",
-                )
-                || Self::trace_report_event_refusal(
-                    !owner.matches(bindings, input),
-                    "analysis-owner-current",
-                )
-                || Self::trace_report_event_refusal(
-                    bindings.source_origin()?.source_image() != image,
-                    "root-image",
-                )
-                || Self::trace_report_event_refusal(
-                    input.lexer_config() != self.config,
-                    "input-config",
-                )
-                || Self::trace_report_event_refusal(
-                    !context.matches_registry(self.registry),
-                    "registry-current",
-                )
-            {
-                return None;
-            }
-            // The retained declaration owns source geometry, not a current
-            // dispatch cell or installation of this event handler.
-            let policy = Self::trace_report_event_option(input.vendor_source_policy().or_else(|| {
-                let hosted = tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
-                    &input.borrowed_context_registry().context().environment.id,
-                )?;
-                tcl_syntax::naming::VendorSourceNamePolicy::authored(hosted)
-            }), "hosted-policy")?;
-            let head =
-                crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
-                    words.first()?,
-                    policy,
-                );
-            let written = std::str::from_utf8(Self::trace_report_event_option(
-                head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead),
-                "original-head-units",
-            )?)
-            .ok()?;
-            let command = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
-            if candidates.iter().any(|candidate| {
-                tcl_syntax::naming::unroot_rooted_key(&candidate.target.command)
-                    .unwrap_or(&candidate.target.command)
-                    != command
-            }) {
-                return None;
-            }
-            let input =
-                crate::signature_scan::vendor_name::VendorSourceNameInput::from_original_word(
-                    word, policy,
-                );
-            let literal = Self::trace_report_event_option(
-                input.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::EventName),
-                "hosted-event-units",
-            )?;
-            return Self::trace_report_event_option(
-                literal
-                    .eq_ignore_ascii_case(event.as_bytes())
-                    .then(|| word.clone()),
-                "hosted-event-value",
+            return self.original_hosted_when_event_word(
+                context,
+                bindings,
+                candidates,
+                (seg, image, &tokens, &words),
+                word,
+                event,
             );
         }
         let dialect =

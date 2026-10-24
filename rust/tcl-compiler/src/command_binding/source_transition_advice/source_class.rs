@@ -408,6 +408,45 @@ impl OriginalSourceConstructorCall {
             && self.class.factory.matches_source(image, config)
             && self.class.factory.matches_context(context)
     }
+    #[cfg(test)]
+    fn trace_source_factory_quiet(&self, trace_enabled: bool, trace: &impl Fn(&str, bool)) {
+        if trace_enabled {
+            trace(
+                "attempt.quiet",
+                !self
+                    .obligations
+                    .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
+                    && self.class.factory.uncertain_operations().is_empty(),
+            );
+        }
+    }
+
+    fn source_factory_native_methods(
+        &self,
+        members: &crate::analyser::types::OriginalSourceMemberLedger,
+    ) -> Option<Vec<crate::analyser::types::OriginalSourceMethodMetadata>> {
+        let deferred = self
+            .obligations
+            .contains(&SourceCommandTransitionObligation::OriginalProcedureBodyApplicability)
+            || self
+                .obligations
+                .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
+        if deferred {
+            members.methods(crate::analyser::MemberSide::ClassObject)
+        } else {
+            members
+                .methods_before_source_call(crate::analyser::MemberSide::ClassObject, self.site())
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_source_factory_guard(&self, stage: &str, passed: bool) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+            let offset = self.site.offset;
+            eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset} passed={passed}");
+        }
+    }
+
     /// Diagnostic source attempt under the exact retained factory and input.
     /// The genuine source tape owns alias prefixes, moves and class incarnation;
     /// unknown earlier effects and method/factory replacement remain terminal.
@@ -420,12 +459,7 @@ impl OriginalSourceConstructorCall {
         #[cfg(test)]
         let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
         #[cfg(test)]
-        let trace = |stage: &str, passed: bool| {
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
-                let offset = self.site.offset;
-                eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset} passed={passed}");
-            }
-        };
+        let trace = |stage: &str, passed: bool| self.trace_source_factory_guard(stage, passed);
         #[cfg(test)]
         if trace_enabled {
             trace("attempt.input", analysis.resolved_input.is_some());
@@ -450,15 +484,7 @@ impl OriginalSourceConstructorCall {
         }
         current.then_some(())?;
         #[cfg(test)]
-        if trace_enabled {
-            trace(
-                "attempt.quiet",
-                !self
-                    .obligations
-                    .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
-                    && self.class.factory.uncertain_operations().is_empty(),
-            );
-        }
+        self.trace_source_factory_quiet(trace_enabled, &trace);
         if self
             .obligations
             .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
@@ -497,20 +523,7 @@ impl OriginalSourceConstructorCall {
             }
             let class = class?;
             let members = &class.metadata().original_members;
-            let deferred = self
-                .obligations
-                .contains(&SourceCommandTransitionObligation::OriginalProcedureBodyApplicability)
-                || self
-                    .obligations
-                    .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
-            let methods = if deferred {
-                members.methods(crate::analyser::MemberSide::ClassObject)
-            } else {
-                members.methods_before_source_call(
-                    crate::analyser::MemberSide::ClassObject,
-                    self.site(),
-                )
-            };
+            let methods = self.source_factory_native_methods(members);
             #[cfg(test)]
             if trace_enabled {
                 trace("attempt.original_members", methods.is_some());

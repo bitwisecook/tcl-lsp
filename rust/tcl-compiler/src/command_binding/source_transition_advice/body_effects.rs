@@ -1008,6 +1008,73 @@ impl BodyWalk<'_, '_> {
         self.expression_commands(graph, advice, schema, depth, false)
     }
 
+    #[cfg(test)]
+    fn trace_expression_roles(
+        advice: &OriginalSourceCommandTransitionAdvice,
+        complete: bool,
+        roles: &[(u8, tcl_registry::ArgRole)],
+    ) {
+        trace_body_inventory(
+            "expressions.roles",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            complete,
+            roles.len(),
+        );
+    }
+
+    #[cfg(test)]
+    fn trace_expression_value(
+        argument: &super::SourceAdviceWord,
+        expression_span: Span,
+        source: &str,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_body_inventory(
+                "expressions.original_value",
+                Some(expression_span.start()),
+                argument.value.as_deref() == Some(source.as_bytes()),
+                source.len(),
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_expression_parts(
+        expression_span: Span,
+        substitutions: &Option<tcl_syntax::expr::LiveExpressionSubstitutions>,
+    ) {
+        trace_body_inventory(
+            "expressions.checked",
+            Some(expression_span.start()),
+            substitutions.is_some(),
+            substitutions
+                .as_ref()
+                .map_or(0, |parts| parts.commands.len()),
+        );
+    }
+
+    #[cfg(test)]
+    fn trace_expression_child(start: u32, end: u32, walked: &Option<()>) {
+        trace_body_inventory(
+            "expressions.child",
+            Some(start),
+            walked.is_some(),
+            (end - start) as usize,
+        );
+    }
+
+    fn body_expression_context(&self) -> tcl_syntax::expr::parser::ExprParseContext {
+        let mut context = self
+            .context
+            .dialect
+            .expression_parse_context(self.context.context.commands().profile());
+        context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
+        context
+    }
+
     fn expression_commands(
         &mut self,
         graph: &mut AdviceGraph,
@@ -1018,15 +1085,7 @@ impl BodyWalk<'_, '_> {
     ) -> Option<()> {
         let (roles, complete) = self.context.authored_roles(schema);
         #[cfg(test)]
-        trace_body_inventory(
-            "expressions.roles",
-            advice
-                .original_words()
-                .first()
-                .map(|word| word.span().start()),
-            complete,
-            roles.len(),
-        );
+        Self::trace_expression_roles(advice, complete, &roles);
         if !complete {
             // A normal-source case owns only a subject and literal case list;
             // argv substitutions were inspected separately, never as Expr.
@@ -1059,32 +1118,14 @@ impl BodyWalk<'_, '_> {
             // Cooked values and incomplete expressions cannot lend their
             // original positions to the checked expression/script bridge.
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-                trace_body_inventory(
-                    "expressions.original_value",
-                    Some(expression_span.start()),
-                    argument.value.as_deref() == Some(source.as_bytes()),
-                    source.len(),
-                );
-            }
+            Self::trace_expression_value(argument, expression_span, source);
             if argument.value.as_deref() != Some(source.as_bytes()) {
                 return None;
             }
-            let mut context = self
-                .context
-                .dialect
-                .expression_parse_context(self.context.context.commands().profile());
-            context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
+            let context = self.body_expression_context();
             let substitutions = self.checked_body_expression_substitutions(graph, source, &context);
             #[cfg(test)]
-            trace_body_inventory(
-                "expressions.checked",
-                Some(expression_span.start()),
-                substitutions.is_some(),
-                substitutions
-                    .as_ref()
-                    .map_or(0, |parts| parts.commands.len()),
-            );
+            Self::trace_expression_parts(expression_span, &substitutions);
             let substitutions = substitutions?;
             // A condition of a selected first-match chain runs once, before any
             // clause body, so its command children are ordered by threading each
@@ -1145,12 +1186,7 @@ impl BodyWalk<'_, '_> {
                 let walked = self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?);
                 self.catalogue_body = parent_catalogue;
                 #[cfg(test)]
-                trace_body_inventory(
-                    "expressions.child",
-                    Some(start),
-                    walked.is_some(),
-                    (end - start) as usize,
-                );
+                Self::trace_expression_child(start, end, &walked);
                 walked?;
                 Self::retain_possible_effects(graph, base, branch, advice.original_words());
             }

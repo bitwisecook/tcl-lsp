@@ -1689,14 +1689,14 @@ impl super::CommandBindingRealm {
         self.retained_source_transition_value_advice(context, tokens)
     }
 
-    fn retained_source_transition_value_advice(
+    #[cfg(test)]
+    fn trace_retained_source_input(
         &self,
         context: &ContextRegistry,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<OriginalSourceCommandTransitionAdvice> {
-        let binding = tokens.source_binding.as_ref()?;
-        let logical = self.bindings.original_logical_source_name_advice_input();
-        #[cfg(test)]
+        binding: &crate::command_binding::SourceInvocationBinding,
+        logical: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) {
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = tokens
                 .words()
@@ -1719,6 +1719,57 @@ impl super::CommandBindingRealm {
             trace_original_child_guard("retained.unknown", offset, binding.unknown);
             trace_original_child_guard("retained.targets", offset, !binding.targets.is_empty());
         }
+    }
+
+    #[cfg(test)]
+    fn trace_retained_source_vector(
+        original: &[tcl_lexer::NativeWord],
+        advice: &OriginalSourceCommandTransitionAdvice,
+        offset: u32,
+    ) {
+        if original != advice.original_words() {
+            eprintln!(
+                "ORIGINAL_ADVICE_VECTOR offset={offset} original_count={} retained_count={}",
+                original.len(),
+                advice.original_words().len(),
+            );
+            for (index, (actual, retained)) in original
+                .iter()
+                .zip(advice.original_words())
+                .enumerate()
+                .take(16)
+            {
+                if actual != retained {
+                    eprintln!(
+                        "ORIGINAL_ADVICE_VECTOR offset={offset} index={index} image={} config={} group={} tokens={} arena={} written={} operand={} original_start={} original_end={} retained_start={} retained_end={} original_tokens={} retained_tokens={}",
+                        actual.image() == retained.image(),
+                        actual.config() == retained.config(),
+                        actual.group() == retained.group(),
+                        actual.tokens() == retained.tokens(),
+                        actual.executable_parts() == retained.executable_parts(),
+                        actual.span() == retained.span(),
+                        actual.word_span() == retained.word_span(),
+                        actual.span().start(),
+                        actual.span().end(),
+                        retained.span().start(),
+                        retained.span().end(),
+                        actual.tokens().len(),
+                        retained.tokens().len(),
+                    );
+                }
+            }
+        }
+    }
+
+    fn retained_source_transition_value_advice(
+        &self,
+        context: &ContextRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        let binding = tokens.source_binding.as_ref()?;
+        let logical = self.bindings.original_logical_source_name_advice_input();
+        #[cfg(test)]
+        self.trace_retained_source_input(context, tokens, binding, logical);
         if let Some(input) = logical
             && (!self.matches_resolved_analysis_input(input)
                 || !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
@@ -1786,38 +1837,7 @@ impl super::CommandBindingRealm {
                 Some(offset),
                 original.as_slice() == advice.original_words(),
             );
-            if original.as_slice() != advice.original_words() {
-                eprintln!(
-                    "ORIGINAL_ADVICE_VECTOR offset={offset} original_count={} retained_count={}",
-                    original.len(),
-                    advice.original_words().len(),
-                );
-                for (index, (actual, retained)) in original
-                    .iter()
-                    .zip(advice.original_words())
-                    .enumerate()
-                    .take(16)
-                {
-                    if actual != retained {
-                        eprintln!(
-                            "ORIGINAL_ADVICE_VECTOR offset={offset} index={index} image={} config={} group={} tokens={} arena={} written={} operand={} original_start={} original_end={} retained_start={} retained_end={} original_tokens={} retained_tokens={}",
-                            actual.image() == retained.image(),
-                            actual.config() == retained.config(),
-                            actual.group() == retained.group(),
-                            actual.tokens() == retained.tokens(),
-                            actual.executable_parts() == retained.executable_parts(),
-                            actual.span() == retained.span(),
-                            actual.word_span() == retained.word_span(),
-                            actual.span().start(),
-                            actual.span().end(),
-                            retained.span().start(),
-                            retained.span().end(),
-                            actual.tokens().len(),
-                            retained.tokens().len(),
-                        );
-                    }
-                }
-            }
+            Self::trace_retained_source_vector(&original, &advice, offset);
             trace_original_child_guard(
                 "retained.target_match",
                 Some(offset),
