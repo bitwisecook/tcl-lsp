@@ -2,11 +2,17 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-24T21:28:03.612024+00:00 (ACTIVE; Heavy920 original stringless List-shaped header observed; selector timeout/rawFAIL/CLI2UNRUN authentication finishing; Jim V3 pending)
+Last updated: 2026-10-24T21:51:35.381782+00:00 (ACTIVE; Heavy920 full auth/header41415 and timeout7826 closed; Names V3 concrete API HOLD, successor pending; UpLevel V2 held)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+**Heavy920 full authentication complete.** `ccg-heavy920-40129040956-actual-v1/first-original-header-receipt.json` SHA41415ed13a6566daaef2b75e355824671a5818d6f4a1c55abc7a033fa197e075 binds full assessment19f1ad4f13b511e010f0daaf1a603dfa8f1f497158a7026d3b89b334bf4a7326, ZIP/API/source920, source126192/providers2466/deps21503/tools8, all5seals/3freshstrict0W selected builds, exactenv/deadlines/current source observer. Exactly one logicalC84 original residentfalse/List3false/dispatchfalse header among3123 header rows, immediately before preflight and same DIRECT refusal. This remains snapshot shape rather than native backing/per-slot-reference authority. Root notified; functional UpLevelV2 remains held.
+
+`timeout-order-addendum.json` SHA7826a2390ca3a17c6e6b691a4b728094247e8d6e470b1fb503dc9b80c6fadbab gives bounded timing: exit101 WNOWAIT-observed179.787573480s (<180); SIGINT180.043603479s, owner total180.178s/two empty group scans. Pinned88125 owner observes parent+group then checks deadline before closure break, polling0.25s. No evidence of180s alive AFTER panic/destructor leak; no per-line timestamp identifies refusal timing. Strict timeout/RUNNING ledger/rawexact1FAIL/CLI2UNRUN retained; no owner change or deadline waiver proposed. ZIP-only/no builds; disk constrained.
+
+**Jim V3 held for a concrete API/type defect.** `ccg-peer-jim-static-alternatives-v3/receipt.json` SHAa53891933b9c3310685f25accbade108ea07077c1c6c45b95b978797690d80c5 binds proposale758/WORKd815/CLEAN8940. New direct_source_read calls declaration_invocation_flow(registry,tokens) with2args; current reexport requires3rd &OriginalCompilationLookupAdvice. Names notified to join genuine retained advice under full original metadata, no default/fallback or authority bypass. V1 map-wide defect is removed by per-use filtering before minimum; new relative direct-only path otherwise under source/API review and exact frame path remains failclosed. No final clearance/new outcome. Pure reference-invalid equation reviewed, no discarded clone/slot mutation remains. Await immutable corrected successor. Next current d62 ordinaryWASM22P3F triage remains queued after these priorities; no test drops/general parity expansion.
 
 **Heavy920 original header now observed, partial lifecycle capture.** Exact run40129040956/job120976603264/source920115d455492259c4c9798aef4f8841ebed7dcd/API12573893658 ZIP2e10dcd0ef3790c24076242aebf88f30bca09400ed109860f1fa20ff565936a0/10197406B retained ZIP-only at ccg-heavy920-40129040956-actual-v1. New original pre-getter line4890: selected logicalC84/native_cfalse, resident=false, list=Some((3,false)), dispatch=false. Line4896 same DIRECT protocol-purpose refusal; panic4898/live2444. This is actual snapshot shape, still NOT genuine native backing/per-slot ownership. Resident-String-only bridge cannot explain this observed branch. V2 functional bridge remains HOLD16db; C84 counterexample e83d unchanged.
 

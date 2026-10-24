@@ -1,0 +1,65 @@
+{
+  "utc": "2026-10-24T21:52:58.080867+00:00",
+  "status": "ALL3_CLOSED_FULL_SOURCE_PROCESS_CAPTURE_AUTHENTICATED_COMPILE_FAIL_ASSERTIONS_UNRUN",
+  "run": 40133524482,
+  "source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+  "membership": {
+    "utc": "2026-10-24T21:23:18.792553+00:00",
+    "source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+    "tree": "347421627547b782506647f27d0c16a3d2e08562",
+    "count": 126218,
+    "nul_sha256": "88d5d6b9f77d76f9b80d8e56b8b597dee43030d2fe163b268c248dc6d002de4d",
+    "method": "git --no-lazy-fetch ls-tree -r --name-only -z exactsource, includes all current docs by membership"
+  },
+  "artifacts": {
+    "browser": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40133524482-actual-v1/assessment-v1.json",
+      "assessment_sha256": "dafacee849b09f1834226f31d59e00eac81b65d5a0c20129d967d3208d4712dc",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMPILE_FAIL_HOST_UNRUN",
+      "zip_sha256": "8628d484b458f9949aa28f5a3f4169ed3390bb4152ab5a7f3ac3e683e36223ce",
+      "zip_bytes": 8075477,
+      "source_before_after_equal": true,
+      "source_members": 126218,
+      "artifact_executable_built": false,
+      "host_or_selected_assertions": "UNRUN",
+      "first_product_blocker": "Rc<CompilationUnit> \u2192 CompilationUnitOverride \u2192 Analyser \u2192 FreshAnalysisDriver \u2192 native Send worker closure"
+    },
+    "wasi": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40133524482-actual-v1/assessment-v1.json",
+      "assessment_sha256": "8bc69bb8520d6fa1d0e912a90e9cdc6ba6799bba798e89d4a8fd59acac4b14a2",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMPILE_FAIL_HOST_UNRUN",
+      "zip_sha256": "efc78c7e41c78cd07cd6a1c933929586cc6fdaafdacc3971c6b6ef371ef7244a",
+      "zip_bytes": 8075497,
+      "source_before_after_equal": true,
+      "source_members": 126218,
+      "artifact_executable_built": false,
+      "host_or_selected_assertions": "UNRUN",
+      "first_product_blocker": "Rc<CompilationUnit> \u2192 CompilationUnitOverride \u2192 Analyser \u2192 FreshAnalysisDriver \u2192 native Send worker closure"
+    },
+    "unit": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40133524482-actual-v1/assessment-v1.json",
+      "assessment_sha256": "7b078cd7c5a06b52267c55daac2b58b1c014ceb8d1c3ac126be0845f25f338ef",
+      "status": "AUTHOR_FULLAUTH_NATIVE_UNIT_COMPILE_FAIL_SELECTOR_UNRUN",
+      "zip_sha256": "b21a956f9761944a8fb58f1d52c133146142e932708f528b2bed5faa0227a44a",
+      "zip_bytes": 10150929,
+      "source_before_after_equal": true,
+      "source_members": 126218,
+      "artifact_executable_built": false,
+      "host_or_selected_assertions": "UNRUN",
+      "first_product_blocker": "Rc<CompilationUnit> \u2192 CompilationUnitOverride \u2192 Analyser \u2192 FreshAnalysisDriver \u2192 native Send worker closure"
+    }
+  },
+  "final_API_sha256": "ff01007b558024a87b9460e13dfd128da6245e8e935c136c95fe0f3ed7215a08",
+  "validators": {
+    "host-author-validator.py": "b9af5c60c208b48ecbe41acebaec92c4ed6c74b1d45c829e9114eff50c146f24",
+    "unit-compile-fail-author-validator.py": "9079425ed07188e223c4c3ec2bc2edd1f4401ffd876bd0cb5beb86a93979b2f9"
+  },
+  "finding": "Nested-lock correction restores both full source endpoint seals. All3 original host/unit scopes stop during server compilation because introduced stored Rc makes actual FreshAnalysisDriver non-Send; no new host protocol/metadata/assertion outcome.",
+  "limits": [
+    "Full tracked membership/maps exact; critical Git payloads independently hashed, not every Git blob.",
+    "Host prebuild consumed-provider/bootstrap not fully sealed; fixed tools/process/source endpoints stable. No selected module payload/running module identity because compilefailed.",
+    "Unit provider/dependency/tool maps equal; raw stderr20primaryRusterrors plus summary, CargoJSON has no compiler-message rows, executable artifact missing; selector list/run UNRUN. Full environment-values object absent for unit.",
+    "Earlier571ce runtime metadata remains PRECHECKONLY with failed aftersource seals; this compile-only d62 wave does not rehabilitate it.",
+    "No product typing success/CLEAN/editor/shipping/whole-suite/performance/Eq acceptance. OwnedBox proposal and native compilecontrol remain actualUNRUN."
+  ]
+}

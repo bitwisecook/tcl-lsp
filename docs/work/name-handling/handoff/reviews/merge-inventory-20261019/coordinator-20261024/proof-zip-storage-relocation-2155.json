@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-24T21:55:38.094386+00:00",
+  "files": [
+    {
+      "path": "/workspace/naming-proof-storage/strict-920-40129022743.zip",
+      "retained_storage": "/tmp/naming-retained-proof-zips/naming-proof-storage-strict-920-40129022743.zip",
+      "bytes": 4012896,
+      "sha256": "9f028df7f3c471b87f77a1eb8f008b614bdb8a2f5ca0340de260e7b6e0a1ab52",
+      "path_and_payload_retained": true
+    },
+    {
+      "path": "/workspace/naming-proof-storage/strict-auth-6a8-40123651878/artifact.zip",
+      "retained_storage": "/tmp/naming-retained-proof-zips/strict-auth-6a8-40123651878-artifact.zip",
+      "bytes": 4011438,
+      "sha256": "da8876348a94f07b96becd8b47b1f7501fce0d04e094fdcdd5b5b7d8a8345767",
+      "path_and_payload_retained": true
+    },
+    {
+      "path": "/workspace/naming-proof-storage/clean-ci-0304-shard3-terminal.zip",
+      "retained_storage": "/tmp/naming-retained-proof-zips/naming-proof-storage-clean-ci-0304-shard3-terminal.zip",
+      "bytes": 3123328,
+      "sha256": "4928c79c7f4a023407f58767937e0806170657a271bf2c99504117c3f46437aa",
+      "path_and_payload_retained": true
+    }
+  ],
+  "no_repos_targets_executables_or_source_inputs_changed": true
+}

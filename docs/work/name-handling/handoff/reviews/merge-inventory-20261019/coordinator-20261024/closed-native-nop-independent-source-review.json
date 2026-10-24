@@ -1,0 +1,107 @@
+{
+  "status": "SOURCE PURPOSE SUPPORTS NARROW NOP ADMISSION IN EXISTING PRIVATE OWNER; NO PATCH REVIEW OR ACTUAL PASS YET",
+  "actual_source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+  "actual_assessment_sha256": "83ff652ecb15d6f0b1cd239b07dd08d1084ea6f1736eed60c7d0e35ca9891b55",
+  "current_head": "fa562ff3916079b053c4bc1bf7ff19ce301d9c7d",
+  "source_pins": [
+    {
+      "path": "rust/tcl-bytecode/src/lib.rs",
+      "actual_sha256": "a33965157f865294a0a935d17ce4436ea730111c0506a8321f5ce8dd495e12a0",
+      "current_sha256": "a33965157f865294a0a935d17ce4436ea730111c0506a8321f5ce8dd495e12a0",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "actual_sha256": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6",
+      "current_sha256": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "actual_sha256": "0005ce2b2455e01405be3e86a941932bdec099ed06415cb3e4301948e969d41f",
+      "current_sha256": "0005ce2b2455e01405be3e86a941932bdec099ed06415cb3e4301948e969d41f",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/closed_native_execution.rs",
+      "actual_sha256": "398d1169e00f6126af1d36facabb37f2ee23ce1499a7815927399f823e3af1a4",
+      "current_sha256": "a0bc9852ed8f739f087652cbfbd77286f7665ba524709e638641d2758b026b76",
+      "equal": false
+    },
+    {
+      "path": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "actual_sha256": "e482f4f40a63819b35637e3f9cb28ec313a5e016a597f6b86a6d446d1fd7264e",
+      "current_sha256": "e482f4f40a63819b35637e3f9cb28ec313a5e016a597f6b86a6d446d1fd7264e",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/statements.rs",
+      "actual_sha256": "a20a319f3a343307387a4b7bae6baf0f9f162557625aa08b007ca750d20222df",
+      "current_sha256": "a20a319f3a343307387a4b7bae6baf0f9f162557625aa08b007ca750d20222df",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+      "actual_sha256": "25254e3b825601cb4e4e11314a9d31a2e17a173e5a043b8186d0877fce68070b",
+      "current_sha256": "25254e3b825601cb4e4e11314a9d31a2e17a173e5a043b8186d0877fce68070b",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "actual_sha256": "58dd45bbbc503bc43e0bf6b9355c7acd3389315d949dcd7d97a648acf30830fb",
+      "current_sha256": "f9571d7e7369b91d2597ba395931d2a93e349c3074254f74d12204179d0b2ca3",
+      "equal": false
+    }
+  ],
+  "actual_raw_markers": [
+    {
+      "path": "/workspace/naming-proof-storage/compiler-original99-40133511279/cases/diagnostic-closed-consumer/closed_native_execution__tests__actual_recapture_and_foreign_literal_owner_refuse_retained_preparation.stderr",
+      "sha256": "f4cc4309baea69211dbe5f58575a51d2fbf3c8cd848cef0b4c356751fb4eb7fc",
+      "markers": [
+        "CLOSED_NATIVE_REFUSAL stage=22 detail=85 ordinal=6"
+      ]
+    },
+    {
+      "path": "/workspace/naming-proof-storage/compiler-original99-40133511279/cases/diagnostic-closed-consumer/closed_native_execution__tests__private_consumer_preserves_the_complete_transcript.stderr",
+      "sha256": "1327298b8095be2e40f659b9ae151537dd012e9aaf227e259b48a548979d9b93",
+      "markers": [
+        "CLOSED_NATIVE_REFUSAL stage=22 detail=85 ordinal=6"
+      ]
+    },
+    {
+      "path": "/workspace/naming-proof-storage/compiler-original99-40133511279/cases/diagnostic-closed-consumer/closed_native_execution__tests__actual_owners_reject_foreign_superseded_and_consumed_selections.stderr",
+      "sha256": "07a07ae7b291856950dcfcb699b2a6a4791966ef41ccf3d65fbb46b9be643dc2",
+      "markers": [
+        "CLOSED_NATIVE_REFUSAL stage=22 detail=85 ordinal=6"
+      ]
+    },
+    {
+      "path": "/workspace/naming-proof-storage/compiler-original99-40133511279/cases/diagnostic-closed-consumer/closed_native_execution__tests__actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume.stderr",
+      "sha256": "a9a3793ebaf52f4689e3e1373b445bcd5ea2ab000438b03c66525ba530d48ae2",
+      "markers": [
+        "CLOSED_NATIVE_REFUSAL stage=22 detail=85 ordinal=6"
+      ]
+    }
+  ],
+  "opcode_decode": {
+    "variants": 219,
+    "discriminant": 85,
+    "opcode": "NOP"
+  },
+  "findings": [
+    "All four authenticated initial engine positives stop at top-level instruction inventory ordinal6, Op85 NOP. The report does not encode instruction metadata or its producing compiler function, so exact producer identity is not observed.",
+    "Op::NOP dispatch arm in exec.rs5975 is empty. It performs no opcode-specific stack manipulation, variable access, arithmetic, channel operation, callback dispatch or control transfer; ordinary pc advance occurs in common prologue. This does NOT make a metadata-bearing NOP globally inert.",
+    "Compiler deliberately uses NOP as a generic command start marker (statements.rs schedule_native_generic2658), as a retained Native compiler selection boundary (begin_original_compiler_selection3702; cmd_subst emit_native_compiler_selection2146), and for other unrelated layouts/peepholes. Deleting all NOPs or dropping their metadata is unjustified.",
+    "Common prologue exec.rs5594 processes Native operation/selection metadata and may replay source on currency mismatch; retires completed entered scopes; resets command-result owner; captures entered command; applies completion-option scope; charges command limits; advances pc; notes line and debug step. These mechanisms already run for the accepted PUSH/POP/LOAD/INVOKE and START_CMD instructions. A NOP extension must retain this machinery.",
+    "Private owner creates its own fresh VM and concrete compiler and never imports caller VM/Host/Writer/callback. InterpreterDebugHooks derives Default and constructor3738 uses it; debug_hook and line_watch are None and private backend never installs them. note_line and debug_step therefore cannot expose private cells through an external debug observer.",
+    "Compiler plan only accepts bounded actual stock set/expr/puts semantic operations and bounded integer expression leaves/operators; no declaration, rebinding, trace, channel mutation, arbitrary function or dynamic command is admitted. Real VM physically retains only original command tokens. Source/profile/registry exactness, Native compilation prerequisites and full current entry equality remain mandatory before grant and execution; command world cannot be mutated by the admitted operations or outside caller.",
+    "Native compiler selection metadata is validated at preparation and checked again by VM chunk entry/BeforeArguments selection. No new ability to invoke external callbacks, enlarge source footprint, reuse authority outside worker, or export cells/headers/results follows solely from allowing NOP. Ordinary VM helper itself still grants no closed-consumer authority.",
+    "Boundary result-owner retirement remains private and occurs under unchanged NativeOperationScope currency/retirement enforcement. Detached transcript only leaves after VM/backend/kernel destruction and worker join. Existing operand/result/open-VM equivalence guards are untouched.",
+    "Potential subsequent arithmetic opcodes or auxiliary/header refusals remain fail-closed. The actual NOP refusal proves no later instruction or positive control passed. No broad opcode extension, Native preflight suppression or synthetic inline-disabled state is justified."
+  ],
+  "limits": [
+    "Exact NOP metadata/producer not observed; do not infer it from ordinal alone.",
+    "A narrow patch must retain all existing predicates and add meaningful NOP acceptance plus non-NOP refusal control; awaiting Runtime candidate.",
+    "No local builds/tests/native code, no canonical changes, no duplicate ZIP or source copies."
+  ]
+}

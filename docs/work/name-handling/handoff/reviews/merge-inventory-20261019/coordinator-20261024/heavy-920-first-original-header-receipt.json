@@ -1,0 +1,105 @@
+{
+  "utc": "2026-10-24T21:46:05.469837+00:00",
+  "status": "AUTHENTICATED ACTUAL ORIGINAL STRINGLESS LIST-SHAPED HEADER; SELECTOR TIMEOUT PARTIAL PROTOCOL",
+  "run": 40129040956,
+  "job": 120976603264,
+  "source": "920115d455492259c4c9798aef4f8841ebed7dcd",
+  "artifact_id": 12573893658,
+  "ZIP_sha256": "2e10dcd0ef3790c24076242aebf88f30bca09400ed109860f1fa20ff565936a0",
+  "ZIP_bytes": 10197406,
+  "identity_seals_processes_assessment_sha256": "19f1ad4f13b511e010f0daaf1a603dfa8f1f497158a7026d3b89b334bf4a7326",
+  "validator_sha256": "a3b34ea6cc32c4ef8483185ab1fb38d36c0a55e529548c9ac26d292a41fc55ba",
+  "source_owner_git_and_sealed_map_pins": {
+    "rust/tcl-vm/src/command.rs": "a93fd842b5df36e86fa95c7f55aa18427664362861c694160aed0b4d13a73f04",
+    "rust/tcl-vm/src/literal_pool.rs": "2780df3bbbc08ecc8c90f93601d0aaf500f93fd29ab6e82775661cdda3a76a48",
+    "rust/tcl-registry/src/native_eval_object.rs": "d26098d5114d622a1eef2db49c02161b05872b4d9d7636f266b8b1564e01b378",
+    "rust/tcl-vm/src/value.rs": "33ca268b69c446e3b6508a8371cc958ed8bb10042055a0f4f4b59311974c753d",
+    "rust/tcl-vm/src/native_list_backing.rs": "249ae2d65c1febdba256cdc106ffd75b3e066df3382f034a914acac1fd645af5",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+  },
+  "original_header": {
+    "stderr_member": "tcl_irule_test-00.stderr",
+    "stderr_sha256": "0b4b7ca564e5838ca2766bcd860d2ec17b3f249d0a8b078568901d5116fa9436",
+    "logical_C84_header_count": 1,
+    "all_header_count": 3123,
+    "line": 4890,
+    "text": "TCL_NATIVE_UPLEVEL_ORIGINAL_HEADER selected=NativeEvalObjectProtocol { version: Some(V8_4), native_c: false } resident=false list=Some((3, false)) dispatch=false",
+    "resident": false,
+    "List_cache_shape": [
+      3,
+      false
+    ],
+    "dispatch": false,
+    "lifetime_limit": "NativeObjectSnapshot List-shaped cache is not proof of actual native header/backing or owned per-slot references."
+  },
+  "adjacent_first_refusal": {
+    "line": 4896,
+    "text": "TCL_NATIVE_DIRECT_SOURCE_REFUSAL facet=protocol-purpose selected=NativeEvalObjectProtocol { version: Some(V8_4), native_c: false } purpose=UpLevel strings=C(V9_0) plain=true",
+    "panic_line": 4898,
+    "panic": "LiveSession::new(&lib_dir()) at live.rs2444 before scenario; native DIRECT source operand plan unavailable",
+    "raw_excerpt_first_line": 4889,
+    "raw_excerpt": "ZZ_NATIVE_ADMISSION_INPUT kind=script_bytes source_len=112 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(0) namespaces=Some(73) preflight=NotRequired instructions=13 procedure_body=false\nTCL_NATIVE_UPLEVEL_ORIGINAL_HEADER selected=NativeEvalObjectProtocol { version: Some(V8_4), native_c: false } resident=false list=Some((3, false)) dispatch=false\nZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=37 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0\nZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false\nZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false\n\nZZ_NATIVE_ADMISSION_INPUT kind=script_bytes source_len=37 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(34) namespaces=Some(73) preflight=NotRequired instructions=5 procedure_body=false\nTCL_NATIVE_DIRECT_SOURCE_REFUSAL facet=protocol-purpose selected=NativeEvalObjectProtocol { version: Some(V8_4), native_c: false } purpose=UpLevel strings=C(V9_0) plain=true\n\nthread 'live::tests::harness_runs_the_tmm_84_surface' (11838) panicked at rust/tcl-irule-test/src/live.rs:2444:50:\nsession: Execution(ValueAccessRefusal(CommandProtocolUnavailable(\"native DIRECT source operand plan\")))\nstack backtrace:"
+  },
+  "source_observer": {
+    "rust/tcl-vm/src/command.rs": {
+      "first_lf_line": 568,
+      "last_lf_line": 596,
+      "text": "        );\n    };\n    if !{\n        let original = script.native_object_snapshot();\n        let dispatch = protocol.dispatches_list(purpose, &original);\n        #[cfg(debug_assertions)]\n        if matches!(\n            purpose,\n            tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel\n        ) && std::env::var(\"TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC\").as_deref()\n            == Ok(\"first-decline-v1\")\n        {\n            let list = match &original.cache {\n                tcl_syntax::native_object::NativeObjectCacheSnapshot::List {\n                    length,\n                    canonical,\n                } => Some((*length, *canonical)),\n                _ => None,\n            };\n            eprintln!(\n                \"TCL_NATIVE_UPLEVEL_ORIGINAL_HEADER selected={protocol:?} resident={} list={list:?} dispatch={dispatch}\",\n                original.resident.is_some(),\n            );\n        }\n        dispatch\n    } {\n        return Ok(None);\n    }\n    Ok(script.cached_list_representation().map(|(words, _)| words))"
+    }
+  },
+  "source_order": "command.rs571 captures original existing snapshot once; dispatch572 once; debug log before returnNone594 and cached-list access596. Subsequent source preflight begins at raw4891, so original header observation precedes later materialisation/DIRECT rejection. No stored backing or element ownership is implied.",
+  "functional_implication": "The observed failing input is originally nonresident List-shaped, so a resident-String-only source bridge cannot fix this capture. Held UpLevelV2 would erase a branch whose semantic difference is independently shown by pinned C8.4 oracle e83d35ed. Need genuine original backing/header, per-slot native references, retirement/callback/currentness and frame-restoration correspondence before any functional bridge.",
+  "disposition": {
+    "selected_strict_build": 0,
+    "fresh_strict_selected_artifacts": 3,
+    "listed_targets": [
+      "tcl_irule_test"
+    ],
+    "bootstrap_raw_terminal": "FAIL (exact1; panic preserved)",
+    "bootstrap_protocol_state": "RUNNING",
+    "bootstrap_exit": 101,
+    "selector_stop_reason": "selector_timeout",
+    "selector_elapsed": 180.177968371,
+    "deadline": 180,
+    "signals": [
+      {
+        "monotonic_ns": 704721066919,
+        "signal": "SIGINT"
+      }
+    ],
+    "group_after_cleanup_empty": true,
+    "original_tests_closed": 0,
+    "CLI2": "UNRUN",
+    "final_error": "RuntimeError('original test lifecycle/capture stop: live::tests::harness_runs_the_tmm_84_surface')",
+    "final_errors": [],
+    "all5seals": {
+      "artifacts": true,
+      "dependencies": true,
+      "providers": true,
+      "source": true,
+      "tools": true
+    },
+    "minimum_free_bytes": 72655802368,
+    "all_logs_combined_remaining_bytes": 19818843
+  },
+  "environment_exact": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": null,
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/home/runner/work/_temp/irules-preflight-target",
+    "RUSTFLAGS": "-Dwarnings",
+    "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0",
+    "TCL_LSP_TCLSH90": "/home/runner/work/_temp/irules-preflight-reference-bin/tclsh9.0",
+    "TCL_TOMMATH_DIR": "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/libtommath"
+  },
+  "limits": [
+    "ZIP-only; no maps/source payload extraction or local builds.",
+    "API job upload step success is observed in this capture (steps are present); workflow failure is not an accepted closed test outcome.",
+    "First3 process groups completed0; last selector timed out and cleanup reached two complete empty-group scans. No surviving owned group is hidden.",
+    "Reported testrunner179.73s and owner180.178s are observed separately; no assertion that the observer caused timeout or any performance conclusion.",
+    "Prior CLI2PASS belongs to earlier767d/other source, not this capture. Functional UpLevelV2 remains HELD; no Native/TMM/Normal/profile/value/cache grant.",
+    "Full tracked Git membership and critical/read source blobs verified; no independent alltrackedblob rehash or retained ELF payload is claimed."
+  ]
+}

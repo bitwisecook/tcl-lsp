@@ -1,0 +1,50 @@
+{
+  "utc": "2026-10-24T21:47:06.487803+00:00",
+  "status": "INDEPENDENT_BOUNDED_STATIC_SOURCE_TYPE_OWNERSHIP_CARRY_CLEAR",
+  "proposal_sha256": "7d773ac473b8261da99844d6f40ef62fb8af46d69e80abafdfa0f2c4399c1ae2",
+  "checks": {
+    "work": {
+      "manifest": "7fd662cfb55dfe4cb2ccfef3baf9365fb120ebf8369cf918896dabb7a70d52d3",
+      "patch": "5676bd1e0e5d84928bc0aeff09175c9c1fbbde3733b70b0c26603963912b1888",
+      "all3_current_before_pins_exact": true,
+      "all3_entire_source_inverse_byteexact": true,
+      "copy_F_R_F0_zero_output": true,
+      "fmt_2024_skip_children_all3": true,
+      "all_original_guards_APIs_assertions_tests_source_exact_after_inverse": true
+    },
+    "clean": {
+      "manifest": "08b16584a1af61b3668e8f88ab889de44c6adb8022347c0a8b5dbe98b957b0f0",
+      "patch": "f663d1b20f39c97619d9df300e187cb2176620b728ba3def291e57f503f19cfd",
+      "all3_current_before_pins_exact": true,
+      "all3_entire_source_inverse_byteexact": true,
+      "copy_F_R_F0_zero_output": true,
+      "fmt_2024_skip_children_all3": true,
+      "all_original_guards_APIs_assertions_tests_source_exact_after_inverse": true
+    },
+    "actual_type_definition_pins": {
+      "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
+      "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": "bc826915207a2b988f62fb8c6f3841138b34461a6c480dd0d3bf197daa6ad4d8",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "30c73e87c00212c854b2c75ac788150512cab6ac205019aeefb49f2ab58dac80",
+      "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+      "rust/tcl-core-types/src/lib.rs": "4400be6b37ecd871e9cd4e050393c8f8957304b4ff232e99c3626c978c0c5558",
+      "rust/tcl-vm/src/value.rs": "33ca268b69c446e3b6508a8371cc958ed8bb10042055a0f4f4b59311974c753d",
+      "rust/tcl-vm/src/exec.rs": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6"
+    },
+    "companion": {
+      "patch": "d2b6f16c7b03d52a3c404f262ab8d855eb60a297e754b73abbc477e377499e83",
+      "manifest": "75cbb06e5696b22e273a86b0a8aef7c6659afcbf3e53358a2f16bab7081eca6d",
+      "all4_current_before_pins_exact": true,
+      "exact_source_pin_scalars": 4,
+      "exact_whole_guard_literals": 3,
+      "all3_whole_JSON_inverse_byteexact": true,
+      "entire_driver_inverse_byteexact": true,
+      "copied_F_R_F0_zero_output": true,
+      "all_original99_selector_env_order_budget_owner_SourceStage_Readonly_Ancestry_logic_byteexact": true
+    },
+    "old_source_hash_consumer_census_only3_updated_JSONs": true
+  },
+  "drop_proof": "API still consumes PreparedClosedNativeSource by value. Success originally drops local Completion<Value> before argument prepared; explicit drop(completion) then drop(prepared) preserves this order at the same last-guard/success-return boundary. Completion fields result/options retain Value::Drop order; prepared field declaration order module then entry unchanged. Currency refusal before completion and Execution refusal after completion retain exact original code and implicit drops. No destructor-bearing value or borrow survives the former return boundary. Ok(()) constructor has no owned payload/callback. No destructuring, clone, borrow/API or grant change.",
+  "clone_proof": "Both canonical_command fields are owned String in InvocationFacts. String ToOwned uses Clone; explicit clone keeps same allocation/value and evaluation/owner/drop location.",
+  "method_proof": "First receiver Option<&OriginalSourceCatalogueBody> matches pub(crate) fn content_span(&self)->Span in common command_binding parent; second Option<&OriginalSourceScriptBody> uses existing public registry_invocation re-export and pub const fn content_span(&self)->Span. Same map inputs/None laziness/Copy Span/query order/borrow lifetime. V1 private source_scoped_body path is held; V2 public path resolves.",
+  "unrun": "No local Cargo/rustc/Clippy/test/native/process execution or current Compiler99 outcome retrieval. Actual compilation/strict outcomes remain UNRUN; this admits static source and exact companion carry only."
+}

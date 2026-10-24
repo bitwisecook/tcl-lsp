@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-24T21:47:44.558621+00:00",
+  "parent_receipt_sha256": "41415ed13a6566daaef2b75e355824671a5818d6f4a1c55abc7a033fa197e075",
+  "process_receipt_zip_member": "tcl_irule_test-00.process.json",
+  "exit_code": 101,
+  "timer_origin_monotonic_ns": 524677463440,
+  "parent_exit_WNOWAIT_observed_seconds": 179.78757348,
+  "cleanup_SIGINT_seconds": 180.043603479,
+  "owner_total_seconds": 180.177968371,
+  "deadline_seconds": 180,
+  "consecutive_complete_empty_group_scans": 2,
+  "group_scan_attempts": 2,
+  "stop_reason": "selector_timeout",
+  "source_owner_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "source_order": "runtime-diagnostics-exec.py observes parent WNOWAIT and scans group, then checks the absolute selector deadline, then checks for drained pipes and two empty group scans; polling interval is 0.25s.",
+  "bounded_conclusion": "Child exit101 was observed at179.787573480s, before the180s deadline. Owner crossed the deadline while collecting closure evidence, sentSIGINT at180.043603479s and recordedselector_timeout. This capture does not show a worker surviving180s after panic or a cleanup/destructor/persistent-worker leak.",
+  "limits": [
+    "No per-line timestamps exist, so time of the UpLevel refusal/panic within the test is unobserved.",
+    "No deadline waiver, accepted result, lifecycle-owner change or performance attribution is proposed. The recorded strict timeout and CLI2UNRUN remain.",
+    "Original source is separately pinned88125; this source reading explains recorded event order, not a new executed process experiment."
+  ]
+}

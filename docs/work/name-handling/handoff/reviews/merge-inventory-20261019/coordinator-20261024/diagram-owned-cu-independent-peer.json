@@ -1,0 +1,71 @@
+{
+  "utc": "2026-10-24T21:54:38.015566+00:00",
+  "verdict": "INDEPENDENT_STATIC_SOURCE_OWNER_API_DROP_CLEAR_ACTUAL_SEND_UNRUN",
+  "packet": "/workspace/naming-proof-storage/lsp-diagram-owned-cu-v1",
+  "work_patch": "93e39b23bb5e2cb1076da92a4c9e3cdb6473156825f6e72991745a303095186c",
+  "work_manifest": "4cab0cdc743dd9f2f0f52d09efe07312d93fa99968f8cf7bcdcb70abebc739c2",
+  "clean_patch": "35fe9e88c0af83c12616f41f76766c2e849ca7cd8685da6dbd33eb31ecaf78e6",
+  "clean_manifest": "364a1f00f915eb66f8ae7a0d2371bbe514911cc289a0be7cd1fc2428f2178f0d",
+  "heads": {
+    "work": "fa562ff3916079b053c4bc1bf7ff19ce301d9c7d",
+    "clean": "6c173ca2eed4ec4d97ba723484e7ae0121eda7e0"
+  },
+  "checks": {
+    "count": 166,
+    "sha256": "cbb7423a6b2a8e83c95a5f9fbfff6b738a29926eaa2c5dcdeda3a52c6683e73a",
+    "consumer_census_sha256": "8051522665f022414356f6d425904c9d15b6d8e13fcba1b3c34162431dbe61c1",
+    "author_owner_review_sha256": "63c61cdd87f60c24a4b946e84b2da290b8fb34bf258e45dd46a9b0ae7e9cb8cc",
+    "independently_joined_owner_source_paths": [
+      "rust/tcl-compiler/src/compilation_unit.rs",
+      "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+      "rust/tcl-compiler/src/sccp/original_value_facts.rs",
+      "rust/tcl-compiler/src/interprocedural/transfer.rs",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "rust/tcl-lsp-server/src/lib.rs"
+    ]
+  },
+  "historical_Rc_review_correction": {
+    "path": "old-rc-review-retraction.json",
+    "sha256": "7ca5969bea41dd5aa163c70517651f069deda5260a89a8dbec6404d7b8cceaf4"
+  },
+  "conditional_trait_law": {
+    "original": "Analyser containing Option<Arc<CompilationUnit>> can be Send only if CU:Send+Sync.",
+    "successor": "Shared(Arc<CU>) plus Owned(Box<CU>) requires the same CU:Send+Sync for Send; the Box arm adds only CU:Send, already required by Arc.",
+    "removed_defect": "Rc<CU> is unconditionally !Send; it adds a negative requirement even with no live override. Removing that arm removes this independently demonstrated source blocker.",
+    "limit": "This establishes the same original trait requirements, not that CU actually satisfies them under native/wasm/all-feature cfgs."
+  },
+  "owner_and_effect_review": [
+    "Owned Box holds the exact moved CompilationUnit. Two attach sites move the same unit; three data/test sites retain the exact existing CU.clone() expressions. No extra deep clone, source/registry/body reconstruction, lookup, retained-fact omission or Native authority is introduced.",
+    "Each old local Rc was freshly allocated at these five callsites and had no external Rc alias. The owned setter moves that same complete unit into one Box, then stores it in the same Option slot. Internal Arc/Weak source receipts retain their exact allocations. Old slot replacement/reset and last owner release stay at the same statement/scope endpoints.",
+    "Both diagnostics take()/as_unit consumers are entirely untouched. as_unit exhaustively borrows Shared or Owned and returns &CU tied to &self. No borrow of CU escapes the call; emitter registry/source/currentness guards, fresh-build branch and old assertions are unchanged.",
+    "Original public Arc setter and all its original callsites remain unchanged. The unreleased local Rc setter is removed rather than converted by cloning unknown aliased Rc. All five actual callers are accounted for. The added owned setter documents the same complete-source equivalence/consume-once contract.",
+    "FreshAnalysisDriver stores the configured Analyser and complete FreshAnalyserInputs, then moves Box<Self> once across existing spawn_blocking FnOnce+Send bounds. Those codepaths, configured inputs, path-admission checks, cache identity/currentness, source-store Send+Sync interface and worker behavior are unchanged.",
+    "The added native-only unignored test concretely instantiates require_send<T:Send> for actual Analyser, Arc<CompilationUnit> and Box<FreshAnalysisDriver>. These nongeneric concrete call obligations are compiler-checked when the native test module compiles, regardless of test selection. No fake type/unsafe cast/trait impl or absent-field shortcut is used."
+  ],
+  "deeper_CU_audit": {
+    "reviewed_persistent_graphs": [
+      "CompilationUnit.optimiser_source_owner -> Arc<PreparedState> -> unit:CompilationUnit (recursive)",
+      "FunctionUnit.original_lattice_worker -> Arc<OriginalFunctionLatticeResult> -> result:FunctionUnit (recursive)",
+      "FunctionUnit semantic-value owners -> Arc<SemanticValueProjection> -> std::sync::OnceLock<SemanticValueFacts>",
+      "Module/source entry/retained source bindings and metadata registry/source namespace inputs",
+      "FunctionUnit CFG/SSA/value metadata and retained original worker context"
+    ],
+    "not_retained_negative_evidence": "ModuleProcedures Rc/RefCell reruns, FoldOps coercion RefCell and SourcePointQuery Cell/RefCell are transient per-run objects. They cannot be cited as a negative CU owner chain.",
+    "concrete_additional_negative_owner_identified": false,
+    "exhaustive_positive_Send_Sync_proof": false,
+    "strict6a8_note": "Independently read pinned raw strict artifact; Clippy says CU neitherSend norSync but gives no nested field chain. It is not dismissed as a false positive. Recursive solver behavior is only an unproven possibility.",
+    "actual_gate": "Native genuine Send control and fresh original compilation remain UNRUN and required before claiming actual transport repair."
+  },
+  "mechanical_and_protocol": [
+    "All four old Rust files independently reconstructed after reversing actual enum/setter/five callsites and removing only the exact new type-control block; formatter2024 yields whole old bytes for both lanes. All old tests/assertions are retained.",
+    "Both frozen/current patch/manifests, copied F/R/F0 without offsets and rustfmt8 checks pass.",
+    "All663 active WORK JSONs and active tool/workflow files independently scanned: only two server-lib source_pin consumers, exactly the two updated rosters. Complete updated source_pin maps join actual overlay; entire old JSONs restore by reversing only server hash. Both driver full byte/AST inverses are sole whole-roster digest changes. CLEAN has no active consumers."
+  ],
+  "blocking_source_findings": [],
+  "limitations": [
+    "No local Rust/Cargo/native build or runtime tests executed.",
+    "Static source/owner clear is not actual Send/Sync typing, Clippy, native/browser/WASI build or host-navigation clearance.",
+    "If hosted compilation reveals a deeper negative owner, keep failure and diagnose that concrete chain; no unsafe Send/Sync implementation, owner drop, invented metadata or profile-based permission is authorized."
+  ]
+}

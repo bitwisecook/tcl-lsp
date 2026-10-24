@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-24T21:31:41.675871+00:00",
+  "head": "fbe4da3913f437827e9f2e51a953b244402ee2fc",
+  "base": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "changed_files": 6196,
+  "scanned": 6196,
+  "preliminary_process_hits": [
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2219,
+      "text": "        \"set f [open /tmp/zz_tcltest_chan_test.txt w]\\nputs $f \\\"line one\\\"\\nputs $f \\\"line two\\\"\\nclose $f\\n\\"
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2220,
+      "text": "         set r [open /tmp/zz_tcltest_chan_test.txt r]\\nset a [gets $r]\\nset b [gets $r]\\nclose $r\\n\\"
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2221,
+      "text": "         file delete /tmp/zz_tcltest_chan_test.txt\\nputs \\\"$a|$b\\\"\\n\","
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2245,
+      "text": "    const SETUP: &str = \"set d /tmp/zz_tcltest_glob\\n\\"
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2274,
+      "text": "        \"/tmp/zz_tcltest_glob/sub\""
+    },
+    {
+      "path": "rust/tcl-vm/tests/builtins_e2e.rs",
+      "line": 2290,
+      "text": "    const SETUP: &str = \"set p /tmp/zz_tcltest_seek_test.txt\\n\\"
+    }
+  ],
+  "classification": "pattern candidates only; no automatic deletion or functional change"
+}

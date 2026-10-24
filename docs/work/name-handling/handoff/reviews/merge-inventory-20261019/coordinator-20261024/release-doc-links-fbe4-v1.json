@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-24T21:32:10.455581+00:00",
+  "source": "fbe4da3913f437827e9f2e51a953b244402ee2fc",
+  "changed_markdown_files": 278,
+  "relative_links_checked": 1662,
+  "missing_targets": [],
+  "limitations": "inline local-path existence only; fenced code excluded; reference links/anchors and line locations after omitted fences require full review"
+}
