@@ -36,7 +36,7 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 BASE = Path(__file__).resolve().parent
-ROSTER_SHA = "af6acf63bf5a0a75c6c2678901698763f116276036f945832f22e86bd765456c"
+ROSTER_SHA = "b145c3e600fe40c6e3e394f3185f559f377af58dac0b2fa52426f4afe237c9a6"
 
 
 def require(value, message):
@@ -254,6 +254,12 @@ try:
         [str(tools["rustc"]), "-vV"], text=True
     )
     env = os.environ.copy()
+    require(
+        env.get("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC")
+        in [None, "", "first-decline-v1"],
+        "foreign native diagnostic flag",
+    )
+    env["TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC"] = "first-decline-v1"
     for name in [
         "RUSTC_WRAPPER",
         "RUSTC_WORKSPACE_WRAPPER",
@@ -355,6 +361,7 @@ try:
                     "RUSTFLAGS",
                     "TCL_TOMMATH_DIR",
                     "TCL_REQUIRE_WASM_LINK",
+                    "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC",
                     "WASI_SDK_PATH",
                     "TCL_WASM_CC",
                     "TCL_WASM_AR",

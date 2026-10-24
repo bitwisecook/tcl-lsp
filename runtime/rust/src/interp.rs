@@ -1851,6 +1851,16 @@ const RECURSION_LIMIT: usize = 1000;
 /// native-safety reasons independent of the user-configurable budget.
 const NATIVE_EVAL_DEPTH_LIMIT: RecursionLimit = RecursionLimit(128);
 
+#[cfg(debug_assertions)]
+fn trace_native_depth_refusal(phase: &str, eval: u32, dispatch: u32) {
+    if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1") {
+        eprintln!(
+            "CCG_NATIVE_DEPTH_REFUSAL phase={phase} eval={eval} dispatch={dispatch} limit={}",
+            NATIVE_EVAL_DEPTH_LIMIT.0
+        );
+    }
+}
+
 /// Build a Tcl dict (flat key/value list) object from `pairs`, releasing the
 /// builder's references once the list has taken its own.
 fn dict_obj(interp: &Interp, pairs: &[(&[u8], Vec<u8>)]) -> *mut TclObj {
@@ -6275,6 +6285,12 @@ impl Interp {
             return false;
         }
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
+            #[cfg(debug_assertions)]
+            trace_native_depth_refusal(
+                "codegen-activation",
+                self.eval_depth.get(),
+                self.native_dispatch_depth.get(),
+            );
             self.error(b"too many nested evaluations (infinite loop?)");
             return false;
         }
@@ -14178,6 +14194,12 @@ impl Interp {
         let next_proc_body = self.next_proc_body.replace(false);
         let top_level_file = self.next_top_level_file.replace(false) && owned.is_some();
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
+            #[cfg(debug_assertions)]
+            trace_native_depth_refusal(
+                "script-body",
+                self.eval_depth.get(),
+                self.native_dispatch_depth.get(),
+            );
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
         if self.eval_depth.get() == 0 {
@@ -15474,6 +15496,8 @@ impl Interp {
             // entry before lookup/rewrite effects, using the existing native-stack
             // budget independently of the body evaluator's depth.
             if NATIVE_EVAL_DEPTH_LIMIT.exceeded(depth) {
+                #[cfg(debug_assertions)]
+                trace_native_depth_refusal("command-dispatch", self.eval_depth.get(), previous);
                 return self.error(b"too many nested evaluations (infinite loop?)");
             }
             if ordinary {

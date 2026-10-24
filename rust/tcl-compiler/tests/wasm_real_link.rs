@@ -1474,8 +1474,18 @@ fn run_real_native_proc(
         program,
     );
     std::fs::write(&boot, native_dispatch_bootstrap_wat(query, minimum)).expect("write bootstrap");
+    let depth_diagnostic =
+        std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1");
     let out = Command::new("wasmtime")
         .arg("run")
+        .args(if depth_diagnostic {
+            &[
+                "--env",
+                "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC=first-decline-v1",
+            ][..]
+        } else {
+            &[][..]
+        })
         .arg("--preload")
         .arg(format!("tcl={}", runtime.display()))
         .arg("--preload")
@@ -1485,6 +1495,9 @@ fn run_real_native_proc(
         .expect("run wasmtime");
     let _ = std::fs::remove_file(&user);
     let _ = std::fs::remove_file(&boot);
+    if out.status.success() && depth_diagnostic {
+        report_native_depth_refusals(tag, &out.stderr);
+    }
     assert!(
         out.status.success(),
         "the native proc link trapped for {program:?} (fewer than {minimum} \
@@ -2024,4 +2037,27 @@ fn general_original_definition_preserves_a_materialised_name_word() {
         ),
         "ORIGINAL {}",
     );
+}
+
+fn report_native_depth_refusals(tag: &str, stderr: &[u8]) {
+    let mut retained = 0;
+    for line in stderr.split(|byte| *byte == b'\n') {
+        if !line.starts_with(b"CCG_NATIVE_DEPTH_REFUSAL ") {
+            continue;
+        }
+        if line.len() > 512 {
+            eprintln!("CCG_NATIVE_DEPTH_EVIDENCE_REFUSED tag={tag} reason=marker-line-cap");
+            return;
+        }
+        let record = format!(
+            "CCG_NATIVE_DEPTH_GUEST tag={tag} {}",
+            String::from_utf8_lossy(line)
+        );
+        if retained + record.len() + 1 > 4096 {
+            eprintln!("CCG_NATIVE_DEPTH_EVIDENCE_REFUSED tag={tag} reason=marker-aggregate-cap");
+            return;
+        }
+        retained += record.len() + 1;
+        eprintln!("{record}");
+    }
 }
