@@ -36,3 +36,23 @@ successors; statement custody is a separate check at this diagnostic boundary.
 No source or execution owner is minted. Original assertions/selectors
 are unchanged. Runtime correctness and corpus
 performance still require the full gates.
+
+
+## Independent Document grammar and authored naming
+
+An explicitly Standalone original source point may retain a versioned authored
+naming abstraction while the caller independently selected its Document lexer
+grammar. The default fixture constructor, for example, uses Tcl 9 document
+escapes with a Tcl 8.6 registry. Source metadata must form its complete original
+head through `SignatureSourceNameKey::from_original_logical_source_word`, which
+retains the original Document grammar and authored naming purpose separately.
+It must not require that word to satisfy a Native string recipe.
+
+This applies only to the existing explicit Standalone tag with AuthoredSimulation
+naming and a Document source channel. Present Native, Logical, vendor or hosted
+input and unknown entry remain excluded. Other purposes keep the original Native
+word constructor and all its grammar checks. Full original source/vector/config,
+registry, namespace and candidate guards remain in their existing callers;
+formation failure remains terminal. No source entry, naming policy, grammar,
+physical frame/cell, Normal completion, compiler operation or publication is
+created or changed. The resulting layout is conditional source metadata only.
