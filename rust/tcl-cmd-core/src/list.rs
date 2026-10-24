@@ -919,7 +919,7 @@ mod tests {
         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
             Ok(())
         }
-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
             Ok(())
         }
         fn retain_index_failure(&mut self, _error: &crate::CmdError) {
@@ -1078,7 +1078,9 @@ mod c86_split_plan_tests {
     fn hex(value: &str) -> Vec<u8> {
         value
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }

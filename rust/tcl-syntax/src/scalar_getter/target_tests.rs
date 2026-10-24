@@ -586,7 +586,7 @@ fn primitive_failure_string_obligation_refuses_operand_free_rendering_for_quoted
 }
 
 fn original_c84_boolean_case(
-    protocol: &NativeScalarGetterProtocol,
+    protocol: NativeScalarGetterProtocol,
     original_strings: &[&[u8]; 20],
     case: usize,
 ) -> (Vec<u8>, Option<NativeScalarCache>) {
@@ -667,7 +667,7 @@ fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_d
     for fixture in [C_LIVE[0], C_NULL[0]] {
         let target = target(fixture);
         for case in 0..29 {
-            let (bytes, cache) = original_c84_boolean_case(&protocol, &original_strings, case);
+            let (bytes, cache) = original_c84_boolean_case(protocol, &original_strings, case);
             let actual = cache
                 .as_ref()
                 .and_then(|cache| {

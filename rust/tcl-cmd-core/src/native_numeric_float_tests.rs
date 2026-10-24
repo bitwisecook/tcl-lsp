@@ -313,43 +313,12 @@ fn c84_fresh_range_failures_precede_trailing_spelling_checks() {
     assert_eq!(environment.state().unwrap().errno, 0);
 }
 
-#[test]
-fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and_errno() {
-    // naming.numeric.original-capi-scalar-publication-width
-    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
-    // Actual host conversion effects, separately from expression truth and
-    // original object/handler admission. The pure value/cache recipe is joined
-    // only after the reached native signed-long/double stages.
-    let fixtures = [
-        include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
-        ),
-        include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
-        ),
-    ];
-    let inputs: [&[u8]; 20] = [
-        b"",
-        b"17",
-        b"2147483648",
-        b"4294967295",
-        b"4294967296",
-        b"-4294967295",
-        b"-2147483649",
-        b"9223372036854775807",
-        b"9223372036854775808",
-        b"18446744073709551615",
-        b"18446744073709551616",
-        b"-18446744073709551615",
-        b"-9223372036854775809",
-        b"08",
-        b"0o10",
-        b"true",
-        b"bad",
-        b"NaN",
-        b"1.0",
-        b"1\0X",
-    ];
+fn assert_c84_fresh_boolean_fixture_rows(
+    fixtures: [&str; 2],
+    inputs: &[&[u8]; 20],
+    protocol: NativeScalarGetterProtocol,
+    environment: &tcl_host_c_abi::NativeNumericEnvironment,
+) -> usize {
     let field = |line: &str, key: &str| -> String {
         line.split('\t')
             .find_map(|part| {
@@ -358,8 +327,6 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
             })
             .unwrap()
     };
-    let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
-    let environment = tcl_host_c_abi::NativeNumericEnvironment;
     let mut count = 0;
     for fixture in fixtures {
         let abi = fixture
@@ -398,7 +365,7 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
                 protocol,
                 NativeScalarGetterKind::Boolean,
                 &bytes,
-                &environment,
+                environment,
             )
             .unwrap();
             assert_eq!(
@@ -429,6 +396,49 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
             count += 1;
         }
     }
+    count
+}
+
+#[test]
+fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and_errno() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Actual host conversion effects, separately from expression truth and
+    // original object/handler admission. The pure value/cache recipe is joined
+    // only after the reached native signed-long/double stages.
+    let fixtures = [
+        include_str!(
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        ),
+        include_str!(
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+        ),
+    ];
+    let inputs: [&[u8]; 20] = [
+        b"",
+        b"17",
+        b"2147483648",
+        b"4294967295",
+        b"4294967296",
+        b"-4294967295",
+        b"-2147483649",
+        b"9223372036854775807",
+        b"9223372036854775808",
+        b"18446744073709551615",
+        b"18446744073709551616",
+        b"-18446744073709551615",
+        b"-9223372036854775809",
+        b"08",
+        b"0o10",
+        b"true",
+        b"bad",
+        b"NaN",
+        b"1.0",
+        b"1\0X",
+    ];
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+    let environment = tcl_host_c_abi::NativeNumericEnvironment;
+    let count = assert_c84_fresh_boolean_fixture_rows(fixtures, &inputs, protocol, &environment);
     assert_eq!(count, 44);
 }
 
