@@ -3979,7 +3979,7 @@ mod tests {
         fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
             Ok(())
         }
-        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+        fn check_index_operation(&mut self, (): &()) -> Result<(), crate::CmdError> {
             Ok(())
         }
         fn retain_index_failure(&mut self, _error: &crate::CmdError) {

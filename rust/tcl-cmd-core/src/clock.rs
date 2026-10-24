@@ -1844,15 +1844,15 @@ mod c86_calendar_tests {
             if !row.starts_with("ROW ") { continue; }
             let words = tcl_syntax::list::split_native_list_bytes(row.as_bytes(), protocol).unwrap();
             if words[3].as_ref() != b"0" || words[1].as_ref() == b"empty-tzdata" { continue; }
-            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(|word| word.into_owned()).collect::<Vec<_>>();
-            let value = |key: &[u8]| expected.chunks_exact(2).find(|pair| pair[0] == key).unwrap()[1].clone();
+            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(std::borrow::Cow::into_owned).collect::<Vec<_>>();
+            let value = |key: &[u8]| expected.as_chunks::<2>().0.iter().find(|pair| pair[0] == key).unwrap()[1].clone();
             let integer = |key: &[u8]| std::str::from_utf8(&value(key)).unwrap().parse::<i64>().unwrap();
             let changeover = match words[1].as_ref() {
                 b"julian-calendar" => i32::MAX,
                 b"gregorian-forced" => 0,
-                b"changeover-before" | b"changeover-at" => 2299161,
+                b"changeover-before" | b"changeover-at" => 2_299_161,
                 b"changeover-unsigned" => -1,
-                _ => 2361222,
+                _ => 2_361_222,
             };
             let fields = c86_calendar_fields(integer(b"seconds"), i32::try_from(integer(b"tzOffset")).unwrap(), changeover).unwrap();
             let actual = C86_DATE_FIELD_KEYS.into_iter().zip(c86_date_values(&fields,&value(b"tzName"),&literals))
@@ -1864,7 +1864,7 @@ mod c86_calendar_tests {
                     };
                     [key.to_vec(), bytes]
                 }).collect::<Vec<_>>();
-            assert_eq!(actual, expected, "{}", row);
+            assert_eq!(actual, expected, "{row}");
             compared += 1;
         }
         assert_eq!(compared, 16);
@@ -1874,7 +1874,7 @@ mod c86_calendar_tests {
     fn unmeasured_native_calendar_overflow_refuses() {
         for (seconds, offset) in [(i64::MAX, 1), (i64::MAX, 0)] {
             assert!(matches!(
-                c86_calendar_fields(seconds, offset, 2361222),
+                c86_calendar_fields(seconds, offset, 2_361_222),
                 Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(_))
             ));
         }
