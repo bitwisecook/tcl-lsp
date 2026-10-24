@@ -1,0 +1,73 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T01:56:42.307314+00:00",
+  "scheduled_report_utc": "2026-10-24T01:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T02:25:37+00:00",
+  "change_since_previous_report": [
+    "Pushed reviewed WORK42c09a92614a345408ca87522f3a1cde600b6cfb and clean a3ad9e66564c506ee40b3b13fd28ca1fad3eaeb6 afterfreshdepth1fetch/rebase preservingexternal935727b95; noPR/merge/tag/publish. Added exactCore17equivalentassertions, threeprotocolresponsehelpers, Jimparent-wordowner andWORK-only15stageobserver afterindependentpeers.",
+    "GenuineNativefreshsourceissuerV4 and losslesscompilertransport were alreadyreviewed/pushed inpreviouscycle; sourcepinsremainvalid. FreshSpec/completecompiler58/Jim/strict/startup actualrerunsare beingprepared; no newresult inferredfromsourceintegration.",
+    "Latestexecuted182resultspreserved: DBstrictPASS/Core17FAIL/Server41lengthFAIL withno largefuturefindings; startupcold66msPASS thenoriginal30sscanFAIL, Context2assertPASS/tworound0settled/zeroWaitandCancelledthisrun. Controlledwaittestremainsunexecuted. Jim5P2F withconflicteliminated butDerivedoriginalvectorgeometryfailure; newparent-wordfixUNRUN. WASM25=18P7F/fullseals/zeroNativebodyowners.",
+    "WASMproducerdesign mustvalidatefutureWASMruntime actualselectedbuiltinDefinition identity usingguarddomains, thenattachcompiledentryorcalltheexactselectednormalhandler. No capturedVMtoken/native-to-Logicalledgerwidening or duplicateheadlookup/getter/callback effects. Registry/ABI/runtimeguardproposalofftree; no newpolicyorassertionwaiver.",
+    "Runtimeother103V2 protocolindependentpeer81895a7a; V3composesexactreadonlyELFframehelperbuthelperreviewfoundunmatched/unparsedCFIcoveragecouldbeuncounted. Requestedminimalunknown/incomplete successor/negativecontrols; no actualframecauseorstackfixclaim. Original3stdoutandseparatestderr/supplementcapsremainexplicitinheritedlimitation, notglobalworstcasecap.",
+    "Runtimeprepares separatelyreviewedactualC84fixtureprerequisite forpositiveformattertests, preservingTcl9/TomMath andstrictknownarchivepair. SeparateprivateRcimmutableRuntimeContextcandidate isauthorizedofftree withfreshrootcapture/fullvalueEq/nativeownershipguards; no optimizationaccepted ormeasuredspeedclaim yet.",
+    "Allrequiredreleasegatesstillopen: main24312baselinecomparisonUNKNOWN, separateruntime998=602retained14P2F382UNKNOWN; latestf39runtimeoriginal3=2P1F,14FAIL,stackSIGABRT. Tclfullcorpus/perfacceptanceabsent; no6file/realmproofaccepted. DedicatediRulesperfonlywaived; heavy34correctnessfailuresretained.",
+    "Previous01:25snapshotpublishedlateat01:43afterintegrityverification; helperfinal_sha256schemafixdoesnotchangefrozen/sourcebytes. Thiscyclekeepsfixed01:55schedule/next02:25. Allactive-roletrackerfreshnesschecked; BIGIPoldtimestampstillstale/no takeover, externalperffresh, reviewtriageownercomplete. Diskbelow2GiB/no localbuild/target/youngexedelete."
+  ],
+  "committed": [
+    "7a0a7a9d793a5acec3ac2ba53d12962590b9d0cc"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish01:55snapshot/report and rearm02:25reminder.",
+    "DispatchreviewedclosedSpec/compiler/Jim/Clippy/startupmodesat exactpushedsource; preserveordinaryCI.",
+    "FinishRuntime103/framehelper/C84providerandgenuineguardedNativeDefinition; fixallremainingactualcompiler/Jim/Spec/runtime/host/editorfailures.",
+    "Completeallshipping/sectionF/format/lint/generated/baseline/perfgates beforeauthorizedPR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 01:47 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new semanticruntime result since182; reviewedsourcechanges do not close sectionF/fullgreen/baseline/perf. Newfocusedruns remainrequired.",
+  "disk_free_bytes": 1767927808,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
