@@ -331,7 +331,10 @@ fn cursor_on_the_stanza_line_does_yield_an_action() {
 /// Empty source → no actions, no panic.
 #[test]
 fn empty_source_yields_no_actions() {
-    assert!(bigip_code_actions("", range_at(0), URI, None).is_empty());
+    assert_eq!(
+        bigip_code_actions("", range_at(0), URI, None),
+        Vec::<CodeAction>::new()
+    );
 }
 
 /// An out-of-range cursor line (past the end of the document) yields no
