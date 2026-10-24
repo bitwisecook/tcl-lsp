@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 01:35 UTC
+Last updated: 2026-10-24 01:47 UTC
 
 **Current837 full report/PackSet proof COMPLETE/PASS; six-file perf code
 remains unlanded pending compiler/client/lint comparisons.** All22 report/realm
@@ -14,9 +14,12 @@ Fresh switched and clean6 lexer586/586 BOTH pass0warnings. Current SpecTcl
 28eval_loader+3golden_packs BOTH PASS0warnings, exactsource/ELFsremoved.
 Current full compiler nondeep comparison COMPLETE:232/232 actual outcomes
 BOTH, identical143pass/89fail, zero P2F,684.068/626.219s, peak~399MiB. All
-failed assertions retained. Unchanged1000-depth now runs alone new then old;
-clean6 filters and final quiet180s server repeat/Clippy are pending. No complete
-compiler acceptance or source perf commit yet.
+failed assertions retained. Unchanged1000-depth OOM BOTH ALONE:437.385/
+449.877s, peak16134540/16037596KiB;0of1 Rust outcomes BOTH, exit-9. Strict
+complete-inventory assertion fails; no passing/failed Rust result fabricated.
+Full driver finished/private ELF removed. Clean6 nondeep runtime is ACTIVE;
+final quiet180s server repeat/Clippy remain pending. No complete compiler
+acceptance or six-file source perf commit yet. See compiler-resource-routing.md.
 
 Current opt1 wall timings (ms; report capture included, pair comparison excluded):
 

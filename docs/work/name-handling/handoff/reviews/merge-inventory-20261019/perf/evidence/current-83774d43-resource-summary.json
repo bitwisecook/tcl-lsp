@@ -1,0 +1,64 @@
+{
+  "recorded_utc": "2026-10-24 01:47 UTC",
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "compiler_runs": [
+    {
+      "suite": "nondeep",
+      "mode": "new",
+      "exit": 101,
+      "wall_s": 684.0680763540004,
+      "peak_rss_kib": 408412,
+      "declared": 232,
+      "completed": 232,
+      "missing": []
+    },
+    {
+      "suite": "nondeep",
+      "mode": "old",
+      "exit": 101,
+      "wall_s": 626.2185316459945,
+      "peak_rss_kib": 408764,
+      "declared": 232,
+      "completed": 232,
+      "missing": []
+    },
+    {
+      "suite": "deep",
+      "mode": "new",
+      "exit": -9,
+      "wall_s": 437.3850621120073,
+      "peak_rss_kib": 16134540,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ]
+    },
+    {
+      "suite": "deep",
+      "mode": "old",
+      "exit": -9,
+      "wall_s": 449.87700581799436,
+      "peak_rss_kib": 16037596,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ]
+    }
+  ],
+  "observed_pass_to_fail": [],
+  "strict_inventory_complete": false,
+  "private_elf_removed": true,
+  "memory_events_observed": {
+    "before": {
+      "oom": 9,
+      "oom_kill": 8
+    },
+    "after_full": {
+      "oom": 11,
+      "oom_kill": 10
+    }
+  },
+  "scope": "Complete232 nondeep outcomes identical; unchanged depth1000 OOM BOTH alone, not completed Rust outcomes; clean6 pending."
+}

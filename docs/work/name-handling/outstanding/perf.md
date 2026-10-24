@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 01:35 UTC
+Last updated: 2026-10-24 01:47 UTC
 
 ## Resume
 
@@ -13,7 +13,7 @@ Preserve every failed/incomplete result; no assertion or budget weakening.**
 Active FROZEN proof source:83774d43464c7d177bcd505ef22fe898ffee9a25.
 - /workspace/tcl-lsp-diagnostic: full8 batch + temporary switch (9 Rust files).
 - /workspace/tcl-lsp-owned: exactly six owned files, no switch/no routed2.
-- /workspace/tcl-lsp-publish: publisher, latest own push211f7020 at01:10UTC; current checkpoint follows.
+- /workspace/tcl-lsp-publish: publisher, latest own pushf772e7aa at01:35UTC; current checkpoint follows.
 - /workspace/tcl-lsp-work writes evidence but has old product source; never
   compile new probes there. /workspace/tcl-lsp-perf-latest is retired b6 evidence.
 Keep both active sources unchanged until every active child has finished and
@@ -39,7 +39,10 @@ Current execution:
   native0xff+extra ReadFlow NONDEEP COMPLETE:232/232 actual outcomes BOTH,
   identical143pass/89fail, zero P2F;684.068/626.219s, peak408412/408764KiB.
   All failed assertions retained; no whole compiler green claim. Unchanged
-  depth1000 now running ALONE new mode, then old; no current deep result yet. Raw corpus/final.json
+  depth1000 OOM BOTH ALONE:437.385/449.877s, peaks16134540/16037596KiB,
+  exit-9/0of1 outcomes BOTH. Strict inventory assertion FAILS; no fabricated
+  Rust result. Full driver finished, private ELF removed. Observed P2F0 but
+  complete compiler gate remains blocked; see compiler-resource-routing.md. Raw corpus/final.json
   and current-83774d43-complete-report-summary.json pin complete coverage.
 
 - Full switched lexer586/586 PASS BOTH,3.194/2.353s,0warnings/ELF removed;
@@ -48,7 +51,7 @@ Current execution:
   evidence current-83774d43-clean6-workflow-api22/. Lexer586/586 BOTH PASS,
   2.716/2.197s,0warnings/removed. Old ENV is ignored. Compiler0 build FINISHED
   0warnings in1454.055s; SHA-checked private ELF retained, hash
-  eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23. It waits full driver cleanup before runtime.
+  eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23. Its nondeep runtime is NOW ACTIVE after full driver cleanup.
 - Fresh SpecTcl COMPLETE/PASS at SAME837 source: eval_loader28/28 BOTH
   319.619/257.425s; golden_packs3/3 BOTH314.814/308.789s. All4 suite outcomes
   pass,0warnings, exact source/hash unchanged, both executables deleted.
@@ -57,8 +60,8 @@ Current execution:
   original assertions/threads/budgets. After its actual cleanup, full driver
   runs original compiler8 filters +native0xff control +extra ReadFlow test BOTH,
   with unchanged1000-depth case ALONE BOTH. Current full nondeep232 outcomes
-  are complete/identical143pass89fail BOTH; deep remains active. Missing
-  inventory remains FAILED.
+  are complete/identical143pass89fail BOTH; deep OOM BOTH alone, full driver
+  finished/private ELF removed. Missing inventory remains FAILED.
 - Clean6 then runs original8 filters +extra ReadFlow BOTH, unchanged1000-depth
   case ALONE BOTH. No runtime is paused, skipped or relabelled a pass.
 - Final SAME-source server helper waits both compiler drivers' cleanup, then
@@ -74,8 +77,8 @@ the earlier directories without-api22 are FAILED/superseded evidence. Original
 idle clean6 waiter was restarted BEFORE any build/test to use cargo-j1, so its
 normal/unit rustc do not overlap. Resource guard temporarily let its compiler
 use idle CPUs0,1 during full normal1 build; it is now restored to2,3. Fresh
-SpecTcl uses0,1; corpus/builds2,3. Quota4CPU/16GiB, memory.events last oom9 /
-oom_kill8, no new OOMs or ENOSPC. Environment/terminal reconnections preserved
+SpecTcl uses0,1; corpus/builds2,3. Quota4CPU/16GiB, memory.events now oom11 /
+oom_kill10 after the two current isolated depth1000 OOMs; no ENOSPC. Environment/terminal reconnections preserved
 all build PIDs. Always source /tmp/perf-env.sh and agent-build-env.sh; Tcl9.0.4,
 8.6.18/Jim0.84 pinned via tmp links; debug/overflow assertions enabled.
 
@@ -140,7 +143,7 @@ perf-NOTES.md with final current before/after timings remains required before
 stopping. No PR/force; footer Co-Authored-By: Codex <noreply@openai.com>.
 
 Publish own evidence/NOTES/outstanding at most30min apart, Last updated from
-date-u. Own checkpoint in this update at2026-10-24 01:35 UTC; next push within30min. Fetch origin
+date-u. Own checkpoint in this update at2026-10-24 01:47 UTC; next push within30min. Fetch origin
 work and rebase before every normal push, retry rejection, never force.
 
 ## Completed evidence and current failures

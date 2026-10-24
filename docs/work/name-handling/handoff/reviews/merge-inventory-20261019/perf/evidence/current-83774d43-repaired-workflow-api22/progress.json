@@ -526,6 +526,34 @@
         "var_escape::interprocedural::tests::unbounded_callee_marks_caller_pessimistic": "ok",
         "interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write": "FAILED"
       }
+    },
+    {
+      "suite": "deep",
+      "mode": "new",
+      "exit": -9,
+      "wall_s": 437.3850621120073,
+      "peak_rss_kib": 16134540,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ],
+      "outcomes": {}
+    },
+    {
+      "suite": "deep",
+      "mode": "old",
+      "exit": -9,
+      "wall_s": 449.87700581799436,
+      "peak_rss_kib": 16037596,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ],
+      "outcomes": {}
     }
-  ]
+  ],
+  "pass_to_fail": [],
+  "compiler_inventory_complete": false
 }
