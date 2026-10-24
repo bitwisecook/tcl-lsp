@@ -501,7 +501,37 @@
         "var_escape::interprocedural::tests::unbounded_callee_marks_caller_pessimistic": "ok",
         "interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write": "FAILED"
       }
+    },
+    {
+      "stage": "compiler",
+      "suite": "deep",
+      "mode": "new",
+      "exit": -9,
+      "wall_s": 440.23454535500787,
+      "peak_rss_kib": 16320104,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ],
+      "outcomes": {}
+    },
+    {
+      "stage": "compiler",
+      "suite": "deep",
+      "mode": "old",
+      "exit": -9,
+      "wall_s": 371.86149826599285,
+      "peak_rss_kib": 16298828,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ],
+      "outcomes": {}
     }
   ],
-  "unit_sha256": "eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23"
+  "unit_sha256": "eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23",
+  "pass_to_fail": [],
+  "compiler_inventory_complete": false
 }

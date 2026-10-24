@@ -1,6 +1,6 @@
 # Compiler filter and resource comparison
 
-Last updated: 2026-10-24 02:08 UTC
+Last updated: 2026-10-24 02:22 UTC
 
 Status: **Blocked/routed to compiler/compiler-names for the resource gate**.
 Perf source is frozen83774d43464c7d177bcd505ef22fe898ffee9a25 plus full8 batch
@@ -34,7 +34,13 @@ actual named outcome in BOTH clean6 runs matches the real switched OLD baseline;
 full-only native0xff control is the extra232nd test. Zero observed P2F. Old ENV
 is ignored in clean6, so this explicit cross-build comparison is required:
 evidence/current-83774d43-clean6-workflow-api22/nondeep-cross-baseline-comparison.json.
-Unchanged depth1000 now runs alone new then old; that strict gate is pending.
+Unchanged depth1000 completes its attempts ALONE BOTH:440.235/371.861s,
+peaks16320104/16298828KiB, exit-9/0of1 Rust outcomes each. The strict
+clean6 complete-inventory assertion FAILS; original/private ELF removed and
+source seal unchanged. Across all4 full/clean6 isolated attempts, cgroup
+OOM counters move9->13/8->12. Complete receipts: current-83774d43-resource-summary.json.
+This is a genuine resource block on complete compiler proof, retained alongside
+zero observed P2F on every actual baseline-positive result.
 
 The empty-checked-regions draft avoids a clone only after existing complete
 empty coverage. It remains uncompiled/unproven/Blocked to the owner and is

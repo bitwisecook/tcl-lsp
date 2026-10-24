@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 02:08 UTC
+Last updated: 2026-10-24 02:22 UTC
 
 ## Resume
 
@@ -13,7 +13,7 @@ Preserve every failed/incomplete result; no assertion or budget weakening.**
 Active FROZEN proof source:83774d43464c7d177bcd505ef22fe898ffee9a25.
 - /workspace/tcl-lsp-diagnostic: full8 batch + temporary switch (9 Rust files).
 - /workspace/tcl-lsp-owned: exactly six owned files, no switch/no routed2.
-- /workspace/tcl-lsp-publish: publisher, latest prior own push54b293f8 at02:01UTC; current checkpoint follows.
+- /workspace/tcl-lsp-publish: publisher, latest prior own push759fdb71 at02:08UTC; current checkpoint follows.
 - /workspace/tcl-lsp-work writes evidence but has old product source; never
   compile new probes there. /workspace/tcl-lsp-perf-latest is retired b6 evidence.
 Keep both active sources unchanged until every active child has finished and
@@ -56,8 +56,10 @@ Current execution:
   switched OLD baseline; extra full232nd case is native0xff passing control.
   This is not an inference from ignored ENV. Final cross-baseline receipt:
   nondeep-cross-baseline-comparison.json. Unchanged depth1000 is now active
-  ALONE new mode, then old. Full strict inventory remains pending/blocked,
-  not an asserted pass. All4CPUs released after full/Spec cleanup, original
+  ALONE BOTH COMPLETE/OOM:440.235/371.861s, peaks16320104/16298828KiB,
+  exit-9/0of1 Rust outcomes each. Strict inventory assertion FAILS. Driver
+  finished/source exact/original and private ELF deleted. No green gate
+  inferred; every actual baseline-positive nondeep result is retained. All4CPUs released after full/Spec cleanup, original
   testthreads2/inputs/assertions/budgets unchanged; quiet-cpu-release.json.
 
 - Fresh SpecTcl COMPLETE/PASS at SAME837 source: eval_loader28/28 BOTH
@@ -72,7 +74,7 @@ Current execution:
   finished/private ELF removed. Missing inventory remains FAILED.
 - Clean6 then runs original8 filters +extra ReadFlow BOTH, unchanged1000-depth
   case ALONE BOTH. No runtime is paused, skipped or relabelled a pass.
-- Final SAME-source server helper waits both compiler drivers' cleanup, then
+- Final SAME-source server helper has verified both compiler drivers' cleanup and now
   repeats original2 cases/BOTH at180s on all4CPUs after other resource work.
   This quiet repeat addresses the unresolved absolute timeout; first current
   comparison is retained below. Finally /tmp/perf-837-clippy-after-clients.py
@@ -85,8 +87,8 @@ the earlier directories without-api22 are FAILED/superseded evidence. Original
 idle clean6 waiter was restarted BEFORE any build/test to use cargo-j1, so its
 normal/unit rustc do not overlap. Resource guard temporarily let its compiler
 use idle CPUs0,1 during full normal1 build; it is now restored to2,3. Fresh
-SpecTcl uses0,1; corpus/builds2,3. Quota4CPU/16GiB, memory.events now oom11 /
-oom_kill10 after the two current isolated depth1000 OOMs; no ENOSPC. Environment/terminal reconnections preserved
+SpecTcl uses0,1; corpus/builds2,3. Quota4CPU/16GiB, memory.events now oom13 /
+oom_kill12 after all four current isolated depth1000 OOMs; no ENOSPC. Environment/terminal reconnections preserved
 all build PIDs. Always source /tmp/perf-env.sh and agent-build-env.sh; Tcl9.0.4,
 8.6.18/Jim0.84 pinned via tmp links; debug/overflow assertions enabled.
 
@@ -151,7 +153,7 @@ perf-NOTES.md with final current before/after timings remains required before
 stopping. No PR/force; footer Co-Authored-By: Codex <noreply@openai.com>.
 
 Publish own evidence/NOTES/outstanding at most30min apart, Last updated from
-date-u. Own checkpoint in this update at2026-10-24 02:08 UTC; next push within30min. Fetch origin
+date-u. Own checkpoint in this update at2026-10-24 02:22 UTC; next push within30min. Fetch origin
 work and rebase before every normal push, retry rejection, never force.
 
 ## Completed evidence and current failures
@@ -247,3 +249,8 @@ the original6311/11869/2645ms too; variable timings do not support a universal
 speedup claim.0warnings/source exact/probe source+ELFs removed. Evidence
 current-83774d43-procs-timing-repeat/. Original origin probes are removed; exact
 sources/hashes preserved in origin-temporary-probe-cleanup/. No live job touched.
+
+Final server quiet repeat is BUILDING on frozen837 full9, all4CPUs and no
+other builds/tests. Both compiler masters finished/cleaned. Only after its
+original2cases/BOTH180s and cleanup, final scoped fmt/alltarget Clippy runs.
+No six-file source commit or two-file readiness claim yet.

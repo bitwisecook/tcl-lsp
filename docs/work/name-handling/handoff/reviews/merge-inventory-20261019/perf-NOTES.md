@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 02:08 UTC
+Last updated: 2026-10-24 02:22 UTC
 
 **Current837 full report/PackSet proof COMPLETE/PASS; six-file perf code
 remains unlanded pending compiler/client/lint comparisons.** All22 report/realm
@@ -20,10 +20,13 @@ complete-inventory assertion fails; no passing/failed Rust result fabricated.
 Full driver finished/private ELF removed. Clean6 BOTH nondeep runs COMPLETE:
 231/231 actual outcomes142pass/89fail BOTH,662.793/593.669s; every named result
 in BOTH runs matches the actual switched OLD baseline, zero P2F. Unchanged
-1000-depth now runs alone new then old. Old ENV is ignored in clean6; the real
+1000-depth OOM BOTH ALONE:440.235/371.861s, peaks16320104/16298828KiB;
+0of1 Rust outcomes each. Its strict inventory assertion FAILS; source exact,
+original/private ELF removed. Old ENV is ignored in clean6; the real
 comparison is nondeep-cross-baseline-comparison.json. All4CPUs available
 after full/Spec cleanup, same testthreads2/inputs/assertions/budgets;
-final quiet180s server repeat/Clippy remain pending. No complete compiler
+final quiet180s server binary is BUILDING after all compiler cleanup; Clippy
+follows its original2cases/BOTH and cleanup. No complete compiler
 acceptance or six-file source perf commit yet. See compiler-resource-routing.md.
 
 Current opt1 wall timings (ms; report capture included, pair comparison excluded):

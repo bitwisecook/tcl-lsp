@@ -1,7 +1,7 @@
 {
-  "recorded_utc": "2026-10-24 01:47 UTC",
+  "recorded_utc": "2026-10-24 02:22 UTC",
   "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
-  "compiler_runs": [
+  "full_compiler_runs": [
     {
       "suite": "nondeep",
       "mode": "new",
@@ -47,18 +47,73 @@
       ]
     }
   ],
-  "observed_pass_to_fail": [],
-  "strict_inventory_complete": false,
-  "private_elf_removed": true,
-  "memory_events_observed": {
+  "clean6_compiler_runs": [
+    {
+      "stage": "compiler",
+      "suite": "nondeep",
+      "mode": "new",
+      "exit": 101,
+      "wall_s": 662.7925066919997,
+      "peak_rss_kib": 409624,
+      "declared": 231,
+      "completed": 231,
+      "missing": []
+    },
+    {
+      "stage": "compiler",
+      "suite": "nondeep",
+      "mode": "old",
+      "exit": 101,
+      "wall_s": 593.6689191230107,
+      "peak_rss_kib": 407420,
+      "declared": 231,
+      "completed": 231,
+      "missing": []
+    },
+    {
+      "stage": "compiler",
+      "suite": "deep",
+      "mode": "new",
+      "exit": -9,
+      "wall_s": 440.23454535500787,
+      "peak_rss_kib": 16320104,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ]
+    },
+    {
+      "stage": "compiler",
+      "suite": "deep",
+      "mode": "old",
+      "exit": -9,
+      "wall_s": 371.86149826599285,
+      "peak_rss_kib": 16298828,
+      "declared": 1,
+      "completed": 0,
+      "missing": [
+        "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+      ]
+    }
+  ],
+  "all_observed_pass_to_fail": [],
+  "strict_full_inventory_complete": false,
+  "strict_clean6_inventory_complete": false,
+  "all_four_isolated_depth1000_runs": "OOM exit-9;0of1 Rust outcomes each; originaldepth/64MiBstack/testthreads unchanged",
+  "full_private_elf_removed": true,
+  "clean6_private_elf_removed": true,
+  "clean6_original_executable_removed": true,
+  "clean6_source_unchanged": true,
+  "memory_events": {
     "before": {
       "oom": 9,
       "oom_kill": 8
     },
-    "after_full": {
-      "oom": 11,
-      "oom_kill": 10
+    "after_all_compiler": {
+      "oom": 13,
+      "oom_kill": 12
     }
   },
-  "scope": "Complete232 nondeep outcomes identical; unchanged depth1000 OOM BOTH alone, not completed Rust outcomes; clean6 pending."
+  "scope": "Every full232/clean6231 nondeep outcome matches BOTH modes and real switchedOLD baseline. Strict complete compiler gates FAIL on missing depth1000 outcomes; no fabricated result or accepted gate."
 }
