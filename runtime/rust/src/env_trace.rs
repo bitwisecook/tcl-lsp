@@ -197,6 +197,21 @@ impl Interp {
 }
 
 #[cfg(test)]
+std::thread_local! {
+    static FIRST_ORIGINAL_C_LINK_ERROR: std::cell::Cell<Option<crate::frame::VarError>> =
+        const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn remember_original_c_link_error(error: crate::frame::VarError) {
+    FIRST_ORIGINAL_C_LINK_ERROR.with(|first| {
+        if first.get().is_none() {
+            first.set(Some(error));
+        }
+    });
+}
+
+#[cfg(test)]
 mod tests {
     use std::cell::RefCell;
     use std::collections::BTreeMap;
@@ -335,8 +350,18 @@ mod tests {
     }
 
     fn ok(interp: &mut Interp, script: &str) -> String {
+        super::FIRST_ORIGINAL_C_LINK_ERROR.set(None);
         let code = interp.eval_str(script.as_bytes());
         let result = String::from_utf8_lossy(&interp.result_bytes()).into_owned();
+        if code != Code::Ok
+            && std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+        {
+            eprintln!(
+                "ENV_TRACE_LINK_FAILURE error={:?}",
+                super::FIRST_ORIGINAL_C_LINK_ERROR.get(),
+            );
+        }
         assert_eq!(code, Code::Ok, "{script} -> {result}");
         result
     }

@@ -2519,6 +2519,10 @@ impl Interp {
         if !purpose.leaves_error_message()
             && error != crate::frame::VarError::NameProtocolUnavailable
         {
+            #[cfg(test)]
+            if purpose == NativeVariableNameLookupPurpose::Link {
+                crate::env_trace::remember_original_c_link_error(error);
+            }
             self.traces.borrow_mut().pending_err.take();
             return Some(Code::Error);
         }
