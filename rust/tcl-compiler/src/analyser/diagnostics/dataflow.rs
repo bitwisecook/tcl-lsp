@@ -30,13 +30,27 @@
 //! check (W128).
 
 fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
     }
-    #[cfg(not(test))]
+    #[cfg(not(debug_assertions))]
     let _ = stage;
     value
+}
+
+#[cfg(debug_assertions)]
+fn rbs_trace_read(stage: &str, name: &str, span: tcl_lexer::Span) {
+    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_READ_OWNER stage={stage} name={name} span={span:?}");
+    }
+}
+
+#[cfg(debug_assertions)]
+fn rbs_trace_count(stage: &str, count: usize) {
+    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_READ_OWNER stage={stage} count={count}");
+    }
 }
 
 /// Bounded normal stores with literal values are diagnostic candidates.
@@ -638,6 +652,10 @@ struct W210ChainCtx<'a> {
 
 fn return_undefined_variable_message(name: &str, defined_vars: &HashSet<String>) -> String {
     use std::fmt::Write as _;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_READ_OWNER stage=return_phi_message name={name}");
+    }
     let mut message = format!("Variable '{name}' is read before it is set");
     if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
         let _ = write!(message, "; did you mean '{similar}'?");
@@ -1774,7 +1792,7 @@ is renamed or deleted in this file."
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
     ) -> HashSet<String> {
-        #[cfg(test)]
+        #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_READ_OWNER stage=entry procedure={} dynamic_writes={} body_kind={:?}",
@@ -1789,7 +1807,7 @@ is renamed or deleted in this file."
             fu.source_lexer_config(),
         );
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
-        #[cfg(test)]
+        #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_READ_OWNER stage=physical_missing count={}",
@@ -1833,6 +1851,8 @@ is renamed or deleted in this file."
             });
             suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
             let reported = w210_min.keys().cloned().collect();
+            #[cfg(debug_assertions)]
+            rbs_trace_count("map_dynamic", w210_min.len());
             self.emit_w210_read_spans(w210_min, ctx);
             self.emit_declaration_potential_reads(potential);
             return reported;
@@ -1878,6 +1898,8 @@ is renamed or deleted in this file."
         });
         suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
         let reported = w210_min.keys().cloned().collect();
+        #[cfg(debug_assertions)]
+        rbs_trace_count("map_chain", w210_min.len());
         self.emit_w210_read_spans(w210_min, ctx);
         self.emit_declaration_potential_reads(potential);
         reported
@@ -2040,6 +2062,8 @@ is renamed or deleted in this file."
             let mut potential: Vec<_> = potential.into_iter().collect();
             potential.sort_by_key(|(_, span)| span.start());
             for (name, span) in potential {
+                #[cfg(debug_assertions)]
+                rbs_trace_read("emit_declared_potential", &name, span);
                 self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W210, span,
                     format!("Variable '{name}' may be read before it is set in the declared local frame"),
@@ -2072,7 +2096,7 @@ is renamed or deleted in this file."
         }
         let mut reads = std::collections::HashMap::new();
         for (name, &span) in report.declared_absence_warning_occurrences() {
-            #[cfg(test)]
+            #[cfg(debug_assertions)]
             if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
                 eprintln!(
                     "RBS_READ_OWNER stage=declared_absence_candidate name={name} span={span:?}"
@@ -2364,6 +2388,8 @@ is renamed or deleted in this file."
                         continue;
                     }
                     let span = fu.abs_span(access.source.span);
+                    #[cfg(debug_assertions)]
+                    rbs_trace_read("physical_candidate", &name, span);
                     missing
                         .entry(name)
                         .and_modify(|old: &mut tcl_lexer::Span| {
@@ -2387,6 +2413,8 @@ is renamed or deleted in this file."
         let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
         for (var, span) in entries {
+            #[cfg(debug_assertions)]
+            rbs_trace_read("emit_read_map", &var, span);
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
@@ -2710,6 +2738,8 @@ is renamed or deleted in this file."
             // Anchor at the `$var` read token; fall back to the command
             // span when the read is nested inside a quoted/compound word.
             let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
+            #[cfg(debug_assertions)]
+            rbs_trace_read("chain_candidate", var, read_span);
             w210_min
                 .entry(var.to_owned())
                 .and_modify(|s| {
@@ -3051,6 +3081,8 @@ is renamed or deleted in this file."
                 }
             }
         }
+        #[cfg(debug_assertions)]
+        rbs_trace_count("map_provably_unset", spans.len());
         self.emit_w210_read_spans(spans, ctx);
     }
 

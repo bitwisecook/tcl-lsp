@@ -206,7 +206,8 @@ def run_selected(
             remaining,
             on_budget_refusal=(
                 record_budget_refusal
-                if outcomes_name == "supplemental-outcomes.json"
+                if outcomes_name
+                in ["supplemental-outcomes.json", "diagnostic-static-outcomes.json"]
                 else None
             ),
         )
@@ -234,6 +235,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--full-rosters", action="store_true")
+parser.add_argument("--diagnostic-statics", action="store_true")
 args = parser.parse_args()
 require(re.fullmatch("[0-9a-f]{40}", args.sha), "full exact SHA required")
 require(os.environ.get("GITHUB_SHA") == args.sha, "checkout/workflow SHA mismatch")
@@ -291,6 +293,31 @@ require(
     "exact supplemental full-roster inventory required",
 )
 
+require(
+    not args.diagnostic_statics or args.full_rosters, "static diagnosis follows full45"
+)
+static_selectors = [
+    "a_static_is_a_local_of_the_body_and_no_argument",
+    "every_static_spelling_declares_its_name",
+    "the_edges_of_a_static_list",
+    "the_body_of_a_proc_with_statics_is_walked",
+    "a_static_adds_nothing_to_the_arity",
+]
+require(
+    len(set(static_selectors)) == 5
+    and set(static_selectors).issubset(roster["full_rosters"]["jim_document"]),
+    "exact original static5 required",
+)
+diagnostic_rows = [
+    {
+        "target": "jim_document",
+        "selector": selector,
+        "env": {"TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"},
+        "state": "UNRUN",
+    }
+    for selector in static_selectors
+    if args.diagnostic_statics
+]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -300,6 +327,7 @@ final_errors = []
 status = 2
 save(out / "outcomes.json", rows)
 save(out / "supplemental-outcomes.json", supplemental_rows)
+save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
 try:
     executor = BASE / "runtime-diagnostics-exec.py"
     require(sha(executor) == EXECUTOR_SHA, "reviewed process owner changed")
@@ -399,6 +427,9 @@ try:
     )
     require(
         not env.get("TCL_LSP_TRACE_JIM_SOURCE_OWNER"), "per-selector Jim trace only"
+    )
+    require(
+        not env.get("TCL_LSP_TRACE_RBS_SOURCE_OWNER"), "per-diagnostic RBS trace only"
     )
     jim_root = Path(env["TCL_LSP_JIM_ROOT"]).resolve()
     jim_reference = dict(
@@ -515,6 +546,8 @@ try:
             "original_roster": roster,
             "supplemental_full_rosters_requested": args.full_rosters,
             "supplemental_roster": supplemental_rows,
+            "diagnostic_static_requested": args.diagnostic_statics,
+            "diagnostic_static_roster": diagnostic_rows,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -708,6 +741,21 @@ try:
             "supplemental-outcomes.json",
             target_name + "-supplemental",
         )
+    if diagnostic_rows:
+        artifact = next(item for item in artifacts if item["target"] == "jim_document")
+        run_selected(
+            Path(artifact["path"]),
+            artifact,
+            "jim_document",
+            static_selectors,
+            diagnostic_rows,
+            "diagnostic-static-outcomes.json",
+            "jim_document-static-diagnostic",
+        )
+    require(
+        all(row["state"] in ["PASS", "FAIL"] for row in diagnostic_rows),
+        "static diagnostic inventory incomplete",
+    )
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in supplemental_rows),
         "supplemental full-roster inventory incomplete",
@@ -716,7 +764,13 @@ try:
         len(rows) == 7 and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
-    status = 0 if all(row["state"] == "PASS" for row in rows + supplemental_rows) else 1
+    status = (
+        0
+        if all(
+            row["state"] == "PASS" for row in rows + supplemental_rows + diagnostic_rows
+        )
+        else 1
+    )
 except (
     RuntimeError,
     OSError,
@@ -765,6 +819,7 @@ finally:
         status = 2
     save(out / "outcomes.json", rows)
     save(out / "supplemental-outcomes.json", supplemental_rows)
+    save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
     save(
         out / "final.json",
         {
@@ -778,6 +833,12 @@ finally:
             "remaining_log_bytes": remaining,
             "outcomes": rows,
             "required_original_tests": 7,
+            "diagnostic_static_requested": args.diagnostic_statics,
+            "required_diagnostic_static_tests": len(diagnostic_rows),
+            "diagnostic_static_outcomes": diagnostic_rows,
+            "diagnostic_static_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in diagnostic_rows
+            ),
             "supplemental_full_rosters_requested": args.full_rosters,
             "required_supplemental_tests": len(supplemental_rows),
             "supplemental_outcomes": supplemental_rows,
