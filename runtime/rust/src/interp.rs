@@ -703,6 +703,23 @@ impl Drop for JimInvocationScope {
     }
 }
 
+/// Retain the same original owners while fallible body preparation unwinds
+/// before a synchronous nested evaluation. This selects no additional purpose.
+enum OriginalBodyEvaluation {
+    List,
+    Jim,
+    Compiled(Rc<native_body_artifact::NativeBodyArtifact>),
+    Source(Vec<u8>),
+}
+
+struct PreparedOriginalBodyEvaluation {
+    // Drop the selected artifact/source before the snapshot and original header,
+    // matching the original evaluation function's local-owner order.
+    evaluation: OriginalBodyEvaluation,
+    _snapshot: tcl_syntax::native_object::NativeObjectSnapshot,
+    owner: Option<obj::Owned>,
+}
+
 /// A coroutine's saved execution context: the per-flow interpreter state that
 /// is swapped in while the coroutine runs and swapped back out when it yields
 /// (`cmd_coro` / [`Interp::swap_coro_ctx`]). Shared definitions (namespaces,
@@ -14667,69 +14684,118 @@ impl Interp {
         inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
     ) -> Code {
         *inventory = None;
+        let mut prepared = match self.prepare_original_body_evaluation(purpose, original) {
+            Ok(prepared) => prepared,
+            Err(code) => return code,
+        };
+        match &prepared.evaluation {
+            OriginalBodyEvaluation::List | OriginalBodyEvaluation::Jim => {
+                if !self.codegen_activation_enter() {
+                    return Code::Error;
+                }
+                let code = if matches!(prepared.evaluation, OriginalBodyEvaluation::List) {
+                    self.dispatch_list_obj(
+                        prepared
+                            .owner
+                            .as_ref()
+                            .expect("original body owner")
+                            .as_ptr(),
+                        frame,
+                    )
+                } else {
+                    self.eval_native_jim_script_with_inventory(
+                        prepared.owner.take().expect("original Jim body owner"),
+                        frame,
+                        inventory,
+                    )
+                };
+                self.codegen_activation_leave(code);
+                code
+            }
+            OriginalBodyEvaluation::Compiled(artifact) => {
+                self.execute_original_c_body(artifact, frame)
+            }
+            OriginalBodyEvaluation::Source(bytes) => self.eval_framed(bytes, frame),
+        }
+    }
+
+    /// Complete protocol, original-header and compiler selection before entering
+    /// a recursive body. Keep setup/error temporaries out of its live host frame.
+    #[inline(never)]
+    fn prepare_original_body_evaluation(
+        &mut self,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        original: *mut TclObj,
+    ) -> Result<Box<PreparedOriginalBodyEvaluation>, Code> {
         let owner = obj::Owned::retain(original);
         let Some(protocol) = self.eval_object_protocol() else {
-            return self.report_cmd_error(
+            return Err(self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "native script-object dispatch",
                 )
                 .into(),
-            );
+            ));
         };
         let compiled_stack = matches!(
             purpose,
             tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack
         );
         if compiled_stack && !protocol.compiles_source(purpose) {
-            return self.report_cmd_error(
+            return Err(self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "native compiled-stack script-object dispatch",
                 )
                 .into(),
-            );
+            ));
         }
         let snapshot = match obj::native_object_snapshot(owner.as_ptr()) {
             Ok(snapshot) => snapshot,
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         let list_dispatch = protocol.dispatches_list(purpose, &snapshot);
         let jim_script = self.native_invocation_dialect().native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
         if list_dispatch || jim_script {
-            // Original-object drivers enter the same evaluation activation as
-            // generated bodies. Their dispatch can recursively evaluate another
-            // original object without entering the parsed-source command loop.
-            if !self.codegen_activation_enter() {
-                return Code::Error;
-            }
-            let code = if list_dispatch {
-                self.dispatch_list_obj(owner.as_ptr(), frame)
-            } else {
-                self.eval_native_jim_script_with_inventory(owner, frame, inventory)
-            };
-            self.codegen_activation_leave(code);
-            return code;
+            return Ok(Box::new(PreparedOriginalBodyEvaluation {
+                evaluation: if list_dispatch {
+                    OriginalBodyEvaluation::List
+                } else {
+                    OriginalBodyEvaluation::Jim
+                },
+                _snapshot: snapshot,
+                owner: Some(owner),
+            }));
         }
         if protocol.compiles_source(purpose)
             && self.native_invocation_dialect().tcl_version.is_some()
         {
             match self.prepare_original_c_body(owner.as_ptr(), self.current_ns.get(), None) {
-                Ok(Some(artifact)) => return self.execute_original_c_body(&artifact, frame),
+                Ok(Some(artifact)) => {
+                    return Ok(Box::new(PreparedOriginalBodyEvaluation {
+                        evaluation: OriginalBodyEvaluation::Compiled(artifact),
+                        _snapshot: snapshot,
+                        owner: Some(owner),
+                    }));
+                }
                 Ok(None) if compiled_stack => {
-                    return self.report_cmd_error(
+                    return Err(self.report_cmd_error(
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "native compiled-stack body artifact",
                         )
                         .into(),
-                    );
+                    ));
                 }
                 Ok(None) => {}
-                Err(code) => return code,
+                Err(code) => return Err(code),
             }
         }
         match self.eval_object_bytes(owner.as_ptr()) {
-            Ok(bytes) => self.eval_framed(&bytes, frame),
-            Err(error) => self.report_cmd_error(error.into()),
+            Ok(bytes) => Ok(Box::new(PreparedOriginalBodyEvaluation {
+                evaluation: OriginalBodyEvaluation::Source(bytes),
+                _snapshot: snapshot,
+                owner: Some(owner),
+            })),
+            Err(error) => Err(self.report_cmd_error(error.into())),
         }
     }
 
