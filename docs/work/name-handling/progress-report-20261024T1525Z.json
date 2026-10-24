@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T15:25:37.396088+00:00",
+  "scheduled_report_utc": "2026-10-24T15:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T15:55:37+00:00",
+  "change_since_previous_report": [
+    "15:25snapshot publishes current reviewed source andtracking. Functionalfixes remainWORK; pairedrelease source excludesWORK-onlycapture/proofchaff. NoPR/merge/tag/release; sectionF/fullzero-regression/allgreen/finalTclperformance remainrequired andsix-hourdeadlinewasmissed.",
+    "Six newdiagnosticmodes launched exact66ef1bc8d3e83bf5dc215283f00ca7fe3ecdee06: strict40105989803, Compiler40105992297, Spec40105994801, startup/Core240105997316, originalbrowser/WASI+newunit40106000000, runtime40106002271. Outcomespending; source/executable/ownedprocess/innerassertions/budgets unchanged. Hostproviderbootstrap/moduleafter-only limitations remainexplicit, nofullshippingproof.",
+    "Typed invocationrange selector integrated4b054/b10dd withindependent1e8b: same liveBTreeMap/rootEqOrd/wordspan predicates, ascendingdedup/bindingorder andevery stamp/currentness/instance-retention call. No name/cap/cache shortcut orNativegrant; 1172staticfinitecontrols do notestablishRust/performance acceptance. Actualstartupcapturewillmeasureeffect.",
+    "WORK-only originalhost/unit protocol integrated66ef, independentlyreviewed00b6 exactoriginalmake commands/CItoolversions/Node26/WASIthin; newmode3jobs only. PurepreflightV10extendsV9 onlywithtwo newmaps andmandatorywholeguards; current13startup/30runner/16wholeguard checks pass. No CLEANworkflowchange.",
+    "NativeRBSV2 sourceonlyread-emitter traversal accepted4d40; mandatoryCU sourcepin companion d6e preservescallbackV5/Range03a/SSA/observerfields. Rootintegrating V2+pins. BroaderV1 heldc72 becauseW214 dynamicreads unsafe. No otherdiagnosticfamily/Nativeentry admission; actualfirsttwoRBSoutcomes awaitcapture.",
+    "GenericLogicalflowV1 held21ed becauseheader/body_source matchdoesnotcovermutableIRandcoulddonatestalesuppression/W220. Occurrence-onlyV2 keepsgenericowner/function_flow/suppression/W220 unchanged andonlyaddsconditionalsourceW210; fullsemantic/APIpeer finishing. Known102linestyleV1 held, V2borrowedhelper preservesquery/drop/endpoints. No unsafeversionintegrated.",
+    "PhysicalnamespacevariableV2 accepted1812 withHeavycompanion35b31: onlygrammarprotocol usesactualsuppliedhost, downstreamname/cell/getter/setter/callback/alias/currentness unchanged. V1 missingtraitimport held; V2correctsimport only. Actualb2b Heavy958d hadCLI2PASS/bootstrapFAIL atnamespacegrammar afterpreviouslooprefusal disappeared. No newTMM/defaultcapability oractualbootstrapclosure.",
+    "Jim original7PASS remainsauthenticatedf77 (all21controls, bothmethod322tiers), whileolderb2bCompiler67allUNRUN atunusedcfgtestimport. Reviewed312f importdeletion nowintegrated4669/9f7e; source66efretryincludesit. Last executedoriginalCompiler58 remains53P5F/ownershipcontrolPASS; newobserverfirstprivatecause notyetmeasured.",
+    "Runtime3bb7fa remainsoriginal3/baseline14/retained2PASS with3dictionaryFtoP/noobservedselectedPtoF; other10315P88F. NarrowC85Error Generic/NOError prerequisitecorrectedperpinnedCsource/independentcd55/allsemanticassertions preserved; actualruntime66efpending. C85With needsseparatecompiledscopeauthorityreview, noGeneric-as-With orskippedasserts.",
+    "Nativefold traceoracle2caa is realoutside-fresh-entry observation; explicitfreshbaseline99ca excludespriorhistory. Nofoldtest/Noneguard/policychange; operand/result/consumererasure receipt remainsmissing. Complexitytestonlyoption stillHELDforcontractjudgment; no productioniteratorpromotion.",
+    "ExternalBIGIP/perf headers stillolderthan60minutes, usernotified/notakenover; primaryroletrackers current andtriagecomplete. Diskabout0.4GB/tmp76MB so no localbuilds; onlyolddependencyarchivespruned, source/evidence/targets/executables intact. Latestwholefmt565 passes; laterfiles individuallyformatted/finalwholecheckstillrequired. Nextreport15:55UTC."
+  ],
+  "committed": [
+    "0c1f1fcd94ea6a13867983b8681e6b618f66c8cb"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish15:25snapshot/report/rearm15:55reminder.",
+    "Authenticate66ef6-modewave; routeactualcompiler/host/Spec/runtime/latencyfailures.",
+    "Finishsource-purposeLogicalpeer andNativeRBS/physicalvarcurrentcohort, retryoriginaltargets.",
+    "RequirecompletebaselinezeroPF/sectionF/allgreen/finaldocs-comments-generated-format-chaff/Tclcorpusperformance beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 378126336,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

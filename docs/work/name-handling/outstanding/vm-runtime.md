@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T14:52:57.137768+00:00
+Last updated: 2026-10-24T15:19:10.703317+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -20,6 +20,26 @@ reset/expansion); finer per-command currency094136Z(call41a47ee03fd745b9bf8e6b1f
 preserves original2guards and all real dependency/Namespace/Unknown/Native invalidations;
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
+
+## Latest physical variable declaration V2 peer COMPLETE, actuals UNRUN
+
+vm-peer-physical-variable-declaration-v2/receipt.json
+SHA1812ad0e044a069c5b704d47582712ce949067b17f18e241059f56302879b919.
+WORK162303a0698b082f38db96b70ef651f0c7635dbde3e517084e26b8c527feb66a/man38584750,
+CLEAN5a0e7a4bb176ad50db86841d483515e8393c88ae23598a3f4eccdae24f0b18e8/manc8e34754.
+One cmd_variable argumentgrammar selector actualengine; downstream actualNativeC name
+protocol/selectedexecutionpolicy/OriginalNameConsumer/original cell/update/callback/
+postcallbacktargetrelookup/alias/currentness unchanged. Observednamespacebinding returns
+None, no event/TMM cell authority. Same missingengine/releasearity guard. SevenAPIowners+
+extraNativeNumeric/observedowner read; C9/C84rawphysicalLF/fullhash/FF sources joined.
+V1 TYPEHOLD missingValueOps import innewchildtestmodule; V2 exactlyaddsrealtraitimport,
+fulloldsource+testsbyteinverse/current66ef/b10dd/copiedF-R-F0/fmt2. New2controlsUNRUN.
+HeavyV2 conditionalcompanion7b1fedd3 clearexact35b31fd5ac1c74f49c04cd4fcad85df2ea599d85708d33f5ff38211dcc4d6093
+samepeer/companion-receipt.json: onlynewdirectcommand producer+solewholedigest,
+37current/productafterpins,wholeoldJSONraw/driverrawASTinverse/F-R-F0. Original3/listing/
+flags/env/guards/process/source/provider/ELF/caps/deadlines/floor exact; noactualclaim.
+Root/authornotified READY. Actualb2b958d15a2 bootstrapF/CLI2P advancedloopthenfailedgrammar,
+notretroactivelyrepairedbythissourcepeer. No canonical/source/Git/build/dispatchbyrole.
 
 ## Latest independent generic-loop physical-source peer COMPLETE
 
@@ -68,7 +88,7 @@ master206252fbe5aab89f58b560822e6ddc7cbcbaaae407e6299eb2b84d35e41f6650.
 All8WORKAPI current hashesexactpriorpeered. F/R/F0 repeated; no sourcebytechangefrompeer.
 Bothmanifests citeC85NULL/C86compilehook andexactrootGenericowner, integration-notes.md
 e93a0d80 off-tree/WORK only, no addedCLEANprocesschaff. OriginalHELDpacketremainsimmutable
-historical; thissuccessor carries rooteligibility. New3 outcomes stillUNRUN untilfreshcapture.
+historical; thissuccessor carries rooteligibility. Rootintegrated C85Error354/a5b; new3 outcomes stillUNRUN untilfreshcapture.
 next-capture-four-current-failures.json SHA3419bd040be5e470b55c528578ee5cf05530fa649298e7e619df8f77a8b936ad
 binds exact3bb threeErrorFAIL+oneWithFAIL as subsetunchangedother103, no newroster/dispatch.
 Withcoverage reassignment remainsHELD; no inference fromapprovedError correction.
