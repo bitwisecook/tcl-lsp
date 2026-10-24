@@ -360,12 +360,8 @@ pub(crate) fn collect_positioned_call_by_name_reads(
             continue;
         };
         output.extend(
-            bindings
-                .declaration_caller_alias_arguments(
-                    tokens,
-                    registry,
-                    bindings.source_metadata_owner(),
-                )
+            identities
+                .declaration_caller_alias_arguments(tokens, registry)
                 .unwrap_or_default(),
         );
         let Some(binding) = tokens.source_binding.as_ref() else {
@@ -390,12 +386,8 @@ pub(crate) fn collect_positioned_call_by_name_reads(
         for call in calls {
             if let Some(tokens) = call.tokens {
                 output.extend(
-                    bindings
-                        .declaration_caller_alias_arguments(
-                            &tokens,
-                            registry,
-                            bindings.source_metadata_owner(),
-                        )
+                    identities
+                        .declaration_caller_alias_arguments(&tokens, registry)
                         .unwrap_or_default(),
                 );
             }
