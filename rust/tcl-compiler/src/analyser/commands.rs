@@ -2895,6 +2895,31 @@ impl Analyser {
         }
     }
 
+    fn selected_body_source_structure(
+        &self,
+        generation: &tcl_registry::model::ContextRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
+        let registry = generation.commands();
+        let metadata = match self.result.resolved_input.as_ref() {
+            Some(input) if input.has_logical_source_name_context() => {
+                if !std::ptr::eq(input.borrowed_context_registry(), generation) {
+                    return None;
+                }
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )?
+            }
+            _ => generation.into(),
+        };
+        crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+            registry,
+            metadata,
+            tokens,
+            Some(self.head_identities.source_bindings_ref()),
+        )
+    }
+
     fn dispatch_body_arguments(
         &mut self,
         cmd_name: &str,
@@ -2919,13 +2944,7 @@ impl Analyser {
             &self.command_surface(registry),
             &tokens,
         );
-        let logical =
-            crate::registry_invocation::logical_structured_invocation_with_metadata_context(
-                registry,
-                generation.as_ref().into(),
-                &tokens,
-                Some(self.head_identities.source_bindings_ref()),
-            );
+        let logical = self.selected_body_source_structure(generation.as_ref(), &tokens);
         let logical_traits = logical.as_ref().map_or(
             view.definite_traits,
             super::super::registry_invocation::LogicalStructuredInvocation::traits,
