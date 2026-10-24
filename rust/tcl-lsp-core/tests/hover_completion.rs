@@ -1203,7 +1203,10 @@ fn ensemble_exists_offers_no_options_at_all() {
     );
     // …while its siblings still offer theirs, so this is the empty table
     // talking and not a dead completion path.
-    assert!(!dashed("namespace ensemble create -\n", 27).is_empty());
+    assert_ne!(
+        dashed("namespace ensemble create -\n", 27),
+        Vec::<String>::new()
+    );
 
     // An option-less command falls through to the generic command-name
     // context on a `-` partial — long-standing behaviour, unrelated to this
