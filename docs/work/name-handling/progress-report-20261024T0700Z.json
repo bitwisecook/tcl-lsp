@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T07:00:02.179618+00:00",
+  "scheduled_report_utc": "2026-10-24T06:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T07:25:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product WORK d106ccb38e5b2244fef7eea3ba9f5e6c3fd89d1d, CLEAN 9eeb03b21e50b2e6edacd4a71015aed9c93bddd1 pushed after fresh shallow fetch/rebase. All actual fixes firstwork, CLEAN omits private protocols/evidence. No PR/merge/tag/release; six-hour target missed, final gates open.",
+    "Coherent dd9d8c46 hosted wave launched06:47 with exact source/event/ref checks and pure V7 preflightPASS(startup13/27runners/12whole-roster guards). Spec40071593807, Compiler6540071596079, Jim40071598267, strict40071600456, startup40071613242, runtime13140071615657, Heavy40071617601, WASM40071619719. Full hosted WORK CI40071600890 samehead started independently without canceling healthy CLEAN/native-proof jobs. No new accepted runtime results yet; Heavy original3 alreadyFAIL/upload pendingauth, Jim closedfailure/uploadpendingauth, othersactive atlastpoll.",
+    "Latest complete compiler actual e347 full65 authd3a9bb01: original58=52P6F/all6suppPASS/separatecatchdiagnosticFAIL,0UNRUN/0Rustdiagnostics/all141ownedgroups/fullsource126041/provider10202/deps21500/tools/ELF/list/losslesstransport. All64oldselectoridentity/env/order/outcomes unchangedvsb0; RBSV6 no actualgain. Catchflag propagated but no ownerrows/bodyat143missing. Laterselected-roster+taintV8 excludede347, so hold new tweaks until currentmeasurement.",
+    "Latest Jim e347 remains5P2F/fullauth. Newpositive distinction: methodbody actually visited atwho148; definitiveW123 correctlysuppressed because futureworld remainsUnknown/opaque/unclosed, not failed traversal. Logicalif purpose+metadata nowtrue butdeclarationfactsfalse; selected-descriptor roster repair06b4 independentlyabfe58f5 cleared/integratedbothbranches, no guard/alias/rooted-exact-descriptor waiver. Newdd9actualpending.",
+    "Heavy45d62 full671dde21 original3FAIL butFormatfirstbarriergone: 203instructions/NotRequired. Nextactual unknownstring grammar in61Bprocedure/offset9,7instructions/0prereqs. tmm_shim::_glob_escape is sourcecandidate only until actualbody/subcommand identityjoined; no genericNative fallback. WASMe347 full21a2c787:24nestedruntimeE0282FAIL/1runtime-independentdescriptorPASS, no reservedruntime/guest/depth/allocation/NativeAdd result; finalprotocolEXIT2. Earlierreal22P3F remains latestactualguestsemantics.",
+    "Both actual runtime compiler blockers now source-repaired: explicitValueError annotation +explicitFormatStringConcat compactionarm809ed2c6 independentlyCompiler00c27a2f/Runtime dd450820. No wildcard; originalchild hazards stillaggregate. API3 callbacks nowborrow samepassivepacket atall7callers and reuseexactconstABI descriptors; Runtime d777ee06 type/owner/current/fullinverse/copy/fmtclear, bothbranchesintegrated. Fresh dd9 runtimebuildactive, oldcapturesall131UNRUN stillbinding.",
+    "Security dependency fix independentlyc0ec411f verifiedagainstRustSec+registrychecksums: onlycrypto-bigint0.7.5\u21920.7.6 andctutils0.4.4\u21920.4.5, identicalpackagegraph/otherbytes. Integratedbothbranches; oneCargo.locksourcepin+existingwhole-rosterguard companion42a70915 integratedWORK. Resolverreadonlycachewarning recorded; no freshcargo-denyPASSclaimed. Preciseupdate ran off-treewithoutbuild/test; ownedsourcecopies beingreclaimed, lock/proposals/receipts retained.",
+    "Names5/A1/ReleaseLintA2A3/diagnostic2 currentcarries independentlyreviewedand integrated. Compiler5 currentcarry root350e2f20+Runtime6894821f integrated bothbranches, same15helpers/5oldintervals and originallocks/query/drop/await/cancel. Publication1 currentcarry frozen afterNames00649846 semanticpeer; WillRename1 deeppeer inprogress. RemainingLSPscan2+diskpublication1 notyetprepared. ActualstrictlatestCore1+Server23 atolde347 remainsred; no countsubtraction/dischargebyproposal.",
+    "Independent Spec causal read3ed784a9 confirms modulecarrierroute present, no basisforanothercarrier tweak. Firstactualprivatepredicateunobserved; dynamicnames/globalvariabletrace isstrongestremainingbypasscandidate. Minimalheld-facets observer frozen andCompiler d1f18f35 sourceclear, WORK-only/notyetintegrated; no SSA/Native/Normalgrant. GeneralVMparity staysparked butrequiredSpec/runtime/baselinegates remain.",
+    "WholeCLEAN chaff census exactd6fcc11026files/181068002bytes fullyjoinedallGitmembership,10925UTF8/92NUL/9nonUTF8/0unreadable.19true stale filename referencesisolated. FourfileV3 andtwofile supplemental prepared; followon18-referenceV2 covers13files preservingsemanticlimits, removingexperimentnarrative withoutNativeproofsubstitution; rootreview/integrationpending. WORKchaff retained. LastwholeformatPASS057cce7da only; latercurrentfmtunaccepted. Localdisk<2GiB/no localbuild/targetdelete/youngexecutabledelete.",
+    "Allfiveprimaryroleheadersrecent. BIGIP/perfexternalheadersremainover60min stale andusernotifiedwithouttakeover; triageexplicitlycomplete. FinalrequiredgreenCI/complete24312originrustbaseline/Tclcorpusperformance/currentness/latency/memory/generated/docs/comments/no-new-allows/sectionF remainopen. Next07:25UTC."
+  ],
+  "committed": [
+    "10a34b7e37451cbd94a124459fd6d855527bf24e"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish06:55snapshotandrearm07:25reminder.",
+    "Authenticatecurrentdd9fullCIand8focusedruns; actualresultsoverridesourceexpectations.",
+    "Completefinal5serverlengthfunctions andCLEANdocumentation/commentreferencecleanup.",
+    "FixremainingfunctionalSpec/Jim/compiler/runtime/startupfailures andprovefullbaseline/Tclperformance/sectionFbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No releaseadmission; newdd9running/failedpendingauth, oldactualred/UNRUNstillbinding; finalwholebaseline/performanceunaccepted.",
+  "disk_free_bytes": 639315968,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

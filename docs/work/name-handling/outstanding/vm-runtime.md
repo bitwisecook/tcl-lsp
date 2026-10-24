@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T06:26:01Z
+Last updated: 2026-10-24T06:49:26Z
 
 ## Resume and rules
 
@@ -18,6 +18,17 @@ strict/baseline/semantic/performance gates remain binding. No duplicate dispatch
 Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz and
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
+
+## Active fresh runtime dd9: outcome PENDING
+
+Root dispatched40071615657 at06:47:50Z on exact
+dd9d8c46e3b4c8fe13dcf9053a1744d9730011d7; job120806075549 actualstarted06:47:54.
+Read-only06:49 activecheckout. Includes reviewed actualE0282/E0004/API3 repairs;
+original3+separate128supplements=131planned invocations unchanged. No outcome/ELF/
+finalsource seal known yet. No duplicate dispatch. Rawnextartifact directory
+vm-runtime-actual-40071615657/planned.json. WorkfullCI40071600890 separateactive.
+Disk<900MB/no localbuild/newlargecopies; ZIP-only large maps. Priorclosed failures
+below remain genuine historical allUNRUN, not retroactively repaired.
 
 ## Latest actual TWO hosted BUILD FAILURES: all131 planned invocations UNRUN
 
@@ -45,12 +56,15 @@ sixcompleteexactmaps866provider19tools +ownedbootstrap JOIN. Sourcecount+2 authe
 Build101 soleE0004 native_body_artifact/native_compiler_pass.rs272 Operation match
 missing FormatStringConcat. Emptylisting/noeligibleELF/frame/cases, ALL131UNRUN.
 FINALsource-after/Tommath-after ABSENT again. SourceBEFOREONLY, no fullguardPASS.
-CCG originalauthor owns explicit case repair +all runtime Operation consumer census;
-Compiler independent peer queued. Function is compaction_hazards, not childwalker.
-Existing comment: operand substitutions already collected from self.scripts. Require
-actual proof Format adds no own hazard beyond compiledconcat+visitedvalues, no wildcard
-or guessed Vecempty. My runtime peer and compiler enum/API census missed this submodule.
-Fresh actual required after reviewed repair; no repeat dispatch by role.
+Explicit FormatStringConcat compaction_hazards arm809ed2c6 now rootintegrated WORK3a28/
+CLEAN6b24. Compiler completeOperation submodulecensus/API peer00c27a2f; additional bounded
+VMsource/current/copy/fmt peer vm-peer-format-compaction-v1/review.json
+SHAdd450820cc586dfb99862da5373592d268c50a09f135ad342b4318e39aeb1de0. Accepted dynamic
+Format adds only literal pushes/valueCompileWord/compiled stringconcat; value-child
+operations already all in self.scripts and existing complete aggregate hazard walk.
+No wildcard/oldguard/limit/algorithm change. Earlier author/peers missed this consumer.
+Fresh actual required. Read-only Actions refresh06:42 finds no newer runtime run yet;
+last40069376198 remains failure, all131UNRUN. No duplicate dispatch/cancel.
 
 ## Last actual SEMANTIC f82 remains RED
 
@@ -101,6 +115,27 @@ possiblycaught earlier; None leavesother routes open, never automatic finalcause
 Four Env aliases sourcecause stillOPEN until actualpostbuildpayload.
 
 ## Source peers handed off (fresh strict/runtime still mandatory)
+
+API3 callback/descriptor cleanup WORK2e96d7d4/man583507aa CLEANdc26a288/manb8cc47cf
+independent STATICTYPE/OWNER CLEAR vm-peer-runtime-api3-v1/review.json
+SHAd777ee06ed0c067ee05e6db0784d853bc91bd55ad81bbc09f8a87305739df824.
+Both six-file exactcurrentpins, independent whole inverse of2descriptorarms+2API
+packet borrows+all7callers, F/R/F0/fmt12 PASS. Packet onlysharedFnrefs; sameclosure
+lifetimes/callbacks/worldborrows/nativeowners; actualfixedValueError annotation exact.
+Existingpureconst tcl_import same4fields; no allocation/newhelper/allow/testchange.
+Root/CCG notified06:35; freshstrict/compileractualstillrequired.
+
+Compiler5V5 fullSOURCE/TYPE/OWNER/CURRENTINTERVAL CLEAR
+vm-peer-compiler-server5-v5/review.json
+SHA6894821ffc98b23c2842c8d2de196b957b322473e7cb6f279f6ec92ad9ad4eb8.
+WORK38a07b39/man74a55ce9 CLEAN18ed6d1f/man8c9e2bdd. All5wholeparents/15helpers read,
+fullcaller-edit+isolatedhelper replay equals entireafter, F/R/F0/fmt2/tests exact.
+Actual OpenPublicationLocks/source currentness/revision/gate owners retained; pack
+worker storeowner/hook→registration→swap order exact; watched deletion batch stays
+througherrorlog awaits; false/Break maps onlysameoldreturns. All5wholeOLD intervals
+occur exactlyonce inbothCURRENT lanes; all15helpernames absent. LSP MUST versioned
+interval/helper union, neverfullafteroverwrite. Nestedfuture layout/stack/type/Clippy
+acceptance/runtime remain unmeasured. Root/LSP notified06:41.
 
 Names5V3 ea6debd2/a694004c independent vm-peer-names-server5-v3/review.json
 SHA2fdb0f82ec5234f72c01673c63c631f2f2cb764351610c89fa506cac2cb07637. All5prod funcs/
