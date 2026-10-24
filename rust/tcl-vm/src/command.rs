@@ -6165,7 +6165,7 @@ mod physical_variable_declaration_tests {
     #[test]
     fn namespace_variable_declaration_keeps_missing_host_and_release_arity_closed() {
         let source = tcl_dialect::DialectProfile::irules();
-        let mut missing = Vm::new();
+        let mut missing = Vm::without_native_engine();
         missing.set_dialect_profile(source);
         assert!(!missing.set_native_engine_profile(source));
         assert_eq!(super::cmd_variable(&mut missing, &[]).code, Code::Error);

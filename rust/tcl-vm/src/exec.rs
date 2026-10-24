@@ -11980,7 +11980,7 @@ mod tests {
 
     #[test]
     fn procedure_activation_does_not_derive_an_engine_from_the_source_profile() {
-        let mut vm = Vm::new();
+        let mut vm = Vm::without_native_engine();
         let source = tcl_dialect::DialectProfile::irules();
         vm.set_dialect_profile(source);
         assert!(!vm.set_native_engine_profile(source));
