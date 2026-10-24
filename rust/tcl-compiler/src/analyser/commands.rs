@@ -46,16 +46,17 @@ struct WorkspaceCommandPhases {
     bytes: usize,
     site: u32,
     previous_us: std::cell::Cell<u128>,
-    stage_us: [std::cell::Cell<u128>; 14],
+    stage_us: [std::cell::Cell<u128>; 15],
     seen: std::cell::Cell<u16>,
 }
 
 impl WorkspaceCommandPhases {
     // Array order: original names, scoped bodies, variable receivers, direct
     // invocations, nested invocations, callback invocations, command-name
-    // invocations, namespace roles, nested diagnostics, variable-command sites,
+    // invocations, namespace roles, nested command diagnostics, nested expression
+    // diagnostics, variable-command sites,
     // procedure resolution, expression diagnostics, dispatch diagnostics, handlers.
-    const STAGES: [&str; 14] = [
+    const STAGES: [&str; 15] = [
         "original-names",
         "scoped-bodies",
         "variable-receivers",
@@ -64,6 +65,7 @@ impl WorkspaceCommandPhases {
         "callback-invocations",
         "command-name-invocations",
         "namespace-role-facts",
+        "nested-command-diagnostics",
         "nested-diagnostics",
         "variable-command-sites",
         "procedure-resolution",
@@ -78,7 +80,7 @@ impl WorkspaceCommandPhases {
             bytes,
             site,
             previous_us: std::cell::Cell::new(0),
-            stage_us: [const { std::cell::Cell::new(0) }; 14],
+            stage_us: [const { std::cell::Cell::new(0) }; 15],
             seen: std::cell::Cell::new(0),
         })
     }
@@ -94,7 +96,7 @@ impl WorkspaceCommandPhases {
         let previous = self.previous_us.replace(elapsed);
         self.stage_us[index].set(elapsed.saturating_sub(previous));
         self.seen.set(self.seen.get() | (1 << index));
-        if index == 13 && elapsed >= 20_000 {
+        if index == 14 && elapsed >= 20_000 {
             let stage_us = self.stage_us.each_ref().map(std::cell::Cell::get);
             eprintln!(
                 "WORKSPACE_COMMAND_PHASE bytes={} site={} total_us={elapsed} seen={} stage_us={stage_us:?}",
@@ -817,6 +819,7 @@ impl Analyser {
                 },
                 arg_tokens_in,
                 &report_phase,
+                workspace_phase.as_ref(),
             );
         } // end `if !self.structure_only`
         report_phase("dispatch-diagnostics");
@@ -836,6 +839,7 @@ impl Analyser {
         site: &DispatchSite<'_>,
         arg_tokens_in: &[Token],
         report_phase: &impl Fn(&str),
+        workspace_phase: Option<&WorkspaceCommandPhases>,
     ) {
         let DispatchSite {
             cmd_name,
@@ -890,6 +894,9 @@ impl Analyser {
         // families (IRULE2001/2002, W100, …) entirely.
         if !presubstituted_args {
             self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
+            if let Some(trace) = workspace_phase {
+                trace.record("nested-command-diagnostics");
+            }
             self.run_nested_expr_diagnostics(site);
         }
 
