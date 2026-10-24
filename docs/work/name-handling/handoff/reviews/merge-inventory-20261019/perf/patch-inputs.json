@@ -14,8 +14,15 @@
   ],
   "validation": "Same eight unpatched source bytes at proof base and landed parent. Exactly six unchanged candidate files committed; two-file patch refreshed against landed commit. Runtime proofs remain scoped to frozen837+full batch; strict compiler/server/Clippy baseline gates failed. Current routed type check pending.",
   "owned_commit": "9ffdce1364f286450499deaf915a037deea28117",
-  "routed_base": "9ffdce1364f286450499deaf915a037deea28117",
+  "routed_base": "fa3955d2912686c5d16a2772f11afcefc914bcfc",
   "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
   "clean_integration_companion": "perf-routed-clean-only-helper.patch",
-  "companion_scope": "Apply only together with the two routed production files, without --zz. Old SourceCommandBindings wrapper is then referenced only by its unchanged tests; cfg(test) keeps all tests and assertions. Six-only commit still needs the production wrapper. No query/guard/body or memo-selection change. Do not apply to switched proof tree."
+  "companion_scope": "Apply only together with the two routed production files, without --zz. Old SourceCommandBindings wrapper is then referenced only by its unchanged tests; cfg(test) keeps all tests and assertions. Six-only commit still needs the production wrapper. No query/guard/body or memo-selection change. Do not apply to switched proof tree.",
+  "clean_integration_typecheck": "landed-six-routed-typecheck-9ffdce13/clean-only-test-helper-retry",
+  "clean_integration_warnings": 0,
+  "owned_base": "db3267eed849a59df3ab2973d83f43f20df0ad1a",
+  "proof_switched_rust_diff_sha256": "8d34b06306190679c0de73d223bc3c33accec4f428a3e56d5e17d21c1e57949e",
+  "full_patch_scope": "Eight clean files including the separate clean-only wrapper companion; owned6 remains independently buildable. Do not apply companion to six-only or --zz builds.",
+  "routed_typecheck_base": "9ffdce1364f286450499deaf915a037deea28117",
+  "latest_context_source_bytes_match_landed": true
 }

@@ -2,7 +2,7 @@
   "checked_unix": 1792810465.3248339,
   "owned_commit": "9ffdce1364f286450499deaf915a037deea28117",
   "owned_parent": "db3267eed849a59df3ab2973d83f43f20df0ad1a",
-  "routed_base": "9ffdce1364f286450499deaf915a037deea28117",
+  "routed_base": "fa3955d2912686c5d16a2772f11afcefc914bcfc",
   "unpatched_eight_source_bytes_identical_to_proof_base": true,
   "landed_six_bytes_match_latest_checked_candidate": true,
   "owned_files": [
@@ -18,5 +18,9 @@
     "rust/tcl-compiler/src/interprocedural.rs"
   ],
   "temporary_switch_in_production_commit": false,
-  "scope": "Patch/source reconstruction only; runtime proof source base837, no successor full corpus/test result inferred."
+  "scope": "Patch/source reconstruction only; runtime proof source base837, no successor full corpus/test result inferred.",
+  "latest_context": "fa3955d2912686c5d16a2772f11afcefc914bcfc",
+  "latest_eight_source_bytes_match_landed": true,
+  "clean_integration_companion": "perf-routed-clean-only-helper.patch",
+  "full_and_split_reconstruct_identical_checked_tree": true
 }

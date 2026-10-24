@@ -1,0 +1,20 @@
+{
+  "updated_utc": "2026-10-24 03:22 UTC",
+  "landed_owned_commit": "9ffdce1364f286450499deaf915a037deea28117",
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "full_switched_source_sha256": "8d34b06306190679c0de73d223bc3c33accec4f428a3e56d5e17d21c1e57949e",
+  "corpus_unique_inputs": 124,
+  "corpus_modes": 2,
+  "all_complete_report_pairs": "Equal",
+  "ordered_packset": "all3Equal/deterministic,484936lines",
+  "observed_pass_to_fail": [],
+  "strict_compiler_gates": "FAILED: depth1000OOM both full/clean6 alone",
+  "server_gates": "FAILED: same role assertion and180timeouts BOTH",
+  "clippy": "FAILED56;0owned/routed, API-file function unchanged before repair",
+  "latest_six_typecheck": "latest-work-six-file-check-75768f36/materialized-inputs-retry",
+  "clean_integration_typecheck": "landed-six-routed-typecheck-9ffdce13/clean-only-test-helper-retry",
+  "clean_only_helper_companion": "required with routed2, no query/test assertion change",
+  "residuals": "Blocked/routed/uncompiled/unproven",
+  "all_runtime_executables_removed": true,
+  "no_production_switch_or_routed_source_committed": true
+}
