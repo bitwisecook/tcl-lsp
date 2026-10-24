@@ -321,7 +321,8 @@ fn check_function(function: &FunctionAsm, body: bool) -> Result<(), ClosedSource
         let _ = ordinal;
         let allowed = matches!(
             instruction.op,
-            Op::PUSH1
+            Op::NOP
+                | Op::PUSH1
                 | Op::PUSH4
                 | Op::POP
                 | Op::DUP

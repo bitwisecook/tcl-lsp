@@ -183,6 +183,6 @@
     "rust/tcl-registry/src/pack_hooks.rs": "f0702d3a33eb3441d37eaaddbe3a13436a8ea2ab8aefbf3bd0693247709efd3a",
     "rust/tcl-runtime-api/src/diagnostic_output.rs": "eb0b6ba4c58717983f3dc6c982cd9ae1511c63db0bba520212dcfbc5354c3548",
     "rust/tcl-runtime-api/src/native_literal.rs": "4d81bce032a151aa6c0fbb8caa7d6a3c290c4dab1959fcc9e88c4b7899e5610b",
-    "rust/tcl-vm/src/interp/closed_native_execution.rs": "a0bc9852ed8f739f087652cbfbd77286f7665ba524709e638641d2758b026b76"
+    "rust/tcl-vm/src/interp/closed_native_execution.rs": "a4102af51c77f5065bcaab57ee756b7e02c8df48f02b1a23fa9a70ce77de6b7c"
   }
 }
