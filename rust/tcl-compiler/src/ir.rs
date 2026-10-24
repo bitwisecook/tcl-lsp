@@ -654,46 +654,64 @@ impl CommandTokens {
     /// decomposed under the release it is written for.
     #[must_use]
     pub fn from_segmented(sm: &SourceMap<'_>, config: LexerConfig, seg: &SegmentedCommand) -> Self {
+        Self::from_segmented_reusing_words(sm, config, seg, None)
+    }
+
+    /// Assemble raw lexical tokens, optionally reusing the exact word vector
+    /// already checked by the original source projection. Reuse confers no
+    /// binding, body entry or execution authority; stamping stays independent.
+    #[must_use]
+    pub(crate) fn from_segmented_reusing_words(
+        sm: &SourceMap<'_>,
+        config: LexerConfig,
+        seg: &SegmentedCommand,
+        original_words: Option<&[WordExpr]>,
+    ) -> Self {
         let expand = seg.expand_word.as_deref();
         // One reused buffer: `WordExpr::from_word` takes the word's lexer
         // tokens, and the segmenter keeps them behind its own fragment type.
         let mut fragments: Vec<Token> = Vec::new();
-        let mut word_exprs = Vec::with_capacity(seg.argv.len());
-        for (idx, token) in seg.argv.iter().enumerate() {
-            fragments.clear();
-            fragments.extend(
-                seg.word_fragments
-                    .get(idx)
-                    .map_or(&[][..], Vec::as_slice)
-                    .iter()
-                    .map(|fragment| fragment.token),
-            );
-            let text = seg.texts.get(idx).map_or("", String::as_str);
-            let expanded = expand
-                .and_then(|flags| flags.get(idx))
-                .copied()
-                .unwrap_or(false);
-            let expansion_span = expanded
-                .then(|| {
-                    seg.all_tokens
+        let word_exprs = if let Some(words) = original_words {
+            words.to_vec()
+        } else {
+            let mut word_exprs = Vec::with_capacity(seg.argv.len());
+            for (idx, token) in seg.argv.iter().enumerate() {
+                fragments.clear();
+                fragments.extend(
+                    seg.word_fragments
+                        .get(idx)
+                        .map_or(&[][..], Vec::as_slice)
                         .iter()
-                        .rev()
-                        .find(|candidate| {
-                            candidate.kind == tcl_lexer::TokenType::Expand
-                                && candidate.span.end() <= token.span.start()
-                        })
-                        .map(|candidate| candidate.span)
-                })
-                .flatten();
-            word_exprs.push(WordExpr::from_word(
-                sm,
-                config,
-                &fragments,
-                text,
-                expanded,
-                expansion_span,
-            ));
-        }
+                        .map(|fragment| fragment.token),
+                );
+                let text = seg.texts.get(idx).map_or("", String::as_str);
+                let expanded = expand
+                    .and_then(|flags| flags.get(idx))
+                    .copied()
+                    .unwrap_or(false);
+                let expansion_span = expanded
+                    .then(|| {
+                        seg.all_tokens
+                            .iter()
+                            .rev()
+                            .find(|candidate| {
+                                candidate.kind == tcl_lexer::TokenType::Expand
+                                    && candidate.span.end() <= token.span.start()
+                            })
+                            .map(|candidate| candidate.span)
+                    })
+                    .flatten();
+                word_exprs.push(WordExpr::from_word(
+                    sm,
+                    config,
+                    &fragments,
+                    text,
+                    expanded,
+                    expansion_span,
+                ));
+            }
+            word_exprs
+        };
         Self {
             argv: seg.argv.iter().map(|token| token.span).collect(),
             argv_texts: seg.texts.clone(),

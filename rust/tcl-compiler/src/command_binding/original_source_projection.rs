@@ -178,6 +178,15 @@ mod tests {
                         .words(),
                     words,
                 );
+                assert_eq!(
+                    CommandTokens::from_segmented_reusing_words(
+                        &image.source_map(),
+                        config,
+                        first.command(),
+                        Some(&words),
+                    ),
+                    CommandTokens::from_segmented(&image.source_map(), config, first.command()),
+                );
                 if image.channel() == tcl_lexer::SourceChannel::Document {
                     let first_word = first.native_words().first().unwrap();
                     let last_word = first.native_words().last().unwrap();

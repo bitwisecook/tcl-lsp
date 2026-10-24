@@ -1039,10 +1039,11 @@ impl super::SourceInvocationBinding {
             .source
             .original_lexical_command(words, site.offset, config)?;
         let command = original.command();
-        let tokens = crate::ir::CommandTokens::from_segmented(
+        let tokens = crate::ir::CommandTokens::from_segmented_reusing_words(
             &tcl_lexer::SourceMap::from_image(image),
             config,
             command,
+            Some(words),
         );
         (tokens.words() == words).then(|| project(command, tokens))
     }
