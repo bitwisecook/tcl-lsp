@@ -476,6 +476,19 @@ pub(crate) struct RetiredJimCommands {
     _previous: BTreeMap<u64, CommandBinding>,
 }
 
+pub(crate) struct OriginalPublicationRevision {
+    world: std::rc::Weak<()>,
+    revision: u64,
+}
+
+impl OriginalPublicationRevision {
+    pub(crate) fn matches(&self, other: &Self) -> bool {
+        self.revision == other.revision
+            && self.world.strong_count() != 0
+            && self.world.ptr_eq(&other.world)
+    }
+}
+
 pub struct Namespaces {
     arena: Vec<Namespace>,
     native_namespace_names: std::cell::RefCell<
@@ -483,6 +496,8 @@ pub struct Namespaces {
     >,
     native_namespace_name_dead: BTreeSet<NsId>,
     native_command_nodes: BTreeMap<u64, NativeCommandNode>,
+    original_publication_world: std::rc::Rc<()>,
+    original_publication_revision: Option<u64>,
     retired_ensemble_roles: std::cell::RefCell<Vec<std::rc::Rc<crate::ensemble::EnsembleToken>>>,
     native_command_version: Option<tcl_dialect::TclVersion>,
     native_compiler_epoch: Option<u64>,
@@ -545,6 +560,19 @@ impl Default for Namespaces {
 }
 
 impl Namespaces {
+    pub(crate) fn original_publication_revision(&self) -> Option<OriginalPublicationRevision> {
+        Some(OriginalPublicationRevision {
+            world: std::rc::Rc::downgrade(&self.original_publication_world),
+            revision: self.original_publication_revision?,
+        })
+    }
+
+    fn invalidate_original_publications(&mut self) {
+        self.original_publication_revision = self
+            .original_publication_revision
+            .and_then(|revision| revision.checked_add(1));
+    }
+
     pub(crate) fn take_jim_frame_owners(
         &mut self,
     ) -> (Vec<std::rc::Rc<crate::obj::Owned>>, Vec<VarTable>) {
@@ -560,6 +588,7 @@ impl Namespaces {
     }
 
     pub(crate) fn take_jim_command_owners(&mut self) -> RetiredJimCommands {
+        self.invalidate_original_publications();
         RetiredJimCommands {
             _pending_slots: self.take_retired_command_slots(),
             _tables: self
@@ -1238,6 +1267,7 @@ impl Namespaces {
         generation: u64,
     ) -> Option<CommandBinding> {
         let (namespace, simple) = self.native_command_slot_at_node(generation)?;
+        self.invalidate_original_publications();
         let binding = self.arena[namespace].commands.remove_binding(&simple)?;
         if matches!(&binding.command, Command::Imported { .. }) {
             self.note_guard_lookup_environment_mutation();
@@ -1247,6 +1277,9 @@ impl Namespaces {
     }
 
     fn unlink_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
+        if self.arena[ns].commands.contains_key(simple) {
+            self.invalidate_original_publications();
+        }
         let binding = self.arena[ns].commands.remove_binding(simple)?;
         self.increment_native_command_epoch(binding.generation);
         self.native_command_nodes
@@ -1293,6 +1326,9 @@ impl Namespaces {
         {
             return self.remove_native_binding(ns, simple);
         }
+        if self.arena[ns].commands.contains_key(simple) {
+            self.invalidate_original_publications();
+        }
         let binding = self.arena[ns].commands.take_slot(simple)?;
         self.increment_native_command_epoch(binding.generation);
         self.native_command_nodes
@@ -1316,6 +1352,7 @@ impl Namespaces {
 
     /// Hide retains the command node, but invalidates its cached references.
     pub(crate) fn note_native_command_hidden(&mut self, generation: u64) {
+        self.invalidate_original_publications();
         self.increment_native_command_epoch(generation);
         if let Some(node) = self.native_command_nodes.get_mut(&generation) {
             let placement = node.placement.take();
@@ -1327,6 +1364,7 @@ impl Namespaces {
 
     /// Retire a hidden node without deriving its identity from the hidden name.
     pub(crate) fn retire_native_command_node(&mut self, generation: u64) {
+        self.invalidate_original_publications();
         self.increment_native_command_epoch(generation);
         if let Some(node) = self.native_command_nodes.get_mut(&generation) {
             node.placement = None;
@@ -1725,6 +1763,7 @@ impl Namespaces {
         binding: CommandBinding,
         original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     ) {
+        self.invalidate_original_publications();
         if let Some(displaced) = self.remove_native_binding(ns, &simple) {
             Self::mark_command_deleted(&displaced.command, &self.retired_ensemble_roles);
         }
@@ -1753,6 +1792,8 @@ impl Namespaces {
             native_namespace_names: std::cell::RefCell::new(BTreeMap::new()),
             native_namespace_name_dead: BTreeSet::new(),
             native_command_nodes: BTreeMap::new(),
+            original_publication_world: std::rc::Rc::new(()),
+            original_publication_revision: Some(0),
             retired_ensemble_roles: std::cell::RefCell::new(Vec::new()),
             native_command_version: Some(tcl_dialect::TclVersion::V9_0),
             native_compiler_epoch: Some(0),
@@ -2424,6 +2465,7 @@ impl Namespaces {
     /// visibility moves such as `interp hide`; the token remains alive.
     pub(crate) fn take(&mut self, current: NsId, name: &[u8]) -> Option<CommandBinding> {
         let (ns, simple) = self.home_of(current, name)?;
+        self.invalidate_original_publications();
         self.arena[ns].commands.remove_binding(&simple)
     }
 
@@ -2590,6 +2632,7 @@ impl Namespaces {
     /// callback may have removed or rebound the slot itself, so whatever is
     /// there goes and an already-vacated entry is not an error.
     pub(crate) fn retire_rename_source(&mut self, publication: &RenamePublication) {
+        self.invalidate_original_publications();
         let (ns, simple) = &publication.source;
         if let Some(removed) = self.arena[*ns].commands.remove_binding(simple) {
             let replaced = removed.generation != publication.generation;
@@ -2770,6 +2813,7 @@ impl Namespaces {
         if destination_ns == old_ns && destination_simple == old_simple {
             return None;
         }
+        self.invalidate_original_publications();
         let displaced = self.arena[destination_ns]
             .commands
             .restore_slot(destination_simple.clone(), binding.clone());
@@ -2787,6 +2831,7 @@ impl Namespaces {
         &mut self,
         probe: AliasRenameProbe,
     ) -> Vec<CommandBinding> {
+        self.invalidate_original_publications();
         let (namespace, simple) = probe.destination;
         let mut retired = Vec::new();
         let owns_probe = self.arena[namespace]
@@ -3972,6 +4017,7 @@ impl Namespaces {
         &mut self,
         ids: &[NsId],
     ) -> (Vec<VarTable>, Vec<crate::obj::Owned>) {
+        self.invalidate_original_publications();
         if !ids.is_empty() {
             self.note_guard_lookup_environment_mutation();
         }
@@ -4035,6 +4081,7 @@ impl Namespaces {
     /// releases the variables' object references (`TclFreeVar`); commands and
     /// child links are dropped.
     fn delete_subtree(&mut self, ns: NsId) {
+        self.invalidate_original_publications();
         if ns != GLOBAL {
             self.retired_variable_namespaces.insert(ns);
         }
@@ -4264,6 +4311,155 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn publication_revision_keeps_fresh_births_but_rejects_slot_retirement() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"kept", cmd());
+        let kept = world.command_generation(GLOBAL, b"kept").unwrap();
+        let before = world.original_publication_revision().unwrap();
+        world.bind(GLOBAL, b"fresh", cmd());
+        assert!(before.matches(&world.original_publication_revision().unwrap()));
+        assert!(world.original_publication_is_current(GLOBAL, b"kept", kept));
+        world.bind(GLOBAL, b"kept", cmd());
+        assert!(!before.matches(&world.original_publication_revision().unwrap()));
+        assert!(!world.original_publication_is_current(GLOBAL, b"kept", kept));
+    }
+
+    #[test]
+    fn publication_revision_rejects_all_raw_withdrawal_paths() {
+        for mutation in [
+            "unlink", "take", "hide", "retire", "clear", "subtree", "owners",
+        ] {
+            let mut world = Namespaces::new();
+            world.bind(GLOBAL, b"kept", cmd());
+            let kept = world.command_generation(GLOBAL, b"kept").unwrap();
+            let before = world.original_publication_revision().unwrap();
+            match mutation {
+                "unlink" => {
+                    drop(world.unlink_original_command_generation(kept));
+                }
+                "take" => {
+                    drop(world.take(GLOBAL, b"kept"));
+                }
+                "hide" => world.note_native_command_hidden(kept),
+                "retire" => world.retire_native_command_node(kept),
+                "clear" => {
+                    drop(world.clear_namespace_ids(&[GLOBAL]));
+                }
+                "subtree" => world.delete_subtree(GLOBAL),
+                "owners" => {
+                    drop(world.take_jim_command_owners());
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                !before.matches(&world.original_publication_revision().unwrap()),
+                "{mutation}"
+            );
+            assert!(
+                !world.original_publication_is_current(GLOBAL, b"kept", kept),
+                "{mutation}"
+            );
+        }
+    }
+
+    #[test]
+    fn publication_revision_rejects_tentative_alias_slots_and_restore() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"target", cmd());
+        let target = world.command_generation(GLOBAL, b"target").unwrap();
+        world.bind(
+            GLOBAL,
+            b"alias",
+            Command::Alias {
+                original_prefix: std::rc::Rc::new(crate::interp::NativeAliasHeader::new(
+                    crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"worker")),
+                )),
+                registration_name: None,
+                publication_name: b"alias".to_vec(),
+                identity: std::rc::Rc::new(()),
+            },
+        );
+        let before = world.original_publication_revision().unwrap();
+        let probe = world
+            .begin_alias_rename_probe(GLOBAL, b"alias", b"target")
+            .unwrap();
+        assert!(!world.original_publication_is_current(GLOBAL, b"target", target));
+        assert!(!before.matches(&world.original_publication_revision().unwrap()));
+        let tentative = world.original_publication_revision().unwrap();
+        drop(world.restore_alias_rename_probe(probe));
+        assert!(world.original_publication_is_current(GLOBAL, b"target", target));
+        assert!(!tentative.matches(&world.original_publication_revision().unwrap()));
+    }
+
+    #[test]
+    fn publication_revision_rejects_jim_local_shadow_and_restoration() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"kept", cmd());
+        let original = world.command_generation(GLOBAL, b"kept").unwrap();
+        let before = world.original_publication_revision().unwrap();
+        let entry = world.native_command_creation_entry(GLOBAL, b"kept");
+        let top = world.bind_jim_local(entry, b"kept", cmd());
+        assert!(!world.original_publication_is_current(GLOBAL, b"kept", original));
+        assert!(!before.matches(&world.original_publication_revision().unwrap()));
+        let shadowed = world.original_publication_revision().unwrap();
+        world.clean_jim_local_key(b"kept");
+        assert!(world.original_publication_is_current(GLOBAL, b"kept", original));
+        assert!(!world.original_publication_is_current(GLOBAL, b"kept", top));
+        assert!(!shadowed.matches(&world.original_publication_revision().unwrap()));
+    }
+
+    #[test]
+    fn publication_revision_refuses_foreign_dead_and_exhausted_worlds() {
+        let before = Namespaces::new().original_publication_revision().unwrap();
+        assert!(!before.matches(&before));
+        let mut world = Namespaces::new();
+        let current = world.original_publication_revision().unwrap();
+        assert!(!before.matches(&current));
+        let foreign = Namespaces::new();
+        assert!(!current.matches(&foreign.original_publication_revision().unwrap()));
+        world.original_publication_revision = Some(u64::MAX);
+        world.invalidate_original_publications();
+        assert!(world.original_publication_revision().is_none());
+        world.bind(GLOBAL, b"fresh", cmd());
+        world.invalidate_original_publications();
+        assert!(world.original_publication_revision().is_none());
+    }
+
+    #[test]
+    fn publication_revision_tracks_moves_and_callback_rebound_rename_sources() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"old", cmd());
+        let moved = world.command_generation(GLOBAL, b"old").unwrap();
+        let before = world.original_publication_revision().unwrap();
+        let publication = world
+            .publish_rename_destination(GLOBAL, b"old", b"new")
+            .unwrap();
+        assert!(!before.matches(&world.original_publication_revision().unwrap()));
+        assert!(world.original_publication_is_current(GLOBAL, b"new", moved));
+        assert!(!world.original_publication_is_current(GLOBAL, b"old", moved));
+        world.bind(GLOBAL, b"old", cmd());
+        let rebound = world.command_generation(GLOBAL, b"old").unwrap();
+        let rebound_revision = world.original_publication_revision().unwrap();
+        world.retire_rename_source(&publication);
+        assert!(!rebound_revision.matches(&world.original_publication_revision().unwrap()));
+        assert!(!world.original_publication_is_current(GLOBAL, b"old", rebound));
+        assert!(world.original_publication_is_current(GLOBAL, b"new", moved));
+    }
+
+    #[test]
+    fn publication_revision_tracks_occupied_jim_value_replacement() {
+        let mut world = Namespaces::new();
+        world.variable_name_protocol = Some(tcl_syntax::naming::NativeNameProtocol::Jim084);
+        world.bind(GLOBAL, b"kept", cmd());
+        let old = world.command_generation(GLOBAL, b"kept").unwrap();
+        let before = world.original_publication_revision().unwrap();
+        world.bind(GLOBAL, b"kept", cmd());
+        assert!(!before.matches(&world.original_publication_revision().unwrap()));
+        assert!(!world.original_publication_is_current(GLOBAL, b"kept", old));
+        assert_ne!(world.command_generation(GLOBAL, b"kept"), Some(old));
     }
 
     #[test]

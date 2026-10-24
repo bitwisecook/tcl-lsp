@@ -1398,6 +1398,8 @@ pub struct InterpState {
     original_byte_command_registrations: RefCell<
         std::collections::HashMap<u64, native_command_names::OriginalByteCommandRegistration>,
     >,
+    original_byte_command_registration_revision:
+        RefCell<Option<crate::namespace::OriginalPublicationRevision>>,
     native_compilation: RefCell<native_compilation::CompilationState>,
     stock_ensembles: RefCell<stock_ensembles::StockEnsembles>,
     /// The generations of the builtins registered only to refuse a call with a
@@ -2038,6 +2040,7 @@ impl Interp {
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
             original_byte_command_registrations: RefCell::new(std::collections::HashMap::new()),
+            original_byte_command_registration_revision: RefCell::new(None),
             native_compilation: RefCell::new(native_compilation::CompilationState::default()),
             stock_ensembles: RefCell::new(stock_ensembles::StockEnsembles::default()),
             unsupported_builtins: RefCell::new(std::collections::HashSet::new()),
