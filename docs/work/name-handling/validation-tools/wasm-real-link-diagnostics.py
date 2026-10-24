@@ -242,7 +242,7 @@ try:
         ).resolve()
     sdk = Path("/opt/wasi-sdk")
     for name in ["clang", "llvm-ar", "wasm-ld"]:
-        tools["wasi_" + name] = (sdk / "bin" / name).resolve()
+        tools["wasi_" + name] = sdk / "bin" / name
         require(tools["wasi_" + name].is_file(), "pinned WASI tool absent: " + name)
     tool_pins = files(list(tools.values()))
     versions = {
