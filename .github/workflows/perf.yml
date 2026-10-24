@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1592,6 +1592,182 @@ jobs:
             ${{ runner.temp }}/irules-preflight-output/*.stderr
           if-no-files-found: error
           retention-days: 30
+
+  # WORK-only exact CI browser make command; no required-CI or release replacement.
+  lsp-browser-navigation-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-host-navigation-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      RUSTFLAGS: "-Dwarnings"
+    steps:
+      - name: Reserve bounded diagnostic and upload time
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(( $(date +%s) + 5100 ))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up uncached original host Rust target
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          build-warnings: deny
+          cache: false
+      - name: Install original wasm-bindgen CLI
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen-cli@0.2.129
+      - name: Set up original Node.js host
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Run exact original browser make command with bounded capture
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          OUT: ${{ runner.temp }}/lsp-browser-navigation-output
+        run: |
+          set -euo pipefail
+          python3 -B docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py --sha "$EXPECTED_WORK_SHA" --case browser --out "$OUT"
+      - name: Upload bounded original browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-browser-navigation-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-browser-navigation-output/*.json
+            ${{ runner.temp }}/lsp-browser-navigation-output/*.stdout
+            ${{ runner.temp }}/lsp-browser-navigation-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
+  # WORK-only exact CI wasi make command; no required-CI or release replacement.
+  lsp-wasi-navigation-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-host-navigation-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      RUSTFLAGS: "-Dwarnings"
+    steps:
+      - name: Reserve bounded diagnostic and upload time
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(( $(date +%s) + 5100 ))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up uncached original host Rust target
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+          build-warnings: deny
+          cache: false
+      - name: Install original wasmtime CLI
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasmtime@49.0.3
+      - name: Install original binaryen dependency
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binaryen
+      - name: Set up original Node.js host
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Run exact original wasi make command with bounded capture
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          OUT: ${{ runner.temp }}/lsp-wasi-navigation-output
+          CARGO_PROFILE_RELEASE_LTO: thin
+        run: |
+          set -euo pipefail
+          python3 -B docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py --sha "$EXPECTED_WORK_SHA" --case wasi --out "$OUT"
+      - name: Upload bounded original wasi evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-wasi-navigation-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-wasi-navigation-output/*.json
+            ${{ runner.temp }}/lsp-wasi-navigation-output/*.stdout
+            ${{ runner.temp }}/lsp-wasi-navigation-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
+  # WORK-only one new server-unit control, separate from both original hosts.
+  lsp-navigation-unit-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-host-navigation-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Reserve bounded exact navigation unit and upload time
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 4500))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust
+        timeout-minutes: 5
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Fetch unchanged full TomMath provider for the separate unit
+        timeout-minutes: 10
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run exact new pending-index public navigation unit
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/lsp-navigation-unit-target
+          OUT: ${{ runner.temp }}/lsp-navigation-unit-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload separate public navigation unit evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-navigation-unit-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-navigation-unit-output/*.json
+            ${{ runner.temp }}/lsp-navigation-unit-output/*.stdout
+            ${{ runner.temp }}/lsp-navigation-unit-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
 
   # Temporary WORK-only reproduction of the CI rust-check worker.
   release-rust-check-diagnostics:
