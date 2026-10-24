@@ -567,7 +567,30 @@ pub(crate) fn original_script_list(
             vm.refuse_host_command("native script-object dispatch protocol is unavailable".into())
         );
     };
-    if !protocol.dispatches_list(purpose, &script.native_object_snapshot()) {
+    if !{
+        let original = script.native_object_snapshot();
+        let dispatch = protocol.dispatches_list(purpose, &original);
+        #[cfg(debug_assertions)]
+        if matches!(
+            purpose,
+            tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel
+        ) && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
+            == Ok("first-decline-v1")
+        {
+            let list = match &original.cache {
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::List {
+                    length,
+                    canonical,
+                } => Some((*length, *canonical)),
+                _ => None,
+            };
+            eprintln!(
+                "TCL_NATIVE_UPLEVEL_ORIGINAL_HEADER selected={protocol:?} resident={} list={list:?} dispatch={dispatch}",
+                original.resident.is_some(),
+            );
+        }
+        dispatch
+    } {
         return Ok(None);
     }
     Ok(script.cached_list_representation().map(|(words, _)| words))
