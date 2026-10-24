@@ -178,7 +178,6 @@ impl SelectedWhenDeclaration<'_> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 pub(crate) fn select_when_declaration<'a>(
     statement: &'a Statement,
     phase: &'a BpfSourceScript,
@@ -218,7 +217,45 @@ pub(crate) fn select_when_declaration<'a>(
     // — nothing else. A malformed header must never be silently normalised
     // (`when XDP priority nope { … }` must not become priority 500 with no
     // diagnostic).
-    let priority = match args.len() {
+    let priority = select_when_priority(source, tokens, args, call_span, registry, &word_span)?;
+
+    let event = source.scalar(tokens, args, 0).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadEvent,
+            word_span(0),
+            "the `when` event must be a literal name (no substitutions)",
+        )
+    })?;
+    let (event_id, prog_type) = resolve_event(&event, word_span(0))?;
+
+    let body_idx = args.len() - 1;
+    let body = source.body(tokens, args, body_idx).ok_or_else(|| {
+        BpfError::new(
+            BpfDiag::BadArity,
+            word_span(body_idx),
+            "when body requires unchanged original literal source",
+        )
+    })?;
+    Ok(SelectedWhenDeclaration {
+        phase,
+        statement,
+        body,
+        event,
+        event_id,
+        prog_type,
+        priority,
+    })
+}
+
+fn select_when_priority(
+    source: &OriginalBpfSource,
+    tokens: Option<&tcl_compiler::ir::CommandTokens>,
+    args: &[String],
+    call_span: Span,
+    registry: &CommandRegistry,
+    word_span: &impl Fn(usize) -> Span,
+) -> Result<u32, BpfError> {
+    Ok(match args.len() {
         2 => DEFAULT_PRIORITY,
         4 => {
             let keyword = source.scalar(tokens, args, 1).ok_or_else(|| {
@@ -268,33 +305,6 @@ pub(crate) fn select_when_declaration<'a>(
                 "`when` expects: when EVENT { body }  or  when EVENT priority N { body }",
             ));
         }
-    };
-
-    let event = source.scalar(tokens, args, 0).ok_or_else(|| {
-        BpfError::new(
-            BpfDiag::BadEvent,
-            word_span(0),
-            "the `when` event must be a literal name (no substitutions)",
-        )
-    })?;
-    let (event_id, prog_type) = resolve_event(&event, word_span(0))?;
-
-    let body_idx = args.len() - 1;
-    let body = source.body(tokens, args, body_idx).ok_or_else(|| {
-        BpfError::new(
-            BpfDiag::BadArity,
-            word_span(body_idx),
-            "when body requires unchanged original literal source",
-        )
-    })?;
-    Ok(SelectedWhenDeclaration {
-        phase,
-        statement,
-        body,
-        event,
-        event_id,
-        prog_type,
-        priority,
     })
 }
 
