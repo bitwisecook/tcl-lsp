@@ -91,7 +91,7 @@
   },
   "scope": "Original unchanged bootstrap1 and CLI trace2 from actual a26 heavy355 (321PASS34FAIL); distinct bounded first-decline diagnosis only. Build original heavy exact3 packages/all-features; all test binaries compiled; only3 isolated original selectors executed. No actual TMM or authored simulation authority grant.",
   "source_pins": {
-    "rust/tcl-vm/src/literal_pool.rs": "68ca806aedcb25afc09c055a73f13c99ea830224b6d27ab0a98f4b6d6102ae4c",
+    "rust/tcl-vm/src/literal_pool.rs": "2780df3bbbc08ecc8c90f93601d0aaf500f93fd29ab6e82775661cdda3a76a48",
     "rust/tcl-vm/src/command.rs": "c5dc8c293f21e7e5a94afb287dd1ca21f5f52a709c1602e2dc7479e55fd8ce74",
     ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
     "runtime/rust/src/interp/native_body_artifact.rs": "295e69e315ade4313906dccf4b8954af107847ed33ed327885a1805b0343ce21",
@@ -100,7 +100,7 @@
     "rust/f5-cli/Cargo.toml": "3a96bcd3b78b9c6978b31602fc938b45b05d21e59c3633530cfd78688dd84c79",
     "rust/f5-cli/src/commands/irule.rs": "c168b66218b722d22562a01c8d9edae8ca97ee90334e502881a8a8685fb75a68",
     "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
-    "rust/tcl-bytecode/src/lib.rs": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+    "rust/tcl-bytecode/src/lib.rs": "a33965157f865294a0a935d17ce4436ea730111c0506a8321f5ce8dd495e12a0",
     "rust/tcl-cmd-core/src/string.rs": "b9df7a0c8db58b8599e1527cfd1a8c04663f7559bf426f88ed471b5ec0465eda",
     "rust/tcl-cmd-core/src/string/native_range.rs": "84c509b53f19b5a09401a87ec0d82d4194587d4d743d44a988294b144d4908b8",
     "rust/tcl-compiler/src/codegen/statements.rs": "a20a319f3a343307387a4b7bae6baf0f9f162557625aa08b007ca750d20222df",
@@ -115,7 +115,7 @@
     "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
     "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
     "rust/tcl-registry/src/commands/tcl/string_.rs": "aa2214c1efa5cbaa939047bf71ae6ebb69f8900b9a00752bc25fc91d0d781b47",
-    "rust/tcl-registry/src/lib.rs": "b4ea8ed7b97c540916e22c01d021a914615ce564793412112ab5f350fb0fd911",
+    "rust/tcl-registry/src/lib.rs": "37756de99950f31b05129ab8a30687bec0a41a7d3573e9460e2f4ba65ff97e55",
     "rust/tcl-registry/src/native_compilation.rs": "aa152ab69569fb68c4fbb390b715819a1c584af7b30b3515f65c3d7a231ecdc4",
     "rust/tcl-registry/src/native_format_compilation.rs": "d14359a0ce6d538688d44c0c66d08fb4896b85d3b22607d7c198a89429687f41",
     "rust/tcl-registry/src/native_instruction_plan.rs": "308eb9a8297b6a8396a461a36cc534717a059a17a231f2e410389210520b4d5c",
@@ -128,7 +128,7 @@
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "5b6a57ff57beb84d68a2f2eaa959b0d1ffdc4ac9350f3557a63f5f27aba542f3",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
     "rust/tcl-vm/src/exec.rs": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6",
-    "rust/tcl-vm/src/interp.rs": "e72ef23eba225c3fc9713fa809581be982435bfc3b08f987d7d5bc26ac70fe9e"
+    "rust/tcl-vm/src/interp.rs": "0005ce2b2455e01405be3e86a941932bdec099ed06415cb3e4301948e969d41f"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
