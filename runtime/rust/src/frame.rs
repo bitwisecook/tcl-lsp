@@ -438,7 +438,7 @@ struct CellContents {
     /// The default belongs to this physical array, with two owning references.
     array_default: Option<*mut TclObj>,
     /// Detached array generations whose members retire after the root callback.
-    detached_arrays: std::collections::HashMap<VarId, destruction::DetachedArray>,
+    detached_arrays: std::collections::HashMap<(VarId, u64), destruction::DetachedArray>,
     /// Identity of the currently bound variable. The slot survives `unset` for
     /// compiled access, while this token normally does not. An in-flight
     /// operation retains the exact Tcl `Var` cell, so recreation during that

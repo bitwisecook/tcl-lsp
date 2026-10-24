@@ -110,7 +110,7 @@ impl RetainedArrayCell {
     ) -> Result<super::PreparedArrayMember, super::JimLinkStoreError> {
         {
             let cell = self.contents.borrow();
-            if cell.detached_arrays.contains_key(&self.id)
+            if cell.detached_arrays.contains_key(&(self.id, self.epoch))
                 || cell.binding_id != Some(self.id)
                 || cell.rmw_array_epoch != self.epoch
                 || !matches!(cell.var.as_ref(), Some(Var::Array(_)))
@@ -128,7 +128,10 @@ impl RetainedArrayCell {
         original: Option<*mut TclObj>,
     ) -> Result<(), VarError> {
         let mut contents = self.contents.borrow_mut();
-        if contents.detached_arrays.contains_key(&self.id) {
+        if contents
+            .detached_arrays
+            .contains_key(&(self.id, self.epoch))
+        {
             return Err(VarError::DeletedArray);
         }
         if contents.binding_id != Some(self.id)
@@ -335,7 +338,7 @@ impl RetainedArrayCell {
     /// its root name holds a replacement array with the same written key.
     pub(crate) fn trace_member_identity(&self, element: &[u8]) -> Option<VarId> {
         let contents = self.contents.borrow();
-        if let Some(detached) = contents.detached_arrays.get(&self.id) {
+        if let Some(detached) = contents.detached_arrays.get(&(self.id, self.epoch)) {
             detached.element_ids.get(element).copied()
         } else if contents.binding_id == Some(self.id) && contents.rmw_array_epoch == self.epoch {
             contents.element_ids.get(element).copied()
@@ -348,7 +351,7 @@ impl RetainedArrayCell {
         &self,
         contents: &'a CellContents,
     ) -> Option<&'a BTreeMap<Vec<u8>, *mut TclObj>> {
-        if let Some(members) = contents.detached_arrays.get(&self.id) {
+        if let Some(members) = contents.detached_arrays.get(&(self.id, self.epoch)) {
             return Some(&members.values);
         }
         match contents.var.as_ref() {
@@ -366,7 +369,7 @@ impl RetainedArrayCell {
     /// Undefined retained shells participate even when they have no value.
     pub(crate) fn search_keys(&self) -> Option<Vec<Vec<u8>>> {
         let contents = self.contents.borrow();
-        if let Some(detached) = contents.detached_arrays.get(&self.id) {
+        if let Some(detached) = contents.detached_arrays.get(&(self.id, self.epoch)) {
             let keys: Vec<_> = match detached.entry_order.keys() {
                 Some(keys) => keys.into_iter().map(<[u8]>::to_vec).collect(),
                 None => detached
@@ -419,11 +422,13 @@ impl RetainedArrayCell {
         if contents.constant {
             return Err(VarError::IsConstant);
         }
-        let detached = contents.detached_arrays.contains_key(&self.id);
+        let detached = contents
+            .detached_arrays
+            .contains_key(&(self.id, self.epoch));
         let members = if detached {
             let selected = contents
                 .detached_arrays
-                .get_mut(&self.id)
+                .get_mut(&(self.id, self.epoch))
                 .expect("selected detached generation");
             if selected.retired.contains(element) {
                 return Err(VarError::DeletedArray);
@@ -467,15 +472,21 @@ impl RetainedArrayCell {
         let mut old = super::RetiredVariableParts::default();
         let mut contents = self.contents.borrow_mut();
         if contents.rmw_array_epoch != self.epoch
-            && !contents.detached_arrays.contains_key(&self.id)
+            && !contents
+                .detached_arrays
+                .contains_key(&(self.id, self.epoch))
         {
             return (false, old);
         }
-        if contents.binding_id == Some(self.id) && contents.member_order.contains_key(element) {
+        if contents.binding_id == Some(self.id)
+            && contents.rmw_array_epoch == self.epoch
+            && contents.member_order.contains_key(element)
+        {
             contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
             contents.array_searches.clear();
         }
-        let value = if let Some(members) = contents.detached_arrays.get_mut(&self.id) {
+        let value = if let Some(members) = contents.detached_arrays.get_mut(&(self.id, self.epoch))
+        {
             members.entry_order.remove(element);
             members.values.remove(element)
         } else if contents.binding_id == Some(self.id) && contents.rmw_array_epoch == self.epoch {
@@ -486,7 +497,9 @@ impl RetainedArrayCell {
         } else {
             None
         };
-        if !contents.detached_arrays.contains_key(&self.id)
+        if !contents
+            .detached_arrays
+            .contains_key(&(self.id, self.epoch))
             && !contents.element_operation_refs.contains_key(element)
             && !contents.native_member_keys.has_aliases(element)
         {
@@ -507,7 +520,7 @@ impl RetainedArrayCell {
         traced: bool,
     ) -> Option<super::native_element_entry::NativeElementRetirementTrace> {
         let cell = self.contents.borrow();
-        let selected = cell.detached_arrays.get(&self.id)?;
+        let selected = cell.detached_arrays.get(&(self.id, self.epoch))?;
         selected.native_keys.retirement_trace(
             element,
             preserve_definition,
@@ -518,14 +531,24 @@ impl RetainedArrayCell {
 
     pub(crate) fn retire_member(&self, element: &[u8]) {
         self.remove(element);
-        if let Some(selected) = self.contents.borrow_mut().detached_arrays.get_mut(&self.id) {
+        if let Some(selected) = self
+            .contents
+            .borrow_mut()
+            .detached_arrays
+            .get_mut(&(self.id, self.epoch))
+        {
             selected.retired.insert(element.to_vec());
             selected.native_keys.retire(element);
         }
     }
 
     pub(crate) fn finish_member_retirement(&self, element: &[u8], object_table: bool) {
-        if let Some(selected) = self.contents.borrow_mut().detached_arrays.get_mut(&self.id) {
+        if let Some(selected) = self
+            .contents
+            .borrow_mut()
+            .detached_arrays
+            .get_mut(&(self.id, self.epoch))
+        {
             selected
                 .native_keys
                 .finish_member_retirement(element, object_table);
@@ -539,7 +562,7 @@ impl RetainedArrayCell {
         };
         let order = contents
             .detached_arrays
-            .get(&self.id)
+            .get(&(self.id, self.epoch))
             .map_or(&contents.member_order, |selected| &selected.entry_order);
         match order.keys() {
             Some(keys) => keys
@@ -558,7 +581,11 @@ impl RetainedArrayCell {
         &self,
         current: impl Fn() -> Result<(), E>,
     ) -> Result<(), E> {
-        let selected = self.contents.borrow_mut().detached_arrays.remove(&self.id);
+        let selected = self
+            .contents
+            .borrow_mut()
+            .detached_arrays
+            .remove(&(self.id, self.epoch));
         let mut old = super::RetiredVariableParts::default();
         if let Some(selected) = selected {
             old.value(Some(Var::Array(selected.values)));
@@ -654,7 +681,7 @@ impl VarTable {
             let native_keys = std::mem::take(&mut contents.native_member_keys);
             let element_ids = std::mem::take(&mut contents.element_ids);
             contents.detached_arrays.insert(
-                selected.id,
+                (selected.id, selected.epoch),
                 DetachedArray {
                     values: members,
                     retired: BTreeSet::new(),
@@ -687,6 +714,73 @@ impl VarTable {
 mod tests {
     use super::*;
     use crate::obj::Owned;
+
+    #[test]
+    fn retained_array_epochs_keep_two_detached_tables_and_current_members_independent() {
+        crate::counters::reset();
+        {
+            let mut table = VarTable::default();
+            let slot = table.declare_compiled_cell(b"a");
+            let root = table
+                .capture_receiver_at(slot, None, true)
+                .unwrap()
+                .unwrap();
+            let values = [b"OLD".as_slice(), b"MIDDLE", b"CURRENT", b"REPLACEMENT"]
+                .map(|bytes| Owned::fresh(obj::new_string_bytes(bytes)));
+            root.ensure_array().unwrap();
+            let member = table
+                .capture_receiver_at(slot, Some(b"k".to_vec()), true)
+                .unwrap()
+                .unwrap();
+            member.store(values[0].as_ptr()).unwrap();
+            let first = root.begin_array_destruction().unwrap();
+            let first_member = first.trace_member_identity(b"k").unwrap();
+            root.ensure_array().unwrap();
+            let member = table
+                .capture_receiver_at(slot, Some(b"k".to_vec()), true)
+                .unwrap()
+                .unwrap();
+            member.store(values[1].as_ptr()).unwrap();
+            let middle = root.selected_array().unwrap();
+            let middle_member = middle.trace_member_identity(b"k").unwrap();
+            assert_ne!(first_member, middle_member);
+            let second = root.begin_array_destruction().unwrap();
+            assert_eq!(second, middle);
+            root.ensure_array().unwrap();
+            let member = table
+                .capture_receiver_at(slot, Some(b"k".to_vec()), true)
+                .unwrap()
+                .unwrap();
+            member.store(values[2].as_ptr()).unwrap();
+            let current = root.selected_array().unwrap();
+            let current_member = current.trace_member_identity(b"k").unwrap();
+            assert_eq!(first.identity(), second.identity());
+            assert_eq!(second.identity(), current.identity());
+            assert_ne!(first, second);
+            assert_ne!(second, current);
+            assert_ne!(current_member, first_member);
+            assert_ne!(current_member, middle_member);
+            assert_eq!(first.read(b"k"), Some(values[0].as_ptr()));
+            assert_eq!(second.read(b"k"), Some(values[1].as_ptr()));
+            assert_eq!(current.read(b"k"), Some(values[2].as_ptr()));
+            current.store(b"k", values[3].as_ptr()).unwrap();
+            assert_eq!(first.read(b"k"), Some(values[0].as_ptr()));
+            assert_eq!(second.read(b"k"), Some(values[1].as_ptr()));
+            assert_eq!(current.read(b"k"), Some(values[3].as_ptr()));
+            assert!(first.remove(b"k"));
+            assert_eq!(second.read(b"k"), Some(values[1].as_ptr()));
+            assert_eq!(current.read(b"k"), Some(values[3].as_ptr()));
+            first.finish_destruction();
+            assert!(!first.is_live());
+            assert_eq!(second.trace_member_identity(b"k"), Some(middle_member));
+            second.finish_destruction();
+            assert!(!second.is_live());
+            assert_eq!(current.trace_member_identity(b"k"), Some(current_member));
+            assert_eq!(current.read(b"k"), Some(values[3].as_ptr()));
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
 
     #[test]
     fn namespace_retirement_discards_only_the_selected_actual_root() {
