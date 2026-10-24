@@ -283,3 +283,61 @@ fn unavailable_trace_admission_and_current_invalid_slots_keep_ownership_separate
         tcl_runtime_set_current_interp(ptr::null_mut());
     }
 }
+
+#[test]
+fn guarded_definition_keeps_the_original_head_getter_and_first_context_refusal() {
+    for guarded in [false, true] {
+        let mut interpreter = original();
+        tcl_runtime_set_current_interp(&mut interpreter);
+        UPDATES.with(|calls| calls.set(0));
+        let head = obj::Owned::fresh(obj::alloc_typed(&ORIGINAL, 0));
+        let name = obj::Owned::fresh(new_string_bytes(b"p"));
+        let parameters = obj::Owned::fresh(new_string_bytes(b""));
+        let body = obj::Owned::fresh(new_string_bytes(b"return ORIGINAL"));
+        let words = [
+            head.as_ptr(),
+            name.as_ptr(),
+            parameters.as_ptr(),
+            body.as_ptr(),
+        ];
+        let expected = tcl_registry::NativeLowering::Definition
+            .definition_guard_identity(interpreter.native_invocation_dialect())
+            .unwrap();
+        let mut out = TclCompletionAbi {
+            code: 777,
+            result: ptr::null_mut(),
+            options: ptr::null_mut(),
+        };
+        let status = unsafe {
+            if guarded {
+                tcl_codegen_proc_define_guarded_argv(
+                    words.as_ptr(),
+                    4,
+                    Some(super::tests::stub_declines),
+                    expected.value(),
+                    &mut out,
+                )
+            } else {
+                tcl_invoke_argv(words.as_ptr(), 4, &mut out)
+            }
+        };
+        assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+        assert_eq!(UPDATES.with(Cell::get), 1);
+        assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+        assert_eq!(out.code, 777);
+        assert!(out.result.is_null() && out.options.is_null());
+        tcl_runtime_set_current_interp(ptr::null_mut());
+    }
+}
+
+#[test]
+fn definition_candidate_frame_observation_follows_actual_coroutine_handoff() {
+    let interpreter = original();
+    let frame = crate::interp::native_arguments::OriginalArgumentFrame::capture(&interpreter);
+    assert!(frame.check_frame(&interpreter).is_ok());
+    let mut coroutine = crate::interp::CoroContext::fresh(crate::namespace::GLOBAL);
+    interpreter.swap_coro_ctx(&mut coroutine);
+    assert!(frame.check_frame(&interpreter).is_err());
+    interpreter.swap_coro_ctx(&mut coroutine);
+    assert!(frame.check_frame(&interpreter).is_ok());
+}

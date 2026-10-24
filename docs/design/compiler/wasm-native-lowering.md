@@ -81,6 +81,22 @@ entry must see the installed body and its proper frame.
 
 ## 3. Native lowered IR
 
+
+A runtime-guarded definition keeps ordinary command dispatch. Its literal
+original argv and unique source declaration identify only a candidate compiled
+body. The dispatcher performs its normal result reset, command count, limits,
+original head getter, lookup, unknown handling and execution traces. At the
+selected builtin's handler-call interval, an actual stock generation must carry
+the registry's definition identity for the current release. Root namespace,
+original frame, current operation and every runtime guard domain must agree.
+Only then may the original handler attach the compiled entry. Every guard miss
+calls the same selected ordinary handler without an entry; it never restarts
+head lookup or repeats argument evaluation. A scoped one-shot candidate cannot
+be consumed by an alias, nested callback, foreign frame or another interpreter.
+The unguarded definition ABI and Logical dispatch ledger retain their separate
+proof requirements. This runtime check grants no Native name, value or source
+execution authority.
+
 ### 3.1 Projection
 
 `native_lowering::lower_function` consumes executable IR, validates it and
@@ -185,3 +201,12 @@ entry effects as well as returned bytes.
 - [Evaluated Tcl semantics](evaluated-tcl-semantics.md)
 - [WASM target surfaces](wasm-target-surfaces.md)
 - [Sample programs](../../../samples/wasm/README.md)
+
+The definition guard consumes a registry-declared footprint only after ordinary
+dispatch has selected the actual stock builtin. It does not bypass object or
+method dispatch, so ObjectDispatch is not a dependency of this operation. The
+interpreter keeps that domain poisoned. The original definition handler still
+performs publication, getters, replacement callbacks and currentness checks;
+compiled body operations retain their separate proofs and guards. A missing
+footprint or any required-domain refusal uses the selected ordinary handler.
+Operational currentness failures retain their original error and never retry.

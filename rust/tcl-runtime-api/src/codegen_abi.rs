@@ -53,6 +53,13 @@ const I64: &[CodegenAbiValueType] = &[CodegenAbiValueType::I64];
 const I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 2];
 const I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 3];
 const I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 4];
+const I32_I32_I32_I64_I32: &[CodegenAbiValueType] = &[
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I64,
+    CodegenAbiValueType::I32,
+];
 const I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 5];
 const I32_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 6];
 const I32_I32_I32_I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 7];
@@ -296,6 +303,8 @@ pub enum CodegenAbiImportId {
     /// Define a procedure from borrowed, already evaluated original argv.
     /// Parameters are argv, argc, optional compiled entry, and completion out.
     ProcDefineOriginalArgv,
+    /// Original dispatch with a compiled-entry candidate checked at its handler.
+    ProcDefineGuardedArgv,
     /// Log one `while executing` / `invoked from within` `errorInfo` frame for
     /// a compiled statement that completed with an error.
     ///
@@ -418,6 +427,7 @@ impl CodegenAbiImportId {
         Self::MathFunc,
         Self::ProcDefineNative,
         Self::ProcDefineOriginalArgv,
+        Self::ProcDefineGuardedArgv,
         Self::LogCommand,
         Self::ReturnState,
         Self::NativeProcDispatches,
@@ -513,6 +523,11 @@ impl CodegenAbiImportId {
             Self::ProcDefineNative => tcl_import(
                 "tcl_codegen_proc_define_native",
                 I32_I32_I32_I32_I32_I32_I32,
+                I32,
+            ),
+            Self::ProcDefineGuardedArgv => tcl_import(
+                "tcl_codegen_proc_define_guarded_argv",
+                I32_I32_I32_I64_I32,
                 I32,
             ),
             Self::ProcDefineOriginalArgv => tcl_import(
@@ -1040,6 +1055,21 @@ mod tests {
             assert!(descriptor.parameters.iter().all(|value| *value == I32));
             assert_eq!(descriptor.results, &[I32][..], "{id:?}");
         }
+    }
+
+    #[test]
+    fn guarded_definition_descriptor_keeps_dispatch_and_identity_transport_separate() {
+        use CodegenAbiValueType::{I32, I64};
+        let import = CodegenAbiImportId::ProcDefineGuardedArgv.descriptor();
+        assert_eq!(import.module, "tcl");
+        assert_eq!(import.name, "tcl_codegen_proc_define_guarded_argv");
+        assert_eq!(import.parameters, &[I32, I32, I32, I64, I32]);
+        assert_eq!(import.results, &[I32]);
+        assert!(CodegenAbiImportId::ProcDefineGuardedArgv.requires_host_refusal_check());
+        assert_ne!(
+            import,
+            CodegenAbiImportId::ProcDefineOriginalArgv.descriptor()
+        );
     }
 
     #[test]

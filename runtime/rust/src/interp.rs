@@ -79,6 +79,7 @@ pub(crate) mod namespace_address;
 mod native_ensemble_objects;
 mod native_error_variables;
 pub(crate) use native_error_variables::OriginalJimErrorCodeCapture;
+mod guarded_definition;
 mod native_execution_constants;
 mod native_hidden_invocation;
 mod native_index_lookup;
@@ -1386,6 +1387,7 @@ pub struct InterpState {
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<OwnedGuardManager<u64>>,
     guard_lookup_environment_revision: Cell<Option<u64>>,
+    guarded_definitions: RefCell<Vec<guarded_definition::DefinitionRequest>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
     /// Registry identity of each engine-installed builtin command generation.
@@ -2032,6 +2034,7 @@ impl Interp {
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(OwnedGuardManager::new(guards)),
             guard_lookup_environment_revision: Cell::new(Some(0)),
+            guarded_definitions: RefCell::new(Vec::new()),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
             original_byte_command_registrations: RefCell::new(std::collections::HashMap::new()),
@@ -3269,6 +3272,12 @@ impl Interp {
                     GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
                 })
             })
+            .chain(
+                spec.native_lowering_at(
+                    self.native_invocation_dialect().authoring_query().as_ref(),
+                )
+                .definition_guard_identity(self.native_invocation_dialect()),
+            )
             .collect();
         self.attest(generation, None, identities);
     }
@@ -3330,6 +3339,12 @@ impl Interp {
                         GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
                     })
                 })
+                .chain(
+                    spec.native_lowering_at(
+                        self.native_invocation_dialect().authoring_query().as_ref(),
+                    )
+                    .definition_guard_identity(self.native_invocation_dialect()),
+                )
                 .collect();
             if identities.is_empty() {
                 continue;
@@ -16190,7 +16205,8 @@ impl Interp {
         match cmd {
             Command::Builtin(f) => {
                 let _native_admission = self.enter_native_builtin(generation, argv);
-                f(self, argv)
+                self.invoke_guarded_definition(generation, argv)
+                    .unwrap_or_else(|| f(self, argv))
             }
             Command::Alias {
                 original_prefix, ..
@@ -23251,8 +23267,8 @@ mod tests {
     }
 
     /// Every builtin this runtime registers at the name of a spec that
-    /// declares an intrinsic is attested for every identity the spec's
-    /// intrinsics have, and no other command is attested at all.
+    /// declares an intrinsic or definition contract is attested for every
+    /// corresponding identity, and no other command is attested.
     #[test]
     fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
         leak_free(|i| {
@@ -23272,6 +23288,12 @@ mod tests {
                             )
                         })
                     })
+                    .chain(
+                        spec.native_lowering_at(
+                            i.native_invocation_dialect().authoring_query().as_ref(),
+                        )
+                        .definition_guard_identity(i.native_invocation_dialect()),
+                    )
                     .collect();
                 let actual = i.attested_identities(name.as_bytes());
                 if expected.is_empty() || report.of(name) != RegisteredBacking::Builtin {

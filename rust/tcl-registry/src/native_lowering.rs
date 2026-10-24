@@ -66,6 +66,52 @@ pub enum NativeLowering {
 }
 
 impl NativeLowering {
+    /// Stable implementation identity, not a proof of any live command binding.
+    #[must_use]
+    pub fn definition_guard_identity(
+        self,
+        dialect: crate::InvocationDialect,
+    ) -> Option<tcl_runtime_api::guard::GuardIdentity> {
+        if self != Self::Definition {
+            return None;
+        }
+        let tcl_syntax::naming::NativeNameProtocol::C(version) = dialect.native_name_protocol()?
+        else {
+            return None;
+        };
+        let key = match version {
+            tcl_dialect::TclVersion::V8_4 => 1,
+            tcl_dialect::TclVersion::V8_5 => 2,
+            tcl_dialect::TclVersion::V8_6 => 3,
+            tcl_dialect::TclVersion::V9_0 => 4,
+            tcl_dialect::TclVersion::V9_1 => 5,
+        };
+        Some(tcl_runtime_api::guard::GuardIdentity::registry_definition(
+            key,
+        ))
+    }
+
+    /// Footprint for an already-selected stock definition handler only.
+    /// Ordinary dispatch has already resolved any object or method. This does
+    /// not bypass lookup, publication callbacks or the handler's own checks.
+    #[must_use]
+    pub const fn selected_definition_guard_domains(
+        self,
+    ) -> Option<tcl_runtime_api::guard::GuardDomains> {
+        use tcl_runtime_api::guard::{GuardDomain, GuardDomains};
+        match self {
+            Self::Definition => Some(
+                GuardDomains::one(GuardDomain::CommandEnvironment)
+                    .with(GuardDomain::Namespace)
+                    .with(GuardDomain::UnknownHandling)
+                    .with(GuardDomain::VariableTrace)
+                    .with(GuardDomain::CommandTrace)
+                    .with(GuardDomain::Interpreter),
+            ),
+            _ => None,
+        }
+    }
+
     /// Stable compiler and Explorer spelling of the shape family.
     #[must_use]
     pub const fn kind_str(self) -> &'static str {
@@ -163,6 +209,60 @@ impl ScopeKind {
 mod tests {
     use super::*;
     use crate::CommandRegistry;
+
+    #[test]
+    fn definition_guards_keep_release_contracts_and_non_definition_roles_distinct() {
+        let identities: Vec<_> = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(|version| {
+                let dialect = crate::InvocationDialect::for_version(version);
+                let identity = NativeLowering::Definition
+                    .definition_guard_identity(dialect)
+                    .unwrap();
+                assert_eq!(
+                    identity.namespace(),
+                    tcl_runtime_api::guard::REGISTRY_DEFINITION_IDENTITY_NAMESPACE
+                );
+                assert!(
+                    NativeLowering::Generic
+                        .definition_guard_identity(dialect)
+                        .is_none()
+                );
+                identity
+            })
+            .collect();
+        assert_eq!(
+            identities
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            5
+        );
+    }
+
+    #[test]
+    fn selected_definition_footprint_retains_used_domains_without_object_dispatch() {
+        use tcl_runtime_api::guard::GuardDomain;
+        let domains = NativeLowering::Definition
+            .selected_definition_guard_domains()
+            .unwrap();
+        for domain in [
+            GuardDomain::CommandEnvironment,
+            GuardDomain::Namespace,
+            GuardDomain::UnknownHandling,
+            GuardDomain::VariableTrace,
+            GuardDomain::CommandTrace,
+            GuardDomain::Interpreter,
+        ] {
+            assert!(domains.contains(domain));
+        }
+        assert!(!domains.contains(GuardDomain::ObjectDispatch));
+        assert!(
+            NativeLowering::Generic
+                .selected_definition_guard_domains()
+                .is_none()
+        );
+    }
 
     #[test]
     fn arity_rules_accept_their_documented_counts() {
