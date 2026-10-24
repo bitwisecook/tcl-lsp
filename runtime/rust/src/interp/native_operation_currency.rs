@@ -22,7 +22,7 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 pub(crate) struct NativeOperationCurrency {
     interpreter: Weak<InterpState>,
     host: Weak<dyn Host>,
-    context: RuntimeContext,
+    context: Rc<RuntimeContext>,
     dialect: InvocationDialect,
     epoch: u64,
 }
@@ -130,7 +130,7 @@ impl NativeOperationCurrency {
         let receipt = Self {
             interpreter: Rc::downgrade(&interpreter.0),
             host: Rc::downgrade(&host),
-            context: interpreter.runtime_context(),
+            context: Rc::new(interpreter.runtime_context()),
             dialect: interpreter.native_invocation_dialect(),
             epoch,
         };
@@ -152,7 +152,7 @@ impl NativeOperationCurrency {
         if !Weak::ptr_eq(&self.host, &Rc::downgrade(&current_host))
             || {
                 let pin = interpreter.0.pin.borrow();
-                pin.context != self.context
+                pin.context != *self.context
             }
             || interpreter.native_invocation_dialect() != self.dialect
             || epoch != Some(self.epoch)
