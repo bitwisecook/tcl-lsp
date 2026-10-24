@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1388,5 +1388,76 @@ jobs:
             ${{ runner.temp }}/wasm-real-link-output/*.json
             ${{ runner.temp }}/wasm-real-link-output/*.stdout
             ${{ runner.temp }}/wasm-real-link-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
+  irules-preflight-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'irules-preflight-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+      TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC: first-decline-v1
+    steps:
+      - name: Reserve time for bounded evidence upload
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 3600))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust
+        timeout-minutes: 5
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Bootstrap pinned C9 host provider and full TomMath
+        timeout-minutes: 15
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/irules-preflight-reference-bin
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          make ensure-tcl90-reference
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          tclsh="$(tcl_reference_resolve_tclsh 9.0)"
+          printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_TCL_BIN_DIR=%s\n' "$TCL_LSP_TCL_BIN_DIR" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_REQUIRE_TCLSH=9.0\n' >> "$GITHUB_ENV"
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run unchanged original bootstrap1 and CLI trace2
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/irules-preflight-target
+          OUT: ${{ runner.temp }}/irules-preflight-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload bounded original-test diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: irules-preflight-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/irules-preflight-output/*.json
+            ${{ runner.temp }}/irules-preflight-output/*.stdout
+            ${{ runner.temp }}/irules-preflight-output/*.stderr
           if-no-files-found: error
           retention-days: 30
