@@ -1,0 +1,62 @@
+{
+  "changed_unix": 1792806492.5363326,
+  "policy": "Full compiler/corpus and SpecTcl completed/cleaned. Give clean6 all4 available CPUs; no other builds/tests active. Original testthreads2/inputs/assertions/budgets unchanged; no process paused. All future children inherit affinity. Timings are diagnostic, not mode speedup evidence.",
+  "changes": [
+    {
+      "pid": 86059,
+      "tid": 86059,
+      "before": [
+        2,
+        3
+      ],
+      "after": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "pid": 105836,
+      "tid": 105836,
+      "before": [
+        2,
+        3
+      ],
+      "after": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "pid": 105836,
+      "tid": 105920,
+      "before": [
+        2,
+        3
+      ],
+      "after": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "pid": 105836,
+      "tid": 105931,
+      "before": [
+        2,
+        3
+      ],
+      "after": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  ]
+}

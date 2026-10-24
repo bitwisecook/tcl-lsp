@@ -1,3 +1,7 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 from pathlib import Path
 import hashlib,json,os,subprocess,time
 root=Path('/workspace/tcl-lsp-diagnostic');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');out=Path('/workspace/tcl-lsp-work')/perf.relative_to('/workspace/tcl-lsp-publish')/'evidence/current-83774d43-procs-timing-repeat';out.mkdir(exist_ok=False);p=root/'rust/tcl-compiler/examples/zz_procs_repeat_perfprobe.rs';assert not p.exists();before=subprocess.check_output(['git','diff','--','rust'],cwd=root);artifacts=[];record={'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'started_unix':time.time(),'scope':'Remeasure same procs41 old/new/old after slower new observation. Same opt1 source/input/report contract. CPU0,1; active unit comparison uses2,3. Diagnostic timings only; no changed performance assertion or acceptance shortcut.','runs':[]}
