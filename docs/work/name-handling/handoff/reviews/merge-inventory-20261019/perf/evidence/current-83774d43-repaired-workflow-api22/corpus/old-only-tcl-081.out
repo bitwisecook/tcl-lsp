@@ -1,0 +1,2 @@
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/variables.tcl" old1_ms=1300 new_ms=1048 old2_ms=945 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

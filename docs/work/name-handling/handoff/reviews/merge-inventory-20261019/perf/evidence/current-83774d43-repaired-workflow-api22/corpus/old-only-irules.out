@@ -1,0 +1,30 @@
+REPORT label="samples/for_screenshots/32-extract-datagroup-mapping-after.irul" old1_ms=389 new_ms=356 old2_ms=440 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/31-extract-datagroup-ip-before.irul" old1_ms=633 new_ms=514 old2_ms=508 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/31-extract-datagroup-ip-after.irul" old1_ms=388 new_ms=308 old2_ms=316 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/24-template-fallback.irul" old1_ms=196 new_ms=113 old2_ms=113 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/32-extract-datagroup-mapping-before.irul" old1_ms=286 new_ms=223 old2_ms=255 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/05-security-taint-before.irul" old1_ms=248 new_ms=177 old2_ms=185 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/30-extract-datagroup-before.irul" old1_ms=717 new_ms=416 old2_ms=450 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/05-security-taint-after.irul" old1_ms=532 new_ms=407 old2_ms=402 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/30-extract-datagroup-after.irul" old1_ms=372 new_ms=279 old2_ms=297 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/for_screenshots/ai-scene.irul" old1_ms=285 new_ms=217 old2_ms=235 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/irules/cookbook_http_collect.irul" old1_ms=2386 new_ms=2148 old2_ms=2084 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/irules/diagnostics_event_flow.irul" old1_ms=1904 new_ms=1896 old2_ms=1844 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/irules/cookbook_tcp_collect.irul" old1_ms=6708 new_ms=5910 old2_ms=6299 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/irules/diagnostics_security.irul" old1_ms=2030 new_ms=1947 old2_ms=1818 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/irules/diagnostics_style_perf.irul" old1_ms=3461 new_ms=3225 old2_ms=3167 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

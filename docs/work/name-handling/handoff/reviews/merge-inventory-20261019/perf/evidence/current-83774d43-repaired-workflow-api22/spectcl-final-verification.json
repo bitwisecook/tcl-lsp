@@ -1,0 +1,63 @@
+{
+  "checked_unix": 1792802093.3219626,
+  "source_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "source_diff_matches_build": true,
+  "warnings": 0,
+  "all4_original_suites_pass": true,
+  "summary": {
+    "spectcl/eval_loader/new": {
+      "returncode": 0,
+      "seconds": 319.619,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "declared_count": 28,
+      "missing_tests": [],
+      "inventory_complete": true,
+      "log": "tests-spectcl-eval_loader-new.out",
+      "pass_to_fail": [],
+      "comparison_complete": true
+    },
+    "spectcl/eval_loader/old": {
+      "returncode": 0,
+      "seconds": 257.425,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "declared_count": 28,
+      "missing_tests": [],
+      "inventory_complete": true,
+      "log": "tests-spectcl-eval_loader-old.out"
+    },
+    "spectcl/golden_packs/new": {
+      "returncode": 0,
+      "seconds": 314.814,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "declared_count": 3,
+      "missing_tests": [],
+      "inventory_complete": true,
+      "log": "tests-spectcl-golden_packs-new.out",
+      "pass_to_fail": [],
+      "comparison_complete": true
+    },
+    "spectcl/golden_packs/old": {
+      "returncode": 0,
+      "seconds": 308.789,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "declared_count": 3,
+      "missing_tests": [],
+      "inventory_complete": true,
+      "log": "tests-spectcl-golden_packs-old.out"
+    }
+  },
+  "executables_removed": true,
+  "scope": "Current frozen837 full-batch with switch; original28+3 assertions/threads/budgets BOTH. CPUs0,1; corpus on2,3."
+}

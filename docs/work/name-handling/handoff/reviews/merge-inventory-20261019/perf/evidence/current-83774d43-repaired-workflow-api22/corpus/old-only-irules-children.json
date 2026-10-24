@@ -1,0 +1,152 @@
+[
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-extract-datagroup-mapping-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.216485743992962,
+    "log": "old-only-irules-000.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/31-extract-datagroup-ip-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.6871158810099587,
+    "log": "old-only-irules-001.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/31-extract-datagroup-ip-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.0389437660051044,
+    "log": "old-only-irules-002.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/24-template-fallback.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.4502894170000218,
+    "log": "old-only-irules-003.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-extract-datagroup-mapping-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7853685690060956,
+    "log": "old-only-irules-004.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/05-security-taint-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.6311879949935246,
+    "log": "old-only-irules-005.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/30-extract-datagroup-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.6133572649996495,
+    "log": "old-only-irules-006.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/05-security-taint-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.3692554380104411,
+    "log": "old-only-irules-007.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/30-extract-datagroup-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9745284910022747,
+    "log": "old-only-irules-008.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/ai-scene.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7630174799996894,
+    "log": "old-only-irules-009.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/cookbook_http_collect.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.692595688000438,
+    "log": "old-only-irules-010.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_event_flow.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.989885066010174,
+    "log": "old-only-irules-011.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/cookbook_tcp_collect.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 19.061636287995498,
+    "log": "old-only-irules-012.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_security.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.848271340000792,
+    "log": "old-only-irules-013.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_style_perf.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.937103167001624,
+    "log": "old-only-irules-014.out"
+  }
+]

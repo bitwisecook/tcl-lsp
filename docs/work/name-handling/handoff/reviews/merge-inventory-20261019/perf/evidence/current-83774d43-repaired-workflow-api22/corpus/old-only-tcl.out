@@ -72,3 +72,133 @@ REPORT label="samples/wasm/t3-procs/32_defaults_and_args.tcl" old1_ms=1243 new_m
 REPORT_SUMMARY inputs=1 failed=0
 REPORT label="samples/dialect_stubs_inline_example.tcl" old1_ms=332 new_ms=445 old2_ms=212 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
 REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/profile_standard.tcl" old1_ms=15578 new_ms=10538 old2_ms=8410 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/profile_aggressive.tcl" old1_ms=7110 new_ms=6110 old2_ms=5550 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/deep_pipeline.tcl" old1_ms=6347 new_ms=5817 old2_ms=7117 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/profile_readability.tcl" old1_ms=11728 new_ms=7905 old2_ms=8524 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/profile_full.tcl" old1_ms=7460 new_ms=6529 old2_ms=6597 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/optimiser/input.tcl" old1_ms=11131 new_ms=10689 old2_ms=9541 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W211_set_never_used/example.tcl" old1_ms=520 new_ms=324 old2_ms=339 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W105_unbraced_eval/example.tcl" old1_ms=1617 new_ms=1202 old2_ms=1835 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/S101_shimmer_merge/example.tcl" old1_ms=2853 new_ms=1609 old2_ms=53723 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/O110_canonicalise_expr/example.tcl" old1_ms=916 new_ms=712 old2_ms=620 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W102_subst_injection/example.tcl" old1_ms=1475 new_ms=820 old2_ms=899 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W307_non_literal_command/example.tcl" old1_ms=1408 new_ms=1102 old2_ms=1133 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W301_uplevel_unbraced/example.tcl" old1_ms=772 new_ms=524 old2_ms=557 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W313_file_delete_path/example.tcl" old1_ms=1887 new_ms=1546 old2_ms=1584 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W210_read_before_set/example.tcl" old1_ms=1167 new_ms=902 old2_ms=1330 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W220_assignment_never_read/example.tcl" old1_ms=316 new_ms=164 old2_ms=256 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W314_no_absolute_name/example.tcl" old1_ms=448 new_ms=290 old2_ms=284 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W111_long_line/example.tcl" old1_ms=330 new_ms=210 old2_ms=190 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W002_disabled_command/example.tcl" old1_ms=1969 new_ms=1119 old2_ms=959 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W112_trailing_whitespace/example.tcl" old1_ms=318 new_ms=196 old2_ms=192 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W304_missing_double_dash/example.tcl" old1_ms=5784 new_ms=5189 old2_ms=13271 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W001_unknown_subcommand/example.tcl" old1_ms=5343 new_ms=995 old2_ms=844 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/S102_type_thunking/example.tcl" old1_ms=1943 new_ms=1493 old2_ms=1388 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/O116_fold_constant_list/example.tcl" old1_ms=718 new_ms=503 old2_ms=486 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/O106_loop_invariant/example.tcl" old1_ms=1499 new_ms=1951 old2_ms=1513 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W103_open_pipeline/example.tcl" old1_ms=2428 new_ms=1690 old2_ms=1716 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W101_eval_injection/example.tcl" old1_ms=1302 new_ms=1912 old2_ms=1756 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W115_backslash_newline_comment/example.tcl" old1_ms=804 new_ms=350 old2_ms=641 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W214_unused_parameter/example.tcl" old1_ms=838 new_ms=672 old2_ms=856 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/E003_proc_call_arity/example.tcl" old1_ms=1048 new_ms=965 old2_ms=1188 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W306_regexp_substitution/example.tcl" old1_ms=1520 new_ms=994 old2_ms=1236 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/diagnostics/W108_non_ascii/example.tcl" old1_ms=404 new_ms=255 old2_ms=251 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/10_format_strings.tcl" old1_ms=4430 new_ms=5359 old2_ms=4152 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/11_minifier_demo.tcl" old1_ms=2833 new_ms=1969 old2_ms=2003 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/compiler_explorer_demo.tcl" old1_ms=1454 new_ms=1725 old2_ms=2008 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/08_tricky_edge_cases.tcl" old1_ms=1622 new_ms=1071 old2_ms=843 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/06_security_smells.tcl" old1_ms=503 new_ms=429 old2_ms=341 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/13_incr_dialect_difference.tcl" old1_ms=525 new_ms=548 old2_ms=600 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/12_safe_on_uninit.tcl" old1_ms=2564 new_ms=1659 old2_ms=1779 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="samples/tcl/05_warning_examples.tcl" old1_ms=479 new_ms=311 old2_ms=289 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl" old1_ms=4081 new_ms=3668 old2_ms=3917 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_signature_scope.tcl" old1_ms=2534 new_ms=2010 old2_ms=2059 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl" old1_ms=2715 new_ms=4108 old2_ms=1951 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl" old1_ms=5116 new_ms=4329 old2_ms=4405 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/variables.tcl" old1_ms=1300 new_ms=1048 old2_ms=945 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/aliases.tcl" old1_ms=2494 new_ms=1882 old2_ms=1821 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl" old1_ms=2501 new_ms=2294 old2_ms=2408 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl" old1_ms=2103 new_ms=1855 old2_ms=1598 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl" old1_ms=1797 new_ms=1900 old2_ms=1350 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_double_completion/source.tcl" old1_ms=2064 new_ms=1719 old2_ms=1752 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_deep_array_source.tcl" old1_ms=20603 new_ms=15533 old2_ms=15401 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl" old1_ms=1788 new_ms=1218 old2_ms=1379 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl" old1_ms=356 new_ms=289 old2_ms=225 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl" old1_ms=383 new_ms=275 old2_ms=272 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl" old1_ms=722 new_ms=227 old2_ms=282 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl" old1_ms=481 new_ms=226 old2_ms=231 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_alias_target_context.tcl" old1_ms=1751 new_ms=1112 old2_ms=1993 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/native_itcl/protocols.tcl" old1_ms=1411 new_ms=714 old2_ms=508 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl" old1_ms=1422 new_ms=775 old2_ms=812 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/completion-options-control.tcl" old1_ms=1380 new_ms=965 old2_ms=827 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/completion-options-alias.tcl" old1_ms=1866 new_ms=1384 old2_ms=1415 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/array-get-read-traces.tcl" old1_ms=303503 new_ms=318788 old2_ms=226023 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/expanded-command-head.tcl" old1_ms=1014 new_ms=1237 old2_ms=819 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/external/backend_constraints.tcl" old1_ms=2641 new_ms=1844 old2_ms=1707 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/classes.tcl" old1_ms=573 new_ms=369 old2_ms=367 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

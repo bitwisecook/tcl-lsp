@@ -1,0 +1,2 @@
+REPORT label="tests/fixtures/tcl9/expanded-command-head.tcl" old1_ms=1014 new_ms=1237 old2_ms=819 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

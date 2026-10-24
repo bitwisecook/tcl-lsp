@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "procs",
+      "41"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.06716696699732,
+    "log": "old-only-procs-000.out"
+  }
+]

@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 00:14 UTC
+Last updated: 2026-10-24 00:39 UTC
 
 **Current837 complete proof is running; six-file perf code remains unlanded.**
 All22 authenticated report/realm controls pass BOTH with0Rust warnings and an
@@ -10,7 +10,10 @@ and complete ordered PackSet run is active; no complete acceptance yet.
 Fresh switched lexer586/586 BOTH passes0warnings; clean6 lexer586/586 BOTH
 passes0warnings. Clean6 compiler0 unit build finished0warnings, preserved ELF
 hash verified, original filter/deep runtime queued after full cleanup. Fresh
-SpecTcl integration build finished0warnings in7m31s; eval_loader NEW is active.
+SpecTcl BOTH suites now COMPLETE/PASS: eval_loader28 BOTH319.619/257.425s,
+goldens3 BOTH314.814/308.789s,0warnings/source exact/two executables deleted.
+Forced-old text corpus102Tcl+15iRules is complete/all3 Equal for every input;
+synthetics/mixed full pass/ordered PackSet remain pending.
 Final server quiet repeat and all-target compiler Clippy remain queued.
 
 Source is FROZEN83774d43 plus9 full switched/six owned files, separate targets.

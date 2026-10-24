@@ -368,5 +368,655 @@
     "valid": true,
     "wall_s": 1.014354490005644,
     "log": "old-only-tcl-036.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_standard.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 34.764279733004514,
+    "log": "old-only-tcl-037.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_aggressive.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 18.982179703001748,
+    "log": "old-only-tcl-038.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/deep_pipeline.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 19.432890705997124,
+    "log": "old-only-tcl-039.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_readability.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 28.494171683996683,
+    "log": "old-only-tcl-040.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_full.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 20.843621017993428,
+    "log": "old-only-tcl-041.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/input.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 32.768618158996105,
+    "log": "old-only-tcl-042.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W211_set_never_used/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.214560590000474,
+    "log": "old-only-tcl-043.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W105_unbraced_eval/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.727898530007224,
+    "log": "old-only-tcl-044.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/S101_shimmer_merge/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 58.446988230993156,
+    "log": "old-only-tcl-045.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O110_canonicalise_expr/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.5273335599922575,
+    "log": "old-only-tcl-046.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W102_subst_injection/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.2751326090074144,
+    "log": "old-only-tcl-047.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W307_non_literal_command/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.6865522419975605,
+    "log": "old-only-tcl-048.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W301_uplevel_unbraced/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.8867814330005785,
+    "log": "old-only-tcl-049.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W313_file_delete_path/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.076314605001244,
+    "log": "old-only-tcl-050.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W210_read_before_set/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.459060305991443,
+    "log": "old-only-tcl-051.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W220_assignment_never_read/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7798535830079345,
+    "log": "old-only-tcl-052.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W314_no_absolute_name/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.0556722249893937,
+    "log": "old-only-tcl-053.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W111_long_line/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7554507519962499,
+    "log": "old-only-tcl-054.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W002_disabled_command/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.08312008199573,
+    "log": "old-only-tcl-055.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W112_trailing_whitespace/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7295803949964466,
+    "log": "old-only-tcl-056.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W304_missing_double_dash/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 24.40964540600544,
+    "log": "old-only-tcl-057.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W001_unknown_subcommand/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.555594702003873,
+    "log": "old-only-tcl-058.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/S102_type_thunking/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.89346225198824,
+    "log": "old-only-tcl-059.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O116_fold_constant_list/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.7438319709908683,
+    "log": "old-only-tcl-060.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O106_loop_invariant/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.040306877010153,
+    "log": "old-only-tcl-061.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W103_open_pipeline/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.905276830002549,
+    "log": "old-only-tcl-062.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W101_eval_injection/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.036419740004931,
+    "log": "old-only-tcl-063.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W115_backslash_newline_comment/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.838580900002853,
+    "log": "old-only-tcl-064.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W214_unused_parameter/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.4211097890074598,
+    "log": "old-only-tcl-065.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/E003_proc_call_arity/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.2356287029979285,
+    "log": "old-only-tcl-066.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W306_regexp_substitution/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.800595296997926,
+    "log": "old-only-tcl-067.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W108_non_ascii/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9404988579917699,
+    "log": "old-only-tcl-068.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/10_format_strings.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 14.01189735099615,
+    "log": "old-only-tcl-069.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/11_minifier_demo.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.895935649008607,
+    "log": "old-only-tcl-070.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/compiler_explorer_demo.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.278862578998087,
+    "log": "old-only-tcl-071.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/08_tricky_edge_cases.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.593623994005611,
+    "log": "old-only-tcl-072.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/06_security_smells.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.3162281409895513,
+    "log": "old-only-tcl-073.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/13_incr_dialect_difference.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.7192843280063244,
+    "log": "old-only-tcl-074.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/12_safe_on_uninit.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.093732544002705,
+    "log": "old-only-tcl-075.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/05_warning_examples.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.107469984999625,
+    "log": "old-only-tcl-076.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 11.744425528988359,
+    "log": "old-only-tcl-077.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_signature_scope.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.694190220005112,
+    "log": "old-only-tcl-078.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 8.839858261999325,
+    "log": "old-only-tcl-079.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 13.954681371003971,
+    "log": "old-only-tcl-080.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/variables.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.3434557159926044,
+    "log": "old-only-tcl-081.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.3259735540050315,
+    "log": "old-only-tcl-082.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.273339595005382,
+    "log": "old-only-tcl-083.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.625468494996312,
+    "log": "old-only-tcl-084.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.107788280991372,
+    "log": "old-only-tcl-085.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_double_completion/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.584055373998126,
+    "log": "old-only-tcl-086.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_deep_array_source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 51.689954667992424,
+    "log": "old-only-tcl-087.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.439024224993773,
+    "log": "old-only-tcl-088.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.8946830600034446,
+    "log": "old-only-tcl-089.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.954530752991559,
+    "log": "old-only-tcl-090.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.2584852690051775,
+    "log": "old-only-tcl-091.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9642299949919106,
+    "log": "old-only-tcl-092.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_alias_target_context.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.905496692008455,
+    "log": "old-only-tcl-093.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_itcl/protocols.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.6627571849967353,
+    "log": "old-only-tcl-094.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.065057315005106,
+    "log": "old-only-tcl-095.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/completion-options-control.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.225390753999818,
+    "log": "old-only-tcl-096.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/completion-options-alias.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.727509196003666,
+    "log": "old-only-tcl-097.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/array-get-read-traces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 850.5530678450014,
+    "log": "old-only-tcl-098.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/expanded-command-head.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.147462013992481,
+    "log": "old-only-tcl-099.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/external/backend_constraints.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.257352654996794,
+    "log": "old-only-tcl-100.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/classes.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.340702144007082,
+    "log": "old-only-tcl-101.out"
   }
 ]

@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 00:14 UTC
+Last updated: 2026-10-24 00:39 UTC
 
 ## Resume
 
@@ -42,9 +42,10 @@ Current execution:
   2.716/2.197s,0warnings/removed. Old ENV is ignored. Compiler0 build FINISHED
   0warnings in1454.055s; SHA-checked private ELF retained, hash
   eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23. It waits full driver cleanup before runtime.
-- Fresh SpecTcl helper /tmp/perf-83774d43-api22-client-spectcl.log BUILT both
-  integration executables0warnings in7m31s; eval_loader NEW is RUNNING at SAME
-  837 source. No complete current runtime verdict yet.
+- Fresh SpecTcl COMPLETE/PASS at SAME837 source: eval_loader28/28 BOTH
+  319.619/257.425s; golden_packs3/3 BOTH314.814/308.789s. All4 suite outcomes
+  pass,0warnings, exact source/hash unchanged, both executables deleted.
+  full/spectcl-final-verification.json pins actual cleanup/unchanged source.
   Evidence full/client-spectcl/ and full/spectcl-run-*.json. Original28+3 BOTH,
   original assertions/threads/budgets. After its actual cleanup, full driver
   runs original compiler8 filters +native0xff control +extra ReadFlow test BOTH,

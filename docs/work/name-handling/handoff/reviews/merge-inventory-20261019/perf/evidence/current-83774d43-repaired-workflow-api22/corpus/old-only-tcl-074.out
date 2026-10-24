@@ -1,0 +1,2 @@
+REPORT label="samples/tcl/13_incr_dialect_difference.tcl" old1_ms=525 new_ms=548 old2_ms=600 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

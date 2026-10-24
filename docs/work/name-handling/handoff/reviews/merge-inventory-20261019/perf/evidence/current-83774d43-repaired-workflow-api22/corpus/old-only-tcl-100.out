@@ -1,0 +1,2 @@
+REPORT label="tests/external/backend_constraints.tcl" old1_ms=2641 new_ms=1844 old2_ms=1707 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

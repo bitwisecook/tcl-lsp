@@ -1,0 +1,16 @@
+{
+  "checked_unix": 1792801160.177073,
+  "proof_base": "83774d43",
+  "canonical_head": "1947afad66ae1a4d0d75aa17e7e066d98bce6ee2",
+  "same_eight_unpatched_source_files": {
+    "rust/tcl-lexer/src/parse_cut.rs": true,
+    "rust/tcl-lexer/src/source_map.rs": true,
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true,
+    "rust/tcl-compiler/src/realm.rs": true,
+    "rust/tcl-compiler/src/interprocedural.rs": true
+  },
+  "scope": "Canonical hotpath source compatibility only. Other owner changes, including0f4b8e19, are outside the frozen proof and must be retained during final rebase; no broader latest-branch runtime claim."
+}

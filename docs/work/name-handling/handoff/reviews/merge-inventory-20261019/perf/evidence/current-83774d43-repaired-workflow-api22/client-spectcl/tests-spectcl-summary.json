@@ -1,15 +1,54 @@
 {
   "spectcl/eval_loader/new": {
-    "status": "running",
-    "log": "tests-spectcl-eval_loader-new.out"
+    "returncode": 0,
+    "seconds": 319.619,
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 28,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-spectcl-eval_loader-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
   },
   "spectcl/eval_loader/old": {
-    "status": "pending"
+    "returncode": 0,
+    "seconds": 257.425,
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 28,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-spectcl-eval_loader-old.out"
   },
   "spectcl/golden_packs/new": {
-    "status": "pending"
+    "returncode": 0,
+    "seconds": 314.814,
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 3,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-spectcl-golden_packs-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
   },
   "spectcl/golden_packs/old": {
-    "status": "pending"
+    "returncode": 0,
+    "seconds": 308.789,
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 3,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-spectcl-golden_packs-old.out"
   }
 }

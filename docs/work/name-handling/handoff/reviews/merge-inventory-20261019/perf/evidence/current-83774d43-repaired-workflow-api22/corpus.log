@@ -1,0 +1,4 @@
+old-only tcl {'mode': 'old-only', 'case': 'tcl', 'exit': 0, 'exits': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'valid': True, 'expected': 102, 'wall_s': 1855.635784336002}
+old-only irules {'mode': 'old-only', 'case': 'irules', 'exit': 0, 'exits': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'valid': True, 'expected': 15, 'wall_s': 58.071474120006314}
+old-only calls {'mode': 'old-only', 'case': 'calls', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 4, 'wall_s': 52.39677426600247}
+old-only procs {'mode': 'old-only', 'case': 'procs', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 1, 'wall_s': 5.068806437004241}

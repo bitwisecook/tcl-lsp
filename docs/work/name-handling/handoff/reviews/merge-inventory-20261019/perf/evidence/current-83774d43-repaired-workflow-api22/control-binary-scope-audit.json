@@ -1,0 +1,8 @@
+{
+  "checked_unix": 1792802343.22381,
+  "source_base": "83774d43",
+  "old23_control_binary_sha256": "149471813a0e2d79298c0d7020431d4207abcb5ed76c7fd0e339f0fad7bcde80",
+  "fresh22_api_binary_sha256": "149471813a0e2d79298c0d7020431d4207abcb5ed76c7fd0e339f0fad7bcde80",
+  "binary_identical": true,
+  "scope": "Exact unchanged compiled Rust tests. Extra ReadFlow foreign rejection remains failed baseline evidence and reruns with compiler filters; no Rust test assertion was changed/ignored. API scope is strict22 complete report/realm controls."
+}

@@ -1,0 +1,2 @@
+REPORT label="samples/irules/cookbook_tcp_collect.irul" old1_ms=6708 new_ms=5910 old2_ms=6299 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

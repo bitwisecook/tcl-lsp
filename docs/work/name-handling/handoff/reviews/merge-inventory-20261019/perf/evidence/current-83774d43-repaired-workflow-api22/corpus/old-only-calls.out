@@ -1,0 +1,5 @@
+REPORT label="calls:10" old1_ms=655 new_ms=541 old2_ms=520 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="calls:20" old1_ms=1429 new_ms=1238 old2_ms=1170 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="calls:40" old1_ms=3470 new_ms=3242 old2_ms=4052 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT label="calls:80" old1_ms=12640 new_ms=11362 old2_ms=11926 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=4 failed=0
