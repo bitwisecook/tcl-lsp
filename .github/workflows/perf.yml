@@ -548,6 +548,7 @@ jobs:
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
             printf '%s\n' 'DIAGNOSTIC ONLY: original three-test subtotal, followed by separate baseline14, stack1 and authenticated other103 inventories. Other tests and doctests excluded; numeric selector repeats original3 in other103 without identity/count merging. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
             printf '%s\n' 'Seven separately reported authored namespace publication-revision controls follow the unchanged original inventories under the same remaining deadlines and caps. Planned or unstarted controls remain UNRUN.' >> "$OUT/coverage.txt"
+            printf '%s\n' 'Three separately reported targeted-pruning controls follow the original125 supplemental cases with the same remaining deadlines and caps. Planned or unstarted cases remain UNRUN; no semantic or performance acceptance.' >> "$OUT/coverage.txt"
           fi
       - name: Prepare the pinned Tcl 8.4 integer-cache provider
         timeout-minutes: 17

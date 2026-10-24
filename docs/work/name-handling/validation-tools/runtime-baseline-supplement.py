@@ -50,7 +50,32 @@ PRUNE_CONTROLS = {
     "namespace::tests::publication_revision_tracks_moves_and_callback_rebound_rename_sources": "ce0ed09d567fcdeea4c88c6c2e38b955f4ae3dd19b18e17dc0eabd24c456ecf4",
     "namespace::tests::publication_revision_tracks_occupied_jim_value_replacement": "fce936d54393d46b21f602e708e9c3852ede5b3ee10840f63dd37094afe7cb30",
 }
-GROUPS = ("baseline14", "stack_abort1", "other103", "prune_controls7")
+TARGETED_PRUNE_CONTROL_AUTHORITY = "74526401072499b7f41f51256ef01257759e2140"
+TARGETED_PRUNE_CONTROL_AUTHORITY_FILES = {
+    "runtime/rust/src/namespace.rs": "90b3900bf27782c6d674bbf019ff7a0539bb821a0d313086c904366c86b77f19",
+    "runtime/rust/src/interp/native_command_names.rs": "2f83a06abaa2b5c9fc5c9bcac6e53afb5a8aff9736133755a49da4bab20ddc87",
+}
+TARGETED_PRUNE_CONTROLS = {
+    "namespace::tests::single_unlink_witness_requires_actual_c_and_exact_previous_revision": {
+        "path": "runtime/rust/src/namespace.rs",
+        "sha256": "80bf3fb36bee33c09e4874ea7369f987b1d74ead044bf697f331e73049acbed1",
+    },
+    "namespace::tests::single_unlink_witness_refuses_broad_foreign_dead_and_exhausted_history": {
+        "path": "runtime/rust/src/namespace.rs",
+        "sha256": "eea4c524fc8c01eca02ba2ae76a3a4b5dc943e8021a9fb46847cd70eb3f307d5",
+    },
+    "interp::native_command_names::repinned_registration_key_tests::original_byte_registration_single_unlink_matches_full_validation": {
+        "path": "runtime/rust/src/interp/native_command_names.rs",
+        "sha256": "cbf8c5d72636722e4b88f385226e2d81fc4c813442c0f29e495ee60bb25f1613",
+    },
+}
+GROUPS = (
+    "baseline14",
+    "stack_abort1",
+    "other103",
+    "prune_controls7",
+    "targeted_prune_controls3",
+)
 CAP = 20 * 1024**2 - 65536
 FLOOR = 2 * 1024**3
 BASE = Path(__file__).resolve().parent
@@ -111,6 +136,7 @@ def inventories():
     )
     roster["other103"] = expected
     roster["prune_controls7"] = list(PRUNE_CONTROLS)
+    roster["targeted_prune_controls3"] = list(TARGETED_PRUNE_CONTROLS)
     return roster, other
 
 
@@ -137,6 +163,34 @@ def prune_control_source():
         "function_sha256": matched,
         "matched_count": 7,
         "scope": "Authored Rust software controls only; no original C oracle or baseline identity grant.",
+    }
+
+
+def targeted_prune_control_source():
+    current_files = {}
+    for path in TARGETED_PRUNE_CONTROL_AUTHORITY_FILES:
+        current_files[path] = sha(path)
+    matched = {}
+    for name, expected in TARGETED_PRUNE_CONTROLS.items():
+        simple = re.escape(name.rsplit("::", 1)[1])
+        pattern = r"(?:^    #\[[^\n]*\]\n)+^    fn " + simple + r"\(\) \{\n.*?^    }\n"
+        found = re.findall(
+            pattern, Path(expected["path"]).read_text(), re.MULTILINE | re.DOTALL
+        )
+        require(
+            len(found) == 1
+            and hashlib.sha256(found[0].encode()).hexdigest() == expected["sha256"],
+            "unchanged targeted prune control source required: " + name,
+        )
+        matched[name] = expected
+    require(len(matched) == 3, "exact three targeted prune controls required")
+    return {
+        "authority_commit": TARGETED_PRUNE_CONTROL_AUTHORITY,
+        "authority_files_sha256": TARGETED_PRUNE_CONTROL_AUTHORITY_FILES,
+        "current_files_sha256": current_files,
+        "functions": matched,
+        "matched_count": 3,
+        "scope": "Separate authored software controls; no C oracle, baseline or performance grant.",
     }
 
 
@@ -168,6 +222,21 @@ def selection(out):
         len(roster["prune_controls7"]) == len(set(roster["prune_controls7"])) == 7
         and len(set(wanted + roster["other103"] + roster["prune_controls7"])) == 125,
         "exact separate authored prune7 identities required",
+    )
+    require(
+        len(roster["targeted_prune_controls3"])
+        == len(set(roster["targeted_prune_controls3"]))
+        == 3
+        and len(
+            set(
+                wanted
+                + roster["other103"]
+                + roster["prune_controls7"]
+                + roster["targeted_prune_controls3"]
+            )
+        )
+        == 128,
+        "exact separate targeted prune3 identities required",
     )
     listing = json.loads((out / "selected.json").read_text())
     suites = [
@@ -210,6 +279,11 @@ def selection(out):
         and not selected.intersection(roster["prune_controls7"]),
         "authored prune7 absent, ignored or substituted for original3",
     )
+    require(
+        all(listed(suite, name) for name in roster["targeted_prune_controls3"])
+        and not selected.intersection(roster["targeted_prune_controls3"]),
+        "targeted prune3 absent, ignored or substituted for original3",
+    )
     binary = Path(suite["binary-path"]).resolve()
     target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
     require(
@@ -239,6 +313,8 @@ def prepare(out, source):
             "separate_other103_count": 103,
             "separate_prune_control_count": 7,
             "prune_control_source": prune_control_source(),
+            "separate_targeted_prune_control_count": 3,
+            "targeted_prune_control_source": targeted_prune_control_source(),
             "other103_listing_unavailable": [
                 name for name in _roster["other103"] if not listed(suite, name)
             ],
@@ -260,6 +336,13 @@ def prepare(out, source):
         [
             {"group": "prune_controls7", "selector": name, "status": "UNRUN"}
             for name in PRUNE_CONTROLS
+        ],
+    )
+    save(
+        out / "targeted-prune-controls-plan.json",
+        [
+            {"group": "targeted_prune_controls3", "selector": name, "status": "UNRUN"}
+            for name in TARGETED_PRUNE_CONTROLS
         ],
     )
     save(
@@ -303,7 +386,9 @@ def frames(out, source):
         and prepared["binary"] == str(binary)
         and prepared["elf_sha256"] == sha(binary)
         and prepared["listing_sha256"] == sha(out / "selected.json")
-        and prepared["prune_control_source"] == prune_control_source(),
+        and prepared["prune_control_source"] == prune_control_source()
+        and prepared["targeted_prune_control_source"]
+        == targeted_prune_control_source(),
         "same prepared original3 ELF and listing required before inspection",
     )
     helper = BASE / "runtime-stack-frames.py"
@@ -408,6 +493,10 @@ def run(out, source):
         supplemental / "prune-controls-outcomes.json",
         [row for row in rows if row["group"] == "prune_controls7"],
     )
+    save(
+        supplemental / "targeted-prune-controls-outcomes.json",
+        [row for row in rows if row["group"] == "targeted_prune_controls3"],
+    )
     roster, suite, binary = selection(out)
     errors = []
     started = time.monotonic()
@@ -426,7 +515,9 @@ def run(out, source):
     )
     require(
         prepared["listing_sha256"] == sha(out / "selected.json")
-        and prepared["prune_control_source"] == prune_control_source(),
+        and prepared["prune_control_source"] == prune_control_source()
+        and prepared["targeted_prune_control_source"]
+        == targeted_prune_control_source(),
         "original full listing changed",
     )
     original = json.loads((out / "diagnostic-completeness.json").read_text())
@@ -476,6 +567,10 @@ def run(out, source):
             save(
                 supplemental / "prune-controls-outcomes.json",
                 [row for row in rows if row["group"] == "prune_controls7"],
+            )
+            save(
+                supplemental / "targeted-prune-controls-outcomes.json",
+                [row for row in rows if row["group"] == "targeted_prune_controls3"],
             )
             continue
         if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
@@ -532,6 +627,10 @@ def run(out, source):
         save(
             supplemental / "prune-controls-outcomes.json",
             [row for row in rows if row["group"] == "prune_controls7"],
+        )
+        save(
+            supplemental / "targeted-prune-controls-outcomes.json",
+            [row for row in rows if row["group"] == "targeted_prune_controls3"],
         )
         print(row["group"], row["selector"], row["status"], flush=True)
         if time.monotonic() > suite_deadline or time.time() > absolute:
@@ -605,6 +704,22 @@ def run(out, source):
             "scope": "Separate authored controls after unchanged original3/baseline14/stack1/other103; no substitution or semantic gate acceptance.",
         },
     )
+    save(
+        supplemental / "targeted-prune-controls-summary.json",
+        {
+            "source": source,
+            "count": 3,
+            "counts": counts["targeted_prune_controls3"],
+            "complete": all(
+                row["status"] not in ["UNRUN", "INCOMPLETE", "TIMEOUT"]
+                for row in rows
+                if row["group"] == "targeted_prune_controls3"
+            ),
+            "source_provenance": prepared["targeted_prune_control_source"],
+            "case_budget_seconds": 180,
+            "scope": "Separate authored controls after unchanged original3/baseline14/stack1/other103/prune7; no substitution or semantic gate acceptance.",
+        },
+    )
     return (
         125
         if not complete
@@ -665,6 +780,7 @@ def main():
                     (BASE / "runtime-other-failures-roster.json").read_text()
                 )["other103"]
                 roster["prune_controls7"] = list(PRUNE_CONTROLS)
+                roster["targeted_prune_controls3"] = list(TARGETED_PRUNE_CONTROLS)
                 rows = [
                     {"group": group, "selector": name, "status": "UNRUN"}
                     for group in GROUPS
@@ -674,6 +790,10 @@ def main():
             save(
                 directory / "prune-controls-outcomes.json",
                 [row for row in rows if row["group"] == "prune_controls7"],
+            )
+            save(
+                directory / "targeted-prune-controls-outcomes.json",
+                [row for row in rows if row["group"] == "targeted_prune_controls3"],
             )
             save(
                 directory / "prune-controls-summary.json",
@@ -689,6 +809,22 @@ def main():
                         )
                     ),
                     "scope": "Authored prune controls unadmitted; original inventories remain separately reported.",
+                },
+            )
+            save(
+                directory / "targeted-prune-controls-summary.json",
+                {
+                    "source": args.sha,
+                    "complete": False,
+                    "errors": [repr(error)],
+                    "counts": dict(
+                        collections.Counter(
+                            row["status"]
+                            for row in rows
+                            if row["group"] == "targeted_prune_controls3"
+                        )
+                    ),
+                    "scope": "Targeted prune controls unadmitted; original inventories remain separately reported.",
                 },
             )
             save(
