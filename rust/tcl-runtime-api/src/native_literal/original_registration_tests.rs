@@ -74,9 +74,11 @@ fn original_registration_episode_refuses_getter_and_factory_mutation_before_acqu
                 drop(extra);
                 Ok(Rc::new(b"registered".to_vec()))
             },
-            &|| Ok(()),
-            &std::convert::identity,
-            &std::convert::identity,
+            NativeLiteralCallbacks {
+                check: &|| Ok(()),
+                refuse: &std::convert::identity,
+                retain: &std::convert::identity,
+            },
         );
         assert!(matches!(
             reached,
@@ -119,9 +121,11 @@ fn original_registration_exhaustion_refuses_without_clone_or_slot_publication() 
             Ok(value.as_ref().clone())
         },
         || panic!("matching original cannot call factory"),
-        &|| Ok(()),
-        &std::convert::identity,
-        &std::convert::identity,
+        NativeLiteralCallbacks {
+            check: &|| Ok(()),
+            refuse: &std::convert::identity,
+            retain: &std::convert::identity,
+        },
     );
     assert!(matches!(
         reached,

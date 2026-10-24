@@ -19,6 +19,16 @@ pub struct NativeLiteralKey {
     /// Original counted key used by this registration.
     pub original: Vec<u8>,
 }
+/// Concrete currentness, refusal and first-failure callbacks for literal operations.
+pub struct NativeLiteralCallbacks<C, R, T> {
+    /// Check the independently retained original operation.
+    pub check: C,
+    /// Convert a concrete literal refusal into the port's error.
+    pub refuse: R,
+    /// Retain the first refusal before original owners retire.
+    pub retain: T,
+}
+
 struct Registration<V> {
     key: NativeLiteralKey,
     value: V,
@@ -107,17 +117,19 @@ impl<V: Clone> NativeLiteralWorld<V> {
     /// # Errors
     /// Refuses a changed original episode/entry or exhausted owner count and
     /// retains concrete failures before unused original allocations retire.
-    #[allow(clippy::too_many_arguments)]
     pub fn register_using<P, E>(
         world: &std::rc::Rc<std::cell::RefCell<Self>>,
         key: NativeLiteralKey,
         project: impl Fn(&V) -> P,
         mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
         make: impl FnOnce() -> Result<V, E>,
-        check: &impl Fn() -> Result<(), E>,
-        refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
-        retain: &impl Fn(E) -> E,
+        callbacks: NativeLiteralCallbacks<
+            &impl Fn() -> Result<(), E>,
+            &impl Fn(tcl_syntax::value::ValueError) -> E,
+            &impl Fn(E) -> E,
+        >,
     ) -> Result<(usize, V), E> {
+        let (check, refuse, retain) = (callbacks.check, callbacks.refuse, callbacks.retain);
         check().map_err(retain)?;
         let (episode, candidates) = {
             let owner = world.borrow();
@@ -357,7 +369,6 @@ impl<V: Clone> NativeLocalNameTable<V> {
     ///
     /// # Errors
     /// Preserves the first concrete refusal through actual partial-table cleanup.
-    #[allow(clippy::too_many_arguments)]
     pub fn create_using<P, E>(
         world: &std::rc::Rc<std::cell::RefCell<NativeLiteralWorld<V>>>,
         names: &[Option<tcl_core_types::NameBytes>],
@@ -365,10 +376,13 @@ impl<V: Clone> NativeLocalNameTable<V> {
         project: impl Fn(&V) -> P,
         mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
         mut make: impl FnMut(&[u8]) -> Result<V, E>,
-        check: &impl Fn() -> Result<(), E>,
-        refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
-        retain: &impl Fn(E) -> E,
+        callbacks: NativeLiteralCallbacks<
+            &impl Fn() -> Result<(), E>,
+            &impl Fn(tcl_syntax::value::ValueError) -> E,
+            &impl Fn(E) -> E,
+        >,
     ) -> Result<std::rc::Rc<Self>, E> {
+        let (check, refuse, retain) = (callbacks.check, callbacks.refuse, callbacks.retain);
         let mut table = Self {
             names: Vec::with_capacity(names.len()),
             registrations: Vec::new(),
@@ -388,9 +402,11 @@ impl<V: Clone> NativeLocalNameTable<V> {
                         &project,
                         &mut spelling,
                         || make(name.as_bytes()),
-                        check,
-                        refuse,
-                        retain,
+                        NativeLiteralCallbacks {
+                            check,
+                            refuse,
+                            retain,
+                        },
                     )?;
                     table.registrations.push(registration);
                     Some(value)

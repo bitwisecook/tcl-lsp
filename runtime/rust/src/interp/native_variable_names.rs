@@ -210,9 +210,11 @@ impl Interp {
                     )
                     .map_err(|error| arguments.retain_refusal(error.into()))
                 },
-                &original_slot,
-                &|error| arguments.retain_refusal(error.into()),
-                &|error| arguments.retain_refusal(error),
+                tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+                    check: &original_slot,
+                    refuse: &|error| arguments.retain_refusal(error.into()),
+                    retain: &|error| arguments.retain_refusal(error),
+                },
             )?;
             original_slot()?;
             let incoming = NativeProcedureNameTable {
