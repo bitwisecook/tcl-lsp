@@ -35321,6 +35321,47 @@ fn semantic_token_delta_edits(old_data: &[u32], new_data: &[u32]) -> Vec<Semanti
     }
 }
 
+fn analysis_tcl_version(analysis: &AnalysisResult) -> Option<tcl_dialect::TclVersion> {
+    analysis
+        .resolved_profile()
+        .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).tcl_version)
+}
+
+fn w120_source_requirements(
+    analysis: &AnalysisResult,
+    prefer: tcl_lsp_core::package_resolver::PackagePrefer,
+) -> Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice> {
+    use tcl_lsp_core::package_resolver::PackageRequirementAdvice as Requirement;
+    analysis
+        .package_requires
+        .iter()
+        .map(|required| {
+            Requirement::from_source_requirement(
+                required,
+                tcl_lsp_core::package_resolver::package_prefer_at(
+                    analysis,
+                    required.range.start(),
+                    prefer,
+                ),
+            )
+        })
+        .collect::<Vec<_>>()
+}
+
+fn w120_metadata_roots(
+    available: &[String],
+) -> Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice> {
+    available
+        .iter()
+        .map(|name| {
+            tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
+                name,
+                tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+            )
+        })
+        .collect::<Vec<_>>()
+}
+
 fn lift_lsp_range(r: CoreLspRange) -> Range {
     Range {
         start: Position {
@@ -37411,24 +37452,8 @@ async fn refine_workspace_w120(
             .collect();
     }
     if let Some(inherited) = &inheritance.original {
-        use tcl_lsp_core::package_resolver::PackageRequirementAdvice as Requirement;
-        let own = analysis
-            .package_requires
-            .iter()
-            .map(|required| {
-                Requirement::from_source_requirement(
-                    required,
-                    tcl_lsp_core::package_resolver::package_prefer_at(
-                        analysis,
-                        required.range.start(),
-                        inherited.prefer,
-                    ),
-                )
-            })
-            .collect::<Vec<_>>();
-        let target = analysis
-            .resolved_profile()
-            .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).tcl_version);
+        let own = w120_source_requirements(analysis, inherited.prefer);
+        let target = analysis_tcl_version(analysis);
         let resolver = package_resolver.read().await;
         let mut scans = HashMap::new();
         let mut result = Vec::new();
@@ -37475,20 +37500,10 @@ async fn refine_workspace_w120(
     if inheritance.placed.is_empty() {
         let mut available = own;
         available.extend(inheritance.ambient.iter().cloned());
-        let roots = available
-            .iter()
-            .map(|name| {
-                tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
-                    name,
-                    tcl_lsp_core::package_resolver::PackagePrefer::Stable,
-                )
-            })
-            .collect::<Vec<_>>();
+        let roots = w120_metadata_roots(&available);
         let availability = W120Availability::resolve_original(
             &roots,
-            analysis.resolved_profile().and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).tcl_version
-            }),
+            analysis_tcl_version(analysis),
             &resolver,
             sources,
             registry,
@@ -37515,20 +37530,10 @@ async fn refine_workspace_w120(
         available.sort();
         available.dedup();
         let scan = scans.entry(available.clone()).or_insert_with(|| {
-            let roots = available
-                .iter()
-                .map(|name| {
-                    tcl_lsp_core::package_resolver::PackageRequirementAdvice::authored_metadata(
-                        name,
-                        tcl_lsp_core::package_resolver::PackagePrefer::Stable,
-                    )
-                })
-                .collect::<Vec<_>>();
+            let roots = w120_metadata_roots(&available);
             W120Availability::resolve_original(
                 &roots,
-                analysis.resolved_profile().and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).tcl_version
-                }),
+                analysis_tcl_version(analysis),
                 &resolver,
                 sources,
                 registry,
