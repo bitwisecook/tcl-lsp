@@ -29,6 +29,7 @@
     "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-lsp-core/src/original_command_rename.rs": "0d88be189382c8dfb6c362c85c6d1400ddc3e09659c560efdcdd5cfb5f5136fc",
+    "rust/tcl-lsp-core/src/original_source_views.rs": "192a7d4f3d1e9f3fe4a3bbe724706bee22baba6608fbec878d22057592c8c1d2",
     "rust/tcl-lsp-server-wasi/Cargo.lock": "738d73afb69181af120e43d77d3e4885d8aeaf68eef055deb26e0f1c83cc6d76",
     "rust/tcl-lsp-server-wasi/Cargo.toml": "0f3faa985dbb85b94acca7a5d220f4814f07d5969b721c7e3e1d36b8b413bdec",
     "rust/tcl-lsp-server-wasi/build-wasi.sh": "a03e4a2dca9a0bf2061ba92770cc643b21cf6503c05ca7eaf9b0e8ecaa4d3235",
@@ -39,7 +40,7 @@
     "rust/tcl-lsp-server-wasm/test/e2e.mjs": "66a6de736f4eaf6fd5c434dcf56652aafa2eda12e7d004cb7b2d93f747d33170",
     "rust/tcl-lsp-server-wasm/worker.js": "fbff4236144aad622f61c42f3455c1ec517fa9e59d1aa698c4e8c20d30e0417e",
     "rust/tcl-lsp-server/src/lib.rs": "353882ac09c0275fc406f3412b365863e2a4fe1a0aaeffefc8be18f9b8f16643",
-    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "16c6f91a3e68b00a635c1be2c180b61d5daaba16b4ae9820cbd78696f615d3e9",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "a40cc175aa0dfb162f695a467bd76c380ef92de1a8c90198da87b46eab8fe476",
     "scripts/dev/lsp-naming-host-proof.mjs": "4cd62b1be51d61568910c3baddee8df0ac98db595b093da7c152fd70355180cb",
     "scripts/dev/wasm-cc-env.sh": "6d541058ef79aa09981eb7345540b7bcc61174423250c08128ee8b6cbb400b89",
     "scripts/verify-wasm-externref.mjs": "19410bf5475824d6d59c85b319fc129e826deebf32140fe06180a3e1df747366"

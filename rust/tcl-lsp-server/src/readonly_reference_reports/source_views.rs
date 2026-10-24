@@ -3166,7 +3166,7 @@ impl Backend {
             .iter()
             .filter(|view| &view.draft.physical.uri == uri)
             .collect::<Vec<_>>();
-        let detail = host_navigation_owner_detail(&selected_views);
+        let mut detail = host_navigation_owner_detail(&selected_views);
         let mut stage = "views.labels";
         let output = (|| {
             if aggregate_complete
@@ -3196,7 +3196,16 @@ impl Backend {
             )? {
                 stage = "core.prepare";
                 let selected =
-                    tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory)?;
+                    tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory);
+                if selected.is_none()
+                    && matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"))
+                    && let Some(refusal) =
+                        tcl_lsp_core::original_source_views::take_prepare_refusal_trace()
+                {
+                    detail.push_str(" core_prepare_refusal=");
+                    detail.push_str(refusal);
+                }
+                let selected = selected?;
                 if references != Some(false) {
                     stage = "core.target-owner";
                     let target = inventory

@@ -12,6 +12,38 @@ use crate::original_declaration::{
 use tcl_compiler::command_binding::OriginalSourceProcedureCall;
 use tcl_lexer::Span;
 
+thread_local! {
+    static PREPARE_REFUSAL_TRACE: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+}
+
+fn trace_prepare_refusal(stage: &'static str) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        PREPARE_REFUSAL_TRACE.with(|trace| {
+            if trace.get().is_none() {
+                trace.set(Some(stage));
+            }
+        });
+    }
+}
+
+fn prepare_required<T>(value: Option<T>, stage: &'static str) -> Option<T> {
+    if value.is_none() {
+        trace_prepare_refusal(stage);
+    }
+    value
+}
+
+/// Drain the first refusal from the existing synchronous prepare computation.
+/// This observes no additional semantic query or currentness decision.
+#[must_use]
+pub fn take_prepare_refusal_trace() -> Option<&'static str> {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        PREPARE_REFUSAL_TRACE.with(|trace| trace.take())
+    } else {
+        None
+    }
+}
+
 /// One exact retained interpretation and its genuine physical ancestor chain.
 pub struct OriginalSourceViewDocument<'a> {
     /// Typed host publication locator, independently checked by the host.
@@ -213,25 +245,35 @@ pub fn prepare(
     offset: u32,
     documents: &[OriginalSourceViewDocument<'_>],
 ) -> Option<OriginalSourceViewDeclaration> {
+    let _ = take_prepare_refusal_trace();
     let mut owners = documents.iter().filter(|row| row.publication == selected);
-    let owner = owners.next()?;
-    owners.next().is_none().then_some(())?;
+    let owner = prepare_required(owners.next(), "prepare.selected-owner")?;
+    prepare_required(
+        owners.next().is_none().then_some(()),
+        "prepare.unique-owner",
+    )?;
     let doc = &owner.document;
-    owner.current()?;
-    let rows = crate::original_declaration::declarations(doc.uri, doc.source, doc.analysis)?;
+    prepare_required(owner.current(), "prepare.current-owner")?;
+    let rows = prepare_required(
+        crate::original_declaration::declarations(doc.uri, doc.source, doc.analysis),
+        "prepare.declaration-inventory",
+    )?;
     let mut local = rows.into_iter().filter(|row| {
         owner.owns_declaration(row) && row.span().start() <= offset && offset < row.span().end()
     });
     if let Some(identity) = local.next() {
-        return local
-            .next()
-            .is_none()
-            .then(|| OriginalSourceViewDeclaration {
-                publication: selected.clone(),
-                identity,
-            });
+        return prepare_required(
+            local
+                .next()
+                .is_none()
+                .then(|| OriginalSourceViewDeclaration {
+                    publication: selected.clone(),
+                    identity,
+                }),
+            "prepare.unique-local-declaration",
+        );
     }
-    let calls = owner.procedure_calls()?;
+    let calls = prepare_required(owner.procedure_calls(), "prepare.procedure-call-inventory")?;
     let mut matching = calls.iter().filter(|call| {
         call.original_words().first().is_some_and(|head| {
             owner.owns_command(head.span().start())
@@ -239,12 +281,20 @@ pub fn prepare(
                 && offset < head.span().end()
         })
     });
-    let call = matching.next()?;
-    matching.all(|other| other == call).then_some(())?;
-    if !call.uncertain_operations().is_empty() || call.has_lookup_operand_effects() {
+    let call = prepare_required(matching.next(), "prepare.matching-call")?;
+    prepare_required(
+        matching.all(|other| other == call).then_some(()),
+        "prepare.unique-call",
+    )?;
+    if !call.uncertain_operations().is_empty() {
+        trace_prepare_refusal("prepare.call-uncertainty");
         return None;
     }
-    target(call, owner, documents)
+    if call.has_lookup_operand_effects() {
+        trace_prepare_refusal("prepare.lookup-operand-effects");
+        return None;
+    }
+    prepare_required(target(call, owner, documents), "prepare.target-owner")
 }
 
 /// Positive conditional procedure edges. Missing coverage is unavailable; an
