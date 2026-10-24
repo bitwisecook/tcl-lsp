@@ -2584,18 +2584,30 @@ fn post_ssa_analysis(
 #[must_use]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     let snaps = result.all_snapshots();
-    let function_count = snaps.len();
     let mut total_defs = 0u32;
     let mut total_uses = 0u32;
     let mut total_aliases = 0u32;
-    let mut functions = Vec::with_capacity(function_count);
-    for snap in snaps {
-        let (function, defs, uses, aliases) = serialise_dataflow_function(result, snap);
-        total_defs = total_defs.saturating_add(defs);
-        total_uses = total_uses.saturating_add(uses);
-        total_aliases = total_aliases.saturating_add(aliases);
-        functions.push(function);
-    }
+    let functions: Vec<Value> = snaps
+        .iter()
+        .map(|snap| {
+            // Extract each graph beside its owner identity. Building a module
+            // graph would sort only by display name and could pair a Tcl proc
+            // with a same-named TclOO method's Memory SSA.
+            let f = extract_function_dataflow(
+                snap.name,
+                &snap.unit.ssa,
+                &snap.unit.def_use,
+                Some(&snap.unit.sccp),
+                snap.unit.memory_ssa.as_ref(),
+                Some(&snap.unit.types),
+            );
+            total_defs = total_defs.saturating_add(f.total_defs);
+            total_uses = total_uses.saturating_add(f.total_uses);
+            total_aliases =
+                total_aliases.saturating_add(u32::try_from(f.aliases.len()).unwrap_or(u32::MAX));
+            serialise_dataflow_function(result, snap, &f)
+        })
+        .collect();
 
     json!({
         "functions": functions,
@@ -2603,29 +2615,16 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
             "totalDefs": total_defs,
             "totalUses": total_uses,
             "totalAliases": total_aliases,
-            "functionCount": function_count,
+            "functionCount": snaps.len(),
         },
     })
 }
 
 fn serialise_dataflow_function(
     result: &ExplorerResult,
-    snap: crate::FunctionSnapshot<'_>,
-) -> (Value, u32, u32, u32) {
-    // Extract each graph beside its owner identity. Building a module
-    // graph would sort only by display name and could pair a Tcl proc
-    // with a same-named TclOO method's Memory SSA.
-    let f = extract_function_dataflow(
-        snap.name,
-        &snap.unit.ssa,
-        &snap.unit.def_use,
-        Some(&snap.unit.sccp),
-        snap.unit.memory_ssa.as_ref(),
-        Some(&snap.unit.types),
-    );
-    let total_defs = f.total_defs;
-    let total_uses = f.total_uses;
-    let total_aliases = u32::try_from(f.aliases.len()).unwrap_or(u32::MAX);
+    snap: &crate::FunctionSnapshot<'_>,
+    f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph,
+) -> Value {
     let memory = snap
         .unit
         .memory_ssa
@@ -2682,9 +2681,9 @@ fn serialise_dataflow_function(
             })
         })
         .collect();
-    let value = json!({
+    json!({
         "name": f.function_name,
-        "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, &snap),
+        "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
         "kind": snap.kind.as_str(),
         "nodes": nodes,
         "edges": edges,
@@ -2696,8 +2695,7 @@ fn serialise_dataflow_function(
             "deadDefs": f.dead_defs,
             "aliasedVars": f.aliased_vars,
         },
-    });
-    (value, total_defs, total_uses, total_aliases)
+    })
 }
 
 fn memory_location_kind_label(kind: MemoryLocationKind) -> &'static str {
