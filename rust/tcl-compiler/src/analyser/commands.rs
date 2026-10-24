@@ -46,6 +46,7 @@ struct WorkspaceCommandPhases {
     bytes: usize,
     site: u32,
     previous_us: std::cell::Cell<u128>,
+    walk_previous_us: std::cell::Cell<u128>,
     stage_us: [std::cell::Cell<u128>; 15],
     seen: std::cell::Cell<u16>,
 }
@@ -75,17 +76,56 @@ impl WorkspaceCommandPhases {
     ];
 
     fn start(bytes: usize, site: u32) -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| Self {
-            started: std::time::Instant::now(),
-            bytes,
-            site,
-            previous_us: std::cell::Cell::new(0),
-            stage_us: [const { std::cell::Cell::new(0) }; 15],
-            seen: std::cell::Cell::new(0),
+        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| {
+            WORKSPACE_WALK_TOTALS.with(|totals| {
+                if let Some(mut value) = totals.get() {
+                    value.commands = value.commands.saturating_add(1);
+                    totals.set(Some(value));
+                }
+            });
+            Self {
+                started: std::time::Instant::now(),
+                bytes,
+                site,
+                previous_us: std::cell::Cell::new(0),
+                walk_previous_us: std::cell::Cell::new(0),
+                stage_us: [const { std::cell::Cell::new(0) }; 15],
+                seen: std::cell::Cell::new(0),
+            }
         })
     }
 
+    // Order: original names, direct interpreter visibility, indirect visibility,
+    // constructor recording, scoped bodies, variable receivers, dynamic names,
+    // optional diagnostic passes, handlers. Intervals include nested calls.
+    fn record_walk(&self, index: usize) {
+        WORKSPACE_WALK_TOTALS.with(|totals| {
+            if let Some(mut value) = totals.get() {
+                let elapsed = self.started.elapsed().as_micros();
+                let previous = self.walk_previous_us.replace(elapsed);
+                value.phase_us[index] =
+                    value.phase_us[index].saturating_add(elapsed.saturating_sub(previous));
+                value.phase_calls[index] = value.phase_calls[index].saturating_add(1);
+                totals.set(Some(value));
+            }
+        });
+    }
+
+    fn walk(trace: Option<&Self>, index: usize) {
+        if let Some(trace) = trace {
+            trace.record_walk(index);
+        }
+    }
+
     fn record(&self, stage: &str) {
+        match stage {
+            "original-names" => self.record_walk(0),
+            "scoped-bodies" => self.record_walk(4),
+            "variable-receivers" => self.record_walk(5),
+            "dispatch-diagnostics" => self.record_walk(7),
+            "handlers-complete" => self.record_walk(8),
+            _ => {}
+        }
         let Some(index) = Self::STAGES
             .iter()
             .position(|candidate| *candidate == stage)
@@ -105,6 +145,51 @@ impl WorkspaceCommandPhases {
                 self.seen.get(),
             );
         }
+    }
+}
+
+/// Aggregate evidence for one synchronous top-level walk. Nested command work
+/// remains inclusive; these counters do not identify isolated CPU costs.
+#[derive(Clone, Copy, Default)]
+struct WorkspaceWalkTotals {
+    commands: u64,
+    phase_us: [u128; 9],
+    phase_calls: [u64; 9],
+}
+
+std::thread_local! {
+    static WORKSPACE_WALK_TOTALS: std::cell::Cell<Option<WorkspaceWalkTotals>> = const {
+        std::cell::Cell::new(None)
+    };
+}
+
+pub(super) struct WorkspaceWalkPhases {
+    previous: Option<WorkspaceWalkTotals>,
+}
+
+impl WorkspaceWalkPhases {
+    pub(super) fn start() -> Option<Self> {
+        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| Self {
+            previous: WORKSPACE_WALK_TOTALS
+                .with(|totals| totals.replace(Some(WorkspaceWalkTotals::default()))),
+        })
+    }
+
+    pub(super) fn finish(self, bytes: usize, structure_only: bool) {
+        let totals = WORKSPACE_WALK_TOTALS.with(std::cell::Cell::get);
+        drop(self);
+        if let Some(totals) = totals {
+            eprintln!(
+                "WORKSPACE_WALK_PHASE bytes={bytes} structure_only={structure_only} commands={} phase_us={:?} phase_calls={:?}",
+                totals.commands, totals.phase_us, totals.phase_calls,
+            );
+        }
+    }
+}
+
+impl Drop for WorkspaceWalkPhases {
+    fn drop(&mut self) {
+        WORKSPACE_WALK_TOTALS.with(|totals| totals.set(self.previous));
     }
 }
 
@@ -793,10 +878,12 @@ impl Analyser {
         // Conditional source visibility never removes possible invocation
         // effects or workspace edges without an actual hidden-slot receipt.
         self.observe_interp_visibility(arg_tokens_in, scope_path);
+        WorkspaceCommandPhases::walk(workspace_phase.as_ref(), 1);
         let args = &argv_texts[1..];
         let arg_tokens = &arg_tokens_in[1..];
         let arg_single = single_token_word.get(1..).unwrap_or_default();
         self.observe_indirect_interp_visibility(arg_tokens_in, scope_path);
+        WorkspaceCommandPhases::walk(workspace_phase.as_ref(), 2);
         // Record this invocation so the post-walk
         // ``emit_unresolved_command_diagnostics`` (W123) can iterate
         // every command head the analyser visited.  ``inv.range``
@@ -810,6 +897,7 @@ impl Analyser {
         // do not establish Native command selection or successful allocation.
         let creation_ns = self.command_resolution_namespace(scope_path);
         self.record_instance_creation(cmd_name, args, &creation_ns, cmd_tok.span.start());
+        WorkspaceCommandPhases::walk(workspace_phase.as_ref(), 3);
         // Structure-only mode (item-tree extraction) skips every diagnostic /
         // cross-feature recording pass below — they don't affect the declared
         // proc / class / alias / ensemble structure and are the bulk of the
@@ -830,6 +918,7 @@ impl Analyser {
             cmd_tok.span.start(),
             presubstituted_args,
         );
+        WorkspaceCommandPhases::walk(workspace_phase.as_ref(), 6);
 
         if !self.structure_only {
             self.record_direct_command_invocation(

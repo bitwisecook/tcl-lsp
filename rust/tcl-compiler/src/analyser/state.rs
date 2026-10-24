@@ -2460,7 +2460,11 @@ impl Analyser {
         self.seed_walk_namespace(source);
         let file_env_pushed = self.seed_file_scope_env(source);
         trace_phase("walk-start");
+        let workspace_walk = super::commands::WorkspaceWalkPhases::start();
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
+        if let Some(trace) = workspace_walk {
+            trace.finish(source.len(), self.structure_only);
+        }
         trace_phase("walk-complete");
         if file_env_pushed {
             self.body_scope_stack.pop();
