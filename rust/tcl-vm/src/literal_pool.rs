@@ -146,9 +146,11 @@ impl NativeLiteralWorld {
                 }
             },
             || new_registered_string_using(&bytes, protocol, &refuse),
-            &check,
-            &refuse,
-            &std::convert::identity,
+            tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+                check: &check,
+                refuse: &refuse,
+                retain: &std::convert::identity,
+            },
         )
     }
     fn release(&mut self, index: usize) -> Option<Value> {
@@ -1297,9 +1299,11 @@ pub(crate) fn create_local_names_using(
             }
         },
         |bytes| new_registered_string_using(bytes, protocol, &refuse),
-        &check,
-        &refuse,
-        &std::convert::identity,
+        tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+            check: &check,
+            refuse: &refuse,
+            retain: &std::convert::identity,
+        },
     )
 }
 
