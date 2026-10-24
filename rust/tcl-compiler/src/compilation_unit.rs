@@ -5314,6 +5314,34 @@ impl CompilationUnit {
             .chain(&self.carried_installed_lowerings)
     }
 
+    /// Current readonly Native source declaration for diagnostic body traversal.
+    /// This supplies no callable, entered frame, Native invocation or absence proof.
+    #[must_use]
+    pub(crate) fn original_native_declaration_for_function(
+        &self,
+        function: &FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<&crate::ir::Procedure> {
+        let body = function.body_id?;
+        if self.ir_module.source.try_text().ok() != Some(self.source.as_str())
+            || !self.ir_module.procedure_ids.owns(body)
+            || self
+                .function_for_body(Some(body))
+                .is_none_or(|current| !std::ptr::eq(current, function))
+            || self.source_body_cfgs.get(&body) != Some(&function.cfg)
+        {
+            return None;
+        }
+        function.invocation_metadata_context_for_module(registry, &self.ir_module)?;
+        let procedure = self.ir_module.body_lowering(&body)?;
+        let card = self
+            .ir_module
+            .original_native_declaration_body_units
+            .get(&body)?;
+        card.matches_procedure(&self.ir_module, procedure)
+            .then_some(procedure)
+    }
+
     /// Actual original declaration, independently of whether it entered the runtime.
     #[must_use]
     pub fn original_procedure_for_body(
@@ -9984,6 +10012,79 @@ mod selected_class_roster_tests {
         assert_eq!(
             compatibility.activation.as_deref(),
             Some("::standalone::model")
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_native_declaration_diagnostic_owner_tests {
+    use super::*;
+
+    #[test]
+    fn readonly_native_diagnostic_body_requires_its_current_card_function_and_tree() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let unit = CompilationUnit::build_for_profile(
+            "proc p {arg} {puts $missing}",
+            registry,
+            false,
+            environment.unit_profile(),
+        );
+        let id = *unit
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .next()
+            .expect("genuine original Native declaration card");
+        let function = unit.body_units.get(&id).unwrap();
+        let procedure = unit
+            .original_native_declaration_for_function(function, registry)
+            .expect("readonly diagnostic body correspondence");
+        assert_eq!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::OriginalDeclaration
+        );
+        assert!(procedure.publication.is_none());
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let foreign_function = (*function).clone();
+        assert!(
+            unit.original_native_declaration_for_function(&foreign_function, registry)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing
+            .ir_module
+            .original_native_declaration_body_units
+            .clear();
+        assert!(
+            missing
+                .original_native_declaration_for_function(
+                    missing.body_units.get(&id).unwrap(),
+                    registry
+                )
+                .is_none()
+        );
+        let mut changed = unit.clone();
+        let body = changed.ir_module.body_units.get_mut(&id).unwrap();
+        let span = body.body.statements[0].span();
+        body.body.statements[0] = crate::ir::Statement::NativeCall {
+            span,
+            words: Vec::new(),
+        };
+        assert!(
+            changed
+                .original_native_declaration_for_function(
+                    changed.body_units.get(&id).unwrap(),
+                    registry
+                )
+                .is_none()
+        );
+        let foreign =
+            crate::environment_ingress::resolve_environment("tcl9.1").default_context_registry();
+        assert!(
+            unit.original_native_declaration_for_function(function, foreign.commands())
+                .is_none()
         );
     }
 }
