@@ -504,6 +504,55 @@ impl super::CommandBindingRealm {
         )
     }
 
+    /// Whole original class words from its genuine script parent. This is
+    /// source geometry only; it does not enter the body or settle its lookup.
+    pub(crate) fn original_authored_jim_parent_words(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<Vec<tcl_lexer::NativeWord>> {
+        if tcl_registry::InvocationDialect::of_profile(input.unit_profile()).family()
+            != Some(tcl_dialect::model::Family::Jim)
+        {
+            return None;
+        }
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let receipt = prepared.as_ref().as_ref()?.authored_jim_class(offset)?;
+        let parent = receipt.parent_body()?;
+        (receipt.factory().site().offset == offset
+            && receipt.matches_source_context(image, config, &context))
+        .then_some(())?;
+        let plan = receipt
+            .factory()
+            .site()
+            .source
+            .original_script_words_in(
+                parent.content_span(),
+                config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            )
+            .ok()?;
+        plan.commands
+            .iter()
+            .find(|command| {
+                command.words == receipt.factory().original_words()
+                    && command
+                        .words
+                        .first()
+                        .is_some_and(|word| word.span().start() == offset)
+            })
+            .map(|command| command.words.clone())
+    }
+
     pub(crate) fn original_authored_jim_class(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
