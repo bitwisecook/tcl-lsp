@@ -423,10 +423,17 @@ try:
     table_filter = BASE / "compiler-original58-table-filter.py"
     require(
         sha(table_filter)
-        == "44f950671a170b963c5375a3841a03fea5b46e23db54805c84cacd2b0e552844",
+        == "7fcb9fec2c51b591a70845703c78b4326b2e24a3b7ec915279ebfc6d7f80b03b",
         "exact bounded table transport pin",
     )
     tools["table_filter"] = table_filter
+    filter_spec = importlib.util.spec_from_file_location(
+        "compiler58_filter", table_filter
+    )
+    if filter_spec is None or filter_spec.loader is None:
+        raise RuntimeError("transport decoder loader absent")
+    transport_filter = importlib.util.module_from_spec(filter_spec)
+    filter_spec.loader.exec_module(transport_filter)
     for name in ["cargo", "rustc"]:
         tools[name] = Path(
             subprocess.check_output([rustup, "which", name], text=True).strip()
@@ -648,8 +655,8 @@ try:
                 "each_original_test_seconds": 180,
                 "dependency_fetch_seconds": 600,
                 "aggregate_log_bytes": CAP,
-                "transport_filter": "Only exact ORIGINAL_COMMAND_INSTALLED SourceCommandTable observer lines become counted SHA256 summaries; every other stderr byte and all stdout remain verbatim.",
-                "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the unchanged pinned filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
+                "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
+                "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
                 "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
@@ -940,14 +947,39 @@ try:
                     transport_path.is_file(), "completed test transport summary missing"
                 )
                 transport = json.loads(transport_path.read_text())
+                encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+                repeat_stage = transport["repeat_stage"]
+                table_stage = transport["table_stage"]
                 require(
                     transport["child_exit_code"] == receipt["exit_code"]
-                    and transport["ordinary_stderr_verbatim"] is True
+                    and transport["ordinary_stderr_verbatim"] is False
+                    and transport[
+                        "stderr_losslessly_reconstructible_after_table_filter"
+                    ]
+                    is True
+                    and table_stage["ordinary_stderr_verbatim"] is True
+                    and table_stage["stdout_verbatim"] is True
                     and transport["stdout_verbatim"] is True
                     and transport["retained_stderr_bytes"]
-                    == (out / (prefix + ".stderr")).stat().st_size,
-                    "transport child status or byte census mismatch",
+                    == repeat_stage["output_bytes"]
+                    == len(encoded_stderr)
+                    and repeat_stage["format"]
+                    == "two-family-lossless-line-dictionary-rle-v1"
+                    and repeat_stage["input_bytes"]
+                    == table_stage["retained_stderr_bytes"]
+                    and repeat_stage["output_sha256"]
+                    == hashlib.sha256(encoded_stderr).hexdigest(),
+                    "transport child status or layered byte census mismatch",
                 )
+                reconstructed = transport_filter.decode_diagnostic_repeats(
+                    encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+                )
+                require(
+                    reconstructed["bytes"] == repeat_stage["input_bytes"]
+                    and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                    "transport diagnostic reconstruction differs from original stream",
+                )
+                row["transport_reconstruction"] = reconstructed
             row.update(
                 exit_code=receipt["exit_code"],
                 receipt=prefix + ".process.json",
