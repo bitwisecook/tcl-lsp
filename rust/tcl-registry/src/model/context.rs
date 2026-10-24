@@ -911,8 +911,30 @@ impl ResolvedContext {
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Option<&'static CommandSpec> {
         let query = self.authoring_query().with_realm(realm);
-        registry.get_for_surface(name, Some(query)).filter(|spec| {
-            self.spec_available_under(spec, query) && self.roster_admits(spec, &query)
+        let selected = registry.get_for_surface(name, Some(query));
+        if selected.is_none() && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+            eprintln!(
+                "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=get_for_surface head={name:?} context={self:p} query={query:?}"
+            );
+        }
+        selected.filter(|spec| {
+            if !self.spec_available_under(spec, query) {
+                if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+                    eprintln!(
+                        "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=spec_available head={name:?} canonical={:?} context={self:p} query={query:?}",
+                        spec.name,
+                    );
+                }
+                return false;
+            }
+            let admitted = self.roster_admits(spec, &query);
+            if !admitted && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+                eprintln!(
+                    "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=roster head={name:?} canonical={:?} context={self:p} query={query:?}",
+                    spec.name,
+                );
+            }
+            admitted
         })
     }
 

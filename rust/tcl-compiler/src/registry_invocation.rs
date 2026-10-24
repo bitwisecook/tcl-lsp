@@ -4229,7 +4229,36 @@ pub(crate) fn original_callback_invocation_with_metadata_context(
         return None;
     }
     resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
-        .or_else(|| original_declared_structured_invocation(registry, context, tokens))
+        .inspect(|invocation| {
+            trace_callback_selection("handler", context, tokens, invocation);
+        })
+        .or_else(|| {
+            original_declared_structured_invocation(registry, context, tokens).inspect(
+                |invocation| {
+                    trace_callback_selection("declaration", context, tokens, invocation);
+                },
+            )
+        })
+}
+
+fn trace_callback_selection(
+    route: &str,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    invocation: &ResolvedStatementInvocation,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+        eprintln!(
+            "TCL_LSP_TRACE_METADATA_CALLBACK route={route} source_offset={:?} written_head={:?} canonical={:?} context={:p}",
+            tokens
+                .words()
+                .first()
+                .map(|word| word.source().span.start()),
+            tokens.argv_texts.first(),
+            invocation.facts.canonical_command,
+            context.context(),
+        );
+    }
 }
 
 pub(crate) fn resolved_handler_invocation(
@@ -4398,15 +4427,26 @@ impl ResolvedStatementInvocation {
             return None;
         }
         self.with_argument_words(|words| {
-            let selected =
+            let resolution =
                 tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
                     registry,
                     Some(context.context()),
                     words,
                     realm,
-                )
-                .resolved()?;
-            apply(&selected)
+                );
+            let selected = resolution.resolved();
+            if selected.is_none()
+                && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some()
+            {
+                eprintln!(
+                    "TCL_LSP_TRACE_METADATA_SCHEMA head={:?} canonical={:?} realm={realm:?} context={:p} unresolved={:?}",
+                    words.head_literal(),
+                    self.facts.canonical_command,
+                    context.context(),
+                    resolution.unresolved(),
+                );
+            }
+            apply(&selected?)
         })
     }
 
@@ -8592,6 +8632,15 @@ fn resolve_registry_words_in_realm_with_metadata_context_and_case(
             realm,
         );
     if let Some(resolved) = resolution.resolved() {
+        if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+            eprintln!(
+                "TCL_LSP_TRACE_METADATA_SELECTION head={:?} canonical={:?} realm={realm:?} context={:?} query={:?}",
+                invocation.head_literal(),
+                resolved.canonical_command,
+                context.map(|context| std::ptr::from_ref(context.context())),
+                resolved.dialect,
+            );
+        }
         let case_selection = if resolved.semantics.options.case_list.is_none() {
             AuthoredSourceCaseBodySelection::NotCase
         } else {

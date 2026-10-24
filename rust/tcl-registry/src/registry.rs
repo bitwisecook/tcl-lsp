@@ -8614,6 +8614,11 @@ impl CommandRegistry {
             self.get_for_surface(name, dialect)
         };
         let Some(spec) = spec else {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+                eprintln!(
+                    "TCL_LSP_TRACE_METADATA_REGISTRY head={name:?} query={dialect:?} unresolved=UnknownLiteralHead"
+                );
+            }
             return StructuredInvocationResolution::from_unresolved(
                 InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
             );

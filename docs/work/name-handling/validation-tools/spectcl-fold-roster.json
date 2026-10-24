@@ -12,14 +12,17 @@
     "native_parent_store_uses_the_actual_pack_implementation_normal_outcome"
   ],
   "scope": "Original exact current pack_source_e2e ALL10 plus separate original catch1, no invented seven selectors; original9c7PASS/3FAIL retained. Separate new native_normal_store1 supplemental control; original11 and supplemental1 reported independently.",
-  "source_head_at_preparation": "ae5965adfa43e222f04f985c9e9633d2836f97cd",
+  "source_head_at_preparation": "d88713e45b9aa75382c10cfa9223c2f26589caea",
   "source_pins": {
     "rust/tcl-compiler/src/compilation_unit.rs": "b210253a9fe5a2c348290d8990a2a6f92d772f7416e016dd597f160ad7c1c8ef",
     "rust/tcl-compiler/src/deferred_writes.rs": "0f11a42c57fe873e37d76473c36cb63f50e3303a839fdeea6ecf4f320c9d9f41",
     "rust/tcl-compiler/src/deferred_writes/supplied.rs": "5d5e4abde32c5f8202229f76eba025f79c9d1d45c41f4e8318732f3b0ed8381f",
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
+    "rust/tcl-compiler/src/registry_invocation.rs": "b60fb4620a333313e4492f146750323386bd06d629f5fb396b297de6cdff28fb",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
     "rust/tcl-compiler/src/value_transfer.rs": "5563e8313e66e9727177001a8adb42fa465f67edebc02363f443dcf6401d14f3",
+    "rust/tcl-registry/src/model/context.rs": "20a007d711350118ba0873d5aa050093bcdd8e7aa67651e6f20dbe2aa87c7a31",
+    "rust/tcl-registry/src/registry.rs": "0b09f3900f30551f997b1c719af66e539432975282efb9e0200fcbeb7a08dd3b",
     "rust/tcl-spectcl/tests/native_normal_store.rs": "2fa0e2318392a2f286d0ecdc7e6b6b2899a2907fd1affa7292b5ae8791de145b",
     "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
     "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "d9bf3d5759861645a0ece243cf376226f3c7686d57273b1b97ed03cd8131b325",
