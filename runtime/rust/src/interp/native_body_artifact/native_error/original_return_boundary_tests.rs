@@ -159,11 +159,22 @@ fn entered(profile: &str) -> Interp {
     assert_eq!(actual.eval_str(b"p"), Code::Error);
     let procedure = actual.proc_def(b"p").unwrap();
     let artifact = cache(procedure.body.as_ptr()).expect("genuine compiled Error artifact");
-    assert!(artifact
-        .scripts
-        .values()
-        .flat_map(|script| &script.commands)
-        .any(|command| matches!(&command.operation, Operation::Error(_))));
+    if actual.runtime_version() == tcl_dialect::TclVersion::V8_5 {
+        let script = artifact.scripts.get(&artifact.region).unwrap();
+        assert_eq!(script.commands.len(), 1);
+        assert!(matches!(&script.commands[0].operation, Operation::Invoke));
+        assert!(!artifact
+            .scripts
+            .values()
+            .flat_map(|script| &script.commands)
+            .any(|command| matches!(&command.operation, Operation::Error(_))));
+    } else {
+        assert!(artifact
+            .scripts
+            .values()
+            .flat_map(|script| &script.commands)
+            .any(|command| matches!(&command.operation, Operation::Error(_))));
+    }
     actual.reset_original_c_result().unwrap();
     {
         let mut frames = actual.frames.borrow_mut();
