@@ -67,7 +67,7 @@ impl OriginalJimWrapperBody {
         {
             return None;
         }
-        let name = super::SignatureSourceNameInput::OriginalWord(name);
+        let name = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(name);
         let presence = entry.first_command_presence(&name, &self.root.namespace_key);
         Some((head.span().start(), presence))
     }
