@@ -69,6 +69,70 @@ pub(crate) fn select(
     }
 }
 
+pub(crate) fn instruction(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    context: NativeCompilationContext,
+) -> Option<crate::native_instruction_plan::NativeFormatStringInstruction> {
+    use crate::native_instruction_plan::{
+        NativeFormatLiteralAllocation, NativeFormatStringInstruction, NativeFormatStringPiece,
+    };
+    if operand_from == 0 {
+        return None;
+    }
+    let format = words.literal(operand_from)?;
+    let shapes = words.shapes().get(operand_from..)?;
+    if !matches!(
+        select(
+            Some(format),
+            shapes,
+            version,
+            context,
+            SemanticOperationId::Invoke
+        ),
+        NativeCompilationSelection::Inline { .. }
+    ) {
+        return None;
+    }
+    let literal_allocation = match version {
+        TclVersion::V8_6 | TclVersion::V9_0 => NativeFormatLiteralAllocation::Registered,
+        TclVersion::V9_1 => NativeFormatLiteralAllocation::PrivateString,
+        _ => return None,
+    };
+    let mut pieces = Vec::new();
+    let mut literal = Vec::new();
+    let mut value = operand_from + 1;
+    let mut bytes = format.iter().copied();
+    while let Some(byte) = bytes.next() {
+        if byte != b'%' {
+            literal.push(byte);
+            continue;
+        }
+        match bytes.next()? {
+            b'%' => literal.push(b'%'),
+            b's' => {
+                if !literal.is_empty() {
+                    pieces.push(NativeFormatStringPiece::Literal(std::mem::take(
+                        &mut literal,
+                    )));
+                }
+                words.original_words().get(value)?;
+                pieces.push(NativeFormatStringPiece::Value(value));
+                value += 1;
+            }
+            _ => return None,
+        }
+    }
+    if !literal.is_empty() {
+        pieces.push(NativeFormatStringPiece::Literal(literal));
+    }
+    Some(NativeFormatStringInstruction {
+        pieces,
+        literal_allocation,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,5 +417,54 @@ mod tests {
             ),
             NativeCompilationSelection::Unknown
         );
+    }
+    #[test]
+    fn original_instruction_pieces_preserve_percent_bytes_word_order_and_headers() {
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_instruction_plan::{
+            NativeFormatLiteralAllocation as Allocation, NativeFormatStringPiece as Piece,
+        };
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            for (source, expected) in [
+                (
+                    b"format {a%%b%s%s%%} $x $y".as_slice(),
+                    vec![
+                        Piece::Literal(b"a%b".to_vec()),
+                        Piece::Value(2),
+                        Piece::Value(3),
+                        Piece::Literal(b"%".to_vec()),
+                    ],
+                ),
+                (b"format {%s} $x".as_slice(), vec![Piece::Value(2)]),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source);
+                let profile =
+                    tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+                let parsed = tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                let recipe = instruction(&words, 1, version, context()).unwrap();
+                assert_eq!(recipe.pieces, expected);
+                assert_eq!(
+                    recipe.literal_allocation,
+                    if version == TclVersion::V9_1 {
+                        Allocation::PrivateString
+                    } else {
+                        Allocation::Registered
+                    }
+                );
+                for from in [0, words.original_words().len() + 1] {
+                    assert!(instruction(&words, from, version, context()).is_none());
+                }
+            }
+        }
     }
 }

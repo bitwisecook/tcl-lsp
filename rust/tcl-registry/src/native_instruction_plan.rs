@@ -88,6 +88,8 @@ pub enum NativeInstructionPlan {
     List(NativeCompiledListRecipe),
     /// Original compile-known concatenation or ordered runtime operands.
     Concat(NativeConcatInstruction),
+    /// Original format literal fragments and ordered value-word compiler visits.
+    FormatStringConcat(NativeFormatStringInstruction),
     /// Ordered root/current namespace bindings, including declined preparation.
     NamespaceBindings(
         crate::native_namespace_binding_compilation::NativeNamespaceBindingCompilation,
@@ -163,6 +165,33 @@ pub enum NativeConcatInstruction {
     },
     /// Evaluate each original parser operand before the native stack operation.
     Operands(Vec<crate::native_compiler_word_projection::NativeCompilerWordOperand>),
+}
+
+/// A selected format compiler pushes these pieces in their exact lexical order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeFormatStringInstruction {
+    /// Nonempty format fragments and each original value word, once.
+    pub pieces: Vec<NativeFormatStringPiece>,
+    /// Literal registration is release-specific even when bytes agree.
+    pub literal_allocation: NativeFormatLiteralAllocation,
+}
+
+/// A format literal never substitutes; a value retains its original compiler word.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeFormatStringPiece {
+    /// Decoded nonempty ASCII format bytes, with `%%` replaced by `%`.
+    Literal(Vec<u8>),
+    /// Exact index in the complete original word vector, including its head.
+    Value(usize),
+}
+
+/// Original C format compiler literal-header construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeFormatLiteralAllocation {
+    /// C8.6/C9.0 register bytes in the native literal tables.
+    Registered,
+    /// C9.1 adds each fresh String object without local or global sharing.
+    PrivateString,
 }
 
 /// Constant concatenation preserves the compiler's original object route.
@@ -996,6 +1025,11 @@ fn selected_container_and_string_instruction_plan(
 ) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
     use NativeInstructionPlanUnavailable as Unavailable;
     Some(match spec.grammar {
+        NativeCompilationGrammar::FormatStringConcat => {
+            crate::native_format_compilation::instruction(words, operand_from, version, context)
+                .map(NativeInstructionPlan::FormatStringConcat)
+                .ok_or(Unavailable::OperandGeometry)
+        }
         NativeCompilationGrammar::Dictionary { command, ensemble } => {
             let from = operand_from + usize::from(ensemble);
             if matches!(

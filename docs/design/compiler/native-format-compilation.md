@@ -23,3 +23,19 @@ error. That path remains unmodelled, as do other conversion or count cases.
 The descriptor supplies no handler completion, native execution entry, command
 lookup, currentness, namespace, or backend-provider authority. Those remain
 independent requirements of the original invocation owner.
+
+The portable instruction recipe retains nonempty format fragments and original
+value-word indices in their C compile order. `%%` contributes a literal percent.
+C8.6/C9.0 use the native registered-byte literal owner. C9.1's `PUSH_OBJ` expands
+to `TclAddLiteralObj`, so each fragment uses the existing private String-header
+owner without local or global literal sharing. Literal registration interleaves
+with original value compilation; fragments are not registered ahead of their
+position in the instruction stream.
+
+Two or more pieces emit `STR_CONCAT1` with their exact count. A single `%s`
+passes through its original value object without string conversion or a new
+header. The runtime artifact uses the existing compiled-concatenation owner,
+retaining the genuine object operation through callbacks and operand retirement.
+This string operation never uses Tcl list-concatenation rules. Unknown source,
+compiler selection, frame, operation or original implementation still refuses
+through the existing admission checks.
