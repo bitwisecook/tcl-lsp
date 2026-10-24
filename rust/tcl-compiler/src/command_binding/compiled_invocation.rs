@@ -1658,6 +1658,15 @@ fn original_compiler_preserves_names(
                         .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe),
                 )
         }
+        tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::FixedLookupThenVisits { lookup, visits } => {
+            dependency_closed
+                && original_fixed_compiler_lookup_preserves_names(
+                    compiler_state,
+                    lookup,
+                    compiler_state.baseline.execution_name_policy.and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe),
+                )
+                && super::original_compiler_effects::preserves_visits(&captured, visits, compiler_state, context, origin)
+        }
         tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::Visits(visits) => {
             dependency_closed
                 && super::original_compiler_effects::preserves_visits(

@@ -300,6 +300,16 @@ fn append_effects(
                     .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe),
             )
         }
+        NativeOriginalCompilerNameEffects::FixedLookupThenVisits { lookup, visits } => {
+            super::compiled_invocation::original_fixed_compiler_lookup_preserves_names(
+                state,
+                lookup,
+                state
+                    .baseline
+                    .execution_name_policy
+                    .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe),
+            ) && append_visits(words, visits, pending, state, compilation)
+        }
         NativeOriginalCompilerNameEffects::Visits(visits) => {
             append_visits(words, visits, pending, state, compilation)
         }
