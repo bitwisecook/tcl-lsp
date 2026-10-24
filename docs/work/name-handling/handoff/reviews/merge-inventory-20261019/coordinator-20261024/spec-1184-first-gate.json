@@ -1,0 +1,76 @@
+{
+  "utc": "2026-10-24T16:47:37.506575+00:00",
+  "source": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+  "run": 40111737581,
+  "job": 120924714885,
+  "identity_receipt_sha256": "b9b756752b028090303aabdee53be0f31bf8106a89aa211ab5185882815ee0e7",
+  "raw_member": "pack_source_e2e-02.stderr",
+  "raw_sha256": "6aeddd8689768283f3cc8ce72a27597cf0ffad10ba70f812d23452b6c791b63e",
+  "raw_bytes": 3878533,
+  "observed_format_gate": {
+    "line_start": 17097,
+    "line_end": 17121,
+    "exact_lines": [
+      "N17G_LIVE dispatch-host-call slot=HookSlot { family: Evaluate, index: 0 }",
+      "N17G_LIVE host-entry slot=HookSlot { family: Evaluate, index: 0 }",
+      "N17G_LIVE gate=host-release present=true",
+      "N17G_LIVE gate=host-pinned-engine present=true",
+      "N17G_LIVE gate=host-pinned-index present=true",
+      "N17G_LIVE gate=host-pinned-handle present=true",
+      "TCL_NATIVE_PROVIDER_WORDS source=Some((21, [102, 111, 108, 100, 32, 91, 10, 102, 111, 114, 109, 97, 116, 32, 37, 120, 32, 36, 120, 10, 93])) member=Some((2, [37, 120])) count=3",
+      "ZZ_NATIVE_PROVIDER_RECIPE head=\"format\" offset=7 selection=Unknown spec=NativeCompilationSpec { grammar: FormatStringConcat, operation: Invoke, body: Inherit }",
+      "ZZ_NATIVE_PROVIDER_REQUEST caller=rust/tcl-compiler/src/command_binding/compiled_preflight.rs:843:18 chunk_offset=0 source_len=21",
+      "ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=21 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=true native_entry_unavailable=false failure=false visits=2 children=0",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "TCL_LSP_TRACE_DEFERRED_WRITES_ANY supplied.rs:30",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "TCL_LSP_TRACE_METADATA_REGISTRY head=\"fold\" query=Some(SurfaceQuery { realm: RuleLoader, core: CorePoints { points: [Some((Tcl, Some(\"9.0\"))), None] }, packages: Borrowed([]) }) unresolved=UnknownLiteralHead",
+      "ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=true cfg_admission_required=Some(true) cfg_failure=false presented_failure=false",
+      "",
+      "ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=21 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(35) namespaces=Some(31) preflight=ProviderRequired instructions=5 procedure_body=false",
+      "",
+      "ZZ_NATIVE_ADMISSION_DECLINE predicate=preflight_flag preflight=ProviderRequired prerequisites=0 instructions=5 procedure_body=false failure=false math_prerequisite=false",
+      "N17G_LIVE host-engine-return outcome=error",
+      "N17G_LIVE host-error message=execution refused: native compiler preflight provider required",
+      "N17G_LIVE dispatch-host-return slot=HookSlot { family: Evaluate, index: 0 } answer=Abstain"
+    ]
+  },
+  "old_frontier_closure": {
+    "reference_body_12_and_two_negatives": "PASS(test terminal0)",
+    "native_parent_store_four_cases": "PASS(test terminal0):42,xy,unknownargumentNone,callerframeNone",
+    "derived_cat_five_profiles": "Reached and passed all5 assertions before new source565 panic",
+    "leading_zero_C86_8_C90_10": "Reached and passed both assertions before new source565 panic"
+  },
+  "real_shell_rows": {
+    "C90_cat_octal_digit_separator": "Reached and passed; exact sequential test source565 later format%x failure",
+    "absent_shell_skips": [
+      "skipped: no tclsh8.4 on PATH (string cat)",
+      "skipped: no tclsh8.5 on PATH (string cat)",
+      "skipped: no tclsh8.6 on PATH (string cat)",
+      "skipped: no tclsh9.1 on PATH (string cat)",
+      "skipped: no tclsh8.4 on PATH (octal)",
+      "skipped: no tclsh8.5 on PATH (octal)",
+      "skipped: no tclsh8.6 on PATH (octal)",
+      "skipped: no tclsh9.1 on PATH (octal)",
+      "skipped: no tclsh8.4 on PATH (digit separator)",
+      "skipped: no tclsh8.5 on PATH (digit separator)",
+      "skipped: no tclsh8.6 on PATH (digit separator)",
+      "skipped: no tclsh9.1 on PATH (digit separator)",
+      "skipped: no tclsh8.4 on PATH (format %x)",
+      "skipped: no tclsh8.5 on PATH (format %x)",
+      "skipped: no tclsh8.6 on PATH (format %x)"
+    ],
+    "C90_format_hex": "FAIL expectedffffffff, gotNone",
+    "later_astral_and_large_float": "UNREACHED after format assertion",
+    "C91_format_reference_row": "UNREACHED after failing C90 inner iteration"
+  },
+  "limits": [
+    "Test-file bodies are byteequal historical66ef and exact sealed source, no expectations weakened.",
+    "UnknownLiteralHead fold catalogue row also appears, but retained runtime host registration exists; do not promote that line alone to private failure cause.",
+    "C84 ProviderRequired/error is expected unsupported-release negative in this run, not remaining test failure.",
+    "Fresh Native engine patch closes prior physical-release mismatch for reached controls only; no general Native/TMM/erasure grant."
+  ]
+}

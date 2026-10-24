@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T16:15:42.980441+00:00
+Last updated: 2026-10-24T16:50:30.636021+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -57,6 +57,35 @@ Specpeer independent SOURCEACCEPT74d3dee36f276297b4c5714f33264d31a92c4a7f350ee90
 bootstrap/owner/order/drop/aliases/genericAPI/factoryrefusal/CLEANdrift reviewed. Rootnotified.
 No localCargo/native/test/driver/build; allnewcontrols/outcomes UNRUN, noperfclaim.
 
+## Remaining85/stack/prune unaffected work ACTIVE
+
+Rootfreshengine integrated768d/6eba, pendingnewactualwave; no newSpecoutcomes.
+Onecasefixture vm-command-receipt-retirement-fixture-v1 FROZEN masterbdc51414,
+WORKebf45593/man2def01d0 CLEANc9f1b9fa/man10de7072, sourceproof9ac8f07a.
+Existing rawNamespacedelete deliberatelyqueues RetiredCommandSlot owningProcDef;
+immediateWeakNone assertion runsbeforeoutside-borrowcleanup. ProposalONLYadds
+existingretire_pending_native_ensemble_roles().unwrap beforeoldWeakassert, allold
+scripts/asserts/predicates/order exact; oldfileinverse/F-R-F0/fmt2/C9physicalLF checked.
+SolehistoTARGETED_PRUNE authoritymodulepin retained, selectedfunctionhashcbf8 unchanged.
+Rootaskedrouteindependentpeer; no integration/actualgainclaimed. Notcacheproductionfix.
+
+Productionselected-member defect PROVEDSOURCE: RetainedArrayCell carries(rootVarId,
+epoch), butdetached_arrays keyedONLYrootVarId. Refillingprotectedroot preservesid,
+newcaptureepochthereforeselectsOLDdetachedmembers; secondretaineddestructionoverwrites
+firstmapentry. Actualtrace_registration line36 oldVarId3==newVarId3. Coherent3file
+vm-detached-array-generation-v1 FROZEN master47d60ce8: paired9d6b3822,
+WORKmand843c0bd CLEAN45b3b07f/sourceproof256b6916. Complete4modulecensus/C5rawLF
+verified, alloldsourceinverse/F-R-F0/fmt6; no currentprotocolconsumers. Candidate: privatekeys(existingid,existingepoch),
+2inserts/allaccessors+oldmemberremoveonlyinvalidatesmatchingcurrentepochsearch. Original
+scripts/asserts remainexact. Addedtwo-detached-plus-current Rustownercontrol UNRUN.
+Independentdeeppeer requestedfromroot, notyetclear; existingepochwrappingUNMODIFIED,
+noexhaustion/performance/fullNativeparityclaim. No physicalpointerfallback/newidentity.
+
+Jim3resultref failures share+26baselineoffset; CprobesCreateInterp+RegisterCoreCommands
+vsRuntimeextra9nshelperproceduresisprovenbootstrapdifference, NOTyet+26cause. Names
+askedoverlap. No helpersremoved/countsubtract/assertchange. ThreeEMPTYProcpublication
+failures+Crenameprune1appearC-order/expectationquestions; onlyreadsource, nochange.
+
 ## Concrete C85With coverage OPTION FROZEN + HELD, no application
 
 vm-c85-with-coverage-option-v1-held master049f84ba; paired3bb73819,
@@ -65,8 +94,9 @@ All16oldprofile/with/pendingtuples keepexactscripts+twooriginalpublicevalasserti
 14genuinecompiledcases retainALLoldobserver/refcount/refusal/result/error/cleanup body.
 Only2C85With iterations takeexplicitGenericrootInvoke+NODictionaryScope branch, assert
 C86hookfloor/noNativeRefusal/publicKBresult. Those2provide NOcompiledpending-role
-coverage andarenotpromotedasScope. Thisprecisecoverageassignment remainsHELD pending
-rootindependentpeer/judgmentandanyrequireduserchoice. Noignore/skip/productionchange/
+coverage andarenotpromotedasScope. IndependentRange technicalSOURCECLEAR046411533dfd1bab874c371783b45f98bfaeef69c91557702cfd0f33f2e00fd6
+(c85-with-coverage-independent-peer-v1-held/receipt.json). Thisprecisecoverageassignment
+remainsHELD: rootaskedexplicituserchoice, noanswer/applicationyet. Noignore/skip/productionchange/
 providerfallback/newcapability/budgetchange applied. Fulloldfileinverse/F-R-F0/fmt2,
 C85NULL+C86hook physicalLF/rawSHA exact. No localexecution/newtestPASSclaim.
 C85Error isseparatelyalreadyapproved/integrated/three66efactualPASS; notWithauthority.

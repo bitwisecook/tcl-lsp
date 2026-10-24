@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-24T16:47:51.016272+00:00",
+  "source": "0304ce9796c6016465aaac67ec3440f955afd21a",
+  "workflow": "ci.yml",
+  "request": {
+    "ref": "release/lsp-naming",
+    "inputs": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": false
+    }
+  },
+  "full_CI_graph": true,
+  "publish_or_release": false,
+  "older_run_superseded": 40087877719,
+  "reason": "Current product fixes and genuine body lookup need complete validation. Old ee6 source superseded; completed failure evidence retained and unfinished old cases remain unknown.",
+  "validation_admission": false
+}

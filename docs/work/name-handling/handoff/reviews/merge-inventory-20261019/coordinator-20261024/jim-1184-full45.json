@@ -1,0 +1,153 @@
+{
+  "utc": "2026-10-24T16:43:20.054802+00:00",
+  "status": "AUTHENTICATED_FULL45_EXECUTION_FAIL_31PASS14FAIL",
+  "run": 40111745337,
+  "job": 120924740069,
+  "source": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+  "artifact_id": 12566764701,
+  "archive_sha256": "1f8436c97c0839af4df57ff9696c39396993d7f0b7a7fa21b434da005cea972f",
+  "archive_bytes": 10980233,
+  "verification_sha256": "9fd0eaa65626071d8cf6f223557f31322112874dc138d78241a853b80da964f4",
+  "all_controls_pass": true,
+  "original7": {
+    "PASS": 7,
+    "FAIL": 0
+  },
+  "supplemental38": {
+    "PASS": 24,
+    "FAIL": 14
+  },
+  "full45": {
+    "PASS": 31,
+    "FAIL": 14
+  },
+  "complete_groups": {
+    "original26:PASS": 12,
+    "added8:PASS": 8,
+    "own11:PASS": 11,
+    "original26:FAIL": 14
+  },
+  "all50_processes_closed": true,
+  "two_fresh_0warning_artifacts": {
+    "jim_document": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true
+    },
+    "jim_own_surface": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true
+    }
+  },
+  "historical_comparison": {
+    "path": "/workspace/naming-proof-storage/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z",
+    "results_sha256": "37d5b6878c2662e2fc65fa831fca3d79eca18960cabe97bea8ddff6128bd5ba0",
+    "scope": "Earlier guarded local66 cohort only; this is not origin/rust baseline comparison.",
+    "changes": [
+      {
+        "target": "jim_document",
+        "selector": "a_class_records_the_variables_its_dictionary_names",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_document",
+        "selector": "a_method_body_sees_the_instance_variables_and_self",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_document",
+        "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_document",
+        "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_own_surface",
+        "selector": "a_jim_document_resolves_every_declared_command",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_own_surface",
+        "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+        "historical_state": "FAIL",
+        "current": "PASS"
+      },
+      {
+        "target": "jim_document",
+        "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+        "historical_state": "PASS",
+        "current": "FAIL"
+      },
+      {
+        "target": "jim_document",
+        "selector": "every_static_spelling_declares_its_name",
+        "historical_state": "PASS",
+        "current": "FAIL"
+      },
+      {
+        "target": "jim_document",
+        "selector": "the_edges_of_a_static_list",
+        "historical_state": "PASS",
+        "current": "FAIL"
+      },
+      {
+        "target": "jim_document",
+        "selector": "the_body_of_a_proc_with_statics_is_walked",
+        "historical_state": "PASS",
+        "current": "FAIL"
+      },
+      {
+        "target": "jim_document",
+        "selector": "a_static_adds_nothing_to_the_arity",
+        "historical_state": "PASS",
+        "current": "FAIL"
+      }
+    ]
+  },
+  "failure_families": {
+    "statics_W210_false_positives_and_missing_body_W123": [
+      "a_static_is_a_local_of_the_body_and_no_argument",
+      "every_static_spelling_declares_its_name",
+      "the_edges_of_a_static_list",
+      "the_body_of_a_proc_with_statics_is_walked",
+      "a_static_adds_nothing_to_the_arity"
+    ],
+    "raw_two_word_method_inventory": [
+      "a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "a_two_word_proc_written_before_its_class_is_a_method"
+    ],
+    "object_type_fact_missing": [
+      "a_method_body_can_construct_its_own_class",
+      "an_object_is_typed_by_its_class_and_its_member_set_is_open"
+    ],
+    "missing_W123_for_two_word_head": [
+      "a_two_element_proc_name_defines_a_two_word_command_in_every_dialect"
+    ],
+    "compound_program_W210_W307": [
+      "a_jim_program_draws_no_findings"
+    ],
+    "Tcl_excluded_Jim_availability_missing_W002": [
+      "the_same_program_under_tcl_is_rejected",
+      "loop_is_flagged_under_tcl_and_accepted_under_jim",
+      "a_tcl_document_has_no_jim_class"
+    ]
+  },
+  "current_limits": [
+    "All14 failures are original26; added8 and own11 fully pass.",
+    "Five historical-pass statics selectors now fail;9 historical original failures persist. Six historical failures now pass (4document+2own).",
+    "The original7 remains7P0F; no original7 regression was hidden by full45 status.",
+    "No compiler-lib new negative controls, C1-C2 authoring/hooks/reloads/server/fullshared/browser/WASI/performance or zero fullbaseline-P2F acceptance.",
+    "No source fix or assertion/policy change has been made from this observation."
+  ]
+}

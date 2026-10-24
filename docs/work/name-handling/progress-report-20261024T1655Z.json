@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T16:55:37.207010+00:00",
+  "scheduled_report_utc": "2026-10-24T16:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T17:25:37+00:00",
+  "change_since_previous_report": [
+    "16:55report/publishedsnapshot: noPR/releaseadmission; six-hourtargetmissed. SectionF/completezeroPASS-to-FAIL/allgreen/finalTclperformance/generated-doc-comments-format/prep-pr remainrequired. FunctionalfixesWORK, evidence/observersexcludedfromrelease.",
+    "ActualCompiler40111734833 exact1184 original58 NOW55PASS3FAIL, upfrom53/5: eval_sink+while1_break_in_opaque_switch_exits_loop FtoP. Sixsupp/catch/taint2ALLPASS, fivefresh0W/145closedgroups/all5seals authenticatedcbb320. Remaining2switchflow+bracedfold cases explicit, no fullbaselineclaim. ImmutableassessmentcopiedWORK/currentrow6refreshed.",
+    "ActualSpec40111737581 Native1PASSall4assertions; original11 remains10P1F butoldC84invalidpositive/NativeC86reference42/leadingzero boundaries closed. Newexactformat%x9.0 providerrefusal, Tcl9oracleb60a confirmsffffffff. Genericcompiler-decline/completewordvisits fixbeingprepared, no numericfallback. Laterastral/floatunreached; all19groups/3fresh0W/5seals b9b7. BoundedPassed9d added, no auditadmission.",
+    "ActualfullJim40111745337=31PASS14FAIL over45 exactoriginalselectors: original7PASS, supplemental38=24P14F; original26=12P14F,added8+own11ALLPASS. Fullsource126134NULGitmembership/2fresh0W/all50groups/seals verified9fd0/final55cf. Historical-local66comparison6FtoP/5PtoF distinctfromoriginrust. StaticlocalsW210 falseabsence sourceadvicefixinprogress, genericphysicalguardsheld.",
+    "ActualHeavy40111740243 CLI2PASS/bootstrapFAIL nowDIRECTsourceoperandplan; priornamespacevariablegrammarrefusal gone. Full7groups/3fresh0W/5seals f192, firstgate0a50 records6possiblefacetsnotunprovenuniquecause. Matchinglogicalevalprotocolvsactualhost isunder independentpurposeaudit, no blanketphysicalization.",
+    "All1184 browser/WASI/unit authenticBUILDFAIL2newobserverUriDisplaysites. No actualhostassertion/unitselector/stagecapture; artifactsealFALSEforabsentunitELFexplicit. Observerformat repair e9da+bothmap/digestconsumers independentlyb62a applied4916/pushed64fd, noCLEANobserver. Newhost40113192426active. Strict1184 separatelyhasONEearlier single_match_else authored_source_structure547, no laterdiagnosticcoverage; f6486 auth, narrowLunastylepairpending. Newstrict40113189298active.",
+    "Runtimeunchanged66efbounded44P86F1ABORT/131invocations andCFIabsent remain. Exactoriginal998baselinejoin87a matches14oldPASSidentities/all14PASS;984unselectedunknown, nozeroPFproof. Test-onlyretirementfixture7517/259f completesqueuedoutsideborrowownersbeforeEVERYunchangedcache/Weakassert; rootindependent43e, executionpending. Genuine3fileprivatearray-generationkeyfix9d6existingid+epochunderdeeppeer, no freshcounter/guardrelaxation.",
+    "C85With concretecoverageoption3bb73819 independently0464 heldpendinguseranswer. IndependentNativefold3e53 provesnoexistingfreshDocumentconsumer/channelerasureissuer; actualmatchingC8.6oracle2ffebb65 confirmsincomingstdouttransformobservesoriginalnumericcachevsfoldedstring despiteequaltext. Productionguardretained; test-onlycoverageoptionheldforreview/decision, no canonicalassertchange.",
+    "FunctionaltaintcontractupdatedWORK64fd/CLEAN1f69 usingcompilerprecision: unanimousunknownalternativesretaindebts, closedconflictsrefuse. Release-only0304 replaces2futuremigrationnarrativeswithcurrentcontracts. Runtimefixture+docs/observerrepairpushedafterdepth1fetch/rebase. Wholefmt6ebaBOTHspacesPASS, laterruntime2linesseparatelyfmt/docsunchangedRust; finalfullchecksremain.",
+    "NewfullcleanCI40113209300 exact0304ce979 dispatched16:47hostedgraph/native_release_build_proofFALSE, no publishing/release. SupersedesoldeE6healthyworkersfornewcurrentsource; unfinishedoldcasesunknown, oldcompletedfailuresretained. NewWORK64fdstrict/hosts sourceexactV10PASS13/30/16. ExternalBIGIP/perfheaderstaleover60minutesusernotified/no takeover; triagecomplete. Disk~0.55GiBstillNOlocalbuild, allnewartifactsZIPonly."
+  ],
+  "committed": [
+    "58691ff3166a3fcda7107980e14a96839dd5e0cc"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish16:55snapshot/report/rearm17:25timer.",
+    "Reviewandintegratemeasuredstylefix; rerunactualhost64fd/global andcleanfullCI; repairnextrealcompiler/Spec/Jim/runtimecases.",
+    "C85Withuseranswerpending; Nativefoldcoverageoptionheldforconcreteindependentreview, productionerasureguardunchanged.",
+    "Completebaseline/sectionF/allgreen/Tclperformance/generated/docs-comments/chaff/prep-pr beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 604549120,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

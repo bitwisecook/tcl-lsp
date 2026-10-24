@@ -1,0 +1,283 @@
+{
+  "artifact": {
+    "github_digest": "sha256:16ae02144b937fb93ed4048641ad436203fe77359d810dbced0c5484bf5b525d",
+    "id": 12566877139,
+    "local_zip_sha256": "16ae02144b937fb93ed4048641ad436203fe77359d810dbced0c5484bf5b525d",
+    "member_count": 21,
+    "members": {
+      "capture-exit.txt": {
+        "crc32": "4c7caf90",
+        "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "size": 2
+      },
+      "cargo-version.txt": {
+        "crc32": "115be8ce",
+        "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6",
+        "size": 36
+      },
+      "clippy-version.txt": {
+        "crc32": "1c703031",
+        "sha256": "514f4171a1bed07e7d27a872fc29ebb3e32360eb297e28acf00ab796f80e1038",
+        "size": 38
+      },
+      "coverage.txt": {
+        "crc32": "f565c034",
+        "sha256": "f8d5622d0903bc52289b155cb5e030755a4e8e431a0672459a87e1fd5fd3fca3",
+        "size": 233
+      },
+      "git-after.txt": {
+        "crc32": "00000000",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "git-before.txt": {
+        "crc32": "00000000",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0
+      },
+      "job.txt": {
+        "crc32": "b92ad5a3",
+        "sha256": "76747e949dad6818fcc6ebd2d63d68f82a7a576464c41afcb9f1ba2d84021e0a",
+        "size": 24
+      },
+      "make-rust-check.process.json": {
+        "crc32": "718591b3",
+        "sha256": "bd83d9c5b96984fd3b10875a91541adef8b7c68e0a03e0d303a4c2b17ef03541",
+        "size": 1956
+      },
+      "make-rust-check.stderr": {
+        "crc32": "8bd11065",
+        "sha256": "fa0c44c74e96e7b284f571803758bfe5a81e4eee69838b07e89a18bba4282de1",
+        "size": 12031
+      },
+      "make-rust-check.stdout": {
+        "crc32": "d5610a07",
+        "sha256": "8cfd05025f609f811fad9750df3750f54ef69e5a8710f9e07281cb1a19cf3862",
+        "size": 899
+      },
+      "make-version.txt": {
+        "crc32": "d074a357",
+        "sha256": "cb84250d994234272d0a465014ce2931be76e9e0cb114b9bffa078c3c211e8eb",
+        "size": 300
+      },
+      "original-exit.json": {
+        "crc32": "0de42874",
+        "sha256": "0c0f888bbcfbebb60db029d9de74401c5105787fce727f52bdff37bcbcbdf33e",
+        "size": 17
+      },
+      "rustc-version.txt": {
+        "crc32": "35e8c2b7",
+        "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+        "size": 196
+      },
+      "rustfmt-version.txt": {
+        "crc32": "6ac81f79",
+        "sha256": "5599925a145edaa750ffdd40d2dc1adb031362d0932dd5935e20440a5f51d2be",
+        "size": 46
+      },
+      "seals-exit.txt": {
+        "crc32": "7e4acd12",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "size": 2
+      },
+      "source-after.json": {
+        "crc32": "233691d7",
+        "sha256": "8c7d07b60702ad3978413c40e70fe20e21c92ca975d9573e47f625370dbe9340",
+        "size": 543
+      },
+      "source-commit.txt": {
+        "crc32": "8c0e9dc6",
+        "sha256": "0fd7e51a778f4bdaa8fd1093e103ff0f74a8fa390637d0317d4d2a2547b4d40f",
+        "size": 41
+      },
+      "source-tree.txt": {
+        "crc32": "2e478011",
+        "sha256": "9af9bbac6fde0d140d1d686f399a8d03f8fa3aff0fa11293e5728ee959be7e73",
+        "size": 41
+      },
+      "tools-after.txt": {
+        "crc32": "f17f1b8d",
+        "sha256": "c6f238d9a939c09b52284649e1e79182a5ca9a1c27824d8bcafd3cdc617c340e",
+        "size": 431
+      },
+      "tools.sha256": {
+        "crc32": "92cd4ad7",
+        "sha256": "24701916880477b753f8e4c9116ddc1f2edf5a22eba42f14b052322438babeb8",
+        "size": 989
+      },
+      "tracked-source-before.json": {
+        "crc32": "0f66b101",
+        "sha256": "1f0259f05408a7cffbb8bd775cadcbfb88f0c260bd18d2f8295f5e6f3e82e672",
+        "size": 26504040
+      }
+    },
+    "name": "release-rust-check-diagnostics-1184d8cf0b5aaf555c71103a465c1b2522461f6d-1",
+    "size_in_bytes": 4010282,
+    "zip_test": "PASS"
+  },
+  "diagnostics": {
+    "coverage_note": "DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.",
+    "interpretation": "The command stopped at the first fatal Clippy diagnostic under -D warnings. No later diagnostic sites are evidenced by this capture.",
+    "lint_id": "clippy::single_match_else",
+    "locations": [
+      "--> rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs:547:37"
+    ],
+    "primary_error_count": 1,
+    "primary_errors": [
+      "error: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`"
+    ],
+    "stderr_sha256": "fa0c44c74e96e7b284f571803758bfe5a81e4eee69838b07e89a18bba4282de1",
+    "stdout_sha256": "8cfd05025f609f811fad9750df3750f54ef69e5a8710f9e07281cb1a19cf3862",
+    "warning_count": 0,
+    "warning_lines": []
+  },
+  "job": {
+    "capture_step": "Capture the original global strict command",
+    "capture_step_conclusion": "failure",
+    "conclusion": "failure",
+    "id": 120924680330,
+    "name": "release-rust-check-diagnostics",
+    "status": "completed"
+  },
+  "limitations": [
+    "Diagnostic evidence applies to WORK source commit only.",
+    "The run failed at rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs:547:37 (clippy::single_match_else).",
+    "No CLEAN CI result or broader release acceptance is implied.",
+    "Other unreached primary diagnostics are unknown and are not inferred."
+  ],
+  "process": {
+    "artifact_member": "make-rust-check.process.json",
+    "capture_exit_code": 2,
+    "cleanup_signals": [],
+    "complete": true,
+    "elapsed_seconds": 121.657344566,
+    "evidence_within_20MiB_cap": true,
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "minimum_free_bytes": 74659553280,
+    "owned_live_group_members": [],
+    "sha256": "bd83d9c5b96984fd3b10875a91541adef8b7c68e0a03e0d303a4c2b17ef03541",
+    "tool_artifact_unchanged": true
+  },
+  "run": {
+    "attempt": 1,
+    "completed_at": "2026-10-24T16:36:29Z",
+    "conclusion": "failure",
+    "created_at": "2026-10-24T16:28:35Z",
+    "event": "workflow_dispatch",
+    "head_branch": "work",
+    "head_sha": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+    "id": 40111726383,
+    "status": "completed",
+    "workflow": "Performance",
+    "workflow_path": ".github/workflows/perf.yml"
+  },
+  "schema": "authenticated-global-rust-check-capture-v1",
+  "source": {
+    "commit": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+    "critical_file_hashes": [
+      {
+        "git_blob_oid": "f3b48bc6e7e089d2033d98153d1dca73fd220162",
+        "matches_run_source_manifest": true,
+        "path": ".github/workflows/perf.yml",
+        "sha256": "d5dea96af0225c134e043cf623b8cdeb2e0fd967c494d5f57cfc00c343e97ee6"
+      },
+      {
+        "git_blob_oid": "bd234e37456af6001e76c189a9c0c7a3a2517150",
+        "matches_run_source_manifest": true,
+        "path": "Makefile",
+        "sha256": "b1436acc2f05c29ccca44f2f375d408a6208c3942706d04b002b6362450f2210"
+      },
+      {
+        "git_blob_oid": "d6360be6e1fc01b50b272a525c992d75bf2f2660",
+        "matches_run_source_manifest": true,
+        "path": "Cargo.lock",
+        "sha256": "2618d38400bdc6b833d979980e9c97b31b12aabd10137cc84e4b24ef6c7333e6"
+      },
+      {
+        "git_blob_oid": "0f78a9c12f2e0ddff660c1d535762d0ca1f26192",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-compiler/Cargo.toml",
+        "sha256": "4ea9a8c7986c315595ed0c061a0133aaa5ef21abae2eee4f27d63905e3b64cf0"
+      },
+      {
+        "git_blob_oid": "f96b42963dfe9720d89818a73b2531d95a807e2d",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs",
+        "sha256": "8b5174a6b81ba81f2b54147fdbf2cf28606ab1841aca2a4d2fc774b3d5ddd287"
+      },
+      {
+        "git_blob_oid": "99c61933f0fc5f4ac00501551630360fc80b3677",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-lsp-server/Cargo.toml",
+        "sha256": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913"
+      },
+      {
+        "git_blob_oid": "fbeb1a1a49494729b9f723c6fa2cf7f8de960eb7",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-lsp-server/src/provider_source.rs",
+        "sha256": "74a51941682dd9f1acb7e9d1655e96ecfd16560cb2c5caa0cf8541f1070ec61f"
+      },
+      {
+        "git_blob_oid": "dbf7c25f451b0c693fca062ab5fc61bb98d424fe",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+        "sha256": "de4c145c420a42d8885b9681bb4e817de271eaebeea42139f3a5d36d327dee6b"
+      },
+      {
+        "git_blob_oid": "170ed83aee23fa328e561f0a92bb020263670350",
+        "matches_run_source_manifest": true,
+        "path": "rust/tcl-lsp-server/src/uri_norm.rs",
+        "sha256": "5f8af69cd3dda5b4b19cab0de46737530910e7cf21b98e50115b57c7d514a70c"
+      }
+    ],
+    "expected_tree": "ba2069262ee6b2384701972f87771bc933c5ba08",
+    "file_count": 126134,
+    "local_git_blob_membership_count": 126134,
+    "run_manifest_paths_equal_local_git_membership": true,
+    "run_manifest_sha256": "1f0259f05408a7cffbb8bd775cadcbfb88f0c260bd18d2f8295f5e6f3e82e672",
+    "runner_source_after_seal": {
+      "checked_file_count": 126134,
+      "checksum_mismatches": [],
+      "current_tracked_file_count": 126134,
+      "expected_file_count": 126134,
+      "expected_source_commit": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+      "extra_tracked_paths": [],
+      "manifest_sha256": "1f0259f05408a7cffbb8bd775cadcbfb88f0c260bd18d2f8295f5e6f3e82e672",
+      "matched_file_count": 126134,
+      "missing_tracked_paths": [],
+      "read_errors": [],
+      "source_commit": "1184d8cf0b5aaf555c71103a465c1b2522461f6d",
+      "stable_membership_during_verification": true,
+      "status": "PASS"
+    },
+    "source_tree_matches": true,
+    "tree": "ba2069262ee6b2384701972f87771bc933c5ba08"
+  },
+  "tools": {
+    "sha256_manifest": [
+      "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af  /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853  /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "89b6cc8d0d988b00a3f65bc90c76fedbaedb6bcb442b34563aefe3621f26544b  /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver",
+      "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598  /home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt",
+      "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698  /usr/bin/make",
+      "161ea2317033b937bca59ec228b80d60df8ebcf5abc260b52201eb3cf909fa4b  /usr/bin/git",
+      "be9a2a5eada8c89c1c399fdfb8397179e877c20d8db0739c802f726d4d0e69fd  /usr/bin/python3",
+      "450c68376d14e5040d36cce58605c35b2211d244f3079297440dc9d602ee4994  /usr/bin/bash",
+      "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71  /home/runner/.cargo/bin/rustup"
+    ],
+    "tools_after_checks": [
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo: OK",
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc: OK",
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver: OK",
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt: OK",
+      "/usr/bin/make: OK",
+      "/usr/bin/git: OK",
+      "/usr/bin/python3: OK",
+      "/usr/bin/bash: OK",
+      "/home/runner/.cargo/bin/rustup: OK"
+    ],
+    "tools_after_sha256": "c6f238d9a939c09b52284649e1e79182a5ca9a1c27824d8bcafd3cdc617c340e",
+    "tools_sha256_member_sha256": "24701916880477b753f8e4c9116ddc1f2edf5a22eba42f14b052322438babeb8"
+  }
+}
