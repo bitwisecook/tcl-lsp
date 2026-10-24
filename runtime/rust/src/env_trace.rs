@@ -317,6 +317,17 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .expect("the selected C release has an original native birth plan");
+            if std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+            {
+                eprintln!(
+                    "ENV_TRACE_DIAGNOSTIC release={release:?} armed={:?} root={:?} trace_root={:?} refusal={:?}",
+                    interp.traces.borrow().env,
+                    interp.namespaces().var_table(crate::namespace::GLOBAL).binding_id(b"env"),
+                    interp.namespaces().var_table(crate::namespace::GLOBAL).trace_binding_identity(b"env"),
+                    interp.native_execution_refusal(),
+                );
+            }
             body(&mut interp, &host);
         }
         assert_eq!(counters::finalize(), 0, "leaked objects");

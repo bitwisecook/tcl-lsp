@@ -201,6 +201,7 @@ def run(out, source):
         ]
     )
     environment = os.environ.copy()
+    environment["TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC"] = "1"
     for index, row in enumerate(rows):
         if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
             errors.append(

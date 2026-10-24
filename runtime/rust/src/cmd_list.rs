@@ -946,7 +946,21 @@ mod tests {
     }
 
     fn run(src: &[u8]) -> (Code, Vec<u8>) {
-        leak_free(|interp| (interp.eval_str(src), interp.result_bytes()))
+        leak_free(|interp| {
+            let code = interp.eval_str(src);
+            let result = interp.result_bytes();
+            if std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+            {
+                eprintln!(
+                    "LIST_TEST_DIAGNOSTIC code={code:?} source_prefix={:?} result_prefix={:?} refusal={:?}",
+                    &src[..src.len().min(256)],
+                    &result[..result.len().min(256)],
+                    interp.native_execution_refusal(),
+                );
+            }
+            (code, result)
+        })
     }
 
     fn ok(src: &[u8]) -> Vec<u8> {
