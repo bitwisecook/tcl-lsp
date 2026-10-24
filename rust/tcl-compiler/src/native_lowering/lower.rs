@@ -1052,7 +1052,7 @@ impl<'a> Lowerer<'a> {
         let entry = module.source_entry.native_entry.as_deref()?;
         let profile = module.dialect_profile?;
         let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point?);
-        if entry.frame != tcl_runtime_api::NativeCompilationFrame::Global
+        if entry.frame != tcl_runtime_api::native_compilation::NativeCompilationFrame::Global
             || !entry.execution_name_policy.is_some_and(|policy| {
                 policy.native_recipe().is_some_and(|recipe| {
                     recipe.authority() == tcl_syntax::naming::NamePolicyAuthority::Native

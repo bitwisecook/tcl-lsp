@@ -6052,7 +6052,7 @@ mod tests {
                 tcl_completion_release(&mut out);
                 release_words(&words);
                 let actual = match interp.resolve_dispatchable(crate::namespace::GLOBAL, b"p") {
-                    Some(crate::interp::Command::Proc(proc)) => proc.native.is_some(),
+                    Some(crate::interp::Command::Proc(proc)) => proc.declaration().native.is_some(),
                     _ => false,
                 };
                 assert_eq!(actual, compiled, "{setup}");
@@ -6107,7 +6107,7 @@ mod tests {
                     let crate::interp::Command::Proc(proc) = command else {
                         panic!("ordinary procedure definition");
                     };
-                    assert!(proc.native.is_none());
+                    assert!(proc.declaration().native.is_none());
                 }
                 tcl_completion_release(&mut out);
                 release_words(&words);
