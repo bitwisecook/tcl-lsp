@@ -27,6 +27,7 @@ scripts/dev/rust-tests-package-paths.txt
 scripts/dev/rust-tests-input-paths.txt
 scripts/dev/rust-test-binary-shard.sh
 scripts/dev/nextest-terminal-capture.py
+scripts/dev/nextest-tool
 scripts/dev/rust-test-binary-shards.tsv
 scripts/dev/select-rust-tests-runner.sh
 scripts/dev/persistent-cargo-target.sh
