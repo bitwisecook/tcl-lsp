@@ -6,11 +6,13 @@
 
 // naming.lsp.original-document-transform-currency
 
+#[cfg(test)]
+use super::Analyser;
 use super::current_diagnostics::CurrentDiagnosticInput;
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    AnalysisResult, Arc, Backend, DocumentPathAdmission, DocumentSourceResult, DocumentState,
+    FromStr, HashSet, NonAsciiMode, PolicyLayers, ResourceAnalyserInputs, Uri, jsonrpc,
+};
 use std::collections::VecDeque;
 use tcl_lsp_core::wire_session::EditorWireSession;
 

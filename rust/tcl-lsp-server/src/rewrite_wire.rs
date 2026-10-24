@@ -4,10 +4,11 @@
 
 //! Original optimiser report/source association for diagnostic presentation.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+#[cfg(test)]
+use super::DiagCode;
+use super::{
+    AnalysisResult, Arc, DiagnosticPass, HashMap, Uri, core_code_actions, core_policy, core_report,
+};
 
 /// The actual report producer's source purpose, never decoded from wire data.
 #[derive(Clone)]

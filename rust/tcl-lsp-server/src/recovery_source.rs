@@ -4,10 +4,18 @@
 
 //! Conditional parser recognition for incomplete documents.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+#[cfg(test)]
+use super::{
+    Analyser, Uri, compute_base_analysis, original_document_is_complete,
+    prepare_base_completeness_input, vfs,
+};
+use super::{
+    AnalysisResult, Arc, Backend, Client, CommandRegistry, ControlFlow, HashSet, Mutex,
+    NonAsciiMode, PackageResolver, Path, PathBuf, PreparedCompletenessInput,
+    ResourceAnalyserInputs, RwLock, SalsaAnalysisCtx, TrackedRwLock, core_workspace_index,
+    defined_original_commands_from_analysis, provider_source, report_analysis_worker_panic,
+    with_pack_hooks,
+};
 use provider_source::{ProviderCaptureInputs, ProviderSourceUnavailable};
 use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tcl_lsp_core::package_resolver::{

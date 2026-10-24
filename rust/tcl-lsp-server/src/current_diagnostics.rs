@@ -17,10 +17,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Source-associated completion of the existing push diagnostic pipeline.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    AnalyserPathInputs, AnalysisResult, Arc, Backend, CLASS_FACTORY_SYNC_ROUNDS, CommandRegistry,
+    ControlFlow, DeliveryCtx, DiagCurrency, DiagInputs, DiagJob, DiagSlot, DiagnosticPublisher,
+    Digest, DocumentPathAdmission, DocumentPublication, DocumentState, EvidenceHandles,
+    F5ReportInputs, HashMap, HashSet, LiftInputs, Mutex, OrphanCommandDependencies,
+    PackNoticeContext, Path, ProducedDiagnosticReport, PublishedSourcePath, PullDiagEntry,
+    RecoveryNameCache, RecoveryWidenCtx, SalsaAnalysisCtx, Sha256, TrackedMutex, TrackedRwLock,
+    Uri, WorkspaceCommandQueries, WorkspaceDiagnosticSources, capture_cross_file_evidence_snapshot,
+    compute_base_analysis, compute_deep_diagnostic_report, core_workspace_index,
+    current_diagnostics, f5_model_document_report, is_apl_source, jsonrpc, longest_folder_match,
+    next_pull_diag_result_id, proposal_diagnostics, provider_source, rewrite_wire,
+    sha256_digest_hex, with_pack_hooks,
+};
+#[cfg(test)]
+use super::{
+    DiagnosticPublishOutcome, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, FromStr, FullDocumentDiagnosticReport, LanguageServer, PathBuf,
+    PublishTiming, TrackedMutexGuard, WorkspaceDiagnosticParams, WorkspaceDiagnosticReportResult,
+    WorkspaceDocumentDiagnosticReport, publish_diagnostics_result, run_diagnostics_core,
+    sync_evaluator_epoch, sync_overlay_epoch, vfs,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
