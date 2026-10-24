@@ -29868,10 +29868,7 @@ impl Backend {
             .invalidate_source_inventory_scan();
         let scan_started = crate::rt::Instant::now();
         let folders = self.workspace_folder_urls().await;
-        let roots: Vec<PathBuf> = folders
-            .iter()
-            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
-            .collect();
+        let roots: Vec<PathBuf> = Self::scan_folder_roots(&folders);
         let roots_count = roots.len();
         // Capture the host's actual source-store census before scanning. Any
         // byte mutation while the index is assembled makes the receipt stale;
@@ -29891,13 +29888,7 @@ impl Backend {
         // Snapshot the dialect-resolution inputs and the set of
         // open documents so the blocking worker can run without
         // touching any async mutex.
-        let open: HashSet<Uri> = self
-            .documents
-            .lock("scan_workspace_folders")
-            .await
-            .keys()
-            .cloned()
-            .collect();
+        let open: HashSet<Uri> = self.scan_open_document_uris().await;
         let package_inputs_epoch = {
             let analyser_inputs_guard = self.analyser_inputs_gate.read().await;
             let epoch = self.diag_inputs_epoch();
@@ -29925,40 +29916,7 @@ impl Backend {
         // (rare, but possible) a workspace file reachable only via autoload
         // must end up present, not removed, if a later batch re-adds it under
         // its own URI.
-        let stale_library_uris = self
-            .autoloaded_library_uris
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        let admissions = stale_library_uris
-            .iter()
-            .map(|raw| {
-                let uri = Uri::from_str(raw).map_err(|_| {
-                    DocumentSourceUnavailable::InvalidStoredUri {
-                        original: raw.clone(),
-                    }
-                })?;
-                DocumentPathAdmission::capture(&uri, self.store.as_ref())
-            })
-            .collect::<DocumentSourceResult<Vec<_>>>()?;
-        if !stale_library_uris.is_empty() {
-            let _rehoming_guard = self.rehoming_gate.lock().await;
-            let mut index = self.workspace_index.write().await;
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            let mut autoloaded = self.autoloaded_library_uris.lock().await;
-            let retained = admissions.iter().collect::<Vec<_>>();
-            DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
-                for uri in &stale_library_uris {
-                    index.remove_document(uri);
-                    seeds.remove(uri);
-                }
-                for uri in &stale_library_uris {
-                    autoloaded.remove(uri);
-                }
-            })?;
-        }
+        let (_stale_library_uris, _admissions) = self.retire_previous_autoload_rows().await?;
 
         // Read and analyse the candidate files across a bounded worker
         // pool, merging into `workspace_index` / the salsa `Project` in
@@ -30005,30 +29963,8 @@ impl Backend {
         // its very first pass, or its outline and navigation come back empty
         // for every class a cross-file metaclass manufactures until some later
         // edit happens to re-run the diagnostics worker.
-        let scan_handles = EvidenceHandles {
-            db_config: Arc::clone(&self.db_config),
-            folder_db_configs: Arc::clone(&self.folder_db_configs),
-            db: Arc::clone(&self.db),
-            db_files: Arc::clone(&self.db_files),
-            db_project_members: Arc::clone(&self.db_project_members),
-            db_project: Arc::clone(&self.db_project),
-            workspace_index: Arc::clone(&self.workspace_index),
-            documents: Arc::clone(&self.documents),
-            rehoming_gate: Arc::clone(&self.rehoming_gate),
-            live_publication_gate: Arc::clone(&self.live_publication_gate),
-            class_factory_generation: Arc::clone(&self.class_factory_generation),
-        };
-        let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
-        // …then re-index the unopened documents that oracle can change
-        // Must follow the publish: the classes a cross-file
-        // metaclass manufactures only exist in an analysis that carried the
-        // oracle, and the scan's own pass could not have.
-        reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
-        // The subclass-provided-method view, published once the
-        // scan's index is complete so the first document opened is analysed
-        // with the workspace's subclass evidence already in place.  No peers
-        // to wake: nothing has published diagnostics yet.
-        sync_workspace_subclass_methods(&scan_handles).await;
+        let scan_handles = self.workspace_scan_evidence_handles();
+        let _factory_sync = Self::publish_scan_factory_views(&scan_handles).await;
         let inventory_class_factory_generation = scan_class_factory_generation;
         self.publish_workspace_scan_inventory_if_current(
             source_inventory_provider,
@@ -30040,21 +29976,7 @@ impl Backend {
         .await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
-        self.workspace_scan_ready.mark_complete();
-        // Readiness signal for `package_resolver` / `workspace_index` having
-        // just been (re)built from disk — a client (or a test) that needs to
-        // know the autoload / cross-file workspace state is current rather
-        // than racing this scan should wait on this line instead of an
-        // unrelated per-document signal.
-        let elapsed_ms = scan_started.elapsed().as_secs_f64() * 1000.0;
-        self.client
-            .log_message(
-                MessageType::LOG,
-                format!(
-                    "[timing] workspace_folders_scan {elapsed_ms:.0}ms \
-                     (roots={roots_count}, files={files_count})"
-                ),
-            )
+        self.complete_workspace_scan(scan_started, roots_count, files_count)
             .await;
 
         Ok(())
@@ -31673,6 +31595,118 @@ impl Backend {
             document_changes: Some(DocumentChanges::Edits(document_changes)),
             change_annotations: None,
         }
+    }
+}
+
+impl Backend {
+    fn scan_folder_roots(folders: &[Uri]) -> Vec<PathBuf> {
+        folders
+            .iter()
+            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect()
+    }
+
+    async fn scan_open_document_uris(&self) -> HashSet<Uri> {
+        let documents = self.documents.lock("scan_workspace_folders").await;
+        let open = documents.keys().cloned().collect();
+        drop(documents);
+        open
+    }
+
+    async fn retire_previous_autoload_rows(
+        &self,
+    ) -> DocumentSourceResult<(Vec<String>, Vec<DocumentPathAdmission>)> {
+        let stale_library_uris = self
+            .autoloaded_library_uris
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let admissions = stale_library_uris
+            .iter()
+            .map(|raw| {
+                let uri = Uri::from_str(raw).map_err(|_| {
+                    DocumentSourceUnavailable::InvalidStoredUri {
+                        original: raw.clone(),
+                    }
+                })?;
+                DocumentPathAdmission::capture(&uri, self.store.as_ref())
+            })
+            .collect::<DocumentSourceResult<Vec<_>>>()?;
+        if !stale_library_uris.is_empty() {
+            let _rehoming_guard = self.rehoming_gate.lock().await;
+            let mut index = self.workspace_index.write().await;
+            let mut seeds = self.rehomed_source_seeds.lock().await;
+            let mut autoloaded = self.autoloaded_library_uris.lock().await;
+            let retained = admissions.iter().collect::<Vec<_>>();
+            DocumentPathAdmission::with_current(&retained, self.store.as_ref(), || {
+                for uri in &stale_library_uris {
+                    index.remove_document(uri);
+                    seeds.remove(uri);
+                }
+                for uri in &stale_library_uris {
+                    autoloaded.remove(uri);
+                }
+            })?;
+        }
+
+        Ok((stale_library_uris, admissions))
+    }
+
+    fn workspace_scan_evidence_handles(&self) -> EvidenceHandles {
+        EvidenceHandles {
+            db_config: Arc::clone(&self.db_config),
+            folder_db_configs: Arc::clone(&self.folder_db_configs),
+            db: Arc::clone(&self.db),
+            db_files: Arc::clone(&self.db_files),
+            db_project_members: Arc::clone(&self.db_project_members),
+            db_project: Arc::clone(&self.db_project),
+            workspace_index: Arc::clone(&self.workspace_index),
+            documents: Arc::clone(&self.documents),
+            rehoming_gate: Arc::clone(&self.rehoming_gate),
+            live_publication_gate: Arc::clone(&self.live_publication_gate),
+            class_factory_generation: Arc::clone(&self.class_factory_generation),
+        }
+    }
+
+    async fn publish_scan_factory_views(handles: &EvidenceHandles) -> ClassFactorySync {
+        let factory_sync = sync_workspace_class_factories(handles, None).await;
+        // …then re-index the unopened documents that oracle can change
+        // Must follow the publish: the classes a cross-file
+        // metaclass manufactures only exist in an analysis that carried the
+        // oracle, and the scan's own pass could not have.
+        reindex_unopened_factory_consumers(handles, &factory_sync.affected_names).await;
+        // The subclass-provided-method view, published once the
+        // scan's index is complete so the first document opened is analysed
+        // with the workspace's subclass evidence already in place.  No peers
+        // to wake: nothing has published diagnostics yet.
+        sync_workspace_subclass_methods(handles).await;
+        factory_sync
+    }
+
+    async fn complete_workspace_scan(
+        &self,
+        scan_started: crate::rt::Instant,
+        roots_count: usize,
+        files_count: usize,
+    ) {
+        self.workspace_scan_ready.mark_complete();
+        // Readiness signal for `package_resolver` / `workspace_index` having
+        // just been (re)built from disk — a client (or a test) that needs to
+        // know the autoload / cross-file workspace state is current rather
+        // than racing this scan should wait on this line instead of an
+        // unrelated per-document signal.
+        let elapsed_ms = scan_started.elapsed().as_secs_f64() * 1000.0;
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] workspace_folders_scan {elapsed_ms:.0}ms \
+                     (roots={roots_count}, files={files_count})"
+                ),
+            )
+            .await;
     }
 }
 
