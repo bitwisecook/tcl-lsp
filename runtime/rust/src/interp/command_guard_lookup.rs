@@ -7,6 +7,66 @@
 use super::{GuardDomain, GuardDomains, GuardError, GuardToken, Interp};
 use crate::namespace::CommandGuardLookup;
 
+#[cfg(test)]
+pub(super) type CommandGuardDiagnostic = (
+    &'static str,
+    Option<u64>,
+    (Option<u64>, Option<u64>),
+    (Option<u64>, Option<u64>),
+    Option<bool>,
+);
+
+#[cfg(test)]
+std::thread_local! {
+    static COMMAND_GUARD_DIAGNOSTIC: std::cell::Cell<CommandGuardDiagnostic> = const {
+        std::cell::Cell::new(("start", None, (None, None), (None, None), None))
+    };
+}
+
+#[cfg(test)]
+pub(super) fn reset_diagnostic() {
+    COMMAND_GUARD_DIAGNOSTIC.with(|last| {
+        last.set(("start", None, (None, None), (None, None), None));
+    });
+}
+
+#[cfg(test)]
+pub(super) fn remember_sync(
+    previous: Option<u64>,
+    revision: Option<u64>,
+    previous_policy: Option<u64>,
+    policy: Option<u64>,
+) {
+    COMMAND_GUARD_DIAGNOSTIC.with(|last| {
+        let mut snapshot = last.get();
+        snapshot.2 = (previous, revision);
+        snapshot.3 = (previous_policy, policy);
+        last.set(snapshot);
+    });
+}
+
+#[cfg(test)]
+pub(super) fn remember_stage(phase: &'static str, generation: Option<u64>, current: Option<bool>) {
+    COMMAND_GUARD_DIAGNOSTIC.with(|last| {
+        let mut snapshot = last.get();
+        snapshot.0 = phase;
+        snapshot.1 = generation;
+        snapshot.4 = current;
+        last.set(snapshot);
+    });
+}
+
+#[cfg(test)]
+pub(super) fn checked_result(generation: u64, current: bool) -> bool {
+    remember_stage("kernel", Some(generation), Some(current));
+    current
+}
+
+#[cfg(test)]
+pub(super) fn diagnostic() -> CommandGuardDiagnostic {
+    COMMAND_GUARD_DIAGNOSTIC.with(std::cell::Cell::get)
+}
+
 impl Interp {
     pub(super) fn prepare_command_guard_lookup(
         &self,

@@ -3600,18 +3600,38 @@ impl Interp {
     /// Re-check a guard against the current resolved implementation identity.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
+        #[cfg(test)]
+        command_guard_lookup::reset_diagnostic();
         self.synchronise_command_environment_guards();
         let Some((generation, identities)) = self.attested_command_identity(name) else {
+            #[cfg(test)]
+            command_guard_lookup::remember_stage("attestation", None, None);
             return false;
         };
         if !self.command_guard_lookup_is_current(token, generation) {
+            #[cfg(test)]
+            command_guard_lookup::remember_stage("lookup", Some(generation), None);
             return false;
         }
-        identities.iter().any(|identity| {
-            self.guards
-                .borrow()
-                .check(token, Some(*identity), &generation)
-        })
+        #[cfg(test)]
+        {
+            command_guard_lookup::checked_result(
+                generation,
+                identities.iter().any(|identity| {
+                    self.guards
+                        .borrow()
+                        .check(token, Some(*identity), &generation)
+                }),
+            )
+        }
+        #[cfg(not(test))]
+        {
+            identities.iter().any(|identity| {
+                self.guards
+                    .borrow()
+                    .check(token, Some(*identity), &generation)
+            })
+        }
     }
 
     /// Re-check a guard for one exact registry intrinsic identity.
@@ -3710,6 +3730,8 @@ impl Interp {
         };
         let previous = self.guard_lookup_environment_revision.replace(revision);
         let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
+        #[cfg(test)]
+        command_guard_lookup::remember_sync(previous, revision, previous_policy, policy);
         if revision.is_none() || policy.is_none() {
             let mut guards = self.guards.borrow_mut();
             for domain in [
@@ -23201,7 +23223,11 @@ mod tests {
             // The profile pin keeps the attestation and a token that does not
             // depend on interpreter policy.
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
-            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(
+                i.check_command_guard(token, b"guarded"),
+                "guard phase/generation/broad(before,after)/policy(before,after)/kernel: {:?}",
+                super::command_guard_lookup::diagnostic(),
+            );
             assert!(i
                 .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
                 .is_ok());
