@@ -1,0 +1,73 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T18:58:39.988484+00:00",
+  "scheduled_report_utc": "2026-10-24T18:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T19:25:37+00:00",
+  "change_since_previous_report": [
+    "18:55 checkpoint; six-hour target missed, PR remains blocked by actual correctness/host/complete baseline/performance gates. No global admissions.",
+    "Current767d compiler FULLAUTH18473999: original55P3F, all9controlsPASS unchanged1184,145closed groups,5fresh zero-warning targets,5seals. Retained10,010,703B within20MiB. Graph actual nested switch/arm selection is absent and unknown-prefix propagation stops before y read; exact private subguard remains unproven.",
+    "Current767d Jim FULLAUTH4a1d91a0: original45 still31P14F, original7allPASS. StaticsV3 has no measured gain; twelve new controls unselected. Existing RBS producer observer plus5 separately ledgered diagnostic reruns prepared next, original45 unchanged.",
+    "Current767d host full indexbec3b6f8: browser/WASI unchangedFAIL; separate unitPASS1. Browser still missing rootworld ordinal2/count3; WASI genuine77byte owner reaches Coreprepare and returnsnone. First private predicate observerce7221a6 frozen/reviewready; no cause guessed from aggregate state.",
+    "Current767d strict first primary unused_self source_procedure.rs549. Minimal associatedfunction fix assigned, full capture auth pending. Heavy bootstrapFAIL/CLI2PASS, actual first facet protocol-purpose selects nonNativeV8_4 for UpLevel with C(V9_0) strings; actual caller/purpose proof required before repair.",
+    "User-approved genuine closed-consumer cohort remains HELD before integration: real fresh worker, no caller callbacks/values, token/IO/instruction closure, original and candidate complete preparation. Final producer fixes close process-global pack installer access, bounded pre-CU resource exposure and retained-empty literal observation. No test-only fold expectation rewrite; original two assertions preserved. Independent whole-cohort peer still required.",
+    "WORK767d/CLEAN12a32 remain pushed; development observers/evidence stay WORK-only. Latest full clean CI0304 is older and failing; complete current origin/rust zeroPASS-to-FAIL join, Tcl corpus performance, allgreen, generated docs/comments/fmt/chaff cleanup still required. No PR/merge/tag/release.",
+    "ExternalBIGIP13:17(previous day)/perf03:22 are stale over60min; user notified, no takeover. Triage marked complete. Workspace below2GiB, no local Rust builds; bounded ZIP evidence only."
+  ],
+  "committed": [
+    "7d135f201492176f46f0f37a35b3840f266c292d"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish18:55 checkpoint and rearm19:25 reminder.",
+    "Fix authenticated compiler/Jim/host/strict/Heavy frontiers through owning roles; preserve Native fail-closed guards.",
+    "Freeze and independently review complete genuine closed-consumer cohort and source-pin companion, then hosted validation.",
+    "Complete baseline zeroPF, allgreen, Tcl performance and final release-only cleanup before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 352067584,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

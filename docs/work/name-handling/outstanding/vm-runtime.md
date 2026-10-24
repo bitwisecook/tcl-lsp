@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T17:58:56.531691+00:00
+Last updated: 2026-10-24T18:34:46.502866+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -398,3 +398,18 @@ stderr/globalenv mutation; no detachedtimeout/freshFPbaseline claim. PerVMlitera
 andfreshRc headers audited, mutableprecision/Jimallocator scopes TLSretirebeforejoin.
 Remainingglobalmutableheader census/finaltypes/negativecontrols/freeze+independentpeer
 required. Canonicalrootstillsolewriter; no source edits/builds/dispatch.
+
+## 18:35 closed-owner prefreeze correction
+
+Full-entry Eq caught genuine active-observation issue before integration: existing
+NativeLiteralWorld.capture_empty_world deliberately invalidates prior capture (old
+test637 assert_ne preserved). No fieldnormaliser/drop/fallback applied. Rootapproved
+actual same-owner/Weakworld/epoch/generation+emptiness validator retaining ONLY still
+current receipt; standard Native-entry capture's original order/invalidation retained
+via private closure supplier. Both original and candidate preparation share genuine
+retained anchor and all other fields fresh/fullEq. Foreign/nonempty/ordinaryrecapture/
+stale/retired/positive controls being frozen. This is stillUNBUILT/UNRUN, no always-
+refusing capability admitted. Diagnostic common constTLS suppression covers whole
+privateworker+TLS teardown; qualified/IO/FFIcensus16dependencycrates retained. Root
+accepted explicit Rustpanic/globalhook/fatalabort outsideNative-semantic limit, no
+globalhook/stdio/env mutation/OSsandbox claim. Compiler/API V4 dependency130e9fe2.
