@@ -1,0 +1,21 @@
+{
+  "recorded_at_utc": "2026-10-24T17:05:05.446604+00:00",
+  "decision": "Implement a genuine closed-consumer capability for expression erasure",
+  "user_answer": "Implement a genuine closed-consumer capability",
+  "question_call": "call_50bb6b3cfc034c44a200f457a2033d51",
+  "scope": [
+    "Implement actual closed-consumer ownership needed for the remaining expression-fold case.",
+    "Do not apply the proposed test-only replacement of the existing fold expectations.",
+    "Keep expression erasure fail-closed without genuine consumer/observer and value-lifetime proof; preserve existing runtime and world guards."
+  ],
+  "considered_test_only_option": {
+    "directory": "/workspace/naming-proof-storage/spec-nativefold-test-only-option-v2",
+    "status": "NOT_SELECTED_DO_NOT_APPLY"
+  },
+  "semantic_evidence": {
+    "matching_tcl86_receipt_sha256": "2ffebb654f63e2557dc069206f0b5d75f43eb52bce38154e2fb751203ef78db1",
+    "independent_missing_capability_review_sha256": "3e531f3091a97a7e61e3caabbffb62426d7396b1ede80fb16ed2aa0f783034cb"
+  },
+  "implementation": "PENDING_CONCRETE_DESIGN_REVIEW_AND_VALIDATION",
+  "status": "USER_DECISION_LOCKED_NOT_REOPENABLE"
+}
