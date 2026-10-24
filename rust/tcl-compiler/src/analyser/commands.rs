@@ -2335,12 +2335,26 @@ impl Analyser {
         let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
         let image = tcl_lexer::SourceImage::document(&self.source);
         let config = self.file_lexer_config();
-        let native = crate::registry_invocation::original_native_compiler_words(
-            &image,
-            tokens.words(),
-            offset,
-            config,
-        )?;
+        // Reuse lexical geometry only. Every downstream binding, input and
+        // declaration guard still runs against its current original inventory.
+        let native = if let Some(origin) = self
+            .head_identities
+            .source_bindings_ref()
+            .source_origin()
+            .filter(|origin| origin.source_image() == &image)
+        {
+            origin
+                .original_lexical_command(tokens.words(), offset, config)?
+                .native_words()
+                .to_vec()
+        } else {
+            crate::registry_invocation::original_native_compiler_words(
+                &image,
+                tokens.words(),
+                offset,
+                config,
+            )?
+        };
         let first = native.first()?;
         let last = native.last()?;
         let source = self
@@ -6731,6 +6745,80 @@ fn first_command_head(text: &str) -> Option<(&str, usize)> {
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    fn uncached_original_source_segment(
+        analyser: &Analyser,
+        offset: u32,
+        argument_tokens: &[Token],
+    ) -> Option<(SegmentedCommand, tcl_lexer::NativeWord)> {
+        let tokens = analyser.retained_invocation_tokens(offset, argument_tokens)?;
+        let image = tcl_lexer::SourceImage::document(&analyser.source);
+        let config = analyser.file_lexer_config();
+        let native = crate::registry_invocation::original_native_compiler_words(
+            &image,
+            tokens.words(),
+            offset,
+            config,
+        )?;
+        let first = native.first()?;
+        let last = native.last()?;
+        let source = analyser
+            .source
+            .get(first.span().start() as usize..last.span().end() as usize)?;
+        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            first.span().start(),
+            config.nested(),
+        );
+        if segments.len() != 1 {
+            return None;
+        }
+        Some((segments.pop()?, first.clone()))
+    }
+
+    #[test]
+    fn diagnostic_source_geometry_matches_uncached_capture_and_missing_origin() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+            for source in [
+                "set auto_index(example) [list source [file join $dir example.tcl]]",
+                "list {} \"\" {a\\}}",
+                "list {*}{one two}",
+            ] {
+                let mut analyser = Analyser::new();
+                let _analysis = analyser.analyse(source, dialect);
+                let config = analyser.file_lexer_config();
+                let segments =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                for segment in &segments {
+                    let offset = segment.argv.first().unwrap().span.start();
+                    let args = &segment.argv[1..];
+                    let expected = uncached_original_source_segment(&analyser, offset, args);
+                    for _ in 0..2 {
+                        assert_eq!(
+                            analyser.original_source_segment(offset, args, false),
+                            expected,
+                            "{dialect}: {source}",
+                        );
+                    }
+                    assert!(
+                        analyser
+                            .original_source_segment(offset, args, true)
+                            .is_none()
+                    );
+                }
+                analyser.head_identities = crate::realm::CommandBindingRealm::default();
+                for segment in &segments {
+                    let offset = segment.argv.first().unwrap().span.start();
+                    let args = &segment.argv[1..];
+                    assert_eq!(
+                        analyser.original_source_segment(offset, args, false),
+                        uncached_original_source_segment(&analyser, offset, args),
+                        "missing origin: {dialect}: {source}",
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn original_body_heads_keep_parent_file_config_and_nested_bom_content() {
