@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T02:25:37.178792+00:00",
+  "scheduled_report_utc": "2026-10-24T02:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T02:55:37+00:00",
+  "change_since_previous_report": [
+    "Pushed reviewed product source WORK 17948bb62b1a6a0fbd589db817850c9a7ebdcaf6 and release 6eddc9680135448cd1cc9fcd3bf69499243b5096. Source fixes land first on work; release omits WORK observers/protocols/evidence. Added immutable native context sharing, semantic-range and W120 helper extractions, six equivalent Core assertions plus stale helper-doc removal, and conditional Jim wrapper ownership. Release-only comment cleanup removes stale coverage/history claims without changing executable lines.",
+    "Compiler42 authenticated full64-case replay closes all58 originals:48PASS10FAIL; Native3PASS, SH2=1PASS1FAIL, ReadFlowPASS. All139 owned groups/source125921/provider/dependency/tool/artifact guards pass. Lossless stderr decodes exact ordered bytes; seven prior UNRUN become3PASS4FAIL, no cap increase and no whole-green claim.",
+    "Strict42 authenticated DB all-target/all-feature passes0warnings. Core7 and Server36length findings are failures, no Rust E or located warning findings; no large-future findings. Later Core7/range/W120 fixes are source-only. Direct wait/EOF does not establish an independently empty whole process tree.",
+    "Jim42 remains5PASS2FAIL. Parent-word repair now observed through both namespace iterations; next Authored if case fails inherited_variables [] versus[x]. Method lacks actual/future world. Conditional future-owner producer retains opaque prelude and gives no definitive W123/native authority. Spec42 remains9PASS2FAIL/original11 plus Native first42FAIL; factory fresh source issuer is now genuinely accepted, downstream defect remains.",
+    "New partial exact origin/rust comparison on old a26: workspace shard3 has677PASS-to-FAIL,1267matchedPASS and22368unknown baseline identities; LSP partition2 has247PASS-to-FAIL,484matchedPASS and23581unknown. Partial inventories have accounting caveats; no sum or complete zero-regression verdict. Broad common source-owner causes routed to implementation roles.",
+    "Runtime focused40053592230/job120751481466 exactf1dc89c4 is running original3 plus reviewed118 supplemental selectors and read-only lower-bound frame metadata. Corrected parser marks unmatched/malformed metadata and tool stderr incomplete; missing process receipt after spawn intent is fatal. Last f39 original3=2PASS1FAIL/14FAIL/stackSIGABRT persists. This run predates separate realC84 prerequisite; provider absence cannot be called a semantic failure.",
+    "Heavy bootstrap1/CLI2 diagnostic40053005986 exact6323ab1b is running. Ordinary clean a26 CI at last check58jobs=36success18failure3running1skipped; healthy jobs untouched. Required full shipping CI, main24312 comparison, host/editor/generated/lint/format and section F remain open.",
+    "External perf reports full frozen837102Tcl+7synthetic and complete ordered PackSet Equal across all old/mixed pairs; lexer586 and Spec28+3 both pass0W. Nondeep232 outcomes match but include89fail; depth1000 OOM both and absolute server failures remain. Final clean6/quiet-server/lint acceptance and final-source confirmation pending. Dedicated iRules performance alone is waived.",
+    "All five role trackers checked; BIGIP header13:17 remains stale over60minutes and user is notified without takeover. Perf02:08 is fresh, review-triage owner reports complete. Local disk remains below2GiB, so no local builds or target/young executable deletion. Six-hour target was missed and reported. No PR, merge, tag or publish."
+  ],
+  "committed": [
+    "51616320e808f09375f3619f74b9db147ee6a248"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish02:25 WIP/report and rearm02:55 reminder.",
+    "Finish actual startup/Spec/compiler/Jim/runtime/heavy cause fixes; finish original assertions and broad exact baseline reruns.",
+    "Reduce C84 CI setup and complete guarded Native Definition deep review before fresh WASM validation.",
+    "Finish final-source performance, repository-wide semantic documentation/comment audit, formatting, generated checks, strict lint and every required host gate before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 02:08 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "New authenticated partial results are recorded separately. No section F admission, complete green, complete zero-regression or accepted final-source performance verdict.",
+  "disk_free_bytes": 1731162112,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

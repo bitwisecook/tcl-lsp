@@ -1,0 +1,109 @@
+--- a/rust/tcl-lsp-core/tests/references_residual.rs
++++ b/rust/tcl-lsp-core/tests/references_residual.rs
+@@ -627,7 +627,7 @@
+         "must not panic on `method` keyword position",
+     );
+     // Far past EOF.
+-    assert!(
++    assert_eq!(
+         references(
+             src,
+             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+@@ -636,9 +636,10 @@
+             &analysis,
+             true
+         )
+-        .is_empty()
+-    );
+-    assert!(
++        .as_slice(),
++        []
++    );
++    assert_eq!(
+         document_highlights(
+             src,
+             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+@@ -646,11 +647,12 @@
+             0,
+             &analysis
+         )
+-        .is_empty()
++        .as_slice(),
++        []
+     );
+     // Empty document.
+     let empty = analyse("");
+-    assert!(
++    assert_eq!(
+         references(
+             "",
+             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+@@ -659,9 +661,10 @@
+             &empty,
+             true
+         )
+-        .is_empty()
+-    );
+-    assert!(
++        .as_slice(),
++        []
++    );
++    assert_eq!(
+         document_highlights(
+             "",
+             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+@@ -669,7 +672,8 @@
+             0,
+             &empty
+         )
+-        .is_empty()
++        .as_slice(),
++        []
+     );
+ }
+ 
+@@ -702,7 +706,7 @@
+     // A bare literal argument is not a highlightable symbol.
+     let src = "puts hello\n";
+     let analysis = analyse(src);
+-    assert!(
++    assert_eq!(
+         document_highlights(
+             src,
+             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+@@ -710,7 +714,8 @@
+             6,
+             &analysis
+         )
+-        .is_empty()
++        .as_slice(),
++        []
+     );
+ }
+ 
+--- a/rust/tcl-lsp-core/tests/code_actions_depth.rs
++++ b/rust/tcl-lsp-core/tests/code_actions_depth.rs
+@@ -254,11 +254,6 @@
+     }
+ }
+ 
+-/// The compiler-check quick-fixes for `checks` under an editor layer that
+-/// turns `disabled` off and the analyser's `suppressed` map, through the one
+-/// report path every action takes. `source` is analysed as plain Tcl so the
+-/// range-based refactors run too; only the quick-fixes come back.
+-
+ /// Every edit's range is well-formed: start ≤ end (a valid LSP edit range).
+ fn edits_well_formed(action: &CodeAction) -> bool {
+     action.edits.iter().all(|e| {
+@@ -994,7 +989,10 @@
+             range: cursor(0, 0),
+         };
+         let analysis = analyse_dialect(source, "f5-irules");
+-        assert!(context_diagnostic_actions(source, std::slice::from_ref(&diagnostic)).is_empty());
++        assert_eq!(
++            context_diagnostic_actions(source, std::slice::from_ref(&diagnostic)).as_slice(),
++            []
++        );
+         assert!(
+             context_diagnostic_actions_in_analysis(
+                 source,

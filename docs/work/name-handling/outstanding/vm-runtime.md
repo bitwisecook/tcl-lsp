@@ -2,9 +2,60 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T01:27:16.329603+00:00
+Last updated: 2026-10-24T02:21:50.410545+00:00
 
 ## Resume
+
+CURRENT AUTHENTIC RUN: runtime-focused118 run40053592230/job120751481466 exact
+WORKf1dc89c4b6e3483d495b7f1f75a5348c99ed2c32, dispatched02:18:03, job02:18:07;
+CheckoutPASS02:20:26, InstallRust inprogress at02:20 read. No new outcome yet.
+Combined V5 d6c86420/manifest5afcfea7 independently root/Luna clear helperV3
+414c429c +compositiond5d7a508 and integrated f1dc. Exacthelperbfea2077; FAILED
+without owner receipt nowfatal126/no testspawn; onlypre-spawnUNRUN maycontinue
+incomplete125. 29mockcontrols ea88380e PASS. V1helper/V3/V4 protocol held historical.
+Rc snapshot integrated included; all original3/14/stack/103 identities distinct,
+assertions/budgets unchanged. This fresh run PRECEDES C84 provider prerequisite;
+missing C84 provider must be distinguished from actual formatter semantics.
+
+SEPARATE C84 prerequisite V1 frozen READY independentpeer:
+/tmp/vm-c84-provider-work-v1 manifest50a453e3e533b49d6df7dc9be16bd69a66afed4f9bd9e6107fd36a3c8b05ec7a
+patch4415293ac8185eff120171c62802ca02a853cac2a0a5d9b3b3ec7461d6caa741,
+exact f1dc beforeworkflow0c3a/driver e06d→bedccc1c/870e381c.
+CLEAN /tmp/vm-c84-provider-clean-v1 manifest9bfeb21f9d4bea6ff1768e2805bc98cd5a079df12320c4d7b22805fe4c349b1c
+patchf8c628b38befc3dbc578a6059f47ee7b9712a783c9b017ba7a81acbbafee5dad,
+exact15345fa source. Shared generic public helperf494d213 only; no shippingWORKevidence
+owner/framework/symlink. CI NoTom→GNUtimeout900+20cleanup GNU17C84→unchangedC9fetch→
+unchangedmake tests→alwaysprovider/toolverify+artifact; WORK samecommand existing88125.
+All6pins join actual nativeZIP; strictdc67/824f+config/source only. Changedprovider
+scope explicit; no comparisons to oldC9-only/44b/futureadmission. Newactualprovider
+and Rust-updater UNRUN. 18puremetadata/BytesIO controls790dc11b +30mockinventory
+755d7d76, RuffTyPyright/copy0/whitespace/YAML/bash/full classifiercontract PASS.
+Exact4 provider build-inputpaths added classifier+positive existingcontractchecks.
+Focusedactualbootstrapstreams deducted from same20MiB stack/supplement budget;
+CI GNUtimeout has ordinary pre/postfloor limits, not promoted to88125 ownership.
+
+CURRENT PROTOCOL: V4 frozen /tmp/vm-runtime-other103-work-v4/manifest.json
+SHA443dd2efd7061bdff7394ac38b406ac05f39876739ed60bfe799aa92fd788bc7,
+patch3914fea861dc652ffc6c25df7a01fc64a4cc0def33871acb31fc7e3f2eec1157.
+Actual Heavy3 current643823ef workflow52a2967a→0c3a71e7 union preserves every
+other job/topfield byte and exact inverse; driverc0c09→9caeeeee. Exact compiler
+stackhelperV2 6186bed2 closes unmatched/malformed FDE/nm coverage; V1/V3 HELD.
+27metadata/mock controls6145e3bc, Ruff/Ty/Pyright/copy0/YAML/bash unchanged owner
+and budgets PASS; no native/ELF/test process run. Independent helper/composition
+review pending, runtime dispatch still parent-owned and intentionally waiting.
+Other103 alone V2 independent peer81895a7a clear; no whole gate/performance claim.
+
+Rc<RuntimeContext> immutable entered-snapshot 3-line candidate WORK81c76c2c/
+CLEAN9a0c0a3a independently root CLEAR08002bff, integrated WORK370c7a4cf/CLEANd7051dc33.
+Each root still fresh complete RuntimeContext; nested clone shares same immutable
+small 2String/packages snapshot; explicit inner fullvalue Eq, all guard/order same.
+One root allocation added; no native refs/cache shortcut/performance acceptance.
+
+C84 real fixture provider prerequisite separately authorized for focused and fullCI:
+reuse exact GNU17 bootstrap, provider/tool seals, strict dc67/824f only, keep NoTom
+before provider and Tcl9/TomMath/assertions unchanged. Separate proposal not frozen.
+This deliberately changes provider scope; no comparability to old C9-only runs,
+no new/different pair admission or blanket attribution of other103 failures.
 
 CURRENT SOURCE/PUBLICATION: rootpushed WORK182337d8573648e1e25c1365121d5dca4b7e3a09,
 release daf041e54 includes functional Env/C86scan/C84exactpair. New simplecellretained

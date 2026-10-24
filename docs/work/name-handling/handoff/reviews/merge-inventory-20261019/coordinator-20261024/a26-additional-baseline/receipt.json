@@ -1,0 +1,79 @@
+{
+  "utc": "2026-10-24T02:22:47.058957+00:00",
+  "source": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+  "rows": [
+    {
+      "artifact": {
+        "id": 12543400802,
+        "node_id": "MDg6QXJ0aWZhY3QxMjU0MzQwMDgwMg==",
+        "name": "rust-tests-terminal-3-5",
+        "size_in_bytes": 3149191,
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12543400802",
+        "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12543400802/zip",
+        "expired": false,
+        "digest": "sha256:cdcb03c096f4300691228c9cbdb6c88b5c4ecb6c4c433fe729a33eb9e042698c",
+        "created_at": "2026-10-24T01:40:39Z",
+        "updated_at": "2026-10-24T01:40:39Z",
+        "expires_at": "2026-10-25T01:40:38Z",
+        "workflow_run": {
+          "id": 40039952540,
+          "repository_id": 1180966961,
+          "head_repository_id": 1180966961,
+          "head_branch": "release/lsp-naming",
+          "head_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+        }
+      },
+      "comparison_sha256": "87e780003952a8b820709adfa53c93ec847d5690d2842cec165add35d5c2ae13",
+      "compressed_sha256": "65bb98ca3ddc39463b50db44ddf74fbc113558e498be7c24f12bbb751474c2e6",
+      "classification_counts": {
+        "matched_passes": 1267,
+        "regressions": 677,
+        "unknown": 22368,
+        "extra_current_passes": 130,
+        "unmatched_current_nonpass": 13
+      },
+      "input_counts": {
+        "baseline_records": 24312,
+        "current_records": 2087
+      },
+      "limits": "Partial old-source observed outcomes only; missing identities unknown. No current shipping conclusion."
+    },
+    {
+      "artifact": {
+        "id": 12542197707,
+        "node_id": "MDg6QXJ0aWZhY3QxMjU0MjE5NzcwNw==",
+        "name": "lsp-e2e-result-2-3",
+        "size_in_bytes": 1819668,
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12542197707",
+        "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12542197707/zip",
+        "expired": false,
+        "digest": "sha256:ef466e50ea0c51683e9c7b0ce0d1499f44d30912c0260cd508a86ef40ae19191",
+        "created_at": "2026-10-24T01:09:29Z",
+        "updated_at": "2026-10-24T01:09:29Z",
+        "expires_at": "2026-10-25T01:09:28Z",
+        "workflow_run": {
+          "id": 40039952540,
+          "repository_id": 1180966961,
+          "head_repository_id": 1180966961,
+          "head_branch": "release/lsp-naming",
+          "head_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+        }
+      },
+      "comparison_sha256": "9caa81be76c7e331368bdfcc7c4dd95c29a1dba3454732fbb9799c63c4c5c425",
+      "compressed_sha256": "b879e5b43e5d19041e52bb9ec9fc1b90b5553ae666506cd6b39bf98713ceabfb",
+      "classification_counts": {
+        "matched_passes": 484,
+        "regressions": 247,
+        "unknown": 23581,
+        "extra_current_passes": 64,
+        "unmatched_current_nonpass": 24
+      },
+      "input_counts": {
+        "baseline_records": 24312,
+        "current_records": 819
+      },
+      "limits": "Partial old-source observed outcomes only; missing identities unknown. No current shipping conclusion."
+    }
+  ],
+  "no_current_shipping_or_complete_zero_regression_admission": true
+}

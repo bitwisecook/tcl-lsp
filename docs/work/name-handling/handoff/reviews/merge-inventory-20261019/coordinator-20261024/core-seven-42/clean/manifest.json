@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/tests/references_residual.rs",
+      "before_sha256": "e445f2db71635ca607aa4129c7c97a32d5d0e17126d1d2697fe29b0351e2d770",
+      "final_sha256": "a71c7fbb537254f131a6f932b61074948df99a11762b820ca9e5aae4efa03ef6"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/code_actions_depth.rs",
+      "before_sha256": "b94150ae789575a28fa4183bd8688ae8f97fe7610251b64ed32a7f3f2e634d9d",
+      "final_sha256": "9a785b8957dffc44fd1c8cb74c8a48552046e3ef3a230ab43f5716029ca70b02"
+    }
+  ],
+  "patch_sha256": "fdf276c17648a03f61d7380c5700ab0bb9f426a28df7358f06013a0c6e625add",
+  "scope": "Six exact empty slice assertions retaining operands and one removal of obsolete misattached helper documentation; original test bodies otherwise retained. No execution claim."
+}
