@@ -323,3 +323,9 @@ show improvements but are not a linearity/release-latency claim. Origin plain
 analyse excludes report capture, so no cross-boundary ratio is calculated.
 Origin load_embedded uses the same ordinary API, separate4665ms observation.
 Compiler/server/lint acceptance remains pending; equality alone is not that gate.
+
+The slower procs41 observation prompted two exact-source/input repeats:
+old1/new/old2=2831/5324/2268ms and2184/1379/2538ms. All3 full report
+pairs Equal in each repeat,0Rust warnings, source unchanged, probe source/ELFs
+removed. Timing varies in both directions; retain all3 observations without
+selecting the fastest as acceptance evidence. See current-83774d43-procs-timing-repeat/.

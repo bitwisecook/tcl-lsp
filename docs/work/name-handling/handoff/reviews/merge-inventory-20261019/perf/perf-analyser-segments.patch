@@ -1,6 +1,6 @@
 --- a/rust/tcl-compiler/src/analyser/commands.rs
 +++ b/rust/tcl-compiler/src/analyser/commands.rs
-@@ -2406,27 +2406,15 @@
+@@ -2468,27 +2468,15 @@
          let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
          let image = self.document_source_image();
          let config = self.file_lexer_config();

@@ -1,0 +1,26 @@
+{
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "started_unix": 1792805413.9522789,
+  "scope": "Remeasure same procs41 old/new/old after slower new observation. Same opt1 source/input/report contract. CPU0,1; active unit comparison uses2,3. Diagnostic timings only; no changed performance assertion or acceptance shortcut.",
+  "runs": [
+    {
+      "repeat": 1,
+      "exit": 0,
+      "wall_s": 10.496047993001412,
+      "output": "REPORT label=\"procs:41\" old1_ms=2831 new_ms=5324 old2_ms=2268 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true\nREPORT_SUMMARY inputs=1 failed=0\n"
+    },
+    {
+      "repeat": 2,
+      "exit": 0,
+      "wall_s": 6.165019459003815,
+      "output": "REPORT label=\"procs:41\" old1_ms=2184 new_ms=1379 old2_ms=2538 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true\nREPORT_SUMMARY inputs=1 failed=0\n"
+    }
+  ],
+  "probe_source_sha256": "c8fea9f3df182412a134a4b4f07b51307e541733100e37731a6871b5ac84f137",
+  "build_exit": 0,
+  "warnings": 0,
+  "finished_unix": 1792805442.504302,
+  "source_unchanged": true,
+  "executables_removed": true,
+  "probe_removed": true
+}

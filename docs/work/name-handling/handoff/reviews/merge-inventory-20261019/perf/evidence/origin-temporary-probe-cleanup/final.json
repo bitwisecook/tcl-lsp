@@ -1,0 +1,21 @@
+{
+  "removed_unix": 1792804459.8936768,
+  "scope": "Only three known untracked origin baseline probe sources; completed same-input audits retain exact sources here. No tracked source edits or active jobs touched.",
+  "sources": [
+    {
+      "path": "rust/tcl-compiler/examples/zz_perfprobe.rs",
+      "sha256": "70fb3ab485248c056254d98f5da7a0d3519a740e2b3e08ad3949ac73842ac2e3",
+      "removed": true
+    },
+    {
+      "path": "rust/tcl-compiler/examples/zz_spectclprobe.rs",
+      "sha256": "c114cae064983e68c690a657207f6e7be2e23c34ec7b0276467c10b516d922a5",
+      "removed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/examples/zz_lspprobe.rs",
+      "sha256": "621d0f0ec31781a828b42e3686ee9ab1f02a6e9873205e5d14dad05b45c086da",
+      "removed": true
+    }
+  ]
+}

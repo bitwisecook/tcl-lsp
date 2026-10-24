@@ -1,0 +1,5 @@
+{
+  "removed_unix": 1792804671.8052473,
+  "scope": "Only known completed origin timing probe ELF artifacts; checked against every live /proc executable. No active job, library or tracked source touched.",
+  "removed": []
+}

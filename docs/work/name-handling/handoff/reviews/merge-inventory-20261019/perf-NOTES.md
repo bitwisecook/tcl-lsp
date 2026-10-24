@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 01:10 UTC
+Last updated: 2026-10-24 01:35 UTC
 
 **Current837 full report/PackSet proof COMPLETE/PASS; six-file perf code
 remains unlanded pending compiler/client/lint comparisons.** All22 report/realm
@@ -12,8 +12,11 @@ and temporary sources removed. No field normalization, sorting or assertion
 weakening; strict runtime/global/cache Eq remains separately recorded.
 Fresh switched and clean6 lexer586/586 BOTH pass0warnings. Current SpecTcl
 28eval_loader+3golden_packs BOTH PASS0warnings, exactsource/ELFsremoved.
-Current compiler filters are running, followed by unchanged1000-depth alone
-BOTH; clean6 filters then final quiet180s server repeat and Clippy are pending.
+Current full compiler nondeep comparison COMPLETE:232/232 actual outcomes
+BOTH, identical143pass/89fail, zero P2F,684.068/626.219s, peak~399MiB. All
+failed assertions retained. Unchanged1000-depth now runs alone new then old;
+clean6 filters and final quiet180s server repeat/Clippy are pending. No complete
+compiler acceptance or source perf commit yet.
 
 Current opt1 wall timings (ms; report capture included, pair comparison excluded):
 
@@ -29,6 +32,8 @@ Current opt1 wall timings (ms; report capture included, pair comparison excluded
 | load_embedded (same ordinary API) |14302|4068|11116|
 
 All listed comparisons Equal; the slower procs41 new observation is retained.
+Two exact-input/source repeats also compare Equal:2831/5324/2268ms and
+2184/1379/2538ms. Timing varies in both directions; all raw observations stay.
 These are diagnostic wall observations, not release latency or proof that every
 shape improves. Origin timings/audited identical inputs remain separately
 scoped below; origin analyse excludes report capture. Full raw coverage is

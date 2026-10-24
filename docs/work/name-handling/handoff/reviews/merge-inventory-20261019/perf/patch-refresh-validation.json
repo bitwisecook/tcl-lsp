@@ -1,10 +1,26 @@
 {
-  "base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
-  "ordered_apply_reconstructs_snapshot": true,
-  "scoped_rustfmt": true,
-  "toggled_helper_matches_proof_tree": true,
-  "clean6_matches_owned_proof_tree": true,
-  "temporary_switch_in_patches": false,
-  "status": "Construction and formatting only; full semantic proof pending",
-  "time": 1792776783.5383534
+  "base": "211f702055cfe2e1601b344656f21527ab71eac9",
+  "frozen_proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "checked_unix": 1792804693.4507344,
+  "clean_six_matches_active_owned_root": {
+    "rust/tcl-lexer/src/parse_cut.rs": true,
+    "rust/tcl-lexer/src/source_map.rs": true,
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true
+  },
+  "latest_toggled_snapshot_matches_active_full_root": {
+    "rust/tcl-lexer/src/lib.rs": true,
+    "rust/tcl-lexer/src/parse_cut.rs": true,
+    "rust/tcl-lexer/src/source_map.rs": true,
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true,
+    "rust/tcl-compiler/src/realm.rs": true,
+    "rust/tcl-compiler/src/interprocedural.rs": true
+  },
+  "scoped_rustfmt_clean": true,
+  "scope": "Exact six/two split generation and nine-file source reconstruction only. Dependencies changed after proof base; no successor semantic/test acceptance inferred."
 }

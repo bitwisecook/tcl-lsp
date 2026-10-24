@@ -1,0 +1,23 @@
+from pathlib import Path
+import hashlib,json,os,subprocess,time
+root=Path('/workspace/tcl-lsp-diagnostic');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');out=Path('/workspace/tcl-lsp-work')/perf.relative_to('/workspace/tcl-lsp-publish')/'evidence/current-83774d43-procs-timing-repeat';out.mkdir(exist_ok=False);p=root/'rust/tcl-compiler/examples/zz_procs_repeat_perfprobe.rs';assert not p.exists();before=subprocess.check_output(['git','diff','--','rust'],cwd=root);artifacts=[];record={'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'started_unix':time.time(),'scope':'Remeasure same procs41 old/new/old after slower new observation. Same opt1 source/input/report contract. CPU0,1; active unit comparison uses2,3. Diagnostic timings only; no changed performance assertion or acceptance shortcut.','runs':[]}
+os.sched_setaffinity(0,{0,1});env=dict(os.environ,CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_OPT_LEVEL='1',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true');env.pop('ZZ_OLD_ENV',None)
+try:
+ data=(perf/'tools/authenticated_perfprobe.rs.txt').read_bytes();record['probe_source_sha256']=hashlib.sha256(data).hexdigest();p.write_bytes(data)
+ with (out/'build.jsonl').open('w') as f,(out/'build.stderr').open('w') as e:code=subprocess.run(['cargo','build','--locked','-j2','-p','tcl-compiler','--example','zz_procs_repeat_perfprobe','--message-format=json'],cwd=root,env=env,stdout=f,stderr=e).returncode
+ warnings=[]
+ for line in (out/'build.jsonl').read_text().splitlines():
+  d=json.loads(line)
+  if d.get('reason')=='compiler-artifact' and d.get('executable'):artifacts.append(Path(d['executable']))
+  if d.get('reason')=='compiler-message' and d['message']['level']=='warning':warnings.append(d['message'])
+ record.update(build_exit=code,warnings=len(warnings));assert code==0 and not warnings and len(artifacts)==1
+ for i in [1,2]:
+  start=time.monotonic()
+  with (out/f'repeat-{i}.out').open('w') as f:code=subprocess.run([str(artifacts[0]),'procs','41'],cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+  s=(out/f'repeat-{i}.out').read_text();assert code==0 and s.count(' pass=true')==1 and 'old_old=Equal old_new=Equal new_old=Equal' in s;record['runs'].append({'repeat':i,'exit':code,'wall_s':time.monotonic()-start,'output':s})
+finally:
+ for a in artifacts:
+  a.unlink(missing_ok=True)
+  for q in a.parent.glob(a.name+'-*'):
+   if q.is_file() and os.access(q,os.X_OK):q.unlink()
+ p.unlink(missing_ok=True);record.update(finished_unix=time.time(),source_unchanged=before==subprocess.check_output(['git','diff','--','rust'],cwd=root),executables_removed=all(not q.exists() for q in artifacts),probe_removed=not p.exists());(out/'final.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record),flush=True)

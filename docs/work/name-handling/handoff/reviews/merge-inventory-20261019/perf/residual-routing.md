@@ -198,3 +198,12 @@ outer reconstruction limits. The1000-depth OOM and broader review4.1 shapes
 are not fixed by these drafts. Owners must retain all currentness/coverage/
 registry/identity guards and prove complete reports, PackSets and positive
 ordinary-path results before accepting changes.
+
+## Canonical context refresh 211f7020
+
+Analyser image/segment drafts regenerate from the exact current canonical source;
+ordered application reconstructs the scoped formatted snapshot. The nested
+Logical currentness draft also refreshes with all existing checks preserved.
+These remain Blocked/routed to compiler-names and LSP, uncompiled and semantically
+unproven. No production sources are touched; neither draft establishes linear
+review4.1 scaling or resolves the deep1000 resource failure.
