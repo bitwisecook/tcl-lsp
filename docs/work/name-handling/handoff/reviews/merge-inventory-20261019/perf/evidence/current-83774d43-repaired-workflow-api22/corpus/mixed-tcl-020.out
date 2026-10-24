@@ -1,0 +1,2 @@
+REPORT label="samples/wasm/t5-completion/51_try_finally.tcl" old1_ms=2915 new_ms=1610 old2_ms=2428 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

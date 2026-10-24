@@ -1,0 +1,982 @@
+[
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/27-if-to-switch-before.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.64216624799883,
+    "log": "mixed-tcl-000.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/20-folding.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.9403656049980782,
+    "log": "mixed-tcl-001.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-document-links.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.510117644997081,
+    "log": "mixed-tcl-002.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/07-formatting-side-by-side.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.7903316939919023,
+    "log": "mixed-tcl-003.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/27-if-to-switch-after.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9170669670129428,
+    "log": "mixed-tcl-004.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/16-references-long.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.041256783006247,
+    "log": "mixed-tcl-005.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/22-optimiser-before.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.9084174719901057,
+    "log": "mixed-tcl-006.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/15-definition-long.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.5273045750072924,
+    "log": "mixed-tcl-007.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/proc_arg_traits_examples.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.407842464992427,
+    "log": "mixed-tcl-008.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tclpkg/tclpkg.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9080352010059869,
+    "log": "mixed-tcl-009.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/42_arrays.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.7186519829992903,
+    "log": "mixed-tcl-010.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/43_namespaces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.357481333994656,
+    "log": "mixed-tcl-011.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/40_global_variable.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.00991575900116,
+    "log": "mixed-tcl-012.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.429946167001617,
+    "log": "mixed-tcl-013.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/63_objects_in_data.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.4616760870121652,
+    "log": "mixed-tcl-014.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/61_inheritance_next.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.145091776008485,
+    "log": "mixed-tcl-015.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/60_class_basic.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.7714553989935666,
+    "log": "mixed-tcl-016.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/70_var_traces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.2033754519943614,
+    "log": "mixed-tcl-017.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/72_uplevel_eval.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.805887527996674,
+    "log": "mixed-tcl-018.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/71_exec_traces_rename.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.6055047800036846,
+    "log": "mixed-tcl-019.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/51_try_finally.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.045536147998064,
+    "log": "mixed-tcl-020.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/52_loop_completion.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.292465148988413,
+    "log": "mixed-tcl-021.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/50_catch_error.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.339547142997617,
+    "log": "mixed-tcl-022.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/15_switch.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.5690339389984729,
+    "log": "mixed-tcl-023.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/13_expr_ops.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 12.418777181010228,
+    "log": "mixed-tcl-024.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/16_conditional_arms.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.621211257996038,
+    "log": "mixed-tcl-025.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/23_dicts.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.172742916998686,
+    "log": "mixed-tcl-026.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/21_foreach.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.8246978469978785,
+    "log": "mixed-tcl-027.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/20_lists.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.827784592998796,
+    "log": "mixed-tcl-028.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/22_strings.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.625904829998035,
+    "log": "mixed-tcl-029.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 53.82454820899875,
+    "log": "mixed-tcl-030.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/37_return_state.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 16.56863556600001,
+    "log": "mixed-tcl-031.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/31_recursion.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 18.03846276301192,
+    "log": "mixed-tcl-032.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/36_proc_error_info.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 14.644521651993273,
+    "log": "mixed-tcl-033.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/33_string_builder.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.1496120269875973,
+    "log": "mixed-tcl-034.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/32_defaults_and_args.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.6092123800044646,
+    "log": "mixed-tcl-035.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/dialect_stubs_inline_example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.7892134199937573,
+    "log": "mixed-tcl-036.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_standard.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 16.70210597899859,
+    "log": "mixed-tcl-037.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_aggressive.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 15.3874673560058,
+    "log": "mixed-tcl-038.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/deep_pipeline.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 15.035091765996185,
+    "log": "mixed-tcl-039.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_readability.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 22.941361152988975,
+    "log": "mixed-tcl-040.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/profile_full.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 14.504302572997403,
+    "log": "mixed-tcl-041.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/optimiser/input.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 23.05203546800476,
+    "log": "mixed-tcl-042.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W211_set_never_used/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.4025058660045033,
+    "log": "mixed-tcl-043.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W105_unbraced_eval/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.8896689230023185,
+    "log": "mixed-tcl-044.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/S101_shimmer_merge/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.2520170740026515,
+    "log": "mixed-tcl-045.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O110_canonicalise_expr/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.7063209460029611,
+    "log": "mixed-tcl-046.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W102_subst_injection/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.21487149099994,
+    "log": "mixed-tcl-047.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W307_non_literal_command/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.182486642006552,
+    "log": "mixed-tcl-048.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W301_uplevel_unbraced/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.4977872500021476,
+    "log": "mixed-tcl-049.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W313_file_delete_path/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.685251225993852,
+    "log": "mixed-tcl-050.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W210_read_before_set/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.2746252349897986,
+    "log": "mixed-tcl-051.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W220_assignment_never_read/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.5705574649909977,
+    "log": "mixed-tcl-052.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W314_no_absolute_name/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.9826047359965742,
+    "log": "mixed-tcl-053.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W111_long_line/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.6766736150020733,
+    "log": "mixed-tcl-054.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W002_disabled_command/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.6119760970032075,
+    "log": "mixed-tcl-055.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W112_trailing_whitespace/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.6266379459993914,
+    "log": "mixed-tcl-056.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W304_missing_double_dash/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 13.9221040620032,
+    "log": "mixed-tcl-057.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W001_unknown_subcommand/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.7237138679920463,
+    "log": "mixed-tcl-058.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/S102_type_thunking/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.910067496006377,
+    "log": "mixed-tcl-059.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O116_fold_constant_list/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.6783254170004511,
+    "log": "mixed-tcl-060.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/O106_loop_invariant/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.9392269749951083,
+    "log": "mixed-tcl-061.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W103_open_pipeline/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.053247712989105,
+    "log": "mixed-tcl-062.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W101_eval_injection/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.9756940419902094,
+    "log": "mixed-tcl-063.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W115_backslash_newline_comment/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.237184685000102,
+    "log": "mixed-tcl-064.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W214_unused_parameter/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.3823261680081487,
+    "log": "mixed-tcl-065.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/E003_proc_call_arity/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.6849849189893575,
+    "log": "mixed-tcl-066.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W306_regexp_substitution/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.4712426449987106,
+    "log": "mixed-tcl-067.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/diagnostics/W108_non_ascii/example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.1407862339983694,
+    "log": "mixed-tcl-068.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/10_format_strings.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 8.666135573992506,
+    "log": "mixed-tcl-069.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/11_minifier_demo.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.836471590999281,
+    "log": "mixed-tcl-070.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/compiler_explorer_demo.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.2164718760031974,
+    "log": "mixed-tcl-071.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/08_tricky_edge_cases.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.5324087320041144,
+    "log": "mixed-tcl-072.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/06_security_smells.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.1934039010084234,
+    "log": "mixed-tcl-073.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/13_incr_dialect_difference.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.276681834991905,
+    "log": "mixed-tcl-074.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/12_safe_on_uninit.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.430095945994253,
+    "log": "mixed-tcl-075.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tcl/05_warning_examples.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.2596078589995159,
+    "log": "mixed-tcl-076.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 10.896212668987573,
+    "log": "mixed-tcl-077.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_signature_scope.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.206782605993794,
+    "log": "mixed-tcl-078.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.5465262420038925,
+    "log": "mixed-tcl-079.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 11.459452274997602,
+    "log": "mixed-tcl-080.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/variables.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.788912107003853,
+    "log": "mixed-tcl-081.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 8.202013766000164,
+    "log": "mixed-tcl-082.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.911008149996633,
+    "log": "mixed-tcl-083.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.0305111369962106,
+    "log": "mixed-tcl-084.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.790995000992552,
+    "log": "mixed-tcl-085.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_double_completion/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.032281929990859,
+    "log": "mixed-tcl-086.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_deep_array_source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 60.26083238600404,
+    "log": "mixed-tcl-087.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.9519113510032184,
+    "log": "mixed-tcl-088.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.1393890820036177,
+    "log": "mixed-tcl-089.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.4819887159974314,
+    "log": "mixed-tcl-090.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.2018637050059624,
+    "log": "mixed-tcl-091.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.2495050709985662,
+    "log": "mixed-tcl-092.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_alias_target_context.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.576335604011547,
+    "log": "mixed-tcl-093.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/native_itcl/protocols.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.738800867999089,
+    "log": "mixed-tcl-094.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.919042358000297,
+    "log": "mixed-tcl-095.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/completion-options-control.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.2283376150007825,
+    "log": "mixed-tcl-096.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/completion-options-alias.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.565597062988672,
+    "log": "mixed-tcl-097.out"
+  }
+]

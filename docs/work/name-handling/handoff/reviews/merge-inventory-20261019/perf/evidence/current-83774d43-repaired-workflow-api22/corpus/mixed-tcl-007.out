@@ -1,0 +1,2 @@
+REPORT label="samples/for_screenshots/15-definition-long.tcl" old1_ms=577 new_ms=482 old2_ms=436 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

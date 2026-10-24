@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 00:39 UTC
+Last updated: 2026-10-24 01:00 UTC
 
 ## Resume
 
@@ -31,8 +31,11 @@ Current execution:
 - Full driver85973: /tmp/perf-83774d43-api22-repaired-workflow.log;
   evidence current-83774d43-repaired-workflow-api22/. Optimised normal1 corpus
   build FINISHED0warnings in29m02s. FULL102 Tcl+15iRules+7synthetics old-only/
-  mixed plus complete ordered PackSet is RUNNING. Current old-only Tcl
-  30/102 completed, all30 valid/all3 Equal pairs; no full verdict yet.
+  mixed plus complete ordered PackSet is RUNNING. Forced-old ALL102 Tcl,
+  15iRules and7synthetic sizes COMPLETE/all3 Equal for every input. Mixed Tcl
+  98/102 complete/all3 Equal, including Native35; unchanged array-get-read-traces
+  current input still consuming CPU with stable~270MiB. Do not interrupt it.
+  Remaining4 mixed Tcl,15iRules,7synthetics and ordered PackSet still required.
   Per-input child processes retain all3 actual analyses/comparisons together,
   original bytes/hash/counts and strict assertions. No input/field is dropped.
 - Full switched lexer586/586 PASS BOTH,3.194/2.353s,0warnings/ELF removed;
@@ -130,7 +133,7 @@ perf-NOTES.md with final current before/after timings remains required before
 stopping. No PR/force; footer Co-Authored-By: Codex <noreply@openai.com>.
 
 Publish own evidence/NOTES/outstanding at most30min apart, Last updated from
-date-u. Own evidence checkpoint in this update at2026-10-24 00:14 UTC; next push within30min. Fetch origin
+date-u. Own checkpoint in this update at2026-10-24 01:00 UTC; next push within30min. Fetch origin
 work and rebase before every normal push, retry rejection, never force.
 
 ## Completed evidence and current failures

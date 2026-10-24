@@ -1,0 +1,2 @@
+REPORT label="tests/fixtures/tcl9/completion-options-alias.tcl" old1_ms=3072 new_ms=1539 old2_ms=1861 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

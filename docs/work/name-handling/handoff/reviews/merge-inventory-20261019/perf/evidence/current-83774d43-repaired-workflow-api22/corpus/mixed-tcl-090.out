@@ -1,0 +1,2 @@
+REPORT label="rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl" old1_ms=644 new_ms=400 old2_ms=400 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

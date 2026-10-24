@@ -157,5 +157,16 @@
     "valid": true,
     "expected": 1,
     "wall_s": 5.068806437004241
+  },
+  {
+    "mode": "old-only",
+    "case": "upvar",
+    "exit": 0,
+    "exits": [
+      0
+    ],
+    "valid": true,
+    "expected": 2,
+    "wall_s": 134.70957633999933
   }
 ]

@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "upvar",
+      "10,30"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 134.70653272299387,
+    "log": "old-only-upvar-000.out"
+  }
+]

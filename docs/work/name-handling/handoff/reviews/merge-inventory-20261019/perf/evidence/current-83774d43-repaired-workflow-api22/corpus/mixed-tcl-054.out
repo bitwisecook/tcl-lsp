@@ -1,0 +1,2 @@
+REPORT label="samples/diagnostics/W111_long_line/example.tcl" old1_ms=293 new_ms=198 old2_ms=165 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
