@@ -1304,7 +1304,7 @@ impl BodyWalk<'_, '_> {
     ) {
         if matches!(self.context.policy, AdviceNamingPolicy::Native(_)) {
             drop(
-                self.context.retain_original_procedure_call_receipt(
+                AdviceInvocationContext::retain_original_procedure_call_receipt(
                     self.inventory
                         .as_mut()
                         .unwrap_or(&mut self.authored_prefixes),

@@ -538,7 +538,7 @@ impl AdviceInvocationContext<'_> {
         written: &[SourceAdviceWord],
     ) -> bool {
         let Some(procedure) =
-            self.retain_original_procedure_call_receipt(tape, graph, native, written)
+            Self::retain_original_procedure_call_receipt(tape, graph, native, written)
         else {
             return false;
         };
@@ -546,7 +546,6 @@ impl AdviceInvocationContext<'_> {
     }
 
     pub(super) fn retain_original_procedure_call_receipt(
-        &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &AdviceGraph,
         native: &[tcl_lexer::NativeWord],
