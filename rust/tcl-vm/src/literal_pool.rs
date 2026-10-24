@@ -146,7 +146,7 @@ impl NativeLiteralWorld {
                 }
             },
             || new_registered_string_using(&bytes, protocol, &refuse),
-            tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+            &tcl_runtime_api::native_literal::NativeLiteralCallbacks {
                 check: &check,
                 refuse: &refuse,
                 retain: &std::convert::identity,
@@ -1285,7 +1285,7 @@ pub(crate) fn create_local_names_using(
             }
         },
         |bytes| new_registered_string_using(bytes, protocol, &refuse),
-        tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+        &tcl_runtime_api::native_literal::NativeLiteralCallbacks {
             check: &check,
             refuse: &refuse,
             retain: &std::convert::identity,

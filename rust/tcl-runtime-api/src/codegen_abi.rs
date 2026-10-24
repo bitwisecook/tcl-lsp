@@ -476,18 +476,8 @@ impl CodegenAbiImportId {
             Self::InvokeIntrinsicArgv => {
                 tcl_import("tcl_intrinsic_invoke_argv", I32_I32_I32_I32, I32)
             }
-            Self::VarGetElement => CodegenAbiImport {
-                module: "tcl",
-                name: "tcl_codegen_var_get_element",
-                parameters: I32_I32_I32_I32,
-                results: I32,
-            },
-            Self::WordConcat => CodegenAbiImport {
-                module: "tcl",
-                name: "tcl_codegen_word_concat",
-                parameters: I32_I32,
-                results: I32,
-            },
+            Self::VarGetElement => tcl_import("tcl_codegen_var_get_element", I32_I32_I32_I32, I32),
+            Self::WordConcat => tcl_import("tcl_codegen_word_concat", I32_I32, I32),
             Self::ValueNewDouble => tcl_import("tcl_value_new_double", F64, I32),
             Self::ValueNewBool => tcl_import("tcl_value_new_bool", I32, I32),
             Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),

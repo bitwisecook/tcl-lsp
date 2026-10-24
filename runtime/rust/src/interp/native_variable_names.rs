@@ -210,7 +210,7 @@ impl Interp {
                     )
                     .map_err(|error| arguments.retain_refusal(error.into()))
                 },
-                tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+                &tcl_runtime_api::native_literal::NativeLiteralCallbacks {
                     check: &original_slot,
                     refuse: &|error: ValueError| arguments.retain_refusal(error.into()),
                     retain: &|error| arguments.retain_refusal(error),
