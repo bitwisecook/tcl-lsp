@@ -288,9 +288,15 @@ fn original_compiled_mutation_refuses_pending_write_role_and_preserves_live_trac
                     _ => None,
                 })
                 .unwrap();
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_compiled_variable_protocol()
+                .filter(|protocol| protocol.has_indexed_locals())
+                .expect("actual native indexed-local protocol");
             {
                 let mut frames = interp.frames.borrow_mut();
                 frames.push(crate::namespace::GLOBAL);
+                frames.install_formal_cells(&[], protocol);
                 frames
                     .install_native_compiled_local_layout(artifact.compiled_local_layout().unwrap())
                     .unwrap();
