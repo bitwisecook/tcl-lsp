@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T16:50:30.636021+00:00
+Last updated: 2026-10-24T17:29:19.602065+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -57,6 +57,32 @@ Specpeer independent SOURCEACCEPT74d3dee36f276297b4c5714f33264d31a92c4a7f350ee90
 bootstrap/owner/order/drop/aliases/genericAPI/factoryrefusal/CLEANdrift reviewed. Rootnotified.
 No localCargo/native/test/driver/build; allnewcontrols/outcomes UNRUN, noperfclaim.
 
+## NEW PRIMARY: genuine closed-consumer Native capability USERLOCKED170431Z
+
+Decision user-decisions-20261024T170431Z.json WORK5e6481efe, call50bb6b3cfc034c44a200f457a2033d51:
+IMPLEMENT genuineclosedconsumercapability, NOTheldtestexpectationreplacement. No reask.
+Rootapproved structuraldesign2043156 (closed-native-consumer-design-v1/design.md):
+private fullprogram owner withactualNativeVM/compiler/source/registry/world/observer/
+cell/input/output/lifetime closure, notstdoutalone. Existingfoldasserts stayexact.
+Spec_callback_peer owns RuntimeAPI+compilercheckedplan/testingress. Roleowns NEW
+engine-tclvm/closed_native_execution.rs +narrowexport andsharedVM restrictivehooks.
+No productcodewritten yetwhileconcreteplaninterfacesagreed. RuntimeAPI draftca53346c:
+Kernelowns privateB viaRefCell<Option<B>>, scope/rewriteborrowKernel, execute(&self)
+takesB outsideRefMut beforeNativeexecution; entireKernelmetadata/VM/compiler dropped
+beforeownedbytesleaveworker+threadjoin. No publicmutableVM/Host/Write/Compiler/Value/
+Handle/cell/header ingress/escape. Trustedactualprovider seam, notsourceboolean.
+Initialfootprint boundedcanonicalintegers+checked+/-/*, straightlinescalarstore/expr/
+stdoutonly; nofunctions/dynamicheads/rebind/trace/channel/interp/unknowncalls. Pureplan
+syntax isNOTauthority. NeedactualNativepoint/profile/wholegrammar/registrysemantic key/
+stockcommandtoken+handler/currentness andactualinitialabsenceofordinaryscalars atgrant/
+select/consume. Actualmemorysinksstdout+stderr (Hostcapabilitiesaloneinsufficient:cmd_chan
+hasdirectfilesystem paths). VM actualdispatch/wholeemittedinstruction paths mustenforce.
+Freshthread DOESNOTproveFPdefaults (inheritsfenv); nofloatdomain/noerrnofpreset, actual
+numericprovider state/ABI/preconditions required. AllnormalVMguards/SourceLSPdefault
+remainunchanged; passive debugsource no openVMgrant/portablepairwiseequivalenceclaim.
+Existingguest/expression/source/value/output/admissionbounds remain; nounboundedjoin.
+Designapproved, exactproducerAPIimplementation+independentpeer+hostedvalidation pending.
+
 ## Remaining85/stack/prune unaffected work ACTIVE
 
 Rootfreshengine integrated768d/6eba, pendingnewactualwave; no newSpecoutcomes.
@@ -67,7 +93,7 @@ immediateWeakNone assertion runsbeforeoutside-borrowcleanup. ProposalONLYadds
 existingretire_pending_native_ensemble_roles().unwrap beforeoldWeakassert, allold
 scripts/asserts/predicates/order exact; oldfileinverse/F-R-F0/fmt2/C9physicalLF checked.
 SolehistoTARGETED_PRUNE authoritymodulepin retained, selectedfunctionhashcbf8 unchanged.
-Rootaskedrouteindependentpeer; no integration/actualgainclaimed. Notcacheproductionfix.
+RootintegratedcleanupWORK7517/CLEAN259f afterpeer; actualgainUNRUN. Notcacheproductionfix.
 
 Productionselected-member defect PROVEDSOURCE: RetainedArrayCell carries(rootVarId,
 epoch), butdetached_arrays keyedONLYrootVarId. Refillingprotectedroot preservesid,
@@ -78,7 +104,8 @@ WORKmand843c0bd CLEAN45b3b07f/sourceproof256b6916. Complete4modulecensus/C5rawLF
 verified, alloldsourceinverse/F-R-F0/fmt6; no currentprotocolconsumers. Candidate: privatekeys(existingid,existingepoch),
 2inserts/allaccessors+oldmemberremoveonlyinvalidatesmatchingcurrentepochsearch. Original
 scripts/asserts remainexact. Addedtwo-detached-plus-current Rustownercontrol UNRUN.
-Independentdeeppeer requestedfromroot, notyetclear; existingepochwrappingUNMODIFIED,
+RangeindependentSOURCECLEAR65aa00ab838903d6a7120c8a139b08c6f879fc6a8be95698011305fc49cc194f;
+rootintegratedWORK767d571f0/CLEANcabcafdc2. Actualoriginal/newcontrols UNRUN. ExistingepochwrappingUNMODIFIED,
 noexhaustion/performance/fullNativeparityclaim. No physicalpointerfallback/newidentity.
 
 Jim3resultref failures share+26baselineoffset; CprobesCreateInterp+RegisterCoreCommands

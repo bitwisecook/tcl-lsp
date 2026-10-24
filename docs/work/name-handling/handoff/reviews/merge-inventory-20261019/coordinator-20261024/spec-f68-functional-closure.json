@@ -1,0 +1,83 @@
+{
+  "utc": "2026-10-24T17:52:31.296542+00:00",
+  "status": "ACTUAL_UNCHANGED_ORIGINAL11_AND_SEPARATE_NATIVE1_ALL_PASS",
+  "source": "f68afc45fbd0e00b2060bfe1401cbf0f72ddbfcb",
+  "run": 40116839770,
+  "job": 120939757126,
+  "artifact": 12570406856,
+  "identity_receipt_SHA256": "2eb360a79f11af77f361e7843fab60fc3d4f32de55aa9fe0ba8a004b4163dce4",
+  "environment_events_SHA256": "bb1b21d577125baf183918a77a87aa88f6093b0d313f3697298e34f24032c411",
+  "test_source_joins": {
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": {
+      "SHA256": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
+      "BYTE_equal_actual66ef": true
+    },
+    "rust/tcl-spectcl/tests/native_normal_store.rs": {
+      "SHA256": "2fa0e2318392a2f286d0ecdc7e6b6b2899a2907fd1affa7292b5ae8791de145b",
+      "BYTE_equal_actual66ef": true
+    }
+  },
+  "original11": "11PASS0FAIL",
+  "supplementalNative1": "1PASS0FAIL; all4 original sequential assertions reached:42,xy,unknownargumentNone,callerframeNone",
+  "reference_body": "12 originalbody shapes and both original refusal controls reached/pass",
+  "derived_fixed_release_controls": {
+    "cat": "Tcl8.4None/Tcl8.5None/Tcl8.6xy/Tcl9.0xy/Tcl9.1xy all5PASS",
+    "leading_zero": "C8.6=8 andC9.0=10 bothPASS"
+  },
+  "derived_real_shell_comparisons": {
+    "available": "C9.0 all6PASS: stringcat,octal,digitseparator,format%x,astrallength,floatpastword",
+    "unavailable": "21 explicit skips; C8.4/8.5/8.6/9.1 shells absent in this isolated capture",
+    "skipped_lines": [
+      "skipped: no tclsh8.4 on PATH (string cat)",
+      "skipped: no tclsh8.5 on PATH (string cat)",
+      "skipped: no tclsh8.6 on PATH (string cat)",
+      "skipped: no tclsh9.1 on PATH (string cat)",
+      "skipped: no tclsh8.4 on PATH (octal)",
+      "skipped: no tclsh8.5 on PATH (octal)",
+      "skipped: no tclsh8.6 on PATH (octal)",
+      "skipped: no tclsh9.1 on PATH (octal)",
+      "skipped: no tclsh8.4 on PATH (digit separator)",
+      "skipped: no tclsh8.5 on PATH (digit separator)",
+      "skipped: no tclsh8.6 on PATH (digit separator)",
+      "skipped: no tclsh9.1 on PATH (digit separator)",
+      "skipped: no tclsh8.4 on PATH (format %x)",
+      "skipped: no tclsh8.5 on PATH (format %x)",
+      "skipped: no tclsh8.6 on PATH (format %x)",
+      "skipped: no tclsh9.1 on PATH (format %x)",
+      "skipped: no tclsh8.4 on PATH (an astral character's length)",
+      "skipped: no tclsh8.5 on PATH (an astral character's length)",
+      "skipped: no tclsh8.6 on PATH (an astral character's length)",
+      "skipped: no tclsh9.1 on PATH (an astral character's length)",
+      "skipped: no tclsh9.1 on PATH (a float past a word)"
+    ],
+    "unreached_after_failure": "NONE; original derived test terminalPASS"
+  },
+  "actual_reference_environment": "/home/runner/work/_temp/spectcl-reference-bin/tclsh9.0",
+  "actual_reference_provider_pins": {
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": {
+      "sha256": "e2bf18c2a833e6d2d0a86bee09edf677239c9c6a82dd21035cbf0d2e91e5a9bf",
+      "symlink": null
+    }
+  },
+  "maps": {
+    "dependencies": 21503,
+    "providers": 2466,
+    "source": 126148,
+    "tools": 8
+  },
+  "group_count": 19,
+  "all_five_seals": {
+    "artifacts": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "limits": [
+    "Selected isolated capture only; no ordinary fullSpec/workspace/performance/shipping acceptance inferred.",
+    "Original guards/assertions/12invocations/testfiles preserved, NativeTMM/Execution/source-erasure authority unchanged.",
+    "OnlyC9 reference shell comparisons ran; absent releases skipped explicitly, while their fixed semantic controls did execute.",
+    "API completed-success job/artifact verified; job steps unavailable in both job list(null) and dedicated steps([]). No individual API upload-step-summary claim.",
+    "Retained producer ELF/provider hashes and before/after seals verified; executable payloads themselves not uploaded/reexecuted independently."
+  ]
+}
