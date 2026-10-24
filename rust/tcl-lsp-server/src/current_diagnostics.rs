@@ -186,10 +186,215 @@ fn extend_proposal_admissions<'a>(
     Ok(())
 }
 
+struct ProposalDocumentCapture {
+    document_revision: u64,
+    dialect: String,
+    admission: Arc<DocumentPathAdmission>,
+}
+
+struct ProposalWorkspaceCapture {
+    captured: super::CrossFileEvidenceSnapshot,
+    original_index: core_workspace_index::WorkspaceIndex,
+    index_generation: u64,
+    factory_generation: u64,
+    folder_configs: Vec<(Uri, tcl_lsp_db::AnalyserConfig)>,
+    global_config: tcl_lsp_db::AnalyserConfig,
+    rehomed_source_seeds: HashMap<String, Vec<String>>,
+    package_revision: u64,
+}
+
+struct ProposalSourceRows {
+    original_token_configurations: Vec<(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)>,
+    source_inputs: Vec<proposal_diagnostics::SourceInput>,
+    source_receipts: Vec<(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)>,
+    selected_original_file: tcl_lsp_db::SourceFile,
+    project_uris: HashSet<Uri>,
+    source_admissions: HashMap<Uri, super::PublishedSourcePath>,
+}
+
+struct ProposalSourceRowContext<'a> {
+    expected: &'a ProposalDiagnosticExpectation,
+    document: &'a ProposalDocumentCapture,
+    captured: &'a super::CrossFileEvidenceSnapshot,
+    token_configurations: &'a [(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)],
+    folder_configs: &'a [(Uri, tcl_lsp_db::AnalyserConfig)],
+    global_config: tcl_lsp_db::AnalyserConfig,
+    source_admissions: &'a HashMap<Uri, super::PublishedSourcePath>,
+}
+
+struct ProposalSourceRow {
+    input: proposal_diagnostics::SourceInput,
+    admission: Arc<DocumentPathAdmission>,
+    is_selected: bool,
+}
+
+struct ProposalCurrentnessData {
+    document_revision: u64,
+    dialect: String,
+    admission: Arc<DocumentPathAdmission>,
+    inputs_epoch: u64,
+    database_revision: salsa::Revision,
+    project: tcl_lsp_db::Project,
+    members: HashSet<Uri>,
+    rehomed_source_seeds: HashMap<String, Vec<String>>,
+    token_configurations: Vec<(tcl_lsp_db::SourceFile, tcl_lsp_db::AnalyserConfig)>,
+    source_receipts: Vec<(Uri, tcl_lsp_db::SourceFile, Arc<DocumentPathAdmission>)>,
+    selected_original_file: tcl_lsp_db::SourceFile,
+    index_generation: u64,
+    class_factory_generation: u64,
+    evaluator_epoch: u64,
+    overlay_epoch: u64,
+    package_revision: u64,
+    folder_configs: Vec<(Uri, tcl_lsp_db::AnalyserConfig)>,
+    global_config: tcl_lsp_db::AnalyserConfig,
+    _project_uris: HashSet<Uri>,
+    _source_admissions: HashMap<Uri, super::PublishedSourcePath>,
+}
+
+struct ProposalProjectionBuild<'a> {
+    expected: &'a ProposalDiagnosticExpectation,
+    document: ProposalDocumentCapture,
+    inputs_epoch: u64,
+    workspace: ProposalWorkspaceCapture,
+    rows: ProposalSourceRows,
+}
+
+struct ProposalProjectionState {
+    projection: proposal_diagnostics::Projection,
+    original_index: core_workspace_index::WorkspaceIndex,
+    currentness: ProposalCurrentnessData,
+}
+
+struct ProposalAnalysisKeepalive<'a> {
+    _lift: LiftInputs<'a>,
+    _registry: Arc<CommandRegistry>,
+    _proposal_recovery_names: Arc<Mutex<RecoveryNameCache>>,
+    _analysis_text: std::borrow::Cow<'a, str>,
+    _projected_rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    _detached_workspace_index: Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+    _detached_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
+    _detached_db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
+    _projection: proposal_diagnostics::Projection,
+    _currentness: ProposalCurrentnessData,
+}
+
+struct ProposalAnalysisResult<'a> {
+    report: ProducedDiagnosticReport,
+    _keepalive: ProposalAnalysisKeepalive<'a>,
+}
+
+struct ProposalSubclassSettlement<'a> {
+    inputs: &'a DiagInputs,
+    salsa_ctx: &'a SalsaAnalysisCtx<'a>,
+    recovery: &'a RecoveryWidenCtx<'a>,
+    workspace_index: &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+    projection: &'a mut proposal_diagnostics::Projection,
+}
+
+struct ProposalDeepAnalysis<'a> {
+    expected: &'a ProposalDiagnosticExpectation,
+    inputs: &'a DiagInputs,
+    salsa_ctx: &'a SalsaAnalysisCtx<'a>,
+    recovery: &'a RecoveryWidenCtx<'a>,
+    lift: &'a LiftInputs<'a>,
+    path_inputs: &'a AnalyserPathInputs<'a>,
+    projection: &'a proposal_diagnostics::Projection,
+}
+
+fn proposal_diagnostic_result_id(
+    expected: &ProposalDiagnosticExpectation,
+    currentness: &ProposalCurrentness<'_>,
+    registry: &CommandRegistry,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(expected.uri.as_str().as_bytes());
+    hasher.update(expected.version.to_le_bytes());
+    hasher.update(expected.source.as_bytes());
+    hasher.update(expected.proposal.as_bytes());
+    hasher.update(
+        format!(
+            "{:?}:{}:{}:{}:{}:{}:{}",
+            currentness.database_revision,
+            currentness.inputs_epoch,
+            currentness.index_generation,
+            currentness.package_revision,
+            currentness.evaluator_epoch,
+            currentness.overlay_epoch,
+            currentness.class_factory_generation
+        )
+        .as_bytes(),
+    );
+    hasher.update(format!("{:?}", registry.snapshot().semantic_key()).as_bytes());
+    sha256_digest_hex(&hasher.finalize())
+}
+
 struct DiagnosticReportExpectation {
     uri: Uri,
     version: Option<i32>,
     source: Arc<str>,
+}
+
+struct CurrentPublishedReportBatch<'a, 'b> {
+    expected: &'a [DiagnosticReportExpectation],
+    admissions: &'a [Arc<DocumentPathAdmission>],
+    current: &'a [Result<CurrentDiagnosticInput, DiagnosticUnavailable>],
+    configurations: &'b [tcl_lsp_db::AnalyserConfig],
+    purpose: DiagnosticCacheQuery<'b>,
+    epoch: u64,
+    factory_generation: u64,
+    docs: &'b HashMap<Uri, DocumentState>,
+    slots: &'b HashMap<Uri, DiagSlot>,
+    ledger: &'b HashMap<Uri, DiagnosticCompletionEntry>,
+    cache: &'b HashMap<Uri, PullDiagEntry>,
+}
+
+struct CurrentPublishedReportItem<'a, 'b> {
+    source: &'a DiagnosticReportExpectation,
+    admission: &'a Arc<DocumentPathAdmission>,
+    current: &'a Result<CurrentDiagnosticInput, DiagnosticUnavailable>,
+    configuration: &'b tcl_lsp_db::AnalyserConfig,
+    purpose: DiagnosticCacheQuery<'b>,
+    epoch: u64,
+    factory_generation: u64,
+    doc: &'b DocumentState,
+    slots: &'b HashMap<Uri, DiagSlot>,
+    ledger: &'b HashMap<Uri, DiagnosticCompletionEntry>,
+    cache: &'b HashMap<Uri, PullDiagEntry>,
+    checks: &'b mut CurrentPublishedReportChecks<'a>,
+}
+
+struct CurrentPublishedSuppression<'a> {
+    report: &'a PullDiagEntry,
+    receipt: &'a DiagnosticCacheReceipt,
+    source: &'a DiagnosticReportExpectation,
+    purpose: DiagnosticCacheQuery<'a>,
+    epoch: u64,
+    doc: &'a DocumentState,
+    slots: &'a HashMap<Uri, DiagSlot>,
+    ledger: &'a HashMap<Uri, DiagnosticCompletionEntry>,
+}
+
+struct CurrentPublishedReportChecks<'a> {
+    reports: Vec<PublishedDiagnosticReport>,
+    workspace_sources: Vec<Arc<WorkspaceDiagnosticSources>>,
+    checked_inputs: Vec<(
+        &'a CurrentDiagnosticInput,
+        &'a DiagnosticReportExpectation,
+        &'a Arc<DocumentPathAdmission>,
+    )>,
+    checked_configurations: Vec<(
+        tcl_lsp_db::AnalyserConfig,
+        tcl_lsp_db::DiagnosticConfigurationSnapshot,
+    )>,
+}
+
+struct CurrentPublishedReportFinalization<'a, 'b> {
+    expected: &'a [DiagnosticReportExpectation],
+    admissions: &'a [Arc<DocumentPathAdmission>],
+    docs: &'b HashMap<Uri, DocumentState>,
+    cache: &'b mut HashMap<Uri, PullDiagEntry>,
+    purpose: DiagnosticCacheQuery<'b>,
+    checks: CurrentPublishedReportChecks<'a>,
 }
 
 /// A validated report for its retained direct-query or acknowledged publisher purpose.
@@ -581,6 +786,85 @@ impl Backend {
         &self,
         expected: &ProposalDiagnosticExpectation,
     ) -> Result<ProposalDiagnostics, DiagnosticUnavailable> {
+        let (document, _language_id) = self.capture_proposal_document(expected).await?;
+        let inputs = self
+            .diag_inputs(
+                &expected.uri,
+                tcl_lsp_core::profile_for_dialect(&document.dialect),
+            )
+            .await;
+        let inputs_epoch = inputs.inputs_epoch.ok_or(DiagnosticUnavailable::Stale)?;
+        if let Some(suppressed) = self
+            .suppressed_proposal_diagnostics(expected, &document, &inputs, inputs_epoch)
+            .await?
+        {
+            return Ok(suppressed);
+        }
+        let handles = EvidenceHandles::from_inputs(&inputs);
+        let workspace = self
+            .capture_proposal_workspace(&inputs, inputs_epoch, &handles)
+            .await?;
+        let rows = self.capture_proposal_source_rows(expected, &document, &workspace)?;
+        let proposal_sources = provider_source::ProposalProviderSources::new(
+            expected.uri.clone(),
+            rows.selected_original_file,
+            Arc::clone(&document.admission),
+        )
+        .ok_or(DiagnosticUnavailable::Context)?;
+        let state = self
+            .build_proposal_projection(ProposalProjectionBuild {
+                expected,
+                document,
+                inputs_epoch,
+                workspace,
+                rows,
+            })
+            .await?;
+        let analysis = self
+            .analyse_proposal_projection(expected, &inputs, &proposal_sources, state)
+            .await?;
+        let diagnostics = analysis
+            .report
+            .result
+            .map_err(|_| DiagnosticUnavailable::ProviderError)?;
+        let currentness = &analysis._keepalive._currentness;
+        let currentness = ProposalCurrentness {
+            expected,
+            document_revision: currentness.document_revision,
+            dialect: &currentness.dialect,
+            admission: &currentness.admission,
+            inputs_epoch: currentness.inputs_epoch,
+            database_revision: currentness.database_revision,
+            project: currentness.project,
+            members: &currentness.members,
+            rehomed_source_seeds: &currentness.rehomed_source_seeds,
+            token_configurations: &currentness.token_configurations,
+            source_receipts: &currentness.source_receipts,
+            selected_original_file: currentness.selected_original_file,
+            index_generation: currentness.index_generation,
+            class_factory_generation: currentness.class_factory_generation,
+            evaluator_epoch: currentness.evaluator_epoch,
+            overlay_epoch: currentness.overlay_epoch,
+            package_revision: currentness.package_revision,
+            folder_configs: &currentness.folder_configs,
+            global_config: currentness.global_config,
+        };
+        let result_id = proposal_diagnostic_result_id(expected, &currentness, &inputs.registry);
+        self.revalidate_proposal_capture(
+            &currentness,
+            &inputs,
+            &analysis.report.provider_sources,
+            &analysis.report.workspace_sources,
+            diagnostics,
+            result_id,
+        )
+        .await
+    }
+
+    async fn capture_proposal_document(
+        &self,
+        expected: &ProposalDiagnosticExpectation,
+    ) -> Result<(ProposalDocumentCapture, String), DiagnosticUnavailable> {
         let (document_revision, dialect, language_id, admission) = {
             let documents = self.documents.lock("proposal_diagnostic_source").await;
             let document = documents
@@ -608,47 +892,56 @@ impl Backend {
         if Backend::is_bigip_dialect(&dialect) || is_apl_source(&expected.uri, &language_id) {
             return Err(DiagnosticUnavailable::Unsupported);
         }
-
-        let inputs = self
-            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect(&dialect))
-            .await;
-        let inputs_epoch = inputs.inputs_epoch.ok_or(DiagnosticUnavailable::Stale)?;
-        if !inputs.toggles.diagnostics_enabled {
-            self.revalidate_suppressed_proposal(
-                expected,
+        Ok((
+            ProposalDocumentCapture {
                 document_revision,
-                &dialect,
-                &admission,
-                inputs_epoch,
-            )
-            .await?;
-            return Ok(ProposalDiagnostics::Suppressed {
-                uri: expected.uri.clone(),
-                version: expected.version,
-                source: expected.source.clone(),
-                proposal: expected.proposal.clone(),
-                reason: DiagnosticSuppression::Disabled,
-            });
-        }
-        if inputs.toggles.excluded {
-            self.revalidate_suppressed_proposal(
-                expected,
-                document_revision,
-                &dialect,
-                &admission,
-                inputs_epoch,
-            )
-            .await?;
-            return Ok(ProposalDiagnostics::Suppressed {
-                uri: expected.uri.clone(),
-                version: expected.version,
-                source: expected.source.clone(),
-                proposal: expected.proposal.clone(),
-                reason: DiagnosticSuppression::Excluded,
-            });
-        }
+                dialect,
+                admission,
+            },
+            language_id,
+        ))
+    }
 
-        let handles = EvidenceHandles::from_inputs(&inputs);
+    async fn suppressed_proposal_diagnostics(
+        &self,
+        expected: &ProposalDiagnosticExpectation,
+        document: &ProposalDocumentCapture,
+        inputs: &DiagInputs,
+        inputs_epoch: u64,
+    ) -> Result<Option<ProposalDiagnostics>, DiagnosticUnavailable> {
+        let reason = if !inputs.toggles.diagnostics_enabled {
+            Some(DiagnosticSuppression::Disabled)
+        } else if inputs.toggles.excluded {
+            Some(DiagnosticSuppression::Excluded)
+        } else {
+            None
+        };
+        let Some(reason) = reason else {
+            return Ok(None);
+        };
+        self.revalidate_suppressed_proposal(
+            expected,
+            document.document_revision,
+            &document.dialect,
+            &document.admission,
+            inputs_epoch,
+        )
+        .await?;
+        Ok(Some(ProposalDiagnostics::Suppressed {
+            uri: expected.uri.clone(),
+            version: expected.version,
+            source: expected.source.clone(),
+            proposal: expected.proposal.clone(),
+            reason,
+        }))
+    }
+
+    async fn capture_proposal_workspace(
+        &self,
+        inputs: &DiagInputs,
+        inputs_epoch: u64,
+        handles: &EvidenceHandles,
+    ) -> Result<ProposalWorkspaceCapture, DiagnosticUnavailable> {
         let (
             captured,
             original_index,
@@ -665,7 +958,7 @@ impl Backend {
             }
             let _rehoming = inputs.rehoming_gate.lock().await;
             let _live_publication = inputs.live_publication_gate.lock().await;
-            let captured = capture_cross_file_evidence_snapshot(&handles)
+            let captured = capture_cross_file_evidence_snapshot(handles)
                 .await
                 .ok_or(DiagnosticUnavailable::Context)?;
             let (index, generation) = {
@@ -688,7 +981,25 @@ impl Backend {
                 package_revision,
             )
         };
+        Ok(ProposalWorkspaceCapture {
+            captured,
+            original_index,
+            index_generation,
+            factory_generation,
+            folder_configs,
+            global_config,
+            rehomed_source_seeds,
+            package_revision,
+        })
+    }
 
+    fn capture_proposal_source_rows(
+        &self,
+        expected: &ProposalDiagnosticExpectation,
+        document: &ProposalDocumentCapture,
+        workspace: &ProposalWorkspaceCapture,
+    ) -> Result<ProposalSourceRows, DiagnosticUnavailable> {
+        let captured = &workspace.captured;
         let projected_rows = captured.project.files(&*captured.snapshot);
         if projected_rows.len() != captured.members.len() {
             return Err(DiagnosticUnavailable::Context);
@@ -706,121 +1017,177 @@ impl Backend {
             .lock()
             .map_err(|_| DiagnosticUnavailable::Context)?
             .clone();
+        let context = ProposalSourceRowContext {
+            expected,
+            document,
+            captured: &workspace.captured,
+            token_configurations: &original_token_configurations,
+            folder_configs: &workspace.folder_configs,
+            global_config: workspace.global_config,
+            source_admissions: &source_admissions,
+        };
         let mut source_inputs = Vec::with_capacity(projected_rows.len());
         let mut source_receipts = Vec::with_capacity(projected_rows.len());
         let mut project_uris = HashSet::with_capacity(projected_rows.len());
         let mut selected_original_file = None;
         for &file in projected_rows {
-            let Some((uri, _)) = captured
+            let Some((uri, _)) = workspace
+                .captured
                 .files
                 .iter()
                 .find(|(_, candidate)| *candidate == file)
             else {
                 return Err(DiagnosticUnavailable::Context);
             };
-            if !project_uris.insert(uri.clone()) || !captured.members.contains(uri) {
+            if !project_uris.insert(uri.clone()) || !workspace.captured.members.contains(uri) {
                 return Err(DiagnosticUnavailable::Context);
             }
-            let published = source_admissions
-                .get(uri)
-                .ok_or(DiagnosticUnavailable::Context)?;
-            if published.file != file {
-                return Err(DiagnosticUnavailable::Stale);
-            }
-            published
-                .admission
-                .check_for(uri, self.store.as_ref())
-                .map_err(|_| DiagnosticUnavailable::Context)?;
-            let source_path = published.admission.path().map(Path::to_path_buf);
-            let file_path = file.path(&*captured.snapshot).clone();
-            if file_path.as_deref() != published.admission.analyser_path()
-                || file_path.is_some() != source_path.is_some()
-            {
-                return Err(DiagnosticUnavailable::Context);
-            }
-            let mut mapped_configs = original_token_configurations
-                .iter()
-                .filter(|(mapped_file, _)| *mapped_file == file);
-            let config = mapped_configs
-                .next()
-                .map(|(_, config)| *config)
-                .ok_or(DiagnosticUnavailable::Context)?;
-            if mapped_configs.next().is_some() {
-                return Err(DiagnosticUnavailable::Context);
-            }
-            let resolved_config = longest_folder_match(&folder_configs, uri)
-                .copied()
-                .unwrap_or(global_config);
-            if config != resolved_config {
-                return Err(DiagnosticUnavailable::Context);
-            }
-            let row = proposal_diagnostics::SourceInput {
-                uri: uri.clone(),
-                text: file.text(&*captured.snapshot).clone(),
-                dialect: file.dialect(&*captured.snapshot).clone(),
-                path: file_path,
-                source_path,
-                external_call_sites: file.external_call_sites(&*captured.snapshot).clone(),
-                workspace_class_factories: file
-                    .workspace_class_factories(&*captured.snapshot)
-                    .clone(),
-                workspace_subclass_methods: file
-                    .workspace_subclass_methods(&*captured.snapshot)
-                    .clone(),
-                sidecar_stubs_epoch: file.sidecar_stubs_epoch(&*captured.snapshot),
-                config: proposal_diagnostics::ConfigInput {
-                    disabled_diagnostics: config.disabled_diagnostics(&*captured.snapshot).clone(),
-                    non_ascii_mode: config.non_ascii_mode(&*captured.snapshot),
-                    extra_commands: config.extra_commands(&*captured.snapshot).clone(),
-                    generic_variable_patterns: config
-                        .generic_variable_patterns(&*captured.snapshot)
-                        .clone(),
-                    bigip_version: config.bigip_version(&*captured.snapshot).clone(),
-                    spec_pack_key: config.spec_pack_key(&*captured.snapshot),
-                    targets: config.targets(&*captured.snapshot).clone(),
-                    package_provides: config.package_provides(&*captured.snapshot).clone(),
-                },
-            };
-            if uri == &expected.uri {
-                if row.dialect != dialect
-                    || !Arc::ptr_eq(&published.admission, &admission)
-                    || tcl_lexer::normalise_lone_cr(&row.text).as_ref()
-                        != tcl_lexer::normalise_lone_cr(&expected.source).as_ref()
-                {
-                    return Err(DiagnosticUnavailable::Stale);
-                }
+            let row = self.capture_proposal_source_row(&context, uri, file)?;
+            if row.is_selected {
                 selected_original_file = Some(file);
             }
-            source_receipts.push((uri.clone(), file, Arc::clone(&published.admission)));
-            source_inputs.push(row);
+            source_receipts.push((uri.clone(), file, row.admission));
+            source_inputs.push(row.input);
         }
-        if project_uris != captured.members {
+        if project_uris != workspace.captured.members {
             return Err(DiagnosticUnavailable::Context);
         }
-        let selected_original_file =
-            selected_original_file.ok_or(DiagnosticUnavailable::Context)?;
-        let proposal_sources = provider_source::ProposalProviderSources::new(
-            expected.uri.clone(),
-            selected_original_file,
-            Arc::clone(&admission),
-        )
-        .ok_or(DiagnosticUnavailable::Context)?;
-        let database_revision = captured.revision;
-        let original_project = captured.project;
-        let original_members = captured.members.clone();
+        Ok(ProposalSourceRows {
+            original_token_configurations,
+            source_inputs,
+            source_receipts,
+            selected_original_file: selected_original_file.ok_or(DiagnosticUnavailable::Context)?,
+            project_uris,
+            source_admissions,
+        })
+    }
+
+    fn capture_proposal_source_row(
+        &self,
+        context: &ProposalSourceRowContext<'_>,
+        uri: &Uri,
+        file: tcl_lsp_db::SourceFile,
+    ) -> Result<ProposalSourceRow, DiagnosticUnavailable> {
+        let published = context
+            .source_admissions
+            .get(uri)
+            .ok_or(DiagnosticUnavailable::Context)?;
+        if published.file != file {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        published
+            .admission
+            .check_for(uri, self.store.as_ref())
+            .map_err(|_| DiagnosticUnavailable::Context)?;
+        let source_path = published.admission.path().map(Path::to_path_buf);
+        let file_path = file.path(&*context.captured.snapshot).clone();
+        if file_path.as_deref() != published.admission.analyser_path()
+            || file_path.is_some() != source_path.is_some()
+        {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let mut mapped_configs = context
+            .token_configurations
+            .iter()
+            .filter(|(mapped_file, _)| *mapped_file == file);
+        let config = mapped_configs
+            .next()
+            .map(|(_, config)| *config)
+            .ok_or(DiagnosticUnavailable::Context)?;
+        if mapped_configs.next().is_some() {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let resolved_config = longest_folder_match(context.folder_configs, uri)
+            .copied()
+            .unwrap_or(context.global_config);
+        if config != resolved_config {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        let row = proposal_diagnostics::SourceInput {
+            uri: uri.clone(),
+            text: file.text(&*context.captured.snapshot).clone(),
+            dialect: file.dialect(&*context.captured.snapshot).clone(),
+            path: file_path,
+            source_path,
+            external_call_sites: file
+                .external_call_sites(&*context.captured.snapshot)
+                .clone(),
+            workspace_class_factories: file
+                .workspace_class_factories(&*context.captured.snapshot)
+                .clone(),
+            workspace_subclass_methods: file
+                .workspace_subclass_methods(&*context.captured.snapshot)
+                .clone(),
+            sidecar_stubs_epoch: file.sidecar_stubs_epoch(&*context.captured.snapshot),
+            config: proposal_diagnostics::ConfigInput {
+                disabled_diagnostics: config
+                    .disabled_diagnostics(&*context.captured.snapshot)
+                    .clone(),
+                non_ascii_mode: config.non_ascii_mode(&*context.captured.snapshot),
+                extra_commands: config.extra_commands(&*context.captured.snapshot).clone(),
+                generic_variable_patterns: config
+                    .generic_variable_patterns(&*context.captured.snapshot)
+                    .clone(),
+                bigip_version: config.bigip_version(&*context.captured.snapshot).clone(),
+                spec_pack_key: config.spec_pack_key(&*context.captured.snapshot),
+                targets: config.targets(&*context.captured.snapshot).clone(),
+                package_provides: config.package_provides(&*context.captured.snapshot).clone(),
+            },
+        };
+        let is_selected = uri == &context.expected.uri;
+        if is_selected
+            && (row.dialect != context.document.dialect
+                || !Arc::ptr_eq(&published.admission, &context.document.admission)
+                || tcl_lexer::normalise_lone_cr(&row.text).as_ref()
+                    != tcl_lexer::normalise_lone_cr(&context.expected.source).as_ref())
+        {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        Ok(ProposalSourceRow {
+            input: row,
+            admission: Arc::clone(&published.admission),
+            is_selected,
+        })
+    }
+
+    async fn build_proposal_projection(
+        &self,
+        build: ProposalProjectionBuild<'_>,
+    ) -> Result<ProposalProjectionState, DiagnosticUnavailable> {
+        let ProposalProjectionBuild {
+            expected,
+            document,
+            inputs_epoch,
+            workspace,
+            rows,
+        } = build;
+        let database_revision = workspace.captured.revision;
+        let project = workspace.captured.project;
+        let members = workspace.captured.members.clone();
         let evaluator_epoch = tcl_registry::pack_hooks::evaluator_epoch();
         let overlay_epoch = tcl_registry::overlay_epoch();
-        let captured_evaluator_epoch = tcl_lsp_db::EvaluatorEpoch::try_get(&*captured.snapshot)
-            .map_or(0, |epoch| epoch.generation(&*captured.snapshot));
-        let captured_overlay_epoch = tcl_lsp_db::OverlayEpoch::try_get(&*captured.snapshot)
-            .map_or(0, |epoch| epoch.generation(&*captured.snapshot));
+        let captured_evaluator_epoch =
+            tcl_lsp_db::EvaluatorEpoch::try_get(&*workspace.captured.snapshot)
+                .map_or(0, |epoch| epoch.generation(&*workspace.captured.snapshot));
+        let captured_overlay_epoch =
+            tcl_lsp_db::OverlayEpoch::try_get(&*workspace.captured.snapshot)
+                .map_or(0, |epoch| epoch.generation(&*workspace.captured.snapshot));
         if evaluator_epoch != captured_evaluator_epoch || overlay_epoch != captured_overlay_epoch {
             return Err(DiagnosticUnavailable::Stale);
         }
+        let ProposalWorkspaceCapture {
+            captured,
+            original_index,
+            index_generation,
+            factory_generation,
+            folder_configs,
+            global_config,
+            rehomed_source_seeds,
+            package_revision,
+        } = workspace;
         drop(captured);
-
         let mut projection = proposal_diagnostics::build(
-            source_inputs,
+            rows.source_inputs,
             &expected.uri,
             tcl_lexer::normalise_lone_cr(&expected.proposal).as_ref(),
             evaluator_epoch,
@@ -832,7 +1199,44 @@ impl Backend {
         {
             return Err(DiagnosticUnavailable::Context);
         }
+        Ok(ProposalProjectionState {
+            projection,
+            original_index,
+            currentness: ProposalCurrentnessData {
+                document_revision: document.document_revision,
+                dialect: document.dialect,
+                admission: document.admission,
+                inputs_epoch,
+                database_revision,
+                project,
+                members,
+                rehomed_source_seeds,
+                token_configurations: rows.original_token_configurations,
+                source_receipts: rows.source_receipts,
+                selected_original_file: rows.selected_original_file,
+                index_generation,
+                class_factory_generation: factory_generation,
+                evaluator_epoch,
+                overlay_epoch,
+                package_revision,
+                folder_configs,
+                global_config,
+                _project_uris: rows.project_uris,
+                _source_admissions: rows.source_admissions,
+            },
+        })
+    }
 
+    async fn analyse_proposal_projection<'a>(
+        &self,
+        expected: &'a ProposalDiagnosticExpectation,
+        inputs: &'a DiagInputs,
+        proposal_sources: &'a provider_source::ProposalProviderSources,
+        state: ProposalProjectionState,
+    ) -> Result<ProposalAnalysisResult<'a>, DiagnosticUnavailable> {
+        let currentness = state.currentness;
+        let mut projection = state.projection;
+        let original_index = state.original_index;
         let detached_db = Arc::clone(&projection.db);
         let detached_project = Arc::new(Mutex::new(Some(projection.project)));
         let detached_workspace_index = Arc::new(TrackedRwLock::new(
@@ -840,22 +1244,18 @@ impl Backend {
             original_index,
         ));
         let selected_file = projection.selected;
-        let selected_config = projection.selected_config;
-        let projected_rehomed_source_seeds = Arc::new(Mutex::new(rehomed_source_seeds.clone()));
-        let dialect_profile = tcl_lsp_core::profile_for_dialect(&dialect);
+        let projected_rehomed_source_seeds =
+            Arc::new(Mutex::new(currentness.rehomed_source_seeds.clone()));
+        let dialect_profile = tcl_lsp_core::profile_for_dialect(&currentness.dialect);
         let analysis_text = tcl_lexer::normalise_lone_cr(&expected.proposal);
         let salsa_ctx = SalsaAnalysisCtx {
             db: &detached_db,
             uri: &expected.uri,
             file: Some(selected_file),
-            config: selected_config,
+            config: projection.selected_config,
             text: &analysis_text,
             dialect: dialect_profile,
         };
-        // Detached proposal indexes can share a numeric generation with the live
-        // index or another proposal while containing different declarations.
-        // Keep recovery allocations request-local instead of indexing them by
-        // that non-global generation alone.
         let proposal_recovery_names = Arc::new(Mutex::new(RecoveryNameCache::default()));
         let path_inputs = AnalyserPathInputs {
             registry: Arc::clone(&inputs.registry),
@@ -876,7 +1276,7 @@ impl Backend {
                 store: &inputs.store,
                 source_path_admissions: &inputs.source_path_admissions,
                 dialects: &inputs.provider_dialects,
-                proposal: Some(&proposal_sources),
+                proposal: Some(proposal_sources),
             },
             recovery_names: &proposal_recovery_names,
             entry_points: &inputs.entry_points,
@@ -891,15 +1291,63 @@ impl Backend {
             provider_capture: &path_inputs.provider_capture,
             prefer: path_inputs.package_prefer,
         };
+        self.settle_proposal_subclasses(ProposalSubclassSettlement {
+            inputs,
+            salsa_ctx: &salsa_ctx,
+            recovery: &recovery,
+            workspace_index: &detached_workspace_index,
+            projection: &mut projection,
+        })
+        .await?;
+        let lift = Self::proposal_lift_inputs(expected, inputs, &currentness, dialect_profile);
+        let report = self
+            .produce_proposal_deep_diagnostics(ProposalDeepAnalysis {
+                expected,
+                inputs,
+                salsa_ctx: &salsa_ctx,
+                recovery: &recovery,
+                lift: &lift,
+                path_inputs: &path_inputs,
+                projection: &projection,
+            })
+            .await?;
+        Ok(ProposalAnalysisResult {
+            report,
+            _keepalive: ProposalAnalysisKeepalive {
+                _projection: projection,
+                _detached_db: detached_db,
+                _detached_project: detached_project,
+                _detached_workspace_index: detached_workspace_index,
+                _projected_rehomed_source_seeds: projected_rehomed_source_seeds,
+                _proposal_recovery_names: proposal_recovery_names,
+                _analysis_text: analysis_text,
+                _lift: lift,
+                _registry: path_inputs.registry,
+                _currentness: currentness,
+            },
+        })
+    }
+
+    async fn settle_proposal_subclasses(
+        &self,
+        settlement: ProposalSubclassSettlement<'_>,
+    ) -> Result<(), DiagnosticUnavailable> {
+        let ProposalSubclassSettlement {
+            inputs,
+            salsa_ctx,
+            recovery,
+            workspace_index,
+            projection,
+        } = settlement;
         let mut subclass_settled = false;
         for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
             let analysis = Box::pin(compute_base_analysis(
                 &inputs.client,
-                &salsa_ctx,
+                salsa_ctx,
                 &inputs.disabled,
                 &inputs.extra_commands,
                 inputs.non_ascii_mode,
-                &recovery,
+                recovery,
             ))
             .await;
             let analysis = match analysis {
@@ -907,14 +1355,13 @@ impl Backend {
                 ControlFlow::Break(false) => return Err(DiagnosticUnavailable::Cancelled),
                 ControlFlow::Break(true) => return Err(DiagnosticUnavailable::ProviderError),
             };
-            detached_workspace_index
+            workspace_index
                 .write()
                 .await
-                .replace_document(expected.uri.as_str(), &analysis);
-            let index = detached_workspace_index.read().await.clone();
+                .replace_document(salsa_ctx.uri.as_str(), &analysis);
+            let index = workspace_index.read().await.clone();
             let Some(changed) =
-                proposal_diagnostics::update_subclass_methods_from_index(&mut projection, &index)
-                    .await
+                proposal_diagnostics::update_subclass_methods_from_index(projection, &index).await
             else {
                 return Err(DiagnosticUnavailable::Context);
             };
@@ -926,31 +1373,29 @@ impl Backend {
         if !subclass_settled {
             return Err(DiagnosticUnavailable::Context);
         }
+        Ok(())
+    }
 
-        let lift = LiftInputs {
-            rewrite_source: Some(rewrite_wire::RewriteWireSource::Proposal {
-                uri: expected.uri.clone(),
-                version: expected.version,
-                original_source: Arc::from(expected.source.as_str()),
-                proposal: Arc::from(expected.proposal.as_str()),
-                revision: document_revision,
-                inputs_epoch,
-            }),
-            text: &expected.proposal,
-            decode_report: None,
-            dialect: dialect_profile,
-            disabled: &inputs.disabled,
-            policy_layers: &inputs.policy_layers,
-            style_line_length: inputs.style_line_length,
-            xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
-        };
+    async fn produce_proposal_deep_diagnostics(
+        &self,
+        analysis: ProposalDeepAnalysis<'_>,
+    ) -> Result<ProducedDiagnosticReport, DiagnosticUnavailable> {
+        let ProposalDeepAnalysis {
+            expected,
+            inputs,
+            salsa_ctx,
+            recovery,
+            lift,
+            path_inputs,
+            projection,
+        } = analysis;
         let base = Box::pin(compute_base_analysis(
             &inputs.client,
-            &salsa_ctx,
+            salsa_ctx,
             &inputs.disabled,
             &inputs.extra_commands,
             inputs.non_ascii_mode,
-            &recovery,
+            recovery,
         ));
         let project = inputs
             .toggles
@@ -960,9 +1405,9 @@ impl Backend {
         let produced = match Box::pin(compute_deep_diagnostic_report(
             &expected.uri,
             &self.documents,
-            &salsa_ctx,
-            &lift,
-            &path_inputs,
+            salsa_ctx,
+            lift,
+            path_inputs,
             project,
             base,
         ))
@@ -980,53 +1425,32 @@ impl Backend {
             return Err(DiagnosticUnavailable::Stale);
         }
         drop(resolver);
-        let diagnostics = produced
-            .result
-            .map_err(|_| DiagnosticUnavailable::ProviderError)?;
+        Ok(produced)
+    }
 
-        let currentness = ProposalCurrentness {
-            expected,
-            document_revision,
-            dialect: &dialect,
-            admission: &admission,
-            inputs_epoch,
-            database_revision,
-            project: original_project,
-            members: &original_members,
-            rehomed_source_seeds: &rehomed_source_seeds,
-            token_configurations: &original_token_configurations,
-            source_receipts: &source_receipts,
-            selected_original_file,
-            index_generation,
-            class_factory_generation: factory_generation,
-            evaluator_epoch,
-            overlay_epoch,
-            package_revision,
-            folder_configs: &folder_configs,
-            global_config,
-        };
-        let mut hasher = Sha256::new();
-        hasher.update(expected.uri.as_str().as_bytes());
-        hasher.update(expected.version.to_le_bytes());
-        hasher.update(expected.source.as_bytes());
-        hasher.update(expected.proposal.as_bytes());
-        hasher.update(
-            format!(
-                "{database_revision:?}:{inputs_epoch}:{index_generation}:{package_revision}:{evaluator_epoch}:{overlay_epoch}:{factory_generation}"
-            )
-            .as_bytes(),
-        );
-        hasher.update(format!("{:?}", inputs.registry.snapshot().semantic_key()).as_bytes());
-        let result_id = sha256_digest_hex(&hasher.finalize());
-        self.revalidate_proposal_capture(
-            &currentness,
-            &inputs,
-            &produced.provider_sources,
-            &produced.workspace_sources,
-            diagnostics,
-            result_id,
-        )
-        .await
+    fn proposal_lift_inputs<'a>(
+        expected: &'a ProposalDiagnosticExpectation,
+        inputs: &'a DiagInputs,
+        currentness: &ProposalCurrentnessData,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> LiftInputs<'a> {
+        LiftInputs {
+            rewrite_source: Some(rewrite_wire::RewriteWireSource::Proposal {
+                uri: expected.uri.clone(),
+                version: expected.version,
+                original_source: Arc::from(expected.source.as_str()),
+                proposal: Arc::from(expected.proposal.as_str()),
+                revision: currentness.document_revision,
+                inputs_epoch: currentness.inputs_epoch,
+            }),
+            text: &expected.proposal,
+            decode_report: None,
+            dialect,
+            disabled: &inputs.disabled,
+            policy_layers: &inputs.policy_layers,
+            style_line_length: inputs.style_line_length,
+            xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
+        }
     }
 
     async fn revalidate_proposal_capture(
@@ -1324,124 +1748,236 @@ impl Backend {
         let slots = self.diag_slots.lock().await;
         let ledger = self.diagnostic_publisher.completion.lock().await;
         let mut cache = self.pull_diag_cache.lock().await;
-        let mut reports = Vec::with_capacity(expected.len());
-        let mut workspace_sources = Vec::new();
-        let mut checked_inputs = Vec::new();
-        let mut checked_configurations = Vec::with_capacity(expected.len());
+        let checks = match self.validate_current_published_reports(CurrentPublishedReportBatch {
+            expected,
+            admissions: &admissions,
+            current: &current,
+            configurations: &configurations,
+            purpose,
+            epoch,
+            factory_generation: *factory_generation,
+            docs: &docs,
+            slots: &slots,
+            ledger: &ledger,
+            cache: &cache,
+        }) {
+            Ok(checks) => checks,
+            Err(reason) => return Ok(Err(reason)),
+        };
+        self.finish_current_published_reports(CurrentPublishedReportFinalization {
+            expected,
+            admissions: &admissions,
+            docs: &docs,
+            cache: &mut cache,
+            purpose,
+            checks,
+        })
+    }
+
+    fn validate_current_published_reports<'a>(
+        &self,
+        batch: CurrentPublishedReportBatch<'a, '_>,
+    ) -> Result<CurrentPublishedReportChecks<'a>, DiagnosticUnavailable> {
+        let CurrentPublishedReportBatch {
+            expected,
+            admissions,
+            current,
+            configurations,
+            purpose,
+            epoch,
+            factory_generation,
+            docs,
+            slots,
+            ledger,
+            cache,
+        } = batch;
+        let mut checks = CurrentPublishedReportChecks {
+            reports: Vec::with_capacity(expected.len()),
+            workspace_sources: Vec::new(),
+            checked_inputs: Vec::new(),
+            checked_configurations: Vec::with_capacity(expected.len()),
+        };
         for (((source, admission), current), configuration) in expected
             .iter()
-            .zip(&admissions)
-            .zip(&current)
-            .zip(&configurations)
+            .zip(admissions.iter())
+            .zip(current.iter())
+            .zip(configurations.iter())
         {
-            let Some(doc) = docs.get(&source.uri) else {
-                return Ok(Err(DiagnosticUnavailable::NotOpen));
-            };
-            if doc.version != source.version || doc.raw() != source.source.as_ref() {
-                return Ok(Err(DiagnosticUnavailable::Stale));
-            }
-            if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch
-            {
-                return Ok(Err(DiagnosticUnavailable::Pending));
-            }
-            let report = match purpose {
-                DiagnosticCacheQuery::PublishDirect(candidate) => candidate,
-                _ => match cache.get(&source.uri) {
-                    Some(report) => report,
-                    None => return Ok(Err(DiagnosticUnavailable::Pending)),
-                },
-            };
-            let Some(receipt) = report.currency.as_ref() else {
-                return Ok(Err(DiagnosticUnavailable::Stale));
-            };
-            let pass = &receipt.source;
-            // An abstaining (non-text) source has no analysis report. The F5
-            // model report applies that abstention itself, so it stays the
-            // document's answer.
-            if !pass.f5_model
-                && tcl_lsp_core::source_decode::should_abstain(doc.decode_report.as_ref())
-            {
-                return Ok(Err(DiagnosticUnavailable::Context));
-            }
-            if let Some(sources) = receipt.workspace_sources.as_ref() {
-                workspace_sources.push(Arc::clone(sources));
-            }
-
-            let suppression = match receipt.origin {
-                DiagnosticCacheOrigin::Publisher => {
-                    let Some(entry) = ledger.get(&source.uri) else {
-                        return Ok(Err(DiagnosticUnavailable::Pending));
-                    };
-                    let (result_id, suppression) = match entry.current_result(
-                        &source.source,
-                        source.version,
-                        doc,
-                        epoch,
-                        slots.get(&source.uri),
-                    ) {
-                        Ok(result) => result,
-                        Err(reason) => return Ok(Err(reason)),
-                    };
-                    // The authentic current publisher pass owns unavailable
-                    // outcomes before any older cached report is considered.
-                    // Success still requires this exact pass and issued ID.
-                    if !Arc::ptr_eq(&entry.pass, pass) || result_id != report.result_id {
-                        return Ok(Err(DiagnosticUnavailable::Stale));
-                    }
-                    suppression
-                }
-                DiagnosticCacheOrigin::Direct { policy }
-                    if !matches!(purpose, DiagnosticCacheQuery::PublisherOnly) =>
-                {
-                    if let Err(reason) = pass.matches_current_source(
-                        &source.source,
-                        source.version,
-                        doc,
-                        epoch,
-                        slots.get(&source.uri),
-                    ) {
-                        return Ok(Err(reason));
-                    }
-                    policy
-                }
-                DiagnosticCacheOrigin::Direct { .. } => {
-                    return Ok(Err(DiagnosticUnavailable::Stale));
-                }
-            };
-            if report.revision != pass.revision
-                || pass.path_admission.as_ref() != admission.as_ref()
-            {
-                return Ok(Err(DiagnosticUnavailable::Stale));
-            }
-            checked_configurations.push((*configuration, pass.configuration.clone()));
-            // A delivered policy clear does not claim analysis preparation,
-            // and neither does an F5 model report, which reads no analysis
-            // input (its configuration is checked below like every report's).
-            if suppression.is_none() && !pass.f5_model {
-                let current = match current {
-                    Ok(current) => current,
-                    Err(reason) => return Ok(Err(*reason)),
-                };
-                if pass.source_file != Some(current.file)
-                    || pass.input.as_deref() != Some(current.input.as_ref())
-                    || pass.class_factory_generation != *factory_generation
-                {
-                    return Ok(Err(DiagnosticUnavailable::Stale));
-                }
-                checked_inputs.push((current, source, admission));
-            }
-            reports.push(PublishedDiagnosticReport {
-                uri: source.uri.clone(),
-                version: pass.version,
-                source: Arc::clone(&pass.source),
-                dialect: pass.dialect.clone(),
-                revision: pass.revision,
-                inputs_epoch: epoch,
-                result_id: report.result_id.clone(),
-                diagnostics: report.diagnostics.clone(),
-                suppression,
-            });
+            let doc = docs
+                .get(&source.uri)
+                .ok_or(DiagnosticUnavailable::NotOpen)?;
+            self.validate_current_published_report(CurrentPublishedReportItem {
+                source,
+                admission,
+                current,
+                configuration,
+                purpose,
+                epoch,
+                factory_generation,
+                doc,
+                slots,
+                ledger,
+                cache,
+                checks: &mut checks,
+            })?;
         }
+        Ok(checks)
+    }
+
+    fn validate_current_published_report<'a>(
+        &self,
+        item: CurrentPublishedReportItem<'a, '_>,
+    ) -> Result<(), DiagnosticUnavailable> {
+        let CurrentPublishedReportItem {
+            source,
+            admission,
+            current,
+            configuration,
+            purpose,
+            epoch,
+            factory_generation,
+            doc,
+            slots,
+            ledger,
+            cache,
+            checks,
+        } = item;
+        if doc.version != source.version || doc.raw() != source.source.as_ref() {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch {
+            return Err(DiagnosticUnavailable::Pending);
+        }
+        let report = match purpose {
+            DiagnosticCacheQuery::PublishDirect(candidate) => candidate,
+            _ => cache
+                .get(&source.uri)
+                .ok_or(DiagnosticUnavailable::Pending)?,
+        };
+        let receipt = report
+            .currency
+            .as_ref()
+            .ok_or(DiagnosticUnavailable::Stale)?;
+        let pass = &receipt.source;
+        // An abstaining (non-text) source has no analysis report. The F5
+        // model report applies that abstention itself, so it stays the
+        // document's answer.
+        if !pass.f5_model && tcl_lsp_core::source_decode::should_abstain(doc.decode_report.as_ref())
+        {
+            return Err(DiagnosticUnavailable::Context);
+        }
+        if let Some(sources) = receipt.workspace_sources.as_ref() {
+            checks.workspace_sources.push(Arc::clone(sources));
+        }
+        let suppression = self.current_published_suppression(CurrentPublishedSuppression {
+            report,
+            receipt,
+            source,
+            purpose,
+            epoch,
+            doc,
+            slots,
+            ledger,
+        })?;
+        if report.revision != pass.revision || pass.path_admission.as_ref() != admission.as_ref() {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        checks
+            .checked_configurations
+            .push((*configuration, pass.configuration.clone()));
+        if suppression.is_none() && !pass.f5_model {
+            let current = current.as_ref().map_err(|reason| *reason)?;
+            if pass.source_file != Some(current.file)
+                || pass.input.as_deref() != Some(current.input.as_ref())
+                || pass.class_factory_generation != factory_generation
+            {
+                return Err(DiagnosticUnavailable::Stale);
+            }
+            checks.checked_inputs.push((current, source, admission));
+        }
+        checks.reports.push(PublishedDiagnosticReport {
+            uri: source.uri.clone(),
+            version: pass.version,
+            source: Arc::clone(&pass.source),
+            dialect: pass.dialect.clone(),
+            revision: pass.revision,
+            inputs_epoch: epoch,
+            result_id: report.result_id.clone(),
+            diagnostics: report.diagnostics.clone(),
+            suppression,
+        });
+        Ok(())
+    }
+
+    fn current_published_suppression(
+        &self,
+        input: CurrentPublishedSuppression<'_>,
+    ) -> Result<Option<DiagnosticSuppression>, DiagnosticUnavailable> {
+        let CurrentPublishedSuppression {
+            report,
+            receipt,
+            source,
+            purpose,
+            epoch,
+            doc,
+            slots,
+            ledger,
+        } = input;
+        let pass = &receipt.source;
+        match receipt.origin {
+            DiagnosticCacheOrigin::Publisher => {
+                let entry = ledger
+                    .get(&source.uri)
+                    .ok_or(DiagnosticUnavailable::Pending)?;
+                let (result_id, suppression) = entry.current_result(
+                    &source.source,
+                    source.version,
+                    doc,
+                    epoch,
+                    slots.get(&source.uri),
+                )?;
+                // The authentic current publisher pass owns unavailable
+                // outcomes before any older cached report is considered.
+                // Success still requires this exact pass and issued ID.
+                if !Arc::ptr_eq(&entry.pass, pass) || result_id != report.result_id {
+                    return Err(DiagnosticUnavailable::Stale);
+                }
+                Ok(suppression)
+            }
+            DiagnosticCacheOrigin::Direct { policy }
+                if !matches!(purpose, DiagnosticCacheQuery::PublisherOnly) =>
+            {
+                pass.matches_current_source(
+                    &source.source,
+                    source.version,
+                    doc,
+                    epoch,
+                    slots.get(&source.uri),
+                )?;
+                Ok(policy)
+            }
+            DiagnosticCacheOrigin::Direct { .. } => Err(DiagnosticUnavailable::Stale),
+        }
+    }
+
+    fn finish_current_published_reports<'a>(
+        &self,
+        finalization: CurrentPublishedReportFinalization<'a, '_>,
+    ) -> jsonrpc::Result<Result<Vec<PublishedDiagnosticReport>, DiagnosticUnavailable>> {
+        let CurrentPublishedReportFinalization {
+            expected,
+            admissions,
+            docs,
+            cache,
+            purpose,
+            checks:
+                CurrentPublishedReportChecks {
+                    reports,
+                    workspace_sources,
+                    checked_inputs,
+                    checked_configurations,
+                },
+        } = finalization;
         // No participant can change its SourceFile/input while the complete
         // batch is projected. Never wait for DB writers under documents.
         let guards = if expected.is_empty() {
