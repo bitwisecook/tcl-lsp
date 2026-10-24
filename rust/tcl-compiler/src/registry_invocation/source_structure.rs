@@ -3376,15 +3376,9 @@ fn original_case_patterns(
     Some(patterns)
 }
 
-fn original_folded_case_subject(
+fn original_folded_case_source_image(
     parent: &crate::ir::CommandTokens,
-    subject: &crate::ir::WordExpr,
-    registry: &CommandRegistry,
-    metadata: super::InvocationMetadataContext<'_>,
-) -> Option<crate::ir::WordExpr> {
-    let substitution = subject.sole_command_substitution();
-    substitution?;
-    let input = metadata.source_analysis_input()?;
+) -> Option<(tcl_lexer::LexerConfig, &tcl_lexer::SourceImage)> {
     let config = parent
         .source_binding
         .as_ref()?
@@ -3395,6 +3389,19 @@ fn original_folded_case_subject(
         .invocation_site()?
         .source
         .source_image();
+    Some((config, image))
+}
+
+fn original_folded_case_subject(
+    parent: &crate::ir::CommandTokens,
+    subject: &crate::ir::WordExpr,
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+) -> Option<crate::ir::WordExpr> {
+    let substitution = subject.sole_command_substitution();
+    substitution?;
+    let input = metadata.source_analysis_input()?;
+    let (config, image) = original_folded_case_source_image(parent)?;
     let extent = subject.original_command_substitution_span(image.bytes())?;
     let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
         parent, config, registry, metadata,

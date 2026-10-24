@@ -936,6 +936,15 @@ impl BodyWalk<'_, '_> {
         self.expression_commands(graph, advice, schema, depth, false)
     }
 
+    fn body_expression_context(&self) -> tcl_syntax::expr::parser::ExprParseContext {
+        let mut context = self
+            .context
+            .dialect
+            .expression_parse_context(self.context.context.commands().profile());
+        context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
+        context
+    }
+
     fn expression_commands(
         &mut self,
         graph: &mut AdviceGraph,
@@ -979,11 +988,7 @@ impl BodyWalk<'_, '_> {
             if argument.value.as_deref() != Some(source.as_bytes()) {
                 return None;
             }
-            let mut context = self
-                .context
-                .dialect
-                .expression_parse_context(self.context.context.commands().profile());
-            context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
+            let context = self.body_expression_context();
             let substitutions = self.checked_body_expression_substitutions(graph, source, &context);
             let substitutions = substitutions?;
             // A condition of a selected first-match chain runs once, before any
