@@ -12984,6 +12984,532 @@ impl Backend {
         }
     }
 
+    fn retire_dialect_source(
+        &self,
+        locks: OpenPublicationLocks<'_>,
+        uri: &Uri,
+        admission: &DocumentPathAdmission,
+        text: &str,
+        dialect: &str,
+        orphaned: bool,
+    ) -> DocumentSourceResult<()> {
+        let OpenPublicationLocks { source, mut index } = locks;
+        Self::set_live_db_source_locked(
+            source,
+            LiveSourceContents {
+                admission,
+                text,
+                dialect,
+                project_member: !orphaned,
+            },
+            self.store.as_ref(),
+            &mut || {
+                index.remove_document(uri.as_str());
+            },
+            self.source_path_admissions.as_ref(),
+        )
+    }
+
+    fn mark_live_dialect_publication(
+        &self,
+        admission: &DocumentPathAdmission,
+        doc: &mut DocumentState,
+    ) -> DocumentSourceResult<()> {
+        DocumentPathAdmission::with_current(&[admission], self.store.as_ref(), || {
+            doc.publication = if doc.backing_file_deleted {
+                DocumentPublication::Indexed
+            } else {
+                DocumentPublication::Salsa
+            };
+        })
+    }
+
+    async fn attach_open_disk_decode_report(&self, uri: &Uri, text: &str, version: i32) {
+        let decode_report =
+            Self::decode_report_for_matching_disk_text(&self.store, uri, text).await;
+        if let Some(decode_report) = decode_report {
+            let mut docs = self.documents.lock("did_open").await;
+            if let Some(doc) = docs.get_mut(uri)
+                && doc.version == Some(version)
+                && doc.text.as_ref() == text
+            {
+                doc.decode_report = Some(decode_report);
+            }
+        }
+    }
+
+    fn apply_document_content_changes(
+        entry: &mut DocumentState,
+        changes: &[tower_lsp_server::ls_types::TextDocumentContentChangeEvent],
+        path_admission: &Arc<DocumentPathAdmission>,
+        change_version: i32,
+    ) -> (Arc<str>, String, String, u64, bool) {
+        if entry.path_admission.is_none() {
+            entry.path_admission = Some(Arc::clone(path_admission));
+        }
+        // Build-and-swap, not mutate-in-place: each splice produces a fresh
+        // buffer and the shared handle is replaced wholesale at the end, so
+        // any snapshot already handed to an in-flight request keeps the
+        // exact revision it was taken at.
+        let mut text: Arc<str> = Arc::clone(&entry.text);
+        // Patch the persisted `LineIndex` alongside each splice instead of
+        // rebuilding it per edit / per position lookup.
+        // Take it out, patch through the edit sequence, put it back.
+        let mut index = std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
+        let mut has_bare_cr = entry.has_bare_cr;
+        // Only a generically-opened `tcl` buffer re-resolves the in-source
+        // dialect hint below (see the tail block), so only that case is
+        // worth watching the edits for a hint-touching change.
+        let watch_dialect_hint = entry.language_id == "tcl";
+        let mut dialect_hint_may_have_changed = false;
+        for change in changes {
+            if watch_dialect_hint
+                && !dialect_hint_may_have_changed
+                && change_could_affect_dialect_hint(&text, change.range, &change.text, &index)
+            {
+                dialect_hint_may_have_changed = true;
+            }
+            text = apply_content_change_indexed(
+                &text,
+                change.range,
+                &change.text,
+                &mut index,
+                &mut has_bare_cr,
+            )
+            .into();
+        }
+        // `text` and `line_index` are installed together — the snapshot
+        // invariant on `DocumentState`: no reader may ever pair text from
+        // this revision with an index from the previous one.
+        let index_needs_seed = entry.publication != DocumentPublication::Indexed;
+        entry.text = Arc::clone(&text);
+        entry.line_index = index;
+        entry.has_bare_cr = has_bare_cr;
+        // The client supplied text for this revision, not the on-disk
+        // bytes that established the old report. Do not carry an encoding
+        // verdict across even a no-op-looking edit.
+        entry.decode_report = None;
+        if dialect_hint_may_have_changed {
+            // Persist this across deferred publication. If a later edit
+            // supersedes this handler, that authoritative handler must
+            // still resolve the combined buffer's hint.
+            entry.mark_dialect_resolution_dirty();
+        }
+        entry.bump_revision(change_version);
+        let dialect = entry.dialect.clone();
+        let language_id = entry.language_id.clone();
+        let revision = entry.revision;
+        (text, dialect, language_id, revision, index_needs_seed)
+    }
+
+    fn load_pack_configuration(
+        pack_store: &Arc<dyn vfs::SourceStore>,
+        mut studio_snapshot: studio_source::StudioSourceSnapshot,
+        options: tcl_spectcl::DiscoveryOptions,
+        held_tx: Option<tokio::sync::oneshot::Sender<()>>,
+        hold: std::time::Duration,
+    ) -> (
+        tcl_spectcl::PackSet,
+        studio_source::StudioSourceSnapshot,
+        tcl_spectcl::DiscoveryOptions,
+        Vec<Vec<PathBuf>>,
+        tcl_spectcl::pack::LoadedSourceInputs,
+    ) {
+        macro_rules! pack_reload_phase {
+            ($($arg:tt)*) => {
+                if cfg!(debug_assertions)
+                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
+                {
+                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
+                }
+            };
+        }
+        pack_reload_phase!("loader-enter");
+        let studio =
+            studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
+        let active_paths = studio
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect::<Vec<_>>();
+        let discovery = tcl_spectcl::discovery::discover_configuration_with_active_studio_in(
+            pack_store.as_ref(),
+            &options,
+            &active_paths,
+        );
+        // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
+        // release binary (Zed, the standalone-editor instructions) has no
+        // `specs/` directory beside it, so discovery finds no bundled tier
+        // and the shipped EDA loadables have to come from the embedded
+        // copy. A plain load would leave every EDA command unknown in
+        // exactly those clients.
+        pack_reload_phase!("discovery-complete");
+        let (loaded, loader_inputs) =
+            tcl_spectcl::bundled::load_discovered_configuration_with_studio_sources_and_inputs_in(
+                Arc::clone(pack_store),
+                &discovery,
+                &studio,
+                options.workspace_trust,
+            );
+        pack_reload_phase!("load-complete");
+        // The test seam, and the only place it can go: the snapshot is
+        // taken, the publish has not happened, so the world is free to
+        // change underneath a view that is already stale. The signal goes
+        // out first so the test knows the snapshot it has to invalidate
+        // exists; then the thread sits on it.
+        if let Some(tx) = held_tx {
+            let _ = tx.send(());
+            std::thread::sleep(hold);
+        }
+        (
+            loaded,
+            studio_snapshot,
+            options,
+            discovery.configured_sources,
+            loader_inputs,
+        )
+    }
+
+    fn publish_pack_set_locked(
+        guard: &mut PublishedPackSet,
+        studio_sources: &mut studio_source::StudioSources,
+        studio_snapshot: &studio_source::StudioSourceSnapshot,
+        loaded: &Arc<tcl_spectcl::PackSet>,
+        seq: u64,
+        registration: &mut Option<tcl_spectcl::PackSetRegistration>,
+    ) -> bool {
+        // Newest snapshot wins, decided by when the disk was read. With
+        // `spec_pack_reload` held this is always true — see
+        // `spec_pack_reload_seq` for why it is checked anyway.
+        let newest = seq > guard.seq;
+        let changed =
+            newest && (guard.packs.key != loaded.key || studio_sources.has_unpublished_changes());
+        if changed {
+            // Publish the hook plan *before* the new pack set becomes
+            // visible, and under the same lock: slots are allocated once,
+            // here, for the whole process, and each worker thread builds
+            // its own sandboxed host from the plan the first time it runs
+            // analysis (`with_pack_hooks`).  A `HookHost` owns VM
+            // instances, which are not `Send`, so this cannot install
+            // anything itself — it records what to install.  Publishing
+            // after the swap would leave a window in which a query sees
+            // the pack's commands with their hooks still abstaining.
+            tcl_spectcl::hooks::publish(loaded);
+            let loaded = Arc::clone(loaded);
+            // Publish the same set to every other consumer in this process
+            // — the compiler explorer most of all, which built a plain
+            // registry and so reported a pack's (and every EDA) command
+            // unknown on the very line whose diagnostic resolved it.
+            //
+            // This is also where a pack's `environment` blocks go live:
+            // the publish registers them into the one environment
+            // registry the ingress resolves against, retires the ones a
+            // pack that has left the workspace declared, and republishes
+            // the extension routing detection reads — so a document with
+            // a pack-declared extension resolves to that environment
+            // through the ordinary ingress from here on.
+            *registration = Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
+            // The stamp moves with the content: it records which snapshot
+            // the *current* set came from, so a reload that read the disk
+            // earlier than that can never take its place.
+            *guard = PublishedPackSet { seq, packs: loaded };
+            studio_sources.mark_published(studio_snapshot);
+        }
+        if !changed {
+            tcl_spectcl::registration::publish_pack_extension_routes(loaded);
+            if newest {
+                guard.seq = seq;
+            }
+        }
+        changed
+    }
+
+    async fn install_reload_pack_overlays(
+        &self,
+        packs: &Arc<tcl_spectcl::PackSet>,
+    ) -> std::ops::ControlFlow<(), Vec<(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)>>
+    {
+        macro_rules! pack_reload_phase {
+            ($($arg:tt)*) => {
+                if cfg!(debug_assertions)
+                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
+                {
+                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
+                }
+            };
+        }
+        std::ops::ControlFlow::Continue(if packs.is_empty() {
+            // Loader-only notices still need the actual default registry owner
+            // used by ordinary analysis when there are no pack commands.
+            let installed = tcl_registry::model::store_profiles()
+                .map(|profile| {
+                    pack_reload_phase!("default-profile {}", profile.name);
+                    let registry = tcl_lsp_core::environment_for_dialect(profile.name)
+                        .default_context_registry();
+                    Some((profile, Arc::clone(registry.commands())))
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(installed) = installed else {
+                return std::ops::ControlFlow::Break(());
+            };
+            installed
+        } else {
+            // Build the `(profile, key)` registry for every dialect now.
+            //
+            // The analyser resolves its own registry and can only *look up*
+            // that entry (`Analyser::with_pack_overlay` /
+            // `registry_for_profile_if_built`) — building it needs the pack
+            // contents, which only this crate's loader has. Doing it here means
+            // the entry is always there by the time a document is analysed, so
+            // the very first diagnostics pass after a load already knows a
+            // bundled EDA library's commands rather than reporting every one of
+            // them unknown until some other provider happened to build it.
+            //
+            // The set of profiles is closed and each registry is built once for
+            // the process, so this is a bounded one-off — and every one of them
+            // would have been built lazily by the first document of that
+            // dialect anyway. It runs on a worker: it is parse-free but not
+            // free.
+            let for_worker = Arc::clone(packs);
+            let installed = crate::rt::spawn_blocking(move || {
+                pack_reload_phase!("install-overlays-enter");
+                install_pack_overlays(&for_worker);
+                pack_reload_phase!("install-overlays-complete");
+                tcl_registry::model::store_profiles()
+                    .map(|profile| {
+                        pack_reload_phase!("overlay-profile {}", profile.name);
+                        let context =
+                            tcl_registry::model::ingress::resolve_environment(profile.name)
+                                .context_registry(
+                                    &tcl_registry::model::KeyedVersions::default(),
+                                    for_worker.key,
+                                )
+                                .ok()?;
+                        Some((profile, Arc::clone(context.commands())))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .await;
+            let Ok(Some(installed)) = installed else {
+                return std::ops::ControlFlow::Break(());
+            };
+            // The analyser reads the key off the salsa config, so publish it
+            // before anything re-analyses, with the overlay epoch that says
+            // the generations behind it are installed.
+            self.sync_db_config().await;
+            sync_overlay_epoch(&self.db).await;
+            installed
+        })
+    }
+
+    async fn partition_open_watched_paths(
+        &self,
+        last_kind: HashMap<Uri, FileChangeType>,
+        deleted: &mut Vec<Uri>,
+        deleted_while_open: &mut HashSet<Uri>,
+        changed: &mut Vec<Uri>,
+        revived_while_open: &mut Vec<Uri>,
+    ) {
+        for (uri, typ) in last_kind {
+            let is_open = self
+                .documents
+                .lock("did_change_watched_files")
+                .await
+                .contains_key(&uri);
+            if typ == FileChangeType::DELETED {
+                if is_open {
+                    deleted_while_open.insert(uri.clone());
+                }
+                // A DELETED event runs even for an open buffer.  The editor
+                // sends no `didClose` when a file is renamed or removed
+                // out-of-band (a terminal `mv`, a branch switch), so skipping
+                // open URIs here would leave the dead path in `workspace_index`
+                // and the salsa `Project` for the process's life — duplicate
+                // workspace symbols and a go-to-definition jump to a file that
+                // no longer exists, once the new path is indexed alongside it.
+                // Only the
+                // *index* is retired; `self.documents` is untouched, so the
+                // still-open buffer keeps working exactly as `did_close`'s
+                // reindex-from-disk leaves a closed-and-deleted file.
+                deleted.push(uri);
+            } else if !is_open {
+                // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
+                // or drop it if it no longer reads as one.  Files the editor has
+                // open are driven by did_open/did_change; their unsaved buffer
+                // must not be clobbered by the on-disk copy.
+                // `batch_reindex_from_disk` re-checks this under the lock as
+                // well.
+                changed.push(uri);
+            } else {
+                revived_while_open.push(uri);
+            }
+        }
+    }
+
+    async fn retire_watched_deleted_paths(
+        &self,
+        deleted: &[Uri],
+        deleted_revisions: &HashMap<Uri, u64>,
+        event_admissions: &HashMap<Uri, Arc<DocumentPathAdmission>>,
+    ) -> bool {
+        if !deleted.is_empty() {
+            let batch = AdmittedDiskBatch {
+                removal_admissions: deleted
+                    .iter()
+                    .map(|uri| Arc::clone(&event_admissions[uri]))
+                    .collect(),
+                ..Default::default()
+            };
+            match self
+                .publish_scanned_disk_results(
+                    &batch,
+                    deleted,
+                    DiskRemovalPolicy::IncludeOpen(deleted_revisions),
+                    "did_change_watched_files: deleted",
+                )
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return false;
+                }
+            };
+            if let Err(error) = self
+                .settle_deleted_open_paths(deleted_revisions, event_admissions)
+                .await
+            {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return false;
+            }
+        }
+        true
+    }
+
+    async fn refresh_watched_configuration(&self) {
+        match self.pull_and_apply_config().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        }
+        match self.scan_workspace_folders().await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        }
+        // `tclLsp.specPacks` is part of what was just re-applied, so the
+        // pack set may point somewhere else now.
+        match self.reload_spec_packs(ReloadTrigger::Config).await {
+            Ok(value) => value,
+            Err(error) => {
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
+            }
+        };
+        self.reschedule_all_open_documents().await;
+        // Closed files that carry a badge follow the same reconfigured
+        // disabled-code / master-switch state.
+        self.reschedule_closed_file_diagnostics().await;
+    }
+
+    fn pack_reload_hold_channels(
+        trigger: ReloadTrigger,
+    ) -> (
+        std::time::Duration,
+        Option<tokio::sync::oneshot::Sender<()>>,
+        Option<tokio::sync::oneshot::Receiver<()>>,
+    ) {
+        match trigger {
+            ReloadTrigger::Startup if !startup_reload_hold().is_zero() => {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                (startup_reload_hold(), Some(tx), Some(rx))
+            }
+            _ => (std::time::Duration::ZERO, None, None),
+        }
+    }
+
+    fn watched_closed_badge_uris(
+        cache: &HashMap<Uri, PullDiagEntry>,
+        deleted: &[Uri],
+        changed: &[Uri],
+        deleted_while_open: &HashSet<Uri>,
+    ) -> (Vec<Uri>, Vec<Uri>) {
+        (
+            deleted
+                .iter()
+                .filter(|uri| cache.contains_key(uri) && !deleted_while_open.contains(*uri))
+                .cloned()
+                .collect(),
+            changed
+                .iter()
+                .filter(|uri| cache.contains_key(uri))
+                .cloned()
+                .collect(),
+        )
+    }
+
+    async fn restore_revived_live_documents(
+        &self,
+        revived_publications: Vec<(Uri, Arc<str>, String, u64)>,
+    ) -> bool {
+        for (uri, text, dialect, revision) in revived_publications {
+            match self
+                .publish_changed_document(&uri, &text, &dialect, revision, true)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return false;
+                }
+            };
+        }
+
+        true
+    }
+
+    fn next_spec_pack_reload_sequence(&self) -> u64 {
+        self.spec_pack_reload_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
+    }
+
+    async fn capture_watched_event_admissions(
+        &self,
+        changes: &[tower_lsp_server::ls_types::FileEvent],
+    ) -> Option<HashMap<Uri, Arc<DocumentPathAdmission>>> {
+        let mut event_admissions = HashMap::new();
+        for event in changes {
+            match self.document_path_admission(&event.uri).await {
+                Ok(admission) => {
+                    event_admissions.insert(event.uri.clone(), admission);
+                }
+                Err(error) => {
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return None;
+                }
+            }
+        }
+        Some(event_admissions)
+    }
+
     /// Publish a dialect change for one already-visible live revision and
     /// retire the workspace-index facts built under its previous dialect.
     ///
@@ -13062,23 +13588,7 @@ impl Backend {
             let orphaned = current.backing_file_deleted;
             drop(docs);
 
-            {
-                let OpenPublicationLocks { source, mut index } = locks;
-                Self::set_live_db_source_locked(
-                    source,
-                    LiveSourceContents {
-                        admission: &admission,
-                        text,
-                        dialect,
-                        project_member: !orphaned,
-                    },
-                    self.store.as_ref(),
-                    &mut || {
-                        index.remove_document(uri.as_str());
-                    },
-                    self.source_path_admissions.as_ref(),
-                )?;
-            }
+            self.retire_dialect_source(locks, uri, &admission, text, dialect, orphaned)?;
             drop(snapshot_drain.take());
             let mut docs = self.documents.lock(operation).await;
             let Some(doc) = docs.get_mut(uri) else {
@@ -13089,17 +13599,7 @@ impl Backend {
             {
                 return Ok(false);
             }
-            DocumentPathAdmission::with_current(
-                &[admission.as_ref()],
-                self.store.as_ref(),
-                || {
-                    doc.publication = if doc.backing_file_deleted {
-                        DocumentPublication::Indexed
-                    } else {
-                        DocumentPublication::Salsa
-                    };
-                },
-            )?;
+            self.mark_live_dialect_publication(&admission, doc)?;
             let orphaned = doc.backing_file_deleted;
             drop(docs);
             self.live_publication_advanced.notify_waiters();
@@ -28072,10 +28572,7 @@ impl Backend {
         // Taken here, under the guard and *before* discovery: the number has
         // to order reloads by when they read the disk. See
         // `spec_pack_reload_seq`.
-        let seq = self
-            .spec_pack_reload_seq
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
+        let seq = self.next_spec_pack_reload_sequence();
         let options = self.spec_pack_discovery().await;
         // Before loading: the watch set follows the *configuration*, so it has
         // to be refreshed even when the discovered files turn out unchanged.
@@ -28087,59 +28584,11 @@ impl Backend {
         // The test hold and its "snapshot taken" signal — absent in every real
         // session, because [`startup_reload_hold`] is zero unless the e2e
         // suite asked for it. See [`STARTUP_RELOAD_HOLD_ENV`].
-        let (hold, held_tx, held_rx) = match trigger {
-            ReloadTrigger::Startup if !startup_reload_hold().is_zero() => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                (startup_reload_hold(), Some(tx), Some(rx))
-            }
-            _ => (std::time::Duration::ZERO, None, None),
-        };
+        let (hold, held_tx, held_rx) = Self::pack_reload_hold_channels(trigger);
         let pack_store = Arc::clone(&self.store);
-        let mut studio_snapshot = self.studio_sources.lock().await.snapshot();
+        let studio_snapshot = self.studio_sources.lock().await.snapshot();
         let load = crate::rt::spawn_blocking(move || {
-            pack_reload_phase!("loader-enter");
-            let studio =
-                studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
-            let active_paths = studio
-                .iter()
-                .map(|(path, _)| path.clone())
-                .collect::<Vec<_>>();
-            let discovery = tcl_spectcl::discovery::discover_configuration_with_active_studio_in(
-                pack_store.as_ref(),
-                &options,
-                &active_paths,
-            );
-            // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
-            // release binary (Zed, the standalone-editor instructions) has no
-            // `specs/` directory beside it, so discovery finds no bundled tier
-            // and the shipped EDA loadables have to come from the embedded
-            // copy. A plain load would leave every EDA command unknown in
-            // exactly those clients.
-            pack_reload_phase!("discovery-complete");
-            let (loaded, loader_inputs) =
-                tcl_spectcl::bundled::load_discovered_configuration_with_studio_sources_and_inputs_in(
-                    Arc::clone(&pack_store),
-                    &discovery,
-                    &studio,
-                    options.workspace_trust,
-                );
-            pack_reload_phase!("load-complete");
-            // The test seam, and the only place it can go: the snapshot is
-            // taken, the publish has not happened, so the world is free to
-            // change underneath a view that is already stale. The signal goes
-            // out first so the test knows the snapshot it has to invalidate
-            // exists; then the thread sits on it.
-            if let Some(tx) = held_tx {
-                let _ = tx.send(());
-                std::thread::sleep(hold);
-            }
-            (
-                loaded,
-                studio_snapshot,
-                options,
-                discovery.configured_sources,
-                loader_inputs,
-            )
+            Self::load_pack_configuration(&pack_store, studio_snapshot, options, held_tx, hold)
         });
         self.announce_pack_snapshot_hold(hold, held_rx).await;
         let loaded = load.await;
@@ -28173,117 +28622,23 @@ impl Backend {
         let changed = {
             let mut guard = self.spec_packs.lock().await;
             studio_snapshot.with_current_saved_sources(self.store.as_ref(), || {
-                // Newest snapshot wins, decided by when the disk was read. With
-                // `spec_pack_reload` held this is always true — see
-                // `spec_pack_reload_seq` for why it is checked anyway.
-                let newest = seq > guard.seq;
-                let changed = newest
-                    && (guard.packs.key != loaded.key || studio_sources.has_unpublished_changes());
-                if changed {
-                    // Publish the hook plan *before* the new pack set becomes
-                    // visible, and under the same lock: slots are allocated once,
-                    // here, for the whole process, and each worker thread builds
-                    // its own sandboxed host from the plan the first time it runs
-                    // analysis (`with_pack_hooks`).  A `HookHost` owns VM
-                    // instances, which are not `Send`, so this cannot install
-                    // anything itself — it records what to install.  Publishing
-                    // after the swap would leave a window in which a query sees
-                    // the pack's commands with their hooks still abstaining.
-                    tcl_spectcl::hooks::publish(&loaded);
-                    let loaded = Arc::clone(&loaded);
-                    // Publish the same set to every other consumer in this process
-                    // — the compiler explorer most of all, which built a plain
-                    // registry and so reported a pack's (and every EDA) command
-                    // unknown on the very line whose diagnostic resolved it.
-                    //
-                    // This is also where a pack's `environment` blocks go live:
-                    // the publish registers them into the one environment
-                    // registry the ingress resolves against, retires the ones a
-                    // pack that has left the workspace declared, and republishes
-                    // the extension routing detection reads — so a document with
-                    // a pack-declared extension resolves to that environment
-                    // through the ordinary ingress from here on.
-                    registration =
-                        Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
-                    // The stamp moves with the content: it records which snapshot
-                    // the *current* set came from, so a reload that read the disk
-                    // earlier than that can never take its place.
-                    *guard = PublishedPackSet { seq, packs: loaded };
-                    studio_sources.mark_published(&studio_snapshot);
-                }
-                if !changed {
-                    tcl_spectcl::registration::publish_pack_extension_routes(&loaded);
-                    if newest {
-                        guard.seq = seq;
-                    }
-                }
-                changed
+                Self::publish_pack_set_locked(
+                    &mut guard,
+                    &mut studio_sources,
+                    &studio_snapshot,
+                    &loaded,
+                    seq,
+                    &mut registration,
+                )
             })?
         };
 
         pack_reload_phase!("publication-complete changed={}", changed);
         let packs = self.spec_packs().await;
-        let overlays = if packs.is_empty() {
-            // Loader-only notices still need the actual default registry owner
-            // used by ordinary analysis when there are no pack commands.
-            let installed = tcl_registry::model::store_profiles()
-                .map(|profile| {
-                    pack_reload_phase!("default-profile {}", profile.name);
-                    let registry = tcl_lsp_core::environment_for_dialect(profile.name)
-                        .default_context_registry();
-                    Some((profile, Arc::clone(registry.commands())))
-                })
-                .collect::<Option<Vec<_>>>();
-            let Some(installed) = installed else {
-                return Ok(false);
-            };
-            installed
-        } else {
-            // Build the `(profile, key)` registry for every dialect now.
-            //
-            // The analyser resolves its own registry and can only *look up*
-            // that entry (`Analyser::with_pack_overlay` /
-            // `registry_for_profile_if_built`) — building it needs the pack
-            // contents, which only this crate's loader has. Doing it here means
-            // the entry is always there by the time a document is analysed, so
-            // the very first diagnostics pass after a load already knows a
-            // bundled EDA library's commands rather than reporting every one of
-            // them unknown until some other provider happened to build it.
-            //
-            // The set of profiles is closed and each registry is built once for
-            // the process, so this is a bounded one-off — and every one of them
-            // would have been built lazily by the first document of that
-            // dialect anyway. It runs on a worker: it is parse-free but not
-            // free.
-            let for_worker = Arc::clone(&packs);
-            let installed = crate::rt::spawn_blocking(move || {
-                pack_reload_phase!("install-overlays-enter");
-                install_pack_overlays(&for_worker);
-                pack_reload_phase!("install-overlays-complete");
-                tcl_registry::model::store_profiles()
-                    .map(|profile| {
-                        pack_reload_phase!("overlay-profile {}", profile.name);
-                        let context =
-                            tcl_registry::model::ingress::resolve_environment(profile.name)
-                                .context_registry(
-                                    &tcl_registry::model::KeyedVersions::default(),
-                                    for_worker.key,
-                                )
-                                .ok()?;
-                        Some((profile, Arc::clone(context.commands())))
-                    })
-                    .collect::<Option<Vec<_>>>()
-            })
-            .await;
-            let Ok(Some(installed)) = installed else {
-                return Ok(false);
-            };
-            // The analyser reads the key off the salsa config, so publish it
-            // before anything re-analyses, with the overlay epoch that says
-            // the generations behind it are installed.
-            self.sync_db_config().await;
-            sync_overlay_epoch(&self.db).await;
-            installed
+        let std::ops::ControlFlow::Continue(overlays) =
+            self.install_reload_pack_overlays(&packs).await
+        else {
+            return Ok(false);
         };
 
         pack_reload_phase!("all-profiles-complete");
@@ -31518,17 +31873,8 @@ impl LanguageServer for Backend {
         // If a change lands while the disk read below runs, the version/text
         // check refuses to attach facts about the opened file to the edited
         // buffer.
-        let decode_report =
-            Self::decode_report_for_matching_disk_text(&self.store, &uri, &text).await;
-        if let Some(decode_report) = decode_report {
-            let mut docs = self.documents.lock("did_open").await;
-            if let Some(doc) = docs.get_mut(&uri)
-                && doc.version == Some(version)
-                && doc.text.as_ref() == text
-            {
-                doc.decode_report = Some(decode_report);
-            }
-        }
+        self.attach_open_disk_decode_report(&uri, &text, version)
+            .await;
         // Opening a document is a config-context boundary, not an edit. A closed
         // URI keeps its `DiagSlot` (only the live document + index entry are
         // dropped on close), so `slot.latest_inputs` can carry the toggle values
@@ -31603,68 +31949,12 @@ impl LanguageServer for Backend {
                 .clone()
                 .unwrap_or_else(|| Arc::clone(&path_admission));
             DocumentPathAdmission::with_current(&[retained.as_ref()], self.store.as_ref(), || {
-                if entry.path_admission.is_none() {
-                    entry.path_admission = Some(Arc::clone(&path_admission));
-                }
-                // Build-and-swap, not mutate-in-place: each splice produces a fresh
-                // buffer and the shared handle is replaced wholesale at the end, so
-                // any snapshot already handed to an in-flight request keeps the
-                // exact revision it was taken at.
-                let mut text: Arc<str> = Arc::clone(&entry.text);
-                // Patch the persisted `LineIndex` alongside each splice instead of
-                // rebuilding it per edit / per position lookup.
-                // Take it out, patch through the edit sequence, put it back.
-                let mut index =
-                    std::mem::replace(&mut entry.line_index, tcl_lexer::LineIndex::new(""));
-                let mut has_bare_cr = entry.has_bare_cr;
-                // Only a generically-opened `tcl` buffer re-resolves the in-source
-                // dialect hint below (see the tail block), so only that case is
-                // worth watching the edits for a hint-touching change.
-                let watch_dialect_hint = entry.language_id == "tcl";
-                let mut dialect_hint_may_have_changed = false;
-                for change in &params.content_changes {
-                    if watch_dialect_hint
-                        && !dialect_hint_may_have_changed
-                        && change_could_affect_dialect_hint(
-                            &text,
-                            change.range,
-                            &change.text,
-                            &index,
-                        )
-                    {
-                        dialect_hint_may_have_changed = true;
-                    }
-                    text = apply_content_change_indexed(
-                        &text,
-                        change.range,
-                        &change.text,
-                        &mut index,
-                        &mut has_bare_cr,
-                    )
-                    .into();
-                }
-                // `text` and `line_index` are installed together — the snapshot
-                // invariant on `DocumentState`: no reader may ever pair text from
-                // this revision with an index from the previous one.
-                let index_needs_seed = entry.publication != DocumentPublication::Indexed;
-                entry.text = Arc::clone(&text);
-                entry.line_index = index;
-                entry.has_bare_cr = has_bare_cr;
-                // The client supplied text for this revision, not the on-disk
-                // bytes that established the old report. Do not carry an encoding
-                // verdict across even a no-op-looking edit.
-                entry.decode_report = None;
-                if dialect_hint_may_have_changed {
-                    // Persist this across deferred publication. If a later edit
-                    // supersedes this handler, that authoritative handler must
-                    // still resolve the combined buffer's hint.
-                    entry.mark_dialect_resolution_dirty();
-                }
-                entry.bump_revision(change_version);
-                let dialect = entry.dialect.clone();
-                let language_id = entry.language_id.clone();
-                let revision = entry.revision;
-                (text, dialect, language_id, revision, index_needs_seed)
+                Self::apply_document_content_changes(
+                    entry,
+                    &params.content_changes,
+                    &path_admission,
+                    change_version,
+                )
             })
         };
         let (text, dialect, language_id, revision, index_needs_seed) = match changed {
@@ -32036,20 +32326,10 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
-        let mut event_admissions = HashMap::new();
-        for event in &params.changes {
-            match self.document_path_admission(&event.uri).await {
-                Ok(admission) => {
-                    event_admissions.insert(event.uri.clone(), admission);
-                }
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            }
-        }
+        let Some(event_admissions) = self.capture_watched_event_admissions(&params.changes).await
+        else {
+            return;
+        };
         // tower-lsp-server dispatches notification handlers concurrently.
         // Preserve watched-event transaction order so an older deletion cannot
         // finish its index/Salsa removal after a newer create has revived the
@@ -32103,40 +32383,14 @@ impl LanguageServer for Backend {
         // deletes then restores a path emits CREATED/CHANGED for it): clear the
         // orphan mark so the buffer rejoins the cross-document index.
         let mut revived_while_open: Vec<Uri> = Vec::new();
-        for (uri, typ) in last_kind {
-            let is_open = self
-                .documents
-                .lock("did_change_watched_files")
-                .await
-                .contains_key(&uri);
-            if typ == FileChangeType::DELETED {
-                if is_open {
-                    deleted_while_open.insert(uri.clone());
-                }
-                // A DELETED event runs even for an open buffer.  The editor
-                // sends no `didClose` when a file is renamed or removed
-                // out-of-band (a terminal `mv`, a branch switch), so skipping
-                // open URIs here would leave the dead path in `workspace_index`
-                // and the salsa `Project` for the process's life — duplicate
-                // workspace symbols and a go-to-definition jump to a file that
-                // no longer exists, once the new path is indexed alongside it.
-                // Only the
-                // *index* is retired; `self.documents` is untouched, so the
-                // still-open buffer keeps working exactly as `did_close`'s
-                // reindex-from-disk leaves a closed-and-deleted file.
-                deleted.push(uri);
-            } else if !is_open {
-                // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
-                // or drop it if it no longer reads as one.  Files the editor has
-                // open are driven by did_open/did_change; their unsaved buffer
-                // must not be clobbered by the on-disk copy.
-                // `batch_reindex_from_disk` re-checks this under the lock as
-                // well.
-                changed.push(uri);
-            } else {
-                revived_while_open.push(uri);
-            }
-        }
+        self.partition_open_watched_paths(
+            last_kind,
+            &mut deleted,
+            &mut deleted_while_open,
+            &mut changed,
+            &mut revived_while_open,
+        )
+        .await;
         // Apply the orphan marks before any re-analysis is scheduled, so the
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
@@ -32163,18 +32417,7 @@ impl LanguageServer for Backend {
         // several files change together.
         let (closed_badge_clear, closed_badge_refresh): (Vec<Uri>, Vec<Uri>) = {
             let cache = self.pull_diag_cache.lock().await;
-            (
-                deleted
-                    .iter()
-                    .filter(|uri| cache.contains_key(uri) && !deleted_while_open.contains(*uri))
-                    .cloned()
-                    .collect(),
-                changed
-                    .iter()
-                    .filter(|uri| cache.contains_key(uri))
-                    .cloned()
-                    .collect(),
-            )
+            Self::watched_closed_badge_uris(&cache, &deleted, &changed, &deleted_while_open)
         };
 
         // DELETED: atomically retire the batch from the index and salsa
@@ -32182,40 +32425,11 @@ impl LanguageServer for Backend {
         // arity error cross-file. Unlike scan/folder publication, deletion is
         // authoritative even for an open path: the buffer remains usable but
         // its dead filesystem identity must leave cross-file resolution.
-        if !deleted.is_empty() {
-            let batch = AdmittedDiskBatch {
-                removal_admissions: deleted
-                    .iter()
-                    .map(|uri| Arc::clone(&event_admissions[uri]))
-                    .collect(),
-                ..Default::default()
-            };
-            match self
-                .publish_scanned_disk_results(
-                    &batch,
-                    &deleted,
-                    DiskRemovalPolicy::IncludeOpen(&deleted_revisions),
-                    "did_change_watched_files: deleted",
-                )
-                .await
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            };
-            if let Err(error) = self
-                .settle_deleted_open_paths(&deleted_revisions, &event_admissions)
-                .await
-            {
-                self.client
-                    .log_message(MessageType::WARNING, error.to_string())
-                    .await;
-                return;
-            }
+        if !self
+            .retire_watched_deleted_paths(&deleted, &deleted_revisions, &event_admissions)
+            .await
+        {
+            return;
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
@@ -32235,19 +32449,11 @@ impl LanguageServer for Backend {
         // of truth when that path reappears. Restore both its live Salsa input
         // and standalone index view; a racing edit/close/delete wins through
         // the ordinary revision and orphan currency checks.
-        for (uri, text, dialect, revision) in revived_publications {
-            match self
-                .publish_changed_document(&uri, &text, &dialect, revision, true)
-                .await
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            };
+        if !self
+            .restore_revived_live_documents(revived_publications)
+            .await
+        {
+            return;
         }
 
         // Refresh/clear the badges of the closed files that changed on disk, now
@@ -32275,39 +32481,7 @@ impl LanguageServer for Backend {
         // then rebuild the package database (libraryPaths may have changed) and
         // re-run open documents so the new settings take effect immediately.
         if config_changed {
-            match self.pull_and_apply_config().await {
-                Ok(value) => value,
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            }
-            match self.scan_workspace_folders().await {
-                Ok(value) => value,
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            }
-            // `tclLsp.specPacks` is part of what was just re-applied, so the
-            // pack set may point somewhere else now.
-            match self.reload_spec_packs(ReloadTrigger::Config).await {
-                Ok(value) => value,
-                Err(error) => {
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
-            };
-            self.reschedule_all_open_documents().await;
-            // Closed files that carry a badge follow the same reconfigured
-            // disabled-code / master-switch state.
-            self.reschedule_closed_file_diagnostics().await;
+            self.refresh_watched_configuration().await;
         }
     }
 
