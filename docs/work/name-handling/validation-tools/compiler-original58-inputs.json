@@ -157,7 +157,8 @@
     "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
     "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
     "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
-    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+    "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b",
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "e8e715f0e0374de3398285e2c75a1046b46c07b2c5d0944cb1d36ec4f14ce1c5"
   },
   "targets": [
     {

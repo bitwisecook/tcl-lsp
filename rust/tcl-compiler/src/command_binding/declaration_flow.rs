@@ -1240,6 +1240,27 @@ impl Builder<'_> {
     ) {
         self.nodes[id].site = Some(site.offset);
         let selected = self.selection(tokens, site);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+            if let Some((flow, _)) = &selected {
+                eprintln!(
+                    "RBS_GRAPH stage=selection offset={} selected=true unknown_writes={} unknown_reads={} source_catalogue={} loop_flow={} case_flow={} writes={} loop_bindings={}",
+                    site.offset,
+                    flow.effects.unknown_writes,
+                    flow.effects.unknown_reads,
+                    matches!(flow.effects.schema_origin, crate::registry_invocation::DeclarationSchemaOrigin::OriginalSourceCatalogue),
+                    matches!(&flow.flow, ScriptBodyFlow::Loop { .. }),
+                    matches!(&flow.flow, ScriptBodyFlow::CaseBodies(_)),
+                    flow.writes.len(),
+                    flow.loop_bindings.len(),
+                );
+            } else {
+                eprintln!(
+                    "RBS_GRAPH stage=selection offset={} selected=false",
+                    site.offset
+                );
+            }
+        }
         let dispatch = self.placeholder();
         let mut operands = Vec::new();
         for word in tokens.words() {
@@ -2237,6 +2258,47 @@ impl Builder<'_> {
             &accumulators,
         );
         self.record_warning_observations(&mut report, &warning_paths);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "RBS_GRAPH stage=report nodes={} warnings={} strict_reads={} unavailable={} unknown_reads={}",
+                self.nodes.len(),
+                report.warning_reads.len(),
+                report.reads.len(),
+                report.unavailable,
+                report.unknown_reads,
+            );
+            for (id, node) in self.nodes.iter().enumerate() {
+                let reached = warning_paths[id].is_some();
+                let (unknown, defined, uncertain, aliases) =
+                    warning_paths[id]
+                        .as_ref()
+                        .map_or((false, 0, 0, 0), |state| {
+                            (
+                                state.unknown_writers,
+                                state.defined.len(),
+                                state.uncertain_writes.len(),
+                                state.aliases.len(),
+                            )
+                        });
+                eprintln!(
+                    "RBS_GRAPH stage=node id={id} site={} site_set={} handler={} handler_set={} unknown={} prefix_unavailable={} missing_read={} reads={} writes={} successors={} reached={reached} state_unknown={unknown} defined={defined} uncertain={uncertain} aliases={aliases}",
+                    node.site.unwrap_or(0),
+                    node.site.is_some(),
+                    node.handler_site.unwrap_or(0),
+                    node.handler_site.is_some(),
+                    node.unknown,
+                    node.availability.unavailable_declared_prefix,
+                    node.declared_read_unavailable,
+                    node.authored_reads.len(),
+                    node.writes.len(),
+                    node.successors.len(),
+                );
+                for successor in &node.successors {
+                    eprintln!("RBS_GRAPH stage=edge id={id} next={successor}");
+                }
+            }
+        }
         report
     }
 
