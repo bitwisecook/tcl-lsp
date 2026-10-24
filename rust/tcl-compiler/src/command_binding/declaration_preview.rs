@@ -450,6 +450,77 @@ impl OriginalProcedureReadFlowEntry {
 }
 
 impl DeclaredProcedureBody {
+    /// Same genuine Logical declaration behind a conditional catalogue read.
+    /// These are source/frame coordinates only, without a reached lookup,
+    /// allocated implementation, entered frame or Normal continuation.
+    pub(super) fn matches_logical_read_scope(
+        &self,
+        read: &super::source_read_scope::SourceReadScope,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        let advice = read.advice();
+        let Some(input) = advice.logical_source_input() else {
+            return false;
+        };
+        let Some(scope) = advice.logical_source_scope() else {
+            return false;
+        };
+        if !input.has_logical_source_name_context()
+            || input.lexer_config() != config
+            || !scope.matches_input(input)
+            || scope.frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Procedure
+        {
+            return false;
+        }
+        let body = scope.scope_body();
+        let words = body.source_words();
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            header,
+        ) = words.source()
+        else {
+            return false;
+        };
+        let super::ExecutedScriptMapping::Contiguous { base } = self.source.mapping else {
+            return false;
+        };
+        let Some(end) = u32::try_from(self.source.text.len())
+            .ok()
+            .and_then(|length| base.checked_add(length))
+        else {
+            return false;
+        };
+        let Some(namespace) =
+            tcl_syntax::naming::checked_namespace_path_key(scope.namespace_recipe())
+                .map(super::SourceNamespaceKey::authored)
+        else {
+            return false;
+        };
+        let Some(shape) = words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.authored_source_procedure_arguments()
+            })
+            .flatten()
+        else {
+            return false;
+        };
+        header.site() == &self.declaration
+            && header.logical_source_input() == Some(input)
+            && self.source.origin == self.declaration.source
+            && body.content_span() == tcl_lexer::Span::new(base, end)
+            && body.matches_source(self.source.origin.source_image(), config)
+            && namespace == self.namespace
+            && self.logical_name.as_ref().map(String::as_bytes)
+                == scope
+                    .scope_name_input()
+                    .map(super::OriginalLogicalSourceNameInput::bytes)
+            && self
+                .logical_parameters_word
+                .as_ref()
+                .is_some_and(|parameters| {
+                    words.original_argument_word(shape.parameters) == Some(parameters)
+                })
+    }
+
     pub(super) fn static_source_uncertainty(
         &self,
         layouts: &super::declaration_layout::DeclarationLayouts,
