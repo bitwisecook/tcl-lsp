@@ -55,8 +55,6 @@ impl SourceCommandBindings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     fn presence(
         analysis: &crate::analyser::AnalysisResult,
         text: &str,
