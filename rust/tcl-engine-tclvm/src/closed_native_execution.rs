@@ -42,13 +42,46 @@ pub fn execute_optimised_closed_source(
     version: tcl_dialect::TclVersion,
 ) -> Result<ClosedSourceOutput, ClosedSourceRefusal> {
     let stack = usize::try_from(MIN_CLOSED_STACK_BYTES).map_err(|_| ClosedSourceRefusal::Budget)?;
-    std::thread::Builder::new()
+    #[cfg(debug_assertions)]
+    let marker = closed_observation_marker();
+    #[cfg(debug_assertions)]
+    let worker_marker = marker.clone();
+    let joined = std::thread::Builder::new()
         .stack_size(stack)
         .name("closed-native-consumer".into())
-        .spawn(move || execute_worker(&source, version))
+        .spawn(move || {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::attach_closed_native_observation(worker_marker);
+            execute_worker(&source, version)
+        })
         .map_err(|_| ClosedSourceRefusal::Execution)?
-        .join()
-        .map_err(|_| ClosedSourceRefusal::Execution)?
+        .join();
+    #[cfg(debug_assertions)]
+    report_closed_observation(&marker, !joined.as_ref().is_ok_and(|result| result.is_ok()));
+    joined.map_err(|_| ClosedSourceRefusal::Execution)?
+}
+
+#[cfg(debug_assertions)]
+fn closed_observation_marker() -> Option<std::sync::Arc<std::sync::atomic::AtomicU64>> {
+    (std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1"))
+        .then(|| std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)))
+}
+
+#[cfg(debug_assertions)]
+fn report_closed_observation(
+    marker: &Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    failed: bool,
+) {
+    if failed && let Some(marker) = marker {
+        let value = marker.load(std::sync::atomic::Ordering::Relaxed);
+        // Parent only: the worker, its VM and all TLS owners have joined.
+        std::eprintln!(
+            "CLOSED_NATIVE_REFUSAL stage={} detail={} ordinal={}",
+            value & 0xff,
+            (value >> 8) & 0xffff,
+            (value >> 24) & 0xffff
+        );
+    }
 }
 
 fn execute_worker(
@@ -57,12 +90,18 @@ fn execute_worker(
 ) -> Result<ClosedSourceOutput, ClosedSourceRefusal> {
     tcl_runtime_api::diagnostic_output::silence_private_worker();
     if !tcl_registry::pack_hooks::deny_external_evaluators_on_private_thread() {
+        #[cfg(debug_assertions)]
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(4, 0, 0);
         return Err(ClosedSourceRefusal::NativeContext);
     }
     let profile =
         tcl_registry::model::ingress::resolve_known_environment(version.dialect_profile_name())
             .and_then(|environment| environment.catalogue_profile())
-            .ok_or(ClosedSourceRefusal::NativeContext)?;
+            .ok_or(ClosedSourceRefusal::NativeContext)
+            .inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(5, 0, 0);
+            })?;
     let registry = CommandRegistry::build_default().project_for_profile(profile);
     let plan = prepare_closed_source(source, &registry, profile)?;
     let output = {
@@ -94,6 +133,8 @@ impl<'plan> PrivateBackend<'plan> {
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self, ClosedSourceRefusal> {
         if !tcl_registry::pack_hooks::private_thread_evaluators_are_closed() {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(6, 0, 0);
             return Err(ClosedSourceRefusal::NativeContext);
         }
         let host = Rc::new(MemoryHost::new());
@@ -103,7 +144,11 @@ impl<'plan> PrivateBackend<'plan> {
             profile,
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
-        .ok_or(ClosedSourceRefusal::NativeContext)?;
+        .ok_or(ClosedSourceRefusal::NativeContext)
+        .inspect_err(|_| {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(1, 0, 0);
+        })?;
         let compiler_registry = registry.project_for_profile(profile);
         if registry.snapshot().semantic_key() != compiler_registry.snapshot().semantic_key() {
             return Err(ClosedSourceRefusal::Currency);
@@ -112,14 +157,23 @@ impl<'plan> PrivateBackend<'plan> {
         vm.set_command_limit(Some(256));
         vm.set_wall_clock_budget(Some(Duration::from_millis(250)));
         vm.set_value_size_limit(Some(4096));
-        let observation =
-            vm.restrict_closed_native_commands(plan.command_names(), plan.scalar_names())?;
-        let original = vm.prepare_closed_native_source(
-            plan.source(),
-            plan.command_names(),
-            plan.scalar_names(),
-            &observation,
-        )?;
+        let observation = vm
+            .restrict_closed_native_commands(plan.command_names(), plan.scalar_names())
+            .inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(2, 0, 0);
+            })?;
+        let original = vm
+            .prepare_closed_native_source(
+                plan.source(),
+                plan.command_names(),
+                plan.scalar_names(),
+                &observation,
+            )
+            .inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(3, 0, 0);
+            })?;
         Ok(Self {
             vm,
             original,
@@ -427,16 +481,24 @@ mod tests {
     use super::*;
 
     fn owned_test_worker(test: impl FnOnce() + Send + 'static) {
-        std::thread::Builder::new()
+        #[cfg(debug_assertions)]
+        let marker = closed_observation_marker();
+        #[cfg(debug_assertions)]
+        let worker_marker = marker.clone();
+        let joined = std::thread::Builder::new()
             .stack_size(usize::try_from(MIN_CLOSED_STACK_BYTES).unwrap())
             .spawn(move || {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::attach_closed_native_observation(worker_marker);
                 tcl_runtime_api::diagnostic_output::silence_private_worker();
                 assert!(tcl_registry::pack_hooks::deny_external_evaluators_on_private_thread());
                 test();
             })
             .unwrap()
-            .join()
-            .unwrap();
+            .join();
+        #[cfg(debug_assertions)]
+        report_closed_observation(&marker, joined.is_err());
+        joined.unwrap();
     }
 
     fn test_plan() -> (ClosedSourcePlan, CommandRegistry) {

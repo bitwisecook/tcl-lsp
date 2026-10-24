@@ -67,6 +67,8 @@ impl Vm {
             || self.trace_in_progress.get()
             || !self.native_publications_are_committed()
         {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(10, 0, 0);
             return Err(ClosedSourceRefusal::NativeContext);
         }
         let entry = if let Some(retained) = retained {
@@ -104,16 +106,26 @@ impl Vm {
                 .command_resolvers
                 .is_some_and(|resolver| resolver.permits_no_callbacks(&entry))
         {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(11, 0, 0);
             return Err(ClosedSourceRefusal::NativeContext);
         }
         let tables = entry
             .namespace_variable_tables
             .as_ref()
-            .ok_or(ClosedSourceRefusal::NativeContext)?;
+            .ok_or(ClosedSourceRefusal::NativeContext)
+            .inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(12, 0, 0);
+            })?;
         let root = tables
             .iter()
             .find(|table| table.namespace.token == entry.current_namespace)
-            .ok_or(ClosedSourceRefusal::NativeContext)?;
+            .ok_or(ClosedSourceRefusal::NativeContext)
+            .inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(13, 0, 0);
+            })?;
         for name in scalars {
             if tcl_registry::special_vars::special_var(name).is_some()
                 || root
@@ -121,13 +133,20 @@ impl Vm {
                     .iter()
                     .any(|key| key.as_bytes() == name.as_bytes())
             {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(14, 0, 0);
                 return Err(ClosedSourceRefusal::NativeContext);
             }
         }
         for name in commands {
-            original_binding(&entry, name)?;
+            original_binding(&entry, name).inspect_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(15, 0, 0);
+            })?;
         }
         if restricted && entry.commands.len() != commands.len() {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(16, 0, 0);
             return Err(ClosedSourceRefusal::NativeContext);
         }
         Ok(entry)
@@ -157,14 +176,32 @@ impl Vm {
                 self.source_profile(),
                 &before,
             )
-            .map_err(|_| ClosedSourceRefusal::Execution)?;
+            .map_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(30, 0, 0);
+                ClosedSourceRefusal::Execution
+            })?;
         check_module(&module, &image, &namespace, self.source_profile())?;
-        self.validate_module_profile(&module)
-            .map_err(|_| ClosedSourceRefusal::NativeContext)?;
-        for function in [&module.top_level, &module.top_level_body] {
-            function
-                .validate_native_compilation_entry()
-                .map_err(|_| ClosedSourceRefusal::NativeContext)?;
+        self.validate_module_profile(&module).map_err(|_| {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(31, 0, 0);
+            ClosedSourceRefusal::NativeContext
+        })?;
+        for (function_index, function) in [&module.top_level, &module.top_level_body]
+            .into_iter()
+            .enumerate()
+        {
+            #[cfg(not(debug_assertions))]
+            let _ = function_index;
+            function.validate_native_compilation_entry().map_err(|_| {
+                #[cfg(debug_assertions)]
+                tcl_runtime_api::diagnostic_output::note_closed_native_refusal(
+                    32,
+                    u16::try_from(function_index).unwrap_or(u16::MAX),
+                    0,
+                );
+                ClosedSourceRefusal::NativeContext
+            })?;
             if !self.native_compiler_prerequisites_match(function)
                 || !self.native_math_table_prerequisite_matches(function)
             {
@@ -221,6 +258,8 @@ fn original_binding(entry: &NativeCompilationEntry, name: &str) -> Result<(), Cl
         NativeCommandImplementation::Registry { identity, .. } if identity == name)
         || binding.has_execution_trace
     {
+        #[cfg(debug_assertions)]
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(17, 0, 0);
         return Err(ClosedSourceRefusal::NativeContext);
     }
     Ok(())
@@ -239,23 +278,45 @@ fn check_module(
         || !module.procedures.is_empty()
         || !module.procedure_provenance.is_empty()
     {
+        #[cfg(debug_assertions)]
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(20, 0, 0);
         return Err(ClosedSourceRefusal::NativeContext);
     }
     check_function(&module.top_level, false)?;
     check_function(&module.top_level_body, true)
 }
 
+#[cfg(debug_assertions)]
+fn observed_rejection(value: bool, stage: u8, detail: u16) -> bool {
+    if value {
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(stage, detail, 0);
+    }
+    value
+}
+
+#[cfg(not(debug_assertions))]
+fn observed_rejection(value: bool, _stage: u8, _detail: u16) -> bool {
+    value
+}
+
 fn check_function(function: &FunctionAsm, body: bool) -> Result<(), ClosedSourceRefusal> {
-    if function.native_compilation_failure.is_some()
-        || !function.plain_command_dispatch
-        || !function.command_bindings.is_empty()
-        || !function.procedure_bindings.is_empty()
-        || !function.loop_targets.is_empty()
-        || function.instructions.len() > 4096
+    if observed_rejection(
+        function.native_compilation_failure.is_some(),
+        24,
+        u16::from(body),
+    ) || observed_rejection(!function.plain_command_dispatch, 25, u16::from(body))
+        || observed_rejection(!function.command_bindings.is_empty(), 26, u16::from(body))
+        || observed_rejection(!function.procedure_bindings.is_empty(), 27, u16::from(body))
+        || observed_rejection(!function.loop_targets.is_empty(), 28, u16::from(body))
+        || observed_rejection(function.instructions.len() > 4096, 29, u16::from(body))
     {
+        #[cfg(debug_assertions)]
+        tcl_runtime_api::diagnostic_output::note_closed_native_refusal(21, u16::from(body), 0);
         return Err(ClosedSourceRefusal::NativeContext);
     }
-    for instruction in &function.instructions {
+    for (ordinal, instruction) in function.instructions.iter().enumerate() {
+        #[cfg(not(debug_assertions))]
+        let _ = ordinal;
         let allowed = matches!(
             instruction.op,
             Op::PUSH1
@@ -274,6 +335,12 @@ fn check_function(function: &FunctionAsm, body: bool) -> Result<(), ClosedSource
                 Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 | Op::RETURN_IMM
             ));
         if !allowed {
+            #[cfg(debug_assertions)]
+            tcl_runtime_api::diagnostic_output::note_closed_native_refusal(
+                if body { 23 } else { 22 },
+                u16::try_from(instruction.op as usize).unwrap_or(u16::MAX),
+                u16::try_from(ordinal).unwrap_or(u16::MAX),
+            );
             return Err(ClosedSourceRefusal::NativeContext);
         }
     }

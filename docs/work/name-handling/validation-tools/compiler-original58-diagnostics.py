@@ -444,13 +444,13 @@ original65_rows = (
     original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
 )
 require(
-    sha(BASE / "compiler-closed-consumer-controls.json") == "b044aa64fac4cd0af91f4093974df33b1da11ca55e20af74bd1a0a34e7b47dbd",
+    sha(BASE / "compiler-closed-consumer-controls.json") == "f1fb07405e9ec2118fc5beb6afb6b48177e01379de1ce78e66f81d5a32853bbf",
     "exact separate closed-consumer control roster",
 )
 closed_controls = json.loads((BASE / "compiler-closed-consumer-controls.json").read_text())
 require(closed_controls["expected_selected"] == len(closed_controls["rows"]) == 16
-        and closed_controls["env"] == {}, "separate closed16 count/environment")
-closed_rows = [dict(row, group="diagnostic-closed-consumer", env={}, state="UNRUN")
+        and closed_controls["env"] == {'TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC': 'first-decline-v1'}, "separate closed16 count/environment")
+closed_rows = [dict(row, group="diagnostic-closed-consumer", env=dict(closed_controls["env"]), state="UNRUN")
                for row in closed_controls["rows"]]
 require(len({(row["package"], row["target"], row["selector"]) for row in closed_rows}) == 16,
         "duplicate closed-consumer selector")
