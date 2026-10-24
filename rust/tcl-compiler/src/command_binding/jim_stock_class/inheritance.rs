@@ -4,7 +4,11 @@
 
 //! One original empty-base stock parent with a complete current helper inventory.
 
-use super::*;
+use super::{
+    Arc, BindingKind, ByteCommandSlot, MayBinding, ModuleCommandBindings, NameBytes,
+    NamePolicyProtocol, NativeNameContext, OriginalJimStockClass, OriginalJimStockName,
+    PlannedJimSourceHelper, SignatureSourceNameInput, SourceJimClassHelper,
+};
 
 fn simple_class_operand(bytes: &[u8]) -> bool {
     !bytes.is_empty()
@@ -22,7 +26,7 @@ pub(super) fn merged_variables(
         .iter()
         .cloned()
         .collect::<super::super::BTreeSet<_>>();
-    for pair in fields.chunks_exact(2) {
+    for pair in fields.as_chunks::<2>().0 {
         let name: NameBytes = pair[0].as_ref().into();
         if seen.insert(name.clone()) {
             variables.push(name);
