@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T12:45:01.009686+00:00
+Last updated: 2026-10-24T13:17:41.087159+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T114310Z.md.gz (lossless). Earlier0255/0431/0625 snapshots retained.
 
@@ -15,6 +15,74 @@ Stage large ZIP/evidence in workspace; maps/logs stay ZIP-only, extractsmall onl
 NoTom17typed+1refusal separate from FullTom sharedprocesssemanticgate. Exact original
 baselines/fullgates/performance remain binding, no PRGO. Numeric success fixture
 per-dialect zeroerrno USERLOCKED, no production errno reset or expansion to Env.
+
+## Fresh 5aa8 authenticated complete131; guard false-policy candidate ready
+
+vm-runtime-actual-40095742386/receipt.json
+SHAc84bb6f26c466da5dc6fa92ea80fae6814cbed8953a29a2470e93ed62311d98e.
+Exact5aa8fe816b3ef93653eb5d6b8d489e5e8f897e47 run40095742386/job120877516271,
+artifact12561331390 ZIP28995298 SHA885b42430d8c51a869466ab0d3db37dd12b35b98cd35b45920abaa3edfde4567.
+All443memberCRC+SHA,full126093BEFORE+AFTER/Gitmembership/30keyblobjoins,C84sixmaps/
+ownedbootstrap900+TomMathbeforeafter/backendPASS. All131invocations executedclosed.
+Original3ALLPASS, append167.426210863s/1035/180 (no crosshostcausalspeedclaim).
+Baseline14=13P1F;stack1ABORT;other103=12P91F;prune7=6P1F;target3=3P.
+BOTH userapproved retained-state tests PASS (cmd_lseq3.725s/codegenABI2.295s).
+CFIunknown/incomplete keeps WHOLEPROTOCOLINCOMPLETE;rawELFabsent sealc5128c24.
+No fullsharedprocessgate/performanceacceptance;original812Rustupdaternotselected.
+
+Remainingoriginalguard EXACTinterp23226 postV86pin TLS:
+phase lookup, generation471, broad69→146, CEpolicy25→36, kernelNone.
+Attestationreached/lookuprefusalBEFOREkernel; sourceproducer pinpointed falsepolicy
+mutation path, notclaimactualwholecauseclosure. Profile refresh deletesemptyowned
+stockprivate namespaces. Both normal/deferred teardown retire_namespace_unknown_root
+calls Namespaces::set_unknown_handler(ns,None), which UNCONDITIONALLY increments
+CEpolicy evenifstoredunknown isNone andincomingNone. Same-value no-op falsely stales
+unrelated directbinding. Otheractualpath/import/export/realhandler changes remain.
+
+Narrow pairedcandidate FROZEN vm-command-currency-empty-unknown-v1
+masterd1ac6a93af1c972b24b4db6a6ec51a187d6dddec763d3ffdde4224c24069abd2.
+WORK17cfcd105848a9f88b52875b7e51bdc380b2ad29a439254aecc17e3a74559754
+mand7f46745bf036a508ba962f98f96657e9001d793de8b3478e2f7e89de336ba48.
+CLEAN9f9e80cd6eb07ea765eae115cc6b94aed694fa2843d0ecc19739a478e531d0a1
+man5bb10e97dd31387532f86623f5345801452083ff8363ab333bbf1a7da3fd145e.
+Only None→None preserves broadNamespace/Unknown revision and avoidsfalseCEpolicy;
+allSome transitions keepoldCEpolicy+same memreplace/callerOwned releaseoutsideborrow.
+Meaningfulnew unit: exactbindinglookup survivesnoop, broadrevisionstilladvances,
+realhandlerinstall/clear stale, explicitunrelatedpath stillstale. Alloldfunctions/
+original2asserts untouched;fulloldinverse/copyF-R-F0/fmt2 PASS,noexecution.
+WORKmandatorynamespaceWASMpin+wholehash boundcurrent15a/CI9596; historic7authority
+hashesunchanged. Sourceproof1b2717801812f3b49b164244a0e646ad568288f94811c5c8126c5de1274e38c1
+includes exact5aa8 callpath and fourC85/86/90/91 nullableunknowncleanup windows/fullC
+hashes; C84nomatchedownerwindow/no C84claim. Doesnotproveall11increments thiscall
+alone ornewactualPASS. Await root-routed FULL independent Codegen/ownerpeer and
+freshoriginaltests; no canonicaledits/Git/build/dispatch byrole.
+
+## Earlier 5aa8 setup and completed global6 peer
+
+Root dispatched runtime40095742386/job120877516271 exact
+5aa8fe816b3ef93653eb5d6b8d489e5e8f897e47 at12:52:32. At13:00UTC capture still
+IN_PROGRESS, no artifact/terminal verdict. No duplicate dispatch/cancel/localbuild.
+Includes qualification8d929, userapprovedretained-state13c34 andguardTLS1130; both
+approvedtest selectors already in unchangedother103. Awaitactual131closed/list/raw/
+JUnit/source/provider/ownedprocessjoins andguardstage payload; CFI completeness
+mustremainhonest. Offtree5aa8inspectorenvelope readyUNEXECUTED with extraactual
+cmd_lseq/codegenABI/privateguardmodule/obj keyGitjoins, no borrowedprioroutcomes.
+
+Assigned LSPglobal6V5 paired8557/ac765 independently fullSOURCE/TYPE/OWNER/EFFECT
+STATIC CLEAR vm-peer-lsp-global6-v5/receipt.json
+SHAa28961f707c71273eb38d34660b4cef92ce6808a1cd9ed1177723faba4c352ff.
+Exactcurrent6filesbothlanes/copyF-R-F0/fmt12/supportingtypes; ACTUALproposedhelper
+independentlyinlinedrestoreseveryoldfilebyte, noauthorinverseinheritance. Original
+source/config/metadata/positioned/functionidentity orderexact; helperborrowreturned
+fromselfonly, allsource/closureownerscallerheld. Copy344packet alreadyCopy, same
+fieldsimmediatelydestructured; mutcachelastuseconsumedreferentexternallyowned.
+RawconstsameArcfieldaddress/no deref; reportinglabelactualcardlifetimedisjointfrom
+procedureString;clone_into passiveallocationtimingchangehonest. cfgtestWASMroot
+module sharesonlyOnceLockIDENTITY; BOTHexistinglibcallersONLYreal_link_runtime,
+routehasnoidentity/check_manifest, so no currentlibrarycacheinitialization; separate
+under_wasm integrationcratemodule/cacheunchanged. Notgenericmulti-runtimecacheproof.
+No native/Cargo/tests/actual strict/typegreen. Root/LSP notified; inputpinfragment
+needsrootversionedcomposition, no canonicalwrites byrole.
 
 ## Latest CodegenStyle3 peer and versioned pin union
 
@@ -133,7 +201,7 @@ selectors/env/argv/budgets/guards change. V1 permanentHOLD missingprivate-module
 preserved. Full currentJSONconsumer census824f only2WASMkeys. Rootnotifiedready;
 root integrated observerV2; newest988 compilefailure leaves allnewobserver outcomesUNRUN.
 
-## Latest guarded focused actual: exact1b046 all131 closed
+## Prior guarded focused actual: exact1b046 all131 closed
 
 vm-runtime-actual-40087999516/receipt.json
 SHA257cfbb7f5b1fc07c6ff5e9907a061eee8336445399efe1c88ec4dd8ff5fa7b3.
