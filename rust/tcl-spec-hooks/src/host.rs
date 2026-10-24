@@ -592,6 +592,48 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
 // could distinguish a dialect from a version.
 
 impl<E: Engine> HookHost<E> {
+    fn invocation_arguments(program: &HookProgram, call: &HookCall<'_>) -> Vec<Value> {
+        // Matches `effective_parameters`: a hook that declared inputs
+        // without `words` is compiled without that parameter, so passing
+        // the value would be an arity error on every call. A declared
+        // implementation's parameters are its declared inputs, one each, in
+        // declaration order.
+        if program.family == HookFamily::Evaluate {
+            call.words
+                .iter()
+                .map(|word| Value::string(word.value))
+                .collect()
+        } else if program.inputs.binds_words() {
+            vec![words_value(call), ctx_value(program, call)]
+        } else {
+            vec![ctx_value(program, call)]
+        }
+    }
+
+    fn selected_engine_and_handle<'a>(
+        engine: &'a mut E,
+        hook_handle: &'a E::Handle,
+        pinned_engines: &'a mut [PinnedEngine<E>],
+        hook_index: usize,
+        pinned: Option<usize>,
+    ) -> Option<(&'a mut E, &'a E::Handle)> {
+        match pinned {
+            None => Some((engine, hook_handle)),
+            Some(index) => {
+                let PinnedEngine {
+                    engine, handles, ..
+                } = &mut pinned_engines[index];
+                Some((
+                    n17_live_some!(engine.as_mut(), "host-pinned-engine")?,
+                    n17_live_some!(
+                        n17_live_some!(handles.get(hook_index), "host-pinned-index")?.as_ref(),
+                        "host-pinned-handle"
+                    )?,
+                ))
+            }
+        }
+    }
+
     /// Run hook `hook_index` of `pack` on `call` — on the pack's own engine,
     /// or on the engine pinned to the call's release when the hook runs
     /// pinned. `None` when the hook may not run at all: the pack is
@@ -619,21 +661,7 @@ impl<E: Engine> HookHost<E> {
             n17_live_trace!("decline=host-nonliteral");
             return None;
         }
-        // Matches `effective_parameters`: a hook that declared inputs
-        // without `words` is compiled without that parameter, so passing
-        // the value would be an arity error on every call. A declared
-        // implementation's parameters are its declared inputs, one each, in
-        // declaration order.
-        let arguments: Vec<Value> = if program.family == HookFamily::Evaluate {
-            call.words
-                .iter()
-                .map(|word| Value::string(word.value))
-                .collect()
-        } else if program.inputs.binds_words() {
-            vec![words_value(call), ctx_value(program, call)]
-        } else {
-            vec![ctx_value(program, call)]
-        };
+        let arguments = Self::invocation_arguments(program, call);
         let family = program.family;
         // A release-pinned hook never runs at an engine's default release:
         // with no release named for the call it abstains.
@@ -651,21 +679,13 @@ impl<E: Engine> HookHost<E> {
             ..
         } = pack;
         let hook = &mut hooks[hook_index];
-        let (engine, handle) = match pinned {
-            None => (engine, &hook.handle),
-            Some(index) => {
-                let PinnedEngine {
-                    engine, handles, ..
-                } = &mut pinned_engines[index];
-                (
-                    n17_live_some!(engine.as_mut(), "host-pinned-engine")?,
-                    n17_live_some!(
-                        n17_live_some!(handles.get(hook_index), "host-pinned-index")?.as_ref(),
-                        "host-pinned-handle"
-                    )?,
-                )
-            }
-        };
+        let (engine, handle) = Self::selected_engine_and_handle(
+            engine,
+            &hook.handle,
+            pinned_engines,
+            hook_index,
+            pinned,
+        )?;
         sink.clear();
         // The `constraints` family's reading verbs answer from this cell,
         // refilled per call exactly as the sink is cleared per call.
