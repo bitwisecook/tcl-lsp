@@ -17,9 +17,11 @@ pub(super) struct OriginalOoTarget {
 }
 impl OriginalOoTarget {
     fn capture(vm: &Vm, class: bool, id: OoId) -> Option<Self> {
-        let object = vm.oo.objects.get(&id)?;
+        let object = trace_oo_name_option("capture.object", vm.oo.objects.get(&id))?;
         let facet = if class {
-            Some(Rc::downgrade(&vm.oo.classes.get(&id)?.birth))
+            Some(Rc::downgrade(
+                &trace_oo_name_option("capture.class", vm.oo.classes.get(&id))?.birth,
+            ))
         } else {
             None
         };
@@ -33,28 +35,62 @@ impl OriginalOoTarget {
         })
     }
     pub(super) fn is_current(&self, vm: &Vm) -> bool {
-        let Some(original) = self.object.upgrade() else {
+        let Some(original) = trace_oo_name_option("current.object-owner", self.object.upgrade())
+        else {
             return false;
         };
-        let Some(object) = vm.oo.objects.get(&self.id) else {
+        let Some(object) = trace_oo_name_option("current.object-row", vm.oo.objects.get(&self.id))
+        else {
             return false;
         };
-        Rc::ptr_eq(&original, &object.cached_name)
-            && object.creation_id == self.creation
-            && object.namespace_token == self.namespace
-            && object.destroyed == self.destroyed
-            && self
-                .namespace
-                .is_none_or(|namespace| vm.native_namespace_token_has_owner(namespace))
+        trace_oo_name_bool(
+            "current.object-allocation",
+            Rc::ptr_eq(&original, &object.cached_name),
+        ) && trace_oo_name_bool("current.creation", object.creation_id == self.creation)
+            && trace_oo_name_bool(
+                "current.namespace-token",
+                object.namespace_token == self.namespace,
+            )
+            && trace_oo_name_bool(
+                "current.destroyed-state",
+                object.destroyed == self.destroyed,
+            )
+            && self.namespace.is_none_or(|namespace| {
+                trace_oo_name_bool(
+                    "current.namespace-live",
+                    vm.native_namespace_token_has_owner(namespace),
+                )
+            })
             && self.class.as_ref().is_none_or(|birth| {
-                birth.upgrade().is_some_and(|birth| {
-                    vm.oo
-                        .classes
-                        .get(&self.id)
-                        .is_some_and(|facet| Rc::ptr_eq(&birth, &facet.birth))
+                trace_oo_name_option("current.class-owner", birth.upgrade()).is_some_and(|birth| {
+                    trace_oo_name_option("current.class-row", vm.oo.classes.get(&self.id))
+                        .is_some_and(|facet| {
+                            trace_oo_name_bool(
+                                "current.class-allocation",
+                                Rc::ptr_eq(&birth, &facet.birth),
+                            )
+                        })
                 })
             })
     }
+}
+
+// WORK-only first-refusal observation of the original held Name predicates.
+fn trace_oo_name_bool(stage: &str, passed: bool) -> bool {
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    #[cfg(debug_assertions)]
+    if !passed
+        && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+    {
+        eprintln!("TCL_LSP_OO_NAME_FIRST_DECLINE {stage}");
+    }
+    passed
+}
+
+fn trace_oo_name_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    trace_oo_name_bool(stage, value.is_some());
+    value
 }
 
 pub(super) struct OriginalOoNameScope {
