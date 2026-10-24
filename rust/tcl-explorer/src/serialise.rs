@@ -2582,7 +2582,6 @@ fn post_ssa_analysis(
 /// Each graph stays paired with its stable function-owner kind, and alias
 /// information comes from the retained Memory SSA when available.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     let snaps = result.all_snapshots();
     let mut total_defs = 0u32;
@@ -2606,77 +2605,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
             total_uses = total_uses.saturating_add(f.total_uses);
             total_aliases =
                 total_aliases.saturating_add(u32::try_from(f.aliases.len()).unwrap_or(u32::MAX));
-            let memory = snap
-                .unit
-                .memory_ssa
-                .as_ref()
-                .map_or(Value::Null, serialise_memory_ssa);
-            let nodes: Vec<Value> = f
-                .nodes
-                .iter()
-                .map(|n| {
-                    json!({
-                        "name": n.name,
-                        "symbol": n.symbol.map(|symbol| symbol.0),
-                        "cell": n.cell,
-                        "version": n.version,
-                        "block": n.block,
-                        "defKind": n.def_kind,
-                        "statementIndex": n.statement_index,
-                        "lattice": n.lattice,
-                        "typeInfo": n.type_info,
-                        "isDead": n.is_dead,
-                        "useCount": n.use_count,
-                    })
-                })
-                .collect();
-            let edges: Vec<Value> = f
-                .edges
-                .iter()
-                .map(|e| {
-                    json!({
-                        "fromName": e.from_name,
-                        "fromSymbol": e.from_symbol.map(|symbol| symbol.0),
-                        "fromCell": e.from_cell,
-                        "fromVersion": e.from_version,
-                        "toBlock": e.to_block,
-                        "toStatementIndex": e.to_statement_index,
-                        "edgeKind": e.edge_kind.as_str(),
-                        "toName": e.to_name,
-                        "toSymbol": e.to_symbol.map(|symbol| symbol.0),
-                        "toCell": e.to_cell,
-                        "toVersion": e.to_version,
-                    })
-                })
-                .collect();
-            let aliases: Vec<Value> = f
-                .aliases
-                .iter()
-                .map(|a| {
-                    json!({
-                        "localName": a.local_name,
-                        "localKind": a.local_kind,
-                        "targetName": a.target_name,
-                        "targetKind": a.target_kind,
-                        "reason": a.reason,
-                    })
-                })
-                .collect();
-            json!({
-                "name": f.function_name,
-                "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
-                "kind": snap.kind.as_str(),
-                "nodes": nodes,
-                "edges": edges,
-                "aliases": aliases,
-                "memorySsa": memory,
-                "summary": {
-                    "totalDefs": f.total_defs,
-                    "totalUses": f.total_uses,
-                    "deadDefs": f.dead_defs,
-                    "aliasedVars": f.aliased_vars,
-                },
-            })
+            serialise_dataflow_function(result, snap, &f)
         })
         .collect();
 
@@ -2687,6 +2616,84 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
             "totalUses": total_uses,
             "totalAliases": total_aliases,
             "functionCount": snaps.len(),
+        },
+    })
+}
+
+fn serialise_dataflow_function(
+    result: &ExplorerResult,
+    snap: &crate::FunctionSnapshot<'_>,
+    f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph,
+) -> Value {
+    let memory = snap
+        .unit
+        .memory_ssa
+        .as_ref()
+        .map_or(Value::Null, serialise_memory_ssa);
+    let nodes: Vec<Value> = f
+        .nodes
+        .iter()
+        .map(|n| {
+            json!({
+                "name": n.name,
+                "symbol": n.symbol.map(|symbol| symbol.0),
+                "cell": n.cell,
+                "version": n.version,
+                "block": n.block,
+                "defKind": n.def_kind,
+                "statementIndex": n.statement_index,
+                "lattice": n.lattice,
+                "typeInfo": n.type_info,
+                "isDead": n.is_dead,
+                "useCount": n.use_count,
+            })
+        })
+        .collect();
+    let edges: Vec<Value> = f
+        .edges
+        .iter()
+        .map(|e| {
+            json!({
+                "fromName": e.from_name,
+                "fromSymbol": e.from_symbol.map(|symbol| symbol.0),
+                "fromCell": e.from_cell,
+                "fromVersion": e.from_version,
+                "toBlock": e.to_block,
+                "toStatementIndex": e.to_statement_index,
+                "edgeKind": e.edge_kind.as_str(),
+                "toName": e.to_name,
+                "toSymbol": e.to_symbol.map(|symbol| symbol.0),
+                "toCell": e.to_cell,
+                "toVersion": e.to_version,
+            })
+        })
+        .collect();
+    let aliases: Vec<Value> = f
+        .aliases
+        .iter()
+        .map(|a| {
+            json!({
+                "localName": a.local_name,
+                "localKind": a.local_kind,
+                "targetName": a.target_name,
+                "targetKind": a.target_kind,
+                "reason": a.reason,
+            })
+        })
+        .collect();
+    json!({
+        "name": f.function_name,
+        "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
+        "kind": snap.kind.as_str(),
+        "nodes": nodes,
+        "edges": edges,
+        "aliases": aliases,
+        "memorySsa": memory,
+        "summary": {
+            "totalDefs": f.total_defs,
+            "totalUses": f.total_uses,
+            "deadDefs": f.dead_defs,
+            "aliasedVars": f.aliased_vars,
         },
     })
 }
