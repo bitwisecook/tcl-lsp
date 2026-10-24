@@ -433,6 +433,21 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
+      - name: Fetch pinned Tcl 9.0.4 TomMath sources
+        timeout-minutes: 16
+        if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        run: |
+          set -euo pipefail
+          test -z "${TCL_RUNTIME_EXPECT_NO_TOMMATH:-}"
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+          timeout --signal=TERM --kill-after=20s 900s bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+
       - name: Run fast CI gate (format + Clippy + generated-file drift)
         # Preserve the prior step-level semantics exactly: pre-release tags
         # and already-green tags report success without repeating this work.

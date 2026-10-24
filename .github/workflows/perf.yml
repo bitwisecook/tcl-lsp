@@ -1645,6 +1645,19 @@ jobs:
           sha256sum "$(rustup which cargo)" "$(rustup which rustc)" "$(rustup which clippy-driver)" "$(rustup which rustfmt)" "$(command -v make)" "$(command -v git)" "$(command -v python3)" "$(command -v bash)" "$(command -v rustup)" > "$OUT/tools.sha256"
           printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
           printf '%s\n' 'DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.' > "$OUT/coverage.txt"
+      - name: Fetch pinned Tcl 9.0.4 TomMath sources
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          test -z "${TCL_RUNTIME_EXPECT_NO_TOMMATH:-}"
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+          timeout --signal=TERM --kill-after=20s 900s bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
       - name: Capture the original global strict command
         env:
           OUT: ${{ runner.temp }}/release-rust-check-output
