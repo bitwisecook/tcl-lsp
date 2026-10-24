@@ -855,6 +855,12 @@ jobs:
             ${{ runner.temp }}/runtime-fulltom-output/supplement/*.json
             ${{ runner.temp }}/runtime-fulltom-output/supplement/*.stdout
             ${{ runner.temp }}/runtime-fulltom-output/supplement/*.stderr
+            ${{ runner.temp }}/runtime-fulltom-output/stack-frames/*.json
+            ${{ runner.temp }}/runtime-fulltom-output/stack-frames/*.stdout
+            ${{ runner.temp }}/runtime-fulltom-output/stack-frames/*.stderr
+            ${{ runner.temp }}/runtime-fulltom-output/c84-provider/*.json
+            ${{ runner.temp }}/runtime-fulltom-output/c84-provider/*.stdout
+            ${{ runner.temp }}/runtime-fulltom-output/c84-provider/*.stderr
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
