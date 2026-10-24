@@ -7347,9 +7347,9 @@ fn trace_source_analysis(
 
 #[cfg(any(test, debug_assertions))]
 struct SourceAnalysisTrace {
-    phase_start: Option<std::time::Instant>,
-    lookup_start: Option<(u64, u128)>,
-    query_start: Option<original_command_table::OriginalSourceQueryTotals>,
+    phase: Option<std::time::Instant>,
+    lookup: Option<(u64, u128)>,
+    queries: Option<original_command_table::OriginalSourceQueryTotals>,
 }
 
 #[cfg(any(test, debug_assertions))]
@@ -7362,20 +7362,20 @@ impl SourceAnalysisTrace {
         let query_start =
             phase_start.map(|_| original_command_table::original_source_query_totals());
         Self {
-            phase_start,
-            lookup_start,
-            query_start,
+            phase: phase_start,
+            lookup: lookup_start,
+            queries: query_start,
         }
     }
 
     fn phase(&self, stage: &str, source_len: usize, bindings: &SourceCommandBindings) {
-        trace_source_analysis(self.phase_start, stage, source_len, bindings);
-        trace_source_original_queries(self.query_start.as_ref(), stage, source_len);
+        trace_source_analysis(self.phase, stage, source_len, bindings);
+        trace_source_original_queries(self.queries.as_ref(), stage, source_len);
     }
 
     fn phase_with_lookup(&self, stage: &str, source_len: usize, bindings: &SourceCommandBindings) {
         self.phase(stage, source_len, bindings);
-        trace_source_lookup(self.lookup_start, stage, source_len);
+        trace_source_lookup(self.lookup, stage, source_len);
     }
 }
 
@@ -7666,7 +7666,7 @@ impl SourceCommandBindings {
                 .cloned()
                 .map(Arc::new);
             #[cfg(any(test, debug_assertions))]
-            trace_source_analysis(tracing.phase_start, "memo", source.len(), &bindings);
+            trace_source_analysis(tracing.phase, "memo", source.len(), &bindings);
             return bindings;
         }
         let namespace = source_frame_namespace(frame);
