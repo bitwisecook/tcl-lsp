@@ -4,10 +4,12 @@
 
 //! Backend-owned publication of exact live Studio source images.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    Arc, Backend, DocumentPathAdmission, DocumentSourceResult, DocumentSourceUnavailable, HashMap,
+    Path, PathBuf, ReloadTrigger, Uri, jsonrpc, uri_norm, vfs,
+};
+#[cfg(test)]
+use super::{ExecuteCommandParams, FromStr, LanguageServer, service};
 use tcl_lsp_core::wire_session::EditorWireSession;
 #[cfg(test)]
 use tower_lsp_server::ls_types::WorkDoneProgressParams;

@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Explicit, current source-bound package declaration authoring.
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{Arc, Backend, core_code_actions, document_transform, jsonrpc};
+#[cfg(test)]
+use super::{DocumentState, FromStr, Uri};
 impl Backend {
     pub(super) async fn insert_package_require_command(
         &self,

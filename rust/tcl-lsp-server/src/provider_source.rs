@@ -4,10 +4,17 @@
 
 //! Each package implementation keeps its own configured source owner.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    Analyser, AnalysisResult, Arc, Backend, DocumentPathAdmission, HashMap, HashSet, Mutex,
+    NonAsciiMode, PackageResolver, Path, PathBuf, PublishedSourcePath, PublishedSourcePaths,
+    ResourceAnalyserInputs, RwLock, TrackedMutex, Uri, longest_folder_match, vfs,
+};
+#[cfg(test)]
+use super::{
+    ControlFlow, DiagCode, RecoveryWidenCtx, SalsaAnalysisCtx, W120Availability,
+    compute_base_analysis, defined_original_commands_from_analysis,
+    refine_original_w123_diagnostics, widen_recovery_extra_commands,
+};
 use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tcl_registry::model::OverlayMiss;
 
