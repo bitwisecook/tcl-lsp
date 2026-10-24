@@ -33,7 +33,7 @@ fn generic_each_loop_uses_the_actual_host_with_a_separate_source_policy() {
 #[test]
 fn generic_each_loop_keeps_missing_and_unsupported_host_recipes_closed() {
     let source = tcl_dialect::DialectProfile::irules();
-    let mut missing = Vm::new();
+    let mut missing = Vm::without_native_engine();
     missing.set_dialect_profile(source);
     assert!(!missing.set_native_engine_profile(source));
     let arguments = [
