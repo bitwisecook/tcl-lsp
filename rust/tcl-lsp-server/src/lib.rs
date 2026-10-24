@@ -30956,6 +30956,226 @@ impl Backend {
     }
 }
 
+impl Backend {
+    fn workspace_symbol_hit_is_current(
+        hit: &core_workspace_symbols::IndexedWorkspaceSymbol,
+        doc: &DocumentState,
+        current: &readonly_reference_reports::WorkspaceSymbolSourceAnalysis,
+        indexed_revisions: &HashMap<String, u64>,
+    ) -> bool {
+        if let Some(owner) = hit.original_location.as_ref() {
+            if owner.uri() != hit.uri
+                || owner.validated_span(
+                    &doc.text,
+                    readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(current),
+                ) != Some(hit.name_span)
+            {
+                return false;
+            }
+        } else {
+            let Some(owner) = hit.logical_source.as_ref() else {
+                // No latest-source span inverse: a logical report row
+                // without its own retained source view is unavailable.
+                return false;
+            };
+            if owner.uri() != hit.uri
+                || owner.span() != hit.name_span
+                || !owner.matches_source(&hit.uri, &doc.text)
+                || indexed_revisions
+                    .get(&hit.uri)
+                    .is_some_and(|revision| owner.document_revision() != *revision)
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn indexed_workspace_symbol_kind(kind: CoreWorkspaceSymbolKind) -> SymbolKind {
+        match kind {
+            // A tcltest case has no dedicated LSP kind; it lists as
+            // a function alongside real functions.
+            CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+                SymbolKind::FUNCTION
+            }
+            CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+            CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
+            CoreWorkspaceSymbolKind::Property => SymbolKind::PROPERTY,
+            CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+            CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+            CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
+            CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
+        }
+    }
+
+    async fn position_hover_before_method(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+    ) -> DocumentSourceResult<ControlFlow<Option<Hover>>> {
+        // A namespace-name argument is answered here, in full, and never
+        // reaches the tiers below — the position is definitive, and the
+        // counts describe the whole workspace rather than just this document.
+        // `None` means no file in view declares the namespace, which is a real
+        // "no hover", not a licence to fall through to command documentation.
+        if let Some(symbol) = Self::original_namespace_symbol(&doc.text, analysis, pos) {
+            return Ok(ControlFlow::Break(
+                self.original_namespace_hover(uri, analysis, &symbol)
+                    .await?
+                    .map(lift_hover),
+            ));
+        }
+        if Self::original_namespace_cursor_retained(&doc.text, analysis, pos) {
+            return Ok(ControlFlow::Break(None));
+        }
+        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) {
+            return Ok(ControlFlow::Break(
+                self.namespace_hover(uri, analysis, &cell)
+                    .await?
+                    .map(lift_hover),
+            ));
+        }
+        // An iRulesLX method word names a JavaScript function, not a Tcl one,
+        // so it is answered here rather than by the command-documentation
+        // tiers below. The body always says which of the two ILX
+        // commands reached it — they share the method target but not the
+        // semantics — and, when nothing resolved, why.
+        if let Some(path) = uri.to_file_path()
+            && let Some((call, target)) = self.ilx_method_at(uri, doc, &path, pos).await?
+        {
+            return Ok(ControlFlow::Break(Some(lift_hover(CoreHover {
+                value: core_ilx::hover_markdown(&call, &target),
+                kind: CoreHoverKind::Markdown,
+            }))));
+        }
+        Ok(ControlFlow::Continue(()))
+    }
+}
+
+struct CodeActionWorkerInputs<'a> {
+    uri_key: &'a str,
+    exports: &'a Arc<core_workspace_index::NamespaceExportSnapshot>,
+    doc: &'a DocumentState,
+    analysis: &'a Arc<AnalysisResult>,
+    report_inputs: &'a CodeActionReportInputs,
+    range: CoreLspRange,
+    docstring_style: core_formatting::DocstringStyle,
+    registry: &'a Arc<CommandRegistry>,
+    context_diags: &'a [core_code_actions::ContextDiagnostic],
+    uri_str: &'a str,
+    dialect: &'a str,
+}
+
+impl Backend {
+    async fn code_action_source_for_range(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        range: Range,
+    ) -> DocumentSourceResult<
+        ControlFlow<(), Option<readonly_reference_reports::OriginalCodeActionSource>>,
+    > {
+        if doc.dialect == "f5-bigip" {
+            return Ok(ControlFlow::Continue(None));
+        }
+        let Some(source) = self.capture_code_action_source(uri, doc).await? else {
+            return Ok(ControlFlow::Break(()));
+        };
+        if !source.contains_range(range) {
+            return Ok(ControlFlow::Break(()));
+        }
+        Ok(ControlFlow::Continue(Some(source)))
+    }
+
+    async fn analysis_for_code_action_source(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        source: Option<&readonly_reference_reports::OriginalCodeActionSource>,
+    ) -> DocumentSourceResult<Arc<AnalysisResult>> {
+        match source {
+            Some(source) => Ok(source.analysis()),
+            None => {
+                self.analysis_for(uri, doc.text.clone(), doc.dialect.clone())
+                    .await
+            }
+        }
+    }
+
+    async fn code_action_published_diagnostics(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &Arc<AnalysisResult>,
+        registry: &Arc<CommandRegistry>,
+        disabled_codes: &HashSet<String>,
+    ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+        self.published_analyser_diagnostics(
+            uri,
+            &doc.text,
+            analysis,
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+            registry,
+            disabled_codes,
+        )
+        .await
+    }
+
+    fn build_document_code_actions(
+        inputs: &CodeActionWorkerInputs<'_>,
+    ) -> Vec<core_code_actions::CodeAction> {
+        let CodeActionWorkerInputs {
+            uri_key,
+            exports,
+            doc,
+            analysis,
+            report_inputs,
+            range,
+            docstring_style,
+            registry,
+            context_diags,
+            uri_str,
+            dialect,
+        } = *inputs;
+        let program = core_definition::ProgramExports {
+            uri: uri_key,
+            oracle: exports.as_ref(),
+        };
+        let report = code_action_report(doc, analysis, report_inputs);
+        // `program` decides what an inlined call reaches; `report`
+        // decides what this document shows.
+        let mut actions = core_code_actions::code_actions_in_program(
+            &doc.text,
+            range,
+            Some(analysis),
+            &report,
+            Some(program),
+            docstring_style,
+        );
+        push_context_code_actions(
+            &mut actions,
+            &doc.text,
+            range,
+            registry,
+            program,
+            analysis,
+            context_diags,
+        );
+        let dialect_inputs = DialectActionInputs {
+            uri: uri_str,
+            version: doc.version.and_then(|version| u32::try_from(version).ok()),
+            dialect: tcl_lsp_core::profile_for_dialect(dialect),
+            analysis,
+            registry,
+            context_diags,
+        };
+        push_dialect_code_actions(&mut actions, &doc.text, range, &dialect_inputs);
+        actions
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         // A document can be opened, and analysed, before the start-up pack
@@ -33617,32 +33837,8 @@ impl LanguageServer for Backend {
             let Some(Some(current)) = analyses.get(&hit.uri) else {
                 continue;
             };
-            if let Some(owner) = hit.original_location.as_ref() {
-                if owner.uri() != hit.uri
-                    || owner.validated_span(
-                        &doc.text,
-                        readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(
-                            current,
-                        ),
-                    ) != Some(hit.name_span)
-                {
-                    continue;
-                }
-            } else {
-                let Some(owner) = hit.logical_source.as_ref() else {
-                    // No latest-source span inverse: a logical report row
-                    // without its own retained source view is unavailable.
-                    continue;
-                };
-                if owner.uri() != hit.uri
-                    || owner.span() != hit.name_span
-                    || !owner.matches_source(&hit.uri, &doc.text)
-                    || indexed_revisions
-                        .get(&hit.uri)
-                        .is_some_and(|revision| owner.document_revision() != *revision)
-                {
-                    continue;
-                }
+            if !Self::workspace_symbol_hit_is_current(&hit, doc, current, &indexed_revisions) {
+                continue;
             }
             let start = doc
                 .line_index
@@ -33653,20 +33849,7 @@ impl LanguageServer for Backend {
             #[allow(deprecated)]
             let symbol = SymbolInformation {
                 name: hit.name,
-                kind: match hit.kind {
-                    // A tcltest case has no dedicated LSP kind; it lists as
-                    // a function alongside real functions.
-                    CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
-                        SymbolKind::FUNCTION
-                    }
-                    CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
-                    CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
-                    CoreWorkspaceSymbolKind::Property => SymbolKind::PROPERTY,
-                    CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
-                    CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
-                    CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
-                    CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
-                },
+                kind: Self::indexed_workspace_symbol_kind(hit.kind),
                 tags: None,
                 deprecated: None,
                 location: Location {
@@ -34063,32 +34246,18 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
-        let range = CoreLspRange {
-            start_line: params.range.start.line,
-            start_character: params.range.start.character,
-            end_line: params.range.end.line,
-            end_character: params.range.end.character,
-        };
+        let range = core_semantic_range(params.range);
         // The dedicated BIG-IP adapter retains its existing routing. Ordinary
         // source edits require an actual open, versioned document receipt.
-        let source = if doc.dialect == "f5-bigip" {
-            None
-        } else {
-            let Some(source) = self.capture_code_action_source(&uri, &doc).await? else {
-                return Ok(None);
-            };
-            if !source.contains_range(params.range) {
-                return Ok(None);
-            }
-            Some(source)
+        let ControlFlow::Continue(source) = self
+            .code_action_source_for_range(&uri, &doc, params.range)
+            .await?
+        else {
+            return Ok(None);
         };
-        let analysis = match &source {
-            Some(source) => source.analysis(),
-            None => {
-                self.analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-                    .await?
-            }
-        };
+        let analysis = self
+            .analysis_for_code_action_source(&uri, &doc, source.as_ref())
+            .await?;
         // `S-code-actions-rich`: walks the analyser's
         // diagnostics for fixes whose span overlaps the
         // requested range, plus fuzzy `package require`
@@ -34112,14 +34281,7 @@ impl LanguageServer for Backend {
         // it is the policy step's decision, taken below with the compiler
         // checks and the optimiser's rewrites in the same report.
         let published = self
-            .published_analyser_diagnostics(
-                &uri,
-                &doc.text,
-                &analysis,
-                tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                &registry,
-                &disabled_codes,
-            )
+            .code_action_published_diagnostics(&uri, &doc, &analysis, &registry, &disabled_codes)
             .await;
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules
@@ -34165,40 +34327,19 @@ impl LanguageServer for Backend {
         let docstring_style = self.resolved_docstring_style(&uri).await;
         let uri_key = uri.as_str().to_owned();
         let mut actions = crate::rt::spawn_blocking(move || {
-            let program = core_definition::ProgramExports {
-                uri: &uri_key,
-                oracle: exports.as_ref(),
-            };
-            let report = code_action_report(&doc, &analysis, &report_inputs);
-            // `program` decides what an inlined call reaches; `report`
-            // decides what this document shows.
-            let mut actions = core_code_actions::code_actions_in_program(
-                &doc.text,
-                range,
-                Some(&analysis),
-                &report,
-                Some(program),
-                docstring_style,
-            );
-            push_context_code_actions(
-                &mut actions,
-                &doc.text,
-                range,
-                &registry,
-                program,
-                &analysis,
-                &context_diags,
-            );
-            let dialect_inputs = DialectActionInputs {
-                uri: &uri_str,
-                version: doc.version.and_then(|version| u32::try_from(version).ok()),
-                dialect: tcl_lsp_core::profile_for_dialect(&dialect),
+            Self::build_document_code_actions(&CodeActionWorkerInputs {
+                uri_key: &uri_key,
+                exports: &exports,
+                doc: &doc,
                 analysis: &analysis,
+                report_inputs: &report_inputs,
+                range,
+                docstring_style,
                 registry: &registry,
                 context_diags: &context_diags,
-            };
-            push_dialect_code_actions(&mut actions, &doc.text, range, &dialect_inputs);
-            actions
+                uri_str: &uri_str,
+                dialect: &dialect,
+            })
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -35134,38 +35275,11 @@ impl LanguageServer for Backend {
         // that happens to share a sibling proc's name would pop up that proc's
         // signature.  Computed here, while `analysis` is still in scope.
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
-        // A namespace-name argument is answered here, in full, and never
-        // reaches the tiers below — the position is definitive, and the
-        // counts describe the whole workspace rather than just this document.
-        // `None` means no file in view declares the namespace, which is a real
-        // "no hover", not a licence to fall through to command documentation.
-        if let Some(symbol) = Self::original_namespace_symbol(&doc.text, &analysis, pos) {
-            return Ok(self
-                .original_namespace_hover(&uri, &analysis, &symbol)
-                .await?
-                .map(lift_hover));
-        }
-        if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos) {
-            return Ok(None);
-        }
-        if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
-            return Ok(self
-                .namespace_hover(&uri, &analysis, &cell)
-                .await?
-                .map(lift_hover));
-        }
-        // An iRulesLX method word names a JavaScript function, not a Tcl one,
-        // so it is answered here rather than by the command-documentation
-        // tiers below. The body always says which of the two ILX
-        // commands reached it — they share the method target but not the
-        // semantics — and, when nothing resolved, why.
-        if let Some(path) = uri.to_file_path()
-            && let Some((call, target)) = self.ilx_method_at(&uri, &doc, &path, pos).await?
+        if let ControlFlow::Break(hover) = self
+            .position_hover_before_method(&uri, &doc, &analysis, pos)
+            .await?
         {
-            return Ok(Some(lift_hover(CoreHover {
-                value: core_ilx::hover_markdown(&call, &target),
-                kind: CoreHoverKind::Markdown,
-            })));
+            return Ok(hover);
         }
         if let std::ops::ControlFlow::Break(hover) =
             Box::pin(self.original_method_hover_for_snapshot(
