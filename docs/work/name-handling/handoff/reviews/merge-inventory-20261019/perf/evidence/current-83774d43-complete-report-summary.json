@@ -1,0 +1,3484 @@
+{
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "created_utc": "2026-10-24 01:10 UTC",
+  "report_comparisons": 248,
+  "unique_inputs": 124,
+  "scope": "All102 Tcl+15iRules+7synthetic sizes in forced-old and mixed modes. Every complete authenticated report pair Equal, no Different/Unavailable. Runtime/global/cache Eq remains strict and separately recorded in raw rows. All complete ordered PackSet Debug fields/order retained; no sorting. Timings include report capture, exclude pair comparison. Not compiler/server/lint acceptance.",
+  "rows": [
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+      "old1_ms": 862,
+      "new_ms": 1242,
+      "old2_ms": 707,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/27-if-to-switch-before.tcl\" old1_ms=862 new_ms=1242 old2_ms=707 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/20-folding.tcl",
+      "old1_ms": 1024,
+      "new_ms": 1355,
+      "old2_ms": 732,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/20-folding.tcl\" old1_ms=1024 new_ms=1355 old2_ms=732 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/32-document-links.tcl",
+      "old1_ms": 1519,
+      "new_ms": 904,
+      "old2_ms": 1002,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-document-links.tcl\" old1_ms=1519 new_ms=904 old2_ms=1002 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/07-formatting-side-by-side.tcl",
+      "old1_ms": 2439,
+      "new_ms": 2832,
+      "old2_ms": 2917,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/07-formatting-side-by-side.tcl\" old1_ms=2439 new_ms=2832 old2_ms=2917 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/27-if-to-switch-after.tcl",
+      "old1_ms": 1561,
+      "new_ms": 859,
+      "old2_ms": 619,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/27-if-to-switch-after.tcl\" old1_ms=1561 new_ms=859 old2_ms=619 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/16-references-long.tcl",
+      "old1_ms": 2976,
+      "new_ms": 1656,
+      "old2_ms": 921,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/16-references-long.tcl\" old1_ms=2976 new_ms=1656 old2_ms=921 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/22-optimiser-before.tcl",
+      "old1_ms": 4227,
+      "new_ms": 3714,
+      "old2_ms": 2169,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/22-optimiser-before.tcl\" old1_ms=4227 new_ms=3714 old2_ms=2169 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/15-definition-long.tcl",
+      "old1_ms": 2483,
+      "new_ms": 1619,
+      "old2_ms": 1653,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/15-definition-long.tcl\" old1_ms=2483 new_ms=1619 old2_ms=1653 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/proc_arg_traits_examples.tcl",
+      "old1_ms": 9183,
+      "new_ms": 12185,
+      "old2_ms": 9639,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/proc_arg_traits_examples.tcl\" old1_ms=9183 new_ms=12185 old2_ms=9639 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tclpkg/tclpkg.tcl",
+      "old1_ms": 946,
+      "new_ms": 303,
+      "old2_ms": 282,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tclpkg/tclpkg.tcl\" old1_ms=946 new_ms=303 old2_ms=282 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/42_arrays.tcl",
+      "old1_ms": 3626,
+      "new_ms": 2057,
+      "old2_ms": 1851,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/42_arrays.tcl\" old1_ms=3626 new_ms=2057 old2_ms=1851 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/43_namespaces.tcl",
+      "old1_ms": 1378,
+      "new_ms": 1271,
+      "old2_ms": 1779,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/43_namespaces.tcl\" old1_ms=1378 new_ms=1271 old2_ms=1779 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/40_global_variable.tcl",
+      "old1_ms": 1613,
+      "new_ms": 1319,
+      "old2_ms": 1081,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/40_global_variable.tcl\" old1_ms=1613 new_ms=1319 old2_ms=1081 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl",
+      "old1_ms": 2231,
+      "new_ms": 2054,
+      "old2_ms": 1837,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl\" old1_ms=2231 new_ms=2054 old2_ms=1837 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/63_objects_in_data.tcl",
+      "old1_ms": 3592,
+      "new_ms": 2759,
+      "old2_ms": 2762,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/63_objects_in_data.tcl\" old1_ms=3592 new_ms=2759 old2_ms=2762 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/61_inheritance_next.tcl",
+      "old1_ms": 2748,
+      "new_ms": 5146,
+      "old2_ms": 28301,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/61_inheritance_next.tcl\" old1_ms=2748 new_ms=5146 old2_ms=28301 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/60_class_basic.tcl",
+      "old1_ms": 6687,
+      "new_ms": 3474,
+      "old2_ms": 1454,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/60_class_basic.tcl\" old1_ms=6687 new_ms=3474 old2_ms=1454 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/70_var_traces.tcl",
+      "old1_ms": 3367,
+      "new_ms": 1570,
+      "old2_ms": 90506,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/70_var_traces.tcl\" old1_ms=3367 new_ms=1570 old2_ms=90506 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/72_uplevel_eval.tcl",
+      "old1_ms": 5945,
+      "new_ms": 1611,
+      "old2_ms": 1606,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/72_uplevel_eval.tcl\" old1_ms=5945 new_ms=1611 old2_ms=1606 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/71_exec_traces_rename.tcl",
+      "old1_ms": 1051,
+      "new_ms": 684,
+      "old2_ms": 809,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/71_exec_traces_rename.tcl\" old1_ms=1051 new_ms=684 old2_ms=809 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/51_try_finally.tcl",
+      "old1_ms": 5325,
+      "new_ms": 3267,
+      "old2_ms": 2608,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/51_try_finally.tcl\" old1_ms=5325 new_ms=3267 old2_ms=2608 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/52_loop_completion.tcl",
+      "old1_ms": 3829,
+      "new_ms": 2048,
+      "old2_ms": 2045,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/52_loop_completion.tcl\" old1_ms=3829 new_ms=2048 old2_ms=2045 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/50_catch_error.tcl",
+      "old1_ms": 5610,
+      "new_ms": 2865,
+      "old2_ms": 47673,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/50_catch_error.tcl\" old1_ms=5610 new_ms=2865 old2_ms=47673 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/15_switch.tcl",
+      "old1_ms": 1406,
+      "new_ms": 766,
+      "old2_ms": 848,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/15_switch.tcl\" old1_ms=1406 new_ms=766 old2_ms=848 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/13_expr_ops.tcl",
+      "old1_ms": 4171,
+      "new_ms": 4388,
+      "old2_ms": 3980,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/13_expr_ops.tcl\" old1_ms=4171 new_ms=4388 old2_ms=3980 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/16_conditional_arms.tcl",
+      "old1_ms": 2922,
+      "new_ms": 1635,
+      "old2_ms": 1748,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/16_conditional_arms.tcl\" old1_ms=2922 new_ms=1635 old2_ms=1748 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/23_dicts.tcl",
+      "old1_ms": 8484,
+      "new_ms": 4988,
+      "old2_ms": 3248,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/23_dicts.tcl\" old1_ms=8484 new_ms=4988 old2_ms=3248 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/21_foreach.tcl",
+      "old1_ms": 1220,
+      "new_ms": 1147,
+      "old2_ms": 1882,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/21_foreach.tcl\" old1_ms=1220 new_ms=1147 old2_ms=1882 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/20_lists.tcl",
+      "old1_ms": 2160,
+      "new_ms": 1420,
+      "old2_ms": 1432,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/20_lists.tcl\" old1_ms=2160 new_ms=1420 old2_ms=1432 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/22_strings.tcl",
+      "old1_ms": 4053,
+      "new_ms": 3316,
+      "old2_ms": 13748,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/22_strings.tcl\" old1_ms=4053 new_ms=3316 old2_ms=13748 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+      "old1_ms": 26124,
+      "new_ms": 10399,
+      "old2_ms": 15280,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/35_native_dispatch_matrix.tcl\" old1_ms=26124 new_ms=10399 old2_ms=15280 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/37_return_state.tcl",
+      "old1_ms": 1699,
+      "new_ms": 2698,
+      "old2_ms": 1873,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/37_return_state.tcl\" old1_ms=1699 new_ms=2698 old2_ms=1873 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/31_recursion.tcl",
+      "old1_ms": 5759,
+      "new_ms": 1858,
+      "old2_ms": 1803,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/31_recursion.tcl\" old1_ms=5759 new_ms=1858 old2_ms=1803 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/36_proc_error_info.tcl",
+      "old1_ms": 1505,
+      "new_ms": 1030,
+      "old2_ms": 1382,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/36_proc_error_info.tcl\" old1_ms=1505 new_ms=1030 old2_ms=1382 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/33_string_builder.tcl",
+      "old1_ms": 872,
+      "new_ms": 803,
+      "old2_ms": 963,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/33_string_builder.tcl\" old1_ms=872 new_ms=803 old2_ms=963 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/32_defaults_and_args.tcl",
+      "old1_ms": 1243,
+      "new_ms": 939,
+      "old2_ms": 810,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/32_defaults_and_args.tcl\" old1_ms=1243 new_ms=939 old2_ms=810 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/dialect_stubs_inline_example.tcl",
+      "old1_ms": 332,
+      "new_ms": 445,
+      "old2_ms": 212,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/dialect_stubs_inline_example.tcl\" old1_ms=332 new_ms=445 old2_ms=212 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_standard.tcl",
+      "old1_ms": 15578,
+      "new_ms": 10538,
+      "old2_ms": 8410,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_standard.tcl\" old1_ms=15578 new_ms=10538 old2_ms=8410 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_aggressive.tcl",
+      "old1_ms": 7110,
+      "new_ms": 6110,
+      "old2_ms": 5550,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_aggressive.tcl\" old1_ms=7110 new_ms=6110 old2_ms=5550 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/deep_pipeline.tcl",
+      "old1_ms": 6347,
+      "new_ms": 5817,
+      "old2_ms": 7117,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/deep_pipeline.tcl\" old1_ms=6347 new_ms=5817 old2_ms=7117 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_readability.tcl",
+      "old1_ms": 11728,
+      "new_ms": 7905,
+      "old2_ms": 8524,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_readability.tcl\" old1_ms=11728 new_ms=7905 old2_ms=8524 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_full.tcl",
+      "old1_ms": 7460,
+      "new_ms": 6529,
+      "old2_ms": 6597,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_full.tcl\" old1_ms=7460 new_ms=6529 old2_ms=6597 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/optimiser/input.tcl",
+      "old1_ms": 11131,
+      "new_ms": 10689,
+      "old2_ms": 9541,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/input.tcl\" old1_ms=11131 new_ms=10689 old2_ms=9541 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W211_set_never_used/example.tcl",
+      "old1_ms": 520,
+      "new_ms": 324,
+      "old2_ms": 339,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W211_set_never_used/example.tcl\" old1_ms=520 new_ms=324 old2_ms=339 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W105_unbraced_eval/example.tcl",
+      "old1_ms": 1617,
+      "new_ms": 1202,
+      "old2_ms": 1835,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W105_unbraced_eval/example.tcl\" old1_ms=1617 new_ms=1202 old2_ms=1835 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/S101_shimmer_merge/example.tcl",
+      "old1_ms": 2853,
+      "new_ms": 1609,
+      "old2_ms": 53723,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/S101_shimmer_merge/example.tcl\" old1_ms=2853 new_ms=1609 old2_ms=53723 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O110_canonicalise_expr/example.tcl",
+      "old1_ms": 916,
+      "new_ms": 712,
+      "old2_ms": 620,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O110_canonicalise_expr/example.tcl\" old1_ms=916 new_ms=712 old2_ms=620 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W102_subst_injection/example.tcl",
+      "old1_ms": 1475,
+      "new_ms": 820,
+      "old2_ms": 899,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W102_subst_injection/example.tcl\" old1_ms=1475 new_ms=820 old2_ms=899 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W307_non_literal_command/example.tcl",
+      "old1_ms": 1408,
+      "new_ms": 1102,
+      "old2_ms": 1133,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W307_non_literal_command/example.tcl\" old1_ms=1408 new_ms=1102 old2_ms=1133 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W301_uplevel_unbraced/example.tcl",
+      "old1_ms": 772,
+      "new_ms": 524,
+      "old2_ms": 557,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W301_uplevel_unbraced/example.tcl\" old1_ms=772 new_ms=524 old2_ms=557 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W313_file_delete_path/example.tcl",
+      "old1_ms": 1887,
+      "new_ms": 1546,
+      "old2_ms": 1584,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W313_file_delete_path/example.tcl\" old1_ms=1887 new_ms=1546 old2_ms=1584 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W210_read_before_set/example.tcl",
+      "old1_ms": 1167,
+      "new_ms": 902,
+      "old2_ms": 1330,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W210_read_before_set/example.tcl\" old1_ms=1167 new_ms=902 old2_ms=1330 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W220_assignment_never_read/example.tcl",
+      "old1_ms": 316,
+      "new_ms": 164,
+      "old2_ms": 256,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W220_assignment_never_read/example.tcl\" old1_ms=316 new_ms=164 old2_ms=256 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W314_no_absolute_name/example.tcl",
+      "old1_ms": 448,
+      "new_ms": 290,
+      "old2_ms": 284,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W314_no_absolute_name/example.tcl\" old1_ms=448 new_ms=290 old2_ms=284 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W111_long_line/example.tcl",
+      "old1_ms": 330,
+      "new_ms": 210,
+      "old2_ms": 190,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W111_long_line/example.tcl\" old1_ms=330 new_ms=210 old2_ms=190 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W002_disabled_command/example.tcl",
+      "old1_ms": 1969,
+      "new_ms": 1119,
+      "old2_ms": 959,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W002_disabled_command/example.tcl\" old1_ms=1969 new_ms=1119 old2_ms=959 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W112_trailing_whitespace/example.tcl",
+      "old1_ms": 318,
+      "new_ms": 196,
+      "old2_ms": 192,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W112_trailing_whitespace/example.tcl\" old1_ms=318 new_ms=196 old2_ms=192 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W304_missing_double_dash/example.tcl",
+      "old1_ms": 5784,
+      "new_ms": 5189,
+      "old2_ms": 13271,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W304_missing_double_dash/example.tcl\" old1_ms=5784 new_ms=5189 old2_ms=13271 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W001_unknown_subcommand/example.tcl",
+      "old1_ms": 5343,
+      "new_ms": 995,
+      "old2_ms": 844,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W001_unknown_subcommand/example.tcl\" old1_ms=5343 new_ms=995 old2_ms=844 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/S102_type_thunking/example.tcl",
+      "old1_ms": 1943,
+      "new_ms": 1493,
+      "old2_ms": 1388,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/S102_type_thunking/example.tcl\" old1_ms=1943 new_ms=1493 old2_ms=1388 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O116_fold_constant_list/example.tcl",
+      "old1_ms": 718,
+      "new_ms": 503,
+      "old2_ms": 486,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O116_fold_constant_list/example.tcl\" old1_ms=718 new_ms=503 old2_ms=486 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O106_loop_invariant/example.tcl",
+      "old1_ms": 1499,
+      "new_ms": 1951,
+      "old2_ms": 1513,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O106_loop_invariant/example.tcl\" old1_ms=1499 new_ms=1951 old2_ms=1513 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W103_open_pipeline/example.tcl",
+      "old1_ms": 2428,
+      "new_ms": 1690,
+      "old2_ms": 1716,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W103_open_pipeline/example.tcl\" old1_ms=2428 new_ms=1690 old2_ms=1716 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W101_eval_injection/example.tcl",
+      "old1_ms": 1302,
+      "new_ms": 1912,
+      "old2_ms": 1756,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W101_eval_injection/example.tcl\" old1_ms=1302 new_ms=1912 old2_ms=1756 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W115_backslash_newline_comment/example.tcl",
+      "old1_ms": 804,
+      "new_ms": 350,
+      "old2_ms": 641,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W115_backslash_newline_comment/example.tcl\" old1_ms=804 new_ms=350 old2_ms=641 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W214_unused_parameter/example.tcl",
+      "old1_ms": 838,
+      "new_ms": 672,
+      "old2_ms": 856,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W214_unused_parameter/example.tcl\" old1_ms=838 new_ms=672 old2_ms=856 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/E003_proc_call_arity/example.tcl",
+      "old1_ms": 1048,
+      "new_ms": 965,
+      "old2_ms": 1188,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/E003_proc_call_arity/example.tcl\" old1_ms=1048 new_ms=965 old2_ms=1188 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W306_regexp_substitution/example.tcl",
+      "old1_ms": 1520,
+      "new_ms": 994,
+      "old2_ms": 1236,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W306_regexp_substitution/example.tcl\" old1_ms=1520 new_ms=994 old2_ms=1236 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W108_non_ascii/example.tcl",
+      "old1_ms": 404,
+      "new_ms": 255,
+      "old2_ms": 251,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W108_non_ascii/example.tcl\" old1_ms=404 new_ms=255 old2_ms=251 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/10_format_strings.tcl",
+      "old1_ms": 4430,
+      "new_ms": 5359,
+      "old2_ms": 4152,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/10_format_strings.tcl\" old1_ms=4430 new_ms=5359 old2_ms=4152 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/11_minifier_demo.tcl",
+      "old1_ms": 2833,
+      "new_ms": 1969,
+      "old2_ms": 2003,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/11_minifier_demo.tcl\" old1_ms=2833 new_ms=1969 old2_ms=2003 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/compiler_explorer_demo.tcl",
+      "old1_ms": 1454,
+      "new_ms": 1725,
+      "old2_ms": 2008,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/compiler_explorer_demo.tcl\" old1_ms=1454 new_ms=1725 old2_ms=2008 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/08_tricky_edge_cases.tcl",
+      "old1_ms": 1622,
+      "new_ms": 1071,
+      "old2_ms": 843,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/08_tricky_edge_cases.tcl\" old1_ms=1622 new_ms=1071 old2_ms=843 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/06_security_smells.tcl",
+      "old1_ms": 503,
+      "new_ms": 429,
+      "old2_ms": 341,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/06_security_smells.tcl\" old1_ms=503 new_ms=429 old2_ms=341 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/13_incr_dialect_difference.tcl",
+      "old1_ms": 525,
+      "new_ms": 548,
+      "old2_ms": 600,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/13_incr_dialect_difference.tcl\" old1_ms=525 new_ms=548 old2_ms=600 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/12_safe_on_uninit.tcl",
+      "old1_ms": 2564,
+      "new_ms": 1659,
+      "old2_ms": 1779,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/12_safe_on_uninit.tcl\" old1_ms=2564 new_ms=1659 old2_ms=1779 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "samples/tcl/05_warning_examples.tcl",
+      "old1_ms": 479,
+      "new_ms": 311,
+      "old2_ms": 289,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/05_warning_examples.tcl\" old1_ms=479 new_ms=311 old2_ms=289 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl",
+      "old1_ms": 4081,
+      "new_ms": 3668,
+      "old2_ms": 3917,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl\" old1_ms=4081 new_ms=3668 old2_ms=3917 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_signature_scope.tcl",
+      "old1_ms": 2534,
+      "new_ms": 2010,
+      "old2_ms": 2059,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_signature_scope.tcl\" old1_ms=2534 new_ms=2010 old2_ms=2059 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl",
+      "old1_ms": 2715,
+      "new_ms": 4108,
+      "old2_ms": 1951,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl\" old1_ms=2715 new_ms=4108 old2_ms=1951 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl",
+      "old1_ms": 5116,
+      "new_ms": 4329,
+      "old2_ms": 4405,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl\" old1_ms=5116 new_ms=4329 old2_ms=4405 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/variables.tcl",
+      "old1_ms": 1300,
+      "new_ms": 1048,
+      "old2_ms": 945,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/variables.tcl\" old1_ms=1300 new_ms=1048 old2_ms=945 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl",
+      "old1_ms": 2494,
+      "new_ms": 1882,
+      "old2_ms": 1821,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/aliases.tcl\" old1_ms=2494 new_ms=1882 old2_ms=1821 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl",
+      "old1_ms": 2501,
+      "new_ms": 2294,
+      "old2_ms": 2408,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl\" old1_ms=2501 new_ms=2294 old2_ms=2408 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl",
+      "old1_ms": 2103,
+      "new_ms": 1855,
+      "old2_ms": 1598,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl\" old1_ms=2103 new_ms=1855 old2_ms=1598 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl",
+      "old1_ms": 1797,
+      "new_ms": 1900,
+      "old2_ms": 1350,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl\" old1_ms=1797 new_ms=1900 old2_ms=1350 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_double_completion/source.tcl",
+      "old1_ms": 2064,
+      "new_ms": 1719,
+      "old2_ms": 1752,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_double_completion/source.tcl\" old1_ms=2064 new_ms=1719 old2_ms=1752 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_deep_array_source.tcl",
+      "old1_ms": 20603,
+      "new_ms": 15533,
+      "old2_ms": 15401,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_deep_array_source.tcl\" old1_ms=20603 new_ms=15533 old2_ms=15401 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl",
+      "old1_ms": 1788,
+      "new_ms": 1218,
+      "old2_ms": 1379,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl\" old1_ms=1788 new_ms=1218 old2_ms=1379 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl",
+      "old1_ms": 356,
+      "new_ms": 289,
+      "old2_ms": 225,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl\" old1_ms=356 new_ms=289 old2_ms=225 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl",
+      "old1_ms": 383,
+      "new_ms": 275,
+      "old2_ms": 272,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl\" old1_ms=383 new_ms=275 old2_ms=272 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl",
+      "old1_ms": 722,
+      "new_ms": 227,
+      "old2_ms": 282,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl\" old1_ms=722 new_ms=227 old2_ms=282 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl",
+      "old1_ms": 481,
+      "new_ms": 226,
+      "old2_ms": 231,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl\" old1_ms=481 new_ms=226 old2_ms=231 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_alias_target_context.tcl",
+      "old1_ms": 1751,
+      "new_ms": 1112,
+      "old2_ms": 1993,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_alias_target_context.tcl\" old1_ms=1751 new_ms=1112 old2_ms=1993 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_itcl/protocols.tcl",
+      "old1_ms": 1411,
+      "new_ms": 714,
+      "old2_ms": 508,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_itcl/protocols.tcl\" old1_ms=1411 new_ms=714 old2_ms=508 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl",
+      "old1_ms": 1422,
+      "new_ms": 775,
+      "old2_ms": 812,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl\" old1_ms=1422 new_ms=775 old2_ms=812 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/completion-options-control.tcl",
+      "old1_ms": 1380,
+      "new_ms": 965,
+      "old2_ms": 827,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/completion-options-control.tcl\" old1_ms=1380 new_ms=965 old2_ms=827 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/completion-options-alias.tcl",
+      "old1_ms": 1866,
+      "new_ms": 1384,
+      "old2_ms": 1415,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/completion-options-alias.tcl\" old1_ms=1866 new_ms=1384 old2_ms=1415 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/array-get-read-traces.tcl",
+      "old1_ms": 303503,
+      "new_ms": 318788,
+      "old2_ms": 226023,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/array-get-read-traces.tcl\" old1_ms=303503 new_ms=318788 old2_ms=226023 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/expanded-command-head.tcl",
+      "old1_ms": 1014,
+      "new_ms": 1237,
+      "old2_ms": 819,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/expanded-command-head.tcl\" old1_ms=1014 new_ms=1237 old2_ms=819 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "tests/external/backend_constraints.tcl",
+      "old1_ms": 2641,
+      "new_ms": 1844,
+      "old2_ms": 1707,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/external/backend_constraints.tcl\" old1_ms=2641 new_ms=1844 old2_ms=1707 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/classes.tcl",
+      "old1_ms": 573,
+      "new_ms": 369,
+      "old2_ms": 367,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/classes.tcl\" old1_ms=573 new_ms=369 old2_ms=367 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/32-extract-datagroup-mapping-after.irul",
+      "old1_ms": 389,
+      "new_ms": 356,
+      "old2_ms": 440,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-extract-datagroup-mapping-after.irul\" old1_ms=389 new_ms=356 old2_ms=440 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/31-extract-datagroup-ip-before.irul",
+      "old1_ms": 633,
+      "new_ms": 514,
+      "old2_ms": 508,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/31-extract-datagroup-ip-before.irul\" old1_ms=633 new_ms=514 old2_ms=508 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/31-extract-datagroup-ip-after.irul",
+      "old1_ms": 388,
+      "new_ms": 308,
+      "old2_ms": 316,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/31-extract-datagroup-ip-after.irul\" old1_ms=388 new_ms=308 old2_ms=316 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/24-template-fallback.irul",
+      "old1_ms": 196,
+      "new_ms": 113,
+      "old2_ms": 113,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/24-template-fallback.irul\" old1_ms=196 new_ms=113 old2_ms=113 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/32-extract-datagroup-mapping-before.irul",
+      "old1_ms": 286,
+      "new_ms": 223,
+      "old2_ms": 255,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-extract-datagroup-mapping-before.irul\" old1_ms=286 new_ms=223 old2_ms=255 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/05-security-taint-before.irul",
+      "old1_ms": 248,
+      "new_ms": 177,
+      "old2_ms": 185,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/05-security-taint-before.irul\" old1_ms=248 new_ms=177 old2_ms=185 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/30-extract-datagroup-before.irul",
+      "old1_ms": 717,
+      "new_ms": 416,
+      "old2_ms": 450,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/30-extract-datagroup-before.irul\" old1_ms=717 new_ms=416 old2_ms=450 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/05-security-taint-after.irul",
+      "old1_ms": 532,
+      "new_ms": 407,
+      "old2_ms": 402,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/05-security-taint-after.irul\" old1_ms=532 new_ms=407 old2_ms=402 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/30-extract-datagroup-after.irul",
+      "old1_ms": 372,
+      "new_ms": 279,
+      "old2_ms": 297,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/30-extract-datagroup-after.irul\" old1_ms=372 new_ms=279 old2_ms=297 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/for_screenshots/ai-scene.irul",
+      "old1_ms": 285,
+      "new_ms": 217,
+      "old2_ms": 235,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/ai-scene.irul\" old1_ms=285 new_ms=217 old2_ms=235 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/irules/cookbook_http_collect.irul",
+      "old1_ms": 2386,
+      "new_ms": 2148,
+      "old2_ms": 2084,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/cookbook_http_collect.irul\" old1_ms=2386 new_ms=2148 old2_ms=2084 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_event_flow.irul",
+      "old1_ms": 1904,
+      "new_ms": 1896,
+      "old2_ms": 1844,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_event_flow.irul\" old1_ms=1904 new_ms=1896 old2_ms=1844 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/irules/cookbook_tcp_collect.irul",
+      "old1_ms": 6708,
+      "new_ms": 5910,
+      "old2_ms": 6299,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/cookbook_tcp_collect.irul\" old1_ms=6708 new_ms=5910 old2_ms=6299 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_security.irul",
+      "old1_ms": 2030,
+      "new_ms": 1947,
+      "old2_ms": 1818,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_security.irul\" old1_ms=2030 new_ms=1947 old2_ms=1818 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_style_perf.irul",
+      "old1_ms": 3461,
+      "new_ms": 3225,
+      "old2_ms": 3167,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_style_perf.irul\" old1_ms=3461 new_ms=3225 old2_ms=3167 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "calls",
+      "input": "calls:10",
+      "old1_ms": 655,
+      "new_ms": 541,
+      "old2_ms": 520,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:10\" old1_ms=655 new_ms=541 old2_ms=520 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "calls",
+      "input": "calls:20",
+      "old1_ms": 1429,
+      "new_ms": 1238,
+      "old2_ms": 1170,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:20\" old1_ms=1429 new_ms=1238 old2_ms=1170 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "calls",
+      "input": "calls:40",
+      "old1_ms": 3470,
+      "new_ms": 3242,
+      "old2_ms": 4052,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:40\" old1_ms=3470 new_ms=3242 old2_ms=4052 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "calls",
+      "input": "calls:80",
+      "old1_ms": 12640,
+      "new_ms": 11362,
+      "old2_ms": 11926,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:80\" old1_ms=12640 new_ms=11362 old2_ms=11926 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "procs",
+      "input": "procs:41",
+      "old1_ms": 1768,
+      "new_ms": 1600,
+      "old2_ms": 1645,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"procs:41\" old1_ms=1768 new_ms=1600 old2_ms=1645 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "upvar",
+      "input": "upvar:10",
+      "old1_ms": 5195,
+      "new_ms": 4296,
+      "old2_ms": 4301,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"upvar:10\" old1_ms=5195 new_ms=4296 old2_ms=4301 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "old-only",
+      "suite": "upvar",
+      "input": "upvar:30",
+      "old1_ms": 50941,
+      "new_ms": 36047,
+      "old2_ms": 33499,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"upvar:30\" old1_ms=50941 new_ms=36047 old2_ms=33499 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/27-if-to-switch-before.tcl",
+      "old1_ms": 647,
+      "new_ms": 450,
+      "old2_ms": 473,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/27-if-to-switch-before.tcl\" old1_ms=647 new_ms=450 old2_ms=473 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/20-folding.tcl",
+      "old1_ms": 818,
+      "new_ms": 520,
+      "old2_ms": 573,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/20-folding.tcl\" old1_ms=818 new_ms=520 old2_ms=573 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/32-document-links.tcl",
+      "old1_ms": 1110,
+      "new_ms": 623,
+      "old2_ms": 734,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-document-links.tcl\" old1_ms=1110 new_ms=623 old2_ms=734 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/07-formatting-side-by-side.tcl",
+      "old1_ms": 1541,
+      "new_ms": 1022,
+      "old2_ms": 1168,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/07-formatting-side-by-side.tcl\" old1_ms=1541 new_ms=1022 old2_ms=1168 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/27-if-to-switch-after.tcl",
+      "old1_ms": 364,
+      "new_ms": 227,
+      "old2_ms": 289,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/27-if-to-switch-after.tcl\" old1_ms=364 new_ms=227 old2_ms=289 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/16-references-long.tcl",
+      "old1_ms": 904,
+      "new_ms": 518,
+      "old2_ms": 584,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/16-references-long.tcl\" old1_ms=904 new_ms=518 old2_ms=584 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/22-optimiser-before.tcl",
+      "old1_ms": 1571,
+      "new_ms": 862,
+      "old2_ms": 1435,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/22-optimiser-before.tcl\" old1_ms=1571 new_ms=862 old2_ms=1435 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/for_screenshots/15-definition-long.tcl",
+      "old1_ms": 577,
+      "new_ms": 482,
+      "old2_ms": 436,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/15-definition-long.tcl\" old1_ms=577 new_ms=482 old2_ms=436 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/proc_arg_traits_examples.tcl",
+      "old1_ms": 3674,
+      "new_ms": 2522,
+      "old2_ms": 3102,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/proc_arg_traits_examples.tcl\" old1_ms=3674 new_ms=2522 old2_ms=3102 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tclpkg/tclpkg.tcl",
+      "old1_ms": 349,
+      "new_ms": 311,
+      "old2_ms": 225,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tclpkg/tclpkg.tcl\" old1_ms=349 new_ms=311 old2_ms=225 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/42_arrays.tcl",
+      "old1_ms": 1018,
+      "new_ms": 887,
+      "old2_ms": 779,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/42_arrays.tcl\" old1_ms=1018 new_ms=887 old2_ms=779 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/43_namespaces.tcl",
+      "old1_ms": 997,
+      "new_ms": 574,
+      "old2_ms": 737,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/43_namespaces.tcl\" old1_ms=997 new_ms=574 old2_ms=737 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t4-scopes/40_global_variable.tcl",
+      "old1_ms": 927,
+      "new_ms": 497,
+      "old2_ms": 552,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t4-scopes/40_global_variable.tcl\" old1_ms=927 new_ms=497 old2_ms=552 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl",
+      "old1_ms": 1313,
+      "new_ms": 982,
+      "old2_ms": 1095,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl\" old1_ms=1313 new_ms=982 old2_ms=1095 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/63_objects_in_data.tcl",
+      "old1_ms": 1291,
+      "new_ms": 1006,
+      "old2_ms": 1123,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/63_objects_in_data.tcl\" old1_ms=1291 new_ms=1006 old2_ms=1123 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/61_inheritance_next.tcl",
+      "old1_ms": 905,
+      "new_ms": 764,
+      "old2_ms": 1429,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/61_inheritance_next.tcl\" old1_ms=905 new_ms=764 old2_ms=1429 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t6-tcloo/60_class_basic.tcl",
+      "old1_ms": 1414,
+      "new_ms": 1150,
+      "old2_ms": 1152,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t6-tcloo/60_class_basic.tcl\" old1_ms=1414 new_ms=1150 old2_ms=1152 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/70_var_traces.tcl",
+      "old1_ms": 1496,
+      "new_ms": 790,
+      "old2_ms": 867,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/70_var_traces.tcl\" old1_ms=1496 new_ms=790 old2_ms=867 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/72_uplevel_eval.tcl",
+      "old1_ms": 1618,
+      "new_ms": 1116,
+      "old2_ms": 1995,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/72_uplevel_eval.tcl\" old1_ms=1618 new_ms=1116 old2_ms=1995 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t7-dynamic/71_exec_traces_rename.tcl",
+      "old1_ms": 1207,
+      "new_ms": 643,
+      "old2_ms": 711,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t7-dynamic/71_exec_traces_rename.tcl\" old1_ms=1207 new_ms=643 old2_ms=711 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/51_try_finally.tcl",
+      "old1_ms": 2915,
+      "new_ms": 1610,
+      "old2_ms": 2428,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/51_try_finally.tcl\" old1_ms=2915 new_ms=1610 old2_ms=2428 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/52_loop_completion.tcl",
+      "old1_ms": 2603,
+      "new_ms": 1162,
+      "old2_ms": 2377,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/52_loop_completion.tcl\" old1_ms=2603 new_ms=1162 old2_ms=2377 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t5-completion/50_catch_error.tcl",
+      "old1_ms": 2218,
+      "new_ms": 928,
+      "old2_ms": 1135,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t5-completion/50_catch_error.tcl\" old1_ms=2218 new_ms=928 old2_ms=1135 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/15_switch.tcl",
+      "old1_ms": 673,
+      "new_ms": 324,
+      "old2_ms": 501,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/15_switch.tcl\" old1_ms=673 new_ms=324 old2_ms=501 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/13_expr_ops.tcl",
+      "old1_ms": 2909,
+      "new_ms": 2362,
+      "old2_ms": 5380,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/13_expr_ops.tcl\" old1_ms=2909 new_ms=2362 old2_ms=5380 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t1-expr-control/16_conditional_arms.tcl",
+      "old1_ms": 1463,
+      "new_ms": 1446,
+      "old2_ms": 1638,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t1-expr-control/16_conditional_arms.tcl\" old1_ms=1463 new_ms=1446 old2_ms=1638 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/23_dicts.tcl",
+      "old1_ms": 2805,
+      "new_ms": 2305,
+      "old2_ms": 2002,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/23_dicts.tcl\" old1_ms=2805 new_ms=2305 old2_ms=2002 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/21_foreach.tcl",
+      "old1_ms": 759,
+      "new_ms": 515,
+      "old2_ms": 517,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/21_foreach.tcl\" old1_ms=759 new_ms=515 old2_ms=517 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/20_lists.tcl",
+      "old1_ms": 1051,
+      "new_ms": 761,
+      "old2_ms": 973,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/20_lists.tcl\" old1_ms=1051 new_ms=761 old2_ms=973 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t2-values/22_strings.tcl",
+      "old1_ms": 2490,
+      "new_ms": 1603,
+      "old2_ms": 3387,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t2-values/22_strings.tcl\" old1_ms=2490 new_ms=1603 old2_ms=3387 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+      "old1_ms": 38060,
+      "new_ms": 4137,
+      "old2_ms": 11463,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/35_native_dispatch_matrix.tcl\" old1_ms=38060 new_ms=4137 old2_ms=11463 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/37_return_state.tcl",
+      "old1_ms": 2477,
+      "new_ms": 1231,
+      "old2_ms": 12748,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/37_return_state.tcl\" old1_ms=2477 new_ms=1231 old2_ms=12748 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/31_recursion.tcl",
+      "old1_ms": 4333,
+      "new_ms": 5707,
+      "old2_ms": 7468,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/31_recursion.tcl\" old1_ms=4333 new_ms=5707 old2_ms=7468 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/36_proc_error_info.tcl",
+      "old1_ms": 1350,
+      "new_ms": 8812,
+      "old2_ms": 4418,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/36_proc_error_info.tcl\" old1_ms=1350 new_ms=8812 old2_ms=4418 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/33_string_builder.tcl",
+      "old1_ms": 812,
+      "new_ms": 597,
+      "old2_ms": 675,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/33_string_builder.tcl\" old1_ms=812 new_ms=597 old2_ms=675 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/wasm/t3-procs/32_defaults_and_args.tcl",
+      "old1_ms": 1040,
+      "new_ms": 659,
+      "old2_ms": 866,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/wasm/t3-procs/32_defaults_and_args.tcl\" old1_ms=1040 new_ms=659 old2_ms=866 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/dialect_stubs_inline_example.tcl",
+      "old1_ms": 335,
+      "new_ms": 195,
+      "old2_ms": 234,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/dialect_stubs_inline_example.tcl\" old1_ms=335 new_ms=195 old2_ms=234 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_standard.tcl",
+      "old1_ms": 6552,
+      "new_ms": 4383,
+      "old2_ms": 5610,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_standard.tcl\" old1_ms=6552 new_ms=4383 old2_ms=5610 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_aggressive.tcl",
+      "old1_ms": 6381,
+      "new_ms": 4058,
+      "old2_ms": 4810,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_aggressive.tcl\" old1_ms=6381 new_ms=4058 old2_ms=4810 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/deep_pipeline.tcl",
+      "old1_ms": 5071,
+      "new_ms": 3430,
+      "old2_ms": 6406,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/deep_pipeline.tcl\" old1_ms=5071 new_ms=3430 old2_ms=6406 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_readability.tcl",
+      "old1_ms": 10872,
+      "new_ms": 5662,
+      "old2_ms": 6236,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_readability.tcl\" old1_ms=10872 new_ms=5662 old2_ms=6236 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/profile_full.tcl",
+      "old1_ms": 5222,
+      "new_ms": 3965,
+      "old2_ms": 5140,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/profile_full.tcl\" old1_ms=5222 new_ms=3965 old2_ms=5140 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/optimiser/input.tcl",
+      "old1_ms": 8207,
+      "new_ms": 6750,
+      "old2_ms": 7042,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/optimiser/input.tcl\" old1_ms=8207 new_ms=6750 old2_ms=7042 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W211_set_never_used/example.tcl",
+      "old1_ms": 483,
+      "new_ms": 455,
+      "old2_ms": 411,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W211_set_never_used/example.tcl\" old1_ms=483 new_ms=455 old2_ms=411 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W105_unbraced_eval/example.tcl",
+      "old1_ms": 1327,
+      "new_ms": 876,
+      "old2_ms": 651,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W105_unbraced_eval/example.tcl\" old1_ms=1327 new_ms=876 old2_ms=651 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/S101_shimmer_merge/example.tcl",
+      "old1_ms": 1708,
+      "new_ms": 1066,
+      "old2_ms": 1413,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/S101_shimmer_merge/example.tcl\" old1_ms=1708 new_ms=1066 old2_ms=1413 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O110_canonicalise_expr/example.tcl",
+      "old1_ms": 687,
+      "new_ms": 428,
+      "old2_ms": 558,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O110_canonicalise_expr/example.tcl\" old1_ms=687 new_ms=428 old2_ms=558 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W102_subst_injection/example.tcl",
+      "old1_ms": 852,
+      "new_ms": 569,
+      "old2_ms": 748,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W102_subst_injection/example.tcl\" old1_ms=852 new_ms=569 old2_ms=748 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W307_non_literal_command/example.tcl",
+      "old1_ms": 1194,
+      "new_ms": 1046,
+      "old2_ms": 902,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W307_non_literal_command/example.tcl\" old1_ms=1194 new_ms=1046 old2_ms=902 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W301_uplevel_unbraced/example.tcl",
+      "old1_ms": 575,
+      "new_ms": 496,
+      "old2_ms": 395,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W301_uplevel_unbraced/example.tcl\" old1_ms=575 new_ms=496 old2_ms=395 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W313_file_delete_path/example.tcl",
+      "old1_ms": 1581,
+      "new_ms": 1056,
+      "old2_ms": 1003,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W313_file_delete_path/example.tcl\" old1_ms=1581 new_ms=1056 old2_ms=1003 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W210_read_before_set/example.tcl",
+      "old1_ms": 883,
+      "new_ms": 661,
+      "old2_ms": 693,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W210_read_before_set/example.tcl\" old1_ms=883 new_ms=661 old2_ms=693 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W220_assignment_never_read/example.tcl",
+      "old1_ms": 261,
+      "new_ms": 148,
+      "old2_ms": 139,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W220_assignment_never_read/example.tcl\" old1_ms=261 new_ms=148 old2_ms=139 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W314_no_absolute_name/example.tcl",
+      "old1_ms": 385,
+      "new_ms": 251,
+      "old2_ms": 323,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W314_no_absolute_name/example.tcl\" old1_ms=385 new_ms=251 old2_ms=323 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W111_long_line/example.tcl",
+      "old1_ms": 293,
+      "new_ms": 198,
+      "old2_ms": 165,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W111_long_line/example.tcl\" old1_ms=293 new_ms=198 old2_ms=165 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W002_disabled_command/example.tcl",
+      "old1_ms": 951,
+      "new_ms": 813,
+      "old2_ms": 817,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W002_disabled_command/example.tcl\" old1_ms=951 new_ms=813 old2_ms=817 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W112_trailing_whitespace/example.tcl",
+      "old1_ms": 277,
+      "new_ms": 158,
+      "old2_ms": 161,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W112_trailing_whitespace/example.tcl\" old1_ms=277 new_ms=158 old2_ms=161 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W304_missing_double_dash/example.tcl",
+      "old1_ms": 5560,
+      "new_ms": 3555,
+      "old2_ms": 4692,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W304_missing_double_dash/example.tcl\" old1_ms=5560 new_ms=3555 old2_ms=4692 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W001_unknown_subcommand/example.tcl",
+      "old1_ms": 663,
+      "new_ms": 490,
+      "old2_ms": 536,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W001_unknown_subcommand/example.tcl\" old1_ms=663 new_ms=490 old2_ms=536 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/S102_type_thunking/example.tcl",
+      "old1_ms": 1575,
+      "new_ms": 1021,
+      "old2_ms": 1245,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/S102_type_thunking/example.tcl\" old1_ms=1575 new_ms=1021 old2_ms=1245 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O116_fold_constant_list/example.tcl",
+      "old1_ms": 629,
+      "new_ms": 604,
+      "old2_ms": 411,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O116_fold_constant_list/example.tcl\" old1_ms=629 new_ms=604 old2_ms=411 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/O106_loop_invariant/example.tcl",
+      "old1_ms": 1294,
+      "new_ms": 811,
+      "old2_ms": 784,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/O106_loop_invariant/example.tcl\" old1_ms=1294 new_ms=811 old2_ms=784 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W103_open_pipeline/example.tcl",
+      "old1_ms": 1298,
+      "new_ms": 844,
+      "old2_ms": 845,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W103_open_pipeline/example.tcl\" old1_ms=1298 new_ms=844 old2_ms=845 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W101_eval_injection/example.tcl",
+      "old1_ms": 1107,
+      "new_ms": 847,
+      "old2_ms": 982,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W101_eval_injection/example.tcl\" old1_ms=1107 new_ms=847 old2_ms=982 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W115_backslash_newline_comment/example.tcl",
+      "old1_ms": 508,
+      "new_ms": 309,
+      "old2_ms": 338,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W115_backslash_newline_comment/example.tcl\" old1_ms=508 new_ms=309 old2_ms=338 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W214_unused_parameter/example.tcl",
+      "old1_ms": 953,
+      "new_ms": 609,
+      "old2_ms": 742,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W214_unused_parameter/example.tcl\" old1_ms=953 new_ms=609 old2_ms=742 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/E003_proc_call_arity/example.tcl",
+      "old1_ms": 1051,
+      "new_ms": 644,
+      "old2_ms": 953,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/E003_proc_call_arity/example.tcl\" old1_ms=1051 new_ms=644 old2_ms=953 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W306_regexp_substitution/example.tcl",
+      "old1_ms": 1617,
+      "new_ms": 919,
+      "old2_ms": 893,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W306_regexp_substitution/example.tcl\" old1_ms=1617 new_ms=919 old2_ms=893 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/diagnostics/W108_non_ascii/example.tcl",
+      "old1_ms": 396,
+      "new_ms": 449,
+      "old2_ms": 254,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/diagnostics/W108_non_ascii/example.tcl\" old1_ms=396 new_ms=449 old2_ms=254 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/10_format_strings.tcl",
+      "old1_ms": 3655,
+      "new_ms": 1482,
+      "old2_ms": 3467,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/10_format_strings.tcl\" old1_ms=3655 new_ms=1482 old2_ms=3467 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/11_minifier_demo.tcl",
+      "old1_ms": 2055,
+      "new_ms": 1219,
+      "old2_ms": 1499,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/11_minifier_demo.tcl\" old1_ms=2055 new_ms=1219 old2_ms=1499 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/compiler_explorer_demo.tcl",
+      "old1_ms": 1242,
+      "new_ms": 975,
+      "old2_ms": 934,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/compiler_explorer_demo.tcl\" old1_ms=1242 new_ms=975 old2_ms=934 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/08_tricky_edge_cases.tcl",
+      "old1_ms": 1065,
+      "new_ms": 659,
+      "old2_ms": 747,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/08_tricky_edge_cases.tcl\" old1_ms=1065 new_ms=659 old2_ms=747 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/06_security_smells.tcl",
+      "old1_ms": 554,
+      "new_ms": 294,
+      "old2_ms": 311,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/06_security_smells.tcl\" old1_ms=554 new_ms=294 old2_ms=311 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/13_incr_dialect_difference.tcl",
+      "old1_ms": 496,
+      "new_ms": 378,
+      "old2_ms": 371,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/13_incr_dialect_difference.tcl\" old1_ms=496 new_ms=378 old2_ms=371 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/12_safe_on_uninit.tcl",
+      "old1_ms": 2129,
+      "new_ms": 1509,
+      "old2_ms": 1719,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/12_safe_on_uninit.tcl\" old1_ms=2129 new_ms=1509 old2_ms=1719 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "samples/tcl/05_warning_examples.tcl",
+      "old1_ms": 642,
+      "new_ms": 262,
+      "old2_ms": 288,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/tcl/05_warning_examples.tcl\" old1_ms=642 new_ms=262 old2_ms=288 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl",
+      "old1_ms": 4185,
+      "new_ms": 2992,
+      "old2_ms": 3648,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl\" old1_ms=4185 new_ms=2992 old2_ms=3648 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_signature_scope.tcl",
+      "old1_ms": 2691,
+      "new_ms": 1518,
+      "old2_ms": 1886,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_signature_scope.tcl\" old1_ms=2691 new_ms=1518 old2_ms=1886 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl",
+      "old1_ms": 2540,
+      "new_ms": 1329,
+      "old2_ms": 1599,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_variable_identity/original.tcl\" old1_ms=2540 new_ms=1329 old2_ms=1599 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl",
+      "old1_ms": 4834,
+      "new_ms": 3043,
+      "old2_ms": 3517,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_expanded_head/probe.tcl\" old1_ms=4834 new_ms=3043 old2_ms=3517 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/variables.tcl",
+      "old1_ms": 2611,
+      "new_ms": 867,
+      "old2_ms": 1191,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/variables.tcl\" old1_ms=2611 new_ms=867 old2_ms=1191 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl",
+      "old1_ms": 4046,
+      "new_ms": 1748,
+      "old2_ms": 2328,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/aliases.tcl\" old1_ms=4046 new_ms=1748 old2_ms=2328 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl",
+      "old1_ms": 2323,
+      "new_ms": 2229,
+      "old2_ms": 2274,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl\" old1_ms=2323 new_ms=2229 old2_ms=2274 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl",
+      "old1_ms": 2169,
+      "new_ms": 1344,
+      "old2_ms": 1456,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl\" old1_ms=2169 new_ms=1344 old2_ms=1456 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl",
+      "old1_ms": 1642,
+      "new_ms": 1472,
+      "old2_ms": 1612,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl\" old1_ms=1642 new_ms=1472 old2_ms=1612 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_double_completion/source.tcl",
+      "old1_ms": 1810,
+      "new_ms": 2385,
+      "old2_ms": 2763,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_double_completion/source.tcl\" old1_ms=1810 new_ms=2385 old2_ms=2763 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_deep_array_source.tcl",
+      "old1_ms": 20126,
+      "new_ms": 16437,
+      "old2_ms": 22946,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_deep_array_source.tcl\" old1_ms=20126 new_ms=16437 old2_ms=22946 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl",
+      "old1_ms": 1473,
+      "new_ms": 1392,
+      "old2_ms": 1013,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl\" old1_ms=1473 new_ms=1392 old2_ms=1013 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl",
+      "old1_ms": 612,
+      "new_ms": 257,
+      "old2_ms": 236,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/3.tcl\" old1_ms=612 new_ms=257 old2_ms=236 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl",
+      "old1_ms": 644,
+      "new_ms": 400,
+      "old2_ms": 400,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/4.tcl\" old1_ms=644 new_ms=400 old2_ms=400 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl",
+      "old1_ms": 840,
+      "new_ms": 766,
+      "old2_ms": 474,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/2.tcl\" old1_ms=840 new_ms=766 old2_ms=474 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl",
+      "old1_ms": 539,
+      "new_ms": 299,
+      "old2_ms": 369,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/1.tcl\" old1_ms=539 new_ms=299 old2_ms=369 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_alias_target_context.tcl",
+      "old1_ms": 1727,
+      "new_ms": 815,
+      "old2_ms": 984,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_alias_target_context.tcl\" old1_ms=1727 new_ms=815 old2_ms=984 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/native_itcl/protocols.tcl",
+      "old1_ms": 762,
+      "new_ms": 410,
+      "old2_ms": 528,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/native_itcl/protocols.tcl\" old1_ms=762 new_ms=410 old2_ms=528 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl",
+      "old1_ms": 1618,
+      "new_ms": 2071,
+      "old2_ms": 1177,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl\" old1_ms=1618 new_ms=2071 old2_ms=1177 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/completion-options-control.tcl",
+      "old1_ms": 2455,
+      "new_ms": 1120,
+      "old2_ms": 1548,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/completion-options-control.tcl\" old1_ms=2455 new_ms=1120 old2_ms=1548 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/completion-options-alias.tcl",
+      "old1_ms": 3072,
+      "new_ms": 1539,
+      "old2_ms": 1861,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/completion-options-alias.tcl\" old1_ms=3072 new_ms=1539 old2_ms=1861 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/array-get-read-traces.tcl",
+      "old1_ms": 278750,
+      "new_ms": 48491,
+      "old2_ms": 394949,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/array-get-read-traces.tcl\" old1_ms=278750 new_ms=48491 old2_ms=394949 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/fixtures/tcl9/expanded-command-head.tcl",
+      "old1_ms": 2167,
+      "new_ms": 2664,
+      "old2_ms": 2782,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/fixtures/tcl9/expanded-command-head.tcl\" old1_ms=2167 new_ms=2664 old2_ms=2782 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "tests/external/backend_constraints.tcl",
+      "old1_ms": 4862,
+      "new_ms": 4139,
+      "old2_ms": 3287,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"tests/external/backend_constraints.tcl\" old1_ms=4862 new_ms=4139 old2_ms=3287 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "tcl",
+      "input": "rust/tcl-compiler/tests/data/name-consumers/classes.tcl",
+      "old1_ms": 824,
+      "new_ms": 1463,
+      "old2_ms": 535,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"rust/tcl-compiler/tests/data/name-consumers/classes.tcl\" old1_ms=824 new_ms=1463 old2_ms=535 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/32-extract-datagroup-mapping-after.irul",
+      "old1_ms": 518,
+      "new_ms": 368,
+      "old2_ms": 1028,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-extract-datagroup-mapping-after.irul\" old1_ms=518 new_ms=368 old2_ms=1028 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/31-extract-datagroup-ip-before.irul",
+      "old1_ms": 1394,
+      "new_ms": 752,
+      "old2_ms": 807,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/31-extract-datagroup-ip-before.irul\" old1_ms=1394 new_ms=752 old2_ms=807 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/31-extract-datagroup-ip-after.irul",
+      "old1_ms": 601,
+      "new_ms": 403,
+      "old2_ms": 558,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/31-extract-datagroup-ip-after.irul\" old1_ms=601 new_ms=403 old2_ms=558 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/24-template-fallback.irul",
+      "old1_ms": 249,
+      "new_ms": 160,
+      "old2_ms": 184,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/24-template-fallback.irul\" old1_ms=249 new_ms=160 old2_ms=184 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/32-extract-datagroup-mapping-before.irul",
+      "old1_ms": 541,
+      "new_ms": 377,
+      "old2_ms": 354,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/32-extract-datagroup-mapping-before.irul\" old1_ms=541 new_ms=377 old2_ms=354 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/05-security-taint-before.irul",
+      "old1_ms": 517,
+      "new_ms": 262,
+      "old2_ms": 322,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/05-security-taint-before.irul\" old1_ms=517 new_ms=262 old2_ms=322 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/30-extract-datagroup-before.irul",
+      "old1_ms": 783,
+      "new_ms": 598,
+      "old2_ms": 697,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/30-extract-datagroup-before.irul\" old1_ms=783 new_ms=598 old2_ms=697 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/05-security-taint-after.irul",
+      "old1_ms": 951,
+      "new_ms": 537,
+      "old2_ms": 766,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/05-security-taint-after.irul\" old1_ms=951 new_ms=537 old2_ms=766 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/30-extract-datagroup-after.irul",
+      "old1_ms": 503,
+      "new_ms": 365,
+      "old2_ms": 361,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/30-extract-datagroup-after.irul\" old1_ms=503 new_ms=365 old2_ms=361 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/for_screenshots/ai-scene.irul",
+      "old1_ms": 410,
+      "new_ms": 303,
+      "old2_ms": 380,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/for_screenshots/ai-scene.irul\" old1_ms=410 new_ms=303 old2_ms=380 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/irules/cookbook_http_collect.irul",
+      "old1_ms": 3394,
+      "new_ms": 2328,
+      "old2_ms": 4301,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/cookbook_http_collect.irul\" old1_ms=3394 new_ms=2328 old2_ms=4301 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_event_flow.irul",
+      "old1_ms": 2925,
+      "new_ms": 2727,
+      "old2_ms": 3488,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_event_flow.irul\" old1_ms=2925 new_ms=2727 old2_ms=3488 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/irules/cookbook_tcp_collect.irul",
+      "old1_ms": 12371,
+      "new_ms": 7574,
+      "old2_ms": 13291,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/cookbook_tcp_collect.irul\" old1_ms=12371 new_ms=7574 old2_ms=13291 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_security.irul",
+      "old1_ms": 5444,
+      "new_ms": 1996,
+      "old2_ms": 4357,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_security.irul\" old1_ms=5444 new_ms=1996 old2_ms=4357 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "irules",
+      "input": "samples/irules/diagnostics_style_perf.irul",
+      "old1_ms": 6376,
+      "new_ms": 3772,
+      "old2_ms": 4832,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"samples/irules/diagnostics_style_perf.irul\" old1_ms=6376 new_ms=3772 old2_ms=4832 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "calls",
+      "input": "calls:10",
+      "old1_ms": 1175,
+      "new_ms": 565,
+      "old2_ms": 753,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:10\" old1_ms=1175 new_ms=565 old2_ms=753 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "calls",
+      "input": "calls:20",
+      "old1_ms": 1999,
+      "new_ms": 929,
+      "old2_ms": 2529,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:20\" old1_ms=1999 new_ms=929 old2_ms=2529 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "calls",
+      "input": "calls:40",
+      "old1_ms": 5690,
+      "new_ms": 1674,
+      "old2_ms": 4915,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:40\" old1_ms=5690 new_ms=1674 old2_ms=4915 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "calls",
+      "input": "calls:80",
+      "old1_ms": 20346,
+      "new_ms": 3726,
+      "old2_ms": 19408,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"calls:80\" old1_ms=20346 new_ms=3726 old2_ms=19408 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "procs",
+      "input": "procs:41",
+      "old1_ms": 6311,
+      "new_ms": 11869,
+      "old2_ms": 2645,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"procs:41\" old1_ms=6311 new_ms=11869 old2_ms=2645 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "upvar",
+      "input": "upvar:10",
+      "old1_ms": 7180,
+      "new_ms": 3597,
+      "old2_ms": 6293,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"upvar:10\" old1_ms=7180 new_ms=3597 old2_ms=6293 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    },
+    {
+      "mode": "mixed",
+      "suite": "upvar",
+      "input": "upvar:30",
+      "old1_ms": 58873,
+      "new_ms": 17970,
+      "old2_ms": 46069,
+      "report_pairs": [
+        "Equal",
+        "Equal",
+        "Equal"
+      ],
+      "raw": "REPORT label=\"upvar:30\" old1_ms=58873 new_ms=17970 old2_ms=46069 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true"
+    }
+  ],
+  "packset": "PACKSET old=true packs=8 notices=0 errors=0\nPACKSET old=false packs=8 notices=0 errors=0\nPACKSET old=true packs=8 notices=0 errors=0\nPACKSET_COMPARISON old1_ms=14302 new_ms=4068 old2_ms=11116 lines=484936 deterministic=true old_new=true new_old=true\n",
+  "source_unchanged": true,
+  "probe_executables_removed": true
+}

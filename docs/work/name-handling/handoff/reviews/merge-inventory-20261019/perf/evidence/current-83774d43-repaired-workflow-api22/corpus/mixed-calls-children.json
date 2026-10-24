@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "calls",
+      "10,20,40,80"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 64.0201790400024,
+    "log": "mixed-calls-000.out"
+  }
+]

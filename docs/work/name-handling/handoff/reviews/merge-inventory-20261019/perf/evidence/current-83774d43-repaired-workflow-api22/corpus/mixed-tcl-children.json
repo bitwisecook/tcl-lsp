@@ -978,5 +978,45 @@
     "valid": true,
     "wall_s": 6.565597062988672,
     "log": "mixed-tcl-097.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/array-get-read-traces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 725.4425586040015,
+    "log": "mixed-tcl-098.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/fixtures/tcl9/expanded-command-head.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.780709434009623,
+    "log": "mixed-tcl-099.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "tests/external/backend_constraints.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 12.3957669060037,
+    "log": "mixed-tcl-100.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "rust/tcl-compiler/tests/data/name-consumers/classes.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.8956196420040214,
+    "log": "mixed-tcl-101.out"
   }
 ]

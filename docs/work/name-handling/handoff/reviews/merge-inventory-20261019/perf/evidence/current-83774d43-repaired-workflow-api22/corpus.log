@@ -3,3 +3,8 @@ old-only irules {'mode': 'old-only', 'case': 'irules', 'exit': 0, 'exits': [0, 0
 old-only calls {'mode': 'old-only', 'case': 'calls', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 4, 'wall_s': 52.39677426600247}
 old-only procs {'mode': 'old-only', 'case': 'procs', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 1, 'wall_s': 5.068806437004241}
 old-only upvar {'mode': 'old-only', 'case': 'upvar', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 2, 'wall_s': 134.70957633999933}
+mixed tcl {'mode': 'mixed', 'case': 'tcl', 'exit': 0, 'exits': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'valid': True, 'expected': 102, 'wall_s': 1342.0562141209957}
+mixed irules {'mode': 'mixed', 'case': 'irules', 'exit': 0, 'exits': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'valid': True, 'expected': 15, 'wall_s': 96.65698038900155}
+mixed calls {'mode': 'mixed', 'case': 'calls', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 4, 'wall_s': 64.02413392500603}
+mixed procs {'mode': 'mixed', 'case': 'procs', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 1, 'wall_s': 20.923143791995244}
+mixed upvar {'mode': 'mixed', 'case': 'upvar', 'exit': 0, 'exits': [0], 'valid': True, 'expected': 2, 'wall_s': 140.35711411100056}

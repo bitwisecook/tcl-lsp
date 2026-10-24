@@ -1,22 +1,38 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-24 01:00 UTC
+Last updated: 2026-10-24 01:10 UTC
 
-**Current837 complete proof is running; six-file perf code remains unlanded.**
-All22 authenticated report/realm controls pass BOTH with0Rust warnings and an
-unchanged complete source seal. Full normal1 corpus/probe build finished
-0warnings in29m02s. The original102 Tcl+15iRules+7 synthetics old-only/mixed
-and complete ordered PackSet run is active; no complete acceptance yet.
-Fresh switched lexer586/586 BOTH passes0warnings; clean6 lexer586/586 BOTH
-passes0warnings. Clean6 compiler0 unit build finished0warnings, preserved ELF
-hash verified, original filter/deep runtime queued after full cleanup. Fresh
-SpecTcl BOTH suites now COMPLETE/PASS: eval_loader28 BOTH319.619/257.425s,
-goldens3 BOTH314.814/308.789s,0warnings/source exact/two executables deleted.
-Forced-old102Tcl+15iRules+7synthetics are COMPLETE/all3 Equal for every input.
-Mixed Tcl98/102 complete/all3 Equal, including original Native35. The slow
-array-get-read-traces current input remains active and unchanged; no full
-mixed/ordered PackSet verdict yet.
-Final server quiet repeat and all-target compiler Clippy remain queued.
+**Current837 full report/PackSet proof COMPLETE/PASS; six-file perf code
+remains unlanded pending compiler/client/lint comparisons.** All22 report/realm
+controls pass BOTH,0warnings. Every one of102 Tcl+15iRules+7synthetic sizes
+passes all3 complete authenticated comparisons in BOTH forced-old and mixed
+runs. Complete ordered PackSet484936lines/8packs/0notices/errors matches in all3
+directions, deterministic old endpoints. Source exact; both probe executables
+and temporary sources removed. No field normalization, sorting or assertion
+weakening; strict runtime/global/cache Eq remains separately recorded.
+Fresh switched and clean6 lexer586/586 BOTH pass0warnings. Current SpecTcl
+28eval_loader+3golden_packs BOTH PASS0warnings, exactsource/ELFsremoved.
+Current compiler filters are running, followed by unchanged1000-depth alone
+BOTH; clean6 filters then final quiet180s server repeat and Clippy are pending.
+
+Current opt1 wall timings (ms; report capture included, pair comparison excluded):
+
+| Input | old1 | new | old2 |
+|---|---:|---:|---:|
+| calls10 |1175|565|753|
+| calls20 |1999|929|2529|
+| calls40 |5690|1674|4915|
+| calls80 |20346|3726|19408|
+| procs41 |6311|11869|2645|
+| upvar10 |7180|3597|6293|
+| upvar30 |58873|17970|46069|
+| load_embedded (same ordinary API) |14302|4068|11116|
+
+All listed comparisons Equal; the slower procs41 new observation is retained.
+These are diagnostic wall observations, not release latency or proof that every
+shape improves. Origin timings/audited identical inputs remain separately
+scoped below; origin analyse excludes report capture. Full raw coverage is
+current-83774d43-complete-report-summary.json and corpus/final.json.
 
 Source is FROZEN83774d43 plus9 full switched/six owned files, separate targets.
 Published report-only empty ALLOCATED repair ce6facfb and one-line WordExpr

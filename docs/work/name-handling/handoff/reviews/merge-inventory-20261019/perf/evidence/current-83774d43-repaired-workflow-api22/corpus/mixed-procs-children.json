@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "procs",
+      "41"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 20.920903433987405,
+    "log": "mixed-procs-000.out"
+  }
+]

@@ -9,6 +9,25 @@
       "label": "report-controls",
       "exit": 0,
       "wall_s": 1004.4783594710025
+    },
+    {
+      "label": "corpus",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_authenticated_corpus.py",
+        "/workspace/tcl-lsp-diagnostic",
+        "--controls",
+        "/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-83774d43-repaired-workflow-api22/report-controls",
+        "--opt-level",
+        "1",
+        "--target-dir",
+        "/workspace/tcl-lsp-diagnostic/target",
+        "--isolate-inputs",
+        "--evidence",
+        "/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-83774d43-repaired-workflow-api22/corpus"
+      ],
+      "exit": 0,
+      "wall_s": 5546.396373765994
     }
   ],
   "affinity": [

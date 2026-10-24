@@ -194,3 +194,11 @@ REPORT label="tests/fixtures/tcl9/completion-options-control.tcl" old1_ms=2455 n
 REPORT_SUMMARY inputs=1 failed=0
 REPORT label="tests/fixtures/tcl9/completion-options-alias.tcl" old1_ms=3072 new_ms=1539 old2_ms=1861 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
 REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/array-get-read-traces.tcl" old1_ms=278750 new_ms=48491 old2_ms=394949 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/fixtures/tcl9/expanded-command-head.tcl" old1_ms=2167 new_ms=2664 old2_ms=2782 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="tests/external/backend_constraints.tcl" old1_ms=4862 new_ms=4139 old2_ms=3287 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0
+REPORT label="rust/tcl-compiler/tests/data/name-consumers/classes.tcl" old1_ms=824 new_ms=1463 old2_ms=535 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

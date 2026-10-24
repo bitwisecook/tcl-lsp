@@ -1,16 +1,48 @@
 {
-  "checked_unix": 1792801160.177073,
-  "proof_base": "83774d43",
-  "canonical_head": "1947afad66ae1a4d0d75aa17e7e066d98bce6ee2",
-  "same_eight_unpatched_source_files": {
-    "rust/tcl-lexer/src/parse_cut.rs": true,
-    "rust/tcl-lexer/src/source_map.rs": true,
-    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": true,
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs": true,
-    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": true,
-    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": true,
-    "rust/tcl-compiler/src/realm.rs": true,
-    "rust/tcl-compiler/src/interprocedural.rs": true
+  "proof_base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "canonical_head": "18f34be6978c21169ef37291ff7ce443f1712738",
+  "checked_unix": 1792803974.9022028,
+  "files": {
+    "rust/tcl-lexer/src/parse_cut.rs": {
+      "proof_base_sha256": "ea6ceea833195a1b1135b3a28e67beccc38b88542b206cbcb1752465ba68429f",
+      "current_sha256": "ea6ceea833195a1b1135b3a28e67beccc38b88542b206cbcb1752465ba68429f",
+      "identical": true
+    },
+    "rust/tcl-lexer/src/source_map.rs": {
+      "proof_base_sha256": "7f10fad8a09942f9b3ff37214d3bd7884bbce845b131458b2be5d2f892ca57c5",
+      "current_sha256": "7f10fad8a09942f9b3ff37214d3bd7884bbce845b131458b2be5d2f892ca57c5",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": {
+      "proof_base_sha256": "35b2bac7838ac7318ca29677ddf70aa688232e66e0670b5f9f5d001eef1282fb",
+      "current_sha256": "35b2bac7838ac7318ca29677ddf70aa688232e66e0670b5f9f5d001eef1282fb",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": {
+      "proof_base_sha256": "dfa2aba46273a6616f0788abe71312944adfc14663cb4b3a3c304646595e2d8e",
+      "current_sha256": "dfa2aba46273a6616f0788abe71312944adfc14663cb4b3a3c304646595e2d8e",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": {
+      "proof_base_sha256": "ad7d872c64a08acd15807863ae0eef825a9e6ee16f722d1b442cbedfdffa5304",
+      "current_sha256": "ad7d872c64a08acd15807863ae0eef825a9e6ee16f722d1b442cbedfdffa5304",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": {
+      "proof_base_sha256": "7941ef2efc6c6ebca6d65d8227701b5d01069e595a3c62d860b721dc503adf5c",
+      "current_sha256": "7941ef2efc6c6ebca6d65d8227701b5d01069e595a3c62d860b721dc503adf5c",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/realm.rs": {
+      "proof_base_sha256": "35a72c9f8bf77bd63be2b123aabaed38fbfca1d5c7be1bd7b9eaf2ba0bb79cac",
+      "current_sha256": "35a72c9f8bf77bd63be2b123aabaed38fbfca1d5c7be1bd7b9eaf2ba0bb79cac",
+      "identical": true
+    },
+    "rust/tcl-compiler/src/interprocedural.rs": {
+      "proof_base_sha256": "4982a190f7aad0c544c2128fb70ddfe607876e0a15ffc2df720b3a2a8b92b85d",
+      "current_sha256": "4982a190f7aad0c544c2128fb70ddfe607876e0a15ffc2df720b3a2a8b92b85d",
+      "identical": true
+    }
   },
-  "scope": "Canonical hotpath source compatibility only. Other owner changes, including0f4b8e19, are outside the frozen proof and must be retained during final rebase; no broader latest-branch runtime claim."
+  "scope": "Exact eight hot-path source bytes unchanged; other compiler/LSP files changed, so not successor semantic acceptance."
 }

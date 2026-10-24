@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 01:00 UTC
+Last updated: 2026-10-24 01:10 UTC
 
 ## Resume
 
@@ -13,7 +13,7 @@ Preserve every failed/incomplete result; no assertion or budget weakening.**
 Active FROZEN proof source:83774d43464c7d177bcd505ef22fe898ffee9a25.
 - /workspace/tcl-lsp-diagnostic: full8 batch + temporary switch (9 Rust files).
 - /workspace/tcl-lsp-owned: exactly six owned files, no switch/no routed2.
-- /workspace/tcl-lsp-publish: publisher, latest own push2a07ae41 at23:49UTC.
+- /workspace/tcl-lsp-publish: publisher, latest own push18f34be6 at01:00UTC; current checkpoint follows.
 - /workspace/tcl-lsp-work writes evidence but has old product source; never
   compile new probes there. /workspace/tcl-lsp-perf-latest is retired b6 evidence.
 Keep both active sources unchanged until every active child has finished and
@@ -30,14 +30,16 @@ Earlier E0609/E0599/resource-failed builds remain in evidence.
 Current execution:
 - Full driver85973: /tmp/perf-83774d43-api22-repaired-workflow.log;
   evidence current-83774d43-repaired-workflow-api22/. Optimised normal1 corpus
-  build FINISHED0warnings in29m02s. FULL102 Tcl+15iRules+7synthetics old-only/
-  mixed plus complete ordered PackSet is RUNNING. Forced-old ALL102 Tcl,
-  15iRules and7synthetic sizes COMPLETE/all3 Equal for every input. Mixed Tcl
-  98/102 complete/all3 Equal, including Native35; unchanged array-get-read-traces
-  current input still consuming CPU with stable~270MiB. Do not interrupt it.
-  Remaining4 mixed Tcl,15iRules,7synthetics and ordered PackSet still required.
-  Per-input child processes retain all3 actual analyses/comparisons together,
-  original bytes/hash/counts and strict assertions. No input/field is dropped.
+  build FINISHED0warnings in29m02s. Full corpus COMPLETE/PASS: all102 Tcl,
+  15iRules and7synthetic sizes in BOTH forced-old and mixed modes; all3 complete
+  report pairs Equal for every input, zero Different/Unavailable/child failures.
+  Complete ordered PackSet484936lines,8packs/0notices/errors, deterministic
+  old endpoints/all3 comparisons equal. Source seal unchanged, both probe
+  executables and temporary sources removed. Compiler original8 filters plus
+  native0xff+extra ReadFlow now RUNNING from the exact retained opt0 ELF;
+  unchanged1000-depth case runs alone BOTH afterward. Raw corpus/final.json
+  and current-83774d43-complete-report-summary.json pin complete coverage.
+
 - Full switched lexer586/586 PASS BOTH,3.194/2.353s,0warnings/ELF removed;
   current full/client-lexer/. /tmp/perf-837-api22-switched-lexer.py is finished.
 - Clean6 driver86059: /tmp/perf-83774d43-api22-clean6-workflow.log;
@@ -133,7 +135,7 @@ perf-NOTES.md with final current before/after timings remains required before
 stopping. No PR/force; footer Co-Authored-By: Codex <noreply@openai.com>.
 
 Publish own evidence/NOTES/outstanding at most30min apart, Last updated from
-date-u. Own checkpoint in this update at2026-10-24 01:00 UTC; next push within30min. Fetch origin
+date-u. Own checkpoint in this update at2026-10-24 01:10 UTC; next push within30min. Fetch origin
 work and rebase before every normal push, retry rejection, never force.
 
 ## Completed evidence and current failures
@@ -179,10 +181,9 @@ work and rebase before every normal push, retry rejection, never force.
 
 ## Remaining, in order
 
-1. Finish current complete16 report/realm controls and inspect current hosted
-   refusal trace. Resolve necessary carrier defects without weakening any
-   guard/assertion; publish authorised fixes separately. Then run the complete
-   all-old/mixed102+15+synthetics and ordered PackSet on latest canonical work.
+1. COMPLETE at frozen837: all22 report/realm controls PASS BOTH; full
+   all-old/mixed102+15+7 report corpus and complete ordered PackSet PASS.
+   Necessary repairs are separately published. Preserve source-scope receipts.
 2. Finish original compiler filters BOTH and no-switch clean6 checks; run
    SpecTcl eval_loader/golden_packs BOTH with unchanged budgets. Preserve all
    failed/resource outcomes; zero warnings and zero pass-to-fail required.

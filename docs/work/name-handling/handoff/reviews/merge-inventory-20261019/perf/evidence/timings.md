@@ -296,3 +296,30 @@ executable removed (origin-current-synthetic-input-audit/final.json). Only Rust
 formatting differs in the upvar generator. These are input audits, not equality
 claims across the migration. Origin analyse timings exclude authenticated report
 capture; current report timings include capture. Do not infer a cross-API ratio.
+
+## Complete authenticated report run, frozen83774d43, 2026-10-24
+
+All102 Tcl+15iRules+7synthetic sizes pass every full report pair BOTH forced-old
+and mixed; complete ordered PackSet484936lines also matches all3 directions.
+Inputs/sources/executables and every raw timing are pinned in
+current-83774d43-complete-report-summary.json and
+current-83774d43-repaired-workflow-api22/corpus/. Rust1.99.1, opt1, debug0,
+debug/overflow assertions on, incremental0; no source or input changes.
+Report timings include authenticated capture, exclude pair comparisons.
+
+| Input | old1 ms | new ms | old2 ms |
+|---|---:|---:|---:|
+| calls10 |1175|565|753|
+| calls20 |1999|929|2529|
+| calls40 |5690|1674|4915|
+| calls80 |20346|3726|19408|
+| procs41 |6311|11869|2645|
+| upvar10 |7180|3597|6293|
+| upvar30 |58873|17970|46069|
+| load_embedded |14302|4068|11116|
+
+Procs41 is slower in the measured new run; retain it. The other measurements
+show improvements but are not a linearity/release-latency claim. Origin plain
+analyse excludes report capture, so no cross-boundary ratio is calculated.
+Origin load_embedded uses the same ordinary API, separate4665ms observation.
+Compiler/server/lint acceptance remains pending; equality alone is not that gate.

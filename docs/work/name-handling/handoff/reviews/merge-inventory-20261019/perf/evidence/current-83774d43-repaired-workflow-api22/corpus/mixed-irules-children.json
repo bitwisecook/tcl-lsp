@@ -1,0 +1,152 @@
+[
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-extract-datagroup-mapping-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.9775995899981353,
+    "log": "mixed-irules-000.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/31-extract-datagroup-ip-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.04560200299602,
+    "log": "mixed-irules-001.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/31-extract-datagroup-ip-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.597522423006012,
+    "log": "mixed-irules-002.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/24-template-fallback.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 0.6228939270076808,
+    "log": "mixed-irules-003.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-extract-datagroup-mapping-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.3097655500023393,
+    "log": "mixed-irules-004.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/05-security-taint-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.1421949770010542,
+    "log": "mixed-irules-005.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/30-extract-datagroup-before.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.114722130994778,
+    "log": "mixed-irules-006.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/05-security-taint-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.3271552520018304,
+    "log": "mixed-irules-007.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/30-extract-datagroup-after.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.2648762239987263,
+    "log": "mixed-irules-008.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/ai-scene.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.1308899970026687,
+    "log": "mixed-irules-009.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/cookbook_http_collect.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 10.279974867997225,
+    "log": "mixed-irules-010.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_event_flow.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.268031921994407,
+    "log": "mixed-irules-011.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/cookbook_tcp_collect.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 33.538801732996944,
+    "log": "mixed-irules-012.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_security.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 11.915865725008189,
+    "log": "mixed-irules-013.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/irules/diagnostics_style_perf.irul"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 15.094971409998834,
+    "log": "mixed-irules-014.out"
+  }
+]
