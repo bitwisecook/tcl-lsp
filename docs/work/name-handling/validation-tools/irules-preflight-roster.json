@@ -122,7 +122,9 @@
     "rust/tcl-registry/src/registry.rs": "0b09f3900f30551f997b1c719af66e539432975282efb9e0200fcbeb7a08dd3b",
     "rust/tcl-vm/src/cmd_oo/native_bootstrap.rs": "e758e231ab6598ed1849617c05160b35e4b27131a6676e5ed905ce70ba4ce15e",
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "5b6a57ff57beb84d68a2f2eaa959b0d1ffdc4ac9350f3557a63f5f27aba542f3",
-    "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002"
+    "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
+    "rust/tcl-vm/src/exec.rs": "9b88c9fde64f1026fb66df697f940764e08dda38c2ee85a484231c30c409c352",
+    "rust/tcl-vm/src/interp.rs": "e72ef23eba225c3fc9713fa809581be982435bfc3b08f987d7d5bc26ac70fe9e"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
