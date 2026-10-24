@@ -1,0 +1,192 @@
+{
+  "schema": "clean-ci-host-ee6-actual-terminal-v1",
+  "run_id": 40087877719,
+  "run_attempt": 1,
+  "source_commit": "ee6ad0fc1d7505d331ff550c9342c72040a846d3",
+  "source_tree": "d5195f8efbe4b1c9d7fa8a545180c2c095671d83",
+  "event": "workflow_dispatch",
+  "head_branch": "release/lsp-naming",
+  "workflow_path": ".github/workflows/ci.yml",
+  "aggregate_status_at_capture": "in_progress",
+  "aggregate_conclusion_at_capture": null,
+  "aggregate_acceptance": false,
+  "metadata_sha256": {
+    "run.json": "5710966f1757ba24cb30494a1f7231b54bca1557dc5069599101bcf7052f18d8",
+    "wasm-job.json": "88a0c0191d28affc4c95f284901e7bf988c980db309e967fb049d6bb6cbe6317",
+    "wasi-job.json": "8a96e808478bd1ff4e01629f20c931043375322a28ac5967de22071bfcb2d67b",
+    "wasm-check.json": "465ce90635fda1435173c36344570f73384d4e04ebe66c2fbaed26d2b5e44608",
+    "wasi-check.json": "118772763b89d332c21eb4edcc23a1395362c0ef5742af4c07626670ff99a9fa",
+    "wasm-annotations.json": "993983f48a63955d492e5b33c772ce5f3a8baabd205495c79d078fc6eeeed2f9",
+    "wasi-annotations.json": "dd810269fd4bd3b8725502de402ba238b3243bca77671befd27ee1c2882b6a78"
+  },
+  "jobs": {
+    "wasm": {
+      "job_id": 120854452913,
+      "job_name": "lsp-server-wasm",
+      "started_at": "2026-10-24T10:56:41Z",
+      "completed_at": "2026-10-24T11:08:55Z",
+      "conclusion": "failure",
+      "first_failed_step": "Build and exercise the browser LSP server",
+      "log": {
+        "decoded_response_json": "/workspace/naming-proof-storage/clean-ci-host-wasm-wasi-40087877719-triage-v1/wasm-connector-response.json",
+        "decoded_response_sha256": "9524b204aef27cfd6f2def3b70a23305677b3300dab60cd8e9e447a4d06acfdb",
+        "human_log_copy": "/workspace/naming-proof-storage/clean-ci-host-wasm-wasi-40087877719-triage-v1/wasm-connector.log",
+        "human_log_copy_sha256": "4d8df0f7dc81a0ba6e5d4599fe66bea6e74b6d830e35822e73ce7982b05d283c",
+        "decoded_utf8_bytes": 63139,
+        "decoded_utf8_sha256": "a1daa66b3c0c88b94383893a4bdc97b3e9cb96556db42a046ce69b54dcfec07c"
+      },
+      "earlier_nonterminal_failures": [
+        {
+          "line": 668,
+          "text": "2026-10-24T11:08:30.6202827Z FAIL hover on a pack property returns contents — \"\""
+        },
+        {
+          "line": 691,
+          "text": "2026-10-24T11:08:41.5652934Z FAIL go-to-definition reaches a `source`d sibling from the store — []"
+        },
+        {
+          "line": 692,
+          "text": "2026-10-24T11:08:41.6705369Z FAIL workspace/symbol finds a scanned closed file's proc — 0 symbols"
+        },
+        {
+          "line": 693,
+          "text": "2026-10-24T11:08:41.6809809Z FAIL go-to-definition resolves a tclIndex auto-loaded command — []"
+        }
+      ],
+      "first_terminal_exception": {
+        "line": 694,
+        "text": "2026-10-24T11:08:43.8154272Z e2e harness failed: AssertionError [ERR_ASSERTION]: textDocument/rename failed: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32602,\"message\":\"a completed original command world is unavailable for collision coverage\",\"data\":{\"code\":\"unknown-completed-command-world\",\"reason\":\"a completed original command world is unavailable for collision coverage\"}},\"id\":10}"
+      },
+      "make_exit_code": 2,
+      "build_result": "PASS: logged optimized release build and externref growth1024→1028",
+      "terminal_result": "FAIL: shared naming proof rename returned JSON-RPC -32602 / unknown-completed-command-world",
+      "terminal_rpc_message": "a completed original command world is unavailable for collision coverage",
+      "shared_proof_stage": 147,
+      "prior_shared_definition_and_references": "their strict assertions completed before rename, by exact source control flow; raw payloads not retained",
+      "rename_apply_and_new_revision_checks": "UNREACHED"
+    },
+    "wasi": {
+      "job_id": 120854452936,
+      "job_name": "lsp-server-wasi",
+      "started_at": "2026-10-24T10:56:41Z",
+      "completed_at": "2026-10-24T11:09:32Z",
+      "conclusion": "failure",
+      "first_failed_step": "Build and exercise the WASI LSP server",
+      "log": {
+        "decoded_response_json": "/workspace/naming-proof-storage/clean-ci-host-wasm-wasi-40087877719-triage-v1/wasi-connector-response.json",
+        "decoded_response_sha256": "27329c72e14783b60745ed44730e3fd26b15e5d092e33fdfd64f7b3fb89c54a5",
+        "human_log_copy": "/workspace/naming-proof-storage/clean-ci-host-wasm-wasi-40087877719-triage-v1/wasi-connector.log",
+        "human_log_copy_sha256": "68b0a2fd781d4444ba7c715f6480825b953d8b821e94faa3d7dfe0f68cb78f71",
+        "decoded_utf8_bytes": 87277,
+        "decoded_utf8_sha256": "0c3ae86edfec13d27e596a0b7d83a729a358a739142ce0001bcba57882a038d1"
+      },
+      "earlier_nonterminal_failures": [
+        {
+          "line": 976,
+          "text": "2026-10-24T11:09:17.9916308Z FAIL go-to-definition follows `source` into a file that exists only on the preopened disk — no locations"
+        },
+        {
+          "line": 977,
+          "text": "2026-10-24T11:09:18.1954500Z FAIL hover on the cross-file call answers from the sibling on disk — \"\""
+        }
+      ],
+      "first_terminal_exception": {
+        "line": 980,
+        "text": "2026-10-24T11:09:19.2298579Z e2e harness failed: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+      },
+      "make_exit_code": 2,
+      "build_result": "PASS: build proceeded into scripted sessions",
+      "unit_test_result": {
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 0,
+        "scope": "framing and WASI poll tests only"
+      },
+      "terminal_result": "FAIL: shared naming proof normalized definition locations[] versus exact expected local declaration",
+      "expected_definition": {
+        "uri": "file:///w/host-naming.tcl",
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 5
+          },
+          "end": {
+            "line": 0,
+            "character": 13
+          }
+        }
+      },
+      "shared_proof_stage": 146,
+      "raw_definition_response": "not retained; locations() normalizes null/absent/empty to[]",
+      "references_response": "request returned before definition assertion, but value not retained",
+      "rename_and_new_revision_checks": "UNREACHED"
+    }
+  },
+  "total_decoded_log_bytes": 150416,
+  "log_cap_bytes": 20971520,
+  "source_pins": {
+    ".github/workflows/ci.yml": {
+      "sha256": "2b4d7dd4824cb286bd099b678744b70f354701ba088d2f0cc87654a599306976",
+      "git_blob": "703e2dda16723d4dd70fca7cd0cc963addf822f3"
+    },
+    "Makefile": {
+      "sha256": "930675d6360ebd7c87d889fab442f122db111fcecbb27d400181862f7dd05311",
+      "git_blob": "21905975dd7e7ae9245e77ee26f504e1f5b159de"
+    },
+    "rust/tcl-compiler/src/command_binding/source_command_world.rs": {
+      "sha256": "a0d5296fac54e6c379748975cfdb97cab1e196ff9f48dacc8d657dc5c3baa37f",
+      "git_blob": "68500d3228c51c492a38779ac50bd1535b9cac6f"
+    },
+    "rust/tcl-lsp-core/src/original_command_rename.rs": {
+      "sha256": "8f4460d49cda6e6759b89d89d87aa3cb9764e96c22a96347ca5e897eb5f26be2",
+      "git_blob": "245f2464cb179e7ff8b5716f40f03586ca7e5fdc"
+    },
+    "rust/tcl-lsp-core/src/original_declaration.rs": {
+      "sha256": "84853586850f818dd1a310dd949cb836395b7e31b7c4f3ce800c5d09726f772d",
+      "git_blob": "fa9fd97a3383cba8ea5b5359a6a62ac5798daccb"
+    },
+    "rust/tcl-lsp-server/src/lib.rs": {
+      "sha256": "7a99748e60a286ae0b7c362ba44b1eeaa495ebffb7c4b5e353f1d951e7135535",
+      "git_blob": "4cd559b416ca81d5c88c99922bf36cbeae9057bd"
+    },
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": {
+      "sha256": "5beceb3dd01307b7fb8ebd9666ad6d69b23fce8931b477b814618d6a1104d117",
+      "git_blob": "32b6e6993ca0e230cc8e75e70816e180a5e0f77d"
+    },
+    "rust/tcl-lsp-server-wasi/src/main.rs": {
+      "sha256": "d745b9508388939a53fd2f5b69b546a35a72f81c316880794dff7460948db580",
+      "git_blob": "1fd56a00a8f565743129a4895fd266f03b80684b"
+    },
+    "rust/tcl-lsp-server-wasi/test/e2e.mjs": {
+      "sha256": "72a3c2fc79b819073cebc558b8d0ab2c6f0fbb032296d69974a9d9adb295f19d",
+      "git_blob": "a03248b105301397cecd4b7e3e72bfa354f296c1"
+    },
+    "rust/tcl-lsp-server-wasm/src/lib.rs": {
+      "sha256": "8ee354a80dd4e44776798715f11678ca14bcce1d6aea2085cac4e096ab4ae416",
+      "git_blob": "82d367b06d06eabd2c41bdcbf755a8db47b41342"
+    },
+    "rust/tcl-lsp-server-wasm/test/e2e.mjs": {
+      "sha256": "49a70ee872b8fd8b18c55cf36617a96f41fe90e921fd8f8b65732efae3110329",
+      "git_blob": "30f34afb833a9a66a65530944f68c5c48ac707fc"
+    },
+    "scripts/dev/lsp-naming-host-proof.mjs": {
+      "sha256": "4cd62b1be51d61568910c3baddee8df0ac98db595b093da7c152fd70355180cb",
+      "git_blob": "6dc491fee9e3932b2fe7fb37591bf33605567380"
+    }
+  },
+  "ownership": {
+    "ci": "original CI lsp-server-wasm/lsp-server-wasi jobs invoke unchanged make test targets at sourceee6",
+    "shared_proof": "scripts/dev/lsp-naming-host-proof.mjs: completed diagnostics barrier, then definition/references, then atomicrename",
+    "browser_refusal": "tcl-lsp-core original_command_rename original_command_rename_units selected-owner completedworld or occupied collision-holder checks; exact failed owner/predicate not identified in retained response",
+    "wasi_empty_route": "public goto_definition / original_source_view_navigation_route / ordinary compute_definition; exact internal absence stage not retained"
+  },
+  "limits": [
+    "actual producer job logs and API status, not independent ELF payload or wire packet remeasurement",
+    "no huge run archive/artifact/binary downloaded; direct HTTP log redirect was403, connector decoded individual job logs retained",
+    "WASI installer fallback warning is not terminalcause: install step passed and22unit tests ran",
+    "no guard/assertion/harness weakening, source edits, local execution, rerun, waiver or actual newsource fix acceptance",
+    "proposed outer Indexed readiness repair is separate unmeasured work; it is not claimed causalclosure for theseee6 failures"
+  ]
+}

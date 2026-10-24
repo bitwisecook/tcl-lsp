@@ -1,0 +1,862 @@
+{
+  "utc": "2026-10-24T13:24:58.910118+00:00",
+  "status": "AUTHENTIC_FRESH0W_COLDTOKENS_PASS_SCAN30_FAIL_CONTEXT2_ORIGINAL_PASS",
+  "run": 40095740055,
+  "job": 120877512397,
+  "artifact": 12561700309,
+  "zip_sha256": "5c190416eb1bba1781903c8a84ca7138f6ec314ae1d2229ead5b78e0a6e2ad1d",
+  "zip_bytes": 11173003,
+  "source": "5aa8fe816b3ef93653eb5d6b8d489e5e8f897e47",
+  "tree": "c13b6f24195220353a3d5ca6b4ddb60c3142423e",
+  "complete_tracked_git_membership": 126093,
+  "source_membership_exact": true,
+  "critical_git_bytes": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "ca0ad0f03a5cc148fc8a348dcfc8b62c41905140bd147a3d8b501ca610d220ab",
+    "rust/tcl-lsp-server/src/lib.rs": "116183bc37d5fb9ad391bf8d7e5a050fa45fb86b83671ee917dcff5430e74b17",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "5beceb3dd01307b7fb8ebd9666ad6d69b23fce8931b477b814618d6a1104d117",
+    "rust/tcl-lsp-core/src/tcl_install.rs": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+    "rust/tcl-compiler/src/analyser/state.rs": "191f31a1276846d33a1457b9f4fd484b541aa740eba691cd95b4f891d095cf04",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "73ce6738f5a03f3fb1051c1d04cd431e906586f33542cd0489b807f722c7e9e8",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py": "9e6a09ff81d0acb17246d047cbc4384baf07b260ac858072a46bdb6669ff5449",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "751d45d258ad1d173136ce7ab5b568fd824d3d119769f5639aefc06b5824773d",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs": "a1771a008166116ee67ec93f815fe6b1d691b5a2e4b636911e9b475534297a23",
+    "rust/tcl-registry/src/native_compilation.rs": "aa3adb2035e92b210ca0c14c451b5be72eb9e4b595084fabc32158cc04d2769a",
+    "rust/tcl-compiler/src/command_binding/original_source_projection.rs": "1018afcbae535ea5f9b007d10edb270a5114305b3208e2b4567fa3bef92646af",
+    "rust/tcl-lsp-core/src/source_structure.rs": "05e5bf98df3ef09b2a845add0f5f1cd86525b8cc899e93c1aae23c8717efb9ba",
+    "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "706f5b9af1009855e7527667c71b8309ebd1a10618db577a08c8a92b8486b09e",
+    "rust/tcl-compiler/src/realm.rs": "dc0f7a23e77db3446e293082cca28fd10dfa933c73feedb0d6bf396ded93c08d",
+    "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py": "439b577f220dc96722f9c6d486d12e34a74eef4d630382749a317f6ebeb02a6b",
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json": "5545f70ecb11cb3b026b253c4a7ebf0d4c1dabdb0028b3ed20ca4c9daaf00b46",
+    ".github/workflows/perf.yml": "2fe2cb8a7b08ebaa477a98df0f00e309dc10a7cdb33f60cb477281bf99d15212"
+  },
+  "all13_original_input_pins_match_git_and_actual": true,
+  "materialised8worker_input_records_exact_git_and_original_json_construction": true,
+  "maps": {
+    "source": {
+      "before_member": "source-before.json",
+      "after_member": "source-after.json",
+      "before_sha256": "38effb54ec7f1d404b78c3525ce64d2144a7b396326e850597f74569ccd95706",
+      "after_sha256": "38effb54ec7f1d404b78c3525ce64d2144a7b396326e850597f74569ccd95706",
+      "complete_equal": true,
+      "entries": 126093
+    },
+    "providers": {
+      "before_member": "providers-before.json",
+      "after_member": "providers-after.json",
+      "before_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "after_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "complete_equal": true,
+      "entries": 2256
+    },
+    "dependencies": {
+      "before_member": "dependencies-before-build.json",
+      "after_member": "dependencies-after.json",
+      "before_sha256": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d",
+      "after_sha256": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d",
+      "complete_equal": true,
+      "entries": 21503
+    },
+    "system-providers": {
+      "before_member": "system-providers-before.json",
+      "after_member": "system-providers-after.json",
+      "before_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29",
+      "after_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29",
+      "complete_equal": true,
+      "entries": 330
+    },
+    "tools": {
+      "complete_equal": true,
+      "entries": 7
+    }
+  },
+  "selected_fresh_ci_server": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": false
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": true,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "bin"
+        ],
+        "name": "tcl-lsp-server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/main.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+    "profile_scope": "ci, functional diagnosis only; not shipping release",
+    "sha256": "76d7a0a05c6731cc0f154a54d20f7494f28068d13943c6ba308321df8499e61f"
+  },
+  "strict_build_zero_warnings": true,
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.352506426,
+      "deadline_seconds": 600,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 20971520,
+      "retained_bytes": 14757,
+      "minimum_free_bytes": 75662028800,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 887.675268433,
+      "deadline_seconds": 2400,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 20956763,
+      "retained_bytes": 185923,
+      "minimum_free_bytes": 74320855040,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/typical/worker.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "76d7a0a05c6731cc0f154a54d20f7494f28068d13943c6ba308321df8499e61f",
+        "--protocol-sha256",
+        "8a9203b8e2a45a46ffb05fa655a6089be670e116dfb2949b2a7243c10ba30ff2",
+        "--case",
+        "typical",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/typical"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 32.575290608,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 524288,
+      "retained_bytes": 1036,
+      "minimum_free_bytes": 74350694400,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/context/reproduce.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "76d7a0a05c6731cc0f154a54d20f7494f28068d13943c6ba308321df8499e61f",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/context",
+        "--inputs-sha256",
+        "2d3687aa45e6f9a4a43a55f51e4a39244a213b94ea2bed46010b1875a107bd99"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.964669281,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 524288,
+      "retained_bytes": 0,
+      "minimum_free_bytes": 74350583808,
+      "stop_reason": null
+    }
+  ],
+  "remaining_log_bytes": 20649671,
+  "seals": {
+    "artifact": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "system-providers": true,
+    "tools": true
+  },
+  "system_index_retention": {
+    "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl": {
+      "bytes": 735,
+      "path": "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl": {
+      "bytes": 624,
+      "path": "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl",
+      "sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745"
+    },
+    "/usr/share/tcltk/tcl8.6/tclIndex": {
+      "bytes": 7347,
+      "path": "/usr/share/tcltk/tcl8.6/tclIndex",
+      "sha256": "e7620c3c29c497f6c0119b63b27d95df9da4d7d3a478bef138fb45b1a39452a3"
+    },
+    "/usr/share/tcltk/tk8.6/tclIndex": {
+      "bytes": 24190,
+      "path": "/usr/share/tcltk/tk8.6/tclIndex",
+      "sha256": "e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb"
+    }
+  },
+  "typical": {
+    "cold_response_ms": 68.112169,
+    "didOpen_to_tokens_ms": 68.187221,
+    "scan30": "FAIL original unchanged barrier; later assertions UNRUN",
+    "peak_rss_kib": 476508,
+    "last_cpu_sample": {
+      "t_s": 30.207,
+      "rss_kib": 476508,
+      "cpu_s": 30.0
+    },
+    "scan_records": [
+      "[workspace_scan] factory.round.begin sync=0x6228e812c4e0 round=0 wake=true",
+      "[workspace_scan] factory.round.settled sync=0x6228e812c4e0 round=0",
+      "[workspace_scan] scan.gate.wait",
+      "[workspace_scan] scan.gate.acquired",
+      "[workspace_scan] scan.roots roots=[\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"]",
+      "[workspace_scan] scan.package.begin open=1",
+      "[workspace_scan] discovery.begin",
+      "[workspace_scan] discovery.end installations=[TclInstallation { version: \"8.6\", tcl_library: \"/usr/share/tcltk/tcl8.6\", auto_path: [\"/usr/share/tcltk\", \"/usr/share/tcltk/tcl8.6\"] }] editor_paths=[]",
+      "[workspace_scan] package.tree.begin root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" dir_cap=4000",
+      "[workspace_scan] package.tree.end root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"",
+      "[workspace_scan] package.auto_path.begin",
+      "[workspace_scan] package.path.begin path=\"/usr/share/tcltk\"",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.4 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=841 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.5 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=885 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.6 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=878 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl9.0 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=883 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl9.1 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=886 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.4 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4253 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.5 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4314 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.6 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4328 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl9.0 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4343 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl9.1 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4353 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.path.end path=\"/usr/share/tcltk\"",
+      "[workspace_scan] package.path.begin path=\"/usr/share/tcltk/tcl8.6\"",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.4 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=200 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.5 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=101 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.6 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=112 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl9.0 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=115 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl9.1 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=121 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.4 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=165 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.5 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=222 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.6 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=238 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl9.0 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=237 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl9.1 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=240 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.path.end path=\"/usr/share/tcltk/tcl8.6\"",
+      "[workspace_scan] candidates.begin root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" max_files=2000",
+      "[workspace_scan] candidates.end root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" complete=true count=1",
+      "[workspace_scan] scan.package.end elapsed_ms=28729 complete=true files=[\"/home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl\"]",
+      "[workspace_scan] scan.merge.begin elapsed_ms=28729",
+      "[workspace_scan] scan.merge.end elapsed_ms=28729 files=0 inputs_current=true coverage_complete=true",
+      "[workspace_scan] scan.resolver.published elapsed_ms=28729 published=true files=0 inputs_current=true coverage_complete=true",
+      "[workspace_scan] scan.rehome.begin elapsed_ms=28729",
+      "[workspace_scan] scan.rehome.end elapsed_ms=29077",
+      "[workspace_scan] scan.factory.begin elapsed_ms=29077",
+      "[workspace_scan] factory.round.begin sync=0x6228e7b9c768 round=0 wake=false",
+      "[workspace_scan] factory.round.settled sync=0x6228e7b9c768 round=0",
+      "[workspace_scan] scan.factory.end elapsed_ms=29096 moved=0 affected=0",
+      "[workspace_scan] scan.factory_reindex.begin elapsed_ms=29096",
+      "[workspace_scan] scan.factory_reindex.end elapsed_ms=29096",
+      "[workspace_scan] scan.subclass.begin elapsed_ms=29096",
+      "[workspace_scan] scan.subclass.end elapsed_ms=29096",
+      "[workspace_scan] scan.inventory.begin elapsed_ms=29096",
+      "[workspace_scan] scan.inventory.end elapsed_ms=29096",
+      "[workspace_scan] scan.ready elapsed_ms=29096"
+    ],
+    "analysis_phase_records": [
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=10",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=119",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=120",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=120",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=824",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=824",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=824",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=824",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=10",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=140",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=142",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=142",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=868",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=868",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=868",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=868",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=10",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=136",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=137",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=137",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=865",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=865",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=865",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=865",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=10",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=138",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=139",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=139",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=871",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=871",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=871",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=871",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=10",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=136",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=137",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=137",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=870",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=870",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=870",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=870",
+      "ANALYSER_PHASE bytes=24190 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-complete ms=8",
+      "ANALYSER_PHASE bytes=24190 stage=retained-inventory ms=438",
+      "ANALYSER_PHASE bytes=24190 stage=segmented ms=440",
+      "ANALYSER_PHASE bytes=24190 stage=walk-start ms=440",
+      "ANALYSER_PHASE bytes=24190 stage=walk-complete ms=4239",
+      "ANALYSER_PHASE bytes=24190 stage=parameter-definitions ms=4239",
+      "ANALYSER_PHASE bytes=24190 stage=diagnostics-complete ms=4239",
+      "ANALYSER_PHASE bytes=24190 stage=complete ms=4239",
+      "ANALYSER_PHASE bytes=24190 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-complete ms=11",
+      "ANALYSER_PHASE bytes=24190 stage=retained-inventory ms=487",
+      "ANALYSER_PHASE bytes=24190 stage=segmented ms=489",
+      "ANALYSER_PHASE bytes=24190 stage=walk-start ms=489",
+      "ANALYSER_PHASE bytes=24190 stage=walk-complete ms=4300",
+      "ANALYSER_PHASE bytes=24190 stage=parameter-definitions ms=4300",
+      "ANALYSER_PHASE bytes=24190 stage=diagnostics-complete ms=4300",
+      "ANALYSER_PHASE bytes=24190 stage=complete ms=4300",
+      "ANALYSER_PHASE bytes=24190 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-complete ms=9",
+      "ANALYSER_PHASE bytes=24190 stage=retained-inventory ms=473",
+      "ANALYSER_PHASE bytes=24190 stage=segmented ms=476",
+      "ANALYSER_PHASE bytes=24190 stage=walk-start ms=476",
+      "ANALYSER_PHASE bytes=24190 stage=walk-complete ms=4315",
+      "ANALYSER_PHASE bytes=24190 stage=parameter-definitions ms=4315",
+      "ANALYSER_PHASE bytes=24190 stage=diagnostics-complete ms=4315",
+      "ANALYSER_PHASE bytes=24190 stage=complete ms=4315",
+      "ANALYSER_PHASE bytes=24190 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-complete ms=12",
+      "ANALYSER_PHASE bytes=24190 stage=retained-inventory ms=480",
+      "ANALYSER_PHASE bytes=24190 stage=segmented ms=483",
+      "ANALYSER_PHASE bytes=24190 stage=walk-start ms=483",
+      "ANALYSER_PHASE bytes=24190 stage=walk-complete ms=4329",
+      "ANALYSER_PHASE bytes=24190 stage=parameter-definitions ms=4329",
+      "ANALYSER_PHASE bytes=24190 stage=diagnostics-complete ms=4329",
+      "ANALYSER_PHASE bytes=24190 stage=complete ms=4329",
+      "ANALYSER_PHASE bytes=24190 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=24190 stage=realm-complete ms=12",
+      "ANALYSER_PHASE bytes=24190 stage=retained-inventory ms=476",
+      "ANALYSER_PHASE bytes=24190 stage=segmented ms=479",
+      "ANALYSER_PHASE bytes=24190 stage=walk-start ms=479",
+      "ANALYSER_PHASE bytes=24190 stage=walk-complete ms=4339",
+      "ANALYSER_PHASE bytes=24190 stage=parameter-definitions ms=4339",
+      "ANALYSER_PHASE bytes=24190 stage=diagnostics-complete ms=4339",
+      "ANALYSER_PHASE bytes=24190 stage=complete ms=4339"
+    ],
+    "slow_command_summaries": [
+      {
+        "bytes": 624,
+        "completed_slow_rows": 5,
+        "median_total_us": 21894,
+        "median_each_stage_us": {
+          "original-names": 428,
+          "scoped-bodies": 2502,
+          "variable-receivers": 770,
+          "direct-invocations": 666,
+          "nested-invocations": 1868,
+          "callback-invocations": 781,
+          "command-name-invocations": 29,
+          "namespace-role-facts": 619,
+          "nested-command-diagnostics": 7038,
+          "nested-diagnostics": 655,
+          "variable-command-sites": 35,
+          "procedure-resolution": 1272,
+          "expression-diagnostics": 619,
+          "dispatch-diagnostics": 2100,
+          "handlers-complete": 2356
+        }
+      },
+      {
+        "bytes": 7347,
+        "completed_slow_rows": 5,
+        "median_total_us": 135716,
+        "median_each_stage_us": {
+          "original-names": 409,
+          "scoped-bodies": 2814,
+          "variable-receivers": 844,
+          "direct-invocations": 0,
+          "nested-invocations": 0,
+          "callback-invocations": 0,
+          "command-name-invocations": 0,
+          "namespace-role-facts": 0,
+          "nested-command-diagnostics": 0,
+          "nested-diagnostics": 0,
+          "variable-command-sites": 0,
+          "procedure-resolution": 0,
+          "expression-diagnostics": 0,
+          "dispatch-diagnostics": 610,
+          "handlers-complete": 131027
+        }
+      },
+      {
+        "bytes": 24190,
+        "completed_slow_rows": 6,
+        "median_total_us": 350331.0,
+        "median_each_stage_us": {
+          "original-names": 470.0,
+          "scoped-bodies": 3338.5,
+          "variable-receivers": 979.5,
+          "direct-invocations": 0.0,
+          "nested-invocations": 0.0,
+          "callback-invocations": 0.0,
+          "command-name-invocations": 0.0,
+          "namespace-role-facts": 0.0,
+          "nested-command-diagnostics": 0.0,
+          "nested-diagnostics": 0.0,
+          "variable-command-sites": 0.0,
+          "procedure-resolution": 0.0,
+          "expression-diagnostics": 0.0,
+          "dispatch-diagnostics": 661.0,
+          "handlers-complete": 344785.0
+        }
+      }
+    ],
+    "slow_command_receipt_sha256": "816682f8b4de2c0ad1146bfb713b21aca740534c5379d26be92c1d1923921e58"
+  },
+  "context": {
+    "overall_original_assertions": "PASS both original complete+current fixtures, exact assertions unchanged",
+    "pending_events": 19,
+    "complete_reports": 2,
+    "publication_validation_frontier": [
+      {
+        "report_id": 17,
+        "validation_id": 18,
+        "issued": {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "version": 2,
+          "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-1"
+        },
+        "publication_diagnostics_match": true,
+        "validation_response": {
+          "status": "current",
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "version": 2,
+          "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-1"
+        },
+        "original_validation_assertion": true
+      },
+      {
+        "report_id": 26,
+        "validation_id": 27,
+        "issued": {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "version": 2,
+          "source": "folder-a-helper foo bar\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-2"
+        },
+        "publication_diagnostics_match": true,
+        "validation_response": {
+          "status": "current",
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "version": 2,
+          "source": "folder-a-helper foo bar\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-2"
+        },
+        "original_validation_assertion": true
+      }
+    ],
+    "factory_cancelled_rounds": [],
+    "snapshot_waits": [
+      [
+        "0x610ae22fcbe0",
+        "snapshot_unavailable"
+      ]
+    ],
+    "settled": [
+      [
+        "0x610ae22fcbe0",
+        "0"
+      ],
+      [
+        "0x610ae2300460",
+        "0"
+      ]
+    ],
+    "sixteen_round_warning": false,
+    "refusal_observer_rows": [
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "capture.input_present",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.suppression",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.uri",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.version",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.source",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.dialect",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.revision",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.inputs-epoch",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.result-id",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "capture.input_present",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.suppression",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.uri",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.version",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.source",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.dialect",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.revision",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.inputs-epoch",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.result-id",
+        "true"
+      ]
+    ],
+    "all36_observer_checks_accepted": true,
+    "cause_limit": "Both original current checks pass this run. Historical2dd second validation unavailable remains real; no global race closure or attribution to individual source changes. No Cancelled/16round warning this run only."
+  },
+  "wire": {
+    "typical": {
+      "raw_sha256": "6e14e808e85ff71fefdbef970925df5c2e2a2d6a4674195a15d1b359630eb9ed",
+      "messages": 19,
+      "published_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl",
+          "diagnostics": [],
+          "version": 1
+        }
+      ],
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "[timing] semantic_tokens.full_convergence.settled (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, refresh=false, outcome=cancelled)",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, version=1)",
+        "[timing] deep diagnostics 177ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, diags=0)",
+        "[timing] workspace_state.update 177ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, lines=2, diags=0)",
+        "SpecTcl: 8 pack(s), 1489 command(s), 0 notice(s), 2 shipped-command collision(s), 6 environment(s), 0 extension(s), 0 retired, 0 refused",
+        "[timing] semantic_tokens.refresh.fired (reason=pack-reload)"
+      ]
+    },
+    "context": {
+      "raw_sha256": "5d1afd66e88afc6f3b2569797c8b05f34b9775ec052dd4b5540d561879dde400",
+      "messages": 41,
+      "published_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "1"
+              }
+            },
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "2"
+              }
+            }
+          ],
+          "version": 2
+        },
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "diagnostics": [],
+          "version": 2
+        }
+      ],
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, version=2)",
+        "[timing] deep diagnostics 161ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, diags=2)",
+        "[timing] workspace_state.update 161ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, lines=4, diags=2)",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, version=2)",
+        "[timing] deep diagnostics 39ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, diags=0)",
+        "[timing] workspace_state.update 39ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, lines=1, diags=0)"
+      ]
+    }
+  },
+  "limits": [
+    "No shipping performance/editor/eight-package/whole-Clippy acceptance. Original600/2400/180/30/15/6/16round budgets/assertions retained.",
+    "Exact tracked membership/tree,19critical+13protocol Git bytes and all materialised worker bodies/generatedJSON checked; not every Git payload byte or selectedELF payload rehashed independently.",
+    "Full provider/dependency/source/system/tool endpoint maps equal; intermediate before-each-worker system checks are producer control-flow evidence, no separate raw intermediate snapshot.",
+    "Slow-command rows are only completed >=20ms samples, stages inclusive/recursive; no unfinished-command cost or per-stage causal optimisation acceptance.",
+    "Historical2dd ContextFAIL remains retained. New5aa Context2PASS is scoped observed progress, not editor/global-race acceptance or per-source causal attribution."
+  ]
+}

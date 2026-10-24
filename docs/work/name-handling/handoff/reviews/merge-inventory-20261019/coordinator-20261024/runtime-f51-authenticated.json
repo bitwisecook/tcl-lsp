@@ -1,0 +1,150 @@
+{
+  "utc": "2026-10-24T13:44:32.473429+00:00",
+  "source": "f51f660fa5bfebb1d4ec5a780bc15032c961b993",
+  "run": 40098368479,
+  "job": 120885272384,
+  "artifact": 12562451258,
+  "zip_sha256": "6048e6cd89420d680bb8ec0a96bbed6944bd1ddebde4a1d95496bbd15aa8b502",
+  "zip_bytes": 28995860,
+  "all_member_count": 443,
+  "source_manifest_count": 126099,
+  "full_source_membership_checksums_counts_Git_join_complete": true,
+  "key_Git_blob_count": 30,
+  "C84_all_six_provider_maps_before_after_complete": true,
+  "C84_owned_bootstrap_complete": true,
+  "tommath": {
+    "tommath_after_present": true,
+    "tommath_before_after_equal": true,
+    "have_tommath": true
+  },
+  "selected_fresh_ELF_sha256": "d9650388691bb13630c181dedf56cbba214e87f1d3b04ec7d720fcb297ce2e9d",
+  "ELF_raw_bytes_uploaded": false,
+  "listing_sha256": "c26aec8abdb6b02d8da25cd2754d2bf11063f517891a131da52a05c7c04b2cdc",
+  "original3": [
+    {
+      "name": "tcl-runtime::tcl_runtime$interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+      "event": "ok",
+      "exec_time": 2.6069031860000003
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+      "event": "ok",
+      "exec_time": 11.046242481
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+      "event": "ok",
+      "exec_time": 86.087238659
+    }
+  ],
+  "original3_unknown": 0,
+  "supplemental_separate_counts": {
+    "baseline14": {
+      "PASS": 14
+    },
+    "stack_abort1": {
+      "ABORT": 1
+    },
+    "other103": {
+      "FAIL": 91,
+      "PASS": 12
+    },
+    "prune_controls7": {
+      "PASS": 6,
+      "FAIL": 1
+    },
+    "targeted_prune_controls3": {
+      "PASS": 3
+    }
+  },
+  "all131_invocations_executed_closed": true,
+  "approved_retained_state_cases": [
+    {
+      "group": "other103",
+      "selector": "cmd_lseq::tests::lseq_materialization_refusal_bypasses_guest_capture_and_finally",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": null,
+      "seconds": 2.798373762,
+      "stdout_sha256": "06bb1ec4b9ba9a5a50abf96d9d972a9a35f31f6bf73104bc4da69b414133c9b5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "group": "other103",
+      "selector": "codegen_abi::tests::reached_refusal_bypasses_capture_finally_and_rmw_read_error_recovery",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": null,
+      "seconds": 1.759718019,
+      "stdout_sha256": "54b5d40e0178cac957d24089f1e2895ec2674cb5736f993bf0cdf07100fe98a5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "remaining_original_guard": {
+    "group": "baseline14",
+    "selector": "interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it",
+    "status": "PASS",
+    "exit_code": 0,
+    "reason": null,
+    "seconds": 2.766071568,
+    "stdout_sha256": "444d684c68ef8aaffe12a8f55b11f61e5afaf0a6f0ce28fdda4c446941e02170",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "held_snapshot_status": "ABSENT_SUCCESS_OUTPUT_SUPPRESSED_OR_FAILURE_AT_ANOTHER_POINT; NO CAUSE_INFERRED"
+  },
+  "frame": {
+    "source": "f51f660fa5bfebb1d4ec5a780bc15032c961b993",
+    "owned_capture_closed_complete": true,
+    "capture_incomplete": true,
+    "accounting_complete": false,
+    "tools_before_after_equal": true,
+    "ELF_beforeafter_exact": true,
+    "retained_bytes": 266019,
+    "census": {
+      "FDE_records": 140996,
+      "capture_incomplete": true,
+      "catalogue_bytes": 262140,
+      "defined_function_symbols": 141050,
+      "elf_sha256": "d9650388691bb13630c181dedf56cbba214e87f1d3b04ec7d720fcb297ce2e9d",
+      "frame_records_omitted": 0,
+      "large_rsp_lower_bound_frame_records": 3823,
+      "no_function_symbols": false,
+      "no_unwind_frames": false,
+      "relevant_frame_symbol_gaps": 238,
+      "relevant_rows_omitted": 25754,
+      "status": "CAPTURED",
+      "symbol_records_omitted": 0,
+      "unknown_CFA_frame_records": 21882,
+      "unmatched_FDE_records": 0,
+      "unparsed_CFA_rows": 0,
+      "unparsed_FDE_headers": 0,
+      "unparsed_symbol_rows": 6,
+      "valid_non_function_symbol_rows": 28186
+    },
+    "limit": "Static incomplete CFI cannot establish actual branch, active depth or stack-abort cause."
+  },
+  "whole_protocol_complete": false,
+  "whole_protocol_errors": [
+    "stack metadata unavailable, changed or incomplete"
+  ],
+  "limits": [
+    "Isolated diagnostics do not replace full shared-process FullTom semantic gate, original baselines or performance corpus.",
+    "Semantic FAIL/ABORT/TIMEOUT remain actual outcomes even if owned process closure is complete; unknown/UNRUN is never PASS.",
+    "CFI completeness is independent of test closure; no incomplete catalogue is promoted to stack-cause proof.",
+    "Original append1035/180 and all selected assertions unchanged; success output may be suppressed, no cross-host/source causal speedup claim.",
+    "C84 subset does not substitute for original812 Rust updater, which remains UNRUN unless explicitly listed.",
+    "No raw ELF/provider-executable bytes beyond uploaded metadata, no local native/build/oracle execution or duplicate dispatch."
+  ],
+  "analysis_sha256": {
+    "approved-retained-state-outcomes.json": "d325fed7b99763790f5d3c5d75ebc89d1d9f974c126daba782b191e5b50ee51f",
+    "archive-members.json": "0573b7982b681a5b3c9637d61b13e7e13dd52adb5a79455b8a0ec83b431ae72e",
+    "c84-provider-join.json": "3384a342c7c61fc7fc41c0a290c0e99e5290fb920a3ecaebf4094df6c1f8f6e6",
+    "envelope.json": "490719faf5899f2bc5480c5bbcece464c131a712b0155208bceaa5f06ba292d0",
+    "failure-payloads.json": "e491bbae356556413eba6fa11622c17f0c78d222c1a13eb724ab7d77ca4c2bc4",
+    "frame-metadata.json": "b8055d2b4362b7690eded7aa617a4243071f0a6fbd52f9032d9703bfd1b1406a",
+    "guard-payload.json": "0081d4a38aa4fd4032beb01070b836e7e6cbb8d8fa34d01e9d56a4e4238aedf0",
+    "inventory.json": "210160f2528987ee4d791631f93a82735cc586c08130559b7ccdc39d48f57c28",
+    "source-git-join.json": "46a2cd885f5e1379c90e5e729360f8d8a6673f9cf64735fafd09f07c0ad09709",
+    "supplemental-outcomes.json": "9b923c3dc8e72a5377466b3703b77be0e6e10e428e55fec16a28514e49aa1401",
+    "unknown.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  }
+}

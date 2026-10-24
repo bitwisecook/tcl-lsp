@@ -1,0 +1,544 @@
+{
+  "utc": "2026-10-24T13:50:45.122180+00:00",
+  "records": [
+    {
+      "run": 40087877719,
+      "source": "ee6ad0fc1d7505d331ff550c9342c72040a846d3",
+      "branch": "release/lsp-naming",
+      "event": "workflow_dispatch",
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 120854403587,
+          "name": "channel",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854403587"
+        },
+        {
+          "id": 120854403655,
+          "name": "cargo-deny",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854403655"
+        },
+        {
+          "id": 120854452876,
+          "name": "rust-check",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452876"
+        },
+        {
+          "id": 120854452882,
+          "name": "rust-tests-doctest",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452882"
+        },
+        {
+          "id": 120854452895,
+          "name": "spectcl-compat",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452895"
+        },
+        {
+          "id": 120854452899,
+          "name": "runtime-rust-tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452899"
+        },
+        {
+          "id": 120854452900,
+          "name": "test-ext-web",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452900"
+        },
+        {
+          "id": 120854452907,
+          "name": "python",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452907"
+        },
+        {
+          "id": 120854452913,
+          "name": "lsp-server-wasm",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452913"
+        },
+        {
+          "id": 120854452935,
+          "name": "build-tcl-lsp-server",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452935"
+        },
+        {
+          "id": 120854452936,
+          "name": "lsp-server-wasi",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452936"
+        },
+        {
+          "id": 120854452948,
+          "name": "lsp-e2e archive",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452948"
+        },
+        {
+          "id": 120854452957,
+          "name": "rust-tests-heavy",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452957"
+        },
+        {
+          "id": 120854452958,
+          "name": "wasm-real-link",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854452958"
+        },
+        {
+          "id": 120854453030,
+          "name": "rust-tests-shard (5/5)",
+          "status": "in_progress",
+          "conclusion": null,
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453030"
+        },
+        {
+          "id": 120854453045,
+          "name": "web-frontends",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453045"
+        },
+        {
+          "id": 120854453090,
+          "name": "rust-tests-shard (3/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453090"
+        },
+        {
+          "id": 120854453094,
+          "name": "rust-tests-shard (4/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453094"
+        },
+        {
+          "id": 120854453100,
+          "name": "rust-tests-shard (1/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453100"
+        },
+        {
+          "id": 120854453125,
+          "name": "rust-tests-shard (2/5)",
+          "status": "in_progress",
+          "conclusion": null,
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453125"
+        },
+        {
+          "id": 120854453874,
+          "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854453874"
+        },
+        {
+          "id": 120854454027,
+          "name": "macos-wasm-check",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120854454027"
+        },
+        {
+          "id": 120855383390,
+          "name": "lsp-e2e-partition (1/3)",
+          "status": "in_progress",
+          "conclusion": null,
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120855383390"
+        },
+        {
+          "id": 120855383403,
+          "name": "lsp-e2e-partition (3/3)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120855383403"
+        },
+        {
+          "id": 120855383431,
+          "name": "lsp-e2e-partition (2/3)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120855383431"
+        },
+        {
+          "id": 120856879332,
+          "name": "test-ext-multi-folder",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120856879332"
+        },
+        {
+          "id": 120856879347,
+          "name": "test-ext-partition (3, three)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120856879347"
+        },
+        {
+          "id": 120856879443,
+          "name": "test-ext-partition (2, two)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120856879443"
+        },
+        {
+          "id": 120856879783,
+          "name": "test-ext-partition (1, one)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120856879783"
+        },
+        {
+          "id": 120858930529,
+          "name": "pr-gate",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120858930529"
+        },
+        {
+          "id": 120866811850,
+          "name": "test-ext",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40087877719/job/120866811850"
+        }
+      ]
+    },
+    {
+      "run": 40071600890,
+      "source": "dd9d8c46e3b4c8fe13dcf9053a1744d9730011d7",
+      "branch": "work",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 120806030046,
+          "name": "cargo-deny",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806030046"
+        },
+        {
+          "id": 120806030251,
+          "name": "channel",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806030251"
+        },
+        {
+          "id": 120806429243,
+          "name": "rust-check",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429243"
+        },
+        {
+          "id": 120806429278,
+          "name": "test-ext-web",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429278"
+        },
+        {
+          "id": 120806429287,
+          "name": "build-tcl-lsp-server",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429287"
+        },
+        {
+          "id": 120806429297,
+          "name": "rust-tests-doctest",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429297"
+        },
+        {
+          "id": 120806429318,
+          "name": "rust-tests-heavy",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429318"
+        },
+        {
+          "id": 120806429324,
+          "name": "web-frontends",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429324"
+        },
+        {
+          "id": 120806429343,
+          "name": "wasm-real-link",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429343"
+        },
+        {
+          "id": 120806429352,
+          "name": "python",
+          "status": "completed",
+          "conclusion": "success",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429352"
+        },
+        {
+          "id": 120806429360,
+          "name": "spectcl-compat",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429360"
+        },
+        {
+          "id": 120806429389,
+          "name": "lsp-server-wasm",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429389"
+        },
+        {
+          "id": 120806429405,
+          "name": "runtime-rust-tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429405"
+        },
+        {
+          "id": 120806429411,
+          "name": "lsp-server-wasi",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429411"
+        },
+        {
+          "id": 120806429455,
+          "name": "lsp-e2e archive",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429455"
+        },
+        {
+          "id": 120806429583,
+          "name": "rust-tests-shard (2/5)",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429583"
+        },
+        {
+          "id": 120806429585,
+          "name": "rust-tests-shard (3/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429585"
+        },
+        {
+          "id": 120806429597,
+          "name": "rust-tests-shard (1/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429597"
+        },
+        {
+          "id": 120806429646,
+          "name": "rust-tests-shard (5/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429646"
+        },
+        {
+          "id": 120806429651,
+          "name": "rust-tests-shard (4/5)",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806429651"
+        },
+        {
+          "id": 120806430320,
+          "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806430320"
+        },
+        {
+          "id": 120806430488,
+          "name": "macos-wasm-check",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120806430488"
+        },
+        {
+          "id": 120807635039,
+          "name": "lsp-e2e",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120807635039"
+        },
+        {
+          "id": 120807635602,
+          "name": "lsp-e2e-partition (${{ matrix.partition }})",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120807635602"
+        },
+        {
+          "id": 120808954124,
+          "name": "test-ext",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120808954124"
+        },
+        {
+          "id": 120808954826,
+          "name": "test-ext-partition",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120808954826"
+        },
+        {
+          "id": 120808954869,
+          "name": "test-ext-multi-folder",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120808954869"
+        },
+        {
+          "id": 120811185918,
+          "name": "pr-gate",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120811185918"
+        },
+        {
+          "id": 120877119216,
+          "name": "rust-tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877119216"
+        },
+        {
+          "id": 120877140108,
+          "name": "create-release",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140108"
+        },
+        {
+          "id": 120877140151,
+          "name": "build-claude-skills",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140151"
+        },
+        {
+          "id": 120877140364,
+          "name": "publish-native-binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140364"
+        },
+        {
+          "id": 120877140577,
+          "name": "build-zed",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140577"
+        },
+        {
+          "id": 120877140580,
+          "name": "linux-release-portability",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140580"
+        },
+        {
+          "id": 120877140789,
+          "name": "build-jetbrains",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140789"
+        },
+        {
+          "id": 120877140869,
+          "name": "build-sublime",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877140869"
+        },
+        {
+          "id": 120877141165,
+          "name": "build-vsix",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141165"
+        },
+        {
+          "id": 120877141194,
+          "name": "cleanup-old-artifacts",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141194"
+        },
+        {
+          "id": 120877141296,
+          "name": "publish-vsix-openvsx",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141296"
+        },
+        {
+          "id": 120877141365,
+          "name": "publish-checksums",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141365"
+        },
+        {
+          "id": 120877141469,
+          "name": "publish-jetbrains-marketplace",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141469"
+        },
+        {
+          "id": 120877141618,
+          "name": "publish-vsix-marketplace",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141618"
+        },
+        {
+          "id": 120877141683,
+          "name": "cleanup-untagged-artifacts",
+          "status": "completed",
+          "conclusion": "skipped",
+          "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/40071600890/job/120877141683"
+        }
+      ]
+    }
+  ],
+  "scope": "API run/job statuses only, no per-test or zero-regression inference"
+}

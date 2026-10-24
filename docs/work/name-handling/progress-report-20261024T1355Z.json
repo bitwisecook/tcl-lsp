@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T13:55:37.356974+00:00",
+  "scheduled_report_utc": "2026-10-24T13:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T14:25:37+00:00",
+  "change_since_previous_report": [
+    "Published reviewed product WORK136c398c8f3c96c8c457d4f9d2991f7e9de80b2a and clean release565234511778342319dbf71afba168f34d2d82ca after fresh shallow work fetch/rebase and normal pushes. Release-only contract prose cleanup removes process/gate commentary. No PR, merge, tag or release; the six-hour target was missed.",
+    "Runtime40098368479 exactf51 is fully authenticated (8cd85423): original3 pass; all14 original baseline cases pass, including both unchanged command-guard tests; both user-approved retained-state checks pass. The None-to-None unknown-handler correction avoids false command-policy invalidation while retaining broad namespace revision and all real handler transitions. Other103 remains12 pass/91 fail, stack aborts, prune6/7, CFI incomplete. No whole-runtime or zero-regression admission.",
+    "Fresh Compiler40098185967 and Spec40098304086 failed before test execution at sole E0599: the new root-script code called iter on an opaque Iterator. All67/all12 remain UNRUN in those captures. Minimal rows.clone().any repair preserves the full later traversal; independently reviewed by root and Names, applied46da/1988 with exact source pin/digest companions. Static review is not compilation acceptance.",
+    "Four fresh focused runs on exact46da3269b67d3068b088c1bbb2216dc25d02c7d9 are active: Compiler40099484152, Spec40099489339, bootstrap40099493049, startup/Core240099496763. They preserve original selectors, assertions, budgets and guards. Actual outcomes are pending.",
+    "Physical procedure activation now uses the actual supplied Tcl host rather than logical iRules source policy at three existing boundaries. Independent Runtime peer733f6997 cleared source/API/owner/order, missing-host and missing-geometry refusal controls. Exact Heavy source dependencies were added with its existing whole-roster guard. Actual bootstrap closure awaits the new run; no TMM execution capability is granted.",
+    "All39 measured global Clippy sites now have independently reviewed source fixes in appropriate lanes. Range remaining6 initially introduced a WORK-only nondebug unused boolean; Codegen caught it and the exact Copy discard forward repair was integrated. No new allow or assertion weakening. Original strict make rust-check run40099930418 on136c is active with the bounded manifest-pinned TomMath prerequisite; global zero warnings is not yet established.",
+    "Latest authenticated startup5aa remains cold68.112169ms/Context2/Core2 pass and originalscan30 fail. Internalready29.096 uses a different start boundary from the client wait; reader shutdown also limits late wire observations, so no delivery bug or deadline pass is inferred. Reviewed WORK-only aggregate phase observer is integrated and active in the next capture, with inclusive nested timing limits. Final matched Tcl corpus performance remains unaccepted.",
+    "Clean ee6 host failures are authenticated (33241474): browser optimized WASM/externref pass, shared rename fails missing completed-world collision coverage; WASI build/22 framing tests pass, shared definition is empty before rename. Range prepares an outer indexed-readiness repair and controlled pending-index public test with LSP peer. Missing-view/collision refusals remain; actual causal closure is unproven.",
+    "Terminal olddd9 baseline join now has2565 pass,826 observed pass-to-fail and21919 unknown across25310 descriptors. The696 compiler losses are being clustered against newer ee6 logs; interrupted/invalid captures remain unknown. This old-source partial comparison is not a current-tip verdict or zero-regression proof. Clean ee6 fullCI remains active with actual failures.",
+    "Remaining runtime91 failures now have a complete per-selector payload/Git-panic-window inventory (49af2b63): only9 print a first Native/name refusal;82 do not. Observable families remain distinct, and dictionary callback publication is the next source investigation. Further post-refusal fixture changes are not automatically covered by the approved exact two tests. JimV4 carry is frozen but held for current build success and carry review.",
+    "Current-state rows1/5/6/9/13/15/17 now point to current recorded validations rather than stale build blockers; bounded Passed9b records only the original runtime14. Six immutable author receipts and exact host/CI metadata are copied to work evidence. Audit-unit counts remain unchanged.",
+    "External BIGIP and perf tracker headers remain over60 minutes old; user notified, no duplicate or takeover. Review-triage reports its assigned replay complete. Pruned only an old closed paired-benchmark UV dependency cache; no source, evidence, targets or executables removed. Disk remains below2GB; builds stay on hosted workers. Next report14:25UTC."
+  ],
+  "committed": [
+    "34609658d1c7910302416b07c8b0145b82c7c45c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish13:55 report/snapshot and rearm14:25 reminder.",
+    "Authenticate focused46da and strict136c captures; fix actual failures without weakening assertions or guards.",
+    "Complete Jim current carry and reviewed host readiness fix after required build evidence.",
+    "Resolve remaining compiler/runtime/Spec/host cases, original scan and accepted final matched Tcl performance.",
+    "Require sectionF, complete zero-baseline-regression proof, all green repository/host/editor/generated/docs/comments/format/chaff gates before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 678162432,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

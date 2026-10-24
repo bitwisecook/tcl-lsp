@@ -1,0 +1,247 @@
+{
+  "utc": "2026-10-24T13:33:08.400707+00:00",
+  "status": "TERMINAL_DD9_EXACT_OBSERVED_BASELINE_JOIN_COMPLETENESS_STILL_FAILED",
+  "source": "dd9d8c46e3b4c8fe13dcf9053a1744d9730011d7",
+  "run": 40071600890,
+  "prior_receipt_sha256": "f43c5c2e6b5dac94fd6c3eafb63e1e132c1e342288ea0acce89baad0c0622565",
+  "new_named_receipt_sha256": "bf8095b8b622fb17be93421ef89bd212d6699711e440bdccde2791d330681cdd",
+  "new_exact_baseline_counts": {
+    "workspace24312": {
+      "PASS": 1954,
+      "PASS_TO_NONPASS": 820,
+      "MISSING_UNKNOWN": 21538,
+      "NONPASS_OR_AMBIGUOUS": 0
+    },
+    "fullTom998": {
+      "PASS": 611,
+      "PASS_TO_NONPASS": 6,
+      "MISSING_UNKNOWN": 381,
+      "NONPASS_OR_AMBIGUOUS": 0
+    }
+  },
+  "observed_WORK_PF_counts_by_package": {
+    "tcl-compiler": 696,
+    "bpf-tcl": 17,
+    "tcl-cli": 9,
+    "tcl-cshim": 13,
+    "tcl-explorer": 36,
+    "tcl-irules": 11,
+    "tcl-lsp-core": 34,
+    "tcl-registry": 1,
+    "tcl-spectcl": 2,
+    "bigip-report-gen-rust": 1
+  },
+  "observed_WORK_PF_fullTom998": 6,
+  "new_shard_scopes": [
+    {
+      "lane": "work",
+      "job": 120806429583,
+      "name": "rust-tests-shard (2/5)",
+      "api_status": "completed",
+      "api_conclusion": "cancelled",
+      "log_origin": "work-connector-job-120806429583.zip",
+      "checkout_source_present": true,
+      "log_UTF8_bytes": 1855386,
+      "log_UTF8_sha256": "5a00c023995bcf6d0f154f5e76cf4e3aec99f743724a35d1ad4a4f15fac447ac",
+      "line_count": 12926,
+      "first_line": "2026-10-24T06:49:42.9365802Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-24T12:50:40.2234260Z Terminate orphan process: pid (30504) (tcl_lsp_core-856a2e3a6bb4e9e2)",
+      "cargo_counts": {},
+      "cargo_summaries": [],
+      "compile_errors": [],
+      "parser_errors": [],
+      "nested_child_exclusions": [],
+      "capture_records": 1,
+      "nonstandard_records": [
+        {
+          "kind": "capture-invalid",
+          "reason": "unsafe testcase name",
+          "_line": 12678,
+          "_timestamp": "2026-10-24T07:01:33.9901927Z"
+        }
+      ],
+      "sequence_contiguous": false,
+      "nonce_count": 0,
+      "run_start": [],
+      "run_end": [],
+      "selected_records": 0,
+      "terminal_records": 0,
+      "declared_selected": null,
+      "terminal_status_counts": {},
+      "terminals_not_in_selected": [],
+      "nonignored_terminals_not_selected": [],
+      "ignored_not_selected": [],
+      "duplicate_terminal_count": 0,
+      "duplicate_selected_count": 0,
+      "capture_complete": false,
+      "selected_without_terminal": 0,
+      "declared_without_selected_terminal": null
+    },
+    {
+      "lane": "work",
+      "job": 120806429646,
+      "name": "rust-tests-shard (5/5)",
+      "api_status": "completed",
+      "api_conclusion": "failure",
+      "log_origin": "work-connector-job-120806429646.zip",
+      "checkout_source_present": true,
+      "log_UTF8_bytes": 3643498,
+      "log_UTF8_sha256": "888e27b0d0a91e7cc707744f05daf8c8abfc2f177785c7cb0d685ae264d71584",
+      "line_count": 18738,
+      "first_line": "2026-10-24T06:57:27.1595509Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-24T12:32:10.0671342Z Cleaning up orphan processes",
+      "cargo_counts": {},
+      "cargo_summaries": [],
+      "compile_errors": [],
+      "parser_errors": [],
+      "nested_child_exclusions": [],
+      "capture_records": 5817,
+      "nonstandard_records": [],
+      "sequence_contiguous": true,
+      "nonce_count": 1,
+      "run_start": [
+        {
+          "seq": 1,
+          "nonce": "2e1b99302420ae391463a263",
+          "kind": "run-start",
+          "listing_sha256": "212576722ff8a373fea18ad7a5246e43ec1a9048396384876c1ed365d29e31ba",
+          "selected": 5185,
+          "_line": 12677,
+          "_timestamp": "2026-10-24T07:06:13.5541869Z"
+        }
+      ],
+      "run_end": [
+        {
+          "seq": 5817,
+          "nonce": "2e1b99302420ae391463a263",
+          "kind": "run-end",
+          "nextest_exit": 100,
+          "capture_valid": false,
+          "_line": 18493,
+          "_timestamp": "2026-10-24T12:32:00.2719450Z"
+        }
+      ],
+      "selected_records": 5185,
+      "terminal_records": 622,
+      "declared_selected": 5185,
+      "terminal_status_counts": {
+        "ok": 499,
+        "failed": 122,
+        "ignored": 1
+      },
+      "terminals_not_in_selected": [
+        [
+          "tcl-compiler::differential_incremental",
+          "incremental_matches_fresh_over_corpus"
+        ]
+      ],
+      "nonignored_terminals_not_selected": [],
+      "ignored_not_selected": [
+        [
+          "tcl-compiler::differential_incremental",
+          "incremental_matches_fresh_over_corpus"
+        ]
+      ],
+      "duplicate_terminal_count": 0,
+      "duplicate_selected_count": 0,
+      "capture_complete": false,
+      "selected_without_terminal": 4564,
+      "declared_without_selected_terminal": 4564
+    }
+  ],
+  "fresh_specific_log_checks": [
+    {
+      "job": 120806429583,
+      "UTF8_bytes": 1855389,
+      "UTF8_sha256": "68f660fba7b1158991a4304be4ce8345e77f0c82d4da9807ccdda26d8c0b5ec4",
+      "old_UTF8_sha256": null,
+      "fresh_identical_to_old": false,
+      "retained_zip": "/workspace/naming-proof-storage/vm-ci-terminal-dd9-update-20261024/work-connector-job-120806429583.zip",
+      "retained_zip_sha256": "b133dfcd3c4610ed652d7465b5b5ff15db4885f324ebdfa49a27b8740951fefc"
+    },
+    {
+      "job": 120806429585,
+      "UTF8_bytes": 4108609,
+      "UTF8_sha256": "e6f2e3c1b731080e14820bf35d787cbd230aab64c4327ce21306b9217e01540c",
+      "old_UTF8_sha256": "e6f2e3c1b731080e14820bf35d787cbd230aab64c4327ce21306b9217e01540c",
+      "fresh_identical_to_old": true,
+      "retained_zip": "/workspace/naming-proof-storage/vm-ci-terminal-inventory-20261024/work-connector-job-120806429585.zip",
+      "retained_zip_sha256": "6a7aa94d20f0c2e19abf39a2a010f112cdd4a267190067756acf94d86c3bd053"
+    },
+    {
+      "job": 120806429597,
+      "UTF8_bytes": 5191592,
+      "UTF8_sha256": "44e49b4a3ba94576e1c8fc7153e17b34962ad197e74138c05be73157b7bd8110",
+      "old_UTF8_sha256": "44e49b4a3ba94576e1c8fc7153e17b34962ad197e74138c05be73157b7bd8110",
+      "fresh_identical_to_old": true,
+      "retained_zip": "/workspace/naming-proof-storage/vm-ci-terminal-inventory-20261024/work-connector-job-120806429597.zip",
+      "retained_zip_sha256": "f38159cf616d8f6144201379d38af5d576cf737e7b0d658887000271038a7764"
+    },
+    {
+      "job": 120806429646,
+      "UTF8_bytes": 3643501,
+      "UTF8_sha256": "0fae7d3b73bd07c61c421388b8c8ee940c7c31c4b000daaa61d90ca56d5c1c3b",
+      "old_UTF8_sha256": null,
+      "fresh_identical_to_old": false,
+      "retained_zip": "/workspace/naming-proof-storage/vm-ci-terminal-dd9-update-20261024/work-connector-job-120806429646.zip",
+      "retained_zip_sha256": "e29f2198527d99669d9b7a92eaf9e28d2293de82253b81ecc2f400f182b50bf5"
+    },
+    {
+      "job": 120806429651,
+      "UTF8_bytes": 2110869,
+      "UTF8_sha256": "dce41c7638c9550d98b0d32d40e44f4362d82b3b681993c6d9213d398f2dd803",
+      "old_UTF8_sha256": "dce41c7638c9550d98b0d32d40e44f4362d82b3b681993c6d9213d398f2dd803",
+      "fresh_identical_to_old": true,
+      "retained_zip": "/workspace/naming-proof-storage/vm-ci-terminal-inventory-20261024/work-connector-job-120806429651.zip",
+      "retained_zip_sha256": "83173e6b2010ca1c12dbf3c4d54ca03d0b86dc4ec9eda0e8a6ba76b56677292f"
+    }
+  ],
+  "descriptor_self_readback": {
+    "work": {
+      "all25310_unique_exact_source_record_joins": true,
+      "classification_counts": {
+        "PASS": 2565,
+        "PASS_TO_NONPASS": 826,
+        "MISSING_UNKNOWN": 21919
+      }
+    },
+    "clean": {
+      "all25310_unique_exact_source_record_joins": true,
+      "classification_counts": {
+        "PASS": 36,
+        "PASS_TO_NONPASS": 16,
+        "MISSING_UNKNOWN": 25258
+      }
+    }
+  },
+  "files": {
+    "named-inventories.zip": {
+      "bytes": 2076424,
+      "sha256": "580ea7a33b9ab9efff4974f71721ecd28820c5d61b49d50c96f86b9fe5f444aa"
+    },
+    "baseline-per-test-descriptors.zip": {
+      "bytes": 4019456,
+      "sha256": "b51dd84dd3eb522223f480fd0608c7994c79a7afec02ef64b4c58313f4f54d7a"
+    },
+    "descriptor-manifest.json": {
+      "bytes": 650,
+      "sha256": "bd70e249a5ebc96f848e5c781f8e0217aae6c3f25c544e3dd568683713698231"
+    },
+    "observed-work-PF-descriptors.zip": {
+      "bytes": 126105,
+      "sha256": "020058e0755ae8be4ec9cb252e382101092cfbd0e04d9de931bde4ff88d1f5b8"
+    },
+    "baseline-PF-package-counts.json": {
+      "bytes": 213,
+      "sha256": "d148293151dea372dafbaefc178f3d7f5c57cdc5953a9bbb0ef57ed8b4376c16"
+    }
+  },
+  "limits": [
+    "No whole run archive or raw giant log expansion; only two new specific logs archived ZIP-only. All reused old archive hashes retained and streamed during parse.",
+    "Fresh1/3/4 log bytes match prior partial captures exactly; all earlier unknowns preserved. APIterminal run failure never implies reporter completeness.",
+    "New shard2 capture-invalid unsafe testcase name has no selected/terminal evidence; cancellation/orphan cleanup does not invent any testcase outcome or cancellation cause.",
+    "New shard5 selected5185/terminal622 includes one ignored outside eligible list;621 eligible terminals leave4564 selectedunknown and invalid/incomplete capture. Individual exact selected terminal observations retained; no wholecapturePASS.",
+    "CLEAN3ee comparison is historical snapshot reused unchanged, not a fresh EE6/currentCLEAN outcome. No newer current source/profile/assertion-equivalence or causal/fix attribution from dd9 history.",
+    "Observed baseline PF only; all remaining unknowns still block full zero-PF completeness. No baseline/roster/assertion/budget waiver, no dispatch/cancel/local build/native/test execution."
+  ]
+}

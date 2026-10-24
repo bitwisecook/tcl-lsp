@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-24T13:48:45.093495+00:00",
+  "records": [
+    {
+      "record": "runtime-f51-authenticated.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/vm-runtime-actual-40098368479/receipt.json",
+      "sha256": "8cd854235801d02159a598a68e9e6368ba2f4d7e97393437a88b511a2e99c547",
+      "bytes": 6492
+    },
+    {
+      "record": "compiler-2fa-build-failure.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/compiler-original67-40098185967/assessment.json",
+      "sha256": "21f6df9b48c6c478274435f992eb7beb8b7d3ce19688adbdfd91abc6444b19ff",
+      "bytes": 28371
+    },
+    {
+      "record": "spec-f51-build-failure.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/ccg-specAA-40098304086-actual-v1/assessment/identity-seals-processes.json",
+      "sha256": "7d74db340b597915ccc2005fa2d849527a1cecff00954b7cfcc1d77f2c105efa",
+      "bytes": 8380
+    },
+    {
+      "record": "startup-5aa-authenticated.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/lsp-hosted-startup40095740055-actual-v1/assessment-v1.json",
+      "sha256": "508b253ce09d7eec77dfa77c799b55f4819b361d6e581268dd69ae5f92d8d324",
+      "bytes": 40847
+    },
+    {
+      "record": "core2-5aa-authenticated.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/lsp-hosted-core2-40095740055-actual-v1/assessment-v2.json",
+      "sha256": "a1d50e67974916c72b2fc406bfd51bf4a93860950436c18bec13944c1a629783",
+      "bytes": 13845
+    },
+    {
+      "record": "baseline-dd9-terminal-partial.json",
+      "retained_author_receipt": "/workspace/naming-proof-storage/vm-ci-terminal-dd9-update-20261024/update-receipt.json",
+      "sha256": "f39bd5001233b58f7c5f2f52dbf5a92ce5f5115bb1dca269458c78b760cf05de",
+      "bytes": 9770
+    }
+  ],
+  "audit_unit_admissions": [],
+  "raw_payload_archives_remain_in_workspace": true,
+  "CI_profile_not_shipping_acceptance": true
+}
