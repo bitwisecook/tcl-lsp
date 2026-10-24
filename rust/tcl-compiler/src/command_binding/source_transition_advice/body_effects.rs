@@ -615,7 +615,10 @@ impl AdviceInvocationContext<'_> {
                 .any(|part| !matches!(part.part, ExecutablePart::Text(_)))
         });
         if substitutions {
-            graph.record_uncertainty(native);
+            let native_parent = matches!(self.policy, AdviceNamingPolicy::Native(_));
+            if !native_parent {
+                graph.record_uncertainty(native);
+            }
             let mut walk = BodyWalk {
                 context: self,
                 visited: 0,
@@ -628,7 +631,11 @@ impl AdviceInvocationContext<'_> {
                 catalogue_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             };
-            walk.substitutions(graph, native, 0)?;
+            let walked = walk.substitutions(graph, native, 0);
+            if native_parent {
+                graph.record_uncertainty(native);
+            }
+            walked?;
             tape.extend_inventory(walk.inventory.unwrap_or_default());
             tape.extend_inventory(walk.authored_prefixes);
         }
@@ -1289,6 +1296,26 @@ impl BodyWalk<'_, '_> {
         retained
     }
 
+    fn retain_native_procedure_call(
+        &mut self,
+        graph: &AdviceGraph,
+        native: &NativeScriptCommandWords,
+        written: &[super::SourceAdviceWord],
+    ) {
+        if matches!(self.context.policy, AdviceNamingPolicy::Native(_)) {
+            drop(
+                self.context.retain_original_procedure_call_receipt(
+                    self.inventory
+                        .as_mut()
+                        .unwrap_or(&mut self.authored_prefixes),
+                    graph,
+                    &native.words,
+                    written,
+                ),
+            );
+        }
+    }
+
     fn command_inner(
         &mut self,
         graph: &mut AdviceGraph,
@@ -1321,6 +1348,7 @@ impl BodyWalk<'_, '_> {
             graph.record_uncertainty(&native.words);
             return Some(());
         };
+        self.retain_native_procedure_call(graph, native, &written);
         // A walk retaining Logical source-word recipes, as
         // `retain_logical_navigation` above does, records every call capture.
         // Other walks record one only where they hold a recipe at its head.

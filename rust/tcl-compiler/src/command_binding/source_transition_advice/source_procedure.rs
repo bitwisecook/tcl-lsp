@@ -537,6 +537,21 @@ impl AdviceInvocationContext<'_> {
         native: &[tcl_lexer::NativeWord],
         written: &[SourceAdviceWord],
     ) -> bool {
+        let Some(procedure) =
+            self.retain_original_procedure_call_receipt(tape, graph, native, written)
+        else {
+            return false;
+        };
+        self.retain_original_procedure_body(tape, graph, &procedure)
+    }
+
+    pub(super) fn retain_original_procedure_call_receipt(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        native: &[tcl_lexer::NativeWord],
+        written: &[SourceAdviceWord],
+    ) -> Option<Arc<OriginalSourceProcedureBody>> {
         if native.is_empty()
             || written.len() != native.len()
             || written
@@ -544,16 +559,12 @@ impl AdviceInvocationContext<'_> {
                 .zip(native)
                 .any(|(word, original)| word.original != *original)
         {
-            return false;
+            return None;
         }
-        let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
-            return false;
-        };
-        let Some(mut selected) = graph.resolve_source_cell(head) else {
-            return false;
-        };
+        let head = written.first().and_then(|word| word.input.as_ref())?;
+        let mut selected = graph.resolve_source_cell(head)?;
         let AdviceCell::SourceProcedure(procedure) = selected.cell else {
-            return false;
+            return None;
         };
         let mut procedure = procedure.as_ref().clone();
         procedure.lineage.extend(selected.lineage);
@@ -577,7 +588,7 @@ impl AdviceInvocationContext<'_> {
             native[0].span().start(),
             Some(call),
         );
-        self.retain_original_procedure_body(tape, graph, &procedure)
+        Some(procedure)
     }
 
     /// Genuine selected bodies supply conditional future source assistance.
