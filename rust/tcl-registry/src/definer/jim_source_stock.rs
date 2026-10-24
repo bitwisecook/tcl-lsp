@@ -4,9 +4,11 @@
 
 //! Finite authored Jim class publications, independently of Native execution.
 
-/// Generated command role in the stock empty-base Jim class recipe.
+/// Generated command role in the stock Jim class source recipe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceJimClassHelper {
+    /// The last inherited stock parent.
+    BaseClass,
     /// The class's ordinary procedure dispatcher.
     Dispatcher,
     /// Deferred object construction.
@@ -40,6 +42,7 @@ impl SourceJimClassHelper {
     #[must_use]
     pub const fn publication_suffix(self) -> Option<&'static [u8]> {
         Some(match self {
+            Self::BaseClass => b"baseclass",
             Self::Dispatcher => return None,
             Self::New => b"new",
             Self::Finalize => b"finalize",
@@ -74,7 +77,7 @@ impl SourceJimStockClassRecipe {
             .then_some(Self)
     }
 
-    /// Complete publication order, including the ordinary alias allocation.
+    /// Complete empty-base publication order, including the ordinary alias allocation.
     #[must_use]
     pub const fn publications(self) -> &'static [SourceJimClassHelper] {
         use SourceJimClassHelper as H;
@@ -93,6 +96,32 @@ impl SourceJimStockClassRecipe {
             H::Get,
             H::Evaluate,
         ]
+    }
+
+    /// Sorted method suffixes returned by the complete empty-base stock inventory.
+    #[must_use]
+    pub const fn inherited_aliases(self) -> &'static [SourceJimClassHelper] {
+        use SourceJimClassHelper as H;
+        &[
+            H::ClassName,
+            H::ClassVariables,
+            H::ConstructorAlias,
+            H::DefaultConstructor,
+            H::Destroy,
+            H::Evaluate,
+            H::Finalize,
+            H::Get,
+            H::Method,
+            H::Methods,
+            H::New,
+            H::Variables,
+        ]
+    }
+
+    /// Additional current implementations used while inheriting this inventory.
+    #[must_use]
+    pub const fn inheritance_dependencies(self) -> &'static [&'static str] {
+        &["lsort", "lmap", "info", "lindex", "split"]
     }
 
     /// Direct stock commands called while installing an empty-base class.

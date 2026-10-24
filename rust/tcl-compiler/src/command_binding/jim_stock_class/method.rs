@@ -133,7 +133,7 @@ impl OriginalJimStockMethod {
     }
 }
 
-fn original_stock_helper<'a>(
+pub(super) fn original_stock_helper<'a>(
     state: &'a ModuleCommandBindings,
     slot: &ByteCommandSlot,
     policy: NamePolicyProtocol,
@@ -298,6 +298,7 @@ fn plan_method_publication(
         },
         slot,
         key,
+        alias_target: None,
     })
 }
 
