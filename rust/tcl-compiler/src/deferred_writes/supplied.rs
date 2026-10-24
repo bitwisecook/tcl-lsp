@@ -25,7 +25,7 @@ use crate::registry_invocation::{
 pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> DeferredWrites {
     if InvocationMetadataContext::for_module(registry, module).is_none() {
         return DeferredWrites {
-            any: zz_sol49_any(line!()),
+            any: trace_deferred_writes_any(line!()),
             ..Default::default()
         };
     }
@@ -79,7 +79,7 @@ impl SourceScan<'_> {
             return;
         }
         let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         self.original_registration(tokens);
@@ -97,7 +97,7 @@ impl SourceScan<'_> {
                 continue;
             }
             let Some((_, mut nested)) = binding.original_recorded_command() else {
-                self.out.any = zz_sol49_any(line!());
+                self.out.any = trace_deferred_writes_any(line!());
                 continue;
             };
             // The original vector comes from this exact nested source receipt.
@@ -109,19 +109,19 @@ impl SourceScan<'_> {
 
     fn original_registration(&mut self, tokens: &CommandTokens) {
         let Some(binding) = tokens.source_binding.as_ref() else {
-            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                 eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
             }
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let Some(footprint) =
             binding.original_materialized_footprint_for_module(tokens, self.module, self.registry)
         else {
-            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                 eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
             }
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let metadata = footprint.metadata_context();
@@ -129,19 +129,19 @@ impl SourceScan<'_> {
             .bindings()
             .retained_original_source_purpose(metadata, self.registry)
         else {
-            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                 eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
             }
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let Some(invocation) =
             original_callback_invocation_with_metadata_context(self.registry, metadata, tokens)
         else {
-            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                 eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
             }
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let selected = invocation.with_metadata_schema(
@@ -157,26 +157,26 @@ impl SourceScan<'_> {
             },
         );
         let Some(selected) = selected else {
-            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                 eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
             }
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let global = footprint.deferred_namespace(Some(ScriptLookupScope::GlobalFrame));
         for value in selected.deferred {
             let Some(namespace) = footprint.deferred_namespace(value.scope) else {
-                if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                     eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
                 }
-                self.out.any = zz_sol49_any(line!());
+                self.out.any = trace_deferred_writes_any(line!());
                 continue;
             };
             let Some(text) = value.text else {
-                if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
                     eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
                 }
-                self.out.any = zz_sol49_any(line!());
+                self.out.any = trace_deferred_writes_any(line!());
                 continue;
             };
             let context = ValueContext {
@@ -190,7 +190,7 @@ impl SourceScan<'_> {
     }
 
     fn include(&mut self, effects: &VariableWriteEffects) {
-        self.out.any |= effects.opaque && zz_sol49_any(line!());
+        self.out.any |= effects.opaque && trace_deferred_writes_any(line!());
         for name in &effects.names {
             super::Scan::note_name(&mut self.out, name);
         }
@@ -205,7 +205,7 @@ impl SourceScan<'_> {
         depth: u32,
     ) {
         if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         }
         if include_names {
@@ -257,13 +257,13 @@ impl SourceScan<'_> {
                     .map(|holder| (head, holder))
             })
         else {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let Some(source_purpose) =
             state.retained_original_source_purpose(context.metadata, self.registry)
         else {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let mut selected = Vec::new();
@@ -293,7 +293,7 @@ impl SourceScan<'_> {
                 None => unknown = true,
             }
         });
-        self.out.any |= (unknown || selected.is_empty()) && zz_sol49_any(line!());
+        self.out.any |= (unknown || selected.is_empty()) && trace_deferred_writes_any(line!());
         for values in selected {
             for text in values.immediate {
                 self.value_script(&text, state, context, false, depth + 1);
@@ -303,11 +303,11 @@ impl SourceScan<'_> {
                     .then(|| context.global_namespace.clone())
                     .flatten()
                 else {
-                    self.out.any = zz_sol49_any(line!());
+                    self.out.any = trace_deferred_writes_any(line!());
                     continue;
                 };
                 let Some(text) = value.text else {
-                    self.out.any = zz_sol49_any(line!());
+                    self.out.any = trace_deferred_writes_any(line!());
                     continue;
                 };
                 let future = ValueContext {
@@ -321,7 +321,7 @@ impl SourceScan<'_> {
             for lambda in values.lambdas {
                 match lambda {
                     Some(lambda) => self.lambda(&lambda, state, context, depth + 1),
-                    None => self.out.any = zz_sol49_any(line!()),
+                    None => self.out.any = trace_deferred_writes_any(line!()),
                 }
             }
         }
@@ -335,7 +335,7 @@ impl SourceScan<'_> {
         depth: u32,
     ) {
         if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         }
         let Ok(elements) =
@@ -347,7 +347,7 @@ impl SourceScan<'_> {
             return;
         };
         let Some(input) = context.metadata.source_analysis_input() else {
-            self.out.any = zz_sol49_any(line!());
+            self.out.any = trace_deferred_writes_any(line!());
             return;
         };
         let config = context.config.nested().normalized();
@@ -487,10 +487,10 @@ fn selected_values(
     Some(values)
 }
 
-// TEMPORARY Sol-49 probe: remove before hand-back.
-pub(super) fn zz_sol49_any(line: u32) -> bool {
-    if std::env::var_os("ZZ_SOL49_ANY").is_some() {
-        eprintln!("ZZ_SOL49_ANY supplied.rs:{line}");
+// Temporary deferred-write diagnostic; remove before release.
+pub(super) fn trace_deferred_writes_any(line: u32) -> bool {
+    if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+        eprintln!("TCL_LSP_TRACE_DEFERRED_WRITES_ANY supplied.rs:{line}");
     }
     true
 }

@@ -284,6 +284,11 @@ try:
         env.get("TCL_LSP_TRACE_N17_FOLD") == "first-gate-v1",
         "original N17 diagnostic flag",
     )
+    require(
+        roster.get("diagnostic_flags") == {"TCL_LSP_TRACE_DEFERRED_WRITES_ANY": "1"},
+        "exact existing deferred-write producer diagnostic flag",
+    )
+    env["TCL_LSP_TRACE_DEFERRED_WRITES_ANY"] = "1"
     env["RUSTC"] = str(tools["rustc"])
     provider_roots = [
         Path(env["TCL_TOMMATH_DIR"]).parent,
@@ -341,6 +346,7 @@ try:
                     "TCL_REQUIRE_SPECTCL_COMPAT",
                     "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC",
                     "TCL_LSP_TRACE_N17_FOLD",
+                    "TCL_LSP_TRACE_DEFERRED_WRITES_ANY",
                 ]
             },
             "limits": {
