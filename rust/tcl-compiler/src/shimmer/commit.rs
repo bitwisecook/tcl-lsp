@@ -414,6 +414,35 @@ impl CommitWalker<'_> {
         } else {
             semantic
         };
+        // A numeric semantic type can describe literal string contents.
+        // Without a captured numeric class or an original constructed numeric result,
+        // it supplies no numeric intrep whose conversion cost we can report.
+        // Keep this unknown instead of inventing a pure-string/free-read proof.
+        if matches!(
+            semantic,
+            TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+        ) && !advice.already_numeric
+            && advice.representation.is_none_or(|representation| {
+                matches!(
+                    representation,
+                    tcl_syntax::value::ValueRepresentation::Unknown
+                        | tcl_syntax::value::ValueRepresentation::String
+                )
+            })
+            && self
+                .folded
+                .get(&(read.symbol, read.version?))
+                .is_none_or(|folded| {
+                    !matches!(
+                        folded.representation,
+                        RepresentationEvidence::Constructed(
+                            TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+                        )
+                    )
+                })
+        {
+            return None;
+        }
         let current = super::hints::representation_cost_type(
             semantic,
             advice.representation,
