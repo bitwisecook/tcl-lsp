@@ -98,3 +98,23 @@ operand/issuer checks precede conservative unknown taint.
 This is conditional source diagnostic information, not equality to runtime
 contents or full source-effect coverage. The query stores compact point rows
 and repeats source preparation and same-block coverage scans.
+
+## Possible sink source advice
+
+A separate possible-sink advisory can retain an original catalogue candidate
+without issuing a scalar source identity. It requires the explicit Standalone
+RootScript and Global context, a Document-channel source under its retained
+lexer grammar, AuthoredSimulation naming and the current exact source owner,
+original argument vector, configuration and registry. The retained namespace
+entry must be authentic and unique; missing geometry does not select a root
+namespace. Closed known replacements or tombstones, and conflicting candidate
+coordinates, refuse the candidate; unknown alternatives remain explicit
+applicability obligations.
+
+This candidate retains every unknown lookup and execution obligation. Its read
+advice returns an unknown value only after the exact owned source point, operand
+and requested reference name agree. It cannot provide a trusted literal value,
+close source effects or create SSA facts. Existing scalar, generic, supplied and
+Native issuers retain their independent guards. The candidate supports a possible
+taint warning without granting execution, normal completion or transformation
+authority.
