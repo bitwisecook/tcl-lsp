@@ -2072,7 +2072,7 @@ impl super::SourceInvocationBinding {
         }
         let rows =
             original_source_catalogue_layouts(self.declaration_layout_observations.as_deref()?)?;
-        if rows.iter().any(|row| {
+        if rows.clone().any(|row| {
             !matches!(
                 row.entry.as_ref(),
                 OriginalDiagnosticFrameEntry::RootScript { .. }
