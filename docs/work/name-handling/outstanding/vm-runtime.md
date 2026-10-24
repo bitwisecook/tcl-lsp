@@ -2,427 +2,120 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T02:21:50.410545+00:00
+Last updated: 2026-10-24T02:55:57.605898+00:00
 
 ## Resume
 
-CURRENT AUTHENTIC RUN: runtime-focused118 run40053592230/job120751481466 exact
-WORKf1dc89c4b6e3483d495b7f1f75a5348c99ed2c32, dispatched02:18:03, job02:18:07;
-CheckoutPASS02:20:26, InstallRust inprogress at02:20 read. No new outcome yet.
-Combined V5 d6c86420/manifest5afcfea7 independently root/Luna clear helperV3
-414c429c +compositiond5d7a508 and integrated f1dc. Exacthelperbfea2077; FAILED
-without owner receipt nowfatal126/no testspawn; onlypre-spawnUNRUN maycontinue
-incomplete125. 29mockcontrols ea88380e PASS. V1helper/V3/V4 protocol held historical.
-Rc snapshot integrated included; all original3/14/stack/103 identities distinct,
-assertions/budgets unchanged. This fresh run PRECEDES C84 provider prerequisite;
-missing C84 provider must be distinguished from actual formatter semantics.
+Root alone owns canonical product/source, Git, builds, dispatch and GO. No local
+builds below 2GiB; no target/executable deletions, new C callbacks/oracles, assertion
+weakening, budget rises or generic Native/Logical substitution. Prepare off-tree
+WORK/CLEAN exact current Git before pins, copied roundtrips, formatting and independent
+semantic peer. Earlier complete tracker retained losslessly at
+/workspace/naming-proof-storage/vm-runtime-tracker-20261024T0255Z.md.gz.
 
-SEPARATE C84 prerequisite V1 frozen READY independentpeer:
-/tmp/vm-c84-provider-work-v1 manifest50a453e3e533b49d6df7dc9be16bd69a66afed4f9bd9e6107fd36a3c8b05ec7a
-patch4415293ac8185eff120171c62802ca02a853cac2a0a5d9b3b3ec7461d6caa741,
-exact f1dc beforeworkflow0c3a/driver e06d→bedccc1c/870e381c.
-CLEAN /tmp/vm-c84-provider-clean-v1 manifest9bfeb21f9d4bea6ff1768e2805bc98cd5a079df12320c4d7b22805fe4c349b1c
-patchf8c628b38befc3dbc578a6059f47ee7b9712a783c9b017ba7a81acbbafee5dad,
-exact15345fa source. Shared generic public helperf494d213 only; no shippingWORKevidence
-owner/framework/symlink. CI NoTom→GNUtimeout900+20cleanup GNU17C84→unchangedC9fetch→
-unchangedmake tests→alwaysprovider/toolverify+artifact; WORK samecommand existing88125.
-All6pins join actual nativeZIP; strictdc67/824f+config/source only. Changedprovider
-scope explicit; no comparisons to oldC9-only/44b/futureadmission. Newactualprovider
-and Rust-updater UNRUN. 18puremetadata/BytesIO controls790dc11b +30mockinventory
-755d7d76, RuffTyPyright/copy0/whitespace/YAML/bash/full classifiercontract PASS.
-Exact4 provider build-inputpaths added classifier+positive existingcontractchecks.
-Focusedactualbootstrapstreams deducted from same20MiB stack/supplement budget;
-CI GNUtimeout has ordinary pre/postfloor limits, not promoted to88125 ownership.
+Root batch currently pushing WORK944e461b0/releasea112f1775 (parent report). Exact
+publisher/release heads must be re-read before new proposals. C84 prerequisite V2
+root reviewed/integrated WORK89758223e/CLEANe0c189520, pushed in75768f. Guarded
+Definition V7 source review clear below; actual validation still pending. No PR/
+full shared-process semantic gate/performance acceptance. NoTom17+1 capability split
+and per-dialect zeroerrno success-fixture decisions LOCKED, no production errno reset.
 
-CURRENT PROTOCOL: V4 frozen /tmp/vm-runtime-other103-work-v4/manifest.json
-SHA443dd2efd7061bdff7394ac38b406ac05f39876739ed60bfe799aa92fd788bc7,
-patch3914fea861dc652ffc6c25df7a01fc64a4cc0def33871acb31fc7e3f2eec1157.
-Actual Heavy3 current643823ef workflow52a2967a→0c3a71e7 union preserves every
-other job/topfield byte and exact inverse; driverc0c09→9caeeeee. Exact compiler
-stackhelperV2 6186bed2 closes unmatched/malformed FDE/nm coverage; V1/V3 HELD.
-27metadata/mock controls6145e3bc, Ruff/Ty/Pyright/copy0/YAML/bash unchanged owner
-and budgets PASS; no native/ELF/test process run. Independent helper/composition
-review pending, runtime dispatch still parent-owned and intentionally waiting.
-Other103 alone V2 independent peer81895a7a clear; no whole gate/performance claim.
+LATEST AUTHENTIC runtime run40053592230/job120751481466 exact
+f1dc89c4b6e3483d495b7f1f75a5348c99ed2c32 CLOSED failure02:33:22/uploadPASS.
+Artifact12543824949 ZIP28127261 SHA37129b002e293249944cea685816378e0d4b6a26a06778365f00983a4c2c1da8.
+/tmp/vm-runtime-actual-40053592230/receipt.json
+SHAa463f35caf80a99ab8f973f64b51b08d04d3058b4ca5020c7b74cb16901732cd.
+API/all397CRC+streamSHA/125935 strict JSON source checks+ALL Git membership/20 key
+Git blobs/TomMath/gitclean/original3 and all118 owned per-case receipts JOIN PASS.
+Same hosted ELF99a5b7beec5c93f02225511eb88d767c1b6df3f15c8032d7a8cf02ec97317f6c,
+ELF bytes not uploaded. Original3: publicC PASS4.736212469; numeric PASS12.860656037;
+append TIMEOUT180.010041989. Original1035 fresh Interps unchanged;743 complete rows
+0..742=189C84+189C85+189C86+176C9.0, last743C9.0 pin,292 remain including started.
+124/124 timing groups complete, no cap/truncation. Instrumented/crosshost elapsed
+cannot establish causal speedup/performance acceptance.
 
-Rc<RuntimeContext> immutable entered-snapshot 3-line candidate WORK81c76c2c/
-CLEAN9a0c0a3a independently root CLEAR08002bff, integrated WORK370c7a4cf/CLEANd7051dc33.
-Each root still fresh complete RuntimeContext; nested clone shares same immutable
-small 2String/packages snapshot; explicit inner fullvalue Eq, all guard/order same.
-One root allocation added; no native refs/cache shortcut/performance acceptance.
+Separate baseline14=7PASS7FAIL: regsub and six Env PASS. RemainingFAIL lappend,
+Env elementalias/everywrite/wholearrayunset/untracedfastpath, two command guards.
+Stack1 still SIGABRT stack overflow. Other103=1PASS102FAIL; PASS is explicit repeat
+numeric selector, not a new unique identity. All118 known closed, zero UNRUN; no
+whole-protocol PASS. Case53 actual C84 positive FAIL exactly pinned C84 source tree
+unavailable: provider prerequisite failure, not formatter semantics. Run predates
+new C84 setup. Full109FAIL+ABORT payloads in analysis/failure-payloads.json.
 
-C84 real fixture provider prerequisite separately authorized for focused and fullCI:
-reuse exact GNU17 bootstrap, provider/tool seals, strict dc67/824f only, keep NoTom
-before provider and Tcl9/TomMath/assertions unchanged. Separate proposal not frozen.
-This deliberately changes provider scope; no comparability to old C9-only runs,
-no new/different pair admission or blanket attribution of other103 failures.
+WHOLE PROTOCOL INCOMPLETE: upload allowlist omitted stack-frames/summary.json,
+worker.stdout/stderr/process.json. Accounting reports completefalse and265958 bytes,
+but actual report/status/error/tools/process are missing; no independent CFI reason,
+frame/stack depth/cause or frame-ownedgroup acceptance. Cannot repair old artifact.
+WORK-only six-glob correction frozen /tmp/vm-nested-evidence-upload-work-v1:
+manifest a1d64f2267c99d7b8e8bd5567c9229b5d2891a0cda43cb3abf09f7cbfca75545,
+patch2146ab2b089b4a00d4d5dbfa563f0811f9b4b39a9abd859dc9b4cca4e9b0c190,
+workflowc4af4309→355103c5. Explicit JSON/stdout/stderr globs only for existing
+stack-frames and c84-provider evidence, no source/archive/ELF/target upload. Parent
+read clear/integrating; confirm commit. V5 protocol d6c86420 already integratedf1dc,
+helperV3bfea2077. Earlier helperV1/V2 and combinedV3/V4 held; no old repair promotion.
 
-CURRENT SOURCE/PUBLICATION: rootpushed WORK182337d8573648e1e25c1365121d5dca4b7e3a09,
-release daf041e54 includes functional Env/C86scan/C84exactpair. New simplecellretained
-homeobserver3e9bb551, sampledcounterbc190776 and WORKonlyC84proofdoc43b8cfac are
-independentlyreviewedLuna09c8dda5/0b6f6d9d/8f8524eb +rootintegrated. No newruntime
-outcome beyondf39 below; runtime dispatch intentionally waits newprotocol. Savedhome
-actualdiscriminator stillunknown; no guessed simplecell/scheduling/stackbox repair.
+MEASURED constructor counters:31 samples/stage; builtin interval median131378us,
+1373 prune calls/76812675ns,14657 currency calls/14318867ns; pin70618us,
+442 prune calls/40180026ns,6971 currency calls/4491176ns. Nested/enclosing scopes
+not additive. Source prune runs before every remember registration and unconditionally
+at retire_pending_native_ensemble_roles. Metadata validity depends exact node placement
+and slot generation. Safe skip would require complete retirement/move-only revision
+covering every rename/hide/expose/replacement/namespace death, checked overflow→scan;
+generic lookuprevision also bumps fresh births, so cannot fix constructor quadratic
+cost. No complete existing revision proved; no cache/guard/scheduling change proposed.
+Bounded metadata-retirement original test remains binding; lazy-reader cleanup held.
 
-Other103 protocol V2 FROZEN /tmp/vm-runtime-other103-work-v2/manifest.json
-SHA7eb6b416f5e7e79ea16a16a8f7c74d3f004d9b36429fca1e08582674fc8bf5a2,
-patch4936520a6e029593224e7f49f12be0284813d5f998a6e47a091ad2977521528e.
-Exact182befores workflowec9d→c6e88a coverage2strings only; driverc0c09→0e36642b;
-new103rostercda2e505 andlosslessfulla26logJSON88dd41ea reconstructs UTF8raw326773bytes
-SHA616b04e54b17eb137bb6f7942d3e07dcc691ee807a6233d0c47419f63a34967c EXACT.
-Actuala26FAIL117 minusunchangedbaseline14 =103, inobservedlogorder; oneactualnumeric
-selector repeatsoriginal3 explicitly asdifferentinventory/execution, nevermergeor
-baselineidentitypromotion. Original15prefix14→stack1/owner88125RunAST/constants/
-180/2400/3600/205reserve/20MiB/2GiB unchanged;103appenddistinctandfreshlistingchecked.
-Missing/ignored/unstarted/cap/deadline casesUNRUN+globalincomplete.20puremetadata/
-mockownercontrols a491c96b +copiedfwdrevfwd0/YAML/bashAST/RuffTyPyrightPASS. NoRust/C/
-native/ELFprocess executed. Independentprotocolpeer and stackhelpercompositionpending.
-V1rawlogtext HELDdiffwhitespace; V2losslessJSONpreservesactualrawbytes, no normalization.
-Compiler owns NEW runtime-stack-frames.py API, readonlysealednm/objdump noELFexecute;
-60s+25cleanup/205case reserve,≤512KiB returningactualretainedbytes tosametotalcap.
-Existingoriginal3 stdout20M capandstderrseparatecap doNOTguaranteeworstcasecombined
-20MiB; oldreviewedpostoriginal3 aggregatecheckrefuses supplementwhenalreadyexhausted.
-Newhelpermustnotclaimretroactivecap/bonus orframescertaintyfromunknownCFI. Runtime
-mode purposelyawaitsrootpeer/composition; no duplicatehosteddispatch/localbuild.
-Exacta26full117failset reauthenticated equalsolderccf117, sourcefamiliesnotcommoncause:
-/tmp/vm-runtime-a26-full-120708509600/baseline-and-families.json SHA648cf038d3d447090965eda3cbfa1cfc4b756115016b23e231836cb88b48082c.
-Other103absencefrombaseline753 doesnotwaiveactualFAIL; no blanketC84causeattribution.
-C84Rustloaded812test is a DIFFERENTcrateELF and remainsUNRUN; not partofruntime103.
+SAVEDHOME correction authorized, frozen ready peer/root integration:
+/tmp/vm-saved-home-checker-work-v1 manifest08919448307e3dc783336ad6d1f9ce8c55c12a078c881b88a69a44ff0a1ee73f
+patchc55ac1b9b8a94ead1858e82be54e030a47cc3c672f70a47441cc1e5cc3420bf3,
+exact91d656 vars3a755→a67ff08b. CLEAN /tmp/vm-saved-home-checker-clean-v1
+manifestbd7045bac01df0b85b2c68affd2cafc770198472909c688f49b19ae8a661c31a
+patchfed0af8b273f0a607dc86e39ffa1bd972bc34d6a296c2de3f015c2727786166a,
+exact7ca028 vars56310→fa3d2940. Source bug: link target selects/captures target frame,
+restores caller, then checks saved compiled target against active caller slot.
+Use existing original_compiled_cell_at_is_current(savedlevel,slot,observation),
+matching existing alias-target sibling; Namespace+compiled refuses. All Weak frame/
+table/cell/binding/link/currentness guards retained; no getters/lookup/parse/order
+change. Meaningful FrameStack target-vs-caller same spelling/ordinal, wrongslot,
+restore/pop/reuse old-vs-fresh fixture authored UNRUN. Fullinverse/copy0/fmt PASS.
+Actual refusal Frame1/compiledSome3/linkl/rootfalse supports source candidate; actual
+activeframe/exactdynamic site not observed. Original lappend/upvar afterfix UNRUN.
 
-LATEST AUTHENTIC ACTUAL f39c2d6cc4d6942b9b57875d078befb597a4a4e5 runtime
-run40043851158/job120720898210 CLOSEDFAIL00:27:24/uploadPASS. Artifact12540573888
-ZIP27157962 SHAb12d43e3c67fee9caa5df3d32fcd14226ecf2f7f67d966ca71328e05ab213072.
-/tmp/vm-runtime-actual-40043851158/receipt-v3.json
-SHAf24bc374d46f3066519477cd3b5802148dce6b1684dc728c0e6d8387cc5f0d75.
-AuthAPI/all84CRC+streamSHA/125575strictsource+exactGitmembership/15keyGitblobs/
-TomMath/gitclean/owned2emptyPG PASS. Original3knownclosed2P1F: PublicC3.735189163P,
-NUMERIC17.484997277PASS newexplicitperdialectzeroerrno fixture/alloldassertions;
-append180.010884348TIMEOUT539completed0..538=189C84+189C85+161C86,
-last539C86construct,496remainincludingstarted/Jimunreached,96/96timinggroupscomplete.
-Separatebaseline14 still14FAIL; stack1 stillSIGABRT-6 AFTERheapcarrierrepair.
-All15knownclosed/ownedcomplete/samehostedELF7717beb1e9393a610fabc50dc628eee4f5ec1dbabbe01ff5d53a7b3853301a75;
-ELFbytesNOTuploaded, no frame/stackdepth/size measurement, no stackclosure/perfclaim.
-Finalnewobservations analysis/diagnostic-observations-v2.json SHA5d1140642ed06db86e14993d9a2eafb7d151644c15774d25d89f3f0dbaccf2f5:
-exact12Envheaders allarmed/root/trace_rootequal+refusalNone, so bootstrap-unarmed
-hypothesisruledoutforreachedconstructors. Earlier analytical13 typo held/corrected,
-allrawZIP/guards/outcomesunchanged. Listfirst3subchecksPASS/noRefusal; finalupvar+
-infoexists CodeError with typed original simple variable cell refusal (vars.rs2774).
-Savedcompiledframe vsactiveframe checker mismatch sourcecandidate identified, but
-actualNamespaceGLOBALshapeunproved; no guessed productionfix. Compiler owns further
-actualstack-frame/CFI attribution proposal; do not repeatbox/stacklimitguesses.
+Guarded Definition FULL independent peer: V6 HELD receiptfe6c7bc7 because every
+7-domain request included globally poisoned ObjectDispatch; never unpoison it.
+V7 six-domain explicit registry operation footprint only after actual stockBuiltin
+selected, retains normal dispatcher/OO teardown/getter/publication and independently
+current body guards. WORKdfabcab7/manifest5fe5d121, CLEAN2a5e21a1/7a2dab31 source
+semantic STATIC CLEAR /tmp/vm-peer-guarded-definition-v7/review.json
+SHA137e46cabcc2fbcd9b6c7ff705f50df4d8d4cd3c25889b53f3640b82c87293ba.
+All14/13 currentpins/copy0/fmt/oldassertions/wholelegacyABI/current8transitivepins;
+no native/test/build/WASM/perf acceptance. Exact two CI-pin companiona57d59d8/
+f94fb9d9 independentclear fde491fb6f9428034b9c7ec6df2463f85a71f7fa6d3c92eab098efa5323afa16
+at /tmp/vm-peer-ci-pin-companion-v1/review.json. Root owns integration/dispatch.
 
-Native C86 sole%c V4 SOURCEFIX independent NamesCLEAR23dbda3b0f8621e39f7ce2c382fadd4abe54660d6c9f14e9f3411bc1c799937e,
-WORKc3e2c482268a0abf7f773bcec88708f91ea06822/CLEAN5430d129b13ea1c7fb91e5bf9f9349bc63e2bbc7
-PUSHED. /tmp/vm-c86-scan-character-{work,clean}-v4 patch909adf77,
-WORKmanifest1dbb9dce/CLEANa6b021ee; originalgetters actualC86 format→literalNULprefix→
-existingvalidator→input via OriginalArguments. Shared originalC86decoder preserves
-isolatedsurrogates; sameobjvaliasallocationwithoutnativeRefchange/source5C86windows.
-Unchangedalloriginaltests/effects/varnamegettertail. NoUnicodegetter/newauthority.
-Onlysoleparsed%c/index1/suppression; broadernative matchingunsupported. Actualnew
-originalregsubselectorUNRUN; f39 stilloldscan andFAIL. V1–V3 HELD (fmt/order/borrow).
-
-Env hiddenintrinsic predicate WORK+CLEAN frozen /tmp/vm-env-intrinsic-dispatch-{work,clean}-v1:
-WORKpatch1d5bdcc6/man5766409f; CLEANc17c6aa3/man8ba41f5e, samefunctionalinsert
-(withexistingWORKlineoffsetdifference). Addexisting env_trace_reaches(home) under
-UNCHANGEDwholearray/!activearray + native4ops. NativeC5Envregistrationflags/sourcepins,
-alloldbytesinverse/copy0/fmtPASS. NamesindependentSTATICCLEAR
-abe12f74141968b6ffef6fa1ec8c794211fb54198f7c85aadc723f9dbb0bfba1.
-NOTactualEnv10PASS; alias/simplecellrefusal separate. Root integration pendingnotification.
-
-C84 exactverified3rdpair candidate frozen /tmp/vm-c84-verified-pair-{work,clean}-v1:
-WORKpatch00f911a1/manac8cd44f; CLEANd775bdda/manf3056bff. Onlyreferencearray2→3
-plusdc67/824f tuple; everyoldnegative/loaded812/loadercheck unchanged. Actualnative
-archive812+loadedb381812/rootindependentproof eligibility; old44b causeUNKNOWNdoes
-notrefuteNEWdirectproof. Authority62763879 binds originalZIP/rootpeer/allmembers.
-IndependentCODEpeer+integration pending; Rustloaded812newpairUNRUN. No wildcard/
-future/old44b coverage. Canonicalnumeric-C84proof two-pair text needs durableoriginal
-ZIP-backed newpairrecord beforePR; rootownsproofpublication. Counter/timing draft
-/tmp/vm-constructor-work-counters-work-v1 UNFROZEN/nopeer/nointegration; no pruning
-schedule/cache/guard changes; existingboundedretirement test forbidslazyreaderonly.
-
-USERDECISION23:50:40 explicit zeroerrno per dialect SUCCESSfixture only nowLOCKED:
-user-decisions-20261023T235040Z.json. No productionreset/ERANGE-refusal weakening.
-Minimal WORKfe36d0da manifest6435b3ee and CLEANfcdfb61d manifestac21c401 frozen,
-7insertedlines only aftersetprofile; alloldassertions/vectors/separate104seeded
-checks exact, copiedboth0/fmtPASS. RootindependentCLEAR 5073b46b4d52b4ff65201cda0021155ecedd0efbe69059ddeb652ca6a7581b08;
-WORK06564c5c4/CLEAN5bfbd3685 integrated exactfinalse149/df7b. NewfixtureUNRUN.
-Earlier USERPENDING text below is historical actualbeforedecision.
-Env/lappend observer WORK-only V2 patch658b743a/manifestbbada88f at
-/tmp/vm-baseline-owner-observers-work-v2 rootindependentCLEAR984f63f9/integratedb59f69; same14+1roster,
-flagonlysupplementchild afteroriginal3, cfgtest helper metadata notnativequeries,
-max14Envheaders+4Listlines, soleeval/resultgetter same. Sourcecausestillunproved.
-Regsubbaseline concreteconsumerloss: cmd_scan.rs lossyUTF8→Rustchar feeds%c,
-turning originalC8.6 isolatedsurrogateunits into65533. Narrow source-owned fix
-frozenabove, independentpeer/actualoriginalselector stillrequired; no sentinel.
-Independentstack WORK+CLEAN owner/selection/drop staticCLEAR c4feb20a
-vm-peer-runtime-body-stack-v1/review.json; oneprivateheapcarrier+nolinlineprep,
-sameheader/snapshot/Jimtransfer/128 limits, newallocation explicit/unmeasured.
-CompilerProof owns stack+2guardsemantics, parentresolving guardcontract conflict.
-
-LATEST ACTUAL b52ff0b6c7ef223da6b920031be4d6b314346311 runtime run40039936892/
-job120708383217 completeFAIL/uploadPASS,artifact12539605964 ZIP27140166
-SHA18517b30811f097671af057202060503087ad8122e691af502128b66ba428904.
-/tmp/vm-runtime-actual-40039936892/receipt.json SHAd42d9988c11b8a7156228a5ad7f327233484b8457584cfc3566186f0a1a51fcd.
-All84memberCRC/streamSHA/125491strictsource+fullGitmembership/key13/TomMath/gitclean
-PASS. Original3closed1P2F:PublicC6.476688346PASS,numericJim15.728825655FAIL same
-pre/posterrno34(USERPENDING),append180.00991836TIMEOUT529completed0..528,
-last5298.6construct/no pin;506remain/Jimunreached.96/96samplegroupscomplete.
-Separatebaseline14 ALL14FAIL(exit101); stack1 SIGABRT-6 stackoverflow2.4577s.
-All15closedknown/completeowned180/timer/2emptyPG/hash; samehostedELF8aec9525,
-no ELFbytesuploaded. Fullpanicpayloads analysis/supplemental-outcomes.json.
-Rootdelegated existing CompilerProof stack+2initialguards; thisrole envtrace10,
-lappend/regsub/C84. Allassertions/1035/180 unchanged, no localbuild. Fullshared
-semantic gate remains red; no performance/isolated acceptance.
-C84 run40039950003/job120708423833 SUCCESS,artifact12539375964 ZIP5539802
-SHAa01b9f403fc3cf90e87551217bf2c9efcbdfcd485d81e8f5ec13e1d6a11076b1.
-/tmp/vm-c84-actual-40039950003/receipt.json SHAcd4c09825ab0cfed2f0b5f63ee22d6e667179f5b783914bc1aea368d5e5afde3.
-All62members/125491strictsource+fullGitmembership/key10/provider843/tools/
-ownedprocesses complete. Unchangedoriginalarchive+dlopenimage812 bothcc19 exact,
-4originalcommands exit0/EMPTYstderr. Bootstrapwarnings36414bytes retainedseparately.
-Exact NEWarchive dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff,
-header824fdc76/config33d929ab,imageb381688d8da3cee9d558eef7a38503980a10635782a28f56141c7e5bc503892f,
-probe6e920dd8. Rootindependentactualpeer CLEAR a4a0ef17 root-peer-c84-b52-v1/review.json.
-NOcoverageofolder44b/futurea26provider byconfig/sourceagreement, NOadmission/Rust
-formattertestclaim. MismatchcauseUNKNOWN; all75currentarobjectbodySHA joinprovider,
-allpopulatedartimestamps/uid/gid0 thusNOTobservedtimestampcause. Build-inputjoins
-4bd6dbd7/arobjectmetadata40bb3fef retained; GCC15.2.0-16ubuntu1 ELF86471103.
-AwaitsamepairactualCI/provider comparison; no fallback/widenedwhitelist. LargeJSONs
-ZIP-only,originalZIP bytes retained. NumericpolicyzeroerrnoLOCKED/newfixtureUNRUN.
-
-LATEST actual2d8 focused40034879796/job120691788852 CLOSEDFAIL/uploadSUCCESS,
-artifact12536843298 ZIP27000201 SHA8efcc8488c2835773a21e777cdc06c986486c4eea9523b8090c65f2bf0aed2af,
-/tmp/vm-fulltom-focused3-40034879796/receipt.json SHA906b1e331ce244ebdb33d5d439bcaa06a913aa677beb9cfef5dde1b4e76b1c8d.
-Complete guarded3closed1PASS2FAIL0unknown;125367fullGitmembership+key10SHAsincl
-actualborrowfile28ec,source125367/125367PASS,33memberCRC/SHA,gitclean,
-TomMathliveunchanged,2emptyPGscans. PublicC5.793227161PASS,numericJim10117.202245374
-sameerrno34pre/post(USERPENDING),append180.008703657TIMEOUT530complete0..529,
-last5308.6pin;505remain/Jimunreached.336Rustmarkers96samplesALLcomplete,no cap/errors;
-medianbuiltins193810us inclidentity9073.5us,pin98429.5us,host11.5us. Differenthost/
-source/case timings give NO causal speedup/regression or1035/180 acceptance.
-Borrowed-context puremetadata equality f5794662 independently CCGclearfc13b612,
-WORK649ebe769/CLEAN9891aaa57 integrated; savedownedcurrency+allguards unchanged.
-Source prune-scheduling-reviewe12279d5 HELD anyduplicate-prune removal: cleanup
-prunes BEFORE native owner/callback release, so later scan notprovedredundant.
-No cache/schedule/guard deletion authored. Baseline14+separatestack1 additive
-protocol V2 STATIC CLEAR, root integrated fdfe6f9f workflow3ce044de; exact
-/tmp/vm-runtime-baseline-supplement-v2/ patch90366ba4/manifestba41b7ab,
-independent Astra receiptbba42d4a. Original3 literal roster/order/argv/assertions
-unchanged; same actualELF SHA sealed, each supplement own180s/PG/20s cleanup,
-2400s suite+absolute deadline with205s reserve/recheck/postcase overrun refusal.
-Separate3/14/1 totals; original812/native/Cargo execution UNRUN. V1HELD immutable
-(deadline reserve+coverage corrected only inV2). Fresh actual dispatch pending.
-C84 original812 separate mode FROZEN /tmp/vm-c84-formatter-original812-v1/,
-manifestf49c1973/patchb0e4119e, exactfdfe6f9f workflow3ce044de→6b7d6057,
-newdriver6a7f1052. CCG independent STATIC CLEAR receipt
-/tmp/ccg-peer-c84-original812-v1/review.json SHA79b4015ed6d9840fb5af0a75ed373f3bde9b656317c41ae2ecb54a0e411642ee;
-36copied/pin/current/YAML/bash checks plus18independentmetadata controls and all4argv/
-timer/cap/floor/cwd checks PASS. Ready root integration/dispatch, stillUNRUN. Exact unchangedprobe2c1e+fixture
-cc19, original4commands and existingGNU17 makeTCL_LSP_TCL_RELEASES=8.4ensure-tcl-deps
-bootstrap; distinct archive/header/config/image/probe SHAs/allbytes retained,
-strict fullsource+provider+toolbeforeafter/ownedgroups/floors/20MiBchildlog guard.
-Nativeinputs copied before link so failedlink still diagnoses exactbuildpair.
-All existingjobs includingruntime supplements unchanged. Job50min/steps49,
-absolute2100s experiment+upload5. Ruff/fmt/ty/Pyright/staticYAML/copiedboth0/nooffset
-and18metadata-only fake-owner lifecycle negatives PASS; nativebootstrap/original812
-UNRUN. No newCcallback/oracle/nativepurpose/admissiontable or runtimefixturechange.
-
-
-APPEND constructor-stage diagnostics V2 root independent STATICCLEAR4d7c250d,
-WORK-integrated/pushed2aa5346904f477e09bdc4b05a03adcd3e8b549ae: /tmp/vm-runtime-constructor-stage-diagnostics-v2/, patch
-20ff1c09a6ed6cd7ecc21f8c1a741043e9a46c9d69ed5ee40a292df4ac9c4f5c,
-manifest3b763776b7b1796a5c5035f8875f63c8a8e9fada57e679c39fc8d21fb2f606e3,
-exact70e27ad Git beforepins3b3f/56e4/30ee. Dedicated private cfg(test) flag
-TCL_LSP_RUNTIME_CONSTRUCTOR_DIAGNOSTIC=1 read only AppendScope::enter at original
-append-test entry; focused workflow exports only this flag. Existing Native
-Admission flag stays unset as before. V1 immutable HELD: reusing its existing
-flag would change unrelated first-decline env reads Err→Ok(Stringallocation),
-including errno-sensitive numeric paths. V2 sole successor changes helper flag/
-value+fmt and focusedexport; hooks/TLS/sampling/stages/allassertions unchanged.
-Rust Instant stages host/bootstrap/identity sweep/profile install, first8/every32
-perkind,1024lines+one truncationmarker. Timings include observeroverhead/nested
-overlap and are NOT performanceacceptance. AlloriginalInterp nonemptylines stay
-inorder; append body singleactivationinverseexact;1035fresh/default/filters/
-assertions180s unchanged. Copyboth0/nooffset/exact,fmt2021/YAMLotherjobs/bash/
-whitespacePASS. Successor-review2785d9d2. Hosted compiled/executed as below; no localbuild/Ccallback/
-oracle/cache/provider/guard/assertion changes; no clean carry. Root alone builds/
-dispatches. NEW2aa runtime focused40032449490/job120683752715 CLOSEDFAIL,
-artifact12535414242 uploadedSUCCESS22:26:32. ZIP27070529 SHA
-2e00beb4a34ec9abe1b48cdb022c372ae8ce1392970e05a817d942017a247b11 at
-/tmp/vm-fulltom-focused3-40032449490/archive.zip; all33 CRC+streamSHA checked,
-largeJSON ZIP-only,247154smallbytes extracted. Receipt.json
-SHA9ec9750d7fda36fae5be298a7e6a00d8bc0894494d2630cd3377d0d75fc8a314.
-Complete guarded3selected/closed1PASS2FAIL0unknown,nextest100,captureerrors[],
-allsource125327/125327PASS+fullpath membership Gitjoin/key9blobSHAs,gitclean,
-TomMathliveunchanged,2emptyownedPGscans,no external/cleanup signals. PublicC
-PASS3.756713867s; numeric sameJim10111.013079528s pre/posterrno34ERANGEtrue,
-policyUSERPENDING; appendTIMEOUT180.009690506s,825rows0..824complete
-(189each8.4/8.5/8.6/9.0+699.1),lastrow8259.1pin;210remain,Jimunreached.
-462Rusttimingmarkers/132samplesALLcomplete/no truncation/parseerrors. Sampled
-medianstage deltas:builtins114600us includes identities5399us;profilepin57870us;
-host12us,state122us,globals6997us. Coldcompilersealmax1543146us and pinmax2299876us.
-Nested/observed timings notadditive; no full1035/180 or optimisation acceptance.
-Next source investigation actualbuiltinregistration/publication before identity
-sweep and install_pin. No dominant innerregistration owner/cost proved yet.
-Timing parser /tmp/vm-analyse-constructor-stage-timings-v1.py SHA11b1cd96;
-analysis/constructor-stages.json/append-progress.json/source-git-join.json retained.
-No ELF/executableSHA supplied or inferred; fullsharedgate remains separate.
-
-Root alone owns Git, Cargo, GO, product integration, release carry and dispatch.
-This role prepares exact-blob off-tree proposals and read-only evidence. No local
-build, new C callback/timing/lifetime oracle or unilateral assertion change is
-allowed. No target/executable deletion; workspace remains below2GiB buildfloor.
-Inspect future artifacts ZIP-only, stream large maps and extract smalllogs only.
-Original NoTom17 typed-capability+1refusal split is user-decided/PASS and unchanged.
-
-PREVIOUS actual5177 focused run40024823970/job120658259828 CLOSED FAIL; artifact
-12532328040, ZIP26924584bytes SHA85163344112aad791bc4981b5162bf6e3871fa812088493464a7c119b2597fcb,
-/tmp/vm-fulltom-focused3-40024823970/archive.zip. Complete guarded3selected/closed,
-1PASS2FAIL0unknown,nextest100,captureerrors[],sourceJSON125188/125188PASS,gitclean,
-TomMathliveunchanged,ownedgroupempty2scans. Receipt.json SHA4f1dcd16627f8be33190a43ae275a90970ee58d6aa13cb8e929c1d90246bef16;
-allmemberCRC+streamSHA checked, largeJSON ZIP-only/smalllogs only extracted.
-PublicC corrected original PASS6.44456498s (all6checks); numeric sameJim101 at
-17.905276085s, actualpre/posterrno34ERANGEtrue, policyUSERPENDING. Append exact
-timeout180.009856043s,2086phase markers:521rows0..520complete (1898.4+1898.5+1438.6),
-row5218.6construct+pin but noexercise,514rowsremain inclstartedrow. C-onlyconstructor
-37b72 integrated WORK5177/release660, but NO performanceacceptance:1035/180fails,
-fewerrows thanf10(861) and otherslowercase timings cannot prove crosshostcausality.
-Independent DB actualartifact peer CLEAR: /tmp/db-peer-fulltom-focused3-40024823970/
-review.json SHA34db2986b9209b36da9e29ac78c9e2c93ce00a609e452c8d145d2a9dfa892e6b. OriginalZIP/source/tool
-path metadata retained, no ELF/independent executableSHA supplied or inferred.
-
-Locked userdecisions verified via /tmp/naming-runtime-gate-decisions-latest.json
-→user-decisions-20261023T124104Z: FullTom semantic gate plus separateactualNoTom;
-exacttwoiRules trace cases table+runtime refusal only, no broadF5Nativegrant.
-Numericzeroerrno policy stillPENDING/noedit. BIGIPexisting startup blocker routed
-to Compiler: canonical tracked doc is handoff/reviews/merge-inventory-20261019/
-bigip-lsp/live-startup-repro-20261023.md. Its finite60/120s startup observations
-are separate from natural243.26sexplainflow3P2F native-preflight refusals.
-Exact5177 LiveSession::new builds nativeC9, retainsF5sourcegrammar+compile service
-and measuredLogicalproviders, bootstrap enters try_eval_native_host_source→
-try_eval_source with actualactivehost policy and realNativeCompilationEntry.
-Existing first-decline-v1 Rust diagnostics report exact admission predicate and
-entryprofile/physical/logical/closed/frame fields; old refusal alone doesn'tpick
-the branch. No provider/guard/Native/Logical substitution proposed. Compilerowns
-capability/preflight side, Runtime constructor/startup side. After thisboundary
-analysis priority is append Interp::new/attach_native_command_specs repeatedwork;
-sourceproof or boundedprivateRuststage timing underexistingflag, no new C oracle.
-
-The original shared-process semantic runtime gate remains FAIL/INCOMPLETE:
-CI88 run39988230252/job120535069159/source88a0e457 SIGSEGV11,1959uniqueclosed,
-114fail. Isolation never replaces that gate. Old isolated39995195040 CANCELLED
-one-hour joblimit/noartifact:2652selected,2421closed2274ok147fail,231unknown;
-its terminal schema dropped reasons and retained128encodedbytes. FullTom v4
-bounded fullraw/reasons/JUnit/lifecycle/deadline/upload repair and exact3 mode
-are WORK-published. First v4fullroster40010108061 was compileblocked; Names
-helpercfg fix later integrated. No complete new full-roster acceptance exists.
-
-Actual focused3 run40011441076 on633f had3FAIL (SIGSEGV11,180stimeout,Jim
-incrLLMAXoverflow) and PARTIAL sourceguard124962expected/124961checked due GNU
-escaped backslash/Unicode fixture. Never repair/admit that historicalseal.
-Root integrated reviewed observer test-UB fix: clone same2Rc cells before public
-selfreplacement consumesBox; alloriginalassertions/callback/deleteProc schedule
-were unchanged. Clean counterpart was Names independently cleared449f007b and
-is now integrated in release39f647ed. No productionlifetime fix was made.
-
-Fresh run40018134089/job120635417820 on exact
-f10f5da99aac2acd44e8cda22df34619a8c2625a CLOSED FAILURE with COMPLETE guarded
-diagnostic evidence:3selected/closed/failed,0unknown,nextest100,captureerrors[],
-sourceJSON125032/125032PASS,gitclean,TomMathunchanged/live,ownedgroupempty2scans.
-Artifact12530351061 is26973618bytes, SHA
-53e2a38c58421c0583f83230387d31ddb42f6bf594cfc32da9c3f2ed47dfbc85.
-ZIP `/tmp/vm-fulltom-focused3-40018134089/archive.zip`; allmember CRC+streamSHA
-checked. Large26236008byte source map remains ZIP-only. Receipt.json SHA
-3e96baa96271b4f8f30c8c3d92780f0e65ab9ca6ad31eb7bac28422e7c6105e1;
-analysis/full-failures.jsonl,inventory.json,append-progress.json; small/ holds
-only smalllogs/receipts. Classifier `/tmp/vm-fulltom-artifact-inspect-v2.py`.
-This completeness is evidence completeness, never semanticPASS.
-
-Actual f10 original3:
-- Active-command ordinary101 at2.807230492s, active_calls1 expected0; noSIGSEGV
-  observed after safeRc correction. Otherchecks remain binding/unreached.
-- Numeric101 at11.957957405s: dialectJim, actual pre/post errno34ERANGEtrue,
-  exact incrLLMAXoverflow, noHostrefusal. Every preceding C8.4..9.1 loopbody
-  completed before reachingJim. Jim fresh conversion is source-correct:
-  exact pinnedjim.c SHAfe5e3bea has no integer errno reset and rejects signed
-  endpoints withERANGE, independently corroborated by seeded native104rowfixture.
-  No Jim productionreset justified. User numeric controlled-precondition choice
-  is PENDING async20:39; DO NOT change numericassertion/precondition/kernel.
-- Append timeout180.009976669s. RawJSONstdoutempty but nextest-stderr.txt has
- 3445markers: rows0..860 reachedretire (189each8.4/8.5/8.6/9.0,105of9.1).
-  Lastrow861tcl9.1 phaseconstruct, no laterpin;174originalrowsremain including
-  startedrow, Jimunreached. Marker precedes Interp::new; exact internalhotspot
-  unproven. All1035freshInterps/default/profilefilters/assertions180s unchanged.
-
-Read-only source reviews `/tmp/vm-current-runtime-causes-f10/`:
-numeric-jim-source-review.json SHAa0ae48f5; active-public-command-source-review.json
-SHA1b65e63c. Allfive saved C creation/deletion windows exactly match pinned
-source: public create synchronously deletes oldtoken, deleteProc precedes final
-Command cleanup without active-refcountguard. Currenttest explicitly seals
-LegacyPublicObjectCommand, notneutral/OwnedRuntimeShim. Existing671 witnesses
-active explicitdeletion/stackrecords only, not selfreplacement/freedheaplifetime.
-No new C process was run. Productiondeferral to forceactive_calls0 contradicts
-this publicpath. Root explicitly authorized narrow source-backed test correction.
-
-## Frozen proposals awaiting final independent peers/root integration
-
-All copiedforward/reverse0fuzz/nooffset and full runtime edition2021rustfmtPASS.
-No build/runtime result claimed. Beforeinterp WORK7436d81a/CLEANcafe257c.
-
-1. `/tmp/vm-attach-absent-builtin-earlyguard-{work,clean}-v1/` SAME exactpatch
-   d00aad037df046a3a9f73574d17d87fa911f412eda39691190d777135c581936;
-   manifestsWORK06d032cb/CLEANc0fcbfbe; finalsWORK824d22e2/CLEAN3d7d6800.
-   HOLD/WITHDRAWN OWNER PROOF: root found Jim home_of→jim_context→
-   jim_namespace_bytes acquires holder.owner Rc and obj::native_object_snapshot;
-   command_fqn Jim also touches originalobject. Blanket pure/no-native-ref claim
-   was false and has been withdrawn. Do not integrate/claimCLEAR on d00aad03.
-   Root reactivatedDB for independent deep snapshot/refdrop/errno/currency trace.
-   C-only successor may be considered only if actual namespace policy proves
-   untouched Jim ordering; no successor authored yet. All original1035/180,
-   cache/state/constructor constraints remain. Performance UNMEASURED.
-2. `/tmp/vm-active-public-c-reconciliation-work-v1/` patch
-   11ed358873fb8cc5cf4375c22281c88c618ce574289e10fe82a03fd8f31e8664,
-   manifestda629106, interpFINAL84dbd75e/workflow49fa9a04→b9fd4a65.
-   Clean counterpart `...-clean-v1/` patchb710f98d/manifest5c9e7ef0,
-   interpFINAL7ea7bf2f. Only contradictory active_calls0→1, accurate comments/
-   messages and rename to active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle.
-   WORK exactfocusedliteral followsonecase; cleanno diagnosticworkflow/evidencepath.
-   All6assert macros retained, fullfileoutside test BYTEIDENTICAL, originalcode
-   restored by reverting soleexpectedliteral/rename/messages then strippingcomments.
-   Production/callback/Box/Nativepurpose unchanged. Five direct Csourcecitations
-   plus671explicitstackscope; cleanminimalC8.6sourcewhy. Manifests pin original
-   origin/rustfcb7927 interpblob2a874c98/SHA332f2ba6 and oldmigrationtestnameABSENT;
-   rename drops no originalbaselineidentity. Names substantive8.6/publicpath clear
-   and now finalall5C/carry SOURCE-BACKED STATIC CLEAR receipt /workspace/naming-proof-storage/names-peer-active-public-reconciliation-v1/receipt.json SHA79f65c09df0425bf7d725c0e445cb678ef78599ea3988190231631f352640e62. Exact currentfiles/copies/fmt/rootbaselineidentity verified independently.
-
-Active correction now root-integrated WORK91e46eb96/CLEAN5de46307; current WORK
-8c9e9cc8d/release949b33843 interp84dbd75e/7ea7bf2f. Corrected actual test remains
-UNRUN. Root authorized fresh C-only successor after withdrawing all-profilev1:
-`/tmp/vm-attach-absent-builtin-c-only-{work,clean}-v2/` SAME exactpatch
-37b72af986b1ff79698b9cba62ffca64799519b078f8b9833e447f0f6a9454a9; manifests
-WORK71d2b061/CLEAN4e56d929; exactbefore84db/7ea7→final3b3f3e19/828bcc85.
-Actual Namespaces.variable_name_protocol Some(C(_)) is readonce; only C takes
-earlylookup. Jim/None retain descriptor/is_empty before lazy original lookup,
-so no addedJimempty-identity snapshot/ref operations. Alloutsidefunction unchanged;
-erasingonlyscaffolding exactly recovers originalfunction. Copiesboth0/fmt2021PASS.
-C-only-owner-order-proof.json traces actualC native_context_path constructed-only
-branch, shared purebyteprojection/tablelookup and absence of callbacks/protocol
-mutation until attest. It makes no Jimlookup purity claim. DB independent deep
-C/Jimorder peer independently CLEAR /tmp/db-peer-attach-c-only-v2/review.json
-SHAd368991a099e7a378fdf777e2a96ccfb6096e807e323bcc9882da1218a3c94ed.
-Actualfieldborrow dropsbeforeloop, no callbacks/protocolmutation, exact Cpure
-Rustgeometry and Jim/None originalnativeorder authenticated independently.
-Rootalone integrates. PerformanceUNMEASURED;
-original1035freshInterps/180 still judge. All-profiled00aad03 stays WITHDRAWN.
+C84 native exactdc67/824f archive+independentb381 image each original812 rows byteexact
+cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c.
+Original native run40039950003 artifactZIPa01b9f40/sourceb52, ownreceiptcd4c0982,
+root independentpeer a4a0ef17; old44b mismatch UNKNOWN. Exact pair already admitted
+source-only, original Rustloaded812 separatecrate selector stillUNRUN. DetailedWORK
+provider/seals only; CLEAN ordinaryCI NoTom→GNUtimeout900+20/512KiB drain/2GiBprepost
+C84→unchangedC9/Tom/fulltests. Scope differs from old C9-only runs, no futurepair
+coverage. C84V2 rootpeer ebfe5194. No evidence-framework helper/artifacts shipCLEAN.
 
 ## Next actions
 
-- Root applied separately cleared active correction. HOLD all-profile d00aad03;
-  required DB C-onlyv2 deep owner/order peer is CLEAR, rootintegration pending. No
-  speculative numericreset or unsupported Nativepurpose/lifetime switch.
-- Root alone runs fresh originalfocused3 and fullsharedprocess/fullroster gates.
-  Preserve original1035/180 and allunchangedchecks; inspect exactfullpayloads,
-  native state, appendphase and allseals. Benchmark constructorchange before any
-  optimisation acceptance. Larger caching/factory changes require separate proof.
-
-Earlier snapshots are retained losslessly in the role handoff resume archives,
-including handoff/reviews/merge-inventory-20261019/vm-runtime/resume-archive-20261023T204854Z/vm-runtime-previous.md.gz and the prior20261023T190009Z archive.
+1. ROOT PRIORITY full CurrentDiag extraction peer while root peers savedhome:
+/tmp/lsp-current-diagnostics-length-v3 V3 HELD (unqualified associatedhelper call,
+local currentness lifetime incorrectly tied to LiftInputs, registry Arc extra clone
+under audit). Author preparing V4. Read original source and entire extraction,
+source queries/snapshot/project admissions/11 evidenceArcs/languageID/locks/drop/
+cancellation/borrow errorpaths/types; no inherited V2 clear. V3 manifesta2846823.
+2. Root-reviewed savedhome source candidate, upload globs and authenticated f1dc
+receipt handed off. Future fresh actual runtime with C84 provider should retain
+original3/14/stack/103 separately under same180/2400/3600/20MiB/2GiB. No own dispatch.
+3. Resume source-owned prune validity scheduling proof only after no unsafe skip;
+no general VM parity expansion or semantic fixture changes. Actual frames await
+future retained reports; no guessed boxing/stack/depth budget changes.
+4. External BIGIP genuine C9/F5 NativePreflightRequired provider dependency stays
+routed Compiler/Codegen; no Logical substitution, admission bypass or generalized
+user-approved two trace cases. Spec/Jim/compiler producers owned other roles.

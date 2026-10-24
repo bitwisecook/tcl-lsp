@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T02:57:32.626118+00:00",
+  "scheduled_report_utc": "2026-10-24T02:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T03:25:37+00:00",
+  "change_since_previous_report": [
+    "Pushed WORK 1c0f46f083807b323234f81b705f34f54c9dba72 and clean release a112f177545755d19af07c919fae5b0ed15fce83 after fresh depth1 fetch/rebase preserving external9ffdce136. Actual fixes firstWORK; evidence/private observers omitted from release. Added native Jim table, ILX slot/source ownership, genuine authored reporting labels, guarded DefinitionV7 and lexical memo reuse after independent peers.",
+    "Native DefinitionV6 held because ObjectDispatch is permanently poisoned. V7 uses declared six-domain footprint only after actual stock Builtin selection, preserves ordinary dispatch/fallback/getters/callbacks and independent body guards; Runtime deep peer137e46ca clear. Old ABI and all mode-specific functional assertions retained. Actual WASM25 rerun required.",
+    "New runtime f1dc authenticated original3=2PASS1TIMEOUT; append743of1035 complete rows. Baseline14 now7PASS7FAIL (regsub and6Env pass), stackSIGABRT, other103=1PASS102FAIL; zeroUNRUN. All118selected cases and124owned timing groups close, source125935/fullmembership/20criticalGitblobs/ELF match. Whole frame-metadata protocol remainsINCOMPLETE because four nested uploaded members are absent; accountingfalse/reasonUNKNOWN. No stack-cause or complete protocol claim. C84 positive explicitly fails missing source provider, not semantic formatting.",
+    "Runtime savedhome source bug identified: target frame capture restores caller then incorrectly checks caller active slot; narrow existing savedlevel checker repair frozen/unrun. Actual lappend Frame1slot3linkl is consistent but exact dynamic checker not independently logged. Constructor1373/442 prune counts identify repeated sweeps; no unsafe revision/profile cache accepted.",
+    "New startup42 fullseals: cold tokens81.107msPASS, originalworkspace30sFAIL, Context2assertionsPASS/19pending/tworound0settled/zeroWaitandCancelled thisrun; controlled wait branch remainsunexercised.90 exactsystemindex rows isolate nested-command median95.639ms versus expr4.991ms; no crosshost speed claim. Existing genuine lexical memo reuse independently reviewed/pushed; no stamp/currentness guard cache or skip.",
+    "Compiler original58 remains fully observed48PASS10FAIL plus Native3PASS, SH2onePASSoneFAIL andReadFlowPASS. New readonly-body label repair preserves issuedIDs/no publication/Native authority. Broad Standalone source semantic-value adapter is distinct from physical cells and raw erasure-safe SCCP map; no conditional values may bypass that boundary. Namespace import unknown compilation error alternatives retained; SH numeric-cost evidence draft unrun.",
+    "Heavy3 exact6323 all3FAIL with all7ownedgroups/full125932source/provider/ELF guards andfresh0Wbuilds. Existing live session already owns realC9 engine, refusal frontier is Unknown compiledNative recipe/preflight flag. CLItrace2 fails readonly event intake separately. Original355/34failure ledger remains; no test weakening or actualTMM claim.",
+    "Jim42 remains5PASS2FAIL; parentword fix observed for namespace cases, if-inherited x stillmissing. Sameflag existing base-provider guards instrumented without newqueries/Eq changes. Conditional wrapper owner stays opaque at prelude. Registry-owned finite13-helper stock source contract approved for bounded off-tree implementation, no NativeNormal/receiver/frame grant.",
+    "Current diagnostics refactorV2/V3 remainHELD for missing fields/type paths/borrow and premature languageID/EvidenceHandles drops; V4 authoring with independent Runtime deepreview required. No held proposal integrated. Remaining strictCore/Server lengths/final formatting/generated/host/editor/wholebaseline andperformance gates open.",
+    "02:25 cycle officialreport written on schedule/pushed02:26:33, next02:55 report slightlylate during new integrations. Five active roles fresh; staleBIGIP timestamp notified without takeover, perf fresh, triage ownercomplete. Localdisk<2GiB, no builds/target or youngexecutable deletion. Sixhour target missed, no PR/merge/tag/publish."
+  ],
+  "committed": [
+    "1d72e5d719a4038e71814fb20443504d2817e602"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish02:55snapshot/report and rearm03:25 reminder.",
+    "Dispatch fresh guardedWASM/compiler/Jim/Spec/startup exactpushed source; preserve healthy runs.",
+    "Peer savedhome/SH/currentdiagnostics and fix shared source-value/namespace/stockJim/hosted-shim causes.",
+    "Complete all final-source shipping, baseline, performance and repository-wide comment/docs gates before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 02:08 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "New scoped runtime improvements and complete old-source failures retained; missing nested metadata prevents complete protocol admission. No sectionF/wholegreen/completezeroP2F/finalperf verdict.",
+  "disk_free_bytes": 1722388480,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

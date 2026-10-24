@@ -1,0 +1,304 @@
+{
+  "CLI_trace_disposition": "Separate exit1 vs expected0, Unknown preflight source observations; no NativePreflightRequired in their stderr. No causal conflation.",
+  "CRC_paths_unique_safe": true,
+  "ZIP_bytes": 10173983,
+  "ZIP_sha256": "9fbca8ae0a43662b7063f65e310a54011a8277ee4d7d3158ec93b3a5b07211f9",
+  "all_maps_stable": true,
+  "artifact": 12544751247,
+  "critical_Gitbyte_pins": {
+    ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+    ".github/workflows/perf.yml": "52a2967a5265871da5fc6ef153b93f8d247b738adcc2032b02336f6cc58d5ce5",
+    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py": "88ded252bc6bb4633f66bb2733799b4d06631b366ab16f13470d0bd3ff51328c",
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json": "f67098d648e5655ac9b0e7ac8ebf26ecfd8b6071934d92209be6ca193e6eaa03",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/f5-cli/Cargo.toml": "3a96bcd3b78b9c6978b31602fc938b45b05d21e59c3633530cfd78688dd84c79",
+    "rust/f5-cli/src/commands/irule.rs": "6e210163bd218fb242f1afb4de4464e603637d93559a7fb326e205bac53b7b5f",
+    "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
+    "rust/tcl-bytecode/src/lib.rs": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+    "rust/tcl-compiler/src/compile_service.rs": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+    "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
+    "rust/tcl-irule-test/Cargo.toml": "c0883b70b216f3dda1fe4965dc0408288f3356ea730b2f4c39d03bd303abab2b",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+  },
+  "exact_original_packages3_all_features_build_argv_verified": true,
+  "first_raw_bootstrap_decline": "preflight_flag ProviderRequired; procedure_bytes1736 current_namespace34/58; compiled_preflight.rs820:18 native provider request; prerequisites11 instructions193; failurefalse/mathfalse. Exact private producing expression not yet joined.",
+  "job": 120749609148,
+  "large_JSON_ZIP_only": true,
+  "limitations": [
+    "isolated3 does not accept ordinary heavy355/shared process",
+    "no ELF payload upload, no independent binary byte rehash beyond guarded retained producer hashes",
+    "no actual TMM/backend or policy equivalence grant",
+    "full Git tracked membership and critical Git bytes verified; no alltrackedblob byte rehash"
+  ],
+  "map_counts": {
+    "dependencies": 21500,
+    "providers": 2466,
+    "source": 125932,
+    "tools": 8
+  },
+  "outcomes": [
+    {
+      "exit_code": 101,
+      "receipt": "tcl_irule_test-00.process.json",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "state": "FAIL",
+      "stderr": "tcl_irule_test-00.stderr",
+      "stdout": "tcl_irule_test-00.stdout",
+      "target": "tcl_irule_test"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "irule-00.process.json",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "state": "FAIL",
+      "stderr": "irule-00.stderr",
+      "stdout": "irule-00.stdout",
+      "target": "irule"
+    },
+    {
+      "exit_code": 101,
+      "receipt": "irule-01.process.json",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "state": "FAIL",
+      "stderr": "irule-01.stderr",
+      "stdout": "irule-01.stdout",
+      "target": "irule"
+    }
+  ],
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+      "deadline_seconds": 600,
+      "elapsed_seconds": 5.344279888,
+      "exit_code": 0,
+      "minimum_free_bytes": 75655815168
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-irule-test",
+        "-p",
+        "f5-cli",
+        "-p",
+        "tcl-fuzz",
+        "--all-features",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 229.087468739,
+      "exit_code": 0,
+      "minimum_free_bytes": 72674983936
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-7f4575b9ed0995f3",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.397358112,
+      "exit_code": 0,
+      "minimum_free_bytes": 72674963456
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-7f4575b9ed0995f3",
+        "live::tests::harness_runs_the_tmm_84_surface",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test",
+      "deadline_seconds": 180,
+      "elapsed_seconds": 64.191014674,
+      "exit_code": 101,
+      "minimum_free_bytes": 72674893824
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.264602166,
+      "exit_code": 0,
+      "minimum_free_bytes": 72674885632
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075",
+        "trace_keeps_data_group_from_braced_expression_command",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli",
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.385494122,
+      "exit_code": 101,
+      "minimum_free_bytes": 72674869248
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075",
+        "trace_uses_the_event_closure_not_the_first_handler_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli",
+      "deadline_seconds": 180,
+      "elapsed_seconds": 0.402178299,
+      "exit_code": 101,
+      "minimum_free_bytes": 72674856960
+    }
+  ],
+  "remaining_log_bytes": 20536203,
+  "run": 40053005986,
+  "source": "6323ab1b784ff915fab59dc72a94293ef4db2b8e",
+  "source_tree": "41ccb60362fb1d66ec28b52497148f2a54912a44",
+  "strict_fresh_selected_artifacts": [
+    {
+      "admission": "current nested CLI executable only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/f5-query",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/f5-query"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": false
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": true,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "bin"
+          ],
+          "name": "f5-query",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/src/main.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/f5-query",
+      "sha256": "6e77c88fba1206d733a9f53d44a761fb5c76234e34744496598634d0f1f4a575",
+      "strict_Rust_0w": true,
+      "target": "f5-query"
+    },
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-7f4575b9ed0995f3",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-7f4575b9ed0995f3"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_irule_test",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/src/lib.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-7f4575b9ed0995f3",
+      "sha256": "78ab2f93f00da5d174605260de6a1415bffa0916520a632af8c154c69a059b18",
+      "strict_Rust_0w": true,
+      "target": "tcl_irule_test"
+    },
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "irule",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/tests/irule.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-733acd35831e2075",
+      "sha256": "4eee44b0b9445d884056dfcf738e957029de9c89add4d6d08544ab7a49bd31ec",
+      "strict_Rust_0w": true,
+      "target": "irule"
+    }
+  ],
+  "tracked_membership_count": 125932,
+  "utc": "2026-10-24T02:45:37.328417+00:00",
+  "verdict": "AUTHENTICATED_ORIGINAL_HEAVY_BOOTSTRAP1_TRACE2_DIAGNOSTIC"
+}

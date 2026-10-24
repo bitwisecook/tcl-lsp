@@ -1,0 +1,141 @@
+{
+  "created_utc": "2026-10-24T02:50:30.851864+00:00",
+  "source": "f1dc89c4b6e3483d495b7f1f75a5348c99ed2c32",
+  "run": 40053592230,
+  "job": 120751481466,
+  "artifact": 12543824949,
+  "zip_bytes": 28127261,
+  "zip_sha256": "37129b002e293249944cea685816378e0d4b6a26a06778365f00983a4c2c1da8",
+  "all397_members_CRC_stream_SHA_checked": true,
+  "small_extracted_bytes": 558405,
+  "source_manifest_count": 125935,
+  "all125935_membership_matches_Git": true,
+  "key_git_blob_join_count": 20,
+  "strict_source_after": true,
+  "original3": [
+    {
+      "name": "tcl-runtime::tcl_runtime$interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+      "status": "ok",
+      "exec_time": 4.736212469,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+      "status": "ok",
+      "exec_time": 12.860656037,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+      "status": "failed",
+      "exec_time": 180.010041989,
+      "reason": "time limit exceeded"
+    }
+  ],
+  "original3_known_closed_complete": true,
+  "original3_unknown": 0,
+  "original3_tommath_git_owned_lifecycle_guards": true,
+  "append_progress": {
+    "completed_rows": 743,
+    "completed_indexes": "0..742",
+    "completed_by_profile": {
+      "tcl8.4": 189,
+      "tcl8.5": 189,
+      "tcl8.6": 189,
+      "tcl9.0": 176
+    },
+    "marker_count": 2974,
+    "last_marker": {
+      "row": 743,
+      "profile": "tcl9.0",
+      "phase": "pin"
+    },
+    "remaining_including_started": 292,
+    "scope": "Original1035 fresh interpreters/180s unchanged; timeout persists. Retire marker precedes destructor, next row verifies previous completion. Lastpin marker only reachedstage, not solehotspot. No crosshost causal speedup/performance acceptance."
+  },
+  "constructor_timing_samples": 124,
+  "constructor_complete_samples": 124,
+  "constructor_sampled_counter_analysis": "analysis/constructor-counters.json",
+  "supplemental_separate_counts": {
+    "baseline14": {
+      "FAIL": 7,
+      "PASS": 7
+    },
+    "stack_abort1": {
+      "ABORT": 1
+    },
+    "other103": {
+      "FAIL": 102,
+      "PASS": 1
+    }
+  },
+  "all118_outcomes_known_and_owned_receipts_complete": true,
+  "all118_validation_errors": [],
+  "supplemental_protocol_complete": false,
+  "supplemental_protocol_errors": [
+    "stack metadata unavailable, changed or incomplete"
+  ],
+  "same_hosted_elf_sha256": "99a5b7beec5c93f02225511eb88d767c1b6df3f15c8032d7a8cf02ec97317f6c",
+  "independent_uploaded_ELF_bytes": false,
+  "frame_metadata": {
+    "missing_uploaded_members": [
+      "stack-frames/summary.json",
+      "stack-frames/worker.stdout",
+      "stack-frames/worker.stderr",
+      "stack-frames/worker.process.json"
+    ],
+    "accounting": {
+      "actual_retained_log_bytes": 265958,
+      "complete": false,
+      "elf_sha256": "99a5b7beec5c93f02225511eb88d767c1b6df3f15c8032d7a8cf02ec97317f6c",
+      "elf_unchanged": true,
+      "helper_sha256": "bfea2077ec3e3c166970478d3eb7d51d1d66c804d99609c70d211f478c5b203e",
+      "owned_group_closed": true,
+      "reported_retained_bytes": 265958,
+      "scope": "Static metadata only, not active stack/depth or a stack fix. Unknown/omitted data stays incomplete. Actual retained bytes join the existing combined budget; original3 stream caps stay unchanged and do not guarantee a retroactive aggregate cap.",
+      "source": "f1dc89c4b6e3483d495b7f1f75a5348c99ed2c32",
+      "streams": {
+        "worker.stderr": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "worker.stdout": {
+          "bytes": 265958,
+          "sha256": "efd79f0b0de341282162e26c245e69de92bedbe870984b4cb646030bef9f1448"
+        }
+      },
+      "summary_sha256": "191757c3734c72ef77aa631b201c9e0a56a0897d597ed2e579f998b1733dd34d"
+    },
+    "actual_report_status_reason_tools_process_guard": "UNKNOWN: all four nested report/stream/process members absent. Accounting reports completefalse; cannot independently classify its cause or recover metadata posthoc.",
+    "whole_protocol_complete": false
+  },
+  "C84_fixture_failure": {
+    "selector": "dict::tests::actual_c84_updater_retains_original_long_and_wide_minimum_cache",
+    "status": "FAIL",
+    "panic": "explicit pinned native formatter: pinned C84 source tree unavailable",
+    "semantic_classification": "provider prerequisite unavailable; this actualexecution FAIL is retained, cannot be treated as formatter semantic rejection or PASS. Source predates reviewedC84prerequisite."
+  },
+  "saved_simplecell_observation": {
+    "selector": "cmd_list::tests::lappend_read_trace_fires_but_swallows_error",
+    "home": "Frame(1)",
+    "compiled_slot": 3,
+    "link_present": true,
+    "root_matches": false,
+    "name_prefix_bytes": [
+      108
+    ],
+    "actual_active_frame": "NOT OBSERVED; no exact dynamic callsite inferred"
+  },
+  "analysis_sha256": {
+    "append-progress.json": "5a8705c60b58d54347fa9617debd3bea6ba7cf51115affba6967d228a931dcbc",
+    "archive-members.json": "2cc6f9db3574ab88451e297a47ea654887bc67ceaf8c9032d2c476a09be7eb0d",
+    "constructor-counters.json": "bfcdeeaff9b257b0d7700b970f0e0f44c447c69a9f8dba0d32ed7d0967f52fc0",
+    "constructor-stages.json": "49f3d64ad46df5ce208e434ef7a1ecab6a11e70977c63b333044a5d743d3465e",
+    "failure-payloads.json": "7efd67519aae5feddc8f47d62b0b10d3ddea17791b0170c6139fe500707ce072",
+    "inventory.json": "cc537e12ca679b1c5aa544cbc83e173fa5bf17c3289311639d15462f0e1df765",
+    "source-git-join.json": "61757256a234ec4b55d6b0846528e8fc06af5ebb01e238f774d8f9393af78448",
+    "supplemental-outcomes.json": "2b0ab1e95032474df8061fe04a60f38f3677bd63058926097179248f1752e5c0",
+    "unknown.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "scope": "Authenticated bounded original diagnostic outcomes only. Newregsub+6Env selectorsPASS, 7baselineFAIL, stackABORT, other103 1P102F, appendTIMEOUT. Numeric repeats in original3/other103 separately, never distinctidentitypromotion. Missingframeuploads keep wholeprotocol incomplete despite all118 caseprocesses closed; no sharedprocess FullTom acceptance, no performance/NoTom waiver. All original assertions/budgets preserved."
+}
