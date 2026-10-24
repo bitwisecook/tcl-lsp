@@ -955,7 +955,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "3fa0c94f6d8d32260a97131b2249d69a5c9fd1412404ddbc67f0094388ef7edb",
+    == "cc4c7c141d2a52df17920bc0cf225b64114ef0350e05b4313b5a33aea94dd6c3",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
