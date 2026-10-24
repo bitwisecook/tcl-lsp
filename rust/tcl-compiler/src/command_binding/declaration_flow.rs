@@ -246,6 +246,22 @@ pub(crate) struct DeclarationFlowReport {
     frame: DeclarationFlowFrame,
 }
 
+/// Missing-read occurrences from an original Logical declaration's source.
+/// This purpose can add conditional warnings only. It exposes no report,
+/// definedness, alias suppression, store, CFG, entered-frame or execution facts.
+pub(crate) struct OriginalDeclaredProcedureReadOccurrences {
+    report: Arc<DeclarationFlowReport>,
+}
+
+impl OriginalDeclaredProcedureReadOccurrences {
+    pub(crate) fn occurrences(&self) -> impl Iterator<Item = (&String, &tcl_lexer::Span)> {
+        self.report
+            .warning_reads
+            .iter()
+            .filter(|(name, _)| !self.report.aliases.contains(*name))
+    }
+}
+
 struct DeclaredOverwrite {
     first: CommandAllocationSite,
     next: CommandAllocationSite,
@@ -482,6 +498,33 @@ impl DeclarationFlowReport {
 }
 
 impl SourceInvocationBinding {
+    /// Original-source warnings are independent of current lowered CFG custody.
+    /// A retained Logical vector owns its complete input/configuration/registry;
+    /// the declared frame owns the source image, allocation, formals and namespace.
+    /// Neither this query nor its result can suppress an existing diagnostic.
+    pub(crate) fn original_declared_procedure_read_occurrences(
+        &self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalDeclaredProcedureReadOccurrences> {
+        input.has_logical_source_name_context().then_some(())?;
+        self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let report = self.declaration_flow_report(registry)?;
+        let DeclarationFlowFrame::Existing(
+            super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(entry),
+        ) = &report.frame
+        else {
+            return None;
+        };
+        entry
+            .matches_original_procedure_source(procedure, image)
+            .then_some(())?;
+        Some(OriginalDeclaredProcedureReadOccurrences { report })
+    }
+
     pub(crate) fn declaration_flow_report(
         &self,
         registry: &tcl_registry::CommandRegistry,
@@ -3507,5 +3550,107 @@ mod tests {
             }),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod declared_procedure_source_read_occurrence_tests {
+    #[test]
+    fn logical_source_occurrences_do_not_lend_generic_flow_or_current_tree_facts() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = input.borrowed_context_registry().commands();
+        for (source, expected) in [
+            ("proc f {p} {set anchor 1; puts $missing}", true),
+            ("proc f {p} {unknown_host; puts $missing}", false),
+        ] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let procedure = module
+                .procedures
+                .values()
+                .next()
+                .expect("genuine Logical declaration");
+            let tokens = procedure.body.statements[0].tokens().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let report = binding.declaration_flow_report(registry).unwrap();
+            assert!(!report.owns_original_procedure(procedure, &module.source));
+            let reads = binding
+                .original_declared_procedure_read_occurrences(
+                    tokens,
+                    &input,
+                    procedure,
+                    &module.source,
+                    registry,
+                )
+                .expect("genuine original-source occurrence purpose");
+            assert_eq!(
+                reads.occurrences().any(|(name, _)| name == "missing"),
+                expected
+            );
+            let mut changed_tree = procedure.clone();
+            changed_tree.body.statements.clear();
+            assert!(!report.owns_original_procedure(&changed_tree, &module.source));
+            assert!(
+                binding
+                    .original_declared_procedure_read_occurrences(
+                        tokens,
+                        &input,
+                        &changed_tree,
+                        &module.source,
+                        registry,
+                    )
+                    .is_some(),
+                "original source occurrences do not claim current tree custody"
+            );
+            let mut foreign = procedure.clone();
+            foreign.declaration_site = None;
+            assert!(
+                binding
+                    .original_declared_procedure_read_occurrences(
+                        tokens,
+                        &input,
+                        &foreign,
+                        &module.source,
+                        registry,
+                    )
+                    .is_none()
+            );
+            assert!(
+                binding
+                    .original_declared_procedure_read_occurrences(
+                        tokens,
+                        &input,
+                        procedure,
+                        &tcl_lexer::SourceImage::document(&format!("# foreign\n{source}")),
+                        registry,
+                    )
+                    .is_none()
+            );
+            let other = tcl_registry::model::ingress::resolve_known_environment("tcl9.0")
+                .unwrap()
+                .default_context_registry();
+            assert!(
+                binding
+                    .original_declared_procedure_read_occurrences(
+                        tokens,
+                        &input,
+                        procedure,
+                        &module.source,
+                        other.commands(),
+                    )
+                    .is_none()
+            );
+        }
     }
 }

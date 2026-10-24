@@ -1815,18 +1815,19 @@ is renamed or deleted in this file."
                         &self.analysis_context(),
                     ),
                 )?;
+                let proofs = DeclaredReadProofs {
+                    exists_guards: &exists_guards,
+                    proved: &w210_min,
+                };
                 rbs_read_option(
                     "potential_reads",
-                    self.declaration_potential_read_spans(
+                    self.conditional_read_spans_for_purpose(
                         fu,
                         procedure,
                         &declaration,
-                        rbs_read_option("required_flow", declared_flow.as_ref())?,
+                        rbs_read_option("required_flow", declared_flow.as_ref()),
                         ctx,
-                        DeclaredReadProofs {
-                            exists_guards: &exists_guards,
-                            proved: &w210_min,
-                        },
+                        proofs,
                     ),
                 )
             });
@@ -2113,6 +2114,109 @@ is renamed or deleted in this file."
                                                 && block_dominated_by(&fu.ssa, block, *dominator)
                                         })
                                     })
+                            })
+                        })
+                    })
+                });
+            if !guarded {
+                reads.insert(name.clone(), span);
+            }
+        }
+        Some(reads)
+    }
+
+    /// Keep existing flow-report projection and source-only occurrences distinct.
+    fn conditional_read_spans_for_purpose(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        declaration: &crate::script_binds::AuthoredProcedureReadAdvice,
+        report: Option<&crate::command_binding::DeclarationFlowReport>,
+        ctx: &ReadBeforeSetCtx<'_>,
+        proofs: DeclaredReadProofs<'_>,
+    ) -> Option<std::collections::HashMap<String, tcl_lexer::Span>> {
+        match report {
+            Some(report) => self.declaration_potential_read_spans(
+                fu,
+                procedure,
+                declaration,
+                report,
+                ctx,
+                proofs,
+            ),
+            None => self.original_declared_source_potential_reads(
+                fu,
+                procedure,
+                declaration,
+                ctx,
+                proofs,
+            ),
+        }
+    }
+
+    /// Add source-owned conditional occurrences without lending report facts to
+    /// physical warning suppression or other diagnostic families.
+    fn original_declared_source_potential_reads(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        declaration: &crate::script_binds::AuthoredProcedureReadAdvice,
+        ctx: &ReadBeforeSetCtx<'_>,
+        proofs: DeclaredReadProofs<'_>,
+    ) -> Option<std::collections::HashMap<String, tcl_lexer::Span>> {
+        let input = fu.source_metadata_input()?;
+        let registry = self.profile_registry();
+        fu.invocation_metadata_context(&registry)?;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let occurrences = fu.ssa.blocks.iter().find_map(|(&block, data)| {
+            (0..data.statements.len())
+                .chain(std::iter::once(usize::MAX))
+                .find_map(|index| {
+                    let tokens = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+                        .source_tokens()?;
+                    tokens
+                        .source_binding
+                        .as_ref()?
+                        .original_declared_procedure_read_occurrences(
+                            tokens, input, procedure, &image, &registry,
+                        )
+                })
+        })?;
+        let DeclaredReadProofs {
+            exists_guards,
+            proved,
+        } = proofs;
+        let mut reads = std::collections::HashMap::new();
+        for (name, &span) in occurrences.occurrences() {
+            if !declaration.owns(span)
+                || proved.contains_key(name)
+                || ctx.scope_aliases.contains(name)
+                || ctx.supp.suppresses(name)
+                || ctx.extra_known_defined.contains(name)
+                || super::helpers::original_array_scalar_read_at_span(fu, span, &registry)
+            {
+                continue;
+            }
+            let killed = super::helpers::original_read_occurrence_at_span(fu, span)
+                .is_some_and(|value| ctx.supp.killed.contains(&value));
+            let guarded = !killed
+                && fu.ssa.blocks.iter().any(|(&block, data)| {
+                    data.statements.iter().enumerate().any(|(index, _)| {
+                        let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                        view.source_tokens().is_some_and(|tokens| {
+                            tokens.variable_accesses.iter().any(|access| {
+                                let original = fu.abs_span(access.source.span);
+                                original.start() <= span.start()
+                                    && span.end() <= original.end()
+                                    && super::helpers::original_read_cell(access, &registry)
+                                        .is_some_and(|cell| {
+                                            exists_guards.iter().any(|(guard, dominator)| {
+                                                guard == &cell
+                                                    && block_dominated_by(
+                                                        &fu.ssa, block, *dominator,
+                                                    )
+                                            })
+                                        })
                             })
                         })
                     })
