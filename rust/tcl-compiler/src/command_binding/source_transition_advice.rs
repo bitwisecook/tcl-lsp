@@ -2591,11 +2591,12 @@ impl AdviceInvocationContext<'_> {
             }
         }
         let declared = schema.semantics.state_transitions.is_declared();
-        let immediate_body = self
+        let immediate_body = (self
             .authored_roles(schema)
             .0
             .iter()
             .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+            || self.normal_case_source_layout(schema).is_some())
             && !schema
                 .semantics
                 .traits

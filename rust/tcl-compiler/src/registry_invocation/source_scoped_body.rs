@@ -414,6 +414,49 @@ impl OriginalConditionalSourceCaseBodies {
     }
 }
 
+/// Genuine case bodies for the conditional normal-source question only.
+/// The original source/input owner and its unknown-selection residual remain.
+pub(crate) struct OriginalNormalSourceCaseBodies {
+    normal: tcl_registry::normal_source_case::NormalSourceCaseLayout,
+    possible: OriginalConditionalSourceCaseBodies,
+}
+
+impl OriginalNormalSourceCaseBodies {
+    pub(crate) fn bodies(&self) -> Option<&[OriginalSourceScriptBody]> {
+        (self.normal.possible_bodies() == &self.possible.projection)
+            .then_some(self.possible.bodies())
+    }
+}
+
+pub(super) fn normal_source_case_bodies_for(
+    words: &super::source_structure::OriginalRegistryWords,
+    context: &ContextRegistry,
+) -> Option<OriginalNormalSourceCaseBodies> {
+    if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {
+        return None;
+    }
+    if words.origins().iter().enumerate().any(|(ordinal, origin)| {
+        *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+    }) {
+        return None;
+    }
+    let config = words.head_source()?.word()?.config();
+    let normal = words.with_source_schema(context, |schema| {
+        tcl_registry::normal_source_case::case_layout_on_normal_source_continuation(
+            schema,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        )
+    })??;
+    let possible = conditional_source_case_bodies_for(words, context)?;
+    if normal.possible_bodies() != &possible.projection
+        || possible.bodies.len() != possible.projection.bodies.len()
+        || !possible.matches_source(words.head_source()?.word()?.image(), config)
+    {
+        return None;
+    }
+    Some(OriginalNormalSourceCaseBodies { normal, possible })
+}
+
 /// Original Logical body and its descriptor-selected candidate vocabulary.
 /// This retains full source/input/schema ownership, without a runtime scope,
 /// entered frame, complete command presence or editing permission.
