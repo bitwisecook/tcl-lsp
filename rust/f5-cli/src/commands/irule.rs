@@ -897,9 +897,16 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
     let mut traces: Vec<Trace> = Vec::new();
     for entry in &loaded.inputs {
-        if !tcl_irules::when_blocks(&entry.source)
-            .into_iter()
-            .any(|block| block.event.eq_ignore_ascii_case(event))
+        let tcl_irules::IrulesWhenSourceInventory::Available(inventory) =
+            tcl_irules::when_source_inventory(&entry.source)
+        else {
+            continue;
+        };
+        if !inventory.is_complete()
+            || !inventory
+                .declarations()
+                .iter()
+                .any(|declaration| declaration.event().eq_ignore_ascii_case(event))
         {
             continue;
         }
