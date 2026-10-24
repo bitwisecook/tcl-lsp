@@ -1016,14 +1016,22 @@ pub(super) fn original_command_head_input(
 impl super::SourceInvocationBinding {
     /// Reborrow the complete original command through its retained vector.
     /// This projects tokens only and supplies no dispatch or completion grant.
-    #[cfg(test)]
     pub(crate) fn original_recorded_command_tokens(&self) -> Option<crate::ir::CommandTokens> {
-        self.original_recorded_command().map(|(_, tokens)| tokens)
+        self.with_original_recorded_command(|_, tokens| tokens)
     }
 
     pub(crate) fn original_recorded_command(
         &self,
     ) -> Option<(crate::segmenter::SegmentedCommand, crate::ir::CommandTokens)> {
+        self.with_original_recorded_command(|command, tokens| (command.clone(), tokens))
+    }
+
+    /// Share the unchanged original-vector gates before choosing owned syntax
+    /// or tokens alone. The immutable lexical owner outlives the projection.
+    fn with_original_recorded_command<T>(
+        &self,
+        project: impl FnOnce(&crate::segmenter::SegmentedCommand, crate::ir::CommandTokens) -> T,
+    ) -> Option<T> {
         let site = self.invocation_site()?;
         let (words, config) = self.original_recorded_name_words()?;
         let image = site.source.source_image();
@@ -1036,7 +1044,7 @@ impl super::SourceInvocationBinding {
             config,
             command,
         );
-        (tokens.words() == words).then(|| (command.clone(), tokens))
+        (tokens.words() == words).then(|| project(command, tokens))
     }
 
     /// Complete syntax configuration from this original word-vector owner.

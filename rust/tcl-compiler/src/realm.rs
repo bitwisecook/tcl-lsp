@@ -454,7 +454,7 @@ impl CommandBindingRealm {
         }
         self.retain_original_registered_instance_source(tokens);
         for (_, binding) in &tokens.nested_bindings {
-            if let Some((_, mut child)) = binding.original_recorded_command() {
+            if let Some(mut child) = binding.original_recorded_command_tokens() {
                 child.source_binding = Some(binding.clone());
                 self.retain_original_registered_instance_source(&child);
             }
@@ -466,7 +466,7 @@ impl CommandBindingRealm {
                 if binding.has_original_source_layout_owner() {
                     continue;
                 }
-                let Some((_, mut child)) = binding.original_recorded_command() else {
+                let Some(mut child) = binding.original_recorded_command_tokens() else {
                     continue;
                 };
                 child.source_binding = Some(binding.clone());
