@@ -91,7 +91,7 @@
   },
   "scope": "Original unchanged bootstrap1 and CLI trace2 from actual a26 heavy355 (321PASS34FAIL); distinct bounded first-decline diagnosis only. Build original heavy exact3 packages/all-features; all test binaries compiled; only3 isolated original selectors executed. No actual TMM or authored simulation authority grant.",
   "source_pins": {
-    ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+    ".github/workflows/ci.yml": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
     "rust/f5-cli/Cargo.toml": "3a96bcd3b78b9c6978b31602fc938b45b05d21e59c3633530cfd78688dd84c79",
     "rust/f5-cli/src/commands/irule.rs": "6e210163bd218fb242f1afb4de4464e603637d93559a7fb326e205bac53b7b5f",
     "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
