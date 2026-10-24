@@ -9180,10 +9180,10 @@ impl Interp {
         element: Option<&[u8]>,
     ) {
         let cell = self.variable_trace_scope(home, element);
-        self.traces
-            .borrow_mut()
-            .traces
-            .retain(|trace| !cell.owns_registration(trace));
+        let mut traces = self.traces.borrow_mut();
+        traces.traces.retain(|trace| !cell.owns_registration(trace));
+        crate::env_trace::detach_destroyed_env_trace(&mut traces, home, element);
+        drop(traces);
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
     }
 
