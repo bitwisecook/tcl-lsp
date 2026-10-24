@@ -320,6 +320,8 @@ pub struct NativeNamespaceContext {
 /// This capability is captured independently of the command table. Names
 /// include undefined and linked entries; no value getter, alias traversal,
 /// variable representation or observer absence is implied.
+/// C providers retain one table per namespace. Jim providers retain only its
+/// actual root-owned flat global table; qualified Jim keys stay unprojected.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NativeNamespaceVariableTable {
     /// Actual interpreter and namespace incarnation owning the observed table.
