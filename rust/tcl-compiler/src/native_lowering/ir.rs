@@ -328,6 +328,15 @@ pub struct IfElseResult {
     pub else_src: NativeValueId,
 }
 
+/// Which owner permits the procedure-definition handler shortcut.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionDispatch {
+    /// Existing complete dispatch-domain proof at this source instruction.
+    Proved,
+    /// Only a candidate; ordinary runtime dispatch must validate its selected token.
+    RuntimeGuarded(tcl_runtime_api::guard::GuardIdentity),
+}
+
 /// One NLIR operation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NativeOp {
@@ -653,6 +662,8 @@ pub enum NativeOp {
     /// invocation, so a redefinition at run time replaces the binding with an
     /// ordinary source-only procedure.
     DefineProc {
+        /// Dispatch proof or independently validated runtime candidate.
+        dispatch: DefinitionDispatch,
         /// Internal compiled-body selection key, never a publication operand.
         entry_key: crate::ir::ProcedureId,
         /// Already evaluated original arguments, including the command head.

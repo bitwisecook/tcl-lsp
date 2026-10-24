@@ -34,6 +34,9 @@ fn allocate_guard_token(counter: &AtomicU64) -> Option<GuardToken> {
 /// value is the registry intrinsic's explicit stable ID.
 pub const REGISTRY_INTRINSIC_IDENTITY_NAMESPACE: u32 = 1;
 
+/// Registry definition handlers, with explicit release-semantics identities.
+pub const REGISTRY_DEFINITION_IDENTITY_NAMESPACE: u32 = 2;
+
 /// Mutable interpreter domain whose stability can protect a fast path.
 ///
 /// `CommandEnvironment`, `Namespace` and `UnknownHandling` describe how a name
@@ -193,6 +196,12 @@ impl GuardIdentity {
             REGISTRY_INTRINSIC_IDENTITY_NAMESPACE,
             ((stable_id as u64) << 32) | semantics_key as u64,
         )
+    }
+
+    /// Identity of the registry's original procedure-definition contract.
+    #[must_use]
+    pub const fn registry_definition(semantics_key: u32) -> Self {
+        Self::new(REGISTRY_DEFINITION_IDENTITY_NAMESPACE, semantics_key as u64)
     }
 
     /// The stable intrinsic ID a registry identity was built from, or `None`

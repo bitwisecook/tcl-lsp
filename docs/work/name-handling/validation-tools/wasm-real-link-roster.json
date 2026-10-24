@@ -8,7 +8,7 @@
     "raw_log_sha256": "872864ad78562104c85567ebe2c2314ea8308413e3240cc60ad1a1f8b785515b",
     "source": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
   },
-  "scope": "Original exact25 unchanged tests; isolated per-selector diagnostic only; shared-process shipping acceptance remains separate.",
+  "scope": "Original exact25 assertions retained; original Native compiled-definition mode now requires its exact guarded definition ABI instead of the proved-dispatch bypass ABI. Isolated per-selector diagnostic only; shared-process shipping acceptance remains separate.",
   "source_pins": {
     ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
     ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
@@ -18,12 +18,12 @@
     "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-compiler/src/codegen/wasm/backend.rs": "c72183b108c7020856e6ae8f0be24dc3482aa94c8b673429d55eeaff69a2cfd7",
-    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "40922d52e5c57e6617ed3f23c1d342e0c5801c625c4330cbe6a58cf82665dd5d",
+    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "159c9d3667935a2e2affb21d00d811df64fc184b4da2ed34590b4b8762f1dd1f",
     "rust/tcl-compiler/src/common_aot_plan.rs": "069f86c5fe0ce9e017c2175b22050e6404dd129891c43f2cd6105f6f81bfb8c8",
-    "rust/tcl-compiler/src/native_lowering/lower.rs": "1ecc5a4f6f07e8673360a6473ca0a6e617ebe7f04ff7df1752a50e708a7773a1",
+    "rust/tcl-compiler/src/native_lowering/lower.rs": "9da98bccf9c1e61998f09330e73cf66519c1689a9f6d0229a81d9a9bc04afe72",
     "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "10e3e629bb3b7266aa16ab9dbd123d4b9a172ae9237b54809719c1109b3d71ed",
     "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
-    "rust/tcl-compiler/tests/wasm_real_link.rs": "de394bf032c7bf6ed67063c31aeb40682be368148668b8d1ef94114f38a3d73c"
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "ae7233ecede830fe61c88ad2fa9f91caf424d8d16141e04689951410a9e29fcf"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",

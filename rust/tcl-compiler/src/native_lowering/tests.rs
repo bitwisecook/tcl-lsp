@@ -677,9 +677,17 @@ fn a_proc_statement_lowers_to_the_definition_shape() {
         .into_iter()
         .filter(|op| matches!(op, NativeOp::DefineProc { .. }))
         .collect();
-    let [NativeOp::DefineProc { entry_key, argv }] = defines.as_slice() else {
+    let [
+        NativeOp::DefineProc {
+            entry_key,
+            argv,
+            dispatch,
+        },
+    ] = defines.as_slice()
+    else {
         panic!("the exact definition retains one original argv: {defines:?}");
     };
+    assert_eq!(*dispatch, super::ir::DefinitionDispatch::Proved);
     assert_eq!(
         *entry_key,
         crate::interprocedural::test_body_identity::fixture_id(
@@ -1272,7 +1280,9 @@ fn defined_original_argv(
     all_ops(function)
         .into_iter()
         .filter_map(|op| match op {
-            NativeOp::DefineProc { entry_key, argv } => Some((*entry_key, argv.as_slice())),
+            NativeOp::DefineProc {
+                entry_key, argv, ..
+            } => Some((*entry_key, argv.as_slice())),
             _ => None,
         })
         .collect()
@@ -1798,5 +1808,48 @@ fn empty_source_with_withdrawn_metadata_or_unknown_history_cannot_use_standalone
             1,
             "unknown_entry={unknown_entry}",
         );
+    }
+}
+
+#[test]
+fn original_native_definition_keeps_runtime_guard_separate_from_dispatch_proof() {
+    use super::ir::DefinitionDispatch;
+    for environment in ["tcl8.6", "tcl9.0"] {
+        let (_owner, context, unit) =
+            original_boolean_unit("proc :audit {} {return ORIGINAL}\n", environment);
+        let (function, report) =
+            lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module).unwrap();
+        assert!(outcomes(&report, "invoke").contains(&StatementOutcome::NativeDefinition));
+        let definitions: Vec<_> = all_ops(&function)
+            .into_iter()
+            .filter_map(|op| match op {
+                NativeOp::DefineProc { dispatch, argv, .. } => Some((dispatch, argv)),
+                _ => None,
+            })
+            .collect();
+        let [(DefinitionDispatch::RuntimeGuarded(identity), argv)] = definitions.as_slice() else {
+            panic!("one genuinely guarded original definition: {definitions:?}");
+        };
+        let point = unit
+            .ir_module
+            .source_entry
+            .native_entry
+            .as_ref()
+            .unwrap()
+            .execution_point
+            .unwrap();
+        assert_eq!(
+            *identity,
+            tcl_registry::NativeLowering::Definition
+                .definition_guard_identity(tcl_registry::InvocationDialect::of_point(point))
+                .unwrap()
+        );
+        assert_eq!(original_constant(&function, argv[0]), "proc");
+        assert_eq!(original_constant(&function, argv[1]), ":audit");
+        assert_eq!(original_constant(&function, argv[3]), "return ORIGINAL");
+        let absent = unit.ir_module.clone();
+        let mut foreign = absent.clone();
+        foreign.source_metadata_input = None;
+        assert!(lower_original_boolean_unit(&unit, context.commands(), &foreign).is_err());
     }
 }

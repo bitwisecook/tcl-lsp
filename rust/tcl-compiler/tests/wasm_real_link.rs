@@ -1437,7 +1437,9 @@ fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
         1,
         "{program:?} must keep exactly one table-base global"
     );
-    let define = CodegenAbiImportId::ProcDefineOriginalArgv.descriptor().name;
+    // This original Native entry requires dispatch at the live stock handler.
+    // Legacy proved-dispatch modes retain the original bypass ABI.
+    let define = CodegenAbiImportId::ProcDefineGuardedArgv.descriptor().name;
     let index = output
         .module
         .imports

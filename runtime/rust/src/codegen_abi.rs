@@ -2440,6 +2440,74 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_original_argv(
     unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
+/// Dispatch borrowed original argv, admitting a compiled body only at the
+/// actual selected stock definition handler. Every miss takes ordinary dispatch.
+///
+/// # Safety
+/// `argv` holds `argc` live borrowed objects and `out` is writable. A supplied
+/// entry must implement exactly the written body's formals/source contract,
+/// independently of whether the runtime admits this definition candidate.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_proc_define_guarded_argv(
+    argv: *const *mut TclObj,
+    argc: i32,
+    entry: Option<NativeProcEntry>,
+    expected_value: u64,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if out.is_null() {
+        return TCL_INVOKE_ABI_NULL_OUT;
+    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(b"no current interpreter for guarded definition"),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
+    let Some(argc) = usize::try_from(argc).ok().filter(|argc| *argc > 0) else {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition requires a command head");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
+    };
+    if argv.is_null() {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition received a null argv");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
+    }
+    // SAFETY: the caller supplies these borrowed live pointer slots.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        let code = operation
+            .interpreter
+            .set_error(b"guarded definition received a null word");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
+    }
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
+        };
+    }
+    let expected = GuardIdentity::new(
+        tcl_runtime_api::guard::REGISTRY_DEFINITION_IDENTITY_NAMESPACE,
+        expected_value,
+    );
+    let code = operation
+        .interpreter
+        .dispatch_guarded_definition(words, entry, expected);
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
+}
+
 /// Release both owned object references in a [`TclCompletionAbi`] and reset its
 /// fields to null/zero. This is an alternative to releasing `result` and
 /// `options` separately with [`tcl_obj_release`]; do not use both forms.
@@ -5332,7 +5400,7 @@ mod tests {
     /// A stub that declines before doing anything at all — the only shape a
     /// decline may take, since the runtime then runs the source body in the
     /// frame it already prepared.
-    unsafe extern "C" fn stub_declines(
+    pub(super) unsafe extern "C" fn stub_declines(
         _argv: *const *mut TclObj,
         _argc: i32,
         _out: *mut TclCompletionAbi,
@@ -5923,6 +5991,131 @@ mod tests {
             tcl_runtime_delete_interp(interp);
         }
     }
+    unsafe fn define_guarded_words(
+        words: &[*mut TclObj],
+        expected: GuardIdentity,
+    ) -> TclCompletionAbi {
+        let mut out = TclCompletionAbi {
+            code: 777,
+            result: ptr::null_mut(),
+            options: ptr::null_mut(),
+        };
+        let status = unsafe {
+            tcl_codegen_proc_define_guarded_argv(
+                words.as_ptr(),
+                i32::try_from(words.len()).unwrap(),
+                Some(stub_body),
+                expected.value(),
+                &mut out,
+            )
+        };
+        assert_eq!(status, TCL_INVOKE_ABI_OK);
+        out
+    }
+
+    #[test]
+    fn guarded_original_definition_uses_stock_selection_and_preserves_generic_handlers() {
+        leak_free(|| unsafe {
+            for (setup, head, compiled, answer) in [
+                ("", "proc", true, ""),
+                ("rename proc original", "original", true, ""),
+                ("interp alias {} forwarded {} proc", "forwarded", false, ""),
+                (
+                    "rename proc original; original proc args {return REPLACED}",
+                    "proc",
+                    false,
+                    "REPLACED",
+                ),
+                (
+                    "trace add execution proc enter {apply {{args} {lappend ::observed ENTER}}}",
+                    "proc",
+                    false,
+                    "",
+                ),
+            ] {
+                let mut interp = scalar_interpreter("tcl9.0");
+                tcl_runtime_set_current_interp(&mut interp);
+                assert_eq!(interp.eval_str(setup.as_bytes()), Code::Ok);
+                stub_argv(&[b"set", b"::compiled_seen", b"yes"]);
+                let expected = tcl_registry::NativeLowering::Definition
+                    .definition_guard_identity(interp.native_invocation_dialect())
+                    .unwrap();
+                let words = [
+                    owned_word(head.as_bytes()),
+                    owned_word(b"p"),
+                    owned_word(b""),
+                    owned_word(b"set ::compiled_seen yes"),
+                ];
+                let mut out = define_guarded_words(&words, expected);
+                assert_eq!(out.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                assert_eq!(obj_bytes(out.result), answer.as_bytes());
+                tcl_completion_release(&mut out);
+                release_words(&words);
+                let actual = match interp.resolve_dispatchable(crate::namespace::GLOBAL, b"p") {
+                    Some(crate::interp::Command::Proc(proc)) => proc.native.is_some(),
+                    _ => false,
+                };
+                assert_eq!(actual, compiled, "{setup}");
+                if answer.is_empty() {
+                    assert_eq!(interp.eval_str(b"p"), Code::Ok);
+                    assert_eq!(interp.result_bytes(), b"yes");
+                    assert_eq!(stub_calls() > 0, compiled, "{setup}");
+                }
+                if setup.starts_with("trace") {
+                    assert_eq!(interp.eval_str(b"set ::observed"), Code::Ok);
+                    assert_eq!(interp.result_bytes(), b"ENTER");
+                }
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn guarded_original_definition_refuses_foreign_namespace_policy_and_unknown_head() {
+        leak_free(|| unsafe {
+            for kind in 0..3 {
+                let mut interp = scalar_interpreter("tcl9.0");
+                tcl_runtime_set_current_interp(&mut interp);
+                let expected = tcl_registry::NativeLowering::Definition
+                    .definition_guard_identity(interp.native_invocation_dialect())
+                    .unwrap();
+                let mut head = b"proc".as_slice();
+                if kind == 0 {
+                    let holder = interp
+                        .namespaces_mut()
+                        .ensure_namespace(crate::namespace::GLOBAL, b"holder");
+                    interp.set_current_ns(holder);
+                } else if kind == 1 {
+                    interp.set_runtime_version(TclVersion::V8_6);
+                } else {
+                    head = b"missing_original_definer";
+                }
+                let words = [
+                    owned_word(head),
+                    owned_word(b"p"),
+                    owned_word(b""),
+                    owned_word(b"set ::compiled_seen yes"),
+                ];
+                let mut out = define_guarded_words(&words, expected);
+                if kind == 2 {
+                    assert_eq!(out.code, i32::try_from(Code::Error.as_int()).unwrap());
+                } else {
+                    assert_eq!(out.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                    let command = interp
+                        .resolve_dispatchable(interp.current_ns(), b"p")
+                        .unwrap();
+                    let crate::interp::Command::Proc(proc) = command else {
+                        panic!("ordinary procedure definition");
+                    };
+                    assert!(proc.native.is_none());
+                }
+                tcl_completion_release(&mut out);
+                release_words(&words);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
     unsafe fn define_original_words(
         words: &[*mut TclObj],
         entry: Option<NativeProcEntry>,

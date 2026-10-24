@@ -47,9 +47,9 @@ use super::cells::{
 };
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
 use super::ir::{
-    CmpOp, CompareKind, EntryProtocol, IfElseResult, IntOp, NativeBlock, NativeBlockId,
-    NativeFunction, NativeOp, NativeStatement, NativeTerminator, NativeType, NativeValue,
-    NativeValueId, StatementSite,
+    CmpOp, CompareKind, DefinitionDispatch, EntryProtocol, IfElseResult, IntOp, NativeBlock,
+    NativeBlockId, NativeFunction, NativeOp, NativeStatement, NativeTerminator, NativeType,
+    NativeValue, NativeValueId, StatementSite,
 };
 use super::representation::{
     Representation, cmp_op, double_op, double_result_defined, exactly_representable_as_double,
@@ -974,8 +974,16 @@ impl<'a> Lowerer<'a> {
                         return outcome;
                     }
                 }
-                NativeLowering::Definition if proven => {
-                    if let Some(outcome) = self.lower_definition(invoke, &argv) {
+                NativeLowering::Definition => {
+                    let dispatch = if proven {
+                        Some(DefinitionDispatch::Proved)
+                    } else {
+                        self.original_definition_guard(invoke)
+                            .map(DefinitionDispatch::RuntimeGuarded)
+                    };
+                    if let Some(outcome) =
+                        dispatch.and_then(|dispatch| self.lower_definition(invoke, &argv, dispatch))
+                    {
                         return outcome;
                     }
                 }
@@ -1024,6 +1032,51 @@ impl<'a> Lowerer<'a> {
             .original_invocation_metadata_for_input(tokens, input, self.input.registry)
     }
 
+    /// A source-owned candidate supplies no live dispatch-domain proof.
+    fn original_definition_guard(
+        &self,
+        invoke: &GenericInvoke,
+    ) -> Option<tcl_runtime_api::guard::GuardIdentity> {
+        if !self.input.top_level
+            || invoke.original_words.len() != 4
+            || !invoke.original_words.iter().all(|word| {
+                matches!(
+                    word,
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let module = self.input.module;
+        let entry = module.source_entry.native_entry.as_deref()?;
+        let profile = module.dialect_profile?;
+        let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point?);
+        if entry.frame != tcl_runtime_api::NativeCompilationFrame::Global
+            || !entry.execution_name_policy.is_some_and(|policy| {
+                policy.native_recipe().is_some_and(|recipe| {
+                    recipe.authority() == tcl_syntax::naming::NamePolicyAuthority::Native
+                })
+            })
+            || entry.invocation_policy != Some(profile.cache_key())
+            || dialect != tcl_registry::InvocationDialect::of_profile(profile)
+            || module.native_lexer_config() != tcl_lexer::LexerConfig::for_profile(Some(profile))
+            || !entry
+                .namespace_context(entry.current_namespace)
+                .ok()?
+                .path
+                .as_segments()
+                .is_empty()
+        {
+            return None;
+        }
+        let metadata = InvocationMetadataContext::for_module(self.input.registry, module)?;
+        (module.original_invocation_source_purpose(self.input.registry, metadata)
+            == Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution))
+        .then_some(())?;
+        NativeLowering::Definition.definition_guard_identity(dialect)
+    }
+
     /// A definition-time command (`proc`) whose body this module also
     /// compiled: the runtime binds the written source body exactly as `proc`
     /// does, and additionally binds the compiled entry the emitter installed
@@ -1035,6 +1088,7 @@ impl<'a> Lowerer<'a> {
         &mut self,
         invoke: &GenericInvoke,
         argv: &[NativeValueId],
+        dispatch: DefinitionDispatch,
     ) -> Option<StatementOutcome> {
         let site = invoke.source_binding.as_ref()?.invocation_site()?;
         let mut matching = self
@@ -1068,6 +1122,7 @@ impl<'a> Lowerer<'a> {
         }
         self.max_argc = self.max_argc.max(argv.len());
         self.emit(NativeOp::DefineProc {
+            dispatch,
             entry_key: *id,
             argv: argv.to_vec(),
         });

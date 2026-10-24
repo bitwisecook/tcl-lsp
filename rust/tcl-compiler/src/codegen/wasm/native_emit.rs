@@ -120,6 +120,7 @@ pub(super) struct NativeImports {
     mathop: u32,
     mathfunc: u32,
     proc_define_original_argv: u32,
+    proc_define_guarded_argv: u32,
     log_command: u32,
     return_state: u32,
     host_refusal_pending: u32,
@@ -166,6 +167,7 @@ pub(super) fn add_native_imports(
         mathop: add(wasm, CodegenAbiImportId::MathOp),
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
         proc_define_original_argv: add(wasm, CodegenAbiImportId::ProcDefineOriginalArgv),
+        proc_define_guarded_argv: add(wasm, CodegenAbiImportId::ProcDefineGuardedArgv),
         log_command: add(wasm, CodegenAbiImportId::LogCommand),
         return_state: add(wasm, CodegenAbiImportId::ReturnState),
         host_refusal_pending: add(wasm, CodegenAbiImportId::HostRefusalPending),
@@ -1681,12 +1683,25 @@ impl Emitter<'_, '_> {
                     self.set_owned(code_local + 1);
                 }
             }
-            NativeOp::DefineProc { entry_key, argv } => {
+            NativeOp::DefineProc {
+                entry_key,
+                argv,
+                dispatch,
+            } => {
                 self.argv(argv);
                 self.i32(i64::try_from(argv.len()).unwrap_or(0));
                 self.push_entry_index(entry_key);
+                let import = match dispatch {
+                    crate::native_lowering::ir::DefinitionDispatch::Proved => {
+                        self.imports.proc_define_original_argv
+                    }
+                    crate::native_lowering::ir::DefinitionDispatch::RuntimeGuarded(identity) => {
+                        self.i64(i64::from_le_bytes(identity.value().to_le_bytes()));
+                        self.imports.proc_define_guarded_argv
+                    }
+                };
                 self.frame_offset(FRAME_COMPLETION);
-                self.call(self.imports.proc_define_original_argv);
+                self.call(import);
                 self.push(WasmOp::Drop);
                 self.adopt_frame_completion(completion);
                 self.release_scratch();
