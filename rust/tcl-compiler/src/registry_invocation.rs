@@ -424,6 +424,41 @@ impl LogicalStructuredInvocation {
         )
     }
 
+    /// Conditional source body positions from the exact retained Logical
+    /// descriptor. These roles grant no handler, entered frame or Normal path.
+    pub(crate) fn conditional_logical_body_indices(&self) -> Option<Vec<usize>> {
+        if self.source_purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            return None;
+        }
+        let StructuredSourceRoles::Logical(roles) = self.source_roles.as_ref()? else {
+            return None;
+        };
+        if roles.selection_unknown()
+            || roles.case_body_operands().is_some()
+            || self.invocation.facts.operation
+                != tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::If,
+                )
+            || self.invocation.facts.body_kind != tcl_registry::BodyKind::Plain
+            || self.invocation.facts.body_interpreter != tcl_registry::BodyInterpreter::Current
+            || self.invocation.facts.frame_effect.is_some()
+            || self.invocation.facts.body_execution.is_some()
+            || self
+                .invocation
+                .facts
+                .traits
+                .contains(tcl_registry::Traits::DEFERS_BODY)
+        {
+            return None;
+        }
+        Some(
+            self.written_roles()
+                .into_iter()
+                .filter_map(|(index, role)| (role == tcl_registry::ArgRole::Body).then_some(index))
+                .collect(),
+        )
+    }
+
     /// Literal name at one genuine written variable-role operand. Captured
     /// prefix words and ambiguous effective correspondence have no occurrence.
     pub(crate) fn written_variable_name_operand(&self, written: usize) -> Option<String> {
@@ -9508,6 +9543,41 @@ mod tests {
                 .is_none()
         );
         assert!(binding.native_compilation_admission.is_none());
+    }
+
+    #[test]
+    fn conditional_logical_indices_retain_direct_if_and_refuse_case_lists() {
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        let direct = logical_source_tokens("if {1} {set value VALUE}", registry, &input);
+        let direct =
+            logical_structured_invocation_with_metadata_context(registry, metadata, &direct, None)
+                .unwrap();
+        assert_eq!(direct.conditional_logical_body_indices(), Some(vec![1]));
+        for source in [
+            "switch -exact -- $cmd {foo {return FOO} default {return OTHER}}",
+            "switch -exact -- $cmd foo {return FOO} default {return OTHER}",
+        ] {
+            let tokens = logical_source_tokens(source, registry, &input);
+            let shape = logical_structured_invocation_with_metadata_context(
+                registry, metadata, &tokens, None,
+            )
+            .unwrap();
+            let Some(StructuredSourceRoles::Logical(roles)) = shape.source_roles.as_ref() else {
+                panic!("genuine Logical case role owner");
+            };
+            assert!(roles.case_body_operands().is_some());
+            assert!(shape.conditional_logical_body_indices().is_none());
+        }
     }
 
     #[test]
