@@ -6,7 +6,7 @@
 //! Materialized callbacks receive no original child words, future lookup or frame.
 
 use std::cell::OnceCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::LexerConfig;
 use tcl_registry::{ArgRole, BodyKind, CommandRegistry, ScriptLookupScope, ScriptTiming, Traits};
@@ -33,6 +33,7 @@ pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
         module,
         registry,
         procedures: OnceCell::new(),
+        original_frame_declarations: OnceCell::new(),
         out: DeferredWrites::default(),
     };
     let mut pending = vec![&module.top_level];
@@ -52,6 +53,8 @@ struct SourceScan<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
     procedures: OnceCell<HashMap<crate::ir::ProcedureId, GlobalWriteInfo>>,
+    original_frame_declarations:
+        OnceCell<std::collections::HashSet<&'a crate::command_binding::CommandAllocationSite>>,
     out: DeferredWrites,
 }
 
@@ -74,6 +77,31 @@ struct ValueContext<'a> {
 }
 
 impl SourceScan<'_> {
+    fn retains_original_frame_definition(&self, tokens: &CommandTokens) -> bool {
+        let Some(site) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+        else {
+            return false;
+        };
+        self.original_frame_declarations
+            .get_or_init(|| {
+                self.module
+                    .original_native_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.module.body_lowering(id)?;
+                        (self.module.procedure_ids.owns(*id)
+                            && card.matches_procedure(self.module, procedure))
+                        .then(|| procedure.declaration_site.as_ref())
+                        .flatten()
+                    })
+                    .collect::<HashSet<_>>()
+            })
+            .contains(site)
+    }
+
     fn statement(&mut self, script: &Script, statement: &Statement) {
         if !statement.is_executable_invocation() {
             return;
@@ -141,6 +169,8 @@ impl SourceScan<'_> {
                     schema,
                     source_purpose
                         == crate::command_binding::OriginalInvocationSourcePurpose::Logical,
+                    schema.semantics.procedure_definition.is_some()
+                        && self.retains_original_frame_definition(tokens),
                 )
             },
         );
@@ -266,6 +296,7 @@ impl SourceScan<'_> {
                     &schema,
                     source_purpose
                         == crate::command_binding::OriginalInvocationSourcePurpose::Logical,
+                    false,
                 )
             }) {
                 Some(values) => selected.push(values),
@@ -370,9 +401,30 @@ impl SourceScan<'_> {
     }
 }
 
+fn selected_script_operands(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    logical: bool,
+) -> Option<(Vec<(u8, ArgRole)>, Vec<usize>)> {
+    let (roles, complete) = if logical {
+        schema.authored_logical_source_argument_roles()
+    } else {
+        schema.authored_source_argument_roles()
+    };
+    if !complete {
+        return None;
+    }
+    let scripts = if logical {
+        schema.authored_logical_source_plain_script_arguments()
+    } else {
+        schema.authored_source_plain_script_arguments()
+    }?;
+    Some((roles, scripts))
+}
+
 fn selected_values(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     logical: bool,
+    original_frame_definition: bool,
 ) -> Option<SelectedValues> {
     // A complete registry capability can exclude executable values even when
     // unrelated channel/option/data roles cannot be selected. This stays inside
@@ -387,19 +439,7 @@ fn selected_values(
             lambdas: Vec::new(),
         });
     }
-    let (roles, complete) = if logical {
-        schema.authored_logical_source_argument_roles()
-    } else {
-        schema.authored_source_argument_roles()
-    };
-    if !complete {
-        return None;
-    }
-    let scripts = if logical {
-        schema.authored_logical_source_plain_script_arguments()
-    } else {
-        schema.authored_source_plain_script_arguments()
-    }?;
+    let (roles, scripts) = selected_script_operands(schema, logical)?;
     let arguments = schema.words.arguments();
     let facts = schema.facts();
     let mut values = SelectedValues {
@@ -437,10 +477,18 @@ fn selected_values(
             arguments.literal_at(ordinal).map(str::to_owned)
         };
         match schema.authored_source_script_timing_at(ordinal) {
-            Some(ScriptTiming::Deferred) => values.deferred.push(ScriptValue {
-                text: value,
-                scope: facts.script_lookup_scope(ordinal),
-            }),
+            Some(ScriptTiming::Deferred)
+                if !(original_frame_definition
+                    && schema
+                        .semantics
+                        .traits
+                        .contains(Traits::BODY_RUNS_IN_OWN_FRAME)) =>
+            {
+                values.deferred.push(ScriptValue {
+                    text: value,
+                    scope: facts.script_lookup_scope(ordinal),
+                })
+            }
             Some(ScriptTiming::SameInvocation)
                 if schema.semantics.body_kind == BodyKind::Plain
                     && schema.semantics.body_interpreter.resolve(arguments)
@@ -450,7 +498,9 @@ fn selected_values(
                     values.immediate.push(value);
                 }
             }
-            Some(ScriptTiming::SameInvocation | ScriptTiming::ReferenceOnly) => {}
+            Some(
+                ScriptTiming::Deferred | ScriptTiming::SameInvocation | ScriptTiming::ReferenceOnly,
+            ) => {}
             None => return None,
         }
     }

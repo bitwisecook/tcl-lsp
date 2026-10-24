@@ -932,6 +932,83 @@ mod tests {
     }
 
     #[test]
+    fn supplied_own_frame_definitions_are_not_deferred_callbacks() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "proc p {} {set local VALUE}",
+            registry,
+            false,
+            profile,
+        );
+        let module = &unit.ir_module;
+        assert!(module.source_metadata_input.is_some());
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.original_source_procedure_bodies().next().is_some());
+        assert!(scan_module(module, registry).is_clear());
+        let body_id = *module
+            .original_native_declaration_body_units
+            .keys()
+            .next()
+            .expect("genuine retained Native source declaration card");
+        let mut changed = (*module).clone();
+        let procedure = changed.body_units.get_mut(&body_id).unwrap();
+        let span = procedure.body.statements[0].span();
+        procedure.body.statements[0] = Statement::NativeCall {
+            span,
+            words: Vec::new(),
+        };
+        assert_eq!(procedure.body.statements[0].span(), span);
+        assert!(scan_module(&changed, registry).any);
+        let mut missing_card = (*module).clone();
+        missing_card.original_native_declaration_body_units.clear();
+        assert!(scan_module(&missing_card, registry).any);
+        let mut missing = (*module).clone();
+        missing.source_metadata_input = None;
+        assert!(scan_module(&missing, registry).any);
+    }
+
+    #[test]
+    fn supplied_own_frame_bodies_keep_nested_callback_and_unknown_write_barriers() {
+        let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = environment.unit_profile();
+        for source in [
+            "proc p {} {after 10 {set ::done VALUE}}",
+            "proc p {} {trace add variable ::watched write {set ::done VALUE}}",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, registry, false, profile,
+            );
+            assert!(
+                unit.ir_module
+                    .original_source_procedure_bodies()
+                    .next()
+                    .is_some()
+            );
+            let effects = scan_module(&unit.ir_module, registry);
+            assert!(
+                effects.any || effects.names.contains("done"),
+                "{source}: {effects:?}"
+            );
+        }
+        for source in [
+            "after 10 $script",
+            "proc p {} $body",
+            "proc p {} {after 10 $script}",
+            "proc after args {}; after 10 {set ::done VALUE}",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, registry, false, profile,
+            );
+            assert!(scan_module(&unit.ir_module, registry).any, "{source}");
+        }
+    }
+
+    #[test]
     fn lambda_deferred_writes_retain_module_metadata_and_refuse_withdrawn_input() {
         // naming.compiler.original-analysis-metadata-context
 
