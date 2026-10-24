@@ -1823,6 +1823,37 @@ jobs:
           TCL_RUNTIME_EXPECT_NO_TOMMATH: "1"
         run: make runtime-rust-test-no-tommath-capability
 
+      - name: Prepare the Tcl 8.4 integer-cache provider
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        timeout-minutes: 17
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/runtime-c84-provider-bin
+        run: |
+          set -euo pipefail
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+          set +e
+          timeout --signal=INT --kill-after=20s 900 make TCL_LSP_TCL_RELEASES=8.4 ensure-tcl-deps 2>&1 | python3 -c '
+          import sys
+          count = 0
+          cap = 512 * 1024
+          while data := sys.stdin.buffer.read(65536):
+              kept = data[:max(0, cap - count)]
+              sys.stdout.buffer.write(kept)
+              count += len(data)
+          sys.stdout.buffer.flush()
+          print(f"Tcl provider bootstrap: {count} bytes, retained {min(count, cap)}", file=sys.stderr)
+          raise SystemExit(0 if count <= cap else 125)
+          '
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+          test "${statuses[0]}" = 0
+          test "${statuses[1]}" = 0
+
       # libtommath, for the same reason `wasm-real-link` fetches it: without
       # the source `runtime/rust`'s build script prints a `cargo:warning` and
       # builds with the bignum backend DISABLED, which un-registers `expr` and
