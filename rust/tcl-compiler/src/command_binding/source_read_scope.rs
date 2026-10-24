@@ -125,28 +125,11 @@ impl SourceReadCatalogue {
             trace_rbs_refusal(site.offset, "scope.advice-current");
             return None;
         }
-        let parent_matches = if let Some(parent) = advice.original_catalogue_source_body() {
-            trace_rbs_condition(
-                parent.content_span() == body,
-                site.offset,
-                "scope.catalogue-parent-span",
-            ) && parent.matches_context(&self.context)
-                && parent.matches_source(site.source.source_image(), config)
-        } else {
-            let parent = trace_rbs_required(
-                advice
-                    .original_procedure_source_body()
-                    .or_else(|| advice.logical_source_body()),
-                site.offset,
-                "scope.parent-owner",
-            )?;
-            trace_rbs_condition(
-                parent.content_span() == body,
-                site.offset,
-                "scope.procedure-parent-span",
-            ) && parent.matches_context(&self.context)
-                && parent.matches_source(site.source.source_image(), config)
-        };
+        let parent_matches = trace_rbs_condition(
+            matches_read_body_ancestry(advice, body, &self.context, config),
+            site.offset,
+            "scope.parent-ancestry",
+        );
         if !parent_matches {
             trace_rbs_refusal(site.offset, "scope.parent-body");
             return None;
@@ -185,6 +168,107 @@ impl SourceReadCatalogue {
             advice: advice.clone(),
             config,
         })
+    }
+}
+
+fn inherits_read_body_context(
+    current: &crate::registry_invocation::OriginalSourceScriptBody,
+    context: &ContextRegistry,
+) -> bool {
+    let words = current.source_words();
+    if words.with_source_schema(context, |schema| {
+        schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+            && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+            && schema.semantics.frame_effect.is_none()
+            && !schema
+                .semantics
+                .traits
+                .intersects(tcl_registry::FRAME_REACH_TRAITS | tcl_registry::Traits::DEFERS_BODY)
+    }) != Some(true)
+    {
+        return false;
+    }
+    if current.inherits_immediate_caller_source_context(context)
+        && words.source_script_bodies(context).contains(current)
+    {
+        return true;
+    }
+    words
+        .normal_source_case_bodies(context)
+        .is_some_and(|cases| {
+            cases
+                .bodies()
+                .is_some_and(|bodies| bodies.contains(current))
+        })
+}
+
+/// Original script ancestry for this conditional read question only. Every
+/// intermediate body retains its selected schema and its immediate parent;
+/// lexical containment alone cannot cross a namespace or frame boundary.
+fn matches_read_body_ancestry(
+    mut advice: &OriginalSourceCommandTransitionAdvice,
+    body: tcl_lexer::Span,
+    context: &ContextRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let image = advice.site().source.source_image();
+    loop {
+        let current = if let Some(parent) = advice.original_catalogue_source_body() {
+            if !parent.matches_context(context) || !parent.matches_source(image, config) {
+                return false;
+            }
+            if parent.content_span() == body {
+                return true;
+            }
+            let super::source_transition_advice::OriginalSourceCatalogueBody::Script(current) =
+                parent
+            else {
+                return false;
+            };
+            current.as_ref()
+        } else {
+            let Some(parent) = advice
+                .original_procedure_source_body()
+                .or_else(|| advice.logical_source_body())
+            else {
+                return false;
+            };
+            if !parent.matches_context(context) || !parent.matches_source(image, config) {
+                return false;
+            }
+            if parent.content_span() == body {
+                return true;
+            }
+            parent
+        };
+        if !inherits_read_body_context(current, context) {
+            return false;
+        }
+        let words = current.source_words();
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            parent,
+        ) = words.source()
+        else {
+            return false;
+        };
+        if !parent.matches_context(context) || !parent.matches_source(image, config) {
+            return false;
+        }
+        let next = parent
+            .original_catalogue_source_body()
+            .map(|body| body.content_span())
+            .or_else(|| {
+                parent
+                    .original_procedure_source_body()
+                    .or_else(|| parent.logical_source_body())
+                    .map(|body| body.content_span())
+            });
+        // The private parent receipts establish ancestry. Strictly decreasing
+        // offsets only bound this walk without a new depth threshold.
+        if next.is_none_or(|next| next.start() >= current.content_span().start()) {
+            return false;
+        }
+        advice = parent;
     }
 }
 
@@ -346,4 +430,116 @@ pub(crate) fn source_targets_match_advice(
         }
     }
     true
+}
+
+#[cfg(test)]
+mod read_body_ancestry_tests {
+    use super::{SourceReadCatalogue, matches_read_body_ancestry};
+    use crate::command_binding::{OriginalSourceCommandTransitionAdvice, SourceCommandBindings};
+    use tcl_lexer::{LexerConfig, Span};
+
+    fn catalogue(source: &str) -> (SourceReadCatalogue, LexerConfig) {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let config = LexerConfig::for_profile(context.commands().profile());
+        let bindings = SourceCommandBindings::analyse(source, config, context.commands());
+        let seed = bindings.original_source_transition_seed().unwrap();
+        (
+            SourceReadCatalogue::prepare(&seed, context.commands()).unwrap(),
+            config,
+        )
+    }
+
+    fn advice(
+        catalogue: &SourceReadCatalogue,
+        offset: u32,
+    ) -> &OriginalSourceCommandTransitionAdvice {
+        catalogue.tape.body_catalogue(offset).or_else(|| {
+            if let crate::command_binding::source_transition_advice::OriginalSourceTransitionAdviceLookup::Advice(advice) = catalogue.tape.lookup(offset) {
+                Some(advice)
+            } else {
+                None
+            }
+        }).unwrap()
+    }
+
+    #[test]
+    fn nested_plain_and_normal_case_bodies_retain_exact_procedure_ancestry() {
+        let source = "proc p {x} {foreach i {1 2 3} {switch -glob $x {a* {break} default {break}}}; puts $missing}";
+        let (catalogue, config) = catalogue(source);
+        let root = Span::new(
+            u32::try_from(source.find("foreach").unwrap()).unwrap(),
+            u32::try_from(source.len() - 1).unwrap(),
+        );
+        for head in ["switch", "break"] {
+            let child = advice(
+                &catalogue,
+                u32::try_from(source.find(head).unwrap()).unwrap(),
+            );
+            let immediate = child.original_catalogue_source_body().unwrap();
+            assert_ne!(immediate.content_span(), root);
+            assert!(matches_read_body_ancestry(
+                child,
+                root,
+                &catalogue.context,
+                config
+            ));
+            assert!(!matches_read_body_ancestry(
+                child,
+                Span::new(root.start() + 1, root.end()),
+                &catalogue.context,
+                config
+            ));
+            let foreign = tcl_registry::model::ingress::static_context_for("tcl8.5");
+            assert!(!matches_read_body_ancestry(child, root, foreign, config));
+        }
+    }
+
+    #[test]
+    fn original_namespace_and_frame_boundaries_do_not_inherit_read_scope() {
+        for nested in [
+            "namespace eval n {puts $missing}",
+            "uplevel 0 {puts $missing}",
+        ] {
+            let source = format!("proc p {{}} {{{nested}}}");
+            let (catalogue, config) = catalogue(&source);
+            let root = Span::new(
+                u32::try_from(source.find(nested).unwrap()).unwrap(),
+                u32::try_from(source.len() - 1).unwrap(),
+            );
+            let child = advice(
+                &catalogue,
+                u32::try_from(source.find("puts").unwrap()).unwrap(),
+            );
+            assert_ne!(
+                child
+                    .original_catalogue_source_body()
+                    .unwrap()
+                    .content_span(),
+                root
+            );
+            assert!(!matches_read_body_ancestry(
+                child,
+                root,
+                &catalogue.context,
+                config
+            ));
+        }
+    }
+
+    #[test]
+    fn exact_original_parent_read_scope_remains_available() {
+        let source = "proc p {} {puts $missing}";
+        let (catalogue, config) = catalogue(source);
+        let root = Span::new(
+            u32::try_from(source.find("puts").unwrap()).unwrap(),
+            u32::try_from(source.len() - 1).unwrap(),
+        );
+        let child = advice(&catalogue, root.start());
+        assert!(matches_read_body_ancestry(
+            child,
+            root,
+            &catalogue.context,
+            config
+        ));
+    }
 }
