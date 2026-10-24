@@ -100,7 +100,11 @@
     "rust/tcl-compiler/src/compile_service.rs": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
     "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
     "rust/tcl-irule-test/Cargo.toml": "c0883b70b216f3dda1fe4965dc0408288f3356ea730b2f4c39d03bd303abab2b",
-    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
+    "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
+    "rust/tcl-registry/src/lib.rs": "5917e8c0f1e607e50cd1025716046917bcef71f941298466ff6d89b6905a2827",
+    "rust/tcl-registry/src/native_compilation.rs": "29d28787bc54f7406eb16dd1d52ded0f5d0af16b730f1f58fd7de8152b262d29",
+    "rust/tcl-registry/src/native_format_compilation.rs": "fd911baa86a38fbc43b04ec1c0107a5692d79f9821632e326418cd1aff2e74ed"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",
