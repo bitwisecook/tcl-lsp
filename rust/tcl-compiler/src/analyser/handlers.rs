@@ -7425,9 +7425,7 @@ impl Analyser {
             crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                 registry, metadata, tokens,
             );
-        let Some(invocation) = invocation else {
-            return None;
-        };
+        let invocation = invocation?;
         let realm = tokens.source_binding.as_ref().and_then(|binding| {
             binding.original_source_realm_for_input(
                 tokens,
@@ -7435,15 +7433,11 @@ impl Analyser {
                 registry,
             )
         });
-        let Some(realm) = realm else {
-            return None;
-        };
+        let realm = realm?;
         let completion = invocation.with_metadata_schema(registry, metadata, realm, |selected| {
             Some(selected.authored_source_invocation_completion())
         });
-        let Some(completion) = completion else {
-            return None;
-        };
+        let completion = completion?;
         Some((invocation, completion))
     }
 
