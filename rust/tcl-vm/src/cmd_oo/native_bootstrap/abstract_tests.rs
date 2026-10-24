@@ -334,3 +334,37 @@ fn original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_mar
     );
     assert!(original(&logical).is_none());
 }
+
+#[test]
+fn original_foundation_objects_retain_published_namespace_owners() {
+    for version in ["tcl9.0", "tcl9.1"] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(version));
+        let owners = vm
+            .oo
+            .objects
+            .iter()
+            .map(|(&id, object)| {
+                (
+                    id,
+                    object.namespace_token.expect("original object namespace"),
+                    vm.oo.classes.contains_key(&id),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(owners.len() >= 5);
+        for (id, namespace, class) in owners {
+            assert!(
+                vm.native_namespace_token_has_owner(namespace),
+                "{version}: original object {id:?} owns namespace {namespace:?}"
+            );
+            let selected = crate::cmd_oo::original_name_operands::OriginalOoNameScope::enter(
+                &mut vm,
+                Some((class, id)),
+            )
+            .expect("original foundation target and namespace");
+            selected.finish(&mut vm).expect("same original Name owner");
+        }
+        let unowned = vm.definition_namespace_token("::oo::unpublished_foundation_control");
+        assert!(!vm.native_namespace_token_has_owner(unowned));
+    }
+}
