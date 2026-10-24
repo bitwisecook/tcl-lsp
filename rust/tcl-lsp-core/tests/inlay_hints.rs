@@ -79,7 +79,7 @@ fn unknown_type_does_not_crash() {
 
 #[test]
 fn empty_file_has_no_hints() {
-    assert!(hints("").is_empty());
+    assert_eq!(hints("").as_slice(), &[] as &[InlayHint]);
 }
 
 #[test]
