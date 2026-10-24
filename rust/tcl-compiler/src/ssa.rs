@@ -601,10 +601,18 @@ struct SourceMayClobber {
     locations: std::sync::Arc<Vec<(Symbol, VariableCellKey)>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct SourceCfgBlockSnapshot {
     terminator: Option<cfg::Terminator>,
     successors: Vec<BlockId>,
+    standalone_statements: Option<std::sync::Arc<[Statement]>>,
+}
+
+// Source statement custody is checked separately from topology equality.
+impl PartialEq for SourceCfgBlockSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.terminator == other.terminator && self.successors == other.successors
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1205,7 +1213,8 @@ fn current_analysis_function(
     }
 }
 
-fn current_authored_analysis_function(
+/// Current original authored analysis graph; no execution or frame authority.
+pub(crate) fn current_authored_analysis_function(
     unit: &crate::compilation_unit::CompilationUnit,
     function: &crate::compilation_unit::FunctionUnit,
     registry: &CommandRegistry,
@@ -3228,6 +3237,21 @@ fn register_unique_source_names(
 }
 
 impl SsaFunction {
+    /// Compare current CFG topology with the private original SSA source snapshot.
+    /// Empty snapshots provide no correspondence proof.
+    pub(crate) fn has_current_source_cfg_topology(&self, cfg: &cfg::Function) -> bool {
+        !self.source_topology.is_empty()
+            && self.entry == cfg.entry
+            && self.source_topology.len() == cfg.blocks.len()
+            && self.source_topology.iter().all(|(block, held)| {
+                cfg.blocks.get(block).is_some_and(|current| {
+                    held.standalone_statements.as_deref() == Some(current.statements.as_slice())
+                        && current.terminator == held.terminator
+                        && cfg.block_successors(*block) == held.successors
+                })
+            })
+    }
+
     /// Whether named SSA maps omit native accesses or an incomplete original
     /// argument inventory. Empty named maps cannot establish absence of reads.
     #[must_use]
@@ -9169,8 +9193,9 @@ fn intern_unseen_call_versions(walk: &mut RenameWalk<'_>) -> HashSet<(Symbol, Ve
 fn source_cfg_topology(
     func: &cfg::Function,
     interner: &VarInterner,
+    standalone_owner: bool,
 ) -> HashMap<BlockId, SourceCfgBlockSnapshot> {
-    if interner.source_variables.is_empty() {
+    if interner.source_variables.is_empty() && !standalone_owner {
         HashMap::new()
     } else {
         func.blocks
@@ -9179,6 +9204,8 @@ fn source_cfg_topology(
                 (
                     block,
                     SourceCfgBlockSnapshot {
+                        standalone_statements: standalone_owner
+                            .then(|| std::sync::Arc::<[Statement]>::from(body.statements.clone())),
                         terminator: body.terminator.clone(),
                         successors: func.block_successors(block),
                     },
@@ -9280,7 +9307,7 @@ fn build_ssa_inner(
     project_ssa_source_names(&mut walk, func);
 
     let unseen_call_versions = intern_unseen_call_versions(&mut walk);
-    let source_topology = source_cfg_topology(func, &walk.interner);
+    let source_topology = source_cfg_topology(func, &walk.interner, standalone_owner);
     let mut result = SsaFunction {
         name: func.name.clone(),
         entry: func.entry,

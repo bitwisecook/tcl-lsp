@@ -830,7 +830,7 @@ pub fn infer_proc_summary(
         fu,
         registry,
         interproc,
-        source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+        source: TaintSourceContext::for_unit_function(registry, cu, fu),
         source_formals: cu
             .ir_module
             .original_source_formal_topology(body_id, registry),
@@ -1192,7 +1192,7 @@ pub fn resolved_callees(
     let Some(fu) = fu else {
         return known.iter().copied().collect();
     };
-    let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+    let source = TaintSourceContext::for_unit_function(registry, cu, fu);
     let mut out = std::collections::BTreeSet::new();
     for block_id in &fu.sccp.executable_blocks {
         let Some(block) = fu.cfg.blocks.get(block_id) else {
@@ -1579,7 +1579,7 @@ fn infer_current_summary(
     let proc = cu
         .original_procedure_for_body(qname)
         .expect("current original procedure body");
-    let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+    let source = TaintSourceContext::for_unit_function(registry, cu, fu);
     if source.metadata_context().is_some() {
         Some(infer_fn(cu, qname, interproc, known, summaries))
     } else {
@@ -1669,7 +1669,7 @@ fn assert_taint_summaries_converged(
                 fu,
                 registry,
                 interproc,
-                source: TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                source: TaintSourceContext::for_unit_function(registry, cu, fu),
                 source_formals: cu
                     .ir_module
                     .original_source_formal_topology(**qname, registry),
@@ -1938,7 +1938,7 @@ fn solve_interprocedural_taints_with_context(
         registry,
         interproc,
         false,
-        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+        TaintSourceContext::for_unit_function(registry, cu, &cu.top_level),
     );
     let top_taints = run_propagation(
         &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
@@ -1946,7 +1946,7 @@ fn solve_interprocedural_taints_with_context(
         &top_instance_classes,
         registry,
         interproc,
-        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+        TaintSourceContext::for_unit_function(registry, cu, &cu.top_level),
         external_variable_seeds,
         &summaries,
     );
@@ -1974,7 +1974,7 @@ fn solve_interprocedural_taints_with_context(
         &top_instance_classes,
         registry,
         interproc,
-        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+        TaintSourceContext::for_unit_function(registry, cu, &cu.top_level),
         &known,
         &summaries,
     );
@@ -2007,7 +2007,7 @@ fn solve_interprocedural_taints_with_context(
                 registry,
                 interproc,
                 true,
-                TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                TaintSourceContext::for_unit_function(registry, cu, fu),
             )
         });
         let taints = run_propagation(
@@ -2016,7 +2016,7 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            TaintSourceContext::for_unit_function(registry, cu, fu),
             Some(&entry),
             &summaries,
         );
@@ -2027,7 +2027,7 @@ fn solve_interprocedural_taints_with_context(
             instance_classes,
             registry,
             interproc,
-            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            TaintSourceContext::for_unit_function(registry, cu, fu),
             &known,
             &summaries,
         );

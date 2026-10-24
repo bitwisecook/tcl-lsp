@@ -3779,7 +3779,7 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             &taints,
             exec,
             registry,
-            TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            TaintSourceContext::for_unit_function(registry, cu, fu),
             &shadowed,
             (module_traces, &identities, Some(&cu.ir_module)),
         ));
@@ -4239,7 +4239,7 @@ fn collect_callback_replay_candidates(
     candidates: &mut Vec<CallbackReplayCandidate>,
 ) {
     for fu in cu.all_body_function_units() {
-        let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
+        let source = TaintSourceContext::for_unit_function(registry, cu, fu);
         let instance_classes = instance_classes_for_function(
             &fu.cfg,
             registry,
