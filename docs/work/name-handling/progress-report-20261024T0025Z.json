@@ -1,0 +1,80 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T00:25:42.007769+00:00",
+  "scheduled_report_utc": "2026-10-24T00:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T00:55:37+00:00",
+  "change_since_previous_report": [
+    "Published exact reviewed WORKf39c2d6cc4d6942b9b57875d078befb597a4a4e5 and cleanb35670814b446b3b7f62115833769f1d6f43c3dd. All functional fixes first WORK; release omits development protocols/observers/evidence. No PR, merge, tag or publication.",
+    "Integrated all23 actual compiler strict-lint repairs after independent source reviews: thirteen Option propagation fixes and ten compilation-unit private storage/borrow fixes. Guarded prepared FunctionUnit is boxed; all guards, callback order, authorities and assertions retained. New allocation overhead explicitly requires perf check.",
+    "Integrated independently reviewed original-body preparation-frame repair; fallible noinline preparation returns private boxed carrier before recursion. Original128 guard, retained source/owner/header, activation and drop order remain. Actual stack and runtime outcomes pending.",
+    "Integrated WORK-only bounded14-stage slow-command startup observer, Jim strict-merge/presence-route diagnostics, native private first-decline witnesses and runtime existing env/list test-helper diagnostics. Same existing flags/selected values; no new lookup/eval/C calls or authority. Clean branch receives none of these observers.",
+    "Dispatched six exactf39 hosted diagnostics: startup40043849076, runtime40043851158, Jim40043853161, compiler40043855085, Spec40043857024, scopedClippy40043859083. All now allocated/started; no new semantic result yet. Original rosters/assertions/budgets retained, compiler transport separately authenticates actual Python and selected Rust ELF. No healthy job cancelled.",
+    "Pure current source maps checked before/afterpush: original compiler58/Native3/SH2/ReadFlow1/Spec/Jim PASS; independent compiler4maps+5driver pins agrees. This is source authentication, not executed test admission.",
+    "Latest complete clean a26 CI page57jobs:33success11failure12inprogress1skipped. Closed required failures include rust-check, WASM real-link, Spec compatibility, browser host, runtime, WASI, shard1, editor partitions1/2 and multifolder plus aggregateprgate. New closed logs assigned independent census; ordinary broad/shard/heavy/e2e jobs remain running, no rerun cancellation.",
+    "Original WASM25 diagnostic WORK-only protocol frozen and independently source/control reviewed. It retains original CI providers, all25 selectors/assertions, strict fresh selected ELF, full roster, isolated180s cases, source/provider/artifact/process guards, capped logs and2GiB floor. Ordinary shared-process shipping gate remains required; no runtime warning-free or performance claim.",
+    "Private owned Driver storage proposal held for correction: independent review found two other consuming methods that would move Driver out of Box. V2 must cover exact original methods before integration; no claim all51 future warnings discharge. One allocation per constructed Driver, including cache hits, must be measured.",
+    "Native C86 sole%c scan functional candidate under independent peer review, exact original getter order and native UTF byte decoder. Formatting edition mismatch caught before integration, V1 held and V2 pending. No changed assertions, surrogate sentinel, runtime mutation or full scan parity claimed.",
+    "New guard contract question remains pending: newer namespace-currency regression expects shared guard invalidation while two legacy tests expect survival after the same real mutations. Test-only proposal held; no expectation changes without user answer.",
+    "Previous actual scoped results preserved: startup coldtokens/Context2 pass with original workspace timeout; Jim5P2F; Spec9P2F plus Native firstpositiveFAIL; compiler original58+3+2UNRUN from old transport; runtimeoriginal3=1P2F, separate14FAIL and stackSIGABRT; exact C84 archive/image original812 pass only for dc67/b381 pair, admission held.",
+    "Complete origin/rust24312 named nextestPASS comparison remainsUNKNOWN. Separate runtime998 remains602retainedPASS14PASS-to-FAIL382UNKNOWN. Accepted full Tcl corpus performance still pending external perf; dedicated iRules performance waived only. No realm/interprocedural patch proven or forwarded.",
+    "Fresh depth1 fetch/fast-forward preserved external1947afad6; perf header00:14 fresh, current full Tcl old-only30/102 Equal(all3pairs), full corpus verdict pending; BIGIP header13:17 exceeds60minutes and is reported stale, no duplicate/takeover. Reviewtriage owner reports complete. External source preserved by fresh depth1 fetch/normal rebase/push.",
+    "Execution environment briefly unavailable and recovered00:23. Disk remains1.8GiB workspace/1.5GiB tmp, below2GiB build floor; no local builds, target deletion or young executable deletion. Six-hour target remains missed; sectionF, allgreen, complete zero-regression and accepted Tcl perf mandatory before PR."
+  ],
+  "committed": [
+    "61ee341908f1be5c21dfd46bee685c014b334398"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish00:25 WIP/report, fresh depth1 fetch/rebase preserving concurrent external work, and rearm00:55 timer.",
+    "Authenticate new f39 actual outputs and classify new clean a26 failures, route exact producers.",
+    "Integrate reviewed WORK-onlyWASM25 protocol; complete peer of DriverV2/nativeC86 scan and apply functional fixes first WORK.",
+    "Fix startup/compiler/Jim/Spec/runtime/browser/WASI/editor failures; complete full baseline/perf, required CI and release semantic documentation/comment audit before final fmt/rust-check/prep-pr/PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 00:14 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new runtime execution admission or sectionF closure. Six fresh diagnostics started, previous failures retained. Clean CI33success11failure12inprogress1skipped. Namespace guard choice pending; no assertion weakened. Temporary executor outage recovered; disk blocks local builds.",
+  "disk_free_bytes": 1880084480,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

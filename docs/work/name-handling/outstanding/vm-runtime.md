@@ -2,9 +2,44 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T23:46:19.929405+00:00
+Last updated: 2026-10-24T00:18:19.776434+00:00
 
 ## Resume
+
+CURRENT native C86 sole parsed%c source fix FROZEN WORK+CLEAN V1:
+/tmp/vm-c86-scan-character-work-v1/manifest.json SHA5a070f017157b11cc3567ab272c9ccadb7f3b7895c51f9b6ddf4af6204171916;
+CLEANmanifest4be178ba854bca5cbb492af07a1edf11e1df11d133c47a994c06644723bbeaaa,
+identical2filepatch577323d74129c6f796f3ec2420cc50de94ac03c58ed602a64dc9dcad02551f1a.
+Exactf39/b356 cmd_scande547→51bb7/core scan6dddd→9fac9; shared C86decoder,
+originalcheckedbytes/inputthenformat, unchangedvalidator/effects/tests, literalNUL
+EOF/modifiedNUL0, positiveboundeddecoderwidth; noUnicodegetter/newauthority/Cprobe.
+Onlywholeparsed%c inclsuppression/index1 selected; allother matching unchanged,
+actualC86allformats nowcheckedgetters explicit, broadernative scanunsupported.
+Copiedfwd/rev/fwd0/fmt2021/whitespacePASS. CompilerProof independentpeerrequested;
+NOTintegrated orruntimePASS. Original regsub baseline assertion remainsbinding.
+Env/listobserverV2 nowROOTindependentCLEAR984f63f9/integratedb59f69/pushedf39.
+Fresh runtime40043851158/job120720898210 exactf39 queued00:16UTC, contains numeric
+zeroerrnofixture+stackcarrier+env/listobservers and original3/separate14+stack1.
+Thisnewrun excludes sole%cfix and is not cancelled/replaced. No freshoutcome yet.
+
+USERDECISION23:50:40 explicit zeroerrno per dialect SUCCESSfixture only nowLOCKED:
+user-decisions-20261023T235040Z.json. No productionreset/ERANGE-refusal weakening.
+Minimal WORKfe36d0da manifest6435b3ee and CLEANfcdfb61d manifestac21c401 frozen,
+7insertedlines only aftersetprofile; alloldassertions/vectors/separate104seeded
+checks exact, copiedboth0/fmtPASS. RootindependentCLEAR 5073b46b4d52b4ff65201cda0021155ecedd0efbe69059ddeb652ca6a7581b08;
+WORK06564c5c4/CLEAN5bfbd3685 integrated exactfinalse149/df7b. NewfixtureUNRUN.
+Earlier USERPENDING text below is historical actualbeforedecision.
+Env/lappend observer WORK-only V2 patch658b743a/manifestbbada88f at
+/tmp/vm-baseline-owner-observers-work-v2 rootindependentCLEAR984f63f9/integratedb59f69; same14+1roster,
+flagonlysupplementchild afteroriginal3, cfgtest helper metadata notnativequeries,
+max14Envheaders+4Listlines, soleeval/resultgetter same. Sourcecausestillunproved.
+Regsubbaseline concreteconsumerloss: cmd_scan.rs lossyUTF8→Rustchar feeds%c,
+turning originalC8.6 isolatedsurrogateunits into65533. Narrow source-owned fix
+frozenabove, independentpeer/actualoriginalselector stillrequired; no sentinel.
+Independentstack WORK+CLEAN owner/selection/drop staticCLEAR c4feb20a
+vm-peer-runtime-body-stack-v1/review.json; oneprivateheapcarrier+nolinlineprep,
+sameheader/snapshot/Jimtransfer/128 limits, newallocation explicit/unmeasured.
+CompilerProof owns stack+2guardsemantics, parentresolving guardcontract conflict.
 
 LATEST ACTUAL b52ff0b6c7ef223da6b920031be4d6b314346311 runtime run40039936892/
 job120708383217 completeFAIL/uploadPASS,artifact12539605964 ZIP27140166
@@ -34,7 +69,7 @@ formattertestclaim. MismatchcauseUNKNOWN; all75currentarobjectbodySHA joinprovid
 allpopulatedartimestamps/uid/gid0 thusNOTobservedtimestampcause. Build-inputjoins
 4bd6dbd7/arobjectmetadata40bb3fef retained; GCC15.2.0-16ubuntu1 ELF86471103.
 AwaitsamepairactualCI/provider comparison; no fallback/widenedwhitelist. LargeJSONs
-ZIP-only,originalZIP bytes retained. NumericfixturepolicyUSERPENDING/noassumption.
+ZIP-only,originalZIP bytes retained. NumericpolicyzeroerrnoLOCKED/newfixtureUNRUN.
 
 LATEST actual2d8 focused40034879796/job120691788852 CLOSEDFAIL/uploadSUCCESS,
 artifact12536843298 ZIP27000201 SHA8efcc8488c2835773a21e777cdc06c986486c4eea9523b8090c65f2bf0aed2af,
