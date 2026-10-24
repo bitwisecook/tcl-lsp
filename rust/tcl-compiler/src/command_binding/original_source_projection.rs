@@ -227,6 +227,21 @@ mod tests {
                         .words(),
                     words,
                 );
+                if image.channel() == tcl_lexer::SourceChannel::Document {
+                    let first_word = first.native_words().first().unwrap();
+                    let last_word = first.native_words().last().unwrap();
+                    let source = image
+                        .try_text()
+                        .unwrap()
+                        .get(first_word.span().start() as usize..last_word.span().end() as usize)
+                        .unwrap();
+                    let reparsed = crate::segmenter::segment_commands_with_offset_and_config(
+                        source,
+                        first_word.span().start(),
+                        config.nested(),
+                    );
+                    assert_eq!(reparsed.as_slice(), std::slice::from_ref(first.command()));
+                }
                 assert_eq!(
                     &image.bytes()[first.native_words()[1].span().as_range()],
                     b"{}"
