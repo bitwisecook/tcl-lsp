@@ -2203,6 +2203,44 @@ mod tests {
         assert!(!frames.original_compiled_cell_at_is_current(level, 1, &observed.cell));
     }
 
+    #[test]
+    fn original_compiled_name_keeps_its_selected_frame_across_caller_restoration() {
+        let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .execution_point()
+                .unwrap(),
+        )
+        .unwrap();
+        let mut frames = FrameStack::new();
+        let namespaces = Namespaces::new();
+        let level = frames.push(crate::namespace::GLOBAL);
+        let names = [b"same".to_vec(), b"same".to_vec()];
+        frames.install_formal_cells(&names, protocol);
+        let mut selected =
+            prepare_original_c_indexed_name_cell(&mut frames, &namespaces, 1).unwrap();
+        assert!(selected.check_selected(&frames, &namespaces).is_ok());
+        selected.compiled = Some(0);
+        assert!(selected.check_selected(&frames, &namespaces).is_err());
+        selected.compiled = Some(1);
+        selected.home = VarHome::Namespace(crate::namespace::GLOBAL);
+        assert!(selected.check_selected(&frames, &namespaces).is_err());
+        selected.home = VarHome::Frame(level);
+
+        frames.push(crate::namespace::GLOBAL);
+        frames.install_formal_cells(&names, protocol);
+        assert!(!frames.original_formal_cell_is_current(1, &selected.cell));
+        assert!(selected.check_selected(&frames, &namespaces).is_ok());
+        frames.pop();
+        assert!(selected.check_selected(&frames, &namespaces).is_ok());
+        frames.pop();
+        assert!(selected.check_selected(&frames, &namespaces).is_err());
+        assert_eq!(frames.push(crate::namespace::GLOBAL), level);
+        frames.install_formal_cells(&names, protocol);
+        assert!(selected.check_selected(&frames, &namespaces).is_err());
+        let fresh = prepare_original_c_indexed_name_cell(&mut frames, &namespaces, 1).unwrap();
+        assert!(fresh.check_selected(&frames, &namespaces).is_ok());
+    }
+
     fn sobj(s: &[u8]) -> *mut TclObj {
         // fresh_zero string obj; the table takes the owning +1
         unsafe { Tcl_NewStringObj(s.as_ptr() as *const std::ffi::c_char, s.len() as isize) }
@@ -2776,11 +2814,13 @@ impl NativeOriginalNameCell {
         frames: &FrameStack,
         ns: &Namespaces,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        let same = if let Some(index) = self.compiled {
-            frames.original_formal_cell_is_current(index, &self.cell)
-        } else {
-            table(frames, ns, self.home)
-                .is_some_and(|table| self.cell.matches_root(table, &self.name))
+        let same = match (self.home, self.compiled) {
+            (VarHome::Frame(level), Some(index)) => {
+                frames.original_compiled_cell_at_is_current(level, index, &self.cell)
+            }
+            (_, None) => table(frames, ns, self.home)
+                .is_some_and(|table| self.cell.matches_root(table, &self.name)),
+            _ => false,
         };
         if !same {
             #[cfg(test)]
