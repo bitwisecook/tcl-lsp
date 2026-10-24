@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T12:32:35.131671+00:00
+Last updated: 2026-10-24T12:45:01.009686+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T114310Z.md.gz (lossless). Earlier0255/0431/0625 snapshots retained.
 
@@ -15,6 +15,30 @@ Stage large ZIP/evidence in workspace; maps/logs stay ZIP-only, extractsmall onl
 NoTom17typed+1refusal separate from FullTom sharedprocesssemanticgate. Exact original
 baselines/fullgates/performance remain binding, no PRGO. Numeric success fixture
 per-dialect zeroerrno USERLOCKED, no production errno reset or expansion to Env.
+
+## Latest CodegenStyle3 peer and versioned pin union
+
+CodegenStyle3 V3 pairedc09d6a1f/5b811531 +Heavy3fe2 independently SOURCE/API/OWNER/
+DROP/CFG STATIC CLEAR vm-peer-codegen-style3-v3/receipt.json
+SHAadc57d54d5d14fa7117096d2243c019fdb9ec95a78bdfeab9256e1574910d1a2.
+Actual proposed four cfgtest borrowed diagnostic helpers independently inlined
+(NOTauthorinverse reuse) restore complete oldWORKsource afterfmt. Bothlane actual
+currentpins/copyF-R-F0/fmt5/fullwholeoldsource/test/guard inverse; four actual API
+source/reexports/NativeWord Vec element types checked. Sequence None/Some recipe
+move and oldoperations Vec replacement/drop same; no cloned/movedsourceowners,
+newquery/await/guard/Nativegrant; alloldcallerowners retained. FreshstrictUNRUN.
+Heavycompanion only2producerpins+solewholeJSONhash; allotherpins inclnewOOexact.
+
+Exact versioned union prepared for TomMath CIscalar+Style2pin overlap:
+vm-ci-tommath-style3-pin-union-v2 patchc4ca666d479cd785cfc85435b3a1ff883d5649f0a4700ddeb581b17c9efdd1a5
+manifest5255bd4a38e9e7a9782c1f8fd1f554202e02d9a589cff9d600fa0b35592dfe55.
+REPLACES BOTH oldHeavycompanions (3fe2Style and8ba5TomMath); fullsixfileWORKpinpatch
+preserves other4TomMath files byteexact. Heavydce→e7571ef8 contains ONLYCI9596+2Style
+sourcehashfinals; driverd741→957ee20a matcheswholeJSON. Allproductoverlaypins/OO,
+allotherroster/env/feature/assertion/budget bytes exact,F-R-F0. Rootnotifiedneeds
+independentprerequisite+unionreview before changedCI dispatch, no staleoverwrite.
+No new runtime source/run assigned or locallyexecuted; latestownedactual988 E0433
+all131UNRUN remains unchanged until root fresh dispatch. No CFI/guardclosure claim.
 
 ## Current source peer and strict provider prerequisite
 
