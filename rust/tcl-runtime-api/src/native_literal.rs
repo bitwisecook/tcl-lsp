@@ -282,6 +282,23 @@ impl<V: Clone> NativeLiteralWorld<V> {
             .capture(interpreter, capture_epoch, self.index.is_empty())
     }
 
+    /// Retain an existing absence observation only while this exact original
+    /// owner remains empty, live and at its same capture generation and epoch.
+    /// This neither recaptures nor revives an invalidated observation.
+    #[must_use]
+    pub fn retain_empty_observation(
+        &self,
+        receipt: &NativeEmptyLiteralWorld,
+        interpreter: crate::native_compilation::NativeInterpreterIdentity,
+        capture_epoch: u64,
+    ) -> Option<NativeEmptyLiteralWorld> {
+        (self.index.is_empty()
+            && self
+                .observation
+                .retained_is_current(receipt, interpreter, capture_epoch))
+        .then(|| receipt.clone())
+    }
+
     /// Borrow all actual global owners without acquiring native references.
     pub fn registered_values(&self) -> impl Iterator<Item = &V> {
         self.entries.iter().flatten().map(|entry| &entry.value)
@@ -630,6 +647,53 @@ mod empty_world_tests {
             original: b"held".to_vec(),
         }
     }
+    #[test]
+    fn retained_empty_observation_never_recaptures_or_revives_a_receipt() {
+        let owner = interpreter();
+        let mut world = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let foreign = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let first = world.capture_empty_world(owner, 7).unwrap();
+        assert_eq!(
+            world.retain_empty_observation(&first, owner, 7),
+            Some(first.clone())
+        );
+        assert!(first.is_current());
+        assert!(foreign.retain_empty_observation(&first, owner, 7).is_none());
+        assert!(
+            world
+                .retain_empty_observation(&first, interpreter(), 7)
+                .is_none()
+        );
+        assert!(world.retain_empty_observation(&first, owner, 8).is_none());
+        let second = world.capture_empty_world(owner, 7).unwrap();
+        assert_ne!(first, second);
+        assert!(world.retain_empty_observation(&first, owner, 7).is_none());
+        assert_eq!(
+            world.retain_empty_observation(&second, owner, 7),
+            Some(second.clone())
+        );
+        let original = Rc::new(vec![1]);
+        let before = Rc::strong_count(&original);
+        let (index, local) = world
+            .register(
+                key(),
+                |_| Ok::<_, ()>(b"held".to_vec()),
+                || Ok::<_, ()>(Rc::clone(&original)),
+            )
+            .unwrap();
+        let registered = Rc::strong_count(&original);
+        assert!(world.retain_empty_observation(&second, owner, 7).is_none());
+        assert_eq!(Rc::strong_count(&original), registered);
+        drop(world.release(index));
+        drop(local);
+        assert_eq!(Rc::strong_count(&original), before);
+        assert!(world.retain_empty_observation(&second, owner, 7).is_none());
+        let live = world.capture_empty_world(owner, 7).unwrap();
+        drop(world);
+        assert!(!live.is_current());
+        assert!(foreign.retain_empty_observation(&live, owner, 7).is_none());
+    }
+
     #[test]
     fn empty_world_capture_is_bound_to_actual_owner_epoch_and_capture() {
         let owner = interpreter();

@@ -66,6 +66,7 @@ mod authored_package;
 pub(crate) use authored_package::PackageTableReceipt;
 mod authored_rule_callables;
 mod authored_tmm_static;
+pub(crate) mod closed_native_execution;
 mod execution_name_policy;
 pub(crate) mod jim_local;
 #[cfg(test)]
@@ -26093,6 +26094,28 @@ impl Vm {
         current: NsId,
         procedure: bool,
     ) -> tcl_runtime_api::NativeCompilationEntry {
+        self.native_compilation_entry_with_literal_observation(
+            current,
+            procedure,
+            |owner, epoch| {
+                self.native_literal_world
+                    .borrow()
+                    .capture_empty_world(owner, epoch)
+            },
+        )
+    }
+
+    fn native_compilation_entry_with_literal_observation(
+        &self,
+        current: NsId,
+        procedure: bool,
+        literal_observation: impl FnOnce(
+            tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+            u64,
+        ) -> Option<
+            tcl_runtime_api::native_literal::NativeEmptyLiteralWorld,
+        >,
+    ) -> tcl_runtime_api::NativeCompilationEntry {
         use tcl_runtime_api::native_compilation::{
             NativeCompilationEntry, NativeCompilationFrame, NativeInterpreterIdentity,
         };
@@ -26168,10 +26191,10 @@ impl Vm {
             },
             namespace_variable_tables: self.native_namespace_variable_tables(interpreter),
             compiler_pass_environment: self.capture_native_compiler_pass_environment(None),
-            empty_literal_world: self
-                .native_literal_world
-                .borrow()
-                .capture_empty_world(interpreter, self.compilation_epochs.trace_deopt_epoch.get()),
+            empty_literal_world: literal_observation(
+                interpreter,
+                self.compilation_epochs.trace_deopt_epoch.get(),
+            ),
             frame,
         };
         entry.oo_classes = crate::cmd_oo::native_bootstrap_inventory(self, &entry);

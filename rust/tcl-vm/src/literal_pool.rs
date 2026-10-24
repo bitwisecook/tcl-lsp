@@ -84,6 +84,17 @@ impl NativeLiteralWorld {
         self.shared.borrow().capture_empty_world(interpreter, epoch)
     }
 
+    pub(crate) fn retain_empty_observation(
+        &self,
+        receipt: &tcl_runtime_api::native_literal::NativeEmptyLiteralWorld,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        epoch: u64,
+    ) -> Option<tcl_runtime_api::native_literal::NativeEmptyLiteralWorld> {
+        self.shared
+            .borrow()
+            .retain_empty_observation(receipt, interpreter, epoch)
+    }
+
     pub(crate) fn invalidate_command_literal(
         world: &Rc<RefCell<Self>>,
         protocol: NativeStringProtocol,

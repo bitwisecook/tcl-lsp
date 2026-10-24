@@ -49,6 +49,7 @@
 
 pub mod branch_folding;
 pub mod chain_fold;
+pub mod closed_consumer;
 pub mod code_sinking;
 pub mod elimination;
 pub mod end_offset;

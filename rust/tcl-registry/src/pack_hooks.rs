@@ -1071,6 +1071,9 @@ pub fn is_cacheable(slot: HookSlot) -> bool {
 }
 
 thread_local! {
+    // Monotone and destructor-free: no callback service reopens at worker teardown.
+    static PRIVATE_EVALUATORS_DENIED: Cell<bool> = const { Cell::new(false) };
+
     /// The host serving this thread's pack hooks. Thread-local because a host
     /// owns per-pack VM instances, which are not `Send`.
     static HOST: RefCell<Option<Rc<dyn PackHookHost>>> = const { RefCell::new(None) };
@@ -1146,6 +1149,43 @@ static ANY_HOST: AtomicBool = AtomicBool::new(false);
 /// called from [`dispatch`].
 static INSTALLER: OnceLock<fn()> = OnceLock::new();
 
+/// Deny external pack evaluators on an owned private worker before preparation.
+/// A present receiver or nonempty evaluator generation refuses; nothing is
+/// cleared or replaced to manufacture absence. This restriction never restores
+/// before thread teardown and grants no Native operation or source authority.
+#[must_use]
+pub fn deny_external_evaluators_on_private_thread() -> bool {
+    if !private_thread_has_no_evaluator() {
+        return false;
+    }
+    PRIVATE_EVALUATORS_DENIED
+        .try_with(|denied| denied.set(true))
+        .is_ok()
+}
+
+/// Observe the actual denied/absent service without invoking its installer.
+#[must_use]
+pub fn private_thread_evaluators_are_closed() -> bool {
+    PRIVATE_EVALUATORS_DENIED
+        .try_with(Cell::get)
+        .unwrap_or(false)
+        && private_thread_has_no_evaluator()
+}
+
+fn private_thread_has_no_evaluator() -> bool {
+    HOST.try_with(|slot| slot.try_borrow().is_ok_and(|host| host.is_none()))
+        .unwrap_or(false)
+        && GENERATION
+            .try_with(Cell::get)
+            .is_ok_and(|generation| generation == EvaluatorGeneration::NO_HOST)
+}
+
+fn external_evaluators_blocked() -> bool {
+    PRIVATE_EVALUATORS_DENIED
+        .try_with(Cell::get)
+        .unwrap_or(true)
+}
+
 /// Register the thread-host installer. Idempotent; the first registration wins.
 ///
 /// # Why this exists
@@ -1159,6 +1199,9 @@ static INSTALLER: OnceLock<fn()> = OnceLock::new();
 /// scheduling. Installing lazily at the one point that actually needs a host —
 /// the dispatch — makes that impossible to get wrong by omission.
 pub fn set_installer(installer: fn()) {
+    if external_evaluators_blocked() {
+        return;
+    }
     let _ = INSTALLER.set(installer);
 }
 
@@ -1192,6 +1235,9 @@ fn plan_generation(plan: u64) -> EvaluatorGeneration {
 /// from a published plan is installed with [`install_plan_host`] instead, so
 /// every worker serving that plan shares its memoised answers.
 pub fn install_host(host: Rc<dyn PackHookHost>) {
+    if external_evaluators_blocked() {
+        return;
+    }
     install(host, fresh_generation(), false);
 }
 
@@ -1199,10 +1245,16 @@ pub fn install_host(host: Rc<dyn PackHookHost>) {
 /// host: every thread that installs a host for one plan is at one
 /// generation.
 pub fn install_plan_host(host: Rc<dyn PackHookHost>, plan: u64) {
+    if external_evaluators_blocked() {
+        return;
+    }
     install(host, plan_generation(plan), true);
 }
 
 fn install(host: Rc<dyn PackHookHost>, generation: EvaluatorGeneration, from_plan: bool) {
+    if external_evaluators_blocked() {
+        return;
+    }
     ANY_HOST.store(true, Ordering::Relaxed);
     clear_cache();
     HOST.with(|slot| {
@@ -1294,13 +1346,22 @@ pub fn evaluator_generation() -> EvaluatorGeneration {
 /// epoch. When nothing moved the installer returns after one atomic load
 /// and one thread-local read.
 fn ensure_host() -> Option<Rc<dyn PackHookHost>> {
+    ensure_host_with_installer(|| INSTALLER.get().copied())
+}
+
+fn ensure_host_with_installer(
+    installer: impl FnOnce() -> Option<fn()>,
+) -> Option<Rc<dyn PackHookHost>> {
+    if external_evaluators_blocked() {
+        return None;
+    }
     let direct = HOST
         .with(|slot| slot.borrow().clone())
         .filter(|_| !FROM_PLAN.with(Cell::get));
     if direct.is_some() {
         return direct;
     }
-    if let Some(installer) = INSTALLER.get() {
+    if let Some(installer) = installer() {
         installer();
     }
     HOST.with(|slot| slot.borrow().clone())
@@ -1318,6 +1379,9 @@ pub fn has_host() -> bool {
 /// inputs, so an answer that rests on it must not be kept as a verdict.
 #[must_use]
 pub fn slot_available(slot: HookSlot) -> bool {
+    if external_evaluators_blocked() {
+        return false;
+    }
     if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         return false;
     }
@@ -1569,6 +1633,9 @@ macro_rules! n17_live_trace {
 /// unavailable hosts retain the family's silence.
 #[must_use]
 pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+    if external_evaluators_blocked() {
+        return HookAnswer::Abstain;
+    }
     n17_live_trace!("dispatch-entry slot={slot:?}");
     if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
         n17_live_trace!("decline=dispatch-no-host slot={slot:?}");
@@ -2180,6 +2247,59 @@ mod tests {
             self.calls.set(self.calls.get() + 1);
             HookAnswer::Roles(vec![(0, ArgRole::VarWrite)])
         }
+    }
+
+    #[test]
+    fn private_worker_denies_installer_queries_and_receiver_installation() {
+        std::thread::spawn(|| {
+            assert!(deny_external_evaluators_on_private_thread());
+            assert!(private_thread_evaluators_are_closed());
+            let queried = Cell::new(false);
+            assert!(
+                ensure_host_with_installer(|| {
+                    queried.set(true);
+                    Some(|| panic!("a private worker must not invoke an external installer"))
+                })
+                .is_none()
+            );
+            assert!(!queried.get());
+            let host: Rc<dyn PackHookHost> =
+                Rc::new(FixedHost(HookAnswer::Fold("external".into())));
+            install_host(Rc::clone(&host));
+            install_plan_host(host, 1);
+            assert!(private_thread_evaluators_are_closed());
+            assert_eq!(evaluator_generation(), EvaluatorGeneration::NO_HOST);
+            let slot = HookSlot {
+                family: HookFamily::ConstFold,
+                index: 0,
+            };
+            assert!(!slot_available(slot));
+            let call = call_of(&[], None);
+            assert!(matches!(dispatch(slot, &call), HookAnswer::Abstain));
+            assert!(deny_external_evaluators_on_private_thread());
+        })
+        .join()
+        .unwrap();
+        assert!(!external_evaluators_blocked());
+    }
+
+    #[test]
+    fn private_worker_denial_does_not_clear_an_existing_receiver() {
+        std::thread::spawn(|| {
+            let host: Rc<dyn PackHookHost> = Rc::new(FixedHost(HookAnswer::Abstain));
+            install_host(Rc::clone(&host));
+            let generation = GENERATION.with(Cell::get);
+            assert!(!deny_external_evaluators_on_private_thread());
+            assert!(!private_thread_evaluators_are_closed());
+            assert_eq!(GENERATION.with(Cell::get), generation);
+            assert!(HOST.with(|slot| {
+                slot.borrow()
+                    .as_ref()
+                    .is_some_and(|held| Rc::ptr_eq(held, &host))
+            }));
+        })
+        .join()
+        .unwrap();
     }
 
     #[test]

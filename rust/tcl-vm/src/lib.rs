@@ -30,6 +30,16 @@
 //! and the rest of the Family-B impls build on this skeleton. See
 //! `docs/design/runtime/family-b-routing.md` §1.
 
+// Host diagnostics cannot observe the private transcript worker.
+#[cfg(any(test, feature = "test-support", debug_assertions))]
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        if ::tcl_runtime_api::diagnostic_output::host_diagnostics_enabled() {
+            ::std::eprintln!($($arg)*);
+        }
+    };
+}
+
 pub mod debug;
 pub mod embed;
 pub mod error;
@@ -94,6 +104,7 @@ pub use command::NativeCommand;
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
 pub use embed::{FunctionHandle, ProcedureDefinitionError, VmCompilationError};
 pub use error::{TclError, TclHostFailure};
+pub use interp::closed_native_execution::PreparedClosedNativeSource;
 pub use interp::native_scalar_ingress::NativeScalarIngress;
 pub use interp::{
     LimitKind, NativeCommandLookupUnavailable, NativePreparedPublication, NativePublicationCommit,

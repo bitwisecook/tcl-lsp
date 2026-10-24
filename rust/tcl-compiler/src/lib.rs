@@ -82,6 +82,24 @@
 #![recursion_limit = "256"]
 #![deny(missing_docs)]
 
+// Host diagnostics cannot observe the private transcript worker.
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        if ::tcl_runtime_api::diagnostic_output::host_diagnostics_enabled() {
+            ::std::eprintln!($($arg)*);
+        }
+    };
+}
+
+#[cfg(test)]
+macro_rules! println {
+    ($($arg:tt)*) => {
+        if ::tcl_runtime_api::diagnostic_output::host_diagnostics_enabled() {
+            ::std::println!($($arg)*);
+        }
+    };
+}
+
 pub mod alias;
 pub mod allocated_instance;
 pub mod analyser;

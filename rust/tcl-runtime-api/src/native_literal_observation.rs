@@ -108,6 +108,26 @@ impl Default for NativeLiteralObservationOwner {
     }
 }
 impl NativeLiteralObservationOwner {
+    pub(super) fn retained_is_current(
+        &self,
+        receipt: &NativeEmptyLiteralWorld,
+        interpreter: NativeInterpreterIdentity,
+        capture_epoch: u64,
+    ) -> bool {
+        if receipt.interpreter != interpreter
+            || receipt.capture_epoch != capture_epoch
+            || receipt.world != self.world
+            || !Weak::ptr_eq(&receipt.lifetime, &Arc::downgrade(&self.lifetime))
+        {
+            return false;
+        }
+        let state = self
+            .lifetime
+            .lock()
+            .expect("native literal observation owner");
+        state.interpreter == Some(interpreter) && state.generation == Some(receipt.generation)
+    }
+
     pub(super) fn invalidate(&self) {
         let mut state = self
             .lifetime

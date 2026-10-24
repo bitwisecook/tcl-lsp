@@ -65,6 +65,8 @@ harness = false
 # `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
 tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
+# Concrete closed-consumer test ingress; production compiler remains VM-independent.
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 serde_json = { workspace = true }
 temp-env = "0.3"
 rayon = "1"

@@ -29,6 +29,15 @@
 //! (whose only dependency is `tcl-syntax`, for [`BinOp`]/[`UnaryOp`]) lets the
 //! VM depend on the artifact without pulling in the whole compiler.
 
+// Host diagnostics cannot observe the private transcript worker.
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        if ::tcl_runtime_api::diagnostic_output::host_diagnostics_enabled() {
+            ::std::eprintln!($($arg)*);
+        }
+    };
+}
+
 pub mod format;
 pub mod layout;
 
