@@ -6648,27 +6648,38 @@ enum ClassFactoryRound {
 /// class-factory index off a fresh snapshot and compare-then-set it on every
 /// file.
 async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> ClassFactoryRound {
-    let (snapshot, files, project, revision) = {
-        let db = handles.db.lock().await;
-        let db_files = handles.db_files.lock().await;
-        let db_project = handles.db_project.lock().await;
-        let Some(&project) = db_project.as_ref() else {
-            // No project input yet — nothing to merge, and nothing a further
-            // round could learn.
-            return ClassFactoryRound::Settled;
+    let (snapshot, files, project, revision) = loop {
+        // Register before the admission check so a concurrent publisher cannot
+        // retire between refusal and waiting. No snapshot or publisher lock
+        // survives the failed capture below.
+        let publication_advanced = handles.db.snapshots.publication_advanced.notified();
+        tokio::pin!(publication_advanced);
+        publication_advanced.as_mut().enable();
+        let captured = {
+            let db = handles.db.lock().await;
+            let db_files = handles.db_files.lock().await;
+            let db_project = handles.db_project.lock().await;
+            let Some(&project) = db_project.as_ref() else {
+                // No project input yet — nothing to merge, and nothing a further
+                // round could learn.
+                return ClassFactoryRound::Settled;
+            };
+            let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
+                db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
+            let snapshot = handles
+                .db
+                .snapshot_from(&db, "sync_workspace_class_factories_round");
+            if snapshot.is_none() {
+                workspace_scan_trace!(
+                    "factory.round.snapshot_wait sync={handles:p} reason=snapshot_unavailable"
+                );
+            }
+            snapshot.map(|snapshot| (snapshot, files, project, tcl_lsp_db::database_revision(&db)))
         };
-        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
-            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        let Some(snapshot) = handles
-            .db
-            .snapshot_from(&db, "sync_workspace_class_factories_round")
-        else {
-            workspace_scan_trace!(
-                "factory.round.cancelled_reason sync={handles:p} reason=snapshot_unavailable"
-            );
-            return ClassFactoryRound::Cancelled;
-        };
-        (snapshot, files, project, tcl_lsp_db::database_revision(&db))
+        if let Some(captured) = captured {
+            break captured;
+        }
+        publication_advanced.await;
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -49238,6 +49249,53 @@ info exists ::N::v\uD800";
                 "the project file set must hold exactly the one live input",
             );
         }
+    }
+
+    /// Publication admission is not a failed fixed-point computation. A
+    /// factory waiter must release all publisher locks until intent retires.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn factory_round_waits_for_snapshot_admission_without_holding_locks() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///factory-snapshot-admission.tcl").unwrap();
+        backend
+            .db_set_source(&uri, "set value 1\n", "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
+            db: Arc::clone(&backend.db),
+            db_files: Arc::clone(&backend.db_files),
+            db_project_members: Arc::clone(&backend.db_project_members),
+            db_project: Arc::clone(&backend.db_project),
+            workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
+            live_publication_gate: Arc::clone(&backend.live_publication_gate),
+            class_factory_generation: Arc::clone(&backend.class_factory_generation),
+        };
+        let publication = backend.db.begin_snapshot_drain();
+        let round = sync_workspace_class_factories_round(&handles);
+        tokio::pin!(round);
+        std::future::poll_fn(|context| {
+            assert!(std::future::Future::poll(round.as_mut(), context).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        assert_eq!(backend.db.snapshot_report().outstanding, 0);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            let _db = backend.db.lock().await;
+            let _files = backend.db_files.lock().await;
+            let project = backend.db_project.lock().await;
+            assert!(project.is_some());
+        })
+        .await
+        .expect("a pending factory reader must release publication locks");
+        drop(publication);
+        let outcome = crate::rt::timeout(std::time::Duration::from_secs(5), round)
+            .await
+            .expect("the original factory round must resume after publication");
+        assert!(matches!(outcome, ClassFactoryRound::Settled));
     }
 
     /// The project-wide evidence read runs on a cloned salsa snapshot off the
