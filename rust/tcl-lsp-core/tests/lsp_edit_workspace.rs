@@ -206,8 +206,8 @@ fn workspace_symbols_no_match_returns_empty() {
 
 #[test]
 fn workspace_symbols_empty_document_is_empty_and_does_not_panic() {
-    assert!(symbols("", "").is_empty());
-    assert!(symbols("", "anything").is_empty());
+    assert_eq!(symbols("", "").as_slice(), []);
+    assert_eq!(symbols("", "anything").as_slice(), []);
 }
 
 #[test]
@@ -732,9 +732,15 @@ fn style_w112_flags_trailing_whitespace_with_remove_fix() {
 
 #[test]
 fn style_w112_does_not_flag_clean_lines_or_crlf() {
-    assert!(check_trailing_whitespace("set x 1\nset y 2\n").is_empty());
+    assert_eq!(
+        check_trailing_whitespace("set x 1\nset y 2\n").as_slice(),
+        []
+    );
     // A bare CRLF terminator is not itself trailing whitespace.
-    assert!(check_trailing_whitespace("set x 1\r\nset y 2\r\n").is_empty());
+    assert_eq!(
+        check_trailing_whitespace("set x 1\r\nset y 2\r\n").as_slice(),
+        []
+    );
 }
 
 #[test]
@@ -747,7 +753,7 @@ fn style_w118_flags_unexpected_line_endings() {
         "File uses CRLF line endings (2); expected LF"
     );
     // A file that already uses the expected ending is clean.
-    assert!(check_line_endings("a\nb\nc\n", "\n").is_empty());
+    assert_eq!(check_line_endings("a\nb\nc\n", "\n").as_slice(), []);
 }
 
 #[test]
@@ -767,7 +773,10 @@ fn style_w115_flags_comment_continuation_with_perline_fix() {
     assert_eq!(fix.description, "Convert to per-line comments");
 
     // A plain comment with no backslash continuation is clean.
-    assert!(check_comment_continuation("# plain\nputs hi").is_empty());
+    assert_eq!(
+        check_comment_continuation("# plain\nputs hi").as_slice(),
+        []
+    );
 }
 
 #[test]
