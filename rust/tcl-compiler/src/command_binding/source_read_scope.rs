@@ -12,6 +12,30 @@ use super::{CommandAllocationSite, OriginalSourceCommandTransitionAdvice};
 use std::sync::{Arc, Mutex};
 use tcl_registry::model::ContextRegistry;
 
+pub(super) fn trace_rbs_refusal(offset: u32, stage: &'static str) {
+    if cfg!(debug_assertions) && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_SOURCE_READ offset={offset} stage={stage} passed=false");
+    }
+}
+
+pub(super) fn trace_rbs_required<T>(
+    value: Option<T>,
+    offset: u32,
+    stage: &'static str,
+) -> Option<T> {
+    if value.is_none() {
+        trace_rbs_refusal(offset, stage);
+    }
+    value
+}
+
+fn trace_rbs_condition(value: bool, offset: u32, stage: &'static str) -> bool {
+    if !value {
+        trace_rbs_refusal(offset, stage);
+    }
+    value
+}
+
 type CatalogueMemoEntry = (
     OriginalSourceTransitionSeed,
     Option<Arc<SourceReadCatalogue>>,
@@ -79,6 +103,7 @@ impl SourceReadCatalogue {
         config: tcl_lexer::LexerConfig,
     ) -> Option<SourceReadScope> {
         if tokens.synthetic.is_some() || self.tape.blocks_registry_source(site.offset) {
+            trace_rbs_refusal(site.offset, "scope.synthetic-or-barrier");
             return None;
         }
         let advice = if let Some(advice) = self.tape.body_catalogue(site.offset) {
@@ -87,46 +112,71 @@ impl SourceReadCatalogue {
             match self.tape.lookup(site.offset) {
                 OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
                 OriginalSourceTransitionAdviceLookup::Refused
-                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
+                | OriginalSourceTransitionAdviceLookup::Unrepresented => {
+                    trace_rbs_refusal(site.offset, "scope.catalogue-or-advice");
+                    return None;
+                }
             }
         };
         if advice.site() != site
             || !advice.matches_source(site.source.source_image(), config)
             || !advice.matches_context(&self.context)
         {
+            trace_rbs_refusal(site.offset, "scope.advice-current");
             return None;
         }
         let parent_matches = if let Some(parent) = advice.original_catalogue_source_body() {
-            parent.content_span() == body
-                && parent.matches_context(&self.context)
+            trace_rbs_condition(
+                parent.content_span() == body,
+                site.offset,
+                "scope.parent-span",
+            ) && parent.matches_context(&self.context)
                 && parent.matches_source(site.source.source_image(), config)
         } else {
-            let parent = advice
-                .original_procedure_source_body()
-                .or_else(|| advice.logical_source_body())?;
-            parent.content_span() == body
-                && parent.matches_context(&self.context)
+            let parent = trace_rbs_required(
+                advice
+                    .original_procedure_source_body()
+                    .or_else(|| advice.logical_source_body()),
+                site.offset,
+                "scope.parent-owner",
+            )?;
+            trace_rbs_condition(
+                parent.content_span() == body,
+                site.offset,
+                "scope.parent-span",
+            ) && parent.matches_context(&self.context)
                 && parent.matches_source(site.source.source_image(), config)
         };
         if !parent_matches {
+            trace_rbs_refusal(site.offset, "scope.parent-body");
             return None;
         }
-        let original = crate::registry_invocation::original_native_compiler_words(
-            site.source.source_image(),
-            tokens.words(),
+        let original = trace_rbs_required(
+            crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                config,
+            ),
             site.offset,
-            config,
+            "scope.original-words",
         )?;
         if original.as_slice() != advice.original_words() {
+            trace_rbs_refusal(site.offset, "scope.original-vector");
             return None;
         }
         if let Some(binding) = &tokens.source_binding {
             if binding.lookup_state.is_some() {
-                binding
-                    .original_invocation_metadata_at_point(tokens, self.context.commands())
-                    .ok()?;
+                trace_rbs_required(
+                    binding
+                        .original_invocation_metadata_at_point(tokens, self.context.commands())
+                        .ok(),
+                    site.offset,
+                    "scope.point-metadata",
+                )?;
             }
             if !source_targets_match_advice(&self.context, binding, advice) {
+                trace_rbs_refusal(site.offset, "scope.selected-targets");
                 return None;
             }
         }

@@ -9,6 +9,7 @@
 //! sites retain the original image, logical grammar and declaration frame.
 
 use super::declaration_layout::DeclarationLayouts;
+use super::source_read_scope::{trace_rbs_refusal, trace_rbs_required};
 use super::{
     CommandAllocationSite, ExecutedScriptMapping, ExecutedScriptSource, SourceInvocationBinding,
 };
@@ -1093,10 +1094,12 @@ impl Builder<'_> {
                     crate::var_resolve::VariableExecutionFrame::Procedure { .. }
                         | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
                 ) {
+                    trace_rbs_refusal(site.offset, "selection.frame");
                     return None;
                 }
                 let source = entry.source();
                 if source.origin != site.source || !entry.owns_source(&site.source, site.offset) {
+                    trace_rbs_refusal(site.offset, "selection.source-owner");
                     return None;
                 }
                 tcl_lexer::Span::new(
@@ -1107,12 +1110,24 @@ impl Builder<'_> {
                 )
             }
             DeclarationFlowFrame::Read(entry) => {
-                entry.owns_source(&site.source, site.offset).then_some(())?;
-                entry.read.original_body_span()?
+                trace_rbs_required(
+                    entry.owns_source(&site.source, site.offset).then_some(()),
+                    site.offset,
+                    "selection.read-owner",
+                )?;
+                trace_rbs_required(
+                    entry.read.original_body_span(),
+                    site.offset,
+                    "selection.read-body",
+                )?
             }
         };
         // Original layout corruption is terminal even for a source-only query.
-        let scopes = self.selection_scopes(tokens, site)?;
+        let scopes = trace_rbs_required(
+            self.selection_scopes(tokens, site),
+            site.offset,
+            "selection.scopes",
+        )?;
         let mut retained = tokens.clone();
         let points = self
             .inventory
@@ -1138,16 +1153,29 @@ impl Builder<'_> {
             retained.source_binding =
                 Some(super::SourceCommandBindings::query_dispatch_points(points));
         }
-        let scope = self.inventory.source_read_catalogue(self.registry)?.scope(
-            site,
-            &retained,
-            body,
-            self.config,
+        let scope = trace_rbs_required(
+            trace_rbs_required(
+                self.inventory.source_read_catalogue(self.registry),
+                site.offset,
+                "selection.catalogue",
+            )?
+            .scope(site, &retained, body, self.config),
+            site.offset,
+            "selection.scope",
         )?;
         if scope.advice().dialect() != self.dialect {
+            trace_rbs_refusal(site.offset, "selection.dialect");
             return None;
         }
-        crate::registry_invocation::declaration_source_read_flow(self.registry, &retained, &scope)
+        trace_rbs_required(
+            crate::registry_invocation::declaration_source_read_flow(
+                self.registry,
+                &retained,
+                &scope,
+            ),
+            site.offset,
+            "selection.flow",
+        )
     }
 
     fn selection(
