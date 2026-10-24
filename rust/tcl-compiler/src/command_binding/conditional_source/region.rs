@@ -495,6 +495,7 @@ fn walk_region_uncached(
         root_origin: Some(Arc::clone(&origin)),
         original_analysis_owner: Some(Arc::new(
             crate::command_binding::OriginalSourceAnalysisOwner {
+                source_arguments_empty: false,
                 source: Arc::clone(&origin),
                 metadata: state.baseline.metadata_context.clone(),
                 config: frame.context.config,

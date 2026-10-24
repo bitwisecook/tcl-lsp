@@ -3731,6 +3731,8 @@ type ImplicitFixedMathInvocations = BTreeMap<ImplicitMathSite, Vec<FixedMathObse
 
 #[derive(Debug, Clone)]
 pub(crate) struct OriginalSourceAnalysisOwner {
+    // Positive original entry option, not inferred from empty command tables.
+    source_arguments_empty: bool,
     source: Arc<SourceOriginId>,
     metadata: crate::registry_invocation::OwnedInvocationMetadataContext,
     config: tcl_lexer::LexerConfig,
@@ -7278,6 +7280,7 @@ impl SourceCommandBindings {
             .clone_from(&state.current_source_origin);
         bindings.original_analysis_owner = state.current_source_origin.as_ref().map(|source| {
             Arc::new(OriginalSourceAnalysisOwner {
+                source_arguments_empty: options.incoming_formals.is_empty(),
                 source: Arc::clone(source),
                 metadata: state.baseline.metadata_context.clone(),
                 config,

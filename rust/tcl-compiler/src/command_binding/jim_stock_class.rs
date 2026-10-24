@@ -4,8 +4,11 @@
 
 //! Bounded authored stock Jim class effects, without Native entry or class objects.
 
+mod entry;
 mod inheritance;
 mod method;
+mod reference_prefix;
+pub(super) use entry::OriginalJimStockMethodEntry;
 
 use super::{
     Arc, BindingKind, CommandAllocation, CommandAllocationSite, MayBinding, ModuleCommandBindings,

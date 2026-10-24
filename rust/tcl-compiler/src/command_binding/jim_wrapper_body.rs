@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Conditional Jim wrapper bodies, separate from Native receiver execution.
 
+mod scope_body;
+
 use super::{
     Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, ModuleCommandBindings,
     SourceCommandBindings,
@@ -25,6 +27,58 @@ pub(super) struct OriginalJimWrapperBody {
 }
 
 impl OriginalJimWrapperBody {
+    fn first_stock_method_presence(
+        &self,
+        entry: &super::jim_stock_class::OriginalJimStockMethodEntry,
+    ) -> Option<(u32, super::SourceCommandSlotPresence)> {
+        if !self.owns_stock_entry(entry) || !entry.has_reference_free_prefix() {
+            return None;
+        }
+        let (_, _, source) = self.root.executed_script.as_ref()?;
+        let frame = self.root.future_frame.as_ref()?;
+        if !self.owns_source(source, frame) {
+            return None;
+        }
+        let plan = source
+            .origin
+            .original_script_words_in(
+                tcl_lexer::Span::new(
+                    source.base(),
+                    source
+                        .base()
+                        .checked_add(u32::try_from(source.text.bytes().len()).ok()?)?,
+                ),
+                self.input.lexer_config(),
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            )
+            .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let words = &plan.commands.first()?.words;
+        let head = words.first()?;
+        let policy = entry.policy();
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&self.input.lexer_config());
+        let name = SignatureSourceNameKey::from_original_native_word(head, rules, policy)?;
+        if !words
+            .iter()
+            .skip(1)
+            .all(|word| entry.inert_entry_argument(word))
+        {
+            return None;
+        }
+        let name = super::SignatureSourceNameInput::OriginalWord(name);
+        let presence = entry.first_command_presence(&name, &self.root.namespace_key);
+        Some((head.span().start(), presence))
+    }
+
+    pub(super) fn owns_stock_entry(
+        &self,
+        entry: &super::jim_stock_class::OriginalJimStockMethodEntry,
+    ) -> bool {
+        entry.original_words() == self.call.original_words() && entry.input() == Some(&self.input)
+    }
+
     pub(super) fn owns_source(
         &self,
         source: &ExecutedScriptSource,

@@ -207,7 +207,22 @@ impl Analyser {
         } else {
             match lookup {
                 crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
-                    self.head_identities.diagnostic_slot_presence_at(offset)
+                    let selected = super::super::scope::selected_jim_method_body_span_at(
+                        &self.result.global_scope,
+                        offset,
+                    )
+                    .and_then(|body| {
+                        self.head_identities
+                            .source_bindings_ref()
+                            .first_jim_method_presence_in_scope(
+                                &self.source,
+                                &self.resolved_analysis_input(),
+                                body,
+                                offset,
+                            )
+                    });
+                    selected
+                        .unwrap_or_else(|| self.head_identities.diagnostic_slot_presence_at(offset))
                 }
                 crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. } => self
                     .head_identities
