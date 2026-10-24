@@ -2052,6 +2052,19 @@ impl DeclarationSourceVariableOperandAdvice {
     }
 }
 
+fn trace_root_script_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
+        eprintln!(
+            "TAINT_SCRIPT_INGRESS stage={stage} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 impl super::SourceInvocationBinding {
     /// Original root-script naming geometry for source analysis only. A held
     /// declaration entry does not issue an entered frame or a selected cell.
@@ -2066,12 +2079,17 @@ impl super::SourceInvocationBinding {
         if tokens.synthetic.is_some() || tokens.source_binding.as_ref() != Some(self) {
             return None;
         }
-        let owner = self.original_analysis_attachment()?;
+        let owner = trace_root_script_option("root.owner", self.original_analysis_attachment())?;
         if !owner.metadata.is_standalone() {
             return None;
         }
-        let rows =
-            original_source_catalogue_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let rows = trace_root_script_option(
+            "root.layout_rows",
+            original_source_catalogue_layouts(trace_root_script_option(
+                "root.layout_inventory",
+                self.declaration_layout_observations.as_deref(),
+            )?),
+        )?;
         if rows.clone().any(|row| {
             !matches!(
                 row.entry.as_ref(),
@@ -2080,10 +2098,12 @@ impl super::SourceInvocationBinding {
         }) {
             return None;
         }
-        let config = self.original_lexer_config_for_tokens(tokens)?;
-        let retained = self.retained_registry_for_tokens(tokens)?;
+        let config =
+            trace_root_script_option("root.config", self.original_lexer_config_for_tokens(tokens))?;
+        let retained =
+            trace_root_script_option("root.registry", self.retained_registry_for_tokens(tokens))?;
         (retained.snapshot().semantic_key() == registry.snapshot().semantic_key()).then_some(())?;
-        let site = self.invocation_site()?;
+        let site = trace_root_script_option("root.site", self.invocation_site())?;
         if owner.config != config || !Arc::ptr_eq(&owner.source, &site.source) {
             return None;
         }
@@ -2119,18 +2139,25 @@ impl super::SourceInvocationBinding {
             {
                 return None;
             }
-            let policy = baseline.execution_name_policy?.native_recipe()?;
+            let policy = trace_root_script_option(
+                "root.policy",
+                trace_root_script_option("root.execution_policy", baseline.execution_name_policy)?
+                    .native_recipe(),
+            )?;
             if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
                 return None;
             }
-            let scope = state.original_namespace_geometry(namespace, policy)?;
+            let scope = trace_root_script_option(
+                "root.namespace_geometry",
+                state.original_namespace_geometry(namespace, policy),
+            )?;
             let current = (scope, policy);
             if selected.as_ref().is_some_and(|prior| prior != &current) {
                 return None;
             }
             selected = Some(current);
         }
-        selected
+        trace_root_script_option("root.selected", selected)
     }
 
     pub(crate) fn declaration_source_operand_layout_advice(

@@ -213,6 +213,19 @@ pub(crate) fn original_authored_source_structure(
     })
 }
 
+fn trace_authored_script_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
+        eprintln!(
+            "TAINT_SCRIPT_INGRESS stage={stage} present={}",
+            value.is_some()
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 /// Source-data access on a conditional Registry handler path. These variants
 /// describe the analysis model, not a successful runtime store or Native step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -383,11 +396,17 @@ pub(crate) fn original_authored_script_scalar_variable(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<AuthoredScriptScalarVariable> {
-    let (namespace, policy) = tokens
-        .source_binding
-        .as_ref()?
-        .original_standalone_script_variable_scope(tokens, registry)?;
-    let source = original_authored_source_structure(tokens, registry)?;
+    let (namespace, policy) = trace_authored_script_option(
+        "scalar.root_scope",
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_standalone_script_variable_scope(tokens, registry),
+    )?;
+    let source = trace_authored_script_option(
+        "scalar.structure",
+        original_authored_source_structure(tokens, registry),
+    )?;
     if !source.direct_written_arguments()
         || source.original_words.iter().any(|word| word.group().expand)
     {
@@ -432,11 +451,17 @@ pub(crate) struct AuthoredSourceTaintInvocation {
 
 impl AuthoredSourceTaintInvocation {
     pub(crate) fn capture(tokens: &CommandTokens, registry: &CommandRegistry) -> Option<Self> {
-        tokens
-            .source_binding
-            .as_ref()?
-            .original_standalone_script_variable_scope(tokens, registry)?;
-        let source = original_authored_source_structure(tokens, registry)?;
+        trace_authored_script_option(
+            "sink.root_scope",
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_standalone_script_variable_scope(tokens, registry),
+        )?;
+        let source = trace_authored_script_option(
+            "sink.structure",
+            original_authored_source_structure(tokens, registry),
+        )?;
         if !source.direct_written_arguments()
             || source.original_words.iter().any(|word| word.group().expand)
             || source.facts().arity_accepts_frozen_arguments() == Some(false)

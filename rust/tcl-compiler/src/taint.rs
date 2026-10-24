@@ -5769,12 +5769,19 @@ fn retained_sink_candidates<H>(
     }
     // The explicit current Standalone CU may carry possible source syntax,
     // not an executed target. Native/hosted or missing ownership is terminal.
-    if !native_source
-        && context.source.allows_nominal_metadata()
-        && context.source.module().is_some()
-        && let Some(selected) = crate::registry_invocation::AuthoredSourceTaintInvocation::capture(
-            tokens,
-            context.registry,
+    if trace_taint_cu_ingress_option("sink.not_native", (!native_source).then_some(())).is_some()
+        && trace_taint_cu_ingress_option(
+            "sink.standalone",
+            context.source.allows_nominal_metadata().then_some(()),
+        )
+        .is_some()
+        && trace_taint_cu_ingress_option("sink.module", context.source.module()).is_some()
+        && let Some(selected) = trace_taint_cu_ingress_option(
+            "sink.capture",
+            crate::registry_invocation::AuthoredSourceTaintInvocation::capture(
+                tokens,
+                context.registry,
+            ),
         )
     {
         let command = selected.command().to_owned();

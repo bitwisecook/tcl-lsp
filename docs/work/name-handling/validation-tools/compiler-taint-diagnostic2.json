@@ -33,15 +33,15 @@
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
     "rust/tcl-compiler/src/command_binding.rs": "d039f8dda5b219c0d61485ff91e44de046b5e990c78f4ebbd08a09889c7687ef",
-    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "8836c05a81e8e35fc3509a6b1d7a9e22d0219a4485ecaca2a5bdecce36453375",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "672da2536e7d2131b1aacedda32f9c75e86b694829118b05dca80c5989e8965f",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
     "rust/tcl-compiler/src/compilation_unit.rs": "7624df28beef03170948375b58339f4fee9a2dad0f69acf6ad831f536a8d1c17",
     "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
     "rust/tcl-compiler/src/realm.rs": "dc0f7a23e77db3446e293082cca28fd10dfa933c73feedb0d6bf396ded93c08d",
     "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
-    "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "4cc7a62f493db359aea5a0c31f735bfb1e3fdb9598e2287f76d2f60d3d58ed6e",
+    "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "d34aa0e79be31c3b2991bbead94ab946cd6167eea2e90e81b1e4c177a88a3859",
     "rust/tcl-compiler/src/ssa.rs": "9283d9cca3e8ce628b5064b3d4c2d577268ff43621579151fbb198a5162f7345",
-    "rust/tcl-compiler/src/taint.rs": "3e9c257478eb2a0cc3ca2db154d7a78ad45567863e0bab1ac4e8f9b136eec102",
+    "rust/tcl-compiler/src/taint.rs": "72ef52f097dd2e60aacb0bea4bed03e1bd6c3d5d93dae116bd1877348b8aca7f",
     "rust/tcl-compiler/src/taint/source_context.rs": "c2d90bef19004c90693f8e4c1a7bed819f09d21bd275c21b22d92a2292922ffd",
     "rust/tcl-compiler/src/taint_interproc.rs": "c42540595453dbaba933d6e6bb92cc0ff09697ce487c0a1ec6ed04d094ca60c0",
     "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d"
