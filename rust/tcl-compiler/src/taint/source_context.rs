@@ -123,6 +123,46 @@ impl<'a> TaintSourceContext<'a> {
         }
     }
 
+    /// Reborrow explicit standalone compatibility only for this actual CU's
+    /// current top-level graph and individually retained source carriers.
+    /// Supplied or withdrawn metadata never selects this compatibility path.
+    pub(crate) fn for_unit_function(
+        registry: &CommandRegistry,
+        unit: &'a crate::compilation_unit::CompilationUnit,
+        function: &'a FunctionUnit,
+    ) -> Self {
+        let source = Self::for_module_function(registry, &unit.ir_module, function);
+        let module = &unit.ir_module;
+        if function.body_id.is_some()
+            || !module.source_entry.metadata_context.is_standalone()
+            || !function.cfg.metadata_context.is_standalone()
+            || module.dialect_profile != registry.profile()
+            || !crate::ssa::current_authored_analysis_function(unit, function, registry)
+            || !function.has_original_semantic_value_owner()
+            || function
+                .semantic_value_projection
+                .retained_registry()
+                .is_none_or(|held| {
+                    held.snapshot().semantic_key() != registry.snapshot().semantic_key()
+                })
+            || !original_unit_source_graph(function, source.module_owner)
+        {
+            return source;
+        }
+        let Some(selection) = module
+            .source_entry
+            .metadata_context
+            .metadata_context(registry)
+        else {
+            return source;
+        };
+        Self {
+            metadata: selection.context(),
+            standalone: true,
+            ..source
+        }
+    }
+
     pub(crate) fn for_module(registry: &CommandRegistry, module: &'a crate::ir::Module) -> Self {
         let module_owner = module
             .retained_source_bindings
@@ -215,6 +255,48 @@ impl<'a> TaintSourceContext<'a> {
     }
 }
 
+/// Check the current graph against every retained source point, including
+/// synthetic operations. Missing or foreign original carriers remain absent.
+fn original_unit_source_graph(
+    function: &FunctionUnit,
+    owner: Option<&crate::command_binding::RetainedSourceModuleBindings>,
+) -> bool {
+    let Some(owner) = owner else {
+        return false;
+    };
+    let Some(points) = function.ssa.point_contexts.as_ref() else {
+        return false;
+    };
+    if !function.ssa.has_current_source_cfg_topology(&function.cfg)
+        || function.ssa.blocks.len() != function.cfg.blocks.len()
+        || function.ssa.blocks.iter().any(|(block, ssa)| {
+            function.cfg.blocks.get(block).is_none_or(|cfg| {
+                ssa.statements.len() != cfg.statements.len()
+                    || ssa
+                        .statements
+                        .iter()
+                        .zip(&cfg.statements)
+                        .any(|(ssa, cfg)| &ssa.statement != cfg)
+            })
+        })
+    {
+        return false;
+    }
+    let inventory = points.source_token_inventory();
+    if function.cfg.blocks.iter().any(|(&block, cfg)| {
+        cfg.statements.iter().enumerate().any(|(index, statement)| {
+            statement.synthetic_marker().is_none() && !inventory.contains_key(&(block, index))
+        })
+    }) {
+        return false;
+    }
+    !inventory.is_empty()
+        && inventory.iter().all(|(&(block, index), tokens)| {
+            function.cfg.source_input_tokens_at(block, index) == Some(tokens)
+                && owner.owns_original_tokens(tokens)
+        })
+}
+
 /// Independently reusable source-lattice inputs. The retained context owns
 /// metadata selection; argument and result obligations remain separate.
 #[derive(Clone, Copy)]
@@ -236,4 +318,182 @@ pub(crate) struct TaintPropagationInputs<'a> {
         >,
     >,
     pub(crate) instance_classes: &'a super::LocalInstanceClasses,
+}
+
+#[cfg(test)]
+mod original_standalone_unit_tests {
+    use super::*;
+
+    #[test]
+    fn explicit_standalone_unit_uses_its_current_original_token_owner() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let text = "set x [read $fd]\neval $x";
+        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let source = TaintSourceContext::for_unit_function(registry, &unit, &unit.top_level);
+        assert!(unit.ir_module.source_metadata_input.is_none());
+        assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(source.allows_nominal_metadata());
+        assert!(source.module_owner().is_some());
+        assert!(std::ptr::eq(source.module().unwrap(), &unit.ir_module));
+
+        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &unit, &foreign.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let mut swapped = unit.clone();
+        swapped.cfg_module.top_level = foreign.cfg_module.top_level.clone();
+        swapped.top_level.cfg = foreign.top_level.cfg.clone();
+        swapped.top_level.ssa = foreign.top_level.ssa.clone();
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &swapped, &swapped.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let mut changed = unit.clone();
+        let statement = changed
+            .top_level
+            .ssa
+            .blocks
+            .values_mut()
+            .flat_map(|block| &mut block.statements)
+            .next()
+            .unwrap();
+        statement.statement = crate::ir::Statement::unseen_call_marker(statement.statement.span());
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &changed, &changed.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let mut topology = unit.clone();
+        topology
+            .top_level
+            .cfg
+            .blocks
+            .get_mut(&topology.top_level.cfg.entry)
+            .unwrap()
+            .terminator = None;
+        topology.cfg_module.top_level = topology.top_level.cfg.clone();
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &topology, &topology.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let wrong_registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            !TaintSourceContext::for_unit_function(wrong_registry, &unit, &unit.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let mut withdrawn = unit.clone();
+        withdrawn.ir_module.source_entry.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &withdrawn, &withdrawn.top_level,)
+                .allows_nominal_metadata()
+        );
+
+        let mut replaced = unit.clone();
+        replaced.top_level.cfg.command_binding_sites.clear();
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &replaced, &replaced.top_level,)
+                .allows_nominal_metadata()
+        );
+    }
+
+    #[test]
+    fn coordinated_same_span_payload_edit_cannot_reuse_original_statement_custody() {
+        use crate::ir::Statement;
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set x [read $fd]\neval $x",
+            registry,
+            false,
+        );
+        assert!(
+            TaintSourceContext::for_unit_function(registry, &unit, &unit.top_level)
+                .allows_nominal_metadata()
+        );
+        let (block, index, mut payload) = unit
+            .top_level
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find(|(_, statement)| {
+                        matches!(
+                            statement.statement,
+                            Statement::Call { .. }
+                                | Statement::AssignValue { .. }
+                                | Statement::AssignConst { .. }
+                        ) && statement.statement.synthetic_marker().is_none()
+                    })
+                    .map(|(index, statement)| (block, index, statement.statement.clone()))
+            })
+            .expect("original evaluated value or call payload");
+        let span = payload.span();
+        match &mut payload {
+            Statement::Call { args, .. } => args.push("FORGED".to_owned()),
+            Statement::AssignValue { value, .. } | Statement::AssignConst { value, .. } => {
+                value.push_str("FORGED")
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(payload.span(), span);
+        let mut changed = unit.clone();
+        changed
+            .top_level
+            .cfg
+            .blocks
+            .get_mut(&block)
+            .unwrap()
+            .statements[index] = payload.clone();
+        changed
+            .top_level
+            .ssa
+            .blocks
+            .get_mut(&block)
+            .unwrap()
+            .statements[index]
+            .statement = payload;
+        changed.cfg_module.top_level = changed.top_level.cfg.clone();
+        let original = crate::ssa::SsaSourceView::at_statement(&unit.top_level.ssa, block, index)
+            .source_tokens()
+            .unwrap();
+        assert_eq!(
+            crate::ssa::SsaSourceView::at_statement(&changed.top_level.ssa, block, index)
+                .source_tokens(),
+            Some(original)
+        );
+        assert!(
+            unit.ir_module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .owns_original_tokens(original)
+        );
+        assert!(
+            !TaintSourceContext::for_unit_function(registry, &changed, &changed.top_level)
+                .allows_nominal_metadata()
+        );
+    }
+
+    #[test]
+    fn supplied_source_keeps_its_existing_strict_metadata_purpose() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "set x [read $fd]\neval $x",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let source = TaintSourceContext::for_unit_function(registry, &unit, &unit.top_level);
+        assert!(!source.allows_nominal_metadata());
+        assert!(unit.ir_module.source_metadata_input.is_some());
+    }
 }
