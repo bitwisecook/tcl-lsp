@@ -30,11 +30,10 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
   the workspace-enabled `clippy::pedantic`. Run `make check-rust`.
 - **Do not add `#[allow(...)]` / `#[expect(...)]` to silence a lint.** Fix the
   cause: `too_many_lines` → extract helpers; `similar_names` → rename;
-  `too_many_arguments` → group into a config/options struct. Allow only when
-  the lint is genuinely wrong *and* no reasonable refactor exists, with a
-  one-line comment saying why. Pre-existing allows are not licence for more.
-  The one clear pass: a config/options constructor whose many parameters
-  *are* the config — grouping them only makes the API worse.
+  `too_many_arguments` → group into a config/options struct. Pre-existing
+  allows are not licence for more. The one clear pass: a config/options
+  constructor whose many parameters *are* the config — grouping them only
+  makes the API worse.
 - Comments are plain and minimal, present only where the code does not
   convey the point. No banner comments (`// -----`, `// --- Text ---`) and no
   standalone separator lines; a plain `// Text` line instead.

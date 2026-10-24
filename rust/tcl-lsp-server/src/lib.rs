@@ -33456,7 +33456,7 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // `S-linked-editing-range-rich`: when the cursor sits
+        // When the cursor sits
         // on a proc declaration's name or inside the proc's
         // body, return every range that should be edited in
         // lock-step (the declaration plus any self-call sites
@@ -33599,7 +33599,7 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document_for_semantic_tokens(&uri).await? else {
             return Ok(None);
         };
-        // `S-semantic-tokens-rich`: real classification, served from the
+        // Semantic token classification comes from the
         // memoised `semantic_tokens` query (packed integer stream, 5 ints per
         // token `[deltaLine, deltaCol, length, type, modifiers]`).
         let core = self.semantic_tokens_core_data(&uri, &doc).await?;
@@ -33756,7 +33756,7 @@ impl LanguageServer for Backend {
         else {
             return Ok(None);
         };
-        // `S-semantic-tokens-rich`: filter tokens to those that
+        // Filter tokens to those that
         // start inside the requested range.  Editors call this
         // when only the visible viewport needs colouring.
         let core_range = core_semantic_range(params.range);
@@ -34390,7 +34390,7 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for_code_action_source(&uri, &doc, source.as_ref())
             .await?;
-        // `S-code-actions-rich`: walks the analyser's
+        // Read the analyser's
         // diagnostics for fixes whose span overlaps the
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
@@ -35279,8 +35279,7 @@ impl LanguageServer for Backend {
         let pos = params.text_document_position_params.position;
         let disabled_commands = self.resolved_signature_help_disabled_commands(&uri).await;
         // Per-dialect cached registry — same source the
-        // completion handler uses.  Threading it through lets
-        // `S-signature-help-rich` surface signatures for
+        // completion handler uses. Thread it through to surface signatures for
         // built-in commands (e.g. `puts`, `lsearch`) without
         // requiring a user proc with the same name.
         let registry = self.registry_for_dialect(&doc.dialect).await;
@@ -43993,8 +43992,7 @@ info exists ::N::v\uD800";
     /// O127's pair is an inline of the assignment at the use site plus a
     /// delete of the original, on different lines. Admitting only the delete
     /// removes the assignment without inlining it, which is the #2149
-    /// corruption in the apply path rather than the publish path. Codex
-    /// caught this on #2150 after the publish-path half was already fixed.
+    /// corruption in the apply path rather than the publish path (#2150).
     #[tokio::test]
     async fn optimise_document_command_never_applies_half_a_group_issue_2149() {
         // `# noqa` sits above the *use* site, so it covers the inline member

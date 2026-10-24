@@ -3556,10 +3556,8 @@ classes it produces inherit the private `tcloo-abstract` defaults. Explicit
 original object exports affect the source visibility query; they do not issue
 an ordinary Native default factory recipe. Positively retained Logical
 conditional advice cannot borrow the reached-only manufacture shape. The
-source-layout, owner-withdrawal and homogeneous/mixed collection controls
-check these distinct contracts; the public abstract-factory visibility evidence
-is recorded in
-tcloo-original-abstract-manufacturer-public-visibility.md.
+source-layout, owner-withdrawal and homogeneous/mixed collection controls check
+these distinct contracts.
 
 The internal SSA entry-binding adapter receives the compilation unit’s formal
 parameters before allocating scalar value versions. The seeded-parameter
@@ -5923,8 +5921,9 @@ actions in a bounded, one-use local ledger over the actual provider document.
 The shared checked document writer applies the retained plan after source,
 session and complete per-resource settings rechecks. Its returned actual source
 snapshot, rather than a guessed future version or active editor, owns the rename
-continuation. JSON metadata alone is not an editor receipt. See
-source-current-code-action-publication.md.
+continuation. JSON metadata alone is not an editor receipt. The current editor
+source owner is `editors/vscode/src/codeActionSource.ts`; the Server facade is
+`rust/tcl-lsp-server/src/lib.rs`.
 
 Live Studio pack metadata uses the [active-source publication contract](studio-active-source.md). The private Backend ledger and source confirmations are internal producers; the public entry above is the existing actual Server facade and checked SpecTcl discovery/load interfaces. Each ledger allocates its own transport issuer, and original provider/path receipts and published source images remain independent of it.
 

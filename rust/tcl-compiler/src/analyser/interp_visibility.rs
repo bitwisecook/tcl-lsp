@@ -2716,9 +2716,8 @@ mod tests {
     fn original_child_visibility_preserves_literal_colon_and_independent_allocations() {
         // Implementation contract: naming.interpreter.original-source-visibility-advice
 
-        // Exact colon and hidden/visible allocation CLI controls are recorded
-        // in interpreter-safe-visibility-source-controls.md. This source ledger
-        // remains conditional and never replaces an actual hidden-slot gate.
+        // This source ledger remains conditional and never replaces an actual
+        // hidden-slot gate.
         let source = "interp create -safe s\ninterp eval s {proc :source {} {return literal}; namespace eval :ns {proc source {} {return scoped}}; :source; :ns::source; source a.tcl}\ninterp expose s source :visible\ninterp eval s {:visible a.tcl; source b.tcl}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let result = Analyser::new().analyse(source, dialect);

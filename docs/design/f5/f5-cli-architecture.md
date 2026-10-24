@@ -37,9 +37,9 @@ separate top-level binary from the `tcl` binary.  It is a pure-Rust,
    (`src/stats.rs`), and the graph-driven analyses `src/cleanup.rs` /
    `src/grep.rs`.  The `f5 query` DSL lives in its own crate,
    `rust/tcl-bigip-query` (see
-   [`f5-query-dsl.md`](../../references/f5_query/dsl.md) for grammar, value
+   [DSL reference](../../references/f5_query/dsl.md) for grammar, value
    model, edit pipeline, and jq-compatibility notes, and
-   [`f5-query-dsl-builtins.md`](../../references/f5_query/builtins.md) for the
+   [built-in reference](../../references/f5_query/builtins.md) for the
    hand-maintained per-function reference).  The verb handlers in
    `rust/f5-cli/src/commands/` are thin shells over these two crates —
    they do file I/O and argument shaping, then hand the parsed

@@ -30,9 +30,7 @@
 //! permits its rest formal among other parameters. `arity_of_in` is explicit
 //! authored metadata under a selected grammar; `arity_of` is its C Tcl form.
 //! Neither function establishes an original formal producer or entered frame.
-//! The finite native matrix in `procedure-original-formal-count-shape.md` covers seven
-//! ASCII definitions and caught argument counts zero through five. Larger
-//! registry count limits are representation constraints, not native acceptance.
+//! Registry count limits are representation constraints, not native acceptance.
 
 use tcl_registry::Arity;
 

@@ -416,8 +416,7 @@ mod tests {
 
     #[test]
     fn combined_bridge_preserves_selected_parts_and_refuses_lost_counted_roots() {
-        // Software bridge contract over the shared selectors. Native variable
-        // input extents are recorded independently in variable-table-actual-abi-inputs.md.
+        // Software bridge contract over the shared selectors.
         // No cell, host API execution or physical variable identity is asserted.
         use super::super::NativeVariableInputForm::{Combined, Separate};
         let protocol = NativeNameProtocol::C(TclVersion::V9_0);

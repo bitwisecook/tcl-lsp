@@ -110,9 +110,8 @@ jobs:
   #                    `runtime/rust` is NOT a member of
   #                    the root workspace: `cargo test --workspace` never runs
   #                    those tests, and `wasm-real-link` builds and links the
-  #                    crate without running a single one of them, so before
-  #                    this flag existed a standalone-runtime semantic
-  #                    regression could land with every partition green.
+  #                    crate without running a single one of them. This flag
+  #                    selects the standalone-runtime semantic test closure.
   #                    The closure lives in
   #                    scripts/dev/runtime-rust-path.sh and is gated against
   #                    the committed lockfile by
@@ -122,11 +121,8 @@ jobs:
   #                    studio web app changed, so `web-frontends` must install
   #                    and check them.  Those two npm roots are NOT covered by
   #                    `ext_changed`'s jobs, which only ever install
-  #                    `editors/vscode`; until this flag existed nothing on a
-  #                    pull request resolved their dependency trees at all, and
-  #                    the only workflow that does (github-pages.yml) runs on
-  #                    push to `rust`, never on a PR.  A broken bump therefore
-  #                    merged green and took the Pages deploy down afterwards.
+  #                    `editors/vscode`. These dependency trees need their own
+  #                    install and checks on pull requests.
   #   runner_policy_changed — the self-hosted runner policy, dependency-update
   #                    policy, or the scheduling contract test changed. Such
   #                    PRs prove themselves on an isolated GitHub-hosted runner;
@@ -1148,9 +1144,7 @@ jobs:
   #                     `tcl-fuzz`'s plumbing unit tests (excluded from
   #                     rust-tests-shard so wasmtime/cranelift stay out of the main
   #                     partition's build graph; fuzz campaigns themselves are
-  #                     manual-only, never CI).  Measured 2026-08-13: ~44 s
-  #                     total.  Kept split for concurrency, not because it is
-  #                     still the long pole.
+  #                     manual-only, never CI). Kept split for concurrency.
   #   lsp-e2e           the native lsp_e2e suite: spawns the real tcl-lsp-server
   #                     via nextest's archived runtime path and drives LSP JSON-RPC
   #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)
@@ -1159,12 +1153,10 @@ jobs:
   #   wasm-real-link    the real whole-program WASM link, with the only CI
   #                     install of wasmtime / wasm32-wasip1 / wasi-sdk /
   #                     libtommath and `TCL_REQUIRE_WASM_LINK=1` so a missing
-  #                     one fails instead of skipping.  NOT yet
-  #                     wired into `create-release`'s `needs`, deliberately: it
-  #                     downloads a wasi-sdk release asset, and a transient
-  #                     404/timeout there must not be able to block a release.
-  #                     Promote it (and to a required check) once it has proved
-  #                     stable over a few weeks.  `tcl-compiler` is in
+  #                     one fails instead of skipping. `create-release` does
+  #                     not depend on this job because a transient wasi-sdk
+  #                     asset download failure must not block release producers.
+  #                     `tcl-compiler` is in
   #                     `rust-tests-shard`'s workspace run too, so `wasm_real_link.rs`
   #                     also executes there — without the toolchain, where it
   #                     skips loudly by naming what is missing.

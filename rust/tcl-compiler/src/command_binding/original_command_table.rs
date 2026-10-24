@@ -408,7 +408,6 @@ mod tests {
     fn closed_original_lookup_retains_missing_holder_absence_without_a_slot() {
         // Software contract only: a closed retained namespace roster proves
         // no named target, but does not supply an unknown-handler result.
-        // Provider bootstrap evidence: bootstrap-original-mathop-constructor-publication.md.
         for version in tcl_dialect::TclVersion::ALL {
             let (state, config, policy) = catalogue_state(version);
             let root = state.source_root_namespace_key().unwrap();

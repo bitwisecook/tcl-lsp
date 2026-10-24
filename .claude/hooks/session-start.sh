@@ -45,8 +45,8 @@ tcl_reference_load_toolchains "$REPO_ROOT"
 WASMTIME_VERSION="49.0.3"
 BINARYEN_VERSION="133"
 WASI_SDK_VERSION="34.0"
-# Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
-# (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
+# Rust tracks the floating `stable` channel to match `rust-toolchain.toml`.
+# Installing the channel — rather than a pinned
 # version — keeps it auto-updating to the latest stable and, critically,
 # means the wasm32-wasip2 target lands on the toolchain the project actually
 # uses. No manual bump needed when a new stable lands.

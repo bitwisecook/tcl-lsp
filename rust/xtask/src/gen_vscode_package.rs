@@ -416,7 +416,7 @@ fn inject_special_trailing_props(title: &str, ndiags: usize, props: &mut Map<Str
             "type": "array",
             "items": {"type": "string"},
             "default": [],
-            "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via the tcl-lsp config file (see docs/kcs/kcs-xdg-config.md).",
+            "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via the tcl-lsp config file (see docs/design/contracts/xdg-config.md).",
             "order": ndiags,
         }).as_object().unwrap().clone()));
     }

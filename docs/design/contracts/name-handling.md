@@ -1980,8 +1980,8 @@ The existing symbol-map display follows only a successful checked replacement.
 This is currentness at each actual publication/edit boundary, not a distributed
 filesystem lock or a claim that a remote provider cannot change afterwards.
 
-Implementation contract: `naming.lsp.original-document-transform-currency` in
-source-current-document-transforms.md.
+Implementation owners: `rust/tcl-lsp-server/src/document_transform.rs` and
+`editors/vscode/src/documentTransform.ts`.
 
 
 ### Positioned Logical procedure signatures and original argument cursors

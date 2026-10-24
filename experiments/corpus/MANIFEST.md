@@ -1,11 +1,10 @@
-# mro_eval corpus manifest
+# TclOO corpus manifest
 
-The corpus for the TclOO class-lattice experiment
-(`experiments/mro_eval/RESULTS.md`). External sources are **git-ignored**
+The corpus for TclOO class hierarchy tests. External sources are **git-ignored**
 (see `.gitignore`) and reconstituted by `fetch_corpus.sh`; only the
 hand-written `adversarial/` snippets and this manifest are committed.
 
-Totals used in RESULTS.md: **154 files, 66,827 lines, 448 TclOO classes,
+Corpus totals: **154 files, 66,827 lines, 448 TclOO classes,
 1,803 `$obj method` sites**.
 
 ## Committed (in-tree)

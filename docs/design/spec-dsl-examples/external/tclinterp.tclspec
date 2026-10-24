@@ -1,8 +1,8 @@
 # Focused SpecTcl pack for georgtree/tclinterp 0.15.
 #
-# This is documentation evidence, not a test dependency. The committed
-# regression fixture under tests/fixtures/spec-packs/ is deliberately
-# synthetic. Source evidence is pinned in tclinterp-validation-report.md.
+# This is an external package metadata example, not a test dependency. The
+# committed regression fixture under tests/fixtures/spec-packs/ is deliberately
+# synthetic. Upstream source provenance is pinned in [the corpus manifest](../../../../experiments/corpus/MANIFEST.md).
 
 speclib tclinterp 1.2 {
 

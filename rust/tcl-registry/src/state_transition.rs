@@ -3329,8 +3329,7 @@ mod tests {
     }
 
     /// Counted operands remain byte values in the shared alias projection.
-    /// `corner-upvar-counted-nul-target.md` records the engine-specific name
-    /// lookup question; this test establishes no successful lookup or cell.
+    /// This test establishes no successful lookup or cell.
     #[test]
     fn derived_alias_pairs_preserve_counted_values_without_text_projection() {
         use crate::{InvocationWord, frame_effect::FrameLevelWord};

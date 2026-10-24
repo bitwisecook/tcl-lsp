@@ -6,10 +6,8 @@ Consumers select the getter purpose and actual object context independently of
 source numeral grammar. A parsed value or a dialect label supplies no object,
 interpreter, handler or execution permission.
 
-The public observations are recorded in
-numeric-original-capi-scalar-publication-width.md.
-Expression Boolean purposes have their independent record in
-numeric-original-primitive-boolean-vs-expression-truth.md.
+Expression Boolean handling remains independent from primitive Boolean
+getter behaviour.
 The broader number and expression contract is
 [numeric-tower-and-expr-semantics.md](numeric-tower-and-expr-semantics.md).
 
@@ -103,11 +101,9 @@ selected operation. An interpreter-local mirror cannot replace that owner.
 
 `WasiHost` supplies an environment only for `wasm32-wasip1`, using that compiled
 guest's libc types, conversion functions and errno cell. Browser and preview-2
-routes remain independently unavailable. The SDK and standalone Rust guest
-observations in
-numeric-wasi-libc-environment.md
-record environment facts. Applying them to a Runtime requires its own selected
-libc/link closure and separate Runtime validation; they establish no original
+routes remain independently unavailable. Applying host environment facts to a
+Runtime requires its own selected libc/link closure and separate Runtime
+validation. Host environment facts establish no original
 Tcl Long32, expression, object or execution recipe.
 
 ## Preserve the selected conversion

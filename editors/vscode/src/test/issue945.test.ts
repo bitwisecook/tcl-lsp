@@ -16,12 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Resolution-model follow-up, editor-integration layer:
-// constant-`$cmd` rename provenance (fault 1), TclOO export visibility +
-// dispatch entry + per-object binding identity (faults 4-6), and probe
-// references (fault 9).  The deep TP/FP/TN/FN coverage lives in the
-// analyser and native e2e suites; these prove the same behaviour arrives
-// through a real VS Code session.
+// Editor integration coverage for constant-`$cmd` rename provenance, TclOO
+// export visibility, dispatch entry, per-object binding identity and probe
+// references. The analyser and native e2e suites cover the full resolution
+// matrix; these tests drive the same behaviour through a real VS Code session.
 
 import * as assert from "assert";
 import * as vscode from "vscode";
@@ -93,14 +91,13 @@ suite("Issue #945 resolution model", () => {
     );
   });
 
-  // Two confirmed false positives, found after related
-  // dispatch-resolution fixes landed. Both confirmed
-  // against tclsh 8.6.14; deep TP/FP/TN coverage lives in the analyser and
+  // These regressions are confirmed against tclsh 8.6.14.
+  // Deep TP/FP/TN coverage lives in the analyser and
   // native e2e suites (see `fact_live_for_call` / `finalise_invocation_resolutions`
   // unit tests and `rust/tcl-lsp-server/tests/e2e/issue945.rs`); these
   // prove the fixes reach a real VS Code session.
 
-  test("body call before a later deletion draws no W123 (Codex review)", async () => {
+  test("body call before a later deletion draws no W123", async () => {
     const docUri = getDocUri("issue1009CodexBodyCallBeforeDeletion.tcl");
     const document = await activate(docUri);
 
@@ -122,7 +119,7 @@ suite("Issue #945 resolution model", () => {
     );
   });
 
-  test("namespaced local call before a later deletion is a reference to the local definition (Codex review)", async () => {
+  test("namespaced local call before a later deletion is a reference to the local definition", async () => {
     const docUri = getDocUri("issue1009CodexLocalCallBeforeDeletion.tcl");
     await activate(docUri);
 

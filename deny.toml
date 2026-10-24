@@ -90,9 +90,8 @@ allow = [
 confidence-threshold = 0.93
 exceptions = []
 
-# Some crates ship an SPDX expression we can't auto-evaluate (e.g.
-# `ring` uses ISC AND MIT AND OpenSSL).  List clarifications here if
-# they come up — leaving empty until an audit surfaces one.
+# Explicit licence clarification for `ring`'s ISC AND MIT AND OpenSSL
+# expression, pinned to the crate's licence file.
 [[licenses.clarify]]
 name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
@@ -117,16 +116,13 @@ external-default-features = "allow"
 # Crates we never want to see (security history, abandoned, replaced).
 deny = []
 
-# Crates that are intentionally allowed to appear multiple times.
-# pyo3 / tokio / etc. ecosystems frequently pull in old + new of the
-# same crate; bump to warn-only for now and only `deny` when the
-# divergence becomes actionable.
+# Duplicate versions warn without per-crate or per-tree exclusions.
 skip = []
 skip-tree = []
 
 # --------------------------------------------------------------------
 # 4. Source allowlist — block crates from unexpected registries / git
-#    refs.  crates.io is the only allowed source for now.
+#    refs. crates.io is the only allowed source.
 # --------------------------------------------------------------------
 [sources]
 unknown-registry = "deny"
