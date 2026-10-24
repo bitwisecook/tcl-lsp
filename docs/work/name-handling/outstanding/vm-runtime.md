@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T10:39:17.552143+00:00
+Last updated: 2026-10-24T11:01:26.824398+00:00
 
 ## Resume and rules
 
@@ -18,6 +18,35 @@ strict/baseline/semantic/performance gates remain binding. No duplicate dispatch
 Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz and
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
+
+## Current hosted monitoring and exact baseline descriptors
+
+NewWORK1b04653acc67189257e25d6bdee06cda1b55471b runtime40087999516
+job120854756389 launched10:58:16, checkout at11:00; all131 stillUNRUNpendingbuild.
+IncludesEnvV2+finerCE+Range+3oldfixturefixes; no measurednewoutcome yet.
+NewCLEANee6ad0fc1d7505d331ff550c9342c72040a846d3 CI40087877719
+runtime120854452899/Spec120854452895/WASM120854452958 active since10:56:40.
+Strict120854452876 FAIL sole doc_markdown native_range.rs16 GetRange backticks,
+rootlatercommentdd941 likelyalreadyfixes; no duplicateauthor/newactualclaim.
+RawZIP vm-ci-current-40087877719/rust-check-120854452876.zip/rawSHA13e847b4.
+
+OldCI snapshot now FROZEN vm-ci-terminal-inventory-20261024/receipt.json
+SHAf43c5c2e6b5dac94fd6c3eafb63e1e132c1e342288ea0acce89baad0c0622565.
+Workdd9 run40071600890 remainsIN_PROGRESS (2/5+5/5active at10:56); clean3ee2
+40068590762 completedFAIL. No oldhealthyjob canceled. Allrawacquiredlogs ZIPonly
+(completeclean455KB+7workdecodedconnectedlog ZIPs), CRC+SHA+checkouthead/API joins.
+Workheavy355closed321P34F; shards1/3 invalidcapture+manyunknown, shard4 partialonly
+1008selected of3023; missingfooter causeUNKNOWN. Ignoredevents outsideeligiblelist
+remainSKIP, notprotocolviolation orPASS. Runtime shared1886P104F+stackABORT;
+Spec40P2F, WASM22P3F. CleanruntimeE0282 allsemanticUNRUN; Spec40P2F/WASM1P24F.
+Exactbaselineidentity compare workworkspace24312:1476P704PF22132UNKNOWN;
+separatefullTom998:611P6PF381UNKNOWN. Clean24312:36P16PF24260UNKNOWN,
+all998fullTomUNKNOWN. No zeroPF orwholecoverage claim; notnewf20/ee6verdict.
+Namedinventory ZIPe1922b98 allrawrecord/failure+comparison/protocol capturedmetadata.
+baseline-per-test-descriptors.zip SHA23c13d0787e6c15dc1466b4f204d561a85b6178c5c58b0ca2936d30f61e866d7
+containsEACHlane25310 JSONL exactbinary/selector+baselineauthorityhash/index/recordSHA
+and currentjob/line/status/classification. Manifest5aa74a8a. Root notified fullpins;
+allbaselinerows retained, no basename/rename/unknownPASS substitution/sourcefix waiver.
 
 ## Current successors: EnvV2 independently clear; post-refusalV4 still HELD
 

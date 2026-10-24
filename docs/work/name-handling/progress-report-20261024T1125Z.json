@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T11:25:49.112548+00:00",
+  "scheduled_report_utc": "2026-10-24T11:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T11:55:37+00:00",
+  "change_since_previous_report": [
+    "Current reviewed WORK21669895cee28eeff1dc18d40634f6752d2749d6 and CLEANb638433020b3740270845999e2eb5315854ebf2d are pushed after fresh shallow work fetch/rebase. Functional fixes remain on work; development evidence and diagnostic workflows remain outside the release branch. No PR, merge, tag or release. Six-hour target missed; all required shipping gates remain open.",
+    "Focused runtime40087999516 exact1b04653 is fully authenticated receipt257cfbb7: original3PASS; originalbaseline14 now13PASS1FAIL, up from10PASS4FAIL; other103=10PASS93FAIL, stackABORT, oldprune6PASS1FAIL, newtargeted3PASS. All131 executions/groups and full443member/source/provider/backend seals close; CFI remains incomplete, so wholeprotocol is not accepted. Remaining original guard fails specifically after runtime profile pin, not namespace path mutation. All original assertions stay.",
+    "Fresh CLEANCI40087877719 exactee6ad0fc1 is active. Its runtime subset independently reports all14Env testsPASS, including alias regressions. Baseline998 mapped subset616PASS1PASS-to-FAIL381UNKNOWN is incomplete. Original stack-limit test aborts. Full CI rust-check firstfails doc_markdown for GetRange at native_range.rs16; the exact comment is fixed on workb8886e3/CLEAN7e1d090. No broad green inferred from partial successes.",
+    "Native preflight40088001968 exact1b04653 now2PASS1FAIL, up from0/3: both original CLItrace controlsPASS; Range67/StringMap61 genuinely report NotRequired/no preflight failure. Bootstrap progresses to original OO Name target/facet refusal in session construction, owned by VM/runtime. Authenticatedassessmentc986f463 preserves bootstrap failure and fullsource/process guards. No executable TMM grant.",
+    "Spec40087997577 exact1b04653 remains original11=9PASS2FAIL plus NativeFirstFAIL, fullreceiptb998d102. Existing selected-values observer proves the failing proc metadata callback is never entered and no role/plain-script/timing-decline tag occurs; exact re-resolution boundary now under source review. WASM40088004000 remains22PASS3FAIL with fullreceipt34b2ac7b; allocation/recursion/NativeAdd remain. No guard or depth limit weakened.",
+    "Productive private tclIndex structural analysis independently source/purpose/API/owner-cleared6916e921 and integratedb71a94b/b638433. Same input/realm/schema/typedregistration/vector/filename guards remain, genericpkgIndex/cache/legacy unchanged. Actualequivalence and speed UNRUN. Separate Core2 protocolV2 is technically cleared9e05d686; original startup3checks/8workers/allbudgets untouched. WORK-only globalrustcheckmode preserves current CI effectiveenv/toolchain/command, intentional shallow no-tag checkout,20MiB logs/2GiB floor; no CIacceptance replacement.",
+    "Fresh pure source preflightV9 on21669895 PASS:13startup inputs,28runnerASTs,14whole-input guards, all previous maps retained plus newCore2 map. Globalstrict/startup+separateCore2/currentcompiler67 are being dispatched coherently; previous same-mode captures are terminal and healthyfullCI remains untouched. Existing braced-fold row24 flag activated without any new Rust instrumentation or selector/assertion change.",
+    "Compiler SCRIPT/sinkV8 held4acaaec9 for a real intervening-write clean-source seam; owner is implementing conservative rawSource-taint and strictly owned quiet same-block literal advice. Current source is not admitted. Compiler-codegen owns disjoint fp_rbs15 triage while Compiler and Names preserve source/SSA coverage. Jim metadataV3 remains frozen/held without originalfailure closure; genuine reference-free prefix/caller producer is next, not an assertion rewrite.",
+    "Release current text census11033files is fully joined0drift/0removedworkpath references; independentcontextreview2bba97f4 reviewed all12newhits/all19obsolete filenames removed. Release-only versionrange comment cleanupdd941 corrects stale bitset docs to current string-slice APIs. Subsequent source deltas need final audit. RootwholefmtPASS6d3244; later per-file formatting recorded. Runtimeformat command exited0 but HEAD changed during it, so exact-current formatgate remains unaccepted; failed/concurrent attempts retained.",
+    "Paired Tcl performance remains unaccepted. Olda169 macOS candidate has actual120.061s scanFAIL and1800s edit.tokens deadline before cleanupEPERM; threeLinux jobsshutdown143/noartifacts. No pairedratio. Future cleanup-permission receipt fix is frozen and awaiting rootprocessreview; it preserves real failure/budgets. Final shipping candidate still needs complete matched Tclcorpus comparison; dedicatediRulesperformance waived.",
+    "PostrefusalV4 remains held awaiting the user observation-coverage answer after technicalcleara71ab5fc; no implementation assumed. External BIGIP13:17 and perf03:22 remain staleover60minutes, usernotified, no broader takeover. Reviewtriage COMPLETE. Workspace1.2GiB/tmp39MiB forbids localbuilds, ZIP-only evidence retained. Nextcycle11:55UTC."
+  ],
+  "committed": [
+    "36b92f3b379eaa005bfb8808764797f8725944e8"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish11:25 WIP/report and rearm11:55reminder.",
+    "Run coherent globalrustcheck/startup+Core2/compiler captures; preservefullCIhealthyjobs.",
+    "Fix profilepin CE, stackabort, Specmetadata/OOName, fp_rbs/taint/Jim and WASM blockers without weakening assertions or guards.",
+    "Require sectionF, all requiredgreen repository/host/editor/generated/format/docs/comments, zero complete baselinePASS-to-FAIL and accepted Tclcorpus performance beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 1214001152,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
