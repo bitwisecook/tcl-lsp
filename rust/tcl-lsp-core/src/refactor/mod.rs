@@ -80,6 +80,7 @@ pub use inline_variable::inline_variable;
 pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
+use crate::original_invocation::schema_argument_roles;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex};
 #[cfg(test)]
@@ -1153,10 +1154,7 @@ fn body_words_with_owner(
         return Vec::new();
     };
     let context = owner.editing_input().context_registry();
-    // The closure is required: the method path is not general enough
-    // over the schema borrow's higher-ranked lifetime.
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    let Some(Some(roles)) = words.with_source_schema(&context, |schema| schema.arg_roles()) else {
+    let Some(Some(roles)) = words.with_source_schema(&context, schema_argument_roles) else {
         return Vec::new();
     };
     let mut out = Vec::new();

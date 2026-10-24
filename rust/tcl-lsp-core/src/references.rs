@@ -60,6 +60,7 @@
 //! context; readonly source references cannot provide a Native original
 //! query, entered worker or edit permission.
 
+use crate::original_invocation::schema_script_arguments;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::OriginalSourceSpecialMemberMetadata;
@@ -4427,11 +4428,8 @@ pub(crate) fn frame_shifted_dispatch_regions(
                 (span.start() as usize, span.end() as usize)
             }));
     }
-    // The closure is required: the method path is not general enough
-    // over the schema borrow's higher-ranked lifetime.
-    #[allow(clippy::redundant_closure_for_method_calls)]
     let executable = words
-        .with_source_schema(&context, |schema| schema.authored_source_script_arguments())
+        .with_source_schema(&context, schema_script_arguments)
         .flatten()
         .unwrap_or_default();
     for (index, role) in words.roles().unwrap_or_default() {

@@ -18,6 +18,7 @@
 
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
 
+use crate::original_invocation::schema_clause_plan;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::ArgRole;
@@ -86,10 +87,7 @@ pub fn if_to_switch(
     let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
     let context = current.context();
     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
-    // The closure is required: the method path is not general enough
-    // over the schema borrow's higher-ranked lifetime.
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    let plan = original.with_source_schema(&context, |schema| schema.clause_plan())??;
+    let plan = original.with_source_schema(&context, schema_clause_plan)??;
     if plan.defect.is_some() {
         return None;
     }
