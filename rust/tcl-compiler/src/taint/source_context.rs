@@ -133,27 +133,50 @@ impl<'a> TaintSourceContext<'a> {
     ) -> Self {
         let source = Self::for_module_function(registry, &unit.ir_module, function);
         let module = &unit.ir_module;
-        if function.body_id.is_some()
-            || !module.source_entry.metadata_context.is_standalone()
-            || !function.cfg.metadata_context.is_standalone()
-            || module.dialect_profile != registry.profile()
-            || !crate::ssa::current_authored_analysis_function(unit, function, registry)
-            || !function.has_original_semantic_value_owner()
-            || function
-                .semantic_value_projection
-                .retained_registry()
-                .is_none_or(|held| {
-                    held.snapshot().semantic_key() != registry.snapshot().semantic_key()
-                })
-            || !original_unit_source_graph(function, source.module_owner)
+        if trace_standalone_unit_guard("body_id", function.body_id.is_some())
+            || trace_standalone_unit_guard(
+                "module_standalone",
+                !module.source_entry.metadata_context.is_standalone(),
+            )
+            || trace_standalone_unit_guard(
+                "cfg_standalone",
+                !function.cfg.metadata_context.is_standalone(),
+            )
+            || trace_standalone_unit_guard(
+                "registry_profile",
+                module.dialect_profile != registry.profile(),
+            )
+            || trace_standalone_unit_guard(
+                "current_original_function",
+                !crate::ssa::current_authored_analysis_function(unit, function, registry),
+            )
+            || trace_standalone_unit_guard(
+                "semantic_value_owner",
+                !function.has_original_semantic_value_owner(),
+            )
+            || trace_standalone_unit_guard(
+                "retained_registry",
+                function
+                    .semantic_value_projection
+                    .retained_registry()
+                    .is_none_or(|held| {
+                        held.snapshot().semantic_key() != registry.snapshot().semantic_key()
+                    }),
+            )
+            || trace_standalone_unit_guard(
+                "original_source_graph",
+                !original_unit_source_graph(function, source.module_owner),
+            )
         {
             return source;
         }
-        let Some(selection) = module
-            .source_entry
-            .metadata_context
-            .metadata_context(registry)
-        else {
+        let Some(selection) = super::trace_taint_cu_ingress_option(
+            "standalone_metadata_selection",
+            module
+                .source_entry
+                .metadata_context
+                .metadata_context(registry),
+        ) else {
             return source;
         };
         Self {
@@ -253,6 +276,13 @@ impl<'a> TaintSourceContext<'a> {
     pub(super) const fn allows_nominal_metadata(self) -> bool {
         self.standalone
     }
+}
+
+fn trace_standalone_unit_guard(stage: &str, refused: bool) -> bool {
+    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
+        eprintln!("TAINT_CU_INGRESS stage={stage} refused={refused}");
+    }
+    refused
 }
 
 /// Check the current graph against every retained source point, including

@@ -31,6 +31,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
@@ -135,6 +136,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-sh21-",
             "supplemental-readflow1-",
             "diagnostic-catch1-",
+            "diagnostic-taint2-",
             "list-",
             "select-",
         )
@@ -151,6 +153,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-sh21-",
             "supplemental-readflow1-",
             "diagnostic-catch1-",
+            "diagnostic-taint2-",
         )
     ):
         require(
@@ -367,7 +370,7 @@ require(
     "exact separate catch diagnostic1 input pin",
 )
 catch_diagnostic = json.loads((BASE / "compiler-catch-diagnostic1.json").read_text())
-catch_original = [
+catch_original: list[dict[str, Any]] = [
     row
     for row in original_rows
     if row["package"] == "tcl-compiler"
@@ -399,7 +402,44 @@ catch_rows = [
         "state": "UNRUN",
     }
 ]
-rows = original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
+require(
+    sha(BASE / "compiler-taint-diagnostic2.json")
+    == "1651a9d647926fb276e542d5416ff5319e621c4862498323ebe5a45d08202650",
+    "exact separate taint diagnostic2 input pin",
+)
+taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
+taint_original: list[dict[str, Any]] = [
+    row
+    for row in original_rows
+    if row["package"] == "tcl-compiler"
+    and row["kind"] == ["test"]
+    and row["target"] == "taint"
+    and row["selector"] == "dangerous_sinks::eval_sink"
+]
+require(len(taint_original) == 1, "taint duplicate requires one original identity")
+taint_expected: list[dict[str, Any]] = [
+    {key: taint_original[0][key] for key in ["package", "kind", "target", "selector"]}
+    | {"env": {**taint_original[0]["env"], "TCL_LSP_TRACE_TAINT_CU_INGRESS": "1"}},
+    {
+        "package": "tcl-compiler",
+        "kind": ["lib"],
+        "target": "tcl_compiler",
+        "selector": "taint::source_context::original_standalone_unit_tests::explicit_standalone_unit_uses_its_current_original_token_owner",
+        "env": {"TCL_LSP_TRACE_TAINT_CU_INGRESS": "1"},
+    },
+]
+require(
+    taint_diagnostic["expected_selected"] == 2
+    and taint_diagnostic["rows"] == taint_expected,
+    "taint diagnostic2 exact identities/env differ",
+)
+taint_rows: list[dict[str, Any]] = [
+    {**row, "group": "diagnostic-taint2", "state": "UNRUN"} for row in taint_expected
+]
+original65_rows = (
+    original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
+)
+rows = original65_rows + taint_rows
 require(
     len(
         {
@@ -410,7 +450,7 @@ require(
                 row["target"],
                 row["selector"],
             )
-            for row in rows
+            for row in original65_rows
         }
     )
     == 65,
@@ -583,6 +623,10 @@ try:
         "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS" not in env,
         "separate catch diagnostic flag must remain per-selector only",
     )
+    require(
+        "TCL_LSP_TRACE_TAINT_CU_INGRESS" not in env,
+        "separate taint diagnostic flag must remain per-selector only",
+    )
     jim_root = Path(env["TCL_LSP_JIM_ROOT"]).resolve()
     jim_reference = dict(
         line.split("=", 1)
@@ -650,6 +694,7 @@ try:
                 **sh21_diagnostic["source_pins"],
                 **readflow["source_pins"],
                 **catch_diagnostic["source_pins"],
+                **taint_diagnostic["source_pins"],
             }.items()
         ),
         "original test/observer input changed",
@@ -702,7 +747,7 @@ try:
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
                 "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
-                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged.",
+                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
@@ -713,6 +758,7 @@ try:
             "separate_sh21_diagnostic2": sh21_diagnostic,
             "separate_readflow1": readflow,
             "separate_catch_diagnostic1": catch_diagnostic,
+            "separate_taint_diagnostic2": taint_diagnostic,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -1051,12 +1097,196 @@ try:
                 sha(executable) == artifact["sha256"], "selected test artifact changed"
             )
     require(
+        all(row["state"] in ["PASS", "FAIL"] for row in original65_rows),
+        "taint diagnostics cannot precede original65 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-taint diagnostic source/provider/tool/dependency drift",
+    )
+    for index, row in enumerate(taint_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "taint diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "taint diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "taint diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = (
+            "supplemental" if row["group"] == "diagnostic-taint2" else "original"
+        )
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "outcomes.json", rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "outcomes.json", rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "outcomes.json", rows)
+            raise
+        save(out / "outcomes.json", rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+    require(
         len(original_rows) == 58
         and len(supplemental_rows) == 3
         and len(sh21_rows) == 2
         and len(readflow_rows) == 1
         and len(catch_rows) == 1
-        and len(rows) == 65
+        and len(original65_rows) == 65
+        and len(taint_rows) == 2
+        and len(rows) == 67
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -1149,6 +1379,11 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in catch_rows
             ),
             "catch_diagnostic1_outcomes": catch_rows,
+            "required_separate_taint_diagnostic_tests": 2,
+            "taint_diagnostic_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in taint_rows
+            ),
+            "taint_diagnostic2_outcomes": taint_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
