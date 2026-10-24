@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T07:18:06Z
+Last updated: 2026-10-24T07:51:28Z
 
 ## Resume and rules
 
@@ -67,6 +67,21 @@ No Nativegetters/retain/clone/bytes/descriptor-name/cachewalk/counterreset/newpr
 Refguards droppedbeforestderr; rawaddresses diagnosticONLY, pointerreuse notidentity.
 Partialroots, no ownership/cause/fix acceptance. Current5pins/copyF-R-F0/fmt3/wholeold
 source+WATinverse PASS; independentpeer PENDING(rootrouted), allactualUNRUN.
+
+V1 PERMANENTHOLD: CCG c2fd412f fullread found unsafe nullheaderdereference; runtime
+allocator/new_obj mayreturnnull while liveInterp constructorstillstoresresult. Noactual
+OOM claimed. MinimalV2 frozen vm-wasm-held-allocation-observer-v2 patch
+5f518005d3328bb178b7aaacf087230995c5936cdaaa1000ff57344600f755d1
+manifest377b073a5a53284846380826564e9f5f1fec7b5019ccc8cf9901e6c6caef6af0
+V1delta974020f66de9f759b27ae086b2739cf51dc7e0879ed69e448302073c5264b63a.
+inspect pointer.as_ref()?→Option andoptionalroots.and_then/directinnerOption; no null
+headerfieldread. Onlyhelper+itsrosterhash/soledriverdigest differfromV1, capi/WAT exact.
+Current5beforepins5512/full+deltaF-R-F0/fmt3PASS; CCG full+narrow independent
+SOURCE/API/unsafe-lifetime/protocol CLEAR receipt
+ccg-peer-wasm-held-allocation-observer-v2/receipt.json
+SHA9f0178985c7034fc18f9b28fa7fc845b97f79391feace472383fc15685ce2de4
+verified/rootnotified07:40:45. Root-onlyintegrationREADY; freshcompile/actualUNRUN. Weakarray
+metadata islen/Weak::strong_count only, no upgrade/deref/cachecontentwalk. AllUNRUN.
 
 ## Latest actual TWO hosted BUILD FAILURES: all131 planned invocations UNRUN
 
@@ -151,6 +166,28 @@ original ok resets privateCell before singleeval, emits enum postFAIL+baselinefl
 No getters/query/I/O/errno/FP reset orproductionchange. Some means FIRSTquietLinkerror,
 possiblycaught earlier; None leavesother routes open, never automatic finalcause.
 Four Env aliases sourcecause stillOPEN until actualpostbuildpayload.
+
+## Env4 current priority: exact CodeError cause still pending
+
+Root prioritized OLD baseline4Env, other2guard expectations unchanged/policy pending.
+Existing armed/root/traceRoot/refusalNone emitted BEFORE testbody: bootstrapproofonly.
+QuietCLinkVarErrorNone excludesonlythatbranch. Actualupvar error routes include
+select_frame and selectedCtarget/preparetarget/bindlocal/currentness/Hostrefusal.
+Native report_cmd_error can returnquietError withpendingHostrefusal. No uniquecause
+provedreadonly, no semanticpatch guessed.
+Frozen WORK-only vm-env-upvar-first-failure-observer-v1 patch
+e197d7fb3131c909f3d94a0bd6d01acdec7f3a042b82f5c7d8eaa78dda0331dc
+manifestdeeaacb26c7f2e3dcec575188550a20e3d36845a5b3380c318e33eab5585146f
+ownerfd3cee073cd880c2c58b06f4fd405ed816d5e13b0c01542cba1cae39155a153b.
+Fourfiles env_trace/cmd_var/native_variable_names/native_compilation; before033ea.
+CfgtestfirstnonOk upvar Copyphase+VarError; sameprivate resetpoint; sameSINGLEeval,
+Copyheld failure snapshot onlypostnonOk beforeSAME oldresultgetter. Existingflagonly
+prints postfailure; staticrefusalkind/Copyaccess/admission/busy/hostpresence/nullable
+resultnumericheader metadata. No Nativeerrorclone/query/getter/retain/reset/counters/
+assertion/budget changes. Originalallguards/testbodies/callcounts exact; fullreplay/
+F-R-F0/fmt4PASS; independenttype/ownerpeer PENDING(rootrouting). NotCLEANcarried.
+Firstupvar failure canbeearliercaught error; snapshotbeforeexistingresultgetter shows
+heldstateatactualevalreturn, not a new sourceoperation. Rawaddresses metadataonly.
 
 ## Source peers handed off (fresh strict/runtime still mandatory)
 

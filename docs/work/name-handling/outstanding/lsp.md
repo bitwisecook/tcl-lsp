@@ -1,6 +1,8 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-24T07:32:41Z
+Last updated: 2026-10-24T07:49:00Z
+
+Current handoff 2026-10-24T07:49:00Z: Scan1 V5 AUTHOR-FROZEN at /workspace/naming-proof-storage/lsp-server-workspace-scan-one-length-v5, WORK667f873e/manc6b6ac8b + CLEANacddd9f4/man9a4e58e5. Complete actual-helper/full-parent wholeoriginal inverse, currentold once, copiedF-R-F0/fmt/testsuffix/assertallow audit8c337addeb836dd1b7b878e35f8006b53d978303a8bd16c908a7b29a2fe01015; owner/type/clock auditda719206b40e9c80a681807529a9d0d4a4995e3f779c0392ebd70df343dcbeff. Named staleUri/admission/factorySync callerkeepalives, callerEvidenceHandles, oldscanGuard/readiness/query/order remain; five WORK-only trace identitycalls add no clock when flagunset. ParentWORK96/CLEAN75; helpers correctly separate inherentBackend. Independent Names peer requested/delivery confirmation pending, NOTREADY/no Rust/lint/runtime/perf claim. Earlier scan drafts held. Merge1/Disk1 remain unprepared. Publication corrected-current V5 rootcarry pending; WillRename clear62d1029d needs currentcarry afterpublication. Latest API no newer startup after dd9; historical dd9 runtimeALLUNRUN unchanged.
 
 Current handoff 2026-10-24T07:32:41Z: dd9 startup40071613242/job120806068101 CLOSED BUILDFAIL fourE0407/E0599, allcold/scan/Context/refusalobserverUNRUN. /workspace/naming-proof-storage/lsp-hosted-startup40071613242-actual-v1/assessment-v1.json 228cc5efaf961c6c1e2b41307e2d2916315f6ff0bb0a40734c4566e35e72fb15 FULLAUTH API12552415027/ZIP10174457B SHAddb5223afeca226e8a321c604f560b7bd0f9dd902a8cdb86c3e4810acd4d6d64/CRC/full126047Gitmembership+tree/10critical+13pins/source/provider2256/deps21503/tools7 stable, fetch0/build101765.091s two complete ownedemptygroups/no guardstop/cap/floor. No selectedserver/materialisedworkers/system-before. Latest actualproduct remains2dd cold97.9PASS→scan30FAIL +ContextsecondvalidationFAIL. Root owns nextdispatch only, no rolecancel/rerun/build.
 

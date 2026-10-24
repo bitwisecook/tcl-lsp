@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T07:56:38.592598+00:00",
+  "scheduled_report_utc": "2026-10-24T07:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T08:25:37+00:00",
+  "change_since_previous_report": [
+    "Product fixes are on WORK 01965e4d51fcfd615c5e539948787608010a6d13; the release cleanup branch is CLEAN 90f16449c8987a77f9042bfc55a262a6fd5d7b54. Fresh shallow fetch/rebase/push is running before this documentation checkpoint. No PR, merge, tag or release. The six-hour target was missed; required gates remain open.",
+    "Latest authenticated outcomes remain: Jim 6/7 PASS; compiler original58 52/58 PASS plus6 supplements PASS and catch diagnostic FAIL; SpecTcl9/11 PASS plusNative supplement FAIL; Heavy0/3 PASS; realWASM22/25 PASS. Runtime original3 allPASS, including append165.042s; baseline14=8P6F, other103=4P99F, stackABORT, prune7=6P1F, targeted3=3P. Runtime all131 invocations completed, but CFI capture remains incomplete. No new corpus performance acceptance or full baseline clearance.",
+    "The runtime baseline inventory distinguishes6 confirmed old standalone regressions (4Env and2guard cases) from new named tests. The complete separate baseline is753lib+245integration, alongside the main24312 ledger. This distinction does not waive CI, assertion strength or required SpecTcl/runtime coverage. Env source tracing now confirms refusal/root snapshots previously cited were beforeeval; posteval firstcause observer is frozen for independent review.",
+    "Two private rename helpers were moved into the inherent Backend implementation, fixing the actual E0407/E0599 source mistake. Independent cf13ea32 verifies literal bodies/caller/tests unchanged and all33 known helper namespaces correct. Diagnostic publication factoring is integrated after root carry c00d2be6, preserving that correction. WillRename and Scan1 components await current carries/peers; Disk1 is authored and only Merge1 remains unprepared.",
+    "StringMapV2 and exact Heavy input companion are integrated after independent656bcbe2/2886ce92 review. The C9 private compile-time list object is retired before the existing genuine named-worker fallback; fixed lookup and original word visits remain ordered and guarded. No generic Native fallback, new Runtime operation, or claimed actual61-byte body identity. New functional capture is still required.",
+    "WORK-only diagnostics are integrated: held Spec barriers ce60, separate taint2 after unchanged original65 (7d76562c), and null-safe held WASM allocation metadata5f518005. Peers d1f18f35/5dd0087a/9f017898 preserve all original tests, flags, queries, owners, strict bootstrap, caps and budgets. AllocationV1 remains held for a null dereference; addresses are metadata only and not native identity. Pure preflightV8 now checks the new taint roster plus every prior source map/startup13/27runners/13whole-input guards; current01965 PASS.",
+    "Release-only cleanup90f16449c removes stale planning/review attribution and obsolete evidence-document references across19files. Source lexical streams and configurations are unchanged except two display-only test-title suffixes and the exact generator/generated XDG documentation URI. Native/source refusal limits remain. Work retains development evidence. The complete11026-file census and current changed-file checks remain bounded records, not a final cleanliness or release gate claim.",
+    "The root crypto-bigint/ctutils update is integrated. The same advisory also affects7real standalone lockfiles; all7precise off-tree Cargo updates completed with only those2version/checksum changes, preserving package graphs. Historical evidence lockfiles are untouched. Paired proposals/independent peer and integration are next. No builds ran locally; dependency resolution only.",
+    "Global WORK rust-check has24located lint findings. A compact paired8-file CmdCore/Syntax proposal addresses20mechanical diagnostics without changing assertions or value semantics; formatting and independent review remain. Registry4 and generic Core assertion lints remain. Latest full CI is red. New focused captures will test repaired helper placement and diagnostic firstcauses; no source-only proposal is counted as a green gate.",
+    "All primary-role headers are recent. External BIGIP and perf trackers are still more than60minutes stale; user notified and ownership retained. Review triage is complete. Local disk is below2GiB, so local builds remain stopped; no target files or young executables were deleted. Next scheduled cycle08:25UTC."
+  ],
+  "committed": [
+    "ddc68da245813836f3862def028f238cbe81388b"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish07:55snapshot and rearm08:25 reminder.",
+    "Run focused validations on helper/StringMap fixes and firstcause observers.",
+    "Finish last server functions, mechanical lint fixes, standalone security locks and final cleanup/format/generated checks.",
+    "Resolve remaining functional failures and require full baseline, Tcl corpus performance and sectionF before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new gate admissions. Actual partial improvements retained with their limits; full required CI, baseline and corpus performance remain unaccepted.",
+  "disk_free_bytes": 253890560,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
