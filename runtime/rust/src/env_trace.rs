@@ -66,6 +66,25 @@ fn tail_is_env(name: &[u8]) -> bool {
     tail == ENV
 }
 
+/// Remove the intrinsic registration belonging to this destroyed root only.
+pub(crate) fn detach_destroyed_env_trace(
+    traces: &mut crate::cmd_trace::TraceTable,
+    home: &TraceHome,
+    element: Option<&[u8]>,
+) {
+    if element.is_none()
+        && home.link_elem.is_none()
+        && home.selected_member.is_none()
+        && home.ns == Some(GLOBAL)
+        && home.level.is_none()
+        && home.base == ENV
+        && traces.env.is_some()
+        && traces.env == home.binding_id
+    {
+        traces.env = None;
+    }
+}
+
 /// A Tcl string as the host environment takes it: the host sees a C string,
 /// so a value stops at its first NUL, as `environ` does in C.
 fn host_text(bytes: &[u8]) -> String {
