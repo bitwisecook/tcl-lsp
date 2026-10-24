@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-24T00:52:19.544618+00:00",
+  "source": "fff6006c43936a22bdcf2bcb9dec15b952055529",
+  "after_source": "fff6006c43936a22bdcf2bcb9dec15b952055529",
+  "argv": [
+    "cargo",
+    "fmt",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--all",
+    "--check"
+  ],
+  "read_only": true,
+  "exit": 0,
+  "stop": null,
+  "elapsed_seconds": 98.88024769499316,
+  "bytes": 0,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_group_remaining": [],
+  "formatted_claim": true,
+  "no_build_or_target_deletion": true
+}

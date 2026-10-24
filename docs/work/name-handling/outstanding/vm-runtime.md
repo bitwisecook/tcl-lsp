@@ -2,25 +2,60 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T00:18:19.776434+00:00
+Last updated: 2026-10-24T00:44:23.900630+00:00
 
 ## Resume
 
-CURRENT native C86 sole parsed%c source fix FROZEN WORK+CLEAN V1:
-/tmp/vm-c86-scan-character-work-v1/manifest.json SHA5a070f017157b11cc3567ab272c9ccadb7f3b7895c51f9b6ddf4af6204171916;
-CLEANmanifest4be178ba854bca5cbb492af07a1edf11e1df11d133c47a994c06644723bbeaaa,
-identical2filepatch577323d74129c6f796f3ec2420cc50de94ac03c58ed602a64dc9dcad02551f1a.
-Exactf39/b356 cmd_scande547→51bb7/core scan6dddd→9fac9; shared C86decoder,
-originalcheckedbytes/inputthenformat, unchangedvalidator/effects/tests, literalNUL
-EOF/modifiedNUL0, positiveboundeddecoderwidth; noUnicodegetter/newauthority/Cprobe.
-Onlywholeparsed%c inclsuppression/index1 selected; allother matching unchanged,
-actualC86allformats nowcheckedgetters explicit, broadernative scanunsupported.
-Copiedfwd/rev/fwd0/fmt2021/whitespacePASS. CompilerProof independentpeerrequested;
-NOTintegrated orruntimePASS. Original regsub baseline assertion remainsbinding.
-Env/listobserverV2 nowROOTindependentCLEAR984f63f9/integratedb59f69/pushedf39.
-Fresh runtime40043851158/job120720898210 exactf39 queued00:16UTC, contains numeric
-zeroerrnofixture+stackcarrier+env/listobservers and original3/separate14+stack1.
-Thisnewrun excludes sole%cfix and is not cancelled/replaced. No freshoutcome yet.
+LATEST AUTHENTIC ACTUAL f39c2d6cc4d6942b9b57875d078befb597a4a4e5 runtime
+run40043851158/job120720898210 CLOSEDFAIL00:27:24/uploadPASS. Artifact12540573888
+ZIP27157962 SHAb12d43e3c67fee9caa5df3d32fcd14226ecf2f7f67d966ca71328e05ab213072.
+/tmp/vm-runtime-actual-40043851158/receipt-v3.json
+SHAf24bc374d46f3066519477cd3b5802148dce6b1684dc728c0e6d8387cc5f0d75.
+AuthAPI/all84CRC+streamSHA/125575strictsource+exactGitmembership/15keyGitblobs/
+TomMath/gitclean/owned2emptyPG PASS. Original3knownclosed2P1F: PublicC3.735189163P,
+NUMERIC17.484997277PASS newexplicitperdialectzeroerrno fixture/alloldassertions;
+append180.010884348TIMEOUT539completed0..538=189C84+189C85+161C86,
+last539C86construct,496remainincludingstarted/Jimunreached,96/96timinggroupscomplete.
+Separatebaseline14 still14FAIL; stack1 stillSIGABRT-6 AFTERheapcarrierrepair.
+All15knownclosed/ownedcomplete/samehostedELF7717beb1e9393a610fabc50dc628eee4f5ec1dbabbe01ff5d53a7b3853301a75;
+ELFbytesNOTuploaded, no frame/stackdepth/size measurement, no stackclosure/perfclaim.
+Finalnewobservations analysis/diagnostic-observations-v2.json SHA5d1140642ed06db86e14993d9a2eafb7d151644c15774d25d89f3f0dbaccf2f5:
+exact12Envheaders allarmed/root/trace_rootequal+refusalNone, so bootstrap-unarmed
+hypothesisruledoutforreachedconstructors. Earlier analytical13 typo held/corrected,
+allrawZIP/guards/outcomesunchanged. Listfirst3subchecksPASS/noRefusal; finalupvar+
+infoexists CodeError with typed original simple variable cell refusal (vars.rs2774).
+Savedcompiledframe vsactiveframe checker mismatch sourcecandidate identified, but
+actualNamespaceGLOBALshapeunproved; no guessed productionfix. Compiler owns further
+actualstack-frame/CFI attribution proposal; do not repeatbox/stacklimitguesses.
+
+Native C86 sole%c V4 SOURCEFIX independent NamesCLEAR23dbda3b0f8621e39f7ce2c382fadd4abe54660d6c9f14e9f3411bc1c799937e,
+WORKc3e2c482268a0abf7f773bcec88708f91ea06822/CLEAN5430d129b13ea1c7fb91e5bf9f9349bc63e2bbc7
+PUSHED. /tmp/vm-c86-scan-character-{work,clean}-v4 patch909adf77,
+WORKmanifest1dbb9dce/CLEANa6b021ee; originalgetters actualC86 format→literalNULprefix→
+existingvalidator→input via OriginalArguments. Shared originalC86decoder preserves
+isolatedsurrogates; sameobjvaliasallocationwithoutnativeRefchange/source5C86windows.
+Unchangedalloriginaltests/effects/varnamegettertail. NoUnicodegetter/newauthority.
+Onlysoleparsed%c/index1/suppression; broadernative matchingunsupported. Actualnew
+originalregsubselectorUNRUN; f39 stilloldscan andFAIL. V1–V3 HELD (fmt/order/borrow).
+
+Env hiddenintrinsic predicate WORK+CLEAN frozen /tmp/vm-env-intrinsic-dispatch-{work,clean}-v1:
+WORKpatch1d5bdcc6/man5766409f; CLEANc17c6aa3/man8ba41f5e, samefunctionalinsert
+(withexistingWORKlineoffsetdifference). Addexisting env_trace_reaches(home) under
+UNCHANGEDwholearray/!activearray + native4ops. NativeC5Envregistrationflags/sourcepins,
+alloldbytesinverse/copy0/fmtPASS. NamesindependentSTATICCLEAR
+abe12f74141968b6ffef6fa1ec8c794211fb54198f7c85aadc723f9dbb0bfba1.
+NOTactualEnv10PASS; alias/simplecellrefusal separate. Root integration pendingnotification.
+
+C84 exactverified3rdpair candidate frozen /tmp/vm-c84-verified-pair-{work,clean}-v1:
+WORKpatch00f911a1/manac8cd44f; CLEANd775bdda/manf3056bff. Onlyreferencearray2→3
+plusdc67/824f tuple; everyoldnegative/loaded812/loadercheck unchanged. Actualnative
+archive812+loadedb381812/rootindependentproof eligibility; old44b causeUNKNOWNdoes
+notrefuteNEWdirectproof. Authority62763879 binds originalZIP/rootpeer/allmembers.
+IndependentCODEpeer+integration pending; Rustloaded812newpairUNRUN. No wildcard/
+future/old44b coverage. Canonicalnumeric-C84proof two-pair text needs durableoriginal
+ZIP-backed newpairrecord beforePR; rootownsproofpublication. Counter/timing draft
+/tmp/vm-constructor-work-counters-work-v1 UNFROZEN/nopeer/nointegration; no pruning
+schedule/cache/guard changes; existingboundedretirement test forbidslazyreaderonly.
 
 USERDECISION23:50:40 explicit zeroerrno per dialect SUCCESSfixture only nowLOCKED:
 user-decisions-20261023T235040Z.json. No productionreset/ERANGE-refusal weakening.

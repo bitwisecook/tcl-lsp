@@ -1,0 +1,28 @@
+{
+  "schema": "actual-ci-receipt-independent-peer-index/v1",
+  "scope": "Authenticated artifact/source/process peer review for exact f39 startup and runtime CI jobs; no builds, product edits, or external execution.",
+  "source_commit": "f39c2d6cc4d6942b9b57875d078befb597a4a4e5",
+  "tree_sha": "827571f1436c7622f6fa97d0d1d38f532b4d9804",
+  "receipts": {
+    "startup/peer-receipt.json": {
+      "path": "/tmp/f39-actual-auth-peer-v1/startup/peer-receipt.json",
+      "sha256": "42d00a8fb9c3e2ad31cb8322a207b2b96bacb124f60cd4dc65981ea2e4bf08a7",
+      "bytes": 5754
+    },
+    "startup/zip-members.json": {
+      "path": "/tmp/f39-actual-auth-peer-v1/startup/zip-members.json",
+      "sha256": "70e95dfea138b2d325b327ee79cc04ac492e36222ad4826b3225ae0f50ead2cf",
+      "bytes": 5745
+    },
+    "runtime/peer-receipt.json": {
+      "path": "/tmp/f39-actual-auth-peer-v1/runtime/peer-receipt.json",
+      "sha256": "f760f17764cdc76b3e7a6b8e166f48bd4db64213c85a3e691ea58cce42ecabb4",
+      "bytes": 10012
+    },
+    "runtime/zip-members.json": {
+      "path": "/tmp/f39-actual-auth-peer-v1/runtime/zip-members.json",
+      "sha256": "422c46ab84d5694bdcbedd76eabf1eb54efb6adddf14a577f32b0b913319ea1c",
+      "bytes": 14461
+    }
+  }
+}

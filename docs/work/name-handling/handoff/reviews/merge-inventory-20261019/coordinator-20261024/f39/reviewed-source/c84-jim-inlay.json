@@ -1,0 +1,85 @@
+{
+  "utc": "2026-10-24T00:45:47.980076+00:00",
+  "static_review": "CLEAR",
+  "cohorts": [
+    {
+      "name": "c84-work",
+      "patch_sha256": "00f911a1c346e6652837fcf392eba07f007ca2925b17ed5f631f52a2726e919a",
+      "manifest_sha256": "ac8cd44fee1d9d7bf9c0ee11c2ced8371d20214ff87ee9e9a50e69e4735eaa69",
+      "current_before_pins": {
+        "rust/tcl-test-support/src/native_integer_formatter.rs": "c02596d582ea624ca76d850b78bccc46796d98026b488f453adf19acff54d65d"
+      },
+      "after_pins": {
+        "rust/tcl-test-support/src/native_integer_formatter.rs": "d98e33fa213900cb4633d1e49bd88836f7ba6a632c34f2f2c74257d3edac0ca7"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    },
+    {
+      "name": "c84-clean",
+      "patch_sha256": "d775bdda3a1118078ba17a7dbd974673aa3e0b0b0b490d5b0301eec597765cbc",
+      "manifest_sha256": "f3056bff89c7bf0921937c987d293258f1080ce86cce0127580f9b449e38a1fe",
+      "current_before_pins": {
+        "rust/tcl-test-support/src/native_integer_formatter.rs": "92f70cfba34146893c6460d2778a73745bcd55dcffe0e5fcc04121fb22af1607"
+      },
+      "after_pins": {
+        "rust/tcl-test-support/src/native_integer_formatter.rs": "8e8a4407435858799a968474550965e5005233722c45812a26d35f2f1c7244f2"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    },
+    {
+      "name": "jim-work",
+      "patch_sha256": "1c5c8f789f4494ea0591f69848241e97536132027ea85a93464fa7327cdfdaf9",
+      "manifest_sha256": "18602a292d8a7c4d60648ae8fc2f4010b46ace6962e4cc0a056fe21e2ed36ca5",
+      "current_before_pins": {
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "db03d7f0748cade0bbae4fa8b177aadc3d4857d2fe89e7abf67604b0c0d84d08"
+      },
+      "after_pins": {
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "e46e1531b592544c4cfb825c498f45c56ed74ef632b6e64bf7c1b8f36125845a"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    },
+    {
+      "name": "jim-clean",
+      "patch_sha256": "0f6de665893771819829ffb543703017c18c46c80c9054edbd6d8f7aee61e71c",
+      "manifest_sha256": "9c227f5dbde25d3c382fc0249399b136c4bfacb6025641acc954a88b880d3028",
+      "current_before_pins": {
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "a05fefc8925ca87fc77e9287e2333a4092680f8b5f6e1eb3f8a1688be7ec1606"
+      },
+      "after_pins": {
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "fe9a0928d991a1e38fbfa65fce05806e285301afb81b4808c0e4dd4012662e54"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    },
+    {
+      "name": "inlay-work",
+      "patch_sha256": "3f1a1d747cf6afb042f897901c8ef8c153537cb57694e3049d6cfe5182e3b7e3",
+      "manifest_sha256": "179f66f6cd55709e2a94056df5a5ede1a561aca21faba49b33687f9b04c62635",
+      "current_before_pins": {
+        "rust/tcl-lsp-core/tests/inlay_hints.rs": "f06677af955baf3b0c49e7b2094927ac13c00d25611305f2b01c0664b6ae933c"
+      },
+      "after_pins": {
+        "rust/tcl-lsp-core/tests/inlay_hints.rs": "10ab9815471f393c6ba0c8083f8c7b9d5671efd4f1391f91a9d94d11b08fc385"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    },
+    {
+      "name": "inlay-clean",
+      "patch_sha256": "3f1a1d747cf6afb042f897901c8ef8c153537cb57694e3049d6cfe5182e3b7e3",
+      "manifest_sha256": "cdb57ae535f7224fc4aa014bdf70c4ddedd571ee8f71c257c2b8f25a2d6feb4d",
+      "current_before_pins": {
+        "rust/tcl-lsp-core/tests/inlay_hints.rs": "f06677af955baf3b0c49e7b2094927ac13c00d25611305f2b01c0664b6ae933c"
+      },
+      "after_pins": {
+        "rust/tcl-lsp-core/tests/inlay_hints.rs": "10ab9815471f393c6ba0c8083f8c7b9d5671efd4f1391f91a9d94d11b08fc385"
+      },
+      "copy_check_forward_reverse_check_forward_zero_output": true
+    }
+  ],
+  "source_review": {
+    "c84": "Adds only directly verified exact dc67 archive /824f header pair. Old pairs, full pair equality, recheck after link, image hashing and loader checks, original mismatch negatives and loaded812 tests unchanged. Older44b/futurebuilds remain unadmitted. Existing independently authenticated archive812 and loaded-image812 records supply eligibility, not version/source inference.",
+    "jim": "Logical catalogue fallback is a strict subset of original accepted parents: same complete input, same retained body and graph namespace matching independently selected scope. Genuine source_body still wins; Native/AuthoredSimulation fallback unchanged. Missing/mixed scope refuses full class parent. No Eq/strict merge/world/debt/obligation or child query changes. Actual positive nested and method outcomes unrun after repair.",
+    "inlay": "Same original empty-file case and exactly once hints call, comparing its borrowed slice against typed zero-length slice. Empty-vector predicate and empty-slice equality are equivalent; no element comparison/value construction or extra analysis. All other assertions unchanged."
+  },
+  "runtime_typing_lint_perf": "UNRUN after changes; source/copy review only",
+  "no_build_or_native_execution": true
+}

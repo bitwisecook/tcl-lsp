@@ -1,0 +1,102 @@
+{
+  "created_utc": "2026-10-24T00:34:01.098063+00:00",
+  "source": "f39c2d6cc4d6942b9b57875d078befb597a4a4e5",
+  "run": 40043851158,
+  "job": 120720898210,
+  "artifact": 12540573888,
+  "zip_bytes": 27157962,
+  "zip_sha256": "b12d43e3c67fee9caa5df3d32fcd14226ecf2f7f67d966ca71328e05ab213072",
+  "all84_members_crc_stream_sha_checked": true,
+  "small_extracted_bytes": 778176,
+  "source_manifest_count": 125575,
+  "key_git_blob_joins": 15,
+  "original3": [
+    {
+      "name": "tcl-runtime::tcl_runtime$interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+      "status": "ok",
+      "exec_time": 3.7351891630000003,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+      "status": "ok",
+      "exec_time": 17.484997277,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+      "status": "failed",
+      "exec_time": 180.010884348,
+      "reason": "time limit exceeded"
+    }
+  ],
+  "original3_complete": true,
+  "append_progress": {
+    "marker_count": 2157,
+    "completed_rows": 539,
+    "completed_indexes": "0..538",
+    "completed_by_profile": {
+      "tcl8.4": 189,
+      "tcl8.5": 189,
+      "tcl8.6": 161
+    },
+    "last_marker": {
+      "row": 539,
+      "profile": "tcl8.6",
+      "phase": "construct"
+    },
+    "remaining_including_started": 496,
+    "scope": "Original1035/180 instrumented diagnostic still fails. Lastmarker only identifies reachedphase, not dominant hotspot/crosshost causality."
+  },
+  "constructor_timing_markers": 336,
+  "constructor_samples": 96,
+  "constructor_complete_samples": 96,
+  "constructor_partial_samples": 0,
+  "constructor_parser_errors": [],
+  "supplemental_counts": {
+    "baseline14": {
+      "FAIL": 14
+    },
+    "stack_abort1": {
+      "ABORT": 1
+    }
+  },
+  "supplemental_closed_complete": true,
+  "supplemental_validation_errors": [],
+  "same_hosted_elf_sha256": "7717beb1e9393a610fabc50dc628eee4f5ec1dbabbe01ff5d53a7b3853301a75",
+  "independent_uploaded_ELF_bytes": false,
+  "analysis_sha256": {
+    "append-progress.json": "f8c3f9a0217ceda8370ab2286bfde9c453a3cd0c2477ef7efe8517839bd73de1",
+    "archive-members.json": "567a2da741423e8468174c8c0a25591d13b9e49f8f465943ac4c1e5b29ecf9b4",
+    "constructor-stages.json": "e7b75c68579ea1f5008314a4a570b452e2afb49f358a2515ad6f1ba048c59c6d",
+    "diagnostic-observations-v2.json": "5d1140642ed06db86e14993d9a2eafb7d151644c15774d25d89f3f0dbaccf2f5",
+    "diagnostic-observations.json": "3f631f844f54a122c0b5c05a986e1cc78151c8660af7d37765b976ab556b6708",
+    "inventory.json": "877f6afc2c99339b8343f42db48e2dc9e1fb60db1f3cdfaf1d1c3e971aebe8a3",
+    "original-outcomes.json": "12410be07613c5d8a5d3790d4199390463fc75f663c22111e931059b3270b2cb",
+    "source-git-join.json": "ce3577b0a98398c17046cf8f4b8aa5c7486b4301355b17fbcafbe944667949cb",
+    "supplemental-outcomes.json": "c425a0342a270856e2f4491ad069df4ffa01f42315c5de904c24a544b6c75249",
+    "unknown.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "scope": "Original3 isolated diagnostic2P1F: userdecisionzeroerrno numericfixture and publicC PASS; append timeout. Separate14baselineFAIL and isolatedstack stillSIGABRT afterframecarrier. Allclosed known outcomes are not semantic/performance acceptance; original sharedprocessgate still red. Numeric explicitzeroerrno successfixture userdecision applied; productionseededERANGErefusal unchanged/unexecuted in this focused scope. Supplemental ownedprocess bytes/state/hash guards authenticated; executableSHA hosted-beforeafter only, ELFbytes absent.",
+  "supersedes_receipt_sha256": "75b180fc30ecc88163d09505621843b3feb2db09337c371a84ec374c8b4e68f0",
+  "github_api": {
+    "run_head_sha": "f39c2d6cc4d6942b9b57875d078befb597a4a4e5",
+    "run_status": "completed",
+    "run_conclusion": "failure",
+    "job_status": "completed",
+    "job_conclusion": "failure",
+    "completed_at": "2026-10-24T00:27:24Z",
+    "capture_conclusion": "failure",
+    "upload_conclusion": "success",
+    "artifact_digest": "sha256:b12d43e3c67fee9caa5df3d32fcd14226ecf2f7f67d966ca71328e05ab213072",
+    "raw_sha256": {
+      "api-artifacts-raw.json": "38bfd9d166de210930cf374a94c6ca2c9ebf9f0b5df5433d911e30c544c1d711",
+      "api-jobs-raw.json": "c55d6820237d9a2f18ce5188a898124cb6949fc829af04aec40237c6031f729a",
+      "api-run-raw.json": "b335550fb09d7151c69fc5f9a2ffaf5afc8e89c6eea049497f043d4b23e0993f"
+    }
+  },
+  "diagnostic_observations_file": "analysis/diagnostic-observations-v2.json",
+  "historical_analysis": {
+    "analysis/diagnostic-observations.json": "HELD analytical headercount typo13; corrected final-v2 says actual12. No originalZIP/guard/outcome changed."
+  }
+}

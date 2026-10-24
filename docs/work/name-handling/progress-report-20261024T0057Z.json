@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T00:57:03.576268+00:00",
+  "scheduled_report_utc": "2026-10-24T00:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T01:25:37+00:00",
+  "change_since_previous_report": [
+    "Pushed reviewed functional fixes first WORK1e1edbaacd9d3bbf7030836f6e593ccdc29e3678 and cleanfff6006c43936a22bdcf2bcb9dec15b952055529 afterfreshdepth1fetch/rebase preservingexternal37ad4b48. Clean has no WORKdiagnosticprotocols/observers/evidence. No PR/merge/tag/publication.",
+    "Fresh f39startup40043849076 firsttokens113.307msPASS but unchangedworkspace30sFAIL, laterassertionsUNRUN. Context2originalassertionsPASS but23pending/unavailable and16samehandle snapshot_unavailable rounds.112slowcommandrows show median178.8ms total/85.3ms nesteddiagnostics interval; no singleprivatefunctioncause. Independentpeer42d00a8f authenticates API/ZIP/all34members/125575membership/8criticalblobs/processes, explicitlynotallsourcebloborELFrehash.",
+    "Fresh f39runtime40043851158 original3=2P1F numeric17.485sPASS/PublicC3.735sPASS/append180.011sTIMEOUT539rows496remaining. Separate14allFAIL/stackSIGABRT despitepreparationframefix; all15ownedgroups/84ZIPmembers/source/providerseals retained. Independentpeerf760f177 confirmsboundedactualscope. Env12observationssamearmedroot/noRefusal; final lappendtypedoriginalsimplecellrefusal. No inferredrepair fromsourcechanges.",
+    "Fresh f39compiler40043855085 original58=45P6F7UNRUN, Native3allPASS, SH2incrementPASS/scalarlistFAIL, separateReadFlowPASS. All117ownedprocesses/selectedELF/strictbuild0W/fullsourceproviderchecksvalid. Exactold696identityjoin44P\u2192P/5F\u2192F/SHincrF\u2192P/priorinterruptednamespace\u2192FAIL(alreadyfailed897)/7UNRUN\u2192UNRUN. Original20MiBlogcapstopsbeforelast7, nochangedbudget. Exactlosslessdictionary/RLEreplay20.7MB\u21927.96MB verified; protocolreviewpending.",
+    "Fresh f39Jim40043853161 remains5P2F/all21guardsPASS. Actualmethodfacadequeries haveactual_snapshotfalse/combinedUnknown/noFutureselection; nested strictconflictsfactory+slot withunequalobligation/uncertaintyfacets. Reviewed Logicalcatalogue guard nowrequires genuinecompleteinput/body/namespace scope; authoredsimulation andgenuinesourcebody unchanged. Methodfuturebodyreceipt remainsseparate, preserving stockwrapper/preludecallbackuncertainty.",
+    "Fresh f39Spec40043857024 original11=9P2F/O129fourcontrolsPASS. SeparateNative1first42FAIL; all3fresh0Wbuilds/20ownedgroups/sealsPASS. Privatefirstdeclinefactory.other-purpose is actualmaterializedAuthoredSimulation policy, notNone/Fresh. Ownerprepares privatefreshissuerprovenance ratherthanwideningpurpose/equality or grantingExecution.",
+    "Fresh f39strict40043859083 authenticated4MBZIP/full125575membership/tools/directcapture. DBrequestedalltarget/allfeaturePASS0W; Coreoneassert_is_empty andServer92unique(51large_futures41too_many_lines),94totalemissionswithduplicateCore; noRustE/warnings. Directwait/EOFonly/noindependentemptyprocess-tree seal. LastCoretypedemptyequivalentfixandprivateDriverV3 storagecarrypushedafterrun; actualrerunrequired.",
+    "WORK-onlyWASM25mode40045073111 closespreflightatresolvedgenericlld --version; all25UNRUN/noCargo/artifact/runtime. LexicalSDKtoolinvocationnamefix2493 peerrevieweda64a6a55 andpushed; providerlink/targetseals/budgets/originaltestsunchanged. No WASMproductcause inferred; newmode rerunpending.",
+    "Reviewed/pushed narrow Envhiddenobserver admission(matchespinned5Csource flags/existingarmedroot/activearrayguards), nativeC86sole%c scan(shareddecoder/actualformat-first order/NULprefix/originaleffecttail), exactdc67/824fC84pairadmission(directarchive+loaded812proofonly), LogicalJimcatalogueowner guard, DriverstorageV3 andlastCoreinlayassert. No newruntime/lint/perfPASS fromthese staticreviews.",
+    "Fullcargo fmt --all --check PASS exactcleanfff6006c4 in103.067s/0output/emptyownedgroup; fullstandalone runtimefmt PASSsamehead98.880s/0output/emptygroup. Absolute1.99.1tools usedafterrestartPATHmissingtools; no build. gitdiff--check origin/rust HEADPASS. TwelvefileCLEAN-onlysemanticcleanupremovesstaleprocesswording, correctscurrentminifier/Tk/source-mapfactsandkeepsrestrictions/assertions.",
+    "Latestcleana26CI40039952540 all58jobs:36success15failure6running1skipped. Newlyclosedheavy/e2epart3/editorpart3FAIL needexactlogs; fourbroadshards andtwoe2epartitionsstillrunning. Priorindependent7jobcensusrecords runtime117actualFAILbeforestackabort, WASI22unitPASSthenemptyhostpreopeneddefinition/hover, Spec8P2F, incompletecancelledshard1, editor11/67failures+multifolder10P4F. No blanketsharedcause orcancellationcause invented.",
+    "Complete24312origin/rustnextestPASScomparisonUNKNOWN. Separate998runtimebaseline602retained14P2F382UNKNOWNunchanged;103additionalcurrentruntimefailuresareoutsideexactoldunitbaselineandstillrequiredgreen. Currentperf22controls/lexer586andSpec28+3BOTHPASS; Tcl30/102partialEqual/fullmixedverdictpending. No sixfileoptimisation/realmproofaccepted; dedicatediRulesperfonlywaived.",
+    "IndependentpublicationNotifywaitsource/livenesspeerad659bf6CLEAR: existingactualsnapshotrefusalmustwaitwithoutlocks,snapshotorownintent; preenabledNotify/closeslostwake/unchanged16computedrounds. Additivecontrolledpublicationtestoriginalassertionsretained; noRustexecutionyet, stalledpublishercanstillleavepending. Pendingrootintegration; do notclaimContextclosure.",
+    "Freshnessallfivelocalrolesunder60minutes; externalperf00:39fresh, BIGIP13:17stale usernotified/ownerreportedcomplete dependenciesrouted, reviewtriagecomplete. Environmentrestartedagain00:53; filesandcommittedsourcepreserved, previousPTYsessionsinvalid. Currentdisk1.7GiBworkspace/1.3GiBtmp prohibitslocalbuilds; no target/youngexe deletion. Snapshot/report0055andnext0125reminder required. Sixhourtargetmissed, allrequiredPRgatesbinding."
+  ],
+  "committed": [
+    "f49366afb74dc9e2c2e807e83687030ff224f6a1"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish00:55snapshot/report and rearm01:25reminder afterexecutorrestart.",
+    "Integrate peer-clearedpublicationwait/protocolcompanions then dispatch closedmode reruns with exactrequiredsourcepins, preserveotherhealthyCI.",
+    "Fix actualILX/RBS/scalarlist, Jimwrapperworld, N17freshissuer, runtimeenv/simplecell/stack/append, browser/WASI/editor andremainingstrictlints.",
+    "Finish allrequiredshipping/sectionF/fullbaseline/Tclperf and fullsemanticreleaseaudit/finalchecks before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 00:39 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "ActualSHincr/Native3/ReadFlow/numeric gains admitted onlyat exactf39scopedtests. Startup/workspace/cancellation, Jim2/Spec2/nativefold, runtime14/stack/append, strictCore+Server andrequiredCI failuresremain. No SectionF/zeroP2F/fullgreen/perf/PR admission.",
+  "disk_free_bytes": 1803116544,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

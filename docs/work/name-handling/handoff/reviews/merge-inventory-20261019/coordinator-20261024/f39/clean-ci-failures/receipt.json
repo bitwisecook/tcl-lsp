@@ -1,0 +1,87 @@
+{
+  "schema": "ci-job-diagnostic-receipt/v1",
+  "reviewed_at_utc": "2026-10-24",
+  "repository": "bitwisecook/tcl-lsp",
+  "branch": "release/lsp-naming",
+  "frozen_source": {
+    "requested": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+    "local_release_checkout_head": "b35670814b446b3b7f62115833769f1d6f43c3dd",
+    "note": "The requested run SHA a26ab0ffd2b1dc1681710dbf14e518025545ec33 resolves in local Git and is an ancestor of the clean local release checkout HEAD b35670814b446b3b7f62115833769f1d6f43c3dd. GitHub run itself reports exact a26 SHA; results here are attributed to that SHA, not to later descendant changes."
+  },
+  "run": {
+    "id": 40039952540,
+    "number": 5221,
+    "event": "workflow_dispatch",
+    "head_branch": "release/lsp-naming",
+    "head_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+    "status": "in_progress",
+    "conclusion": null,
+    "updated_at": "2026-10-24T00:26:16Z",
+    "note": "Not a completed run; only these seven requested completed job results are classified."
+  },
+  "logs_encoding": "GitHub connector decoded text; SHA-256 over UTF-8 decoded log string, validated local SHA-256 implementation against abc known vector; logs were not persisted in full.",
+  "jobs": [
+    {
+      "id": 120708509600,
+      "name": "runtime-rust-tests",
+      "conclusion": "failure",
+      "log_sha256": "616b04e54b17eb137bb6f7942d3e07dcc691ee807a6233d0c47419f63a34967c",
+      "utf8_bytes": 326773,
+      "classification": "Executed test failures plus fatal runtime abort. Step 4 no-tommath strict absence/scalar refusal passed; Tcl 9.0.4 source fetch passed; step 6 standalone runtime unit suite failed. Log marks 117 distinct Rust tests FAILED, including many subsystems; no failure-summary trailer because process aborts. Explicit fatal first-cause evidence is test interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit overflowing its stack; next line is 'fatal runtime error: stack overflow, aborting'. Do not infer this explains all preceding 117 failed tests, and do not count them as unrun."
+    },
+    {
+      "id": 120708509624,
+      "name": "lsp-server-wasi",
+      "conclusion": "failure",
+      "log_sha256": "15f631e6ec6c1f2ac12e66d238d41c206d66ee681ead75622ef4dcd0689d0bed",
+      "utf8_bytes": 82712,
+      "classification": "Build and test step executed; WASI unit tests passed 22/22. E2E harness then failed two cross-file-on-preopened-disk assertions: go-to-definition returned no locations (expected file:///w/host-naming.tcl range 0:5–0:13); hover returned empty string. Remaining documentSymbol and semanticTokens E2Es in log passed. Release artifact build/upload skipped due earlier failure, so those deliverables are unrun."
+    },
+    {
+      "id": 120708509551,
+      "name": "spectcl-compat",
+      "conclusion": "failure",
+      "log_sha256": "85ea949f1ab40101388d2d7be42475c8256ffbf7cf8e457ed1290422ef3c366e",
+      "utf8_bytes": 70087,
+      "classification": "Exact compatibility gate executed; preceding targeted suites passed 28/28, 3/3, and 1/1 as shown. pack_source_e2e ran 10 tests: 8 passed, 2 actual assertion failures. rust/tcl-spectcl/tests/pack_source_e2e.rs:400:9 expected Some(\"42\") for `vendor::f 21`, got None. Same file:492:9 under Tcl 8.6 expected Some(\"xy\"), got None. Job stops gate; Tcl cache save skipped; not infra/unrun."
+    },
+    {
+      "id": 120708509846,
+      "name": "rust-tests-shard (1/5)",
+      "conclusion": "failure",
+      "log_sha256": "fbccc5916f90f0a4ec9432d5be1d77c26a53725b8d035fb0cac4d841bd9f54d6",
+      "utf8_bytes": 3437171,
+      "classification": "Selected shard listing/metadata uploaded and cargo-nextest started. At 2026-10-23T23:58:37 runner log says received shutdown signal; following line says operation canceled. Step 13 cancelled; terminal capture upload skipped. Captures immediately before shutdown include both passed and failed tests, but the shard is incomplete and no authoritative terminal summary exists. Classify as canceled/partially executed; cause of shutdown not evidenced in log."
+    },
+    {
+      "id": 120712045660,
+      "name": "editor-partition2",
+      "conclusion": "failure",
+      "log_sha256": "90aaddc97f8d8414d2d8725c4f9582659c4d3ad3dfe8a45a7781158a20109846",
+      "utf8_bytes": 195528,
+      "classification": "Build/setup/partition verification passed; extension-host tests executed, 11 failed. First actual failures: Code Lens reference counts unavailable/incorrect, followed by classmethod resolution timeout. Liveness evidence then directly shows document pipeline wedged: getEffectiveConfig answered in 2ms, hover for a different document and stalled document both unanswered after 4s, extension timer normal; server process remained alive and consumed 64 CPU ticks. Later probe says document-free request also stopped answering. Remaining failures include timeouts for completion, cross-file diagnostics, linked editing, pack extension and references adapter setup, likely cascading after observed wedge; do not assert exact root cause from probe."
+    },
+    {
+      "id": 120712045708,
+      "name": "multi-folder",
+      "conclusion": "failure",
+      "log_sha256": "971e737f652820838b106f474a65775543d9f2fe0b68475ac29d397fbb22c7a3",
+      "utf8_bytes": 120515,
+      "classification": "Build/setup/partition verification passed; extension-host suite executed, 10 passed and 4 failed. Each failed test's diagnostic wait threw CurrentDiagnosticsUnavailableError: context (helper waitForCurrentDiagnosticsSnapshot at out/test/helper.js:508); affected identical-source diagnostics, W108 non-ASCII, W123 extraCommands, and reanalysis after folder dialect change. This is direct current-diagnostics-unavailable evidence; logs do not attribute why context is unavailable."
+    },
+    {
+      "id": 120712045744,
+      "name": "editor-partition1",
+      "conclusion": "failure",
+      "log_sha256": "697fe1bddb3a4de2a91495cec7ba3abec48a687cf9a4d2422aea7b95bdf6c7ef",
+      "utf8_bytes": 256861,
+      "classification": "Extension-host tests executed; 67 failed. Earliest failures span upvar references/rename, diagnostic assertions, and recursive incoming-call assertion. Repeated CurrentDiagnosticsUnavailableError/context waits occur later; liveness probes repeatedly show server not answering document-free requests, supporting a server/connection wedge for later timeouts but not proving it caused earliest failures. Log also contains VS Code extensions.json already-exists error at 2026-10-24T00:13:45Z; it is evidence of an extension test user-data setup collision, but logs do not establish whether or how it affects these failures."
+    }
+  ],
+  "limits": [
+    "No inference from prior run/count subtraction.",
+    "No global run conclusion: run remains in_progress and other jobs are not part of this requested census.",
+    "No completed-job failures reported as unrun except specifically skipped follow-up artifact/terminal steps.",
+    "Local checkout HEAD is different than specified run SHA; source-specific attribution should use GitHub run head pin unless exact repository object is separately verified."
+  ]
+}

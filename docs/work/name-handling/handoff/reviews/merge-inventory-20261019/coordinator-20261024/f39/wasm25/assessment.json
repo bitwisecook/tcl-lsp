@@ -1,0 +1,44 @@
+{
+  "ZIP_bytes": 4008238,
+  "ZIP_sha256": "b3dc7938df3dcdbdae1347be205395d52123541268b99bbdb0d1d52771169bc9",
+  "actual_first_cause": "CalledProcessError(1, ['/opt/wasi-sdk/bin/lld', '--version'])",
+  "all14_original_sourcepins_final_current": true,
+  "all_original25_UNRUN": true,
+  "artifact": 12540789306,
+  "corrective_proposal": "/tmp/ccg-wasm25-sdk-argv0-work-v1",
+  "critical_final_Git_byte_pins": {
+    ".github/workflows/perf.yml": "ec9d2dc7efd1cbe3a57b0180b51583751256b4df47bce39330535207e8b2af1f",
+    "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py": "c8692cb3b976a617a967c433fafd440f70f659640d8a5ef88d544130117a12a1",
+    "docs/work/name-handling/validation-tools/wasm-real-link-roster.json": "db374e58c102c1a5cb21d3ff2160dbeef067c6322bbd5835452378e5a8804ead"
+  },
+  "final_capture_errors_preserved": [
+    "providers: NameError(\"name 'provider_roots' is not defined\")",
+    "dependencies: NameError(\"name 'dependency_roots' is not defined\")"
+  ],
+  "final_seals": {
+    "artifacts": false,
+    "dependencies": false,
+    "providers": false,
+    "reserved-runtime": false,
+    "source": false,
+    "tools": true
+  },
+  "full_final_source_membership": 125637,
+  "job": 120724829663,
+  "joblog_sha256": "1bcb72b5a90a3fcc1915a52f4d0d17e055800b031c7dcb3ad36f66dffcf9e007",
+  "limits": "Tool-version preflight ran before initial source/provider/dependency seals; source-after only plus exact Git identity does not authenticate full build/runtime input stability. No Native/WASM product/test acceptance. No large map extraction or duplicate download.",
+  "owned_Cargo_list_test_runtime_processes": 0,
+  "raw_actual_stderr": "lld is a generic driver. Invoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly) instead",
+  "run": 40045073111,
+  "runtime_or_ELF_artifacts": 0,
+  "safe_unique_CRC": true,
+  "selection_error": "Driver Path.resolve removed SDK wasm-ld alias and invoked generic lld --version. Keep actual lexical alias argv0; retain link+target SHA and full SDK seals.",
+  "source": "9ec1550d1665e08573e90ca5160603f1297c7e23",
+  "status": "AUTHENTICATED_DIAGNOSTIC_PREFLIGHT_FAILURE_ALL25_UNRUN_NO_PRODUCT_ATTRIBUTION",
+  "tool_lld_final_pin": {
+    "sha256": "ec1daef61bc84256bf7c4a8491b3ea9abcc7163d9aaf6aa8e8bc6faa18f99043",
+    "symlink": null
+  },
+  "tree": "d985fe4928658a3f01e26f88b091d0d8682272a2",
+  "utc": "2026-10-24T00:36:36.976126+00:00"
+}
