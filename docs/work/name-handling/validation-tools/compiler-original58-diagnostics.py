@@ -286,7 +286,7 @@ require(
 )
 require(
     sha(BASE / "compiler-sh21-supplemental2.json")
-    == "0add8b781c91a7a522f77363242381e6c308e3abd20dbb604f71627a1a3213cc",
+    == "57efd360301c1672d7a24035f1de98334caf33f25382c2cdc4833f3a33722e77",
     "exact separate SH21 diagnostic duplicate input pin",
 )
 sh21_diagnostic = json.loads((BASE / "compiler-sh21-supplemental2.json").read_text())
