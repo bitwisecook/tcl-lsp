@@ -128,6 +128,7 @@ fn install_abstract_class(vm: &mut Vm, class_root: OoId) {
     }
     vm.oo.classes.insert(abstract_class, class);
     let namespace = super::fresh_obj_name(vm);
+    vm.declare_namespace_key(&namespace);
     let namespace_token = native_context::install_object_helpers(vm, &namespace);
     vm.oo.objects.insert(
         abstract_class,
@@ -188,6 +189,7 @@ fn install_configurable_support(
         },
     );
     let namespace = super::fresh_obj_name(vm);
+    vm.declare_namespace_key(&namespace);
     let namespace_token = native_context::install_object_helpers(vm, &namespace);
     vm.oo.objects.insert(
         support,
