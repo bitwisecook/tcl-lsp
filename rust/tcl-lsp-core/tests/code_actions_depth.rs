@@ -254,11 +254,6 @@ fn whole(source: &str) -> LspRange {
     }
 }
 
-/// The compiler-check quick-fixes for `checks` under an editor layer that
-/// turns `disabled` off and the analyser's `suppressed` map, through the one
-/// report path every action takes. `source` is analysed as plain Tcl so the
-/// range-based refactors run too; only the quick-fixes come back.
-
 /// Every edit's range is well-formed: start ≤ end (a valid LSP edit range).
 fn edits_well_formed(action: &CodeAction) -> bool {
     action.edits.iter().all(|e| {
@@ -994,7 +989,10 @@ fn context_messages_without_an_issuer_never_create_taint_or_bootstrap_edits() {
             range: cursor(0, 0),
         };
         let analysis = analyse_dialect(source, "f5-irules");
-        assert!(context_diagnostic_actions(source, std::slice::from_ref(&diagnostic)).is_empty());
+        assert_eq!(
+            context_diagnostic_actions(source, std::slice::from_ref(&diagnostic)).as_slice(),
+            []
+        );
         assert!(
             context_diagnostic_actions_in_analysis(
                 source,
