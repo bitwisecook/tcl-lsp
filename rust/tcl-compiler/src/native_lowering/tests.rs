@@ -1809,3 +1809,29 @@ fn original_native_definition_keeps_runtime_guard_separate_from_dispatch_proof()
         assert!(lower_original_boolean_unit(&unit, context.commands(), &foreign).is_err());
     }
 }
+
+#[test]
+fn definition_policy_comparison_retains_canonical_release_and_all_other_axes() {
+    use tcl_registry::InvocationDialect;
+    for version in tcl_dialect::TclVersion::ALL {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let declared = InvocationDialect::of_profile(profile);
+        let retained =
+            InvocationDialect::of_point(tcl_dialect::model::DialectPoint::for_tcl_version(version));
+        assert_ne!(
+            declared, retained,
+            "static profile stores its explicit release without a core_point"
+        );
+        assert!(retained.has_same_execution_policy(declared));
+        assert!(
+            !retained.has_same_execution_policy(InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::irules()
+            ))
+        );
+        for other in tcl_dialect::TclVersion::ALL {
+            if other != version {
+                assert!(!retained.has_same_execution_policy(InvocationDialect::for_version(other)));
+            }
+        }
+    }
+}
