@@ -60457,6 +60457,98 @@ proc p {} {
         .expect("the live indexed document exists");
     }
 
+    async fn public_navigation_locations(
+        backend: &Backend,
+        uri: &Uri,
+        references: bool,
+    ) -> Vec<Location> {
+        let mut params = serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 1, "character": 2 },
+        });
+        if references {
+            params["context"] = serde_json::json!({ "includeDeclaration": true });
+            backend
+                .references(serde_json::from_value(params).unwrap())
+                .await
+                .expect("the public references request succeeds")
+                .expect("the call has references")
+        } else {
+            let definition = backend
+                .goto_definition(serde_json::from_value(params).unwrap())
+                .await
+                .expect("the public definition request succeeds")
+                .expect("the call has a definition");
+            let GotoDefinitionResponse::Array(locations) = definition else {
+                panic!("the public definition handler returns locations");
+            };
+            locations
+        }
+    }
+
+    #[tokio::test]
+    async fn public_navigation_waits_for_live_index_before_source_view_routing() {
+        for references in [false, true] {
+            let backend = test_backend();
+            let uri = Uri::from_str("file:///navigation-before-index.tcl").unwrap();
+            let source = "proc ready {} {}\nready\n";
+            register(&backend, &uri, source).await;
+            backend
+                .documents
+                .lock("test")
+                .await
+                .get_mut(&uri)
+                .expect("the document is open")
+                .publication = DocumentPublication::Salsa;
+            backend
+                .workspace_index
+                .write()
+                .await
+                .remove_document(uri.as_str());
+
+            let mut navigation = Box::pin(public_navigation_locations(&backend, &uri, references));
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_millis(25), &mut navigation)
+                    .await
+                    .is_err(),
+                "public navigation must wait for its live index seed",
+            );
+            assert!(
+                backend.original_source_view_build_gate.try_lock().is_ok(),
+                "the pending request must leave the source-view gate available",
+            );
+            assert!(
+                backend.rehoming_gate.try_lock().is_ok(),
+                "the pending request must leave the publication gate available",
+            );
+
+            register(&backend, &uri, source).await;
+            backend.live_publication_advanced.notify_waiters();
+            let mut locations = crate::rt::timeout(std::time::Duration::from_secs(5), navigation)
+                .await
+                .expect("index publication releases the same public request");
+            locations.sort_by_key(|location| {
+                (location.range.start.line, location.range.start.character)
+            });
+            let declaration = Location::new(
+                uri.clone(),
+                Range::new(Position::new(0, 5), Position::new(0, 10)),
+            );
+            let expected = if references {
+                vec![
+                    declaration,
+                    Location::new(
+                        uri.clone(),
+                        Range::new(Position::new(1, 0), Position::new(1, 5)),
+                    ),
+                ]
+            } else {
+                vec![declaration]
+            };
+            assert_eq!(locations, expected);
+        }
+    }
+
     async fn assert_local_commands_use_salsa_readiness(backend: &Backend, uri: &Uri) {
         let uri_arg = serde_json::Value::String(uri.to_string());
         crate::rt::timeout(

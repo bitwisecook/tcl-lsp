@@ -2984,6 +2984,26 @@ impl Backend {
 }
 
 impl Backend {
+    async fn await_original_source_navigation_readiness(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<()> {
+        self.edits_settled().await;
+        let is_open = {
+            let documents = self
+                .documents
+                .lock("source_view_navigation_readiness")
+                .await;
+            documents.contains_key(uri)
+        };
+        if is_open {
+            // Join live index publication before acquiring either view gate.
+            // Closed and virtual source-view roots keep their existing route.
+            let _ = self.read_document(uri).await?;
+        }
+        Ok(())
+    }
+
     /// View-aware navigation for inherited interpretations. Ordinary roots keep
     /// their existing providers; a missing required inherited view is terminal.
     pub(crate) async fn original_source_view_navigation_route(
@@ -2994,6 +3014,7 @@ impl Backend {
     ) -> DocumentSourceResult<
         std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>,
     > {
+        self.await_original_source_navigation_readiness(uri).await?;
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
