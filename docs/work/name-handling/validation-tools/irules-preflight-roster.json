@@ -91,7 +91,7 @@
   },
   "scope": "Original unchanged bootstrap1 and CLI trace2 from actual a26 heavy355 (321PASS34FAIL); distinct bounded first-decline diagnosis only. Build original heavy exact3 packages/all-features; all test binaries compiled; only3 isolated original selectors executed. No actual TMM or authored simulation authority grant.",
   "source_pins": {
-    "rust/tcl-vm/src/command.rs": "b55a7fe18bf7083a09e77679e7c0c57209f7da993359f4442858eb3a7ed6a340",
+    "rust/tcl-vm/src/command.rs": "c5dc8c293f21e7e5a94afb287dd1ca21f5f52a709c1602e2dc7479e55fd8ce74",
     ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
     "runtime/rust/src/interp/native_body_artifact.rs": "295e69e315ade4313906dccf4b8954af107847ed33ed327885a1805b0343ce21",
     "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs": "5d7218303a96e4536d61ee384b6e328b2e1943def5d43f111c29e3f1185ef35d",
@@ -122,11 +122,11 @@
     "rust/tcl-registry/src/native_string_range_compilation.rs": "08b03e9f0be1ae66e9356941661f46569d36cb45b2e4c378e092be4883e6374d",
     "rust/tcl-registry/src/registry.rs": "0b09f3900f30551f997b1c719af66e539432975282efb9e0200fcbeb7a08dd3b",
     "rust/tcl-vm/src/cmd_control.rs": "1ce159ca94f3ab9223c42a4bbd39de57eb10ff8d64c7a5c6c0e4ace4aa7986b1",
-    "rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs": "c07894f12aae19db1ef92cf122f07f0c42cf67efea4d039ed9a58fc6a3c1f971",
+    "rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs": "5375f119e6bda6145c225fe242a4e25103aced326596cf9f00083d36646725f7",
     "rust/tcl-vm/src/cmd_oo/native_bootstrap.rs": "e758e231ab6598ed1849617c05160b35e4b27131a6676e5ed905ce70ba4ce15e",
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "5b6a57ff57beb84d68a2f2eaa959b0d1ffdc4ac9350f3557a63f5f27aba542f3",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
-    "rust/tcl-vm/src/exec.rs": "08aa0956d50744170bbac4be47a8cf27483f1aa4d9e1472f3af4ffe626585f96",
+    "rust/tcl-vm/src/exec.rs": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6",
     "rust/tcl-vm/src/interp.rs": "e72ef23eba225c3fc9713fa809581be982435bfc3b08f987d7d5bc26ac70fe9e"
   },
   "trace": [
