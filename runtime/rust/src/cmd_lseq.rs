@@ -238,13 +238,37 @@ mod tests {
                         NativeMaterializationLimitError::new(100_000_001, 100_000_000)
                     ))
                 );
+                let original_refusal = interp.native_execution_refusal().unwrap();
+                assert_eq!(interp.current_level(), 0);
+                assert_eq!(interp.frames.borrow().top_level(), 0);
+                assert_eq!(interp.current_ns(), crate::namespace::GLOBAL);
+                assert!(interp.var_get(b"prior").is_none());
+                let prior =
+                    crate::vars::get_at(&interp.frames.borrow(), &interp.namespaces(), b"prior", 0)
+                        .unwrap();
+                assert!(!prior.is_null());
+                assert!(obj::has_string_rep(prior));
+                // SAFETY: the unchanged root table retains this resident String.
                 assert_eq!(
-                    crate::interp::obj_bytes(interp.var_get(b"prior").unwrap()),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (*prior).bytes.cast::<u8>(),
+                            usize::try_from((*prior).length).unwrap(),
+                        )
+                    },
                     b"BEFORE"
                 );
                 for name in [b"captured".as_slice(), b"options", b"final", b"after"] {
                     assert!(!interp.var_exists(name));
+                    assert!(crate::vars::get_at(
+                        &interp.frames.borrow(),
+                        &interp.namespaces(),
+                        name,
+                        0,
+                    )
+                    .is_none());
                 }
+                assert_eq!(interp.native_execution_refusal(), Some(original_refusal));
             }
             assert_eq!(counters::finalize(), 0, "leak");
             assert_eq!(counters::double_free_count(), 0);
