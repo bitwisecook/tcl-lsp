@@ -1059,7 +1059,8 @@ impl<'a> Lowerer<'a> {
                 })
             })
             || entry.invocation_policy != Some(profile.cache_key())
-            || dialect != tcl_registry::InvocationDialect::of_profile(profile)
+            || !dialect
+                .has_same_execution_policy(tcl_registry::InvocationDialect::of_profile(profile))
             || module.native_lexer_config() != tcl_lexer::LexerConfig::for_profile(Some(profile))
             || !entry
                 .namespace_context(entry.current_namespace)
