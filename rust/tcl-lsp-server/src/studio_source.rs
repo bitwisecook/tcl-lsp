@@ -9,7 +9,7 @@ use super::{
     Path, PathBuf, ReloadTrigger, Uri, jsonrpc, uri_norm, vfs,
 };
 #[cfg(test)]
-use super::{ExecuteCommandParams, FromStr, LanguageServer, service};
+use super::{ExecuteCommandParams, FromStr, LanguageServer};
 use tcl_lsp_core::wire_session::EditorWireSession;
 #[cfg(test)]
 use tower_lsp_server::ls_types::WorkDoneProgressParams;

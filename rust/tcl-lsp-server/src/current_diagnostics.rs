@@ -26,7 +26,7 @@ use super::{
     RecoveryNameCache, RecoveryWidenCtx, SalsaAnalysisCtx, Sha256, TrackedMutex, TrackedRwLock,
     Uri, WorkspaceCommandQueries, WorkspaceDiagnosticSources, capture_cross_file_evidence_snapshot,
     compute_base_analysis, compute_deep_diagnostic_report, core_workspace_index,
-    current_diagnostics, f5_model_document_report, is_apl_source, jsonrpc, longest_folder_match,
+    f5_model_document_report, is_apl_source, jsonrpc, longest_folder_match,
     next_pull_diag_result_id, proposal_diagnostics, provider_source, rewrite_wire,
     sha256_digest_hex, with_pack_hooks,
 };
@@ -35,8 +35,8 @@ use super::{
     DiagnosticPublishOutcome, DocumentDiagnosticParams, DocumentDiagnosticReport,
     DocumentDiagnosticReportResult, FromStr, FullDocumentDiagnosticReport, LanguageServer, PathBuf,
     PublishTiming, TrackedMutexGuard, WorkspaceDiagnosticParams, WorkspaceDiagnosticReportResult,
-    WorkspaceDocumentDiagnosticReport, publish_diagnostics_result, run_diagnostics_core,
-    sync_evaluator_epoch, sync_overlay_epoch, vfs,
+    WorkspaceDocumentDiagnosticReport, run_diagnostics_core, sync_evaluator_epoch,
+    sync_overlay_epoch, vfs,
 };
 use serde::{Deserialize, Serialize};
 
