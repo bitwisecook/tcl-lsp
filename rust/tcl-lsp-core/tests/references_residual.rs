@@ -627,7 +627,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
         "must not panic on `method` keyword position",
     );
     // Far past EOF.
-    assert!(
+    assert_eq!(
         references(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -636,9 +636,10 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
             &analysis,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
-    assert!(
+    assert_eq!(
         document_highlights(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -646,11 +647,12 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
             0,
             &analysis
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
     // Empty document.
     let empty = analyse("");
-    assert!(
+    assert_eq!(
         references(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -659,9 +661,10 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
             &empty,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
-    assert!(
+    assert_eq!(
         document_highlights(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -669,7 +672,8 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
             0,
             &empty
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -702,7 +706,7 @@ fn document_highlights_unknown_word_is_empty() {
     // A bare literal argument is not a highlightable symbol.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         document_highlights(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -710,7 +714,8 @@ fn document_highlights_unknown_word_is_empty() {
             6,
             &analysis
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
