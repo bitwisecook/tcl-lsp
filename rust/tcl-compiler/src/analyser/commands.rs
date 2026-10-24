@@ -272,6 +272,24 @@ fn body_depths(
     }
 }
 
+#[cfg(debug_assertions)]
+fn trace_jim_body_entry(site: u32) {
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        eprintln!("JIM_SOURCE_OWNER stage=jim.body.dispatch_entry offset={site}");
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_jim_body_token_fields(site: u32, tokens: Option<&crate::ir::CommandTokens>) {
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.body.token_fields offset={site} tokens={} binding={}",
+            tokens.is_some(),
+            tokens.is_some_and(|tokens| tokens.source_binding.is_some()),
+        );
+    }
+}
+
 fn body_argument_indices(
     view: &crate::registry_invocation::InvocationBodyAssistance,
     logical: Option<&crate::registry_invocation::LogicalStructuredInvocation>,
@@ -3019,6 +3037,22 @@ impl Analyser {
         }
     }
 
+    fn body_tokens_with_trace(
+        &self,
+        site: u32,
+        arguments: &[Token],
+    ) -> Option<Arc<crate::ir::CommandTokens>> {
+        #[cfg(debug_assertions)]
+        trace_jim_body_entry(site);
+        let tokens = self.retained_invocation_tokens(site, arguments);
+        #[cfg(debug_assertions)]
+        trace_jim_body_token_fields(site, tokens.as_deref());
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.body.tokens",
+            tokens,
+        )
+    }
+
     fn dispatch_body_arguments(
         &mut self,
         cmd_name: &str,
@@ -3030,7 +3064,7 @@ impl Analyser {
     ) {
         let generation = self.analysis_context();
         let registry = generation.commands();
-        let Some(tokens) = self.retained_invocation_tokens(invocation_offset, arg_tokens) else {
+        let Some(tokens) = self.body_tokens_with_trace(invocation_offset, arg_tokens) else {
             return;
         };
         if self.vendor_source_name_policy().is_some() {
@@ -3055,6 +3089,13 @@ impl Analyser {
             super::super::registry_invocation::LogicalStructuredInvocation::traits,
         );
         let body_indices = body_argument_indices(&view, logical.as_ref());
+        #[cfg(debug_assertions)]
+        crate::registry_invocation::trace_jim_body_dispatch(
+            invocation_offset,
+            logical.as_ref(),
+            &body_indices,
+            arg_tokens,
+        );
         if body_indices.is_empty() {
             return;
         }

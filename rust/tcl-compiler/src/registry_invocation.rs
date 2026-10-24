@@ -541,14 +541,25 @@ pub(crate) fn logical_structured_invocation(
     logical_structured_invocation_with_metadata_context(registry, context.into(), tokens, bindings)
 }
 
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 fn trace_original_structure(stage: &str, tokens: &CommandTokens, passed: bool) {
+    #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = tokens
             .words()
             .first()
             .map(|word| word.source().span.start());
         eprintln!("ORIGINAL_SOURCE_JOIN stage=structure.{stage} offset={offset:?} passed={passed}");
+    }
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        let offset = tokens
+            .words()
+            .first()
+            .map(|word| word.source().span.start());
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.body.structure guard={stage} offset={offset:?} passed={passed}"
+        );
     }
 }
 
@@ -560,26 +571,26 @@ fn original_structured_source_selection(
 ) -> Option<ResolvedStatementInvocation> {
     let selected =
         resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
-    #[cfg(test)]
+    #[cfg(any(test, debug_assertions))]
     trace_original_structure("resolved_handler", tokens, selected.is_some());
     let selected = selected.or_else(|| {
         let selected = bindings.and_then(|bindings| {
             owned_body_layout_invocation(registry, context, tokens, bindings)
                 .map(|owned| owned.invocation)
         });
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("owned_body_layout", tokens, selected.is_some());
         selected
     });
     let selected = selected.or_else(|| {
         let selected = original_declared_structured_invocation(registry, context, tokens);
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("original_declaration", tokens, selected.is_some());
         selected
     });
     let selected = selected.or_else(|| {
         let selected = original_inline_control_structured_invocation(registry, context, tokens);
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("original_inline_control", tokens, selected.is_some());
         selected
     })?;
@@ -655,7 +666,73 @@ fn authored_simulation_structure_is_supported(
     Some(())
 }
 
+#[cfg(debug_assertions)]
+pub(crate) fn trace_jim_body_dispatch(
+    site: u32,
+    logical: Option<&LogicalStructuredInvocation>,
+    bodies: &[usize],
+    arguments: &[tcl_lexer::Token],
+) {
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        let arguments = arguments
+            .iter()
+            .map(|token| (token.kind, token.span))
+            .collect::<Vec<_>>();
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.body.dispatch_result offset={site} logical={} bodies={bodies:?} arguments={arguments:?}",
+            logical.is_some(),
+        );
+        if let Some(shape) = logical {
+            trace_jim_structure_fields("dispatch", &shape.invocation, shape.source_roles.as_ref());
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_jim_structure_fields(
+    stage: &str,
+    selected: &ResolvedStatementInvocation,
+    roles: Option<&StructuredSourceRoles>,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        let logical_roles = match roles {
+            Some(StructuredSourceRoles::Logical(roles)) => Some(roles),
+            _ => None,
+        };
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.body.structure_fields point={stage} operation={:?} hook={:?} kind={:?} interpreter={:?} frame_effect={} body_execution={} traits={:?} logical_roles={logical_roles:?}",
+            selected.facts.operation,
+            selected.facts.lowering_hook,
+            selected.facts.body_kind,
+            selected.facts.body_interpreter,
+            selected.facts.frame_effect.is_some(),
+            selected.facts.body_execution.is_some(),
+            selected.facts.traits,
+        );
+    }
+}
+
 fn original_structured_operands_are_supported(
+    registry: &CommandRegistry,
+    selected: &ResolvedStatementInvocation,
+    source_roles: Option<&StructuredSourceRoles>,
+    tokens: &CommandTokens,
+) -> Option<()> {
+    let result = original_structured_operands_are_supported_untraced(
+        registry,
+        selected,
+        source_roles,
+        tokens,
+    );
+    #[cfg(debug_assertions)]
+    trace_jim_structure_fields("operands", selected, source_roles);
+    crate::registry_invocation::source_structure::trace_jim_source_option(
+        "jim.body.operands_supported",
+        result,
+    )
+}
+
+fn original_structured_operands_are_supported_untraced(
     registry: &CommandRegistry,
     selected: &ResolvedStatementInvocation,
     source_roles: Option<&StructuredSourceRoles>,
@@ -730,6 +807,20 @@ fn original_structured_operands_are_supported(
     Some(())
 }
 
+fn traced_original_source_purpose(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<crate::command_binding::OriginalInvocationSourcePurpose> {
+    source_structure::trace_jim_source_option(
+        "jim.body.purpose",
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_source_advice_purpose(tokens, context, registry),
+    )
+}
+
 /// Select source structure using the caller's complete immutable context.
 /// Missing or foreign context refuses; this supplies no executed body/frame.
 pub(crate) fn logical_structured_invocation_with_metadata_context(
@@ -738,32 +829,32 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     tokens: &CommandTokens,
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
 ) -> Option<LogicalStructuredInvocation> {
-    let source_purpose = tokens
-        .source_binding
-        .as_ref()?
-        .original_source_advice_purpose(tokens, context, registry)?;
+    let source_purpose = traced_original_source_purpose(registry, context, tokens)?;
     let logical_source =
         source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("registry", tokens, false);
         return None;
     }
     let context = if logical_source {
-        tokens
-            .source_binding
-            .as_ref()?
-            .original_invocation_metadata_for_input(
-                tokens,
-                context.source_analysis_input()?,
-                registry,
-            )?
+        source_structure::trace_jim_source_option(
+            "jim.body.metadata",
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_invocation_metadata_for_input(
+                    tokens,
+                    context.source_analysis_input()?,
+                    registry,
+                ),
+        )?
     } else {
         context
     };
     if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
     {
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("argument_entry", tokens, false);
         return None;
     }
@@ -879,12 +970,12 @@ fn original_declared_structured_invocation<'a>(
     let logical_source =
         source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_registry", tokens, false);
         return None;
     }
     let Some(binding) = tokens.source_binding.as_ref() else {
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_binding", tokens, false);
         return None;
     };
@@ -903,7 +994,7 @@ fn original_declared_structured_invocation<'a>(
             .normalized()
             != input.lexer_config().normalized()
     {
-        #[cfg(test)]
+        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_config", tokens, false);
         return None;
     }
@@ -924,7 +1015,7 @@ fn original_declared_structured_invocation<'a>(
                     .filter(|advice| !advice.has_unclosed_source_coverage())
             })
     };
-    #[cfg(test)]
+    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_advice", tokens, advice.is_some());
     let advice = advice?;
     // This is conditional source structure. A positively retained Logical
@@ -939,13 +1030,13 @@ fn original_declared_structured_invocation<'a>(
     } else {
         advice.closed_lookup()
     };
-    #[cfg(test)]
+    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_closed", tokens, closed);
     if !closed {
         return None;
     }
     let selected = resolve_original_declared_layout(registry, context, tokens, &advice);
-    #[cfg(test)]
+    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_facts", tokens, selected.is_some());
     selected
 }

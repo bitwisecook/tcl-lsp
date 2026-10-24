@@ -278,6 +278,36 @@ impl OriginalJimStockClass {
     }
 }
 
+#[cfg(debug_assertions)]
+fn trace_jim_stock_entry(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    policy: NamePolicyProtocol,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.stock.fields offset={} policy={policy:?} native_entry={} source_point={} unknown_entry={} opaque={} unclosed={} unnameable={} dynamic_traces={} traced={} possible_traces={} namespace_known={} registry={} generation={} kind={:?} prepended={} traits={:?}",
+            native.segment.span.start(),
+            state.baseline.native_entry.is_some(),
+            state.baseline.source_point_entry.is_some(),
+            state.baseline.unknown_entry,
+            state.opaque_domain,
+            state.unclosed_command_world,
+            state.unnameable_rebinding_subject,
+            state.source_variables.dynamic_traces,
+            state.source_variables.traced.len(),
+            state.source_variables.possible_trace_registrations.len(),
+            state.source_variables.namespace_known,
+            native.target.registry_backed,
+            native.target.implementation_generation,
+            native.target.kind,
+            native.target.prepended.len(),
+            facts.traits,
+        );
+    }
+}
+
 fn bounded_entry(
     native: SourceNativeInvocation<'_>,
     facts: &tcl_registry::InvocationFacts,
@@ -285,6 +315,8 @@ fn bounded_entry(
     context: SourceExecutionContext<'_>,
 ) -> Option<()> {
     let policy = state.baseline.execution_name_policy?.native_recipe()?;
+    #[cfg(debug_assertions)]
+    trace_jim_stock_entry(native, facts, state, policy);
     if policy.authority() != NamePolicyAuthority::AuthoredSimulation
         || policy.recipe() != NativeNameProtocol::Jim084
         || state.baseline.native_entry.is_some()
@@ -299,7 +331,11 @@ fn bounded_entry(
             .source_variables
             .possible_trace_registrations
             .is_empty()
-        || !state.command_observers.is_quiet()
+        || crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.stock.observers_active",
+            (!state.command_observers.is_quiet()).then_some(()),
+        )
+        .is_some()
         || !state.source_variables.namespace_known
         || !native.target.registry_backed
         || native.target.implementation_generation != 0
@@ -308,7 +344,12 @@ fn bounded_entry(
         || !facts
             .traits
             .contains(tcl_registry::Traits::CREATES_DYNAMIC_BARRIER)
-        || state.source_root_namespace_key().as_ref() != Some(&context.namespace_identity())
+        || crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.stock.root_mismatch",
+            (state.source_root_namespace_key().as_ref() != Some(&context.namespace_identity()))
+                .then_some(()),
+        )
+        .is_some()
     {
         return None;
     }
@@ -406,8 +447,14 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        bounded_entry(native, facts, state, context)?;
-        let owner = OriginalJimStockClass::capture(native, state, context)?;
+        super::super::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.stock.entry",
+            bounded_entry(native, facts, state, context),
+        )?;
+        let owner = super::super::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.stock.capture",
+            OriginalJimStockClass::capture(native, state, context),
+        )?;
         if !owner.current_factory(native, state, context) || !owner.dependencies_are_current(state)
         {
             return None;
