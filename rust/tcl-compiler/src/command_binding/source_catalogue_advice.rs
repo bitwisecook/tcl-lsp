@@ -113,6 +113,24 @@ impl OriginalCatalogueSourceCandidate {
             .then_some(first)
     }
 
+    /// Unanimous original source realm, without selected execution authority.
+    pub(crate) fn original_source_realm(&self) -> Option<tcl_dialect::model::InvocationRealm> {
+        let first = self.observations.first()?.snapshot.realm;
+        self.observations
+            .iter()
+            .all(|row| row.snapshot.realm == first)
+            .then_some(first)
+    }
+
+    /// Unanimous retained source namespace identity, without an executing holder.
+    pub(crate) fn original_source_namespace_key(&self) -> Option<&super::SourceNamespaceKey> {
+        let first = &self.observations.first()?.namespace;
+        self.observations
+            .iter()
+            .all(|row| &row.namespace == first)
+            .then_some(first)
+    }
+
     /// Same independently retained command-store semantics.
     #[must_use]
     pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
