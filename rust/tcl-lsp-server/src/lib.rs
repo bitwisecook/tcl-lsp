@@ -17888,17 +17888,8 @@ impl Backend {
         };
 
         drop(self.workspace_scan_gate.lock().await);
-        let (mut files, mut resolver_revision) = {
-            let resolver = self.package_resolver.read().await;
-            let files = coordinates
-                .iter()
-                .find_map(|coordinate| {
-                    let files = resolver.resolve_logical_auto_command(coordinate);
-                    (!files.is_empty()).then_some(files)
-                })
-                .unwrap_or_default();
-            (files, resolver.revision())
-        };
+        let (mut files, mut resolver_revision) =
+            self.logical_library_files_for_headers(coordinates).await;
         if files.is_empty() {
             for file in self.required_library_files(uri, analysis).await {
                 if !files.contains(&file) {
@@ -17982,6 +17973,21 @@ impl Backend {
                 .collect(),
             resolver_revision,
         )))
+    }
+
+    async fn logical_library_files_for_headers(
+        &self,
+        coordinates: &[tcl_core_types::ByteCommandSlot],
+    ) -> (Vec<PathBuf>, u64) {
+        let resolver = self.package_resolver.read().await;
+        let files = coordinates
+            .iter()
+            .find_map(|coordinate| {
+                let files = resolver.resolve_logical_auto_command(coordinate);
+                (!files.is_empty()).then_some(files)
+            })
+            .unwrap_or_default();
+        (files, resolver.revision())
     }
 
     #[cfg(test)]
@@ -19601,14 +19607,7 @@ impl Backend {
         pos: Position,
         purpose: WorkspaceSymbolPurpose,
     ) -> DocumentSourceResult<WorkspaceSymbolSelection> {
-        if !analysis.allows_lexical_declaration_advice()
-            || analysis.body_lexer_config.is_none_or(|config| {
-                !analysis.matches_original_source_image(
-                    &tcl_lexer::SourceImage::document(source),
-                    config,
-                )
-            })
-        {
+        if Self::workspace_symbol_source_is_unavailable(source, analysis) {
             return Ok(WorkspaceSymbolSelection::Miss);
         }
         if core_hover::find_var_at_position(source, pos.line, pos.character).is_some() {
@@ -19725,6 +19724,16 @@ impl Backend {
             }
         }
         Ok(WorkspaceSymbolSelection::Miss)
+    }
+
+    fn workspace_symbol_source_is_unavailable(source: &str, analysis: &AnalysisResult) -> bool {
+        !analysis.allows_lexical_declaration_advice()
+            || analysis.body_lexer_config.is_none_or(|config| {
+                !analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config,
+                )
+            })
     }
 
     /// Resolve against the current index, then populate the autoload/package
