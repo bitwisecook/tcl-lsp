@@ -24,7 +24,7 @@
     "runtime/rust/src/interp.rs": "b81e1094017e0ccb6389e6963dafbbe9f60cfb2fc714686b590a1b28b85c58ec",
     "runtime/rust/src/interp/command_guard_lookup.rs": "67f62a72049672b97b82c7459c9557553baa8a5e67d18ec04b337731c980efbf",
     "runtime/rust/src/interp/native_error_headers.rs": "b9ec2cdc95dd988d68af37ce53f14199d8c674f1888447d058cf77330b8c5fdd",
-    "runtime/rust/src/namespace.rs": "ec6aded86fb21cea5c9f61bf87c593bb17f71661465a89b6c0aed525e13cb391",
+    "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-compiler/src/codegen/wasm/backend.rs": "c72183b108c7020856e6ae8f0be24dc3482aa94c8b673429d55eeaff69a2cfd7",
     "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "159c9d3667935a2e2affb21d00d811df64fc184b4da2ed34590b4b8762f1dd1f",
