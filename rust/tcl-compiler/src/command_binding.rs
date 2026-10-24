@@ -63,6 +63,7 @@ mod frozen_arguments;
 mod future_bodies;
 mod hosted_procedure_body;
 mod incomplete_body_metadata;
+mod jim_wrapper_body;
 mod logical_definition;
 pub use hosted_procedure_body::OriginalHostedProcedureBody;
 mod logical_operation;
@@ -7263,6 +7264,9 @@ impl SourceCommandBindings {
         }
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
+        if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
+            bindings.retain_jim_wrapper_future_bodies(config, registry);
+        }
         bindings.retain_logical_receiver_source_catalogues(config, registry);
         bindings.retain_original_declaration_source_operand_layouts(registry);
         if let Some(key) = memo_key {
@@ -7443,7 +7447,7 @@ impl SourceCommandBindings {
         after_load: bool,
     ) {
         if root.future_frame.is_some() {
-            self.walk_future_body(root, incoming, config, registry);
+            self.walk_future_body(root, incoming, config, registry, None);
             return;
         }
         let mut branch = boxed_source_branch(incoming);
