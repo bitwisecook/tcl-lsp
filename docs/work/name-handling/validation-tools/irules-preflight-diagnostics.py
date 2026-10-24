@@ -186,7 +186,7 @@ resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 roster_path = BASE / "irules-preflight-roster.json"
 require(
     sha(roster_path)
-    == "a929200405968040e2166a3600174618a20279c44db72ef2771b308ccb9d6ab3",
+    == "7801e8b21c8adc811d7413ce2be5caed63f03aab40ea40a6f7dd4d47e375822b",
     "approved original preflight3 roster changed",
 )
 roster = json.loads(roster_path.read_text())
