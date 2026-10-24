@@ -441,27 +441,116 @@ pub(crate) fn original_authored_script_scalar_variable(
     selected
 }
 
+/// Independently owned possible syntax; it retains every lookup obligation.
+/// This route is consumed only by sink diagnostics, never scalar SSA/effects.
+fn original_possible_sink_structure(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<(
+    AuthoredSourceStructuredInvocation,
+    crate::command_binding::OriginalCatalogueSourceCandidate,
+)> {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let candidate = tokens
+        .source_binding
+        .as_ref()?
+        .original_standalone_script_catalogue_candidate(tokens, registry)?;
+    let config = candidate.original_head().name_input().lexer_config();
+    let mut dialect = candidate.original_source_dialect()?;
+    dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    let realm = candidate.original_source_realm()?;
+    let namespace = candidate.original_source_namespace_key()?.clone();
+    let effective =
+        super::compose_original_effective_words(tokens, &candidate.candidate().name, &[])?;
+    let values: Vec<_> = effective
+        .words
+        .iter()
+        .map(|word| {
+            super::effective_invocation_word(
+                word,
+                dialect.lexer_grammar.escapes,
+                dialect.word_values,
+            )
+        })
+        .collect();
+    let words: Vec<_> = values
+        .iter()
+        .map(super::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    let (resolution, case_selection) =
+        super::resolve_registry_words_in_realm_with_metadata_context_and_case(
+            registry,
+            None,
+            &words,
+            Some(dialect),
+            realm,
+        )
+        .ok()?;
+    let super::RegistryInvocationResolution::Resolved(facts) = resolution else {
+        return None;
+    };
+    let evaluated_words = values.get(1..)?.to_vec();
+    let source = AuthoredSourceStructuredInvocation {
+        invocation: ResolvedStatementInvocation {
+            dialect: Some(dialect),
+            facts,
+            arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+            evaluated_arguments: evaluated_words
+                .iter()
+                .map(|word| match word {
+                    super::EffectiveInvocationWord::Literal(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+            evaluated_words,
+            effective,
+            authored_case_body_selection: Some(case_selection),
+        },
+        config,
+        unknown_residual: true,
+        registry: registry.snapshot(),
+        realm,
+        namespace,
+        original_words: candidate.original_words().to_vec(),
+    };
+    Some((source, candidate))
+}
+
 /// Conditional taint syntax for one genuine original Standalone script call.
 /// The schema retains possible handler applicability, including unknown/error
 /// alternatives. It cannot supply effects, a sanitizer, Normal or compilation.
 pub(crate) struct AuthoredSourceTaintInvocation {
     source: AuthoredSourceStructuredInvocation,
     tokens: CommandTokens,
+    conditional: Option<crate::command_binding::OriginalCatalogueSourceCandidate>,
 }
 
 impl AuthoredSourceTaintInvocation {
     pub(crate) fn capture(tokens: &CommandTokens, registry: &CommandRegistry) -> Option<Self> {
-        trace_authored_script_option(
+        let strong = trace_authored_script_option(
             "sink.root_scope",
             tokens
                 .source_binding
                 .as_ref()?
                 .original_standalone_script_variable_scope(tokens, registry),
-        )?;
-        let source = trace_authored_script_option(
-            "sink.structure",
-            original_authored_source_structure(tokens, registry),
-        )?;
+        )
+        .and_then(|_| {
+            trace_authored_script_option(
+                "sink.structure",
+                original_authored_source_structure(tokens, registry),
+            )
+        });
+        let (source, conditional) = match strong {
+            Some(source) => (source, None),
+            None => {
+                let (source, candidate) = original_possible_sink_structure(tokens, registry)?;
+                (source, Some(candidate))
+            }
+        };
         if !source.direct_written_arguments()
             || source.original_words.iter().any(|word| word.group().expand)
             || source.facts().arity_accepts_frozen_arguments() == Some(false)
@@ -471,6 +560,7 @@ impl AuthoredSourceTaintInvocation {
         Some(Self {
             source,
             tokens: tokens.clone(),
+            conditional,
         })
     }
 
@@ -493,7 +583,9 @@ impl AuthoredSourceTaintInvocation {
     }
 
     pub(crate) fn has_closed_scalar_read_context(&self) -> bool {
-        !self.source.has_unknown_residual() && authored_script_scalar_context_is_quiet(&self.tokens)
+        self.conditional.is_none()
+            && !self.source.has_unknown_residual()
+            && authored_script_scalar_context_is_quiet(&self.tokens)
     }
 
     /// Independent readonly literal advice. Raw source SSA taint stays unknown.
@@ -503,6 +595,9 @@ impl AuthoredSourceTaintInvocation {
         key: Option<crate::ssa::ValueKey>,
     ) -> Option<bool> {
         self.matches_point(point).then_some(())?;
+        if self.conditional.is_some() {
+            return Some(false);
+        }
         let complete = point.original_script_literal_read_coverage(key)?;
         Some(complete && self.has_closed_scalar_read_context())
     }
@@ -862,5 +957,78 @@ mod standalone_script_source_variable_tests {
             );
             assert!(unit.ir_module.source_entry.native_entry.is_none());
         }
+    }
+
+    #[test]
+    fn conditional_sink_retains_unknown_obligations_without_scalar_or_clean_facts() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let text = "unknown_host; eval $x";
+        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let point = scalar_point(&unit, "eval");
+        let tokens = point.source_tokens().unwrap();
+        let (source, candidate) = original_possible_sink_structure(tokens, registry)
+            .expect("genuine conditional source coordinates retain unknown applicability");
+        assert!(source.has_unknown_residual());
+        assert!(!candidate.obligations().is_empty());
+        assert!(candidate.matches_registry(registry));
+        assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.ir_module.source_metadata_input.is_none());
+        let selected = AuthoredSourceTaintInvocation {
+            source,
+            tokens: tokens.clone(),
+            conditional: Some(candidate),
+        };
+        assert_eq!(selected.command(), "eval");
+        assert!(!selected.has_closed_scalar_read_context());
+        assert_eq!(selected.literal_read_coverage(point, None), Some(false));
+        let arguments = selected
+            .effective()
+            .argument_spellings(&tokens.argv_texts[1..])
+            .unwrap();
+        assert!(
+            selected
+                .sink_schema(registry, tokens, Some(selected.effective()), 0, &arguments)
+                .is_some()
+        );
+        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let foreign_point = scalar_point(&foreign, "eval");
+        assert!(!selected.matches_point(foreign_point));
+        assert_eq!(selected.literal_read_coverage(foreign_point, None), None);
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "donated".to_owned();
+        assert!(original_possible_sink_structure(&changed, registry).is_none());
+        assert!(
+            selected
+                .sink_schema(
+                    registry,
+                    &changed,
+                    Some(selected.effective()),
+                    0,
+                    &arguments
+                )
+                .is_none()
+        );
+        let other = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(original_possible_sink_structure(tokens, other).is_none());
+        assert!(
+            selected
+                .sink_schema(other, tokens, Some(selected.effective()), 0, &arguments)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_sink_does_not_borrow_known_document_replacements() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc eval args {}; eval $x",
+            registry,
+            false,
+        );
+        let point = scalar_point(&unit, "eval");
+        assert!(
+            original_possible_sink_structure(point.source_tokens().unwrap(), registry).is_none()
+        );
     }
 }

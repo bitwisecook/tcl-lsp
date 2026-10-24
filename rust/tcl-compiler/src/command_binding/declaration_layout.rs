@@ -2076,6 +2076,44 @@ impl super::SourceInvocationBinding {
         crate::signature_scan::scope::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
     )> {
+        self.original_standalone_script_scope(tokens, registry, false)
+    }
+
+    /// A possible source schema retains original coordinates and all current
+    /// lookup obligations; it cannot supply a variable identity or storage.
+    pub(crate) fn original_standalone_script_catalogue_candidate(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::OriginalCatalogueSourceCandidate> {
+        let (namespace, policy) = self.original_standalone_script_scope(tokens, registry, true)?;
+        let site = self.invocation_site()?;
+        (site.source.source_image().channel() == tcl_lexer::SourceChannel::Document)
+            .then_some(())?;
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let original = crate::registry_invocation::original_native_compiler_words(
+            site.source.source_image(),
+            tokens.words(),
+            site.offset,
+            config,
+        )?;
+        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+            original.first()?, tcl_syntax::word_rules::WordValueRules::from_config(&config), policy,
+        )?;
+        let head =
+            crate::signature_scan::original_name::SourceOriginalNameOccurrence::new(site, key)?;
+        self.original_catalogue_source_candidate(tokens, &head, Some(&namespace), registry)
+    }
+
+    fn original_standalone_script_scope(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        catalogue_only: bool,
+    ) -> Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
         if tokens.synthetic.is_some() || tokens.source_binding.as_ref() != Some(self) {
             return None;
         }
@@ -2149,7 +2187,13 @@ impl super::SourceInvocationBinding {
             }
             let scope = trace_root_script_option(
                 "root.namespace_geometry",
-                state.original_namespace_geometry(namespace, policy),
+                if catalogue_only {
+                    state
+                        .original_command_world
+                        .retained_scope_for_source_advice(namespace, policy)
+                } else {
+                    state.original_namespace_geometry(namespace, policy)
+                },
             )?;
             let current = (scope, policy);
             if selected.as_ref().is_some_and(|prior| prior != &current) {
