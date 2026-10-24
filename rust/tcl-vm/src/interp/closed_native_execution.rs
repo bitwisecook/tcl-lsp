@@ -260,7 +260,8 @@ fn check_function(function: &FunctionAsm, body: bool) -> Result<(), ClosedSource
     for instruction in &function.instructions {
         let allowed = matches!(
             instruction.op,
-            Op::PUSH1
+            Op::NOP
+                | Op::PUSH1
                 | Op::PUSH4
                 | Op::POP
                 | Op::DUP
