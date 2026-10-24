@@ -1786,7 +1786,7 @@ is renamed or deleted in this file."
                     fu,
                     procedure,
                     &declaration,
-                    declared_flow.as_ref(),
+                    declared_flow.as_deref(),
                     ctx,
                     proofs,
                 )
