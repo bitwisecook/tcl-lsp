@@ -10897,7 +10897,10 @@ impl SourceCommandBindings {
         {
             if (requires_reentry_guard(facts)
                 || (outcomes.normal_completion.is_none()
-                    && !command_world_closed_on_normal_return(native.target, facts)))
+                    && !command_world_closed_on_normal_return(native.target, facts)
+                    && !source_command_world::namespace_body_world_closed_on_normal_return(
+                        native, facts, &outcomes, *context,
+                    )))
                 && let Some(normal) = outcomes.normal.as_mut()
             {
                 #[cfg(test)]
@@ -10991,7 +10994,10 @@ impl SourceCommandBindings {
         );
         if (requires_reentry_guard(facts)
             || (outcomes.normal_completion.is_none()
-                && !command_world_closed_on_normal_return(native.target, facts)))
+                && !command_world_closed_on_normal_return(native.target, facts)
+                && !source_command_world::namespace_body_world_closed_on_normal_return(
+                    native, facts, &outcomes, *context,
+                )))
             && let Some(normal) = outcomes.normal.as_mut()
         {
             #[cfg(test)]

@@ -2491,6 +2491,70 @@ fn matches_pattern(
         .ok()
 }
 
+// A namespace body's closed normal world is independent of a possible
+// compiler/guest error. This grants neither unconditional completion nor an
+// entered body, and never clears an already unclosed prefix or child world.
+pub(super) fn namespace_body_world_closed_on_normal_return(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    outcomes: &super::SourceOutcomes,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+    use tcl_registry::{NamespaceTransition, OwnedSubcommandResolution, StateTransition};
+    if context.compilation.mode != tcl_registry::native_compilation::NativeCompilationMode::Direct
+        || context.compilation.frame
+            != tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode
+        || facts.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::NamespaceEval,
+            )
+        || !matches!(
+            tcl_registry::script_body_flow::script_body_flow(facts),
+            tcl_registry::script_body_flow::ScriptBodyFlow::ConcatenatedScript { .. }
+        )
+        || !native.target.registry_backed
+        || native.target.kind != super::BindingKind::Builtin
+        || !native.target.prepended.is_empty()
+        || !facts.arg_roles_complete
+        || !matches!(facts.subcommand, OwnedSubcommandResolution::Exact { .. })
+        || facts.effects.legacy().command_table_mutation
+        || super::requires_reentry_guard(facts)
+        || !outcomes.abrupt.iter().all(|(route, _)| {
+            matches!(
+                route,
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error)
+            )
+        })
+    {
+        return false;
+    }
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return false;
+    };
+    if transitions.facts().is_empty()
+        || !transitions.facts().iter().all(|fact| {
+            matches!(
+                fact.transition,
+                StateTransition::Namespace(NamespaceTransition::Ensure { .. })
+            )
+        })
+    {
+        return false;
+    }
+    let Some(normal) = outcomes.normal.as_deref() else {
+        return false;
+    };
+    !normal.unclosed_command_world
+        && !normal.has_opaque_domain()
+        && !normal.baseline.unknown_entry
+        && !normal.original_command_world.unavailable
+        && normal.command_observers.is_quiet()
+        && !normal.source_step_observed()
+        && !normal.source_execution_observed(None)
+        && normal.unknown_handler_is_original()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
