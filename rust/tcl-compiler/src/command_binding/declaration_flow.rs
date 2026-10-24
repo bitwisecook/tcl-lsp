@@ -1023,8 +1023,14 @@ impl Builder<'_> {
     ) -> Option<Vec<DeclarationSelectionScope<'_>>> {
         Some(match self.entry {
             DeclarationFlowFrame::Existing(entry) => {
-                let observations = super::declaration_layout::original_declaration_layouts(
-                    self.inventory.layouts.get(site)?,
+                let observations = trace_rbs_required(
+                    super::declaration_layout::original_declaration_layouts(trace_rbs_required(
+                        self.inventory.layouts.get(site),
+                        site.offset,
+                        "scopes.layouts",
+                    )?),
+                    site.offset,
+                    "scopes.observations",
                 )?;
                 let mut scopes = Vec::new();
                 for observation in observations {
@@ -1032,6 +1038,7 @@ impl Builder<'_> {
                         || observation.config != self.config
                         || observation.words.as_ref() != tokens.words()
                     {
+                        trace_rbs_refusal(site.offset, "scopes.row-current");
                         return None;
                     }
                     scopes.push(DeclarationSelectionScope {
@@ -1045,6 +1052,7 @@ impl Builder<'_> {
             DeclarationFlowFrame::Read(entry) => {
                 if !self.read_sites.contains(site) || !entry.owns_source(&site.source, site.offset)
                 {
+                    trace_rbs_refusal(site.offset, "scopes.read-current");
                     return None;
                 }
                 let source = entry.header.declaration.source.source_image();
