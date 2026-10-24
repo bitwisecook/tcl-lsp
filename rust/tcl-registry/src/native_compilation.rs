@@ -1772,6 +1772,16 @@ impl NativeCompilationSpec {
         }
     }
 
+    fn original_generic_word_visits(
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    ) -> Vec<crate::native_control_compilation::NativeControlPreparationStep> {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand;
+        use crate::native_control_compilation::NativeControlPreparationStep as Visit;
+        (0..words.original_words().len())
+            .map(|index| Visit::Word(NativeCompilerWordOperand::Original(index)))
+            .collect()
+    }
+
     /// Project preparation effects without changing the selected execution mode
     /// or issuing an inline instruction. Generic word compilation and nested
     /// body visits retain their independent source and lookup obligations.
@@ -1783,10 +1793,6 @@ impl NativeCompilationSpec {
         dialect: Option<InvocationDialect>,
         context: NativeCompilationContext,
     ) -> NativeOriginalCompilerNameEffects {
-        use crate::native_compiler_word_projection::NativeCompilerWordOperand;
-        use crate::native_control_compilation::{
-            NativeControlOutcome, NativeControlPreparationStep as Visit,
-        };
         use NativeOriginalCompilerNameEffects::{Preserved, Unknown, Visits};
         let effects = self.original_argument_name_effects(words, operand_from, dialect);
         let Some(dialect) = dialect else {
@@ -1804,11 +1810,6 @@ impl NativeCompilationSpec {
         {
             return Unknown;
         }
-        let generic_words = || {
-            (0..words.original_words().len())
-                .map(|index| Visit::Word(NativeCompilerWordOperand::Original(index)))
-                .collect::<Vec<_>>()
-        };
         if effects != Unknown {
             // A null command compileProc still leaves the enclosing generic
             // script compiler responsible for bracketed word substitutions.
@@ -1816,11 +1817,25 @@ impl NativeCompilationSpec {
                 && self.compiler_hook_presence(dialect) == Some(false)
                 && (0..words.original_words().len()).any(|index| words.literal(index).is_none())
             {
-                Visits(generic_words())
+                Visits(Self::original_generic_word_visits(words))
             } else {
                 effects
             };
         }
+        self.selected_original_argument_name_effects(words, operand_from, dialect, version, context)
+    }
+
+    fn selected_original_argument_name_effects(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: InvocationDialect,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand;
+        use crate::native_control_compilation::NativeControlPreparationStep as Visit;
+        use NativeOriginalCompilerNameEffects::{Unknown, Visits};
         if words.shapes()[0].compiler_head(Some(dialect)) != Some(true)
             || self.compiler_hook_presence(dialect) != Some(true)
         {
@@ -1855,7 +1870,7 @@ impl NativeCompilationSpec {
         // These selected leaf emitters prepare source tokens, not variable
         // values. Substitution compiler visits remain explicitly unresolved.
         if self.preserves_names_for_literal_vector(words, operand_from) {
-            return Visits(generic_words());
+            return Visits(Self::original_generic_word_visits(words));
         }
         if self.grammar == NativeCompilationGrammar::Expression {
             let operand = NativeCompilerWordOperand::Original(operand_from);
@@ -1870,6 +1885,20 @@ impl NativeCompilationSpec {
                 Unknown
             };
         }
+        self.selected_control_name_effects(words, operand_from, dialect, context)
+    }
+
+    fn selected_control_name_effects(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: InvocationDialect,
+        context: NativeCompilationContext,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_control_compilation::{
+            NativeControlOutcome, NativeControlPreparationStep as Visit,
+        };
+        use NativeOriginalCompilerNameEffects::{Unknown, Visits};
         let control = match self.grammar {
             NativeCompilationGrammar::Conditional
             | NativeCompilationGrammar::WhileLoop
@@ -1895,7 +1924,7 @@ impl NativeCompilationSpec {
             return Unknown;
         };
         if generic {
-            visits.extend(generic_words());
+            visits.extend(Self::original_generic_word_visits(words));
         }
         Visits(visits)
     }
@@ -2932,6 +2961,44 @@ impl NativeCompilationSpec {
                 },
             );
         }
+        if let Some(selection) = self.select_original_string_words(words, operand_from, version) {
+            return Some(selection);
+        }
+
+        if let Some(kind) = self.introspection_compilation()
+            && crate::native_introspection_compilation::compile_native_introspection(
+                words,
+                operand_from,
+                kind,
+                version,
+            )
+            .is_some()
+        {
+            return Some(Selection::Inline {
+                operation: self.operation,
+                guard: NativeCompilationGuard::BeforeArguments,
+            });
+        }
+        if let Some((operation, scope)) = self.scalar_compilation() {
+            return Some(crate::native_scalar_compilation::select_original(
+                words,
+                operand_from,
+                operation,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+
+        None
+    }
+
+    fn select_original_string_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        version: TclVersion,
+    ) -> Option<NativeCompilationSelection> {
         if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
             return Some(crate::native_string_trim_compilation::select_original(
                 words,
@@ -2969,31 +3036,6 @@ impl NativeCompilationSpec {
         }
         if let NativeCompilationGrammar::StringOperand { scope, operation } = self.grammar {
             return Some(crate::native_string_operand_compilation::select_original(
-                words,
-                operand_from,
-                operation,
-                scope,
-                version,
-                self.operation,
-            ));
-        }
-
-        if let Some(kind) = self.introspection_compilation()
-            && crate::native_introspection_compilation::compile_native_introspection(
-                words,
-                operand_from,
-                kind,
-                version,
-            )
-            .is_some()
-        {
-            return Some(Selection::Inline {
-                operation: self.operation,
-                guard: NativeCompilationGuard::BeforeArguments,
-            });
-        }
-        if let Some((operation, scope)) = self.scalar_compilation() {
-            return Some(crate::native_scalar_compilation::select_original(
                 words,
                 operand_from,
                 operation,
@@ -4124,40 +4166,58 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::ProcedureHookFrom(first) => {
                 procedure_hook_selection(version, first, context.frame)
             }
-            NativeCompilationGrammar::Error => gated_arity_grammar(
+            _ => match self.select_delegated_arity_grammar(shapes, version) {
+                Some(selection) => selection,
+                None => return self.select_delegated_word_grammar(words, shapes, version),
+            },
+        })
+    }
+
+    fn select_delegated_arity_grammar(
+        self,
+        shapes: &[NativeCompilationWordShape],
+        version: TclVersion,
+    ) -> Option<NativeCompilationSelection> {
+        use NativeCompilationSelection as Selection;
+        match self.grammar {
+            NativeCompilationGrammar::Error => Some(gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::new(1, 3),
                 shapes,
                 version,
                 self.operation,
-            ),
-            NativeCompilationGrammar::ArityFrom { first, arity } => {
-                gated_arity_grammar(first, arity, shapes, version, self.operation)
-            }
-            NativeCompilationGrammar::InfoCoroutine => gated_arity_grammar(
+            )),
+            NativeCompilationGrammar::ArityFrom { first, arity } => Some(gated_arity_grammar(
+                first,
+                arity,
+                shapes,
+                version,
+                self.operation,
+            )),
+            NativeCompilationGrammar::InfoCoroutine => Some(gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::exact(0),
                 shapes,
                 version,
                 self.operation,
-            ),
-            NativeCompilationGrammar::CoroutineYield => gated_arity_grammar(
+            )),
+            NativeCompilationGrammar::CoroutineYield => Some(gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::new(0, 1),
                 shapes,
                 version,
                 self.operation,
-            ),
-            NativeCompilationGrammar::CoroutineRelay => gated_arity_grammar(
+            )),
+            NativeCompilationGrammar::CoroutineRelay => Some(gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::at_least(1),
                 shapes,
                 version,
                 self.operation,
-            ),
-            NativeCompilationGrammar::NoHook => Selection::Generic,
-            _ => return self.select_delegated_word_grammar(words, shapes, version),
-        })
+            )),
+            NativeCompilationGrammar::NoHook => Some(Selection::Generic),
+            _ => None,
+        }
     }
 
     fn select_delegated_word_grammar(
