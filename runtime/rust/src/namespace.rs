@@ -3821,7 +3821,11 @@ impl Namespaces {
         ns: NsId,
         handler: Option<crate::obj::Owned>,
     ) -> Option<crate::obj::Owned> {
-        self.note_guard_command_lookup_policy_mutation();
+        if self.arena[ns].unknown.is_some() || handler.is_some() {
+            self.note_guard_command_lookup_policy_mutation();
+        } else {
+            self.note_guard_lookup_environment_mutation();
+        }
         std::mem::replace(&mut self.arena[ns].unknown, handler)
     }
 
@@ -4491,6 +4495,39 @@ mod tests {
         world.set_path(GLOBAL, Vec::new());
         assert!(world.guard_command_lookup_policy_revision().is_none());
         assert!(world.command_guard_lookup(GLOBAL, root).is_none());
+    }
+
+    #[test]
+    fn command_lookup_currency_keeps_absent_unknown_retirement_but_rejects_real_changes() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"kept", cmd());
+        let generation = world.command_generation(GLOBAL, b"kept").unwrap();
+        let original = world.command_guard_lookup(GLOBAL, generation).unwrap();
+        let unrelated = world.ensure_namespace(GLOBAL, b"unrelated");
+        let broad = world.guard_lookup_environment_revision();
+        let policy = world.guard_command_lookup_policy_revision();
+        assert!(world.set_unknown_handler(unrelated, None).is_none());
+        assert_ne!(world.guard_lookup_environment_revision(), broad);
+        assert_eq!(world.guard_command_lookup_policy_revision(), policy);
+        assert!(world.command_guard_lookup_is_current(&original, GLOBAL, generation));
+
+        let handler = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"::unknown"));
+        assert!(!handler.as_ptr().is_null());
+        assert!(world
+            .set_unknown_handler(unrelated, Some(handler))
+            .is_none());
+        assert!(!world.command_guard_lookup_is_current(&original, GLOBAL, generation));
+        let installed = world.command_guard_lookup(GLOBAL, generation).unwrap();
+        let retired = world.set_unknown_handler(unrelated, None);
+        assert!(retired.is_some());
+        assert!(!world.command_guard_lookup_is_current(&installed, GLOBAL, generation));
+        drop(retired);
+
+        let cleared = world.command_guard_lookup(GLOBAL, generation).unwrap();
+        assert!(world.set_unknown_handler(unrelated, None).is_none());
+        assert!(world.command_guard_lookup_is_current(&cleared, GLOBAL, generation));
+        world.set_path(unrelated, vec![GLOBAL]);
+        assert!(!world.command_guard_lookup_is_current(&cleared, GLOBAL, generation));
     }
 
     #[test]
