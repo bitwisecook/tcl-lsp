@@ -13,7 +13,6 @@ pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationE
         return;
     };
     if protocol.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
-        || protocol.recipe().is_jim084()
         || entry
             .execution_point
             .and_then(tcl_syntax::naming::NamePolicyProtocol::for_native_point)
@@ -45,6 +44,9 @@ pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationE
         {
             continue;
         }
+        if protocol.recipe().is_jim084() && !jim_global_table(entry, &table.namespace) {
+            continue;
+        }
         // The table inventory retains every counted native key, including opaque units.
         let roots = table.roots.iter().cloned();
         let identity = SourceNamespaceKey::Native(table.namespace.clone());
@@ -57,6 +59,29 @@ pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationE
             }));
         variables.namespace_cells.closed_namespaces.insert(identity);
     }
+}
+
+// Jim namespace-object names address one flat table at the actual root.
+// A named namespace's C-style geometry cannot issue a second Jim table.
+fn jim_global_table(
+    entry: &NativeCompilationEntry,
+    namespace: &tcl_runtime_api::native_compilation::NativeNamespaceContext,
+) -> bool {
+    if !namespace.path.is_root() {
+        return false;
+    }
+    let mut roots = entry.namespaces.iter().filter(|row| {
+        row.visible
+            && row.path.is_root()
+            && row
+                .jim_namespace_object
+                .as_ref()
+                .is_some_and(|object| object.as_bytes() == b"")
+    });
+    roots
+        .next()
+        .is_some_and(|root| root.token == namespace.token)
+        && roots.next().is_none()
 }
 
 #[cfg(test)]
@@ -97,6 +122,81 @@ mod tests {
             execution: None,
         });
         (entry, variables, root)
+    }
+
+    #[test]
+    fn original_jim_flat_global_table_closes_only_missing_root_keys() {
+        let profile = tcl_registry::model::ingress::resolve_known_environment("jimtcl")
+            .unwrap()
+            .unit_profile();
+        let (_owner, entry) =
+            crate::environment_ingress::captured_native_entry_with_owner_using(profile, |vm| {
+                vm.set_var("::retained::present", tcl_vm::Value::string("PRESENT"))
+                    .unwrap();
+            });
+        let tables = entry
+            .namespace_variable_tables
+            .as_ref()
+            .expect("actual Jim root table");
+        assert_eq!(tables.len(), 1);
+        let table = &tables[0];
+        assert!(jim_global_table(&entry, &table.namespace));
+        assert!(
+            table
+                .roots
+                .iter()
+                .any(|root| root.as_bytes() == b"retained::present")
+        );
+        let mut variables = ResolveContext::default();
+        variables.widen();
+        let mut access = place::scalar("missing", "::", false);
+        access.cell = Some(place::CellIdentity {
+            owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(
+                table.namespace.clone(),
+            ))),
+            name: "missing".into(),
+            generation: place::CellGeneration::default(),
+            interpreter: None,
+            storage_domain: None,
+            execution: None,
+        });
+        install(&mut variables, &entry);
+        assert_eq!(
+            variables.contents_presence(&access),
+            ContentsPresence::Undefined
+        );
+        access.name = "retained::present".into();
+        access.cell.as_mut().unwrap().name = "retained::present".into();
+        assert_eq!(
+            variables.contents_presence(&access),
+            ContentsPresence::Unknown
+        );
+        let mut missing_object = entry.clone();
+        missing_object
+            .namespaces
+            .iter_mut()
+            .find(|row| row.token == table.namespace.token)
+            .unwrap()
+            .jim_namespace_object = None;
+        assert!(!jim_global_table(&missing_object, &table.namespace));
+        let mut ambiguous = entry.clone();
+        let mut duplicate = ambiguous
+            .namespaces
+            .iter()
+            .find(|row| row.token == table.namespace.token)
+            .unwrap()
+            .clone();
+        duplicate.token = duplicate.token.checked_add(1).unwrap();
+        ambiguous.namespaces.push(duplicate);
+        assert!(!jim_global_table(&ambiguous, &table.namespace));
+        variables.namespace_cells.widen();
+        install(&mut variables, &ambiguous);
+        access.name = "missing".into();
+        access.cell.as_mut().unwrap().name = "missing".into();
+        assert_eq!(
+            variables.contents_presence(&access),
+            ContentsPresence::Unknown
+        );
     }
 
     #[test]

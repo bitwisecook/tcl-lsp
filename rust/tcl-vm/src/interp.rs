@@ -26184,14 +26184,20 @@ impl Vm {
         use tcl_runtime_api::native_compilation::{
             NativeNamespaceContext, NativeNamespaceVariableTable,
         };
-        // This owner currently exports concrete C namespace tables only.
-        // Logical simulation and Jim's independent flat-table owner cannot
-        // borrow this capability from the physical compiler target.
+        // C namespace tables and Jim's single flat global table have
+        // separate storage owners. Neither is issued by Logical simulation.
         if self.name_policy_protocol()?.authority()
             != tcl_syntax::naming::NamePolicyAuthority::Native
-            || self.actual_native_invocation_dialect().native_family
-                != Some(tcl_dialect::model::Family::Tcl)
         {
+            return None;
+        }
+        let family = self.actual_native_invocation_dialect().native_family;
+        if family == Some(tcl_dialect::model::Family::Jim)
+            && self.name_policy_protocol()?.recipe().is_jim084()
+        {
+            return self.native_jim_global_variable_table(interpreter);
+        }
+        if family != Some(tcl_dialect::model::Family::Tcl) {
             return None;
         }
         let mut tables = Vec::new();
@@ -26221,6 +26227,45 @@ impl Vm {
             });
         }
         Some(tables)
+    }
+
+    fn native_jim_global_variable_table(
+        &self,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> Option<Vec<tcl_runtime_api::native_compilation::NativeNamespaceVariableTable>> {
+        use tcl_runtime_api::native_compilation::{
+            NativeNamespaceContext, NativeNamespaceVariableTable,
+        };
+        let namespace = self
+            .native_compilation_namespaces()
+            .into_iter()
+            .find(|namespace| namespace.token == u64::from(ROOT_NS.0))?;
+        if !namespace.visible
+            || !namespace.path.is_root()
+            || namespace.jim_namespace_object.as_ref()?.as_bytes() != b""
+        {
+            return None;
+        }
+        // Both Jim's global lookup and qualified namespace variable lookup
+        // select Namespace(ROOT_NS), whose physical table is frame zero.
+        // Keep its counted flat keys, including links and undefined cells;
+        // do not project them through a C namespace or follow cell values.
+        let mut roots = self
+            .frames
+            .first()?
+            .locals
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        roots.sort();
+        Some(vec![NativeNamespaceVariableTable {
+            namespace: NativeNamespaceContext {
+                interpreter,
+                token: namespace.token,
+                path: namespace.path,
+            },
+            roots,
+        }])
     }
 
     fn native_compilation_commands(
