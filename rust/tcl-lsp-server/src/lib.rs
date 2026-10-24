@@ -33291,12 +33291,7 @@ impl LanguageServer for Backend {
         // `S-semantic-tokens-rich`: filter tokens to those that
         // start inside the requested range.  Editors call this
         // when only the visible viewport needs colouring.
-        let core_range = CoreLspRange {
-            start_line: params.range.start.line,
-            start_character: params.range.start.character,
-            end_line: params.range.end.line,
-            end_character: params.range.end.character,
-        };
+        let core_range = core_semantic_range(params.range);
         if let Some(tokens) = self
             .non_tcl_range_tokens(&params.text_document.uri, &doc, core_range)
             .await
@@ -33351,23 +33346,15 @@ impl LanguageServer for Backend {
         let serve_dialect = dialect.clone();
         let serve_registry = Arc::clone(&registry);
         let core_data = crate::rt::spawn_blocking(move || {
-            if !had_analysis_handles {
-                return cached_analysis
-                    .as_deref()
-                    .map_or_else(Vec::new, |analysis| {
-                        unindexed_semantic_tokens_for_range(&serve_text, analysis, Some(core_range))
-                            .data
-                    });
-            }
-            core_semantic_tokens::range_with_cu_and_analysis(
+            range_token_data(
+                had_analysis_handles,
+                cached_analysis.as_deref(),
                 &serve_text,
-                tcl_lsp_core::profile_for_dialect(&serve_dialect),
                 core_range,
+                &serve_dialect,
                 &serve_registry,
                 cached_cu.as_deref(),
-                cached_analysis.as_deref(),
             )
-            .data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -39279,6 +39266,40 @@ fn next_semantic_tokens_id() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(1);
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("st-{id}")
+}
+
+fn core_semantic_range(range: Range) -> CoreLspRange {
+    CoreLspRange {
+        start_line: range.start.line,
+        start_character: range.start.character,
+        end_line: range.end.line,
+        end_character: range.end.character,
+    }
+}
+
+fn range_token_data(
+    had_analysis_handles: bool,
+    analysis: Option<&AnalysisResult>,
+    text: &str,
+    core_range: CoreLspRange,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&tcl_compiler::compilation_unit::CompilationUnit>,
+) -> Vec<u32> {
+    if !had_analysis_handles {
+        return analysis.map_or_else(Vec::new, |analysis| {
+            unindexed_semantic_tokens_for_range(text, analysis, Some(core_range)).data
+        });
+    }
+    core_semantic_tokens::range_with_cu_and_analysis(
+        text,
+        tcl_lsp_core::profile_for_dialect(dialect),
+        core_range,
+        registry,
+        cu,
+        analysis,
+    )
+    .data
 }
 
 /// Convert the core's `Vec<u32>` packed semantic-tokens
