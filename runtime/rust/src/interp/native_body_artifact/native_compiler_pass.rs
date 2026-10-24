@@ -290,7 +290,7 @@ impl Operation {
             // Format adds literal pushes and string concatenation only. Its
             // original value-word substitutions already live in self.scripts.
             Self::FormatStringConcat { .. } => Vec::new(),
-            Self::NamespaceString(_) | Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringOperand(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::DictionaryMutation(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
+            Self::NamespaceString(_) | Self::Scalar(_) | Self::Introspection(_) | Self::ListIndex(_) | Self::ListOperations(_) | Self::StringTrim(_) | Self::StringOperand(_) | Self::StringRange(_) | Self::StringMatch(_) | Self::Error(_) | Self::DictionaryLookup(_) | Self::DictionaryMutation(_) | Self::Break | Self::Continue | Self::Each(_) | Self::InfoExists(_) | Self::Switch(_) | Self::TclOoHelper(..) | Self::List(..) | Self::Concat{..} | Self::Unset(_) | Self::Load(_) | Self::Store(..) | Self::Increment(..) | Self::Append(..) | Self::SelectedReturn(..) => Vec::new(),
         }
     }
 }

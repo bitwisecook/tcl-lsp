@@ -23,9 +23,11 @@ use native_try::TryOperation;
 mod native_control;
 mod native_string;
 mod native_string_operand;
+mod native_string_range;
 mod native_string_trim;
 use native_string::StringMatchOperation;
 use native_string_operand::StringOperandOperation;
+use native_string_range::StringRangeOperation;
 use native_string_trim::StringTrimOperation;
 mod native_list_index;
 use native_list_index::ListIndexOperation;
@@ -167,6 +169,7 @@ enum Operation {
     StringMatch(StringMatchOperation),
     StringTrim(StringTrimOperation),
     StringOperand(StringOperandOperation),
+    StringRange(StringRangeOperation),
     Error(ErrorOperation),
     Coroutine(CoroutineOperation),
     DictionaryLookup(DictionaryLookupOperation),
@@ -1106,6 +1109,9 @@ impl Builder<'_> {
             NativeInstructionPlan::StringTrim(recipe) => {
                 Operation::StringTrim(self.string_trim_operation(&captured, recipe, depth)?)
             }
+            NativeInstructionPlan::StringRange(recipe) => {
+                Operation::StringRange(self.string_range_operation(&captured, &recipe, depth)?)
+            }
             NativeInstructionPlan::StringOperand(recipe) => {
                 Operation::StringOperand(self.string_operand_operation(&captured, recipe, depth)?)
             }
@@ -1550,6 +1556,12 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::StringRange(string) = &mut operation {
+                    if let Some(word) = string.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::StringOperand(string) = &mut operation {
                     if let Some(word) = string.prepared_words.remove(&index) {
                         words.push(word);
@@ -1643,7 +1655,7 @@ impl Builder<'_> {
                 // Opcode variable operands are not emitted as ordinary argument
                 // objects. Their indexed receiver layout was allocated above.
                 let emitted = match &operation {
-                    Operation::StringMatch(_) | Operation::StringTrim(_) | Operation::StringOperand(_) => false,
+                    Operation::StringMatch(_) | Operation::StringTrim(_) | Operation::StringOperand(_) | Operation::StringRange(_) => false,
                     Operation::ListIndex(_) | Operation::ListOperations(_) => false,
                     Operation::NamespaceString(_) | Operation::MathOperator(_) | Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
                     Operation::Upvar(_) | Operation::InfoExists(_) => false,
@@ -3351,6 +3363,9 @@ impl Interp {
             }
             Operation::StringTrim(trim) => {
                 self.execute_body_string_trim(artifact, command, trim, execution)
+            }
+            Operation::StringRange(string) => {
+                self.execute_body_string_range(artifact, command, string, execution)
             }
             Operation::StringOperand(string) => {
                 self.execute_body_string_operand(artifact, command, string, execution)

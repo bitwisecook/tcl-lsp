@@ -140,6 +140,7 @@ pub mod native_string_compilation;
 pub mod native_string_is_compilation;
 mod native_string_map_compilation;
 pub mod native_string_operand_compilation;
+pub mod native_string_range_compilation;
 pub mod native_string_trim_compilation;
 pub mod native_switch_compilation;
 pub mod native_tcloo_bootstrap;
