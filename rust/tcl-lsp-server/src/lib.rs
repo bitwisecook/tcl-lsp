@@ -12292,10 +12292,7 @@ impl Backend {
             expected_analyser_inputs_epoch,
             expected_class_factory_generation,
         } = inputs;
-        assert_eq!(removals.len(), removal_admissions.len());
-        for (uri, admission) in removals.iter().zip(removal_admissions) {
-            admission.check_uri(uri)?;
-        }
+        Self::check_disk_removal_admissions(removals, removal_admissions)?;
         // Serialise the final disk commit with live source publication. The
         // document-map check below can then be released before the bounded
         // Salsa setters without a didOpen/didChange source commit landing in
@@ -12309,8 +12306,8 @@ impl Backend {
         // prevent `try_lock` from ever reaching the census check below.
         let mut snapshot_drain = self.db.begin_snapshot_drain();
         loop {
-            let locks = match self.try_publication_locks() {
-                Ok(locks) => locks,
+            let (locks, docs) = match self.try_disk_publication_bundle(site) {
+                Ok(bundle) => bundle,
                 Err(wait) => {
                     (rehoming_guard, live_publication, snapshot_drain) = self
                         .restart_disk_publication(
@@ -12324,68 +12321,18 @@ impl Backend {
                     continue;
                 }
             };
-
-            // A salsa setter blocks the worker thread inside `cancel_others`
-            // while any clone lives. Do not enter that synchronous wait from a
-            // background transaction. Holding `db` makes this zero stable.
-            if self.db.snapshot_report().outstanding != 0 {
-                drop(locks);
-                (rehoming_guard, live_publication, snapshot_drain) = self
-                    .restart_disk_publication(
-                        rehoming_guard,
-                        live_publication,
-                        snapshot_drain,
-                        site,
-                        LivePublicationWait::SalsaSnapshots,
-                    )
-                    .await;
-                continue;
-            }
-
-            let Some(docs) = self.documents.try_lock(site) else {
-                drop(locks);
-                (rehoming_guard, live_publication, snapshot_drain) = self
-                    .restart_disk_publication(
-                        rehoming_guard,
-                        live_publication,
-                        snapshot_drain,
-                        site,
-                        LivePublicationWait::Documents,
-                    )
-                    .await;
-                continue;
-            };
-            let had_replacements = !replacements.is_empty();
-            let replacements: Vec<_> = replacements
-                .iter()
-                .zip(admissions)
-                .filter(|(row, _)| !docs.contains_key(&row.0))
-                .collect();
-            let mut index_only_removals = Vec::new();
-            let removals: Vec<_> = removals
-                .iter()
-                .filter(|uri| match removal_policy {
-                    DiskRemovalPolicy::RenamedPath => true,
-                    DiskRemovalPolicy::ClosedOnly => !docs.contains_key(*uri),
-                    DiskRemovalPolicy::IncludeOpen(deleted_revisions) => {
-                        let Some(doc) = docs.get(*uri) else {
-                            return true;
-                        };
-                        if !doc.backing_file_deleted {
-                            return false;
-                        }
-                        if deleted_revisions.get(*uri) == Some(&doc.revision) {
-                            true
-                        } else {
-                            // A post-deletion edit owns the current Salsa
-                            // source, but the filesystem identity is still
-                            // dead and must leave the cross-document index.
-                            index_only_removals.push(*uri);
-                            false
-                        }
-                    }
-                })
-                .collect();
+            let DiskPublicationSelection {
+                had_replacements,
+                replacements,
+                index_only_removals,
+                removals,
+            } = Self::classify_disk_publication(
+                replacements,
+                admissions,
+                removals,
+                removal_policy,
+                &docs,
+            );
             // The crucial boundary: all potentially slow work is below, after
             // the global map is available to every handler again.
             drop(docs);
@@ -12396,18 +12343,10 @@ impl Backend {
             let _analyser_inputs_guard =
                 if let Some(expected_epoch) = expected_analyser_inputs_epoch {
                     let Ok(guard) = self.analyser_inputs_gate.try_read() else {
-                        return Ok((
-                            Vec::new(),
-                            rehoming_guard,
-                            DiskPublicationOutcome::Unavailable,
-                        ));
+                        return Ok(Self::unavailable_disk_publication(rehoming_guard));
                     };
                     if self.diag_inputs_epoch() != expected_epoch {
-                        return Ok((
-                            Vec::new(),
-                            rehoming_guard,
-                            DiskPublicationOutcome::Unavailable,
-                        ));
+                        return Ok(Self::unavailable_disk_publication(rehoming_guard));
                     }
                     Some(guard)
                 } else {
@@ -12416,18 +12355,10 @@ impl Backend {
             let _class_factory_guard =
                 if let Some(expected_generation) = expected_class_factory_generation {
                     let Ok(guard) = self.class_factory_generation.try_read() else {
-                        return Ok((
-                            Vec::new(),
-                            rehoming_guard,
-                            DiskPublicationOutcome::Unavailable,
-                        ));
+                        return Ok(Self::unavailable_disk_publication(rehoming_guard));
                     };
                     if *guard != expected_generation {
-                        return Ok((
-                            Vec::new(),
-                            rehoming_guard,
-                            DiskPublicationOutcome::Unavailable,
-                        ));
+                        return Ok(Self::unavailable_disk_publication(rehoming_guard));
                     }
                     Some(guard)
                 } else {
@@ -31873,6 +31804,105 @@ impl Backend {
 
     fn trace_workspace_scan_stage(stage: &str, scan_started: crate::rt::Instant) {
         workspace_scan_trace!("{stage} elapsed_ms={}", scan_started.elapsed().as_millis());
+    }
+}
+
+struct DiskPublicationSelection<'a> {
+    had_replacements: bool,
+    replacements: Vec<AdmittedDiskReplacement<'a>>,
+    index_only_removals: Vec<&'a Uri>,
+    removals: Vec<&'a Uri>,
+}
+
+impl Backend {
+    fn check_disk_removal_admissions(
+        removals: &[Uri],
+        removal_admissions: &[Arc<DocumentPathAdmission>],
+    ) -> DocumentSourceResult<()> {
+        assert_eq!(removals.len(), removal_admissions.len());
+        for (uri, admission) in removals.iter().zip(removal_admissions) {
+            admission.check_uri(uri)?;
+        }
+        Ok(())
+    }
+
+    fn classify_disk_publication<'a>(
+        replacements: &'a [(Uri, String, String, AnalysisResult)],
+        admissions: &'a [Arc<DocumentPathAdmission>],
+        removals: &'a [Uri],
+        removal_policy: DiskRemovalPolicy<'_>,
+        docs: &HashMap<Uri, DocumentState>,
+    ) -> DiskPublicationSelection<'a> {
+        let had_replacements = !replacements.is_empty();
+        let replacements: Vec<_> = replacements
+            .iter()
+            .zip(admissions)
+            .filter(|(row, _)| !docs.contains_key(&row.0))
+            .collect();
+        let mut index_only_removals = Vec::new();
+        let removals: Vec<_> = removals
+            .iter()
+            .filter(|uri| match removal_policy {
+                DiskRemovalPolicy::RenamedPath => true,
+                DiskRemovalPolicy::ClosedOnly => !docs.contains_key(*uri),
+                DiskRemovalPolicy::IncludeOpen(deleted_revisions) => {
+                    let Some(doc) = docs.get(*uri) else {
+                        return true;
+                    };
+                    if !doc.backing_file_deleted {
+                        return false;
+                    }
+                    if deleted_revisions.get(*uri) == Some(&doc.revision) {
+                        true
+                    } else {
+                        // A post-deletion edit owns the current Salsa
+                        // source, but the filesystem identity is still
+                        // dead and must leave the cross-document index.
+                        index_only_removals.push(*uri);
+                        false
+                    }
+                }
+            })
+            .collect();
+        DiskPublicationSelection {
+            had_replacements,
+            replacements,
+            index_only_removals,
+            removals,
+        }
+    }
+
+    fn try_disk_publication_bundle(
+        &self,
+        site: &'static str,
+    ) -> Result<(PublicationLocks<'_>, DocumentsGuard<'_>), LivePublicationWait> {
+        let locks = self.try_publication_locks()?;
+        // A salsa setter blocks the worker thread inside `cancel_others`
+        // while any clone lives. Do not enter that synchronous wait from a
+        // background transaction. Holding `db` makes this zero stable.
+        if self.db.snapshot_report().outstanding != 0 {
+            drop(locks);
+            return Err(LivePublicationWait::SalsaSnapshots);
+        }
+        let Some(docs) = self.documents.try_lock(site) else {
+            drop(locks);
+            return Err(LivePublicationWait::Documents);
+        };
+        Ok((locks, docs))
+    }
+
+    fn unavailable_disk_publication(
+        rehoming_guard: tokio::sync::MutexGuard<'_, ()>,
+    ) -> (
+        Vec<Uri>,
+        tokio::sync::MutexGuard<'_, ()>,
+        DiskPublicationOutcome,
+    ) {
+        (
+            Vec::new(),
+            rehoming_guard,
+            DiskPublicationOutcome::Unavailable,
+        )
     }
 }
 
