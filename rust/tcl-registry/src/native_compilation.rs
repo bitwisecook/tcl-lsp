@@ -1895,9 +1895,7 @@ impl NativeCompilationSpec {
         dialect: InvocationDialect,
         context: NativeCompilationContext,
     ) -> NativeOriginalCompilerNameEffects {
-        use crate::native_control_compilation::{
-            NativeControlOutcome, NativeControlPreparationStep as Visit,
-        };
+        use crate::native_control_compilation::NativeControlOutcome;
         use NativeOriginalCompilerNameEffects::{Unknown, Visits};
         let control = match self.grammar {
             NativeCompilationGrammar::Conditional
