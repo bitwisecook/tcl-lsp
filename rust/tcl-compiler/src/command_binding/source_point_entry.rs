@@ -282,6 +282,7 @@ impl OriginalSourcePointEntry {
         {
             return None;
         }
+        #[cfg(test)]
         if self
             .source_advice_graph(input.borrowed_context_registry())
             .is_none()
@@ -295,6 +296,8 @@ impl OriginalSourcePointEntry {
             }
             return None;
         }
+        #[cfg(not(test))]
+        self.source_advice_graph(input.borrowed_context_registry())?;
         Some(self.minted_entry(registry, input))
     }
 
@@ -647,6 +650,43 @@ impl SourceCommandBindings {
             && self.root_origin.as_deref() == Some(origin)
     }
 
+    #[cfg(test)]
+    fn trace_original_source_point_state(
+        first: &super::SourceBindingPoint,
+        state: &super::ModuleCommandBindings,
+        offset: u32,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_POINT_STATE offset={offset} argv={} native={} hosted={} opaque={} unclosed={} step={} quiet={} unknown_frame={} selected_frame={} receiver_frame={} registry_target={} inherited={}",
+                first.original_arguments_complete_normally,
+                state.baseline.native_entry.is_some(),
+                state.baseline.hosted_execution_context.is_some(),
+                state.has_opaque_domain(),
+                state.unclosed_command_world,
+                state.source_step_observed(),
+                state.command_observers.is_quiet(),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Unknown
+                ),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Selected { .. }
+                ),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                ),
+                first
+                    .original_dispatch_binding()
+                    .proved_target()
+                    .is_some_and(|target| target.registry_backed),
+                state.baseline.source_point_entry.is_some(),
+            );
+        }
+    }
+
     /// Exact original words at a unanimous post-argv/pre-handler point.
     /// Compiler-only previews cannot substitute for that point inventory.
     pub(crate) fn original_source_point_entry(
@@ -694,35 +734,7 @@ impl SourceCommandBindings {
         };
         let state = &first.state;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
-            eprintln!(
-                "N13_POINT_STATE offset={offset} argv={} native={} hosted={} opaque={} unclosed={} step={} quiet={} unknown_frame={} selected_frame={} receiver_frame={} registry_target={} inherited={}",
-                first.original_arguments_complete_normally,
-                state.baseline.native_entry.is_some(),
-                state.baseline.hosted_execution_context.is_some(),
-                state.has_opaque_domain(),
-                state.unclosed_command_world,
-                state.source_step_observed(),
-                state.command_observers.is_quiet(),
-                matches!(
-                    state.variable_frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::Unknown
-                ),
-                matches!(
-                    state.variable_frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::Selected { .. }
-                ),
-                matches!(
-                    state.variable_frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-                ),
-                first
-                    .original_dispatch_binding()
-                    .proved_target()
-                    .is_some_and(|target| target.registry_backed),
-                state.baseline.source_point_entry.is_some(),
-            );
-        }
+        Self::trace_original_source_point_state(first, state, offset);
         if !first.original_arguments_complete_normally
             || state.baseline.native_entry.is_some()
             || state.baseline.hosted_execution_context.is_some()

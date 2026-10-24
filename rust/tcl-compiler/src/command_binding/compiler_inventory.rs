@@ -340,49 +340,73 @@ impl SourceCommandBindings {
                     }
                     super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => false,
                 };
-                eprintln!(
-                    "ORIGINAL_BODY_COMPILER_CHILD body={body:?} offset={} ordinal={ordinal} source_root={} enclosing_offset={} enclosing_root={} parent_offset={:?} parent_root={} base={} bytes={} mapping={:?} script_root={} origin_matches_site={} provider_required={} parent_current={parent_current} sites={}",
-                    site.offset,
-                    self.root_origin
-                        .as_ref()
-                        .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
-                    child.enclosing.offset,
-                    self.root_origin
-                        .as_ref()
-                        .is_some_and(|root| Arc::ptr_eq(root, &child.enclosing.source)),
-                    match child.parent.as_ref() {
-                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
-                            parent,
-                        ) => Some(parent.compilation_site.offset),
-                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => None,
-                    },
-                    match child.parent.as_ref() {
-                        super::compiled_invocation::SourceNativeCompilerAdmission::Inline(
-                            parent,
-                        ) => self
-                            .root_origin
-                            .as_ref()
-                            .is_some_and(|root| Arc::ptr_eq(root, &parent.compilation_site.source)),
-                        super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) =>
-                            false,
-                    },
-                    child.script.base(),
-                    child.script.text.len(),
-                    child.script.mapping,
-                    self.root_origin
-                        .as_ref()
-                        .is_some_and(|root| Arc::ptr_eq(root, &child.script.origin)),
-                    child.script.origin == site.source,
-                    self.compilation_provider_required
-                        .contains(&child.enclosing),
-                    child.compiler_visits.len(),
-                );
+                self.trace_original_body_compiler_child(body, site, ordinal, child, parent_current);
                 for (command, visits) in child.compiler_visits.iter() {
                     for (ordinal, visit) in visits.iter().enumerate() {
                         trace_visit("raw-child", command, ordinal, visit);
                     }
                 }
             }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_original_body_compiler_child(
+        &self,
+        body: crate::ir::ProcedureId,
+        site: &CommandAllocationSite,
+        ordinal: usize,
+        child: &super::compiled_preflight::SourceCompiledChild,
+        parent_current: bool,
+    ) {
+        eprintln!(
+            "ORIGINAL_BODY_COMPILER_CHILD body={body:?} offset={} ordinal={ordinal} source_root={} enclosing_offset={} enclosing_root={} parent_offset={:?} parent_root={} base={} bytes={} mapping={:?} script_root={} origin_matches_site={} provider_required={} parent_current={parent_current} sites={}",
+            site.offset,
+            self.root_origin
+                .as_ref()
+                .is_some_and(|root| Arc::ptr_eq(root, &site.source)),
+            child.enclosing.offset,
+            self.root_origin
+                .as_ref()
+                .is_some_and(|root| Arc::ptr_eq(root, &child.enclosing.source)),
+            match child.parent.as_ref() {
+                super::compiled_invocation::SourceNativeCompilerAdmission::Inline(parent) =>
+                    Some(parent.compilation_site.offset),
+                super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => None,
+            },
+            match child.parent.as_ref() {
+                super::compiled_invocation::SourceNativeCompilerAdmission::Inline(parent) => self
+                    .root_origin
+                    .as_ref()
+                    .is_some_and(|root| Arc::ptr_eq(root, &parent.compilation_site.source)),
+                super::compiled_invocation::SourceNativeCompilerAdmission::Named(_) => false,
+            },
+            child.script.base(),
+            child.script.text.len(),
+            child.script.mapping,
+            self.root_origin
+                .as_ref()
+                .is_some_and(|root| Arc::ptr_eq(root, &child.script.origin)),
+            child.script.origin == site.source,
+            self.compilation_provider_required
+                .contains(&child.enclosing),
+            child.compiler_visits.len(),
+        );
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_original_compiler_syntax_query(
+        offset: Option<u32>,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+            eprintln!(
+                "ORIGINAL_COMPILER_SYNTAX_QUERY offset={offset:?} words={:?} argv_texts={:?} input_config={:?}",
+                tokens.words(),
+                tokens.argv_texts,
+                input.lexer_config()
+            );
         }
     }
 
@@ -399,14 +423,7 @@ impl SourceCommandBindings {
             .first()
             .map(|word| word.source().span.start());
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
-            eprintln!(
-                "ORIGINAL_COMPILER_SYNTAX_QUERY offset={offset:?} words={:?} argv_texts={:?} input_config={:?}",
-                tokens.words(),
-                tokens.argv_texts,
-                input.lexer_config()
-            );
-        }
+        Self::trace_original_compiler_syntax_query(offset, tokens, input);
         let owner = trace_compiler_syntax_option(
             "analysis_owner",
             offset,

@@ -598,24 +598,7 @@ impl SourceInvocationBinding {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-            let offset = tokens.argv.first().map(|span| span.start());
-            trace_original_child_guard(
-                "footprint.request",
-                offset,
-                metadata.is_some_and(|metadata| metadata.matches_registry(registry)),
-            );
-            trace_original_child_guard(
-                "footprint.request_input",
-                offset,
-                metadata.is_some_and(|metadata| metadata.source_analysis_input().is_some()),
-            );
-            trace_original_child_guard(
-                "footprint.reached_lookup",
-                offset,
-                self.lookup_state.is_some(),
-            );
-        }
+        self.trace_materialized_footprint_request(tokens, registry, metadata);
         let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
         let input = metadata.source_analysis_input()?;
         if self.lookup_state.is_none() {
@@ -646,42 +629,7 @@ impl SourceInvocationBinding {
         let snapshot = self.lookup_state.as_ref()?;
         let state = &snapshot.state;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-            let offset = Some(site.offset);
-            trace_original_child_guard("footprint.known", offset, !self.unknown);
-            trace_original_child_guard("footprint.present", offset, !self.may_be_absent);
-            trace_original_child_guard(
-                "footprint.closed_domain",
-                offset,
-                !state.has_opaque_domain(),
-            );
-            trace_original_child_guard(
-                "footprint.quiet",
-                offset,
-                state.command_observers.is_quiet(),
-            );
-            trace_original_child_guard("footprint.no_step", offset, !state.source_step_observed());
-            trace_original_child_guard(
-                "footprint.origin",
-                offset,
-                state.current_source_origin.as_ref() == Some(&site.source),
-            );
-            trace_original_child_guard(
-                "footprint.image",
-                offset,
-                site.source.source_image().try_text().ok() == Some(source),
-            );
-            trace_original_child_guard(
-                "footprint.store",
-                offset,
-                state.baseline.registry_snapshot == Some(registry.snapshot().semantic_key()),
-            );
-            trace_original_child_guard(
-                "footprint.config",
-                offset,
-                config.normalized() == input.lexer_config().normalized(),
-            );
-        }
+        self.trace_materialized_footprint_state(state, site, source, registry, config, input);
         if self.unknown
             || self.may_be_absent
             || state.has_opaque_domain()
@@ -726,6 +674,81 @@ impl SourceInvocationBinding {
             config: config.nested(),
             head,
         })
+    }
+
+    #[cfg(test)]
+    fn trace_materialized_footprint_request(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        metadata: Option<InvocationMetadataContext<'_>>,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = tokens.argv.first().map(|span| span.start());
+            trace_original_child_guard(
+                "footprint.request",
+                offset,
+                metadata.is_some_and(|metadata| metadata.matches_registry(registry)),
+            );
+            trace_original_child_guard(
+                "footprint.request_input",
+                offset,
+                metadata.is_some_and(|metadata| metadata.source_analysis_input().is_some()),
+            );
+            trace_original_child_guard(
+                "footprint.reached_lookup",
+                offset,
+                self.lookup_state.is_some(),
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_materialized_footprint_state(
+        &self,
+        state: &ModuleCommandBindings,
+        site: &super::CommandAllocationSite,
+        source: &str,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = Some(site.offset);
+            trace_original_child_guard("footprint.known", offset, !self.unknown);
+            trace_original_child_guard("footprint.present", offset, !self.may_be_absent);
+            trace_original_child_guard(
+                "footprint.closed_domain",
+                offset,
+                !state.has_opaque_domain(),
+            );
+            trace_original_child_guard(
+                "footprint.quiet",
+                offset,
+                state.command_observers.is_quiet(),
+            );
+            trace_original_child_guard("footprint.no_step", offset, !state.source_step_observed());
+            trace_original_child_guard(
+                "footprint.origin",
+                offset,
+                state.current_source_origin.as_ref() == Some(&site.source),
+            );
+            trace_original_child_guard(
+                "footprint.image",
+                offset,
+                site.source.source_image().try_text().ok() == Some(source),
+            );
+            trace_original_child_guard(
+                "footprint.store",
+                offset,
+                state.baseline.registry_snapshot == Some(registry.snapshot().semantic_key()),
+            );
+            trace_original_child_guard(
+                "footprint.config",
+                offset,
+                config.normalized() == input.lexer_config().normalized(),
+            );
+        }
     }
 
     /// Possible text names under a positively Logical original declaration.

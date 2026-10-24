@@ -242,6 +242,49 @@ impl ModuleCommandBindings {
         })
     }
 
+    #[cfg(test)]
+    fn trace_unknown_ensemble_selection(head: &str) {
+        if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+            eprintln!("ZZ_ENSEMBLE head={head} public worker selection unknown");
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_unheld_ensemble_worker(
+        &self,
+        head: &str,
+        worker: &tcl_runtime_api::native_compilation::NativeCompilationBinding,
+    ) {
+        if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+            eprintln!(
+                "ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}",
+                worker.slot,
+                self.has_opaque_domain()
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_selected_ensemble_worker(
+        head: &str,
+        selected: &tcl_registry::native_selected_worker::OriginalSelectedWorkerPathCompilation,
+    ) {
+        if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+            eprintln!(
+                "ZZ_ENSEMBLE head={head} worker={:?} hook={:?} trace={} compilation={}",
+                selected.worker.slot,
+                selected.worker.compiler_hook,
+                selected.worker.has_execution_trace,
+                match &selected.compilation {
+                    OriginalSelectedWorkerCompilation::PublicGeneric => "generic",
+                    OriginalSelectedWorkerCompilation::Unavailable => "unavailable",
+                    OriginalSelectedWorkerCompilation::Named(_) => "named",
+                    OriginalSelectedWorkerCompilation::Operation { .. } => "operation",
+                }
+            );
+        }
+    }
+
     pub(super) fn actual_ensemble_plan(
         &self,
         target: &SourceCommandTarget,
@@ -295,22 +338,14 @@ impl ModuleCommandBindings {
             NativeEnsembleWorkerSelection::Generic => return Some(ActualEnsemblePlan::Generic),
             NativeEnsembleWorkerSelection::Unknown => {
                 #[cfg(test)]
-                if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-                    eprintln!("ZZ_ENSEMBLE head={head} public worker selection unknown");
-                }
+                Self::trace_unknown_ensemble_selection(head);
                 return Some(ActualEnsemblePlan::Unknown);
             }
             NativeEnsembleWorkerSelection::Worker { member, binding } => (member, binding),
         };
         if !self.original_compiler_worker_node_holds(&worker) {
             #[cfg(test)]
-            if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-                eprintln!(
-                    "ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}",
-                    worker.slot,
-                    self.has_opaque_domain()
-                );
-            }
+            self.trace_unheld_ensemble_worker(head, &worker);
             return Some(ActualEnsemblePlan::Unknown);
         }
         let Ok(replacement) = replacement.try_utf8() else {
@@ -357,20 +392,7 @@ impl ModuleCommandBindings {
             },
         );
         #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-            eprintln!(
-                "ZZ_ENSEMBLE head={head} worker={:?} hook={:?} trace={} compilation={}",
-                selected.worker.slot,
-                selected.worker.compiler_hook,
-                selected.worker.has_execution_trace,
-                match &selected.compilation {
-                    OriginalSelectedWorkerCompilation::PublicGeneric => "generic",
-                    OriginalSelectedWorkerCompilation::Unavailable => "unavailable",
-                    OriginalSelectedWorkerCompilation::Named(_) => "named",
-                    OriginalSelectedWorkerCompilation::Operation { .. } => "operation",
-                }
-            );
-        }
+        Self::trace_selected_ensemble_worker(head, &selected);
         project_original_worker_plan(selected)
     }
 
