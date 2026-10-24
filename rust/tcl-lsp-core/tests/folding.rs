@@ -56,7 +56,7 @@ fn comments(source: &str) -> Vec<FoldingRange> {
 fn proc_body_folds_from_line_zero() {
     let src = "proc greet {name} {\n    puts \"Hello\"\n    puts \"$name\"\n}\n";
     let r = regions(src);
-    assert!(!r.is_empty());
+    assert_ne!(r.as_slice(), &[] as &[FoldingRange],);
     let body = &r[0];
     assert_eq!(body.start_line, 0);
     assert!(body.end_line >= 2);
@@ -97,13 +97,19 @@ fn if_and_while_bodies_fold_zero_to_two() {
 
 #[test]
 fn single_line_body_has_no_region_fold() {
-    assert!(regions("proc foo {} { return 1 }\n").is_empty());
+    assert_eq!(
+        regions("proc foo {} { return 1 }\n").as_slice(),
+        &[] as &[FoldingRange],
+    );
 }
 
 #[test]
 fn empty_file_and_single_comment_have_no_folds() {
-    assert!(folds("").is_empty());
-    assert!(comments("# Just one comment\n").is_empty());
+    assert_eq!(folds("").as_slice(), &[] as &[FoldingRange],);
+    assert_eq!(
+        comments("# Just one comment\n").as_slice(),
+        &[] as &[FoldingRange],
+    );
 }
 
 #[test]

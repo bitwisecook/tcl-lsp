@@ -191,7 +191,7 @@ fn code_lens_none_analysis_returns_empty() {
         None,
         TEST_URI,
     );
-    assert!(lenses.is_empty());
+    assert_eq!(lenses.as_slice(), &[] as &[CodeLens],);
 }
 
 #[test]
@@ -368,19 +368,21 @@ fn code_lens_degenerate_inputs_do_not_panic() {
 
 #[test]
 fn doc_symbols_empty_file_is_empty() {
-    assert!(
+    assert_eq!(
         document_symbols(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         )
-        .is_empty()
+        .as_slice(),
+        &[] as &[DocumentSymbol],
     );
-    assert!(
+    assert_eq!(
         document_symbols(
             "   \n\t\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         )
-        .is_empty()
+        .as_slice(),
+        &[] as &[DocumentSymbol],
     );
 }
 
@@ -587,14 +589,15 @@ fn whole_line(line: u32) -> LspRange {
 
 #[test]
 fn code_actions_none_analysis_is_empty() {
-    assert!(
+    assert_eq!(
         code_actions(
             "catch { puts hi }\n",
             whole_line(0),
             None,
             &tcl_lsp_core::diagnostic_policy::Report::default()
         )
-        .is_empty()
+        .as_slice(),
+        &[] as &[CodeAction],
     );
 }
 
@@ -883,7 +886,10 @@ fn type_definition_var_without_known_class_is_empty() {
     let src = "set x 42\nputs $x\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "$x", 1);
-    assert!(type_definition(src, l, c + 1, &analysis).is_empty());
+    assert_eq!(
+        type_definition(src, l, c + 1, &analysis).as_slice(),
+        &[] as &[LspRange],
+    );
 }
 
 #[test]
@@ -891,10 +897,19 @@ fn type_definition_unrelated_word_is_empty_and_no_panic() {
     let src = "puts hello\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "hello", 1);
-    assert!(type_definition(src, l, c, &analysis).is_empty());
+    assert_eq!(
+        type_definition(src, l, c, &analysis).as_slice(),
+        &[] as &[LspRange],
+    );
     // Degenerate positions.
-    assert!(type_definition("", 0, 0, &analyse("")).is_empty());
-    assert!(type_definition(src, 9, 9, &analysis).is_empty());
+    assert_eq!(
+        type_definition("", 0, 0, &analyse("")).as_slice(),
+        &[] as &[LspRange],
+    );
+    assert_eq!(
+        type_definition(src, 9, 9, &analysis).as_slice(),
+        &[] as &[LspRange],
+    );
 }
 
 // implementation — TclOO subclass / method-override fan-out
@@ -962,9 +977,18 @@ fn implementation_unknown_word_is_empty_and_no_panic() {
     let src = "puts hello\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "hello", 1);
-    assert!(implementation(src, l, c, &analysis).is_empty());
-    assert!(implementation("", 0, 0, &analyse("")).is_empty());
-    assert!(implementation(src, 8, 8, &analysis).is_empty());
+    assert_eq!(
+        implementation(src, l, c, &analysis).as_slice(),
+        &[] as &[LspRange],
+    );
+    assert_eq!(
+        implementation("", 0, 0, &analyse("")).as_slice(),
+        &[] as &[LspRange],
+    );
+    assert_eq!(
+        implementation(src, 8, 8, &analysis).as_slice(),
+        &[] as &[LspRange],
+    );
 }
 
 // type_hierarchy — resolve the TclOO class at the cursor (prepare)
@@ -1015,12 +1039,18 @@ fn type_hierarchy_non_class_word_is_empty() {
     let src = "puts hello\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "hello", 1);
-    assert!(type_hierarchy_prepare(src, l, c, &analysis).is_empty());
+    assert_eq!(
+        type_hierarchy_prepare(src, l, c, &analysis).as_slice(),
+        &[] as &[tcl_lsp_core::type_hierarchy::TypeHierarchyItem],
+    );
 }
 
 #[test]
 fn type_hierarchy_degenerate_inputs_do_not_panic() {
-    assert!(type_hierarchy_prepare("", 0, 0, &analyse("")).is_empty());
+    assert_eq!(
+        type_hierarchy_prepare("", 0, 0, &analyse("")).as_slice(),
+        &[] as &[tcl_lsp_core::type_hierarchy::TypeHierarchyItem],
+    );
     let src = "oo::class create C {}\n";
     let analysis = analyse(src);
     let _ = type_hierarchy_prepare(src, 9, 9, &analysis);
