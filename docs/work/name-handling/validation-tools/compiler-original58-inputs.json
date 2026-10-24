@@ -106,17 +106,20 @@
     "20": {
       "TCL_LSP_TRACE_N13_POINT": "1",
       "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
-      "ZZ_PROBE_LOWER": "1"
+      "ZZ_PROBE_LOWER": "1",
+      "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
     },
     "21": {
       "TCL_LSP_TRACE_N13_POINT": "1",
       "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
-      "ZZ_PROBE_LOWER": "1"
+      "ZZ_PROBE_LOWER": "1",
+      "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
     },
     "22": {
       "TCL_LSP_TRACE_N13_POINT": "1",
       "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
-      "ZZ_PROBE_LOWER": "1"
+      "ZZ_PROBE_LOWER": "1",
+      "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
     },
     "23": {},
     "24": {
