@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T21:25:37.206376+00:00",
+  "scheduled_report_utc": "2026-10-24T21:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T21:55:37+00:00",
+  "change_since_previous_report": [
+    "21:25 checkpoint: functional fixes remain on work; reviewed release counterparts are on release/lsp-naming. WORK d62cf52d55e0bf89aabc5048f63480c6efdf4a09 and release b4e582ed597e4fdeba19191326b2416af1721be8 are pushed. The original six-hour target was missed. No PR, merge, tag, release, or global gate admission.",
+    "Fresh compiler99 run40133511279/job120990073267 authenticates the unchanged old67, closed16, then readonly13 and ancestry3. The native ancestry producer fix and ten readonly body queries are integrated. New work-only stage and logical-scope observers preserve original guards. Actual new outcomes remain pending; the prior closed16 result remains 12 pass/4 fail and original58 remains 55 pass/3 fail.",
+    "Fresh host run40133524482 on the same d62 source includes the reviewed nested-lock dependency edges and bounded dirty-path logger. Browser120990113390, WASI120990113411, and unit120990113132 are running. Prior571ce host traces remain preliminary because source-after authentication failed; the separate unit was fully authenticated and passed.",
+    "Full WORK CI40133538470 is running on d62 with publishing disabled. Web frontends have passed; cargo-deny has failed and requires diagnosis. Shard1 job120990596902 will build and smoke the pinned nextest reporter fix. This tool is validation-only and official reporter installation and acceptance remain unchanged pending actual results.",
+    "Nextest tool V9 is independently reviewed: the upstream ignored-test counter defect is corrected in both output formats; bounded process ownership, source pins, legal headers, formatting and typing are retained. The V9 whitespace-only representation change applies to exactly the same upstream source bytes. Hosted build and smoke success have not yet been observed.",
+    "Jim45 remains 31 pass/14 fail. Names is preparing V3 source-relative per-use analysis and a pure failed-capture refusal predicate; previous variants remain held. C8.4 uplevel original-header preservation remains unresolved and the productive shortcut is held. No failing assertion or runtime guard has been weakened.",
+    "Current pure preflight V11 passes 13 startup records, 30 runner records and 19 whole-file guards, including all three new compiler rosters. This is source/protocol validation, not an actual semantic or performance pass. Final whole-tree formatting must be repeated after the latest separately formatted Rust changes.",
+    "All release gates remain open: complete current baseline comparison, zero pass-to-fail, required runtime/native/editor/host checks, accepted Tcl corpus performance, documentation/comments/generated-file drift, release chaff cleanup and prep-pr. Dedicated iRules performance is waived; correctness is not.",
+    "External BIGIP and perf trackers remain more than 60 minutes old. The user is being notified and no duplicate role or broader takeover is started. Review-triage reports completion. Disk remains below 2GiB; no local Rust builds or target cleanup, and artifacts remain ZIP-only."
+  ],
+  "committed": [
+    "d683a3516b5a6354acb547ceb838a21332d1033a"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish the 21:25 WIP report and re-arm 21:55.",
+    "Authenticate fresh compiler99, host and CI-tool results; fix actual producer failures without weakening guards.",
+    "Complete Jim V3 independent review and diagnose current cargo-deny/strict/Heavy failures.",
+    "Complete all release checks, baseline equality, Tcl performance, documentation, formatting and release cleanup before opening the PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 126283776,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

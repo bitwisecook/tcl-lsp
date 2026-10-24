@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-24T21:00:30.562469+00:00",
+  "scheduled": "2026-10-24T20:55:37+00:00",
+  "source_snapshot": "d683a3516b5a6354acb547ceb838a21332d1033a",
+  "published_snapshot": "15ae87d7081fc76f6299c6469dec70071835c262",
+  "remote_confirmed_by_pusher": true,
+  "fresh_depth1fetch_and_rebase_before_normal_push": true,
+  "gate_admissions": [],
+  "recovery": "Documentation-only publisher guard saw own reviewed unpushed Native observer/ancestry. Verified exactly four approved product paths since remote5804 and zero product edits in checkpoint; normal pusher published fixes+docs and release counterpart. No concurrent source replaced.",
+  "approved_product_base": "367a3fdd3f526f50640cdbdd4b1197dd2b7d39f6",
+  "approved_product_paths": [
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+    "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+    "rust/tcl-runtime-api/src/diagnostic_output.rs",
+    "rust/tcl-vm/src/interp/closed_native_execution.rs"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+  "compiler99": {
+    "run": 40133511279,
+    "job": 120990073267
+  },
+  "hosts": {
+    "run": 40133524482,
+    "browser": 120990113390,
+    "wasi": 120990113411,
+    "unit": 120990113132
+  },
+  "full_ci": {
+    "run": 40133538470,
+    "patched_tool_validation_job": 120990596902
+  },
+  "status": "running; no semantic or performance admission",
+  "pure_preflight": "V11 passes 13 startup,30 runners,19 whole guards"
+}

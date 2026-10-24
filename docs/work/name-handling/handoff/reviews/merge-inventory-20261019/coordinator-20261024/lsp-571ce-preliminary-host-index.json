@@ -1,0 +1,50 @@
+{
+  "utc": "2026-10-24T20:18:28.611360+00:00",
+  "run": 40126576780,
+  "source_requested": "571ce7a284a77a3d7058cfa4e65cc9f199b4c995",
+  "source_membership": {
+    "source": "571ce7a284a77a3d7058cfa4e65cc9f199b4c995",
+    "tree": "0d76c9f04c4936b302eb56d9842144983ec0b862",
+    "count": 126187,
+    "nul_sha256": "9b1782a6a25f8bf039adb5c43d7bdb90eaf7e4c2ab53fa836b09f1fad480a8af",
+    "method": "git --no-lazy-fetch ls-tree -r --name-only -z exactsource; includes docs additions by exact membership"
+  },
+  "status": "ALL_CLOSED_HOST_AUTH_LIMITED_BY_FAILED_SOURCE_AFTER_SEALS_UNIT_FULLAUTH_PASS1",
+  "artifacts": {
+    "browser": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40126576780-actual-v1/assessment-v1.json",
+      "assessment_sha256": "65870bda768cdb875b23f7f674c4702821b3d4f3ad21b8853818f85e6be8769d",
+      "status": "AUTHENTIC_ZIP_PRECHECK_ONLY_AFTERSOURCE_SEAL_FAILED_COMMAND_FAIL",
+      "zip_sha256": "5f0f9570d6cc4750c899ab0d2f8fba1d656670f9c8d58fa8eff99f0c1ce34e3a",
+      "zip_bytes": 4040913,
+      "source_before_membership": 126187,
+      "after_source_seal": false
+    },
+    "wasi": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40126576780-actual-v1/assessment-v1.json",
+      "assessment_sha256": "b474b159ace78214976eb21700b1e2776a96240c089facbf7bfe96dcbeb76a52",
+      "status": "AUTHENTIC_ZIP_PRECHECK_ONLY_AFTERSOURCE_SEAL_FAILED_COMMAND_FAIL",
+      "zip_sha256": "0ed45d40a66cca97c6351eefeacce9209160e673b861b320ef8d0f7db1a95d34",
+      "zip_bytes": 4041506,
+      "source_before_membership": 126187,
+      "after_source_seal": false
+    },
+    "unit": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40126576780-actual-v1/assessment-v1.json",
+      "assessment_sha256": "6a49bd09bd675b4fbc77dee833c7805f93a17ba1b62ebae5661300e6cbc00f25",
+      "status": "AUTHENTIC_SEPARATE_UNIT_PASS",
+      "zip_sha256": "e48e49ec663dcb57a0c41d5dbfee305f1c010fa95bb4dfe7ddd024e3b9fdee42",
+      "zip_bytes": 10147553,
+      "source_before_membership": 126187,
+      "after_source_seal": true
+    }
+  },
+  "protocol_companion_sha256": "ddf8bc8302ecd36d97c1577973072c16bb3e231b99a4e6a3f09897b4be049449",
+  "validators": {
+    "host-author-validator.py": "72df36a2db8457f38ed9ee636eb1c6a79f1b78f30669bad7ae1f6e81594054e6",
+    "selected-author-validator.py": "1dcfa7d2431fd0f2350dc102739f5c0f3575ad427733599277cc7449104d11c1"
+  },
+  "api_metadata_sha256": "c8d3693364a2ed6d0783ea55ae767b0c9177693509e7b3eb6f002c12425fa885",
+  "no_full_host_source_authentication": true,
+  "no_product_or_performance_closure": true
+}
