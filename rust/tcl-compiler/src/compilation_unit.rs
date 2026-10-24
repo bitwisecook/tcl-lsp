@@ -5363,8 +5363,30 @@ impl CompilationUnit {
                 .then(|| self.function_for_body(None))
                 .flatten();
         }
-        let (id, _) = self.ir_module.procedures.unique_display(name)?;
-        self.function_for_body(Some(*id))
+        if let Some((id, _)) = self.ir_module.procedures.unique_display(name) {
+            return self.function_for_body(Some(*id));
+        }
+        // An ambiguous primary fixture cannot borrow a different source body.
+        if self.ir_module.procedures.has_display(name) {
+            return None;
+        }
+        // Readonly analysis bodies retain their own issued IDs and source cards.
+        // Their reporting labels select a fixture, never a callable or frame.
+        let mut original = self
+            .ir_module
+            .original_authored_declaration_body_units
+            .iter()
+            .filter_map(|(id, card)| {
+                let procedure = self.ir_module.body_units.get(id)?;
+                (self.ir_module.procedure_ids.owns(*id)
+                    && card.reporting_label(&self.ir_module, procedure) == Some(name))
+                .then_some(*id)
+            });
+        let id = original.next()?;
+        if original.next().is_some() {
+            return None;
+        }
+        self.function_for_body(Some(id))
     }
 
     /// Top-level first, followed by primary procedures ordered by reporting name.
@@ -5779,6 +5801,46 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn authored_fixture_lookup_keeps_actual_body_owner_without_publication() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for("proc ::p {} {set x 1}", &registry, false);
+        assert!(unit.ir_module.procedures.is_empty());
+        let function = unit.function("::p").expect("original analysis body");
+        let id = function.body_id.expect("actual issued body");
+        assert!(std::ptr::eq(
+            function,
+            unit.function_for_body(Some(id))
+                .expect("same stamped store")
+        ));
+        let procedure = unit.original_procedure_for_body(id).expect("original card");
+        assert!(procedure.publication.is_none());
+        assert!(procedure.body.native_compilation_admission.is_none());
+        assert!(
+            unit.ir_module
+                .original_native_declaration_body_units
+                .is_empty()
+        );
+        assert!(unit.function("::missing").is_none());
+    }
+
+    #[test]
+    fn authored_fixture_lookup_refuses_duplicate_reporting_labels() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "proc ::p {} {return FIRST}; proc ::p {} {return SECOND}",
+            &registry,
+            false,
+        );
+        assert_eq!(
+            unit.ir_module
+                .original_authored_declaration_body_units
+                .len(),
+            2
+        );
+        assert!(unit.function("::p").is_none());
+    }
 
     #[test]
     fn standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency() {
