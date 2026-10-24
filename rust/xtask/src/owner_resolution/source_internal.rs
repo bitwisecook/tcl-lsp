@@ -539,8 +539,7 @@ impl CrateModules {
         references.matched && !references.invalid
     }
 
-    #[allow(clippy::too_many_lines)]
-    fn check_row(&self, row: &Row) -> bool {
+    fn supports_row_route(row: &Row) -> bool {
         if !matches!(
             row.route.as_str(),
             "static" | "type" | "signature-type" | "self"
@@ -556,17 +555,15 @@ impl CrateModules {
         {
             return false;
         }
-        let Some(owner_module) = self.modules.get(&row.module) else {
-            return false;
-        };
-        let owner = declaration(&owner_module.file, &row.entry).or_else(|| {
-            (row.route == "self")
-                .then(|| declaration_for_self_method(&owner_module.file, &row.entry))
-                .flatten()
-        });
-        let Some(owner) = owner else {
-            return false;
-        };
+        true
+    }
+
+    fn owner_is_accessible(
+        &self,
+        row: &Row,
+        owner: &Declaration<'_>,
+        owner_module: &SourceModule,
+    ) -> bool {
         if visibility_name(owner.visibility) != row.visibility
             || !accessible(owner.visibility, &row.module, &row.consumer_module)
             || !super::file_attrs_preserve_routes(&owner_module.file.attrs)
@@ -597,6 +594,68 @@ impl CrateModules {
                 return false;
             }
         }
+        true
+    }
+
+    fn initialise_consumer_parameters(
+        calls: &mut ConsumerReferences<'_>,
+        signature: &syn::Signature,
+    ) -> bool {
+        for parameter in &signature.generics.params {
+            if let syn::GenericParam::Type(parameter) = parameter {
+                calls.shadowed.insert(parameter.ident.to_string());
+                calls
+                    .type_import_shadows
+                    .insert(parameter.ident.to_string());
+            }
+        }
+        for argument in &signature.inputs {
+            if let syn::FnArg::Typed(parameter) = argument {
+                if !super::route_attrs_are_plain(&parameter.attrs) {
+                    return false;
+                }
+                if let syn::Pat::Ident(name) = parameter.pat.as_ref() {
+                    calls.shadowed.insert(name.ident.to_string());
+                    if let Some(ty) = calls.type_identity(&parameter.ty) {
+                        calls.locals.insert(
+                            name.ident.to_string(),
+                            TypedReference {
+                                identity: ty,
+                                origin: format!("parameter:{}", name.ident),
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    fn row_owner_declaration(&self, row: &Row) -> Option<Declaration<'_>> {
+        if !Self::supports_row_route(row) {
+            return None;
+        }
+        let Some(owner_module) = self.modules.get(&row.module) else {
+            return None;
+        };
+        let owner = declaration(&owner_module.file, &row.entry).or_else(|| {
+            (row.route == "self")
+                .then(|| declaration_for_self_method(&owner_module.file, &row.entry))
+                .flatten()
+        });
+        let Some(owner) = owner else {
+            return None;
+        };
+        if !self.owner_is_accessible(row, &owner, owner_module) {
+            return None;
+        }
+        Some(owner)
+    }
+
+    fn check_row(&self, row: &Row) -> bool {
+        let Some(owner) = self.row_owner_declaration(row) else {
+            return false;
+        };
         let Some(consumer_module) = self.modules.get(&row.consumer_module) else {
             return false;
         };
@@ -687,32 +746,8 @@ impl CrateModules {
             matched: false,
             invalid: false,
         };
-        for parameter in &signature.generics.params {
-            if let syn::GenericParam::Type(parameter) = parameter {
-                calls.shadowed.insert(parameter.ident.to_string());
-                calls
-                    .type_import_shadows
-                    .insert(parameter.ident.to_string());
-            }
-        }
-        for argument in &signature.inputs {
-            if let syn::FnArg::Typed(parameter) = argument {
-                if !super::route_attrs_are_plain(&parameter.attrs) {
-                    return false;
-                }
-                if let syn::Pat::Ident(name) = parameter.pat.as_ref() {
-                    calls.shadowed.insert(name.ident.to_string());
-                    if let Some(ty) = calls.type_identity(&parameter.ty) {
-                        calls.locals.insert(
-                            name.ident.to_string(),
-                            TypedReference {
-                                identity: ty,
-                                origin: format!("parameter:{}", name.ident),
-                            },
-                        );
-                    }
-                }
-            }
+        if !Self::initialise_consumer_parameters(&mut calls, signature) {
+            return false;
         }
         calls.visit_signature(signature);
         calls.visit_block(body);
@@ -1150,6 +1185,11 @@ struct TypedReference {
     origin: String,
 }
 
+enum DeclaredFieldIdentity {
+    Missing,
+    Present(String),
+}
+
 struct FieldTypeReferences<'a> {
     modules: &'a CrateModules,
     module: &'a str,
@@ -1557,13 +1597,11 @@ impl ConsumerReferences<'_> {
         };
         self.type_identity_in(module, result, declaration.owner_type)
     }
-    // Outer `None`: no declared owner; inner `None`: the field is not declared.
-    #[allow(clippy::option_option)]
     fn declared_field_identity(
         &self,
         identity: &str,
         field: &syn::Ident,
-    ) -> Option<Option<String>> {
+    ) -> Option<DeclaredFieldIdentity> {
         let identity = Self::unwrapped_pointer(identity).unwrap_or(identity);
         let (module, owner) = identity.rsplit_once("::")?;
         let file = &self.modules.modules.get(module)?.file;
@@ -1583,7 +1621,7 @@ impl ConsumerReferences<'_> {
             .iter()
             .filter(|item| item.ident.as_ref() == Some(field));
         let Some(selected) = fields.next() else {
-            return Some(None);
+            return Some(DeclaredFieldIdentity::Missing);
         };
         if fields.next().is_some()
             || !super::route_attrs_are_plain(&selected.attrs)
@@ -1591,10 +1629,89 @@ impl ConsumerReferences<'_> {
         {
             return None;
         }
-        Some(Some(self.type_identity_in(module, &selected.ty, None)?))
+        Some(DeclaredFieldIdentity::Present(self.type_identity_in(
+            module,
+            &selected.ty,
+            None,
+        )?))
     }
 
-    #[allow(clippy::too_many_lines)]
+    fn transparent_method_field<'a>(
+        &self,
+        module: &str,
+        method: &'a syn::ImplItemFn,
+        mutable: bool,
+        target: &str,
+    ) -> Option<&'a syn::Ident> {
+        let signature = &method.sig;
+        if signature.ident != if mutable { "deref_mut" } else { "deref" }
+            || !source_attrs_preserve_routes(&method.attrs)
+            || method.modifiers.require_empty().is_err()
+            || !matches!(method.vis, syn::Visibility::Inherited)
+            || signature.constness.is_some()
+            || signature.asyncness.is_some()
+            || !matches!(signature.safety, syn::Safety::Default)
+            || signature.abi.is_some()
+            || signature.variadic.is_some()
+            || !signature.generics.params.is_empty()
+            || signature.generics.where_clause.is_some()
+            || signature.inputs.len() != 1
+        {
+            return None;
+        }
+        let receiver = signature.receiver()?;
+        let syn::ReceiverKind::Reference(_, None, receiver_mutability) = &receiver.kind else {
+            return None;
+        };
+        if !super::route_attrs_are_plain(&receiver.attrs)
+            || receiver.mutability.is_some()
+            || receiver_mutability.is_some() != mutable
+        {
+            return None;
+        }
+        let syn::ReturnType::Type(_, result) = &signature.output else {
+            return None;
+        };
+        let syn::Type::Reference(result) = result.as_ref() else {
+            return None;
+        };
+        if result.mutability.is_some() != mutable || result.lifetime.is_some() {
+            return None;
+        }
+        let target_projection = matches!(result.elem.as_ref(), syn::Type::Path(path)
+            if path.qself.is_none() && path.path.leading_colon.is_none()
+            && path.path.segments.len() == 2
+            && path.path.segments[0].ident == "Self" && path.path.segments[1].ident == "Target"
+            && path.path.segments.iter().all(|segment| matches!(segment.arguments, syn::PathArguments::None)));
+        if !target_projection
+            && self.type_identity_in(module, &result.elem, None).as_deref() != Some(target)
+        {
+            return None;
+        }
+        let [syn::Stmt::Expr(syn::Expr::Reference(reference), None)] =
+            method.block.stmts.as_slice()
+        else {
+            return None;
+        };
+        if !super::route_attrs_are_plain(&reference.attrs)
+            || reference.mutability.is_some() != mutable
+        {
+            return None;
+        }
+        let syn::Expr::Field(field) = reference.expr.as_ref() else {
+            return None;
+        };
+        if !super::route_attrs_are_plain(&field.attrs)
+            || !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.qself.is_none() && path.attrs.is_empty() && path.path.is_ident("self"))
+        {
+            return None;
+        }
+        let syn::Member::Named(field) = &field.member else {
+            return None;
+        };
+        Some(field)
+    }
+
     fn transparent_state_target(&self, identity: &str) -> Option<String> {
         let (module, _) = identity.rsplit_once("::")?;
         let file = &self.modules.modules.get(module)?.file;
@@ -1669,73 +1786,7 @@ impl ConsumerReferences<'_> {
         };
         let mut selected_field = None;
         for (method, mutable) in [(immutable_method?, false), (mutable_method, true)] {
-            let signature = &method.sig;
-            if signature.ident != if mutable { "deref_mut" } else { "deref" }
-                || !source_attrs_preserve_routes(&method.attrs)
-                || method.modifiers.require_empty().is_err()
-                || !matches!(method.vis, syn::Visibility::Inherited)
-                || signature.constness.is_some()
-                || signature.asyncness.is_some()
-                || !matches!(signature.safety, syn::Safety::Default)
-                || signature.abi.is_some()
-                || signature.variadic.is_some()
-                || !signature.generics.params.is_empty()
-                || signature.generics.where_clause.is_some()
-                || signature.inputs.len() != 1
-            {
-                return None;
-            }
-            let receiver = signature.receiver()?;
-            let syn::ReceiverKind::Reference(_, None, receiver_mutability) = &receiver.kind else {
-                return None;
-            };
-            if !super::route_attrs_are_plain(&receiver.attrs)
-                || receiver.mutability.is_some()
-                || receiver_mutability.is_some() != mutable
-            {
-                return None;
-            }
-            let syn::ReturnType::Type(_, result) = &signature.output else {
-                return None;
-            };
-            let syn::Type::Reference(result) = result.as_ref() else {
-                return None;
-            };
-            if result.mutability.is_some() != mutable || result.lifetime.is_some() {
-                return None;
-            }
-            let target_projection = matches!(result.elem.as_ref(), syn::Type::Path(path)
-                if path.qself.is_none() && path.path.leading_colon.is_none()
-                && path.path.segments.len() == 2
-                && path.path.segments[0].ident == "Self" && path.path.segments[1].ident == "Target"
-                && path.path.segments.iter().all(|segment| matches!(segment.arguments, syn::PathArguments::None)));
-            if !target_projection
-                && self.type_identity_in(module, &result.elem, None).as_deref()
-                    != Some(target.as_str())
-            {
-                return None;
-            }
-            let [syn::Stmt::Expr(syn::Expr::Reference(reference), None)] =
-                method.block.stmts.as_slice()
-            else {
-                return None;
-            };
-            if !super::route_attrs_are_plain(&reference.attrs)
-                || reference.mutability.is_some() != mutable
-            {
-                return None;
-            }
-            let syn::Expr::Field(field) = reference.expr.as_ref() else {
-                return None;
-            };
-            if !super::route_attrs_are_plain(&field.attrs)
-                || !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.qself.is_none() && path.attrs.is_empty() && path.path.is_ident("self"))
-            {
-                return None;
-            }
-            let syn::Member::Named(field) = &field.member else {
-                return None;
-            };
+            let field = self.transparent_method_field(module, method, mutable, &target)?;
             if selected_field
                 .as_ref()
                 .is_some_and(|selected| selected != field)
@@ -1744,7 +1795,11 @@ impl ConsumerReferences<'_> {
             }
             selected_field = Some(field.clone());
         }
-        let field_type = self.declared_field_identity(identity, &selected_field?)??;
+        let DeclaredFieldIdentity::Present(field_type) =
+            self.declared_field_identity(identity, &selected_field?)?
+        else {
+            return None;
+        };
         (field_type == format!("Box<{target}>")).then_some(target)
     }
 
@@ -1753,12 +1808,17 @@ impl ConsumerReferences<'_> {
             return None;
         };
         let identity = match self.declared_field_identity(&value.identity, field)? {
-            Some(identity) => identity,
-            None if value.origin == "self" => {
+            DeclaredFieldIdentity::Present(identity) => identity,
+            DeclaredFieldIdentity::Missing if value.origin == "self" => {
                 let target = self.transparent_state_target(&value.identity)?;
-                self.declared_field_identity(&target, field)??
+                let DeclaredFieldIdentity::Present(identity) =
+                    self.declared_field_identity(&target, field)?
+                else {
+                    return None;
+                };
+                identity
             }
-            None => return None,
+            DeclaredFieldIdentity::Missing => return None,
         };
         let origin = if value.origin == "self" {
             format!("field:self.{field}")
@@ -1783,7 +1843,53 @@ impl ConsumerReferences<'_> {
         };
         Some(TypedReference { identity, origin })
     }
-    #[allow(clippy::too_many_lines)]
+    fn method_expression_identity(&self, call: &syn::ExprMethodCall) -> Option<TypedReference> {
+        let mut value = self.expression_identity(&call.receiver)?;
+        let name = call.method.to_string();
+        if matches!(name.as_str(), "as_ref" | "as_mut")
+            && call.args.is_empty()
+            && call.turbofish.is_none()
+            && value.identity.starts_with("Option<")
+        {
+            return Some(value);
+        }
+        if name == "as_deref" && call.args.is_empty() {
+            let inner = value.identity.strip_prefix("Option<")?.strip_suffix('>')?;
+            value.identity = format!("Option<{}>", Self::unwrapped_pointer(inner)?);
+            return Some(value);
+        }
+        if name == "as_ref" && call.args.is_empty() {
+            value.identity = Self::unwrapped_pointer(&value.identity)?.into();
+            return Some(value);
+        }
+        if name == "iter" && call.args.is_empty() {
+            value.identity = format!(
+                "Iter<{}>",
+                value.identity.strip_prefix("Vec<")?.strip_suffix('>')?
+            );
+            return Some(value);
+        }
+        if name == "skip" && call.args.len() == 1 && value.identity.starts_with("Iter<") {
+            return Some(value);
+        }
+        if name == "zip" && call.args.len() == 1 && value.identity.starts_with("Iter<") {
+            value.identity = format!(
+                "Zip<{}>",
+                value.identity.strip_prefix("Iter<")?.strip_suffix('>')?
+            );
+            return Some(value);
+        }
+        if value.origin == "self" {
+            let (module, owner) = value.identity.rsplit_once("::")?;
+            let entry = format!("{owner}::{name}");
+            return Some(TypedReference {
+                identity: self.function_result(module, &entry)?,
+                origin: format!("self-producer:{entry}"),
+            });
+        }
+        None
+    }
+
     fn expression_identity(&self, expression: &syn::Expr) -> Option<TypedReference> {
         match expression {
             syn::Expr::Path(path) if path.path.is_ident("self") => Some(TypedReference {
@@ -1838,52 +1944,7 @@ impl ConsumerReferences<'_> {
                 }
                 None
             }
-            syn::Expr::MethodCall(call) => {
-                let mut value = self.expression_identity(&call.receiver)?;
-                let name = call.method.to_string();
-                if matches!(name.as_str(), "as_ref" | "as_mut")
-                    && call.args.is_empty()
-                    && call.turbofish.is_none()
-                    && value.identity.starts_with("Option<")
-                {
-                    return Some(value);
-                }
-                if name == "as_deref" && call.args.is_empty() {
-                    let inner = value.identity.strip_prefix("Option<")?.strip_suffix('>')?;
-                    value.identity = format!("Option<{}>", Self::unwrapped_pointer(inner)?);
-                    return Some(value);
-                }
-                if name == "as_ref" && call.args.is_empty() {
-                    value.identity = Self::unwrapped_pointer(&value.identity)?.into();
-                    return Some(value);
-                }
-                if name == "iter" && call.args.is_empty() {
-                    value.identity = format!(
-                        "Iter<{}>",
-                        value.identity.strip_prefix("Vec<")?.strip_suffix('>')?
-                    );
-                    return Some(value);
-                }
-                if name == "skip" && call.args.len() == 1 && value.identity.starts_with("Iter<") {
-                    return Some(value);
-                }
-                if name == "zip" && call.args.len() == 1 && value.identity.starts_with("Iter<") {
-                    value.identity = format!(
-                        "Zip<{}>",
-                        value.identity.strip_prefix("Iter<")?.strip_suffix('>')?
-                    );
-                    return Some(value);
-                }
-                if value.origin == "self" {
-                    let (module, owner) = value.identity.rsplit_once("::")?;
-                    let entry = format!("{owner}::{name}");
-                    return Some(TypedReference {
-                        identity: self.function_result(module, &entry)?,
-                        origin: format!("self-producer:{entry}"),
-                    });
-                }
-                None
-            }
+            syn::Expr::MethodCall(call) => self.method_expression_identity(call),
             _ => None,
         }
     }
