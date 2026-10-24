@@ -16440,6 +16440,30 @@ impl Backend {
         Ok(Some((call, target)))
     }
 
+    fn finish_ilx_reference_locations(
+        found: &mut Vec<core_ilx::IlxLocation>,
+        include_decl: bool,
+    ) -> Vec<Location> {
+        found.sort_by(|left, right| {
+            (
+                &left.path,
+                left.range.start_line,
+                left.range.start_character,
+            )
+                .cmp(&(
+                    &right.path,
+                    right.range.start_line,
+                    right.range.start_character,
+                ))
+        });
+        found.dedup();
+        found
+            .iter()
+            .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
+            .filter_map(Self::ilx_location)
+            .collect()
+    }
+
     /// Find-references for the iRulesLX method relation, or `None` when the
     /// cursor is not on one of its two ends.
     ///
@@ -16565,26 +16589,10 @@ impl Backend {
         };
         // LSP locations are readonly source navigation; candidate joins never
         // populate an evaluated target or authorise an edit.
-        found.sort_by(|left, right| {
-            (
-                &left.path,
-                left.range.start_line,
-                left.range.start_character,
-            )
-                .cmp(&(
-                    &right.path,
-                    right.range.start_line,
-                    right.range.start_character,
-                ))
-        });
-        found.dedup();
-        Ok(Some(
-            found
-                .iter()
-                .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
-                .filter_map(Self::ilx_location)
-                .collect(),
-        ))
+        Ok(Some(Self::finish_ilx_reference_locations(
+            &mut found,
+            include_decl,
+        )))
     }
 
     /// `tcl-lsp.ilxReferences` — find-references from a point inside an ILX
@@ -16819,6 +16827,133 @@ impl Backend {
         })
     }
 
+    async fn definition_workspace_fallback(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        (source_epoch, source_generation): (u64, u64),
+        on_command_head: bool,
+    ) -> jsonrpc::Result<Vec<Location>> {
+        // A per-object visibility mask (`oo::objdefine $o { unexport m }`, or
+        // an unexported per-object member) makes `$obj m` answer `unknown
+        // method` regardless of the class chain.  The
+        // in-document provider answers such a call with a *definitive* empty
+        // result, which is indistinguishable from "no local answer" here —
+        // without this gate the cross-file method tier below would resolve
+        // the class's own member right past the mask.
+        if core_definition::object_dispatch_mask(analysis, &doc.text, pos.line, pos.character)
+            .withholds_workspace_fallback()
+        {
+            return Ok(Vec::new());
+        }
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) && let Some(locations) = Box::pin(self.logical_class_member_locations_for_snapshot(
+            (uri.clone(), doc.clone(), source_generation),
+            analysis,
+            pos,
+            source_epoch,
+        ))
+        .await?
+        {
+            return Ok(locations);
+        }
+        // Cross-file TclOO method definition: a `$obj method` / `my method`
+        // call (or a method-name cursor in a class body) whose defining class
+        // lives in another file — e.g. an inherited method declared in the
+        // base class's own document.  A method call's head is `$obj`, not the
+        // method token, so this is not gated on `on_command_head`.  Resolved
+        // oracle-aware so a pure-consumer receiver (class defined elsewhere)
+        // still identifies the method, and access-context-aware so an
+        // external call resolves the exported dispatch entry only.
+        if analysis
+            .resolved_input
+            .as_ref()
+            .is_some_and(|input| tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(&input.borrowed_context_registry().context().environment.id).is_some_and(tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::is_appliance_hosted))
+            && let Some((class_q, method, is_classmethod, access)) = self
+                .resolve_method_target(
+                    uri,
+                    &doc.text,
+                    tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                    analysis,
+                    pos,
+                )
+                .await?
+            {
+                let method_defs = self
+                    .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
+                    .await?;
+                if !method_defs.is_empty() {
+                    return Ok(method_defs);
+                }
+            }
+        // Cross-file namespace variable: `$::NS::var` whose declaring
+        // `namespace eval NS { variable var }` is in another document.
+        // Not gated on `on_command_head` — a `$var`
+        // site never is one — and safe without that gate because the cell is
+        // named exactly, not matched by simple name.
+        let cross_var = if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
+            self.logical_variable_locations_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
+                analysis,
+                pos,
+                source_epoch,
+                LogicalVariableLocationsPurpose::Definitions,
+            )
+            .await?
+        } else {
+            self.cross_document_variable_definition(uri, &doc.text, pos, analysis)
+                .await?
+        };
+        if !cross_var.is_empty() {
+            return Ok(cross_var);
+        }
+        if !on_command_head {
+            return Ok(Vec::new());
+        }
+        // Cross-document fallback: resolve a proc / class
+        // defined in a sibling document via the workspace index.
+        if !analysis.allows_lexical_declaration_advice() {
+            return Ok(self
+                .original_definition_locations_for_snapshot(
+                    (uri.clone(), doc.clone(), source_generation),
+                    analysis,
+                    pos,
+                    source_epoch,
+                )
+                .await?);
+        }
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
+            return Ok(self
+                .logical_definition_locations_for_snapshot(
+                    (uri.clone(), doc.clone(), source_generation),
+                    analysis,
+                    pos,
+                    source_epoch,
+                )
+                .await?);
+        }
+        let cross = self
+            .cross_document_definition(uri, &doc.text, pos, analysis)
+            .await?;
+        if !cross.is_empty() {
+            return Ok(cross);
+        }
+        // Autoload tier: the command is defined nowhere in the open
+        // workspace, but the package / auto-load database may know which
+        // library file (`tclIndex` / `pkgIndex.tcl` on the configured
+        // `libraryPaths` / `TCLLIBPATH`) defines it.  Resolve that file, analyse
+        // it on demand (memoised by `analysis_for`), and jump to the proc.
+        self.autoload_definition(uri, &doc.text, pos, analysis)
+            .await
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -16937,122 +17072,15 @@ impl Backend {
                 })
                 .collect());
         }
-        // A per-object visibility mask (`oo::objdefine $o { unexport m }`, or
-        // an unexported per-object member) makes `$obj m` answer `unknown
-        // method` regardless of the class chain.  The
-        // in-document provider answers such a call with a *definitive* empty
-        // result, which is indistinguishable from "no local answer" here —
-        // without this gate the cross-file method tier below would resolve
-        // the class's own member right past the mask.
-        if core_definition::object_dispatch_mask(&analysis, &doc.text, pos.line, pos.character)
-            .withholds_workspace_fallback()
-        {
-            return Ok(Vec::new());
-        }
-        if analysis.resolved_input.as_ref().is_some_and(
-            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-        ) && let Some(locations) = Box::pin(self.logical_class_member_locations_for_snapshot(
-            (uri.clone(), doc.clone(), source_generation),
+        self.definition_workspace_fallback(
+            uri,
+            &doc,
             &analysis,
             pos,
-            source_epoch,
-        ))
-        .await?
-        {
-            return Ok(locations);
-        }
-        // Cross-file TclOO method definition: a `$obj method` / `my method`
-        // call (or a method-name cursor in a class body) whose defining class
-        // lives in another file — e.g. an inherited method declared in the
-        // base class's own document.  A method call's head is `$obj`, not the
-        // method token, so this is not gated on `on_command_head`.  Resolved
-        // oracle-aware so a pure-consumer receiver (class defined elsewhere)
-        // still identifies the method, and access-context-aware so an
-        // external call resolves the exported dispatch entry only.
-        if analysis
-            .resolved_input
-            .as_ref()
-            .is_some_and(|input| tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(&input.borrowed_context_registry().context().environment.id).is_some_and(tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::is_appliance_hosted))
-            && let Some((class_q, method, is_classmethod, access)) = self
-                .resolve_method_target(
-                    uri,
-                    &doc.text,
-                    tcl_lsp_core::profile_for_dialect(&doc.dialect),
-                    &analysis,
-                    pos,
-                )
-                .await?
-            {
-                let method_defs = self
-                    .cross_file_method_definition(uri, &class_q, &method, access, is_classmethod)
-                    .await?;
-                if !method_defs.is_empty() {
-                    return Ok(method_defs);
-                }
-            }
-        // Cross-file namespace variable: `$::NS::var` whose declaring
-        // `namespace eval NS { variable var }` is in another document.
-        // Not gated on `on_command_head` — a `$var`
-        // site never is one — and safe without that gate because the cell is
-        // named exactly, not matched by simple name.
-        let cross_var = if analysis.resolved_input.as_ref().is_some_and(
-            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-        ) {
-            self.logical_variable_locations_for_snapshot(
-                (uri.clone(), doc.clone(), source_generation),
-                &analysis,
-                pos,
-                source_epoch,
-                LogicalVariableLocationsPurpose::Definitions,
-            )
-            .await?
-        } else {
-            self.cross_document_variable_definition(uri, &doc.text, pos, &analysis)
-                .await?
-        };
-        if !cross_var.is_empty() {
-            return Ok(cross_var);
-        }
-        if !on_command_head {
-            return Ok(Vec::new());
-        }
-        // Cross-document fallback: resolve a proc / class
-        // defined in a sibling document via the workspace index.
-        if !analysis.allows_lexical_declaration_advice() {
-            return Ok(self
-                .original_definition_locations_for_snapshot(
-                    (uri.clone(), doc.clone(), source_generation),
-                    &analysis,
-                    pos,
-                    source_epoch,
-                )
-                .await?);
-        }
-        if analysis.resolved_input.as_ref().is_some_and(
-            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-        ) {
-            return Ok(self
-                .logical_definition_locations_for_snapshot(
-                    (uri.clone(), doc.clone(), source_generation),
-                    &analysis,
-                    pos,
-                    source_epoch,
-                )
-                .await?);
-        }
-        let cross = self
-            .cross_document_definition(uri, &doc.text, pos, &analysis)
-            .await?;
-        if !cross.is_empty() {
-            return Ok(cross);
-        }
-        // Autoload tier: the command is defined nowhere in the open
-        // workspace, but the package / auto-load database may know which
-        // library file (`tclIndex` / `pkgIndex.tcl` on the configured
-        // `libraryPaths` / `TCLLIBPATH`) defines it.  Resolve that file, analyse
-        // it on demand (memoised by `analysis_for`), and jump to the proc.
-        self.autoload_definition(uri, &doc.text, pos, &analysis)
-            .await
+            (source_epoch, source_generation),
+            on_command_head,
+        )
+        .await
     }
 
     /// Shared typed OO selection for readonly editor consumers. An exact
@@ -20025,6 +20053,77 @@ impl Backend {
         self.resolve_target_locations(targets).await
     }
 
+    async fn retained_reference_locations(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        position: Position,
+        include_declaration: bool,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
+            &doc.text,
+            analysis,
+            position.line,
+            position.character,
+        ) {
+            let Some(occurrence) = selected else {
+                return Ok(Vec::new());
+            };
+            let Some(config) = analysis.body_lexer_config else {
+                return Ok(Vec::new());
+            };
+            if !analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(&doc.text), config)
+            {
+                return Ok(Vec::new());
+            }
+            let index = tcl_lexer::LineIndex::new(&doc.text);
+            let mut locations = tcl_lsp_core::variable_symbol::reference_spans(
+                analysis,
+                occurrence.symbol(),
+                include_declaration,
+            )
+            .into_iter()
+            .map(|span| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(core_definition::span_to_range(&doc.text, &index, span)),
+            })
+            .collect::<Vec<_>>();
+            locations.extend(
+                self.cross_document_variable_references(
+                    &doc.text,
+                    analysis,
+                    position,
+                    include_declaration,
+                )
+                .await?,
+            );
+            dedup_locations(&mut locations);
+            return Ok(locations);
+        }
+        let Some(identity) = self
+            .original_declaration_identity_at(uri, &doc.text, analysis, position)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
+        Ok(self
+            .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
+            .await?
+            .map_or_else(Vec::new, |report| report.locations))
+    }
+
+    fn reference_range_locations(uri: &Uri, ranges: Vec<CoreLspRange>) -> Vec<Location> {
+        ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect()
+    }
+
     /// Every reference [`Location`] for the symbol at `position`: the
     /// single-document hits, the cross-document call sites (declarations too
     /// when `include_declaration`), and the `TclOO` method / classmethod
@@ -20080,58 +20179,9 @@ impl Backend {
             return Ok(locations);
         }
         if !analysis.allows_lexical_declaration_advice() {
-            if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
-                &doc.text,
-                analysis,
-                position.line,
-                position.character,
-            ) {
-                let Some(occurrence) = selected else {
-                    return Ok(Vec::new());
-                };
-                let Some(config) = analysis.body_lexer_config else {
-                    return Ok(Vec::new());
-                };
-                if !analysis.matches_original_source_image(
-                    &tcl_lexer::SourceImage::document(&doc.text),
-                    config,
-                ) {
-                    return Ok(Vec::new());
-                }
-                let index = tcl_lexer::LineIndex::new(&doc.text);
-                let mut locations = tcl_lsp_core::variable_symbol::reference_spans(
-                    analysis,
-                    occurrence.symbol(),
-                    include_declaration,
-                )
-                .into_iter()
-                .map(|span| Location {
-                    uri: uri.clone(),
-                    range: lift_lsp_range(core_definition::span_to_range(&doc.text, &index, span)),
-                })
-                .collect::<Vec<_>>();
-                locations.extend(
-                    self.cross_document_variable_references(
-                        &doc.text,
-                        analysis,
-                        position,
-                        include_declaration,
-                    )
-                    .await?,
-                );
-                dedup_locations(&mut locations);
-                return Ok(locations);
-            }
-            let Some(identity) = self
-                .original_declaration_identity_at(uri, &doc.text, analysis, position)
-                .await?
-            else {
-                return Ok(Vec::new());
-            };
-            return Ok(self
-                .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
-                .await?
-                .map_or_else(Vec::new, |report| report.locations));
+            return self
+                .retained_reference_locations(uri, doc, analysis, position, include_declaration)
+                .await;
         }
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -20164,13 +20214,7 @@ impl Backend {
         // `ranges` here does not mean "genuinely zero" — see
         // `workspace_resolved_references`'s own doc.
         let local_found_nothing = ranges.is_empty();
-        let mut locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
+        let mut locations = Self::reference_range_locations(uri, ranges);
         let cross = if local_found_nothing {
             self.workspace_resolved_references(
                 uri,
@@ -22184,16 +22228,7 @@ impl Backend {
         {
             return Ok(ControlFlow::Break(Err(stale())));
         }
-        let owners = documents
-            .iter()
-            .map(|(uri, source, analysis)| {
-                tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
-                    uri,
-                    source,
-                    analysis,
-                }
-            })
-            .collect::<Vec<_>>();
+        let owners = implementation_inventory(&documents);
         let Some(offset) = line_col_to_byte_offset(&doc.text, pos.line, pos.character)
             .and_then(|offset| u32::try_from(offset).ok())
         else {
@@ -34531,6 +34566,50 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
+    fn lift_local_rename_edits(edits: Vec<core_rename::TextEdit>) -> Vec<TextEdit> {
+        edits
+            .into_iter()
+            .map(|e| TextEdit {
+                range: lift_lsp_range(e.range),
+                new_text: e.new_text,
+            })
+            .collect()
+    }
+
+    async fn guarded_rename_source_tiers(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+        source_plan: WorkspaceSourcePlanToken,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<jsonrpc::Result<Option<WorkspaceEdit>>>> {
+        if let Some(gated) = self
+            .gated_rename_tiers(uri, doc, analysis, pos, new_name)
+            .await?
+        {
+            if matches!(&gated, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(std::ops::ControlFlow::Break(Ok(None)));
+            }
+            return Ok(std::ops::ControlFlow::Break(gated));
+        }
+        if let std::ops::ControlFlow::Break(result) = self
+            .original_command_rename_tier(uri, doc, analysis, pos, new_name)
+            .await?
+        {
+            if matches!(&result, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(std::ops::ControlFlow::Break(Ok(None)));
+            }
+            return Ok(std::ops::ControlFlow::Break(result));
+        }
+        Ok(std::ops::ControlFlow::Continue(()))
+    }
+
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
         if !self
             .feature_enabled("rename", &params.text_document_position.text_document.uri)
@@ -34565,26 +34644,10 @@ impl LanguageServer for Backend {
         let mut source_plan = self.capture_workspace_source_plan().await;
         // The gated tiers, before any ordinary edit is built: the `TclOO`
         // member safety gate and the workspace namespace-variable rename.
-        if let Some(gated) = self
-            .gated_rename_tiers(&uri, &doc, &analysis, pos, &new_name)
-            .await?
-        {
-            if matches!(&gated, Ok(Some(_)))
-                && !self.workspace_source_plan_is_current(source_plan).await
-            {
-                return Ok(None);
-            }
-            return gated;
-        }
         if let std::ops::ControlFlow::Break(result) = self
-            .original_command_rename_tier(&uri, &doc, &analysis, pos, &new_name)
+            .guarded_rename_source_tiers(&uri, &doc, &analysis, pos, &new_name, source_plan)
             .await?
         {
-            if matches!(&result, Ok(Some(_)))
-                && !self.workspace_source_plan_is_current(source_plan).await
-            {
-                return Ok(None);
-            }
             return result;
         }
         // Method rename → cross-file override-family path.
@@ -34614,13 +34677,7 @@ impl LanguageServer for Backend {
         // partial, inconsistent edit set into sibling documents.
         let local_rejected = edits.is_empty();
         if !edits.is_empty() {
-            let lifted: Vec<TextEdit> = edits
-                .into_iter()
-                .map(|e| TextEdit {
-                    range: lift_lsp_range(e.range),
-                    new_text: e.new_text,
-                })
-                .collect();
+            let lifted = Self::lift_local_rename_edits(edits);
             changes.insert(uri.clone(), lifted);
         }
         // Cross-document rename: rewrite the symbol's call / definition
