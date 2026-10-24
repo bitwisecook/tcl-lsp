@@ -13,7 +13,7 @@ use tcl_syntax::value::ValueError;
 pub enum NativeCompiledRangeResult<V> {
     /// The empty original subject remains on the native stack.
     Borrowed(V),
-    /// The original GetRange constructor produced a fresh object.
+    /// The original `GetRange` constructor produced a fresh object.
     Created(V),
 }
 
