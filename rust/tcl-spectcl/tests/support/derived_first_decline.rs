@@ -94,6 +94,7 @@ pub(super) fn report(
             function.is_some_and(|function| function.body_id == Some(*id))
         );
         if let Some(function) = function {
+            report_ssa(function);
             if let Some(symbol) = function.ssa.var_symbol("known") {
                 let mut versions: Vec<_> = function
                     .sccp
@@ -125,6 +126,7 @@ pub(super) fn report(
                 "N17G2 actual-parent category={category} span={:?}",
                 statement.span()
             );
+            report_parent_call(statement);
             let Some(tokens) = statement.tokens() else {
                 eprintln!("N17G2 first-public-decline=parent-retained-tokens");
                 continue;
@@ -253,4 +255,47 @@ pub(super) fn report(
             }
         }
     }
+}
+
+fn report_ssa(function: &tcl_compiler::compilation_unit::FunctionUnit) {
+    use tcl_compiler::ir::Statement;
+    if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() != Ok("first-gate-v1") {
+        return;
+    }
+    for (block, body) in &function.ssa.blocks {
+        for (index, statement) in body.statements.iter().enumerate() {
+            let (category, head, synthetic) = match &statement.statement {
+                Statement::Call {
+                    command, tokens, ..
+                } => (
+                    "Call",
+                    command.as_str(),
+                    tokens.as_ref().map(|tokens| &tokens.synthetic),
+                ),
+                Statement::Barrier { .. } => ("Barrier", "", None),
+                Statement::UpFrame { .. } => ("UpFrame", "", None),
+                Statement::AssignValue { .. } => ("AssignValue", "", None),
+                Statement::AssignConst { .. } => ("AssignConst", "", None),
+                Statement::AssignExpr { .. } => ("AssignExpr", "", None),
+                _ => ("other", "", None),
+            };
+            eprintln!(
+                "N17G2 ssa block={block:?} index={index} category={category} head={head:?} synthetic={synthetic:?} span={:?} defs={:?} uses={:?} may-defs={:?}",
+                statement.statement.span(),
+                statement.defs,
+                statement.uses,
+                statement.may_defs
+            );
+        }
+    }
+}
+
+fn report_parent_call(statement: &tcl_compiler::ir::Statement) {
+    if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() != Ok("first-gate-v1") {
+        return;
+    }
+    let tcl_compiler::ir::Statement::Call { defs, reads, .. } = statement else {
+        return;
+    };
+    eprintln!("N17G2 parent-call defs={defs:?} reads={reads:?}");
 }
