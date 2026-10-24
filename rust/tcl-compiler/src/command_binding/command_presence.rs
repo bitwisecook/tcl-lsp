@@ -23,6 +23,22 @@ pub enum SourceCommandSlotPresence {
     Unknown,
 }
 
+fn trace_jim_diagnostic_presence(
+    offset: u32,
+    branch: &str,
+    presence: SourceCommandSlotPresence,
+) -> SourceCommandSlotPresence {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset={offset} branch={branch} presence={presence:?}"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (offset, branch);
+    presence
+}
+
 impl SourceCommandBindings {
     /// Diagnostic presence from actual reached operands, or a separately sealed
     /// original source lookup when no reached observation exists. Actual unknown
@@ -161,8 +177,16 @@ impl SourceCommandBindings {
             )
         };
         let actual = self.invocation_at_source("", offset);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_entry offset={offset} consumed_name={} actual_snapshot={}",
+                name.is_some(),
+                actual.lookup_state.is_some(),
+            );
+        }
         if actual.lookup_state.is_some() {
-            return select(&actual);
+            return trace_jim_diagnostic_presence(offset, "actual", select(&actual));
         }
         let mut advice = None;
         for future in self.future_body_inventories() {
@@ -172,7 +196,7 @@ impl SourceCommandBindings {
             let Some(binding) = future.invocation_at(offset) else {
                 continue;
             };
-            let selected = select(&binding);
+            let selected = trace_jim_diagnostic_presence(offset, "future", select(&binding));
             advice = Some(match advice {
                 None => selected,
                 Some(previous) if previous == selected => previous,
@@ -181,7 +205,11 @@ impl SourceCommandBindings {
                 Some(_) => SourceCommandSlotPresence::MayPresent,
             });
         }
-        advice.unwrap_or(SourceCommandSlotPresence::Unknown)
+        trace_jim_diagnostic_presence(
+            offset,
+            "combined",
+            advice.unwrap_or(SourceCommandSlotPresence::Unknown),
+        )
     }
 }
 
@@ -203,7 +231,13 @@ impl SourceInvocationBinding {
     /// This does not prove that the initial autoload handler will fail.
     #[must_use]
     pub fn selected_slot_diagnostic_presence(&self) -> SourceCommandSlotPresence {
-        if self.invocation_site().is_some() && self.logical_source_name_advice_input().is_none() {
+        if self.invocation_site().is_some()
+            && crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.diagnostic.logical_input",
+                self.logical_source_name_advice_input(),
+            )
+            .is_none()
+        {
             return self.original_selected_slot_diagnostic_presence();
         }
         let presence = self.selected_slot_presence();
