@@ -476,9 +476,13 @@ fn first_parse_cut_channel_in_anchored(
     descent: ParseCutDescent,
     anchor: Option<MemoAnchor<'_>>,
 ) -> Result<Option<ParseCut>, ParseCutUnavailable> {
+    // One image of the whole script serves every command: building it hashes
+    // and line-indexes all of `src`, so a per-command image is quadratic.
+    let mut image = None;
     for (index, command) in commands.iter().enumerate() {
+        let image = image.get_or_insert_with(|| SourceImage::from_bytes(src, channel));
         if let Some((offset, term, kind)) =
-            command_cut(command, tokens, src, config, channel, descent, anchor)?
+            command_cut(command, tokens, image, config, channel, descent, anchor)?
         {
             return Ok(Some(ParseCut {
                 command: index,
@@ -567,15 +571,16 @@ enum WordJob {
 fn command_cut(
     command: &CommandSpan,
     tokens: &[Token],
-    src: &[u8],
+    image: &SourceImage,
     config: LexerConfig,
     channel: SourceChannel,
     descent: ParseCutDescent,
     anchor: Option<MemoAnchor<'_>>,
 ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
+    let src = image.bytes();
     let jobs = word_jobs(&command.words, tokens, src, 0, config);
     let mut stack = vec![Frame::Words {
-        image: SourceImage::from_bytes(src, channel),
+        image: image.clone(),
         jobs,
         base: 0,
         next: 0,
