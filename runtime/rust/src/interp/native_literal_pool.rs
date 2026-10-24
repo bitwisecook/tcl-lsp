@@ -134,7 +134,7 @@ pub(super) fn register_original_literal(
             )
         },
         || registered_string(&bytes, dialect).map_err(refuse),
-        tcl_runtime_api::native_literal::NativeLiteralCallbacks {
+        &tcl_runtime_api::native_literal::NativeLiteralCallbacks {
             check,
             refuse,
             retain,

@@ -123,7 +123,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
         project: impl Fn(&V) -> P,
         mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
         make: impl FnOnce() -> Result<V, E>,
-        callbacks: NativeLiteralCallbacks<
+        callbacks: &NativeLiteralCallbacks<
             &impl Fn() -> Result<(), E>,
             &impl Fn(tcl_syntax::value::ValueError) -> E,
             &impl Fn(E) -> E,
@@ -376,7 +376,7 @@ impl<V: Clone> NativeLocalNameTable<V> {
         project: impl Fn(&V) -> P,
         mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
         mut make: impl FnMut(&[u8]) -> Result<V, E>,
-        callbacks: NativeLiteralCallbacks<
+        callbacks: &NativeLiteralCallbacks<
             &impl Fn() -> Result<(), E>,
             &impl Fn(tcl_syntax::value::ValueError) -> E,
             &impl Fn(E) -> E,
@@ -402,7 +402,7 @@ impl<V: Clone> NativeLocalNameTable<V> {
                         &project,
                         &mut spelling,
                         || make(name.as_bytes()),
-                        NativeLiteralCallbacks {
+                        &NativeLiteralCallbacks {
                             check,
                             refuse,
                             retain,
