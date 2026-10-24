@@ -2,7 +2,7 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T03:45:24Z
+Last updated: 2026-10-24T04:05:54Z
 
 ## Resume
 
@@ -196,3 +196,31 @@ whole-roster guards; currentallsourcepins joined. Compiler independentlycleareda
 Rust2API repair76af342e; no runtime outcome repaired. Root owns integration/dispatch.
 All four remaining f1dc Env failures reach upvar/alias; compatible with pending savedhome
 repair but exact dynamic cause remains unproven. No new speculative Env patch.
+
+ACTIVE sourcef82b1b05717e86fb250fda5cc65cad0ca987332c runtime40060524290/
+job120772823048. API04:03 sourcevalidation/C84bootstrap/TomMathPASS, captureactive
+since04:02:20. Rootdispatch only; no new outcomes. Savedhome/prune/C84/APIaccessor/
+upload fixes included, new7prune controls not selected unless actualinventory proves.
+Full authplan /workspace/naming-proof-storage/vm-runtime-next-validation-40060524290/
+plan.json SHA5fb7e97efc7fd0255f5ece2eb7dff229b91aac5c2c0f97f14019d765662123be.
+Tightened prospective append classification: last retire marker does not prove last
+row destructor completed; nextrow marker or wholecasePASS required. No oldpin-result change.
+
+Test7 V1 full deep peer HOLD ac3a2a6e5af33f35042eafb5515f0e77aebb8c7ba540f97df57439d1e6305deb
+/workspace/naming-proof-storage/vm-peer-lsp-test7-v1-hold/review.json. All seven
+originals/helpers read. Missingdiagnostic argument; wrong lsHover vsCoreHover;
+Uri-owned/ref comparisons/genericdoubleget; registryawait before original assertion;
+new8arghelpers; passive teardown movement. Author has allfindings, prepares corrected
+successor/versioned composition on rootintegrated lib3. No V1clear.
+NativeLiteral V2 frozen authorized fivefile/sevencall mechanical borrowedcallbackbundle:
+/workspace/naming-proof-storage/vm-native-literal-callbacks-v2
+manifest545004a9f181c01eeb638d697c666d319e4c9c803baa3f6f8e99fd174da67a91,
+WORKfe556fe09e6b45c6b307aa36981dd3a14ac98dcd844405ae3d2bb6c6cfbb2969,
+CLEAN37c1a81b148443c3472143c844657e86eea4350b0ce39472ad978ef4abf1cc01.
+Only two disallowed too_many_arguments allows removed, no newallow; typed generic
+parameter explicitly holds borrowed currentness/refusal/retain callbacks, same static
+Fn dispatch/no heap/native owner. Full5file inverse and callbacks/error/drop bodies
+byteexact, currentpins/copy0/fmt editions, originaltestsasserts exact, projected99/44.
+Ownerproof1880c01732ad5632b80d1888b77c13324cee94587e3a98edb45c02f5a6dbc2ef.
+Compiler independently peering per root. V1held authorlint defects; onlyV2eligible.
+No Cargo/rustc/tests/native/runtime/performance execution; activef82 does not includeV2.
