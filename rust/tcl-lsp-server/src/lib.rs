@@ -950,6 +950,14 @@ struct WorkspaceSymbolCandidates {
     analyses: HashMap<String, Option<readonly_reference_reports::WorkspaceSymbolSourceAnalysis>>,
 }
 
+struct OpenWorkspaceSymbolSnapshot {
+    unindexed: Vec<(Uri, DocumentState)>,
+    indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
+    indexed_revisions: HashMap<String, u64>,
+    sources: HashMap<String, Option<DocumentState>>,
+    closed_revisions: HashMap<String, u64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DocumentPublication {
     /// The live buffer is authoritative, but Salsa still names an older source.
@@ -4486,6 +4494,15 @@ struct PackNoticeEntry {
     diagnostic: tower_lsp_server::ls_types::Diagnostic,
     source: Arc<str>,
     owner: PackNoticeSourceOwner,
+}
+
+struct PreparedPackNotice {
+    uri: Uri,
+    diagnostic: tower_lsp_server::ls_types::Diagnostic,
+    source: Arc<str>,
+    owner: PackNoticeSourceOwner,
+    // Retain the original per-notice path array through the caller's map insert.
+    _paths: [PathBuf; 1],
 }
 
 #[derive(Default)]
@@ -25923,14 +25940,7 @@ impl Backend {
         use salsa::Setter as _;
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
         {
-            let mut global_disabled: Vec<String> = self
-                .disabled_diagnostics
-                .lock()
-                .await
-                .iter()
-                .cloned()
-                .collect();
-            global_disabled.sort();
+            let global_disabled = self.sorted_global_disabled_diagnostics().await;
             let global_mode = *self.non_ascii_mode.lock().await;
             // Per-folder `extraCommands` / `genericVariablePatterns` override the
             // process-global value when set; otherwise the folder inherits it.
@@ -26019,13 +26029,7 @@ impl Backend {
                 // Release the payload before retiring, so a folder that toggles
                 // an override off does not keep its old code lists (and the
                 // memos keyed on them) alive until it is toggled back on.
-                handle.set_disabled_diagnostics(&mut *db).to(Vec::new());
-                handle.set_extra_commands(&mut *db).to(Vec::new());
-                handle.set_generic_variable_patterns(&mut *db).to(None);
-                handle.set_package_provides(&mut *db).to(Vec::new());
-                handle.set_targets(&mut *db).to(Vec::new());
-                handle.set_bigip_version(&mut *db).to(None);
-                handle.set_targets(&mut *db).to(Vec::new());
+                Self::clear_retired_folder_configuration(&mut db, handle);
                 tombstones.insert(folder, handle);
             }
             *handles = next;
@@ -26048,6 +26052,32 @@ impl Backend {
         // the same reason `apply_global_config` does.
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
+    }
+
+    async fn sorted_global_disabled_diagnostics(&self) -> Vec<String> {
+        let mut global_disabled: Vec<String> = self
+            .disabled_diagnostics
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect();
+        global_disabled.sort();
+        global_disabled
+    }
+
+    fn clear_retired_folder_configuration(
+        db: &mut tcl_lsp_db::TclDatabase,
+        handle: tcl_lsp_db::AnalyserConfig,
+    ) {
+        use salsa::Setter as _;
+        handle.set_disabled_diagnostics(db).to(Vec::new());
+        handle.set_extra_commands(db).to(Vec::new());
+        handle.set_generic_variable_patterns(db).to(None);
+        handle.set_package_provides(db).to(Vec::new());
+        handle.set_targets(db).to(Vec::new());
+        handle.set_bigip_version(db).to(None);
+        handle.set_targets(db).to(Vec::new());
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -28723,92 +28753,22 @@ impl Backend {
         studio_snapshot: &studio_source::StudioSourceSnapshot,
         overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
     ) -> DocumentSourceResult<()> {
-        use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
-
         let mut by_uri: HashMap<Uri, Vec<PackNoticeEntry>> = HashMap::new();
         for notice in packs.notices.iter().chain(collisions) {
-            let Some(uri) = canonical_file_uri(&notice.path) else {
+            let Some(prepared) = self
+                .prepare_spec_pack_notice(notice, loader_inputs, studio_snapshot)
+                .await?
+            else {
                 continue;
             };
-            let paths = [notice.path.clone()];
-            let (source_owner, source) = if let Some(mut selected) = loader_inputs.selected(&paths)
-            {
-                let Some((origin, bytes)) = selected.pop() else {
-                    continue;
-                };
-                if self.store.validate_source_path_origin(origin).is_err() {
-                    continue;
-                }
-                let Ok(source) = std::str::from_utf8(bytes) else {
-                    continue;
-                };
-                if !matches!(self.store.read_to_string(&notice.path), Ok(current) if current == source)
-                {
-                    continue;
-                }
-                (
-                    PackNoticeSourceOwner::Saved(origin.clone()),
-                    Arc::<str>::from(source),
-                )
-            } else {
-                let Some((admission, source)) = studio_snapshot.source_for_saved_path(&notice.path)
-                else {
-                    continue;
-                };
-                if admission.check_current(self.store.as_ref()).is_err()
-                    || !matches!(self.store.read_to_string(&notice.path), Ok(current) if current.as_str() == source.as_ref())
-                {
-                    continue;
-                }
-                (PackNoticeSourceOwner::Studio(admission), source)
-            };
-            if let Some(subject) = &notice.subject
-                && !subject
-                    .image()
-                    .try_text()
-                    .is_ok_and(|image| image == source.as_ref())
-            {
-                continue;
-            }
-            let notice_data = if let Some(subject) = &notice.subject {
-                if let Ok(source) = subject.image().try_text() {
-                    let analysis = self
-                        .analyse_with_workspace_classes(
-                            &uri,
-                            source,
-                            tcl_lsp_core::profile_for_dialect("spectcl"),
-                        )
-                        .await?;
-                    core_code_actions::ContextDiagnosticData::from_spec_pack_notice(
-                        subject, &analysis,
-                    )
-                    .map(|data| data.to_value())
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let severity = match notice.severity {
-                tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
-                tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
-            };
-            let diagnostic = Diagnostic {
-                range: whole_line_range(notice),
-                severity: Some(severity),
-                code: Some(NumberOrString::String(
-                    core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
-                )),
-                source: Some("tcl-lsp".to_owned()),
-                message: format!("{}: {}", notice.context, notice.message),
-                data: notice_data,
-                ..Diagnostic::default()
-            };
-            by_uri.entry(uri).or_default().push(PackNoticeEntry {
-                diagnostic,
-                source,
-                owner: source_owner,
-            });
+            by_uri
+                .entry(prepared.uri)
+                .or_default()
+                .push(PackNoticeEntry {
+                    diagnostic: prepared.diagnostic,
+                    source: prepared.source,
+                    owner: prepared.owner,
+                });
         }
 
         // The settings that promise *no* diagnostics for a file —
@@ -28916,6 +28876,97 @@ impl Backend {
             let _ = receipt.await;
         }
         Ok(())
+    }
+
+    async fn prepare_spec_pack_notice(
+        &self,
+        notice: &tcl_spectcl::PackNotice,
+        loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
+        studio_snapshot: &studio_source::StudioSourceSnapshot,
+    ) -> DocumentSourceResult<Option<PreparedPackNotice>> {
+        use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+
+        let Some(uri) = canonical_file_uri(&notice.path) else {
+            return Ok(None);
+        };
+        let paths = [notice.path.clone()];
+        let (source_owner, source) = if let Some(mut selected) = loader_inputs.selected(&paths) {
+            let Some((origin, bytes)) = selected.pop() else {
+                return Ok(None);
+            };
+            if self.store.validate_source_path_origin(origin).is_err() {
+                return Ok(None);
+            }
+            let Ok(source) = std::str::from_utf8(bytes) else {
+                return Ok(None);
+            };
+            if !matches!(self.store.read_to_string(&notice.path), Ok(current) if current == source)
+            {
+                return Ok(None);
+            }
+            (
+                PackNoticeSourceOwner::Saved(origin.clone()),
+                Arc::<str>::from(source),
+            )
+        } else {
+            let Some((admission, source)) = studio_snapshot.source_for_saved_path(&notice.path)
+            else {
+                return Ok(None);
+            };
+            if admission.check_current(self.store.as_ref()).is_err()
+                || !matches!(self.store.read_to_string(&notice.path), Ok(current) if current.as_str() == source.as_ref())
+            {
+                return Ok(None);
+            }
+            (PackNoticeSourceOwner::Studio(admission), source)
+        };
+        if let Some(subject) = &notice.subject
+            && !subject
+                .image()
+                .try_text()
+                .is_ok_and(|image| image == source.as_ref())
+        {
+            return Ok(None);
+        }
+        let notice_data = if let Some(subject) = &notice.subject {
+            if let Ok(source) = subject.image().try_text() {
+                let analysis = self
+                    .analyse_with_workspace_classes(
+                        &uri,
+                        source,
+                        tcl_lsp_core::profile_for_dialect("spectcl"),
+                    )
+                    .await?;
+                core_code_actions::ContextDiagnosticData::from_spec_pack_notice(subject, &analysis)
+                    .map(|data| data.to_value())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let severity = match notice.severity {
+            tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
+            tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
+        };
+        let diagnostic = Diagnostic {
+            range: whole_line_range(notice),
+            severity: Some(severity),
+            code: Some(NumberOrString::String(
+                core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+            )),
+            source: Some("tcl-lsp".to_owned()),
+            message: format!("{}: {}", notice.context, notice.message),
+            data: notice_data,
+            ..Diagnostic::default()
+        };
+        Ok(Some(PreparedPackNotice {
+            uri,
+            diagnostic,
+            source,
+            owner: source_owner,
+            _paths: paths,
+        }))
     }
 
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
@@ -29141,67 +29192,18 @@ impl Backend {
     ) -> DocumentSourceResult<WorkspaceSymbolCandidates> {
         const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
         for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
-            let (
+            let OpenWorkspaceSymbolSnapshot {
                 unindexed,
                 mut indexed_hits,
                 mut indexed_revisions,
                 mut sources,
                 mut closed_revisions,
-            ) = {
+            } = {
                 // `documents` → `workspace_index`, the lock order `did_open`
                 // establishes.
                 let docs = self.documents.lock("open_but_unindexed_symbols").await;
                 let index = self.workspace_index.read().await;
-                let unindexed: Vec<(Uri, DocumentState)> = docs
-                    .iter()
-                    .filter(|(uri, doc)| {
-                        !doc.backing_file_deleted && !index.contains_document(uri.as_str())
-                    })
-                    .map(|(uri, doc)| (uri.clone(), doc.clone()))
-                    .collect();
-                // Snapshot ordinary index hits under the same read lock that
-                // classified fallback URIs. Fresh analysis below may await
-                // long enough for one of those URIs to publish; consulting
-                // the index a second time would mix two revisions.
-                let indexed_hits = index.symbols_matching_excluding(
-                    query,
-                    limit,
-                    docs.iter()
-                        .filter_map(|(uri, doc)| doc.backing_file_deleted.then_some(uri.as_str())),
-                );
-                // An indexed hit names the bytes current at this index
-                // snapshot. Open sources can be captured atomically under the
-                // documents lock; closed sources need the per-document index
-                // revision below to validate their out-of-lock disk read.
-                let sources: HashMap<String, Option<DocumentState>> = indexed_hits
-                    .iter()
-                    .filter_map(|hit| {
-                        let uri = Uri::from_str(&hit.uri).ok()?;
-                        docs.get(&uri)
-                            .cloned()
-                            .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
-                    })
-                    .collect();
-                let indexed_revisions: HashMap<String, u64> = indexed_hits
-                    .iter()
-                    .filter_map(|hit| {
-                        index
-                            .document_revision(&hit.uri)
-                            .map(|revision| (hit.uri.clone(), revision))
-                    })
-                    .collect();
-                let closed_revisions: HashMap<String, u64> = indexed_revisions
-                    .iter()
-                    .filter(|(uri, _)| !sources.contains_key(*uri))
-                    .map(|(uri, revision)| (uri.clone(), *revision))
-                    .collect();
-                (
-                    unindexed,
-                    indexed_hits,
-                    indexed_revisions,
-                    sources,
-                    closed_revisions,
-                )
+                Self::capture_open_workspace_symbol_snapshot(&docs, &index, query, limit)
             };
 
             let mut pending = new_workspace_index();
@@ -29287,6 +29289,64 @@ impl Backend {
             });
         }
         unreachable!("the bounded source-snapshot loop always returns")
+    }
+
+    fn capture_open_workspace_symbol_snapshot(
+        docs: &HashMap<Uri, DocumentState>,
+        index: &core_workspace_index::WorkspaceIndex,
+        query: &str,
+        limit: usize,
+    ) -> OpenWorkspaceSymbolSnapshot {
+        let unindexed: Vec<(Uri, DocumentState)> = docs
+            .iter()
+            .filter(|(uri, doc)| {
+                !doc.backing_file_deleted && !index.contains_document(uri.as_str())
+            })
+            .map(|(uri, doc)| (uri.clone(), doc.clone()))
+            .collect();
+        // Snapshot ordinary index hits under the same read lock that
+        // classified fallback URIs. Fresh analysis below may await
+        // long enough for one of those URIs to publish; consulting
+        // the index a second time would mix two revisions.
+        let indexed_hits = index.symbols_matching_excluding(
+            query,
+            limit,
+            docs.iter()
+                .filter_map(|(uri, doc)| doc.backing_file_deleted.then_some(uri.as_str())),
+        );
+        // An indexed hit names the bytes current at this index
+        // snapshot. Open sources can be captured atomically under the
+        // documents lock; closed sources need the per-document index
+        // revision below to validate their out-of-lock disk read.
+        let sources: HashMap<String, Option<DocumentState>> = indexed_hits
+            .iter()
+            .filter_map(|hit| {
+                let uri = Uri::from_str(&hit.uri).ok()?;
+                docs.get(&uri)
+                    .cloned()
+                    .map(|doc| (hit.uri.clone(), Some(doc.normalised_for_analysis())))
+            })
+            .collect();
+        let indexed_revisions: HashMap<String, u64> = indexed_hits
+            .iter()
+            .filter_map(|hit| {
+                index
+                    .document_revision(&hit.uri)
+                    .map(|revision| (hit.uri.clone(), revision))
+            })
+            .collect();
+        let closed_revisions: HashMap<String, u64> = indexed_revisions
+            .iter()
+            .filter(|(uri, _)| !sources.contains_key(*uri))
+            .map(|(uri, revision)| (uri.clone(), *revision))
+            .collect();
+        OpenWorkspaceSymbolSnapshot {
+            unindexed,
+            indexed_hits,
+            indexed_revisions,
+            sources,
+            closed_revisions,
+        }
     }
 
     /// Rebuild the indexed view before an absence-sensitive rename when the
