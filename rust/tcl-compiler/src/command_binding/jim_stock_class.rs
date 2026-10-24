@@ -4,6 +4,7 @@
 
 //! Bounded authored stock Jim class effects, without Native entry or class objects.
 
+mod inheritance;
 mod method;
 
 use super::{
@@ -28,6 +29,8 @@ struct OriginalJimStockClass {
     site: CommandAllocationSite,
     policy: NamePolicyProtocol,
     recipe: SourceJimStockClassRecipe,
+    base: Option<Arc<OriginalJimStockClass>>,
+    variables: Vec<NameBytes>,
 }
 
 /// Readonly generated-name data from one captured stock source recipe.
@@ -64,6 +67,11 @@ impl OriginalJimStockName {
     pub(crate) fn lineage_nodes_in(&self, remaining: &mut usize) -> bool {
         self.owner.class_name.lineage_nodes_in(remaining)
             && self
+                .owner
+                .base
+                .as_ref()
+                .is_none_or(|base| base.class_name.lineage_nodes_in(remaining))
+            && self
                 .method
                 .as_ref()
                 .is_none_or(|method| method.lineage_nodes_in(remaining))
@@ -71,6 +79,11 @@ impl OriginalJimStockName {
 
     pub(crate) fn is_current(&self, context: &crate::var_resolve::ResolveContext) -> bool {
         self.owner.class_name.is_current(context)
+            && self
+                .owner
+                .base
+                .as_ref()
+                .is_none_or(|base| base.class_name.is_current(context))
             && self
                 .method
                 .as_ref()
@@ -100,6 +113,7 @@ struct PlannedJimSourceHelper {
     name: OriginalJimStockName,
     slot: ByteCommandSlot,
     key: SourceCommandKey,
+    alias_target: Option<OriginalJimStockName>,
 }
 
 impl OriginalJimStockClass {
@@ -147,16 +161,6 @@ impl OriginalJimStockClass {
         {
             return None;
         }
-        if let Some(bases) = layout.bases {
-            let fields = tcl_syntax::list::split_native_list_bytes(
-                words.literal(bases + 1)?,
-                policy.string_protocol(),
-            )
-            .ok()?;
-            if !fields.is_empty() {
-                return None;
-            }
-        }
         let fields = tcl_syntax::list::split_native_list_bytes(
             words.literal(layout.variables + 1)?,
             policy.string_protocol(),
@@ -175,6 +179,24 @@ impl OriginalJimStockClass {
         if class_name.bytes().is_empty() || class_name.bytes().contains(&0) {
             return None;
         }
+        let base = if let Some(bases) = layout.bases {
+            let bytes = words.literal(bases + 1)?;
+            let fields =
+                tcl_syntax::list::split_native_list_bytes(bytes, policy.string_protocol()).ok()?;
+            if fields.is_empty() {
+                None
+            } else {
+                Some(inheritance::capture_parent(
+                    &fields,
+                    class_name.bytes(),
+                    policy,
+                    state,
+                )?)
+            }
+        } else {
+            None
+        };
+        let variables = inheritance::merged_variables(base.as_deref(), &fields);
         Some(Arc::new(Self {
             factory: native.target.clone(),
             metadata: state.baseline.metadata_context.clone(),
@@ -186,6 +208,8 @@ impl OriginalJimStockClass {
             },
             policy,
             recipe,
+            base,
+            variables,
         }))
     }
 
@@ -217,20 +241,32 @@ impl OriginalJimStockClass {
         let Some(root) = state.source_root_namespace_key() else {
             return false;
         };
-        self.recipe.direct_dependencies().iter().all(|dependency| {
-            state
-                .original_registry_metadata_target(&root, dependency, self.policy)
-                .is_some_and(|target| {
-                    target.registry_backed
-                        && target.kind == BindingKind::Builtin
-                        && target.implementation_generation == 0
-                        && target.prepended.is_empty()
-                        && tcl_registry::command_descriptor_labels_match(
-                            &target.command,
-                            dependency,
-                        )
-                })
-        })
+        self.recipe
+            .direct_dependencies()
+            .iter()
+            .chain(
+                self.base
+                    .iter()
+                    .flat_map(|_| self.recipe.inheritance_dependencies()),
+            )
+            .all(|dependency| {
+                state
+                    .original_registry_metadata_target(&root, dependency, self.policy)
+                    .is_some_and(|target| {
+                        target.registry_backed
+                            && target.kind == BindingKind::Builtin
+                            && target.implementation_generation == 0
+                            && target.prepended.is_empty()
+                            && tcl_registry::command_descriptor_labels_match(
+                                &target.command,
+                                dependency,
+                            )
+                    })
+            })
+            && self
+                .base
+                .as_ref()
+                .is_none_or(|base| inheritance::parent_helpers_are_current(base, state))
     }
 
     fn publication_plan(
@@ -290,9 +326,16 @@ impl OriginalJimStockClass {
                 },
                 slot,
                 key,
+                alias_target: None,
             });
         }
-        Some(plan)
+        if self.base.is_some() {
+            let mut inherited = inheritance::publication_prefix(self, state)?;
+            inherited.extend(plan);
+            Some(inherited)
+        } else {
+            Some(plan)
+        }
     }
 }
 
@@ -353,7 +396,9 @@ fn bounded_entry(
 
 impl PlannedJimSourceHelper {
     fn install(&self, state: &mut ModuleCommandBindings) -> Option<InstalledJimSourceHelper> {
-        let alias_target = if self.name.helper == SourceJimClassHelper::ConstructorAlias {
+        let alias_target = if let Some(target) = &self.alias_target {
+            Some(target.clone())
+        } else if self.name.helper == SourceJimClassHelper::ConstructorAlias {
             let suffix = SourceJimClassHelper::DefaultConstructor.publication_suffix()?;
             let bytes = self
                 .name
@@ -533,7 +578,7 @@ mod tests {
         for source in [
             "unknown_stock_mutator; class C {x 0}",
             "proc proc args {}; class C {x 0}",
-            "class Base {x 0}; class C Base {y 0}",
+            "class Base {x 0}; class Other {z 0}; class C {Base Other} {y 0}",
         ] {
             let state = state_before_unknown(source);
             assert!(
@@ -592,7 +637,7 @@ mod tests {
             "class C {}; proc proc args {}; C method m {} {}",
             "class C {}; proc {C method} args {}; C method m {} {}",
             "class C {}; proc C args {}; C method m {} {}",
-            "class Base {}; class C Base {}; C method m {} {}",
+            "class Base {}; class Other {}; class C {Base Other} {}; C method m {} {}",
             "unknown_stock_mutator; class C {}; C method m {} {}",
             "class C {}; C method m {} {}; C method m {} {}",
         ] {
@@ -600,6 +645,95 @@ mod tests {
             assert!(
                 state.has_opaque_domain() || state.unclosed_command_world,
                 "{prefix}"
+            );
+        }
+    }
+
+    #[test]
+    fn one_stock_parent_retains_alias_overwrite_allocations_and_variable_owners() {
+        let state = state_before_unknown("class Base {x 0}; class C Base {y 0}");
+        assert!(!state.unclosed_command_world);
+        assert!(!state.has_opaque_domain());
+        assert!(state.baseline.native_entry.is_none());
+        let policy = state
+            .baseline
+            .execution_name_policy
+            .unwrap()
+            .native_recipe()
+            .unwrap();
+        let slot = policy
+            .recipe()
+            .command_publication_slot(NativeNameContext::root(), b"C vars")
+            .unwrap();
+        let publication = state.original_publication_at(&slot, policy).unwrap();
+        let SignatureSourceNameInput::OriginalValue(value) = publication.name_input() else {
+            panic!("original stock name");
+        };
+        let name = value.jim_stock_name().unwrap();
+        assert_eq!(
+            name.owner.variables,
+            vec![NameBytes::from(&b"x"[..]), NameBytes::from(&b"y"[..])]
+        );
+        assert!(name.owner.base.is_some());
+        let key = state.original_command_key_for_slot(&slot, policy).unwrap();
+        assert_eq!(
+            state.allocation_counts.get(&(name.owner.site.clone(), key)),
+            Some(&2)
+        );
+        let baseclass = policy
+            .recipe()
+            .command_publication_slot(NativeNameContext::root(), b"C baseclass")
+            .unwrap();
+        assert!(state.original_publication_at(&baseclass, policy).is_some());
+    }
+
+    #[test]
+    fn former_single_base_method_refusal_has_its_original_publication_owner() {
+        let state = state_before_unknown("class Base {}; class C Base {}; C method m {} {}");
+        assert!(!state.unclosed_command_world);
+        assert!(!state.has_opaque_domain());
+        assert!(state.baseline.native_entry.is_none());
+        assert!(state.baseline.source_point_entry.is_none());
+        let policy = state
+            .baseline
+            .execution_name_policy
+            .unwrap()
+            .native_recipe()
+            .unwrap();
+        let slot = policy
+            .recipe()
+            .command_publication_slot(NativeNameContext::root(), b"C m")
+            .unwrap();
+        let publication = state.original_publication_at(&slot, policy).unwrap();
+        assert!(publication.definition().is_none());
+        let SignatureSourceNameInput::OriginalValue(value) = publication.name_input() else {
+            panic!("original stock name");
+        };
+        let name = value.jim_stock_name().unwrap();
+        let method = name.method.as_ref().unwrap();
+        assert!(name.owner.base.is_some());
+        assert_eq!(name.bytes(), b"C m");
+        assert_eq!(publication.declaration_site(), method.registration());
+        let key = state.original_command_key_for_slot(&slot, policy).unwrap();
+        assert_eq!(
+            state
+                .allocation_counts
+                .get(&(method.registration().clone(), key)),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn extra_parent_commands_and_changed_parent_helpers_keep_inheritance_opaque() {
+        for source in [
+            "class Base {x 0}; proc {Base foreign} {} {}; class C Base {y 0}",
+            "class Base {x 0}; proc {Base vars} {} {}; class C Base {y 0}",
+            "class Base {x 0}; unknown_stock_mutator; class C Base {y 0}",
+        ] {
+            let state = state_before_unknown(source);
+            assert!(
+                state.unclosed_command_world || state.has_opaque_domain(),
+                "{source}"
             );
         }
     }

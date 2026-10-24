@@ -18,8 +18,11 @@ Authored Jim 0.84 stock class declarations retain their finite command
 publications only with a current selected source recipe, unchanged core helpers,
 a quiet closed prior world and every destination independently fresh. Generated
 helper names retain readonly recipe and original-input owners; they acquire no
-complete-word or editable geometry. Nonempty inheritance, changed helpers and
-unknown prior effects keep the opaque path. A retained helper publication grants
+complete-word or editable geometry. One original empty-base parent with its
+complete current stock helper inventory retains the inherited alias publications,
+subsequent stock overwrites and original variable owners. Other inheritance,
+foreign parent commands, changed helpers and unknown prior effects keep the
+opaque path. A retained helper publication grants
 neither a Native class nor a method-entry frame, and does not close a wrapper's
 prelude.
 A fresh source method publication retains its original member, formals and
