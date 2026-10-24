@@ -18,6 +18,40 @@ use crate::registry_invocation::{
 use crate::ssa::SsaFunction;
 use crate::ssa::ValueKey;
 
+macro_rules! n17_native_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17_NATIVE {}", format_args!($($arg)*));
+        }
+    };
+}
+
+fn n17_native_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    if value.is_none() {
+        n17_native_trace!("decline={stage}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
+fn n17_native_decline(stage: &str, value: bool) -> bool {
+    if value {
+        n17_native_trace!("decline={stage}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
+fn n17_native_outcome<T>(stage: &str, value: Option<T>) -> Option<T> {
+    n17_native_trace!("stage={stage} present={}", value.is_some());
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 enum NativeTransferPurpose<'a> {
     ExecutionEntry,
     FreshSource(crate::command_binding::FreshNativeSourceAnalysis<'a>),
@@ -36,31 +70,51 @@ impl<'a> NativeSummaryContext<'a> {
         registry: &'a CommandRegistry,
         config: LexerConfig,
     ) -> Option<Self> {
-        if config.normalized() != module.lexer_config.normalized()
-            || module.has_dynamic_trace
-            || !module.traced_commands.is_empty()
-            || !module
-                .retained_source_bindings
-                .as_ref()?
-                .matches_module(module, registry)
+        n17_native_trace!(
+            "factory.enter top={} bodies={}",
+            module.top_level.statements.len(),
+            module.body_units.len()
+        );
+        if n17_native_decline(
+            "factory.config",
+            config.normalized() != module.lexer_config.normalized(),
+        ) || n17_native_decline("factory.dynamic-trace", module.has_dynamic_trace)
+            || n17_native_decline(
+                "factory.traced-commands",
+                !module.traced_commands.is_empty(),
+            )
+            || n17_native_decline(
+                "factory.retained-match",
+                !n17_native_option("factory.retained", module.retained_source_bindings.as_ref())?
+                    .matches_module(module, registry),
+            )
         {
             return None;
         }
         let purpose = match module.original_invocation_source_purpose(
             registry,
-            InvocationMetadataContext::for_module(registry, module)?,
+            n17_native_option(
+                "factory.metadata",
+                InvocationMetadataContext::for_module(registry, module),
+            )?,
         ) {
             Some(OriginalInvocationSourcePurpose::Execution) => {
                 NativeTransferPurpose::ExecutionEntry
             }
-            None => NativeTransferPurpose::FreshSource(
-                module
-                    .retained_source_bindings
-                    .as_ref()?
-                    .fresh_native_source_analysis(module, registry)?,
-            ),
-            _ => return None,
+            None => NativeTransferPurpose::FreshSource(n17_native_option(
+                "factory.fresh-projection",
+                n17_native_option(
+                    "factory.fresh-retained",
+                    module.retained_source_bindings.as_ref(),
+                )?
+                .fresh_native_source_analysis(module, registry),
+            )?),
+            _ => return n17_native_option("factory.other-purpose", None),
         };
+        n17_native_trace!(
+            "factory.accepted fresh={}",
+            matches!(&purpose, NativeTransferPurpose::FreshSource(_))
+        );
         Some(Self {
             module,
             registry,
@@ -70,17 +124,40 @@ impl<'a> NativeSummaryContext<'a> {
     }
 
     fn metadata<'w>(&'w self, tokens: &'w CommandTokens) -> Option<InvocationMetadataContext<'w>> {
-        let retained = self.module.retained_source_bindings.as_ref()?;
-        retained.owns_original_tokens(tokens).then_some(())?;
-        let origin = retained
-            .positioned_for_module(self.module, self.registry)?
-            .source_origin()?;
-        let binding = tokens.source_binding.as_ref()?;
-        std::sync::Arc::ptr_eq(origin, &binding.invocation_site()?.source).then_some(())?;
-        let metadata =
-            binding.original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
+        let retained = n17_native_option(
+            "metadata.retained",
+            self.module.retained_source_bindings.as_ref(),
+        )?;
+        n17_native_option(
+            "metadata.tokens-owner",
+            retained.owns_original_tokens(tokens).then_some(()),
+        )?;
+        let origin = n17_native_option(
+            "metadata.root-origin",
+            n17_native_option(
+                "metadata.positioned",
+                retained.positioned_for_module(self.module, self.registry),
+            )?
+            .source_origin(),
+        )?;
+        let binding = n17_native_option("metadata.binding", tokens.source_binding.as_ref())?;
+        n17_native_option(
+            "metadata.origin-Arc",
+            std::sync::Arc::ptr_eq(
+                origin,
+                &n17_native_option("metadata.site", binding.invocation_site())?.source,
+            )
+            .then_some(()),
+        )?;
+        let metadata = n17_native_option(
+            "metadata.for-module",
+            binding.original_invocation_metadata_for_module(tokens, self.module, self.registry),
+        )?;
         if let NativeTransferPurpose::FreshSource(source) = &self.purpose {
-            source.matches_tokens(tokens, metadata).then_some(())?;
+            n17_native_option(
+                "metadata.fresh-attachment",
+                source.matches_tokens(tokens, metadata).then_some(()),
+            )?;
         }
         Some(metadata)
     }
@@ -89,17 +166,23 @@ impl<'a> NativeSummaryContext<'a> {
         &self,
         tokens: &CommandTokens,
     ) -> Option<(ResolvedStatementInvocation, NormalTransferInvocation)> {
-        let metadata = self.metadata(tokens)?;
+        let metadata = n17_native_option("operation.metadata", self.metadata(tokens))?;
         Some((
-            resolved_tokens_invocation_with_metadata_context(
-                self.registry,
-                Some(metadata),
-                tokens,
+            n17_native_option(
+                "operation.strict",
+                resolved_tokens_invocation_with_metadata_context(
+                    self.registry,
+                    Some(metadata),
+                    tokens,
+                ),
             )?,
-            normal_transfer_invocation_with_metadata_context(
-                self.registry,
-                Some(metadata),
-                tokens,
+            n17_native_option(
+                "operation.normal",
+                normal_transfer_invocation_with_metadata_context(
+                    self.registry,
+                    Some(metadata),
+                    tokens,
+                ),
             )?,
         ))
     }
@@ -115,20 +198,34 @@ impl<'a> NativeSummaryContext<'a> {
             &tcl_registry::ResolvedInvocation<'_, '_>,
         ) -> Option<T>,
     ) -> Option<T> {
-        let (operation, normal) = self.operation(tokens)?;
-        self.receiver(body, tokens, &normal, defs, ssa)?;
-        let stored = normal.stored_value_argument()?.checked_add(1)?;
+        n17_native_trace!("store.enter defs={} body={}", defs.len(), body.is_some());
+        let (operation, normal) = n17_native_option("store.operation", self.operation(tokens))?;
+        n17_native_option(
+            "store.receiver",
+            self.receiver(body, tokens, &normal, defs, ssa),
+        )?;
+        let stored = n17_native_option("store.value-index", normal.stored_value_argument())?
+            .checked_add(1)?;
         for (index, word) in operation.effective.words.iter().enumerate() {
             if index == stored {
-                word.sole_command_substitution()?;
-            } else if !literal_word(word) {
+                n17_native_option("store.sole-child", word.sole_command_substitution())?;
+            } else if n17_native_decline("store.nonliteral-argv", !literal_word(word)) {
                 return None;
             }
         }
-        let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
-        operation.with_metadata_schema(self.registry, self.metadata(tokens)?, realm, |schema| {
-            apply(&operation, schema)
-        })
+        let realm = n17_native_option(
+            "store.realm",
+            n17_native_option("store.binding", tokens.source_binding.as_ref())?.invocation_realm(),
+        )?;
+        n17_native_outcome(
+            "store.schema-or-consumer",
+            operation.with_metadata_schema(
+                self.registry,
+                n17_native_option("store.schema-metadata", self.metadata(tokens))?,
+                realm,
+                |schema| apply(&operation, schema),
+            ),
+        )
     }
 
     /// Identity is proved before allowing the existing name-based place adapter.
@@ -141,36 +238,53 @@ impl<'a> NativeSummaryContext<'a> {
         ssa: &SsaFunction,
     ) -> Option<()> {
         use tcl_registry::native_compilation::VariableOperandBindingPhase;
-        if normal.variable_binding_phase() != VariableOperandBindingPhase::AfterArguments
-            || normal.variable_roles().as_slice() != [(0, tcl_registry::ArgRole::VarWrite)]
-        {
+        if n17_native_decline(
+            "receiver.phase-or-roles",
+            normal.variable_binding_phase() != VariableOperandBindingPhase::AfterArguments
+                || normal.variable_roles().as_slice() != [(0, tcl_registry::ArgRole::VarWrite)],
+        ) {
             return None;
         }
         let [(display, (symbol, version))] = defs else {
-            return None;
+            return n17_native_option("receiver.single-definition", None);
         };
-        let binding = tokens.source_binding.as_ref()?;
-        normal
-            .stored_value_word(&binding.variable_context, self.registry)?
-            .sole_command_substitution()?;
-        let place = normal.variable_operand_place(0, &binding.variable_context, self.registry)?;
-        if place.observed
-            || place.dynamic
-            || place.index.is_some()
-            || place.kind != crate::place::PlaceKind::Scalar
-        {
+        let binding = n17_native_option("receiver.binding", tokens.source_binding.as_ref())?;
+        n17_native_option(
+            "receiver.stored-child",
+            n17_native_option(
+                "receiver.stored-word",
+                normal.stored_value_word(&binding.variable_context, self.registry),
+            )?
+            .sole_command_substitution(),
+        )?;
+        let place = n17_native_option(
+            "receiver.place",
+            normal.variable_operand_place(0, &binding.variable_context, self.registry),
+        )?;
+        if n17_native_decline(
+            "receiver.unbounded-place",
+            place.observed
+                || place.dynamic
+                || place.index.is_some()
+                || place.kind != crate::place::PlaceKind::Scalar,
+        ) {
             return None;
         }
-        let key = crate::var_resolve::canonical_binding_value_key(&place)?;
-        if ssa.cell_key(*symbol) != Some(&key) {
+        let key = n17_native_option(
+            "receiver.canonical-key",
+            crate::var_resolve::canonical_binding_value_key(&place),
+        )?;
+        if n17_native_decline("receiver.SSA-cell-key", ssa.cell_key(*symbol) != Some(&key)) {
             return None;
         }
-        let name = normal.argument_literal(0)?;
-        if name != *display
-            || ssa.var_name(*symbol) != name
-            || ssa.var_symbol(&name) != Some(*symbol)
-            || crate::naming::element_var_name(&name) != name
-        {
+        let name = n17_native_option("receiver.literal-name", normal.argument_literal(0))?;
+        if n17_native_decline(
+            "receiver.name-projection",
+            name != *display
+                || ssa.var_name(*symbol) != name
+                || ssa.var_symbol(&name) != Some(*symbol)
+                || crate::naming::element_var_name(&name) != name,
+        ) {
             return None;
         }
         let mut point = None;
@@ -179,20 +293,23 @@ impl<'a> NativeSummaryContext<'a> {
                 if statement.defs.get(symbol) != Some(version) {
                     continue;
                 }
-                if point.is_some()
-                    || statement.defs.len() != 1
-                    || statement.may_defs.contains(symbol)
-                    || statement.destruction_defs.contains(symbol)
-                    || statement.statement.tokens() != Some(tokens)
-                    || self.statement_tokens(body, &statement.statement).as_ref() != Some(tokens)
-                    || ssa.var_symbol_at(block, index, &name) != Some(*symbol)
-                {
+                if n17_native_decline(
+                    "receiver.current-point",
+                    point.is_some()
+                        || statement.defs.len() != 1
+                        || statement.may_defs.contains(symbol)
+                        || statement.destruction_defs.contains(symbol)
+                        || statement.statement.tokens() != Some(tokens)
+                        || self.statement_tokens(body, &statement.statement).as_ref()
+                            != Some(tokens)
+                        || ssa.var_symbol_at(block, index, &name) != Some(*symbol),
+                ) {
                     return None;
                 }
                 point = Some((block, index));
             }
         }
-        point.map(|_| ())
+        n17_native_option("receiver.owned-point", point.map(|_| ()))
     }
 
     pub(in crate::interprocedural::transfer) fn with_value_operation<T>(
@@ -203,20 +320,28 @@ impl<'a> NativeSummaryContext<'a> {
             &tcl_registry::ResolvedInvocation<'_, '_>,
         ) -> Option<T>,
     ) -> Option<T> {
-        let (operation, normal) = self.operation(tokens)?;
-        if !normal.variable_roles().is_empty()
-            || !tokens
-                .source_binding
-                .as_ref()?
-                .original_arguments_complete_normally(tokens)
-            || !operation.effective.words.iter().all(literal_word)
-        {
+        let (operation, normal) = n17_native_option("child.operation", self.operation(tokens))?;
+        if n17_native_decline(
+            "child.roles-arguments-or-literals",
+            !normal.variable_roles().is_empty()
+                || !tokens
+                    .source_binding
+                    .as_ref()?
+                    .original_arguments_complete_normally(tokens)
+                || !operation.effective.words.iter().all(literal_word),
+        ) {
             return None;
         }
         let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
-        operation.with_metadata_schema(self.registry, self.metadata(tokens)?, realm, |schema| {
-            apply(&operation, schema)
-        })
+        n17_native_outcome(
+            "child.schema-or-consumer",
+            operation.with_metadata_schema(
+                self.registry,
+                n17_native_option("child.schema-metadata", self.metadata(tokens))?,
+                realm,
+                |schema| apply(&operation, schema),
+            ),
+        )
     }
 
     pub(in crate::interprocedural::transfer) fn statement_tokens(
@@ -226,13 +351,23 @@ impl<'a> NativeSummaryContext<'a> {
     ) -> Option<CommandTokens> {
         let script = match body {
             Some(body) => {
-                self.module.procedure_ids.owns(body).then_some(())?;
-                let procedure = self.module.body_units.get(&body)?;
-                self.module
-                    .original_native_declaration_body_units
-                    .get(&body)?
+                n17_native_option(
+                    "statement.body-owner",
+                    self.module.procedure_ids.owns(body).then_some(()),
+                )?;
+                let procedure =
+                    n17_native_option("statement.body", self.module.body_units.get(&body))?;
+                n17_native_option(
+                    "statement.card-match",
+                    n17_native_option(
+                        "statement.card",
+                        self.module
+                            .original_native_declaration_body_units
+                            .get(&body),
+                    )?
                     .matches_procedure(self.module, procedure)
-                    .then_some(())?;
+                    .then_some(()),
+                )?;
                 &procedure.body
             }
             None => &self.module.top_level,
@@ -242,8 +377,11 @@ impl<'a> NativeSummaryContext<'a> {
             if original.span() != statement.span() {
                 continue;
             }
-            let tokens = script.retained_source_tokens_for_statement(original)?;
-            self.metadata(tokens)?;
+            let tokens = n17_native_option(
+                "statement.tokens",
+                script.retained_source_tokens_for_statement(original),
+            )?;
+            n17_native_option("statement.metadata", self.metadata(tokens))?;
             if statement
                 .tokens()
                 .is_some_and(|supplied| supplied != tokens)
@@ -253,7 +391,7 @@ impl<'a> NativeSummaryContext<'a> {
             }
             selected = Some(tokens.clone());
         }
-        selected
+        n17_native_option("statement.selected", selected)
     }
 
     pub(in crate::interprocedural::transfer) fn substitution(
@@ -262,8 +400,11 @@ impl<'a> NativeSummaryContext<'a> {
         site: &crate::ir::SourceSite,
         script: &str,
     ) -> Option<OriginalSummaryScript> {
-        let metadata = self.metadata(parent)?;
-        if site.provenance != crate::ir::Provenance::Source {
+        let metadata = n17_native_option("substitution.parent-metadata", self.metadata(parent))?;
+        if n17_native_decline(
+            "substitution.provenance",
+            site.provenance != crate::ir::Provenance::Source,
+        ) {
             return None;
         }
         let origin = &parent.source_binding.as_ref()?.invocation_site()?.source;
@@ -275,19 +416,22 @@ impl<'a> NativeSummaryContext<'a> {
         if spelling.strip_prefix('[')?.strip_suffix(']')? != script {
             return None;
         }
-        let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            parent,
-            self.config.nested(),
-            self.registry,
-            metadata,
+        let calls = n17_native_option(
+            "substitution.inventory",
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                parent,
+                self.config.nested(),
+                self.registry,
+                metadata,
+            ),
         )?;
         let mut selected = calls.into_iter().filter(|call| call.span == site.span);
-        let call = selected.next()?;
+        let call = n17_native_option("substitution.selected-child", selected.next())?;
         if selected.next().is_some() {
             return None;
         }
-        let child = call.tokens?;
-        self.metadata(&child)?;
+        let child = n17_native_option("substitution.child-tokens", call.tokens)?;
+        n17_native_option("substitution.child-metadata", self.metadata(&child))?;
         std::sync::Arc::ptr_eq(
             origin,
             &child.source_binding.as_ref()?.invocation_site()?.source,
