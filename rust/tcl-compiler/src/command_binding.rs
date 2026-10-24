@@ -10210,6 +10210,11 @@ impl SourceCommandBindings {
         }) {
             return result;
         }
+        if let Some(outcomes) = original_words
+            .and_then(|words| Self::walk_jim_stock_method(site, words, state, target, context))
+        {
+            return outcomes;
+        }
         let body = self.deferred.get(&target.implementation_id()).cloned();
         let Some(body) = body else {
             state.mark_opaque_binding_mutation();

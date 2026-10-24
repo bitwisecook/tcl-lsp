@@ -25,6 +25,9 @@ complete-word or editable geometry. Nonempty inheritance, changed helpers and
 unknown prior effects keep the opaque path. A retained helper publication grants
 neither a Native class nor a method-entry frame, and does not close a wrapper's
 prelude.
+A fresh source method publication retains its original member, formals and
+body, with independently current dispatcher and method-creator allocations.
+This publication supplies no object caller frame or wrapper-body entry.
 
 ## Source-associated diagnostic completion
 
