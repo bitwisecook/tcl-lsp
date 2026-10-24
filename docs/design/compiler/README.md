@@ -61,6 +61,7 @@ User-facing compiler troubleshooting and how-tos live in
   rules.
 - [lowering-dispatch.md](lowering-dispatch.md) — argument roles and
   command classification.
+- [native-format-compilation.md](native-format-compilation.md) — original format compiler concatenation and operand preparation.
 - [full-pipeline-walkthrough.md](full-pipeline-walkthrough.md) —
   end-to-end source to bytecode walkthrough.
 - [example-walkthroughs.md](example-walkthroughs.md) — full pipeline

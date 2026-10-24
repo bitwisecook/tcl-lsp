@@ -129,6 +129,7 @@ pub mod native_each_compilation;
 mod native_each_try_compilation_tests;
 pub mod native_error_compilation;
 pub mod native_expression_program;
+mod native_format_compilation;
 pub mod native_introspection_compilation;
 pub mod native_mathop_compilation;
 pub mod native_namespace_binding_compilation;

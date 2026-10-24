@@ -778,6 +778,9 @@ pub enum NativeCompilationGrammar {
     /// C8.6+ template compiler requires the final original `SIMPLE_WORD`.
     /// Its accepted-template traversal remains independently unmodelled.
     SubstitutionTemplate,
+    /// C8.6+ format compiler's dynamic %s/%% concatenation branch.
+    /// Constant format evaluation and other conversion paths remain unresolved.
+    FormatStringConcat,
     /// No hook before this C release; an actual hook with unmodelled grammar thereafter.
     HookFrom(TclVersion),
     /// C8.5's monolithic namespace compiler only attempts original upvar syntax.
@@ -1797,6 +1800,24 @@ impl NativeCompilationSpec {
                 context,
             );
         }
+        if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+            let selection = crate::native_format_compilation::select(
+                words.literal(operand_from),
+                &words.shapes()[operand_from..],
+                version,
+                context,
+                self.operation,
+            );
+            return if matches!(selection, NativeCompilationSelection::Inline { .. }) {
+                Visits(
+                    ((operand_from + 1)..words.original_words().len())
+                        .map(|index| Visit::Word(NativeCompilerWordOperand::Original(index)))
+                        .collect(),
+                )
+            } else {
+                Unknown
+            };
+        }
         // These selected leaf emitters prepare source tokens, not variable
         // values. Substitution compiler visits remain explicitly unresolved.
         if self.preserves_names_for_literal_vector(words, operand_from) {
@@ -1971,6 +1992,7 @@ impl NativeCompilationSpec {
             // These paths can perform nested compilation, resolver-mediated
             // command literal preparation, or an unauthored compiler hook.
             NativeCompilationGrammar::Unresolved
+            | NativeCompilationGrammar::FormatStringConcat
             | NativeCompilationGrammar::HookFrom(_)
             | NativeCompilationGrammar::ProcedureHookFrom(_)
             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
@@ -2049,6 +2071,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::CoroutineYield
             | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::CoroutineRelay
+            | NativeCompilationGrammar::FormatStringConcat
             | NativeCompilationGrammar::Error => true,
             _ => false,
         }
@@ -2319,6 +2342,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::NamespaceCurrent
             | NativeCompilationGrammar::NamespaceOrigin
             | NativeCompilationGrammar::NamespaceCode
+            | NativeCompilationGrammar::FormatStringConcat
             | NativeCompilationGrammar::NamespaceString(_)
             | NativeCompilationGrammar::StringIsAscii(_) => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
@@ -2537,6 +2561,9 @@ impl NativeCompilationSpec {
     fn operation_matches_grammar(self) -> bool {
         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
             return compiler.operation_matches_grammar() && self.operation == compiler.operation;
+        }
+        if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+            return self.operation == SemanticOperationId::Invoke;
         }
         if matches!(self.grammar, NativeCompilationGrammar::StringIsAscii(_)) {
             return self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs);
@@ -2811,6 +2838,15 @@ impl NativeCompilationSpec {
         context: NativeCompilationContext,
     ) -> Option<NativeCompilationSelection> {
         use NativeCompilationSelection as Selection;
+        if self.grammar == NativeCompilationGrammar::FormatStringConcat {
+            return Some(crate::native_format_compilation::select(
+                words.literal(operand_from),
+                &words.shapes()[operand_from..],
+                version,
+                context,
+                self.operation,
+            ));
+        }
         if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
             return Some(
                 match crate::native_mathop_compilation::compile_native_mathop(
@@ -3998,6 +4034,15 @@ impl NativeCompilationSpec {
                 ),
             NativeCompilationGrammar::SubstitutionTemplate => {
                 substitution_template_compiler_grammar(words, shapes, version, self.operation)
+            }
+            NativeCompilationGrammar::FormatStringConcat => {
+                crate::native_format_compilation::select(
+                    words.arguments().literal_at(0).map(str::as_bytes),
+                    shapes,
+                    version,
+                    context,
+                    self.operation,
+                )
             }
             NativeCompilationGrammar::HookFrom(first) => unmodelled_hook_selection(version, first),
             NativeCompilationGrammar::NamespaceWhich => namespace_which_selection(
