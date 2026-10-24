@@ -1825,7 +1825,7 @@ is renamed or deleted in this file."
                         fu,
                         procedure,
                         &declaration,
-                        rbs_read_option("required_flow", declared_flow.as_ref()),
+                        rbs_read_option("required_flow", declared_flow.as_deref()),
                         ctx,
                         proofs,
                     ),
