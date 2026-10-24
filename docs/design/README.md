@@ -52,6 +52,7 @@ passes, and ownership matrices.
 
 - [compiler/README.md](compiler/README.md) — the compiler design-doc index;
   every stage, analysis, and pass page is reached from it.
+- [closed-native-consumer.md](compiler/closed-native-consumer.md) — private Native execution, detached output and source-rewrite admission.
 - [architecture.md](compiler/architecture.md) — the high-level map of the
   pipeline, with diagrams and cross-links to the stage documents.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
