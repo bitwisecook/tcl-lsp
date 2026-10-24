@@ -33,12 +33,15 @@
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
     "rust/tcl-compiler/src/command_binding.rs": "464e6c839e6c6750097b1d0f7dea48817ec786b1b8e995bb37a9cddc0e7df163",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "00ca6f96057dead3a4bc0f13419fec8b2c3e6d1a347b95e808b8bd3c1652a72e",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
     "rust/tcl-compiler/src/compilation_unit.rs": "7624df28beef03170948375b58339f4fee9a2dad0f69acf6ad831f536a8d1c17",
     "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
     "rust/tcl-compiler/src/realm.rs": "dc0f7a23e77db3446e293082cca28fd10dfa933c73feedb0d6bf396ded93c08d",
-    "rust/tcl-compiler/src/ssa.rs": "43866c83c141bd9f0061b4d19fe9a3117c3980f1c7241f9935cefa6e92633a1a",
-    "rust/tcl-compiler/src/taint.rs": "54974a9305c640afe3459548a594c7dc913419b34ebe4a2117e6940250c11b37",
+    "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
+    "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "4cc7a62f493db359aea5a0c31f735bfb1e3fdb9598e2287f76d2f60d3d58ed6e",
+    "rust/tcl-compiler/src/ssa.rs": "c5ea19a1e832b9925ae31d05ce951050c218889ce4fea44fbd260e1695ec284e",
+    "rust/tcl-compiler/src/taint.rs": "7ea64926f07c29c49f4aeddc74e4b9dae6f997821f0e797f29bf567261ea68bd",
     "rust/tcl-compiler/src/taint/source_context.rs": "c2d90bef19004c90693f8e4c1a7bed819f09d21bd275c21b22d92a2292922ffd",
     "rust/tcl-compiler/src/taint_interproc.rs": "c42540595453dbaba933d6e6bb92cc0ff09697ce487c0a1ec6ed04d094ca60c0",
     "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d"
