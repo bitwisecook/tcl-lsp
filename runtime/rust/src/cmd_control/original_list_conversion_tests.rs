@@ -87,6 +87,7 @@ static LATER: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 pub(crate) fn original(bytes: &[u8]) -> Owned {
+    obj::register_legacy_extension_type(&ORIGINAL);
     let owner = Owned::fresh(obj::alloc_typed(&ORIGINAL, 0));
     unsafe {
         obj::set_native_updater_string_rep(owner.as_ptr(), bytes, false);
