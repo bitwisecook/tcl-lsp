@@ -114,3 +114,30 @@ No Rust execution receipt is attached to this implementation contract. Tests are
 
 
 Checked substitution child plans retain the complete original image/channel and word configuration. Only a real Command part of a privately sealed complete positive-prefix word may inherit its parent recursive syntax validation, including Command parts inside variable indices. Public plan command/fatal-tail mutations supply no proof. Child grouping still uses the existing lexer and explicit NestedScript purpose, and retains original global coordinates. Arbitrary spans, braced/data bodies, foreign channels/configurations, and words excluded by the authentic parse cut cannot inherit validation. IndexLoader reuses this owner only for those actual substitution children; independent data scripts retain full parsing, all executable parts remain traversed, and the original depth bound is unchanged. This is a syntax-work reuse obligation, not an execution, Native admission, source-load, availability, or measured performance grant. The unchanged deeply nested fixture and budget still require actual execution.
+
+
+## Autoload registration analysis purpose
+
+The private modern `tclIndex` registration survey requests the existing
+structural analyser tier. It retains the complete resolved input, Registry
+generation, source image/configuration, original command interpretation,
+scoped-body and conditional Registry inventories used by the unchanged
+`source_registry_words` and `IndexLoader` consumers. Their current-source,
+lookup, original-word, operand and filename refusal gates remain mandatory.
+No partial or fabricated analysis, new source entry or fresh-context fallback
+replaces those owners.
+
+The survey consumes registrations, not diagnostic or navigation-reference
+outputs. Generic document analyses and the separate `pkgIndex` package
+registration path continue to request full analysis. Every original C release
+profile, lexer configuration, naming protocol, source byte and file-existence
+check remains selected independently. The legacy index data path and rescan
+memo's complete key, bounds and existence recheck are unchanged.
+
+This is equivalence of the registration consumer projection, not equality of
+full `AnalysisResult` values or a grant of execution, Native, frame, Normal,
+editor readiness or reference completeness. New fixed controls compare the
+actual typed registration keys and paths against the old full-analysis path
+with a nonempty positive, shadowing, unknown/malformed operands and source/input
+withdrawal checks. Their current execution and the original startup barrier
+remain required; source review alone establishes no measured improvement.
