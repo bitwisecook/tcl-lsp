@@ -178,7 +178,7 @@ impl CodegenCtx<'_> {
                         Operand::Imm(coordinates.last.encoded()),
                     ],
                     version,
-                ))
+                ));
             }
         }
         true
