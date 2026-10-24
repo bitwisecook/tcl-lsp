@@ -56,9 +56,20 @@ def files(paths):
 
 def source():
     require(git("rev-parse", "HEAD") == args.sha, "source commit changed")
-    require(
-        not git("status", "--porcelain=v1", "--untracked-files=all"), "dirty source"
-    )
+    dirty_status = git("status", "--porcelain=v1", "--untracked-files=all")
+    if dirty_status:
+        status_lines = dirty_status.splitlines()
+        save(
+            out / "source-dirty-paths.json",
+            {
+                "format": "git status --porcelain=v1; git helper strips outer whitespace",
+                "total_status_lines": len(status_lines),
+                "retained_status_lines": [line[:512] for line in status_lines[:128]],
+                "truncated": len(status_lines) > 128
+                or any(len(line) > 512 for line in status_lines[:128]),
+            },
+        )
+    require(not dirty_status, "dirty source")
     paths = [
         root / os.fsdecode(p)
         for p in subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
