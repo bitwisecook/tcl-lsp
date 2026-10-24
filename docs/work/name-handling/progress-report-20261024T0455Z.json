@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T04:55:53.740719+00:00",
+  "scheduled_report_utc": "2026-10-24T04:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T05:25:37+00:00",
+  "change_since_previous_report": [
+    "Latest pushed WORK 3e7d875220c61ca3717cee744db37dead52d86f7, CLEAN e940cc0302ed6b9651b650b3ee05a9d008407ebb, fresh depth1 fetch/rebase before push. All fixes firstWORK; release excludes private observers/evidence. No PR; six-hour deadline missed, all final gates remain open.",
+    "Integrated independent source-reviewed Core9 schema callback/cursor refactor and Server8 explicit imports:17new exceptions removed, no tests/assertions/queries/owner/drop semantics changed. Root13integration empty/nonempty assertion replacements also integrated after independent source/type/copy peer. Actual strictb0 is running on earlier source, not these17later removals.",
+    "Format compiler concatenation recipe independently C-source/API/carry reviewed and integrated bothbranches with explicit original value-word visits, no Nativeinstruction/handler/frame/Normal grant. All-static/error/unsupported cases remainUnknown. Exact4producer sourcepin+wholeHeavyroster companion preserved originals. FreshHeavy40063829061/job120782781377 exactff125 active; no result yet.",
+    "LogicalIfV3 independently source-reviewed/integrated after V1unsafe case-container flattening and V2Nativecompleteness dependency were held. Freshb0Jim40063328570 fullyauthenticated5PASS2FAIL with IDENTICAL failurestagecounts: this measuredsourcefix is a functional no-op onoriginals. ActualLogical-if stillhasnoanalyservisit/metadata; futureprociterationsunreached, method322fails. All21controls/2strictfreshELF0W/source/provider/processsealsclose; newunitcontrolsUNSELECTED. Names nowtraces actualconsumer/issuer/gates, laterMethodsourcepublicationcandidateheldofftree.",
+    "Spec2dd40062764019 fullyauthenticated original11=9PASS2FAIL plusNative1FAIL,3freshstrict0W/20closedemptygroups/fullseals. HeldSSA newobservation RULESOUT emptydefs/unseenmarker/barrier: actualsethasdefsSymbol0v1 andno syntheticmarker; returnusesthatvalue. Factoryacceptance stilldoesnotprovestore/evaluatorreach. RemainingSSA-ownerLogicalgate/externalmutable/precomputedpaths underaudit, no sourcevalue/physical grant.",
+    "Compilerb0 original64 running40063325850/job120781288230; strictb0 running40063330821/job120781302269; startup2dd40062761478/job120779595844 running. Originalf82compiler51PASS7FAIL/Native3PASS/SH2bothPASS/ReadFlowPASS andWASM22PASS3FAIL remainlatestexecuted. Sourceidentitiesnotmixed; no blanketbaselineacceptance.",
+    "Runtimef82 fullauthenticationfd5e20c7 CLOSED all118cases/zeroUNRUN: original3=2PASS1TIMEOUT append931rows,baseline14=8PASS6FAIL,stackABORT,other103=4PASS99FAIL. All407ZIPmembers/source126022/23criticalblobs/providers/TomMath/C84/ELF/caseguardsclose. WholeframeprotocolINCOMPLETE(CFIunknown/omissions), no stackcause. Existingprune7compiled/listedbutUNRUN. Additivesupplemental7protocol frozenpeerinprogress, original3+118prefix/budgetsunchanged; targeted single-replacement footprintonlydraft, no performanceclaim.",
+    "Runtime remaining4Env failures narrowedto existingnormal Link VarError with no result text, exactVarError/phase unknown; first-error Copy observerproposalnotyetintegrated. Originalscripts/assertionsretained. Append owncounters showprune0.813msbuiltins and30.800mspinning residual, sourcefootprintproofrequired; no crosshostcausalclaim.",
+    "RBS C-source distinction: runtime8.5\u20139.1 reservesfinal2switcharguments, while actualTclCompileSwitchCmdprefixedformstilldeclineswithout-- (C8.4different/nohook). Preservecompilerdecline andseparateversion-aware normal-sourcecasecontract; no definitiveSwitch/Nativepromotionfromruntimealone. Catchhelperalreadytraversesallstores, duplicate-storefix rejected; additiveexistingobserverduplicateplanned.",
+    "ReleasecleanupPOSIXstatictemplate sourceinverseprovedgeneratedbytesidentical, removed1newallow; root3f5ae/clean894cf. ReleaseLintother12attrscohorts frozenqueue, fourremainunauthored. FullWORKownerproofgatecarry HELD: CLEAN intentionallyexcludesdevelopmentproofchecker; revisedpureCLEANfactoringretainsCLEANchecks, no proofgate/chaffreintroduced. SerialiseWORKfactoring needsrestoredoriginalorder beforecarry, sourcecandidateofftree. Test7oldauthorgone; LSPexplicitlyownsV3correctedauthoringwithRuntimepeerpending.",
+    "04:25report written04:25:55 afterinitialsnapshot; preservedbothdocscommitsandpublishedofficialsupplement04:27:21, nexttimerarmed04:55. Thiscycleallfiveroleheaderschecked; externalBIGIP/Perfheadersstaleover60notified,no takeover; perfpatchproofcompletebutfinalshippingperformanceopen, triageexplicitlycomplete. Disk<2GiB,no builds/targetoryoungexecutabledeletion. WholefinalCI/24312baseline/latency/cancellation/memory/format/generated/docs/no-new-allows/sectionF stillopen."
+  ],
+  "committed": [
+    "d200d58807e25aa677ee153ee481b8998f2ab2ac"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish04:55report/WIPsnapshotandarm05:25reminder.",
+    "Authenticateactiveb0compiler/strict,2ddstartup,ff125Heavy; preservealloldoutcomes/sourceidentities.",
+    "FinishactualN17/Jim/RBS/runtimeframe/Env causes and productfixes withoutnewauthority/assertionweakening.",
+    "Completecorrectedtest7/releaselintpeers, supplemental7protocol and finalshippingCI/baseline/Tclperformance/docs/format/generated gates."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Newb0Jim is measured no-op; Spec2dd unchangedfailedvalid. Othernewwavesactive. Static17exceptionremovals/Formatmodel are not actualstrict/functionalgreen. No whole-releaseacceptance.",
+  "disk_free_bytes": 1504976896,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
