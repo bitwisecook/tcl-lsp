@@ -405,7 +405,7 @@ impl Analyser {
         // rebuilding the whole-file unit.  Equal by construction to the
         // freshly-built unit.
         if let Some(cu) = self.cu_override.take() {
-            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+            self.emit_cfg_ssa_diagnostics_with_cu(cu.as_unit(), registry);
             return;
         }
         // The actual input clone retains the same immutable generation across
@@ -468,7 +468,7 @@ impl Analyser {
         if let Some(cu) = self.cu_override.take() {
             let generation = self.analysis_context();
             let registry = generation.commands().as_ref();
-            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+            self.emit_cfg_ssa_diagnostics_with_cu(cu.as_unit(), registry);
             return;
         }
         let dialect = self.profile.name;

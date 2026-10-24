@@ -352,7 +352,7 @@ pub fn proc_call_refs(source: &str) -> Vec<String> {
     );
     let unit = CompilationUnit::build_for_profile(source, context.commands(), false, profile);
     let mut analyser = tcl_compiler::analyser::Analyser::new().with_resolved_input(input);
-    analyser.set_cu_override(std::sync::Arc::new(unit));
+    analyser.set_local_cu_override(std::rc::Rc::new(unit));
     let analysis = analyser.analyse(source, profile.name);
     proc_call_refs_for_analysis(source, &analysis, &context)
 }
@@ -589,7 +589,7 @@ mod tests {
             LexerConfig::from_grammar(profile.grammar),
         );
         let mut analyser = tcl_compiler::analyser::Analyser::new().with_resolved_input(input);
-        analyser.set_cu_override(std::sync::Arc::new(unit));
+        analyser.set_local_cu_override(std::rc::Rc::new(unit));
         let mut analysis = analyser.analyse(source, profile.name);
         assert_eq!(
             proc_call_refs_for_analysis(source, &analysis, &context),
