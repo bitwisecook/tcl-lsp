@@ -256,12 +256,12 @@ fn matches_read_body_ancestry(
         }
         let next = parent
             .original_catalogue_source_body()
-            .map(|body| body.content_span())
+            .map(super::source_transition_advice::OriginalSourceCatalogueBody::content_span)
             .or_else(|| {
                 parent
                     .original_procedure_source_body()
                     .or_else(|| parent.logical_source_body())
-                    .map(|body| body.content_span())
+                    .map(crate::registry_invocation::OriginalSourceScriptBody::content_span)
             });
         // The private parent receipts establish ancestry. Strictly decreasing
         // offsets only bound this walk without a new depth threshold.
