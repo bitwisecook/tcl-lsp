@@ -821,6 +821,20 @@ impl CompilerTraversal<'_> {
             if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
                 == Ok("first-decline-v1")
             {
+                let source = self.state.current_source_origin.as_ref().map(|origin| {
+                    let bytes = origin.source_image().bytes();
+                    (bytes.len(), &bytes[..bytes.len().min(256)])
+                });
+                let member = match words.get(1) {
+                    Some(WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. }) => {
+                        Some((text.len(), &text.as_bytes()[..text.len().min(64)]))
+                    }
+                    _ => None,
+                };
+                eprintln!(
+                    "TCL_NATIVE_PROVIDER_WORDS source={source:?} member={member:?} count={}",
+                    words.len(),
+                );
                 eprintln!(
                     "ZZ_NATIVE_PROVIDER_RECIPE head={:?} offset={offset} selection={:?} spec={:?}",
                     visit.head, visit.selection, visit.spec,
