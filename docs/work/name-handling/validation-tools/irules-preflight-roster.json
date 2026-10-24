@@ -96,6 +96,7 @@
     "rust/f5-cli/src/commands/irule.rs": "6e210163bd218fb242f1afb4de4464e603637d93559a7fb326e205bac53b7b5f",
     "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
     "rust/tcl-bytecode/src/lib.rs": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "f056db071cb1f8f332b20022ee30a3f01769757a607900643b3302374bae439f",
     "rust/tcl-compiler/src/compile_service.rs": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
     "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
     "rust/tcl-irule-test/Cargo.toml": "c0883b70b216f3dda1fe4965dc0408288f3356ea730b2f4c39d03bd303abab2b",

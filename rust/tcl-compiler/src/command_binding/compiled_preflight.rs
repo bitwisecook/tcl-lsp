@@ -817,6 +817,15 @@ impl CompilerTraversal<'_> {
         let NativeCompilationSteps::Known(steps) =
             std::mem::replace(&mut visit.steps, NativeCompilationSteps::Unknown)
         else {
+            #[cfg(debug_assertions)]
+            if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
+                == Ok("first-decline-v1")
+            {
+                eprintln!(
+                    "ZZ_NATIVE_PROVIDER_RECIPE head={:?} offset={offset} selection={:?} spec={:?}",
+                    visit.head, visit.selection, visit.spec,
+                );
+            }
             self.require_provider();
             return None;
         };
