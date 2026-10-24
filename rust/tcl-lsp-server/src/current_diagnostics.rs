@@ -292,12 +292,12 @@ struct ProposalAnalysisKeepalive<'a> {
     _detached_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     _detached_db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     _projection: proposal_diagnostics::Projection,
-    _currentness: ProposalCurrentnessData,
+    currentness: ProposalCurrentnessData,
 }
 
 struct ProposalAnalysisResult<'a> {
     report: ProducedDiagnosticReport,
-    _keepalive: ProposalAnalysisKeepalive<'a>,
+    keepalive: ProposalAnalysisKeepalive<'a>,
 }
 
 struct ProposalSubclassSettlement<'a> {
@@ -351,6 +351,7 @@ struct DiagnosticReportExpectation {
     source: Arc<str>,
 }
 
+#[derive(Clone, Copy)]
 struct CurrentPublishedReportBatch<'a, 'b> {
     expected: &'a [DiagnosticReportExpectation],
     admissions: &'a [Arc<DocumentPathAdmission>],
@@ -380,6 +381,7 @@ struct CurrentPublishedReportItem<'a, 'b> {
     checks: &'b mut CurrentPublishedReportChecks<'a>,
 }
 
+#[derive(Clone, Copy)]
 struct CurrentPublishedSuppression<'a> {
     report: &'a PullDiagEntry,
     receipt: &'a DiagnosticCacheReceipt,
@@ -938,7 +940,7 @@ impl Backend {
             .report
             .result
             .map_err(|_| DiagnosticUnavailable::ProviderError)?;
-        let currentness = &analysis._keepalive._currentness;
+        let currentness = &analysis.keepalive.currentness;
         let currentness = ProposalCurrentness {
             expected,
             document_revision: currentness.document_revision,
@@ -1425,7 +1427,7 @@ impl Backend {
         let path_registry = path_inputs.registry;
         Ok(ProposalAnalysisResult {
             report,
-            _keepalive: ProposalAnalysisKeepalive {
+            keepalive: ProposalAnalysisKeepalive {
                 _projection: projection,
                 _detached_db: detached_db,
                 _detached_project: detached_project,
@@ -1435,7 +1437,7 @@ impl Backend {
                 _analysis_text: analysis_text,
                 _lift: lift,
                 _registry: path_registry,
-                _currentness: currentness,
+                currentness,
             },
         })
     }
@@ -1936,9 +1938,9 @@ impl Backend {
         Ok(checks)
     }
 
-    fn validate_current_published_report<'a>(
+    fn validate_current_published_report(
         &self,
-        item: CurrentPublishedReportItem<'a, '_>,
+        item: CurrentPublishedReportItem<'_, '_>,
     ) -> Result<(), DiagnosticUnavailable> {
         let CurrentPublishedReportItem {
             source,
@@ -1981,7 +1983,7 @@ impl Backend {
         if let Some(sources) = receipt.workspace_sources.as_ref() {
             checks.workspace_sources.push(Arc::clone(sources));
         }
-        let suppression = self.current_published_suppression(CurrentPublishedSuppression {
+        let suppression = Self::current_published_suppression(CurrentPublishedSuppression {
             report,
             receipt,
             source,
@@ -2022,7 +2024,6 @@ impl Backend {
     }
 
     fn current_published_suppression(
-        &self,
         input: CurrentPublishedSuppression<'_>,
     ) -> Result<Option<DiagnosticSuppression>, DiagnosticUnavailable> {
         let CurrentPublishedSuppression {
@@ -2072,9 +2073,9 @@ impl Backend {
         }
     }
 
-    fn finish_current_published_reports<'a>(
+    fn finish_current_published_reports(
         &self,
-        finalization: CurrentPublishedReportFinalization<'a, '_>,
+        finalization: CurrentPublishedReportFinalization<'_, '_>,
     ) -> jsonrpc::Result<Result<Vec<PublishedDiagnosticReport>, DiagnosticUnavailable>> {
         let CurrentPublishedReportFinalization {
             expected,
@@ -2134,7 +2135,7 @@ impl Backend {
             };
             if workspace_sources
                 .iter()
-                .any(|sources| !sources.matches(&docs, &index))
+                .any(|sources| !sources.matches(docs, &index))
             {
                 return Ok(Err(DiagnosticUnavailable::Stale));
             }
