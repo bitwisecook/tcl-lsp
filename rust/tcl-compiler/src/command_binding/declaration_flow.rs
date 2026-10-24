@@ -830,6 +830,35 @@ struct DeclarationSelectionScope<'a> {
     config: tcl_lexer::LexerConfig,
 }
 
+/// Only a conditional source read may use a declared-body frame without a
+/// per-command ordinary layout. This never creates a lookup snapshot or frame.
+enum DeclarationReadPointScope<'a> {
+    Observed(Vec<DeclarationSelectionScope<'a>>),
+    ConditionalDeclared(&'a super::declaration_preview::DeclaredProcedureBody),
+}
+
+impl DeclarationReadPointScope<'_> {
+    fn matches_frame(&self, frame: &crate::var_resolve::VariableExecutionFrame) -> bool {
+        match self {
+            Self::Observed(scopes) => scopes
+                .iter()
+                .any(|scope| scope.snapshot.state.variable_frame == *frame),
+            Self::ConditionalDeclared(body) => body.frame == *frame,
+        }
+    }
+
+    fn accepts_source_scope(
+        &self,
+        scope: &super::source_read_scope::SourceReadScope,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        match self {
+            Self::Observed(_) => true,
+            Self::ConditionalDeclared(body) => body.matches_logical_read_scope(scope, config),
+        }
+    }
+}
+
 struct Builder<'a> {
     inventory: &'a DeclarationFlowInventory,
     registry: &'a tcl_registry::CommandRegistry,
@@ -1090,6 +1119,28 @@ impl Builder<'_> {
         })
     }
 
+    fn source_read_point_scope(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<DeclarationReadPointScope<'_>> {
+        if let Some(scopes) = self.selection_scopes(tokens, site) {
+            return Some(DeclarationReadPointScope::Observed(scopes));
+        }
+        // An original row that is present but invalid cannot borrow source
+        // absence. Only an independently retained declaration may proceed.
+        if self.inventory.layouts.contains_key(site) {
+            return None;
+        }
+        let DeclarationFlowFrame::Existing(
+            super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(body),
+        ) = self.entry
+        else {
+            return None;
+        };
+        Some(DeclarationReadPointScope::ConditionalDeclared(body))
+    }
+
     fn source_read_selection(
         &self,
         tokens: &CommandTokens,
@@ -1132,7 +1183,7 @@ impl Builder<'_> {
         };
         // Original layout corruption is terminal even for a source-only query.
         let scopes = trace_rbs_required(
-            self.selection_scopes(tokens, site),
+            self.source_read_point_scope(tokens, site),
             site.offset,
             "selection.scopes",
         )?;
@@ -1152,9 +1203,7 @@ impl Builder<'_> {
                 point.dispatch
                     && point.offset == site.offset
                     && point.state.current_source_origin.as_ref() == Some(&site.source)
-                    && scopes.iter().any(|scope| {
-                        point.state.variable_frame == scope.snapshot.state.variable_frame
-                    })
+                    && scopes.matches_frame(&point.state.variable_frame)
             });
         let mut points = points.peekable();
         if points.peek().is_some() {
@@ -1171,6 +1220,9 @@ impl Builder<'_> {
             site.offset,
             "selection.scope",
         )?;
+        if !scopes.accepts_source_scope(&scope, self.config) {
+            return None;
+        }
         if scope.advice().dialect() != self.dialect {
             trace_rbs_refusal(site.offset, "selection.dialect");
             return None;
@@ -3756,5 +3808,240 @@ mod declared_procedure_source_read_occurrence_tests {
                     .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod conditional_declared_read_point_tests {
+    use super::{Builder, DeclarationFlowFrame, DeclarationFlowInventory};
+    use crate::command_binding::{
+        CommandAllocationSite, SourceAnalysisOptions, SourceCommandBindings,
+    };
+    use crate::ir::CommandTokens;
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    struct Fixture {
+        input: crate::analyser::ResolvedAnalysisInput,
+        inventory: Arc<DeclarationFlowInventory>,
+        binding: crate::command_binding::SourceInvocationBinding,
+        frame: DeclarationFlowFrame,
+        config: tcl_lexer::LexerConfig,
+        dialect: tcl_registry::InvocationDialect,
+        tokens: CommandTokens,
+        site: CommandAllocationSite,
+    }
+
+    impl Fixture {
+        fn new(source: &str, anchor: &str, tail: &str) -> Self {
+            let profile = tcl_dialect::DialectProfile::plain_tcl();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                    .unwrap()
+                    .default_context_registry(),
+                config,
+            );
+            let registry = input.borrowed_context_registry().commands();
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                config,
+                registry,
+                SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+            );
+            let image = tcl_lexer::SourceImage::document(source);
+            let offset = u32::try_from(source.find(anchor).unwrap()).unwrap();
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                &source[offset as usize..source.len() - 1],
+                offset,
+                config,
+            )
+            .remove(0);
+            let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+            bindings.stamp_original_tokens(&mut tokens);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let site = binding.invocation_site().unwrap();
+            let inventory = Arc::clone(binding.declaration_flow_inventory.as_ref().unwrap());
+            let observation =
+                crate::command_binding::declaration_layout::original_declaration_layouts(
+                    inventory.layouts.get(site).unwrap(),
+                )
+                .unwrap()
+                .next()
+                .unwrap();
+            let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+            assert!(matches!(&frame, DeclarationFlowFrame::Existing(
+                crate::command_binding::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(_))));
+            let dialect = observation
+                .snapshot
+                .state
+                .source_variables
+                .invocation_dialect
+                .unwrap();
+            let owner_binding = binding.clone();
+            let offset = u32::try_from(source.find(tail).unwrap()).unwrap();
+            let site = CommandAllocationSite {
+                source: Arc::clone(&site.source),
+                offset,
+            };
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                &source[offset as usize..source.len() - 1],
+                offset,
+                config,
+            )
+            .remove(0);
+            let tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+            Self {
+                input,
+                inventory,
+                binding: owner_binding,
+                frame,
+                config,
+                dialect,
+                tokens,
+                site,
+            }
+        }
+
+        fn select(
+            &self,
+            inventory: &DeclarationFlowInventory,
+        ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
+            Builder {
+                inventory,
+                registry: self.input.borrowed_context_registry().commands(),
+                config: self.config,
+                dialect: self.dialect,
+                entry: &self.frame,
+                nodes: Vec::new(),
+                jobs: Vec::new(),
+                conditional_overwrites: Vec::new(),
+                read_sites: BTreeSet::new(),
+            }
+            .source_read_selection(&self.tokens, &self.site)
+        }
+
+        fn with_layouts_and_points(
+            &self,
+            layouts: crate::command_binding::declaration_layout::DeclarationLayouts,
+            points: Vec<crate::command_binding::SourceBindingPoint>,
+            origin_points: std::collections::BTreeMap<
+                Arc<crate::command_binding::SourceOriginId>,
+                Vec<crate::command_binding::SourceBindingPoint>,
+            >,
+        ) -> DeclarationFlowInventory {
+            let mut inventory = DeclarationFlowInventory::new(
+                Arc::new(layouts),
+                Arc::clone(&self.inventory.accesses),
+                Arc::clone(&self.inventory.origin_accesses),
+                Arc::new(points),
+                Arc::new(origin_points),
+            );
+            inventory.source_seed = self.inventory.source_seed.clone();
+            inventory
+        }
+    }
+
+    #[test]
+    fn logical_missing_layout_keeps_conditional_reads_without_faking_an_observation() {
+        let fixture = Fixture::new(
+            "proc p {x} {switch -glob $x {a* {return 1} default {set z 9}}; puts $missing}",
+            "switch",
+            "puts",
+        );
+        assert!(!fixture.inventory.layouts.contains_key(&fixture.site));
+        let selected = fixture.select(&fixture.inventory).unwrap();
+        assert_eq!(
+            selected.effects.schema_origin,
+            crate::registry_invocation::DeclarationSchemaOrigin::OriginalSourceCatalogue
+        );
+        let mut layouts = fixture.inventory.layouts.as_ref().clone();
+        layouts.insert(fixture.site.clone(), Vec::new());
+        let corrupt = fixture.with_layouts_and_points(
+            layouts,
+            fixture.inventory.points.as_ref().clone(),
+            fixture.inventory.origin_points.as_ref().clone(),
+        );
+        assert!(corrupt.layouts.contains_key(&fixture.site));
+        assert!(
+            fixture.select(&corrupt).is_none(),
+            "present invalid layout remains terminal"
+        );
+    }
+
+    #[test]
+    fn logical_missing_layout_does_not_override_corrupt_reached_point_metadata() {
+        let fixture = Fixture::new(
+            "proc p {} {set anchor 1; puts $missing}",
+            "set anchor",
+            "puts",
+        );
+        let mut layouts = fixture.inventory.layouts.as_ref().clone();
+        assert!(layouts.remove(&fixture.site).is_some());
+        let genuine = fixture.with_layouts_and_points(
+            layouts.clone(),
+            fixture.inventory.points.as_ref().clone(),
+            fixture.inventory.origin_points.as_ref().clone(),
+        );
+        assert!(fixture.select(&genuine).is_some());
+        let frame = match &fixture.frame {
+            DeclarationFlowFrame::Existing(entry) => entry.frame(),
+            _ => unreachable!(),
+        };
+        let mut points = fixture.inventory.points.as_ref().clone();
+        let mut origin_points = fixture.inventory.origin_points.as_ref().clone();
+        assert!(
+            points
+                .iter()
+                .chain(origin_points.values().flatten())
+                .any(|point| point.dispatch
+                    && point.offset == fixture.site.offset
+                    && point.state.variable_frame == *frame
+                    && point.state.current_source_origin.as_ref() == Some(&fixture.site.source))
+        );
+        assert!(
+            points
+                .iter()
+                .chain(origin_points.values().flatten())
+                .any(|point| {
+                    point.dispatch
+                        && point.offset == fixture.site.offset
+                        && point.state.variable_frame == *frame
+                        && point.state.current_source_origin.as_ref() == Some(&fixture.site.source)
+                        && (point.original_written_words.is_some()
+                            || point.compiled_execution.original_words.is_some())
+                }),
+            "the negative actually withdraws a retained original vector"
+        );
+        for point in points
+            .iter_mut()
+            .chain(origin_points.values_mut().flatten())
+        {
+            point.original_written_words = None;
+            point.compiled_execution.original_words = None;
+        }
+        let corrupt = fixture.with_layouts_and_points(layouts, points, origin_points);
+        assert!(
+            fixture.select(&corrupt).is_none(),
+            "reached point refusal remains terminal"
+        );
+    }
+    #[test]
+    fn conditional_read_scope_keeps_unknown_prefix_and_wrong_point_refusals() {
+        let source = "proc p {} {set anchor 1; unknown_command; puts $missing}";
+        let mut fixture = Fixture::new(source, "set anchor", "puts");
+        assert!(!fixture.inventory.layouts.contains_key(&fixture.site));
+        let report = fixture
+            .binding
+            .declaration_flow_report(fixture.input.borrowed_context_registry().commands())
+            .unwrap();
+        assert!(report.unavailable);
+        assert!(!report.potential_declared_reads().contains_key("missing"));
+        let original = fixture.site.clone();
+        fixture.site.offset += 1;
+        assert_ne!(fixture.site, original);
+        assert!(fixture.select(&fixture.inventory).is_none());
     }
 }
