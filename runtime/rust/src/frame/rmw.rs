@@ -168,7 +168,7 @@ impl VariableReceiver {
         let native_keys = std::mem::take(&mut contents.native_member_keys);
         let element_ids = std::mem::take(&mut contents.element_ids);
         contents.detached_arrays.insert(
-            id,
+            (id, epoch),
             super::destruction::DetachedArray {
                 values,
                 retired: Default::default(),
