@@ -479,6 +479,7 @@ pub(crate) struct RetiredJimCommands {
 pub(crate) struct OriginalPublicationRevision {
     world: std::rc::Weak<()>,
     revision: u64,
+    single_unlink: Option<(u64, u64)>,
 }
 
 impl OriginalPublicationRevision {
@@ -486,6 +487,15 @@ impl OriginalPublicationRevision {
         self.revision == other.revision
             && self.world.strong_count() != 0
             && self.world.ptr_eq(&other.world)
+    }
+
+    pub(crate) fn single_unlink_since(&self, previous: &Self) -> Option<u64> {
+        let (revision, generation) = self.single_unlink?;
+        (previous.revision == revision
+            && revision.checked_add(1) == Some(self.revision)
+            && previous.world.strong_count() != 0
+            && previous.world.ptr_eq(&self.world))
+        .then_some(generation)
     }
 }
 
@@ -498,6 +508,7 @@ pub struct Namespaces {
     native_command_nodes: BTreeMap<u64, NativeCommandNode>,
     original_publication_world: std::rc::Rc<()>,
     original_publication_revision: Option<u64>,
+    original_publication_single_unlink: Option<(u64, u64)>,
     retired_ensemble_roles: std::cell::RefCell<Vec<std::rc::Rc<crate::ensemble::EnsembleToken>>>,
     native_command_version: Option<tcl_dialect::TclVersion>,
     native_compiler_epoch: Option<u64>,
@@ -564,13 +575,28 @@ impl Namespaces {
         Some(OriginalPublicationRevision {
             world: std::rc::Rc::downgrade(&self.original_publication_world),
             revision: self.original_publication_revision?,
+            single_unlink: self.original_publication_single_unlink,
         })
     }
 
     fn invalidate_original_publications(&mut self) {
+        self.original_publication_single_unlink = None;
         self.original_publication_revision = self
             .original_publication_revision
             .and_then(|revision| revision.checked_add(1));
+    }
+
+    fn invalidate_single_original_unlink(&mut self, generation: u64) {
+        let previous = self.original_publication_revision;
+        self.invalidate_original_publications();
+        if matches!(
+            self.variable_name_protocol,
+            Some(tcl_syntax::naming::NativeNameProtocol::C(_))
+        ) && self.original_publication_revision.is_some()
+        {
+            self.original_publication_single_unlink =
+                previous.map(|revision| (revision, generation));
+        }
     }
 
     pub(crate) fn take_jim_frame_owners(
@@ -1267,7 +1293,7 @@ impl Namespaces {
         generation: u64,
     ) -> Option<CommandBinding> {
         let (namespace, simple) = self.native_command_slot_at_node(generation)?;
-        self.invalidate_original_publications();
+        self.invalidate_single_original_unlink(generation);
         let binding = self.arena[namespace].commands.remove_binding(&simple)?;
         if matches!(&binding.command, Command::Imported { .. }) {
             self.note_guard_lookup_environment_mutation();
@@ -1794,6 +1820,7 @@ impl Namespaces {
             native_command_nodes: BTreeMap::new(),
             original_publication_world: std::rc::Rc::new(()),
             original_publication_revision: Some(0),
+            original_publication_single_unlink: None,
             retired_ensemble_roles: std::cell::RefCell::new(Vec::new()),
             native_command_version: Some(tcl_dialect::TclVersion::V9_0),
             native_compiler_epoch: Some(0),
@@ -4460,6 +4487,85 @@ mod tests {
         assert!(!before.matches(&world.original_publication_revision().unwrap()));
         assert!(!world.original_publication_is_current(GLOBAL, b"kept", old));
         assert_ne!(world.command_generation(GLOBAL, b"kept"), Some(old));
+    }
+
+    #[test]
+    fn single_unlink_witness_requires_actual_c_and_exact_previous_revision() {
+        use tcl_syntax::naming::NativeNameProtocol;
+        for protocol in [
+            Some(NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0)),
+            Some(NativeNameProtocol::Jim084),
+            None,
+        ] {
+            let mut world = Namespaces::new();
+            world.variable_name_protocol = protocol;
+            world.bind(GLOBAL, b"first", cmd());
+            world.bind(GLOBAL, b"second", cmd());
+            let first = world.command_generation(GLOBAL, b"first").unwrap();
+            let second = world.command_generation(GLOBAL, b"second").unwrap();
+            let before = world.original_publication_revision().unwrap();
+            drop(world.unlink_original_command_generation(first));
+            let once = world.original_publication_revision().unwrap();
+            let expected = matches!(protocol, Some(NativeNameProtocol::C(_))).then_some(first);
+            assert_eq!(once.single_unlink_since(&before), expected);
+            assert!(!world.original_publication_is_current(GLOBAL, b"first", first));
+            assert!(world.original_publication_is_current(GLOBAL, b"second", second));
+            drop(world.unlink_original_command_generation(second));
+            let twice = world.original_publication_revision().unwrap();
+            assert_eq!(twice.single_unlink_since(&before), None);
+            assert_eq!(twice.single_unlink_since(&once), expected.map(|_| second));
+        }
+    }
+
+    #[test]
+    fn single_unlink_witness_refuses_broad_foreign_dead_and_exhausted_history() {
+        let mut world = Namespaces::new();
+        world.variable_name_protocol = Some(tcl_syntax::naming::NativeNameProtocol::C(
+            tcl_dialect::TclVersion::V9_0,
+        ));
+        world.bind(GLOBAL, b"kept", cmd());
+        let generation = world.command_generation(GLOBAL, b"kept").unwrap();
+        let before = world.original_publication_revision().unwrap();
+        let foreign = Namespaces::new();
+        let foreign_before = foreign.original_publication_revision().unwrap();
+        drop(world.unlink_original_command_generation(generation));
+        let after = world.original_publication_revision().unwrap();
+        assert_eq!(after.single_unlink_since(&before), Some(generation));
+        assert_eq!(after.single_unlink_since(&foreign_before), None);
+        drop(world);
+        assert_eq!(after.single_unlink_since(&before), None);
+        drop(foreign);
+
+        for broad_first in [false, true] {
+            let mut world = Namespaces::new();
+            world.variable_name_protocol = Some(tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V9_0,
+            ));
+            world.bind(GLOBAL, b"first", cmd());
+            let generation = world.command_generation(GLOBAL, b"first").unwrap();
+            let before = world.original_publication_revision().unwrap();
+            if broad_first {
+                world.invalidate_original_publications();
+            }
+            drop(world.unlink_original_command_generation(generation));
+            if !broad_first {
+                world.invalidate_original_publications();
+            }
+            let after = world.original_publication_revision().unwrap();
+            assert_eq!(after.single_unlink_since(&before), None);
+            let foreign = Namespaces::new().original_publication_revision().unwrap();
+            assert_eq!(after.single_unlink_since(&foreign), None);
+            drop(world);
+            assert_eq!(after.single_unlink_since(&before), None);
+        }
+        let mut world = Namespaces::new();
+        world.original_publication_revision = Some(u64::MAX);
+        world.invalidate_single_original_unlink(42);
+        assert!(world.original_publication_revision().is_none());
+        assert!(world.original_publication_single_unlink.is_none());
+        world.invalidate_single_original_unlink(43);
+        assert!(world.original_publication_revision().is_none());
+        assert!(world.original_publication_single_unlink.is_none());
     }
 
     #[test]

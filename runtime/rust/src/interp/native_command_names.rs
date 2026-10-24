@@ -32,14 +32,22 @@ impl Interp {
         }) {
             return;
         }
+        // Keep the same retain walk; only this token needs a fresh slot lookup.
+        let changed_generation = revision.as_ref().and_then(|current| {
+            self.original_byte_command_registration_revision
+                .borrow()
+                .as_ref()
+                .and_then(|previous| current.single_unlink_since(previous))
+        });
         self.original_byte_command_registrations
             .borrow_mut()
             .retain(|&generation, registration| {
-                world.original_publication_is_current(
-                    registration.namespace,
-                    &registration.tail,
-                    generation,
-                )
+                changed_generation.is_some_and(|changed| changed != generation)
+                    || world.original_publication_is_current(
+                        registration.namespace,
+                        &registration.tail,
+                        generation,
+                    )
             });
         *self
             .original_byte_command_registration_revision
@@ -1628,6 +1636,98 @@ mod repinned_registration_key_tests {
         assert_eq!(interp.eval_str(b"moved"), Code::Error);
         assert!(interp.host_refusal_pending());
     }
+    #[test]
+    fn original_byte_registration_single_unlink_matches_full_validation() {
+        let mut interp = Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect("tcl9.0"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp.register_builtin(b"kept", worker);
+        interp.register_builtin(b"removed", worker);
+        interp.prune_original_byte_command_registrations();
+        let removed = interp
+            .namespaces()
+            .command_generation(GLOBAL, b"removed")
+            .unwrap();
+        let kept = interp
+            .namespaces()
+            .command_generation(GLOBAL, b"kept")
+            .unwrap();
+        let before = interp.namespaces().original_publication_revision().unwrap();
+        drop(
+            interp
+                .namespaces_mut()
+                .unlink_original_command_generation(removed),
+        );
+        assert_eq!(
+            interp
+                .namespaces()
+                .original_publication_revision()
+                .unwrap()
+                .single_unlink_since(&before),
+            Some(removed)
+        );
+        let expected: std::collections::BTreeSet<_> = interp
+            .original_byte_command_registrations
+            .borrow()
+            .iter()
+            .filter_map(|(&generation, registration)| {
+                interp
+                    .namespaces()
+                    .original_publication_is_current(
+                        registration.namespace,
+                        &registration.tail,
+                        generation,
+                    )
+                    .then_some(generation)
+            })
+            .collect();
+        interp.prune_original_byte_command_registrations();
+        let registrations = interp.original_byte_command_registrations.borrow();
+        assert_eq!(
+            registrations
+                .keys()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>(),
+            expected
+        );
+        assert!(!registrations.contains_key(&removed));
+        assert_eq!(registrations.get(&kept).unwrap().original, b"kept");
+        drop(registrations);
+
+        interp.register_builtin(b"left", worker);
+        interp.register_builtin(b"right", worker);
+        let before = interp.namespaces().original_publication_revision().unwrap();
+        for name in [b"left".as_slice(), b"right"] {
+            let generation = interp
+                .namespaces()
+                .command_generation(GLOBAL, name)
+                .unwrap();
+            drop(
+                interp
+                    .namespaces_mut()
+                    .unlink_original_command_generation(generation),
+            );
+        }
+        assert_eq!(
+            interp
+                .namespaces()
+                .original_publication_revision()
+                .unwrap()
+                .single_unlink_since(&before),
+            None
+        );
+        interp.prune_original_byte_command_registrations();
+        let registrations = interp.original_byte_command_registrations.borrow();
+        assert!(registrations
+            .values()
+            .all(|registration| registration.original != b"left"
+                && registration.original != b"right"));
+        assert!(registrations.contains_key(&kept));
+    }
+
     #[test]
     fn original_byte_registration_inputs_retire_with_replaced_and_deleted_slots() {
         let mut interp = Interp::new();
