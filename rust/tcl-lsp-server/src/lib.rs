@@ -31588,6 +31588,52 @@ impl Backend {
     }
 }
 
+impl Backend {
+    fn lift_local_rename_edits(edits: Vec<core_rename::TextEdit>) -> Vec<TextEdit> {
+        edits
+            .into_iter()
+            .map(|e| TextEdit {
+                range: lift_lsp_range(e.range),
+                new_text: e.new_text,
+            })
+            .collect()
+    }
+
+    async fn guarded_rename_source_tiers(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        pos: Position,
+        new_name: &str,
+        source_plan: WorkspaceSourcePlanToken,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<jsonrpc::Result<Option<WorkspaceEdit>>>> {
+        if let Some(gated) = self
+            .gated_rename_tiers(uri, doc, analysis, pos, new_name)
+            .await?
+        {
+            if matches!(&gated, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(std::ops::ControlFlow::Break(Ok(None)));
+            }
+            return Ok(std::ops::ControlFlow::Break(gated));
+        }
+        if let std::ops::ControlFlow::Break(result) = self
+            .original_command_rename_tier(uri, doc, analysis, pos, new_name)
+            .await?
+        {
+            if matches!(&result, Ok(Some(_)))
+                && !self.workspace_source_plan_is_current(source_plan).await
+            {
+                return Ok(std::ops::ControlFlow::Break(Ok(None)));
+            }
+            return Ok(std::ops::ControlFlow::Break(result));
+        }
+        Ok(std::ops::ControlFlow::Continue(()))
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         // A document can be opened, and analysed, before the start-up pack
@@ -34936,50 +34982,6 @@ impl LanguageServer for Backend {
             }));
         }
         Ok(None)
-    }
-
-    fn lift_local_rename_edits(edits: Vec<core_rename::TextEdit>) -> Vec<TextEdit> {
-        edits
-            .into_iter()
-            .map(|e| TextEdit {
-                range: lift_lsp_range(e.range),
-                new_text: e.new_text,
-            })
-            .collect()
-    }
-
-    async fn guarded_rename_source_tiers(
-        &self,
-        uri: &Uri,
-        doc: &DocumentState,
-        analysis: &AnalysisResult,
-        pos: Position,
-        new_name: &str,
-        source_plan: WorkspaceSourcePlanToken,
-    ) -> DocumentSourceResult<std::ops::ControlFlow<jsonrpc::Result<Option<WorkspaceEdit>>>> {
-        if let Some(gated) = self
-            .gated_rename_tiers(uri, doc, analysis, pos, new_name)
-            .await?
-        {
-            if matches!(&gated, Ok(Some(_)))
-                && !self.workspace_source_plan_is_current(source_plan).await
-            {
-                return Ok(std::ops::ControlFlow::Break(Ok(None)));
-            }
-            return Ok(std::ops::ControlFlow::Break(gated));
-        }
-        if let std::ops::ControlFlow::Break(result) = self
-            .original_command_rename_tier(uri, doc, analysis, pos, new_name)
-            .await?
-        {
-            if matches!(&result, Ok(Some(_)))
-                && !self.workspace_source_plan_is_current(source_plan).await
-            {
-                return Ok(std::ops::ControlFlow::Break(Ok(None)));
-            }
-            return Ok(std::ops::ControlFlow::Break(result));
-        }
-        Ok(std::ops::ControlFlow::Continue(()))
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
