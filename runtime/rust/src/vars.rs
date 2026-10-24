@@ -2716,6 +2716,10 @@ pub(crate) struct NativeOriginalNameCell {
     cell: crate::frame::VariablePublicationObservation,
     link: Option<crate::frame::OriginalVariableLinkObservation>,
 }
+#[cfg(test)]
+static ORIGINAL_SIMPLE_CELL_DIAGNOSTIC: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 impl NativeOriginalNameCell {
     fn capture(
         frames: &FrameStack,
@@ -2779,6 +2783,20 @@ impl NativeOriginalNameCell {
                 .is_some_and(|table| self.cell.matches_root(table, &self.name))
         };
         if !same {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+                && !ORIGINAL_SIMPLE_CELL_DIAGNOSTIC.swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
+                eprintln!(
+                    "ORIGINAL_SIMPLE_CELL_DIAGNOSTIC home={:?} compiled={:?} link_present={} root_matches={} name_prefix={:?}",
+                    self.home,
+                    self.compiled,
+                    self.link.is_some(),
+                    same,
+                    &self.name[..self.name.len().min(256)],
+                );
+            }
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original simple variable cell",
             ));
