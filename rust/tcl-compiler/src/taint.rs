@@ -3794,6 +3794,29 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     .warnings
 }
 
+fn setter_constraint_warnings_for_unit_function(
+    fu: &crate::compilation_unit::FunctionUnit,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    standalone_warnings: bool,
+) -> Vec<TaintWarning> {
+    if standalone_warnings {
+        find_setter_constraint_warnings(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            taints,
+            Some(&fu.sccp.values),
+            &fu.sccp.executable_blocks,
+            dialect,
+        )
+    } else {
+        find_setter_constraint_warnings_for_module_function(fu, module, registry, taints)
+    }
+}
+
 fn taint_warning_report_for_cu_base_with_external_variable_seeds(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
@@ -3854,25 +3877,15 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             && fu.cfg.metadata_context.is_standalone()
             && cu.ir_module.source_metadata_input.is_none()
             && fu.source_metadata_input().is_none();
-        if standalone_warnings {
-            out.warnings.extend(find_setter_constraint_warnings(
+        out.warnings
+            .extend(setter_constraint_warnings_for_unit_function(
+                fu,
+                &cu.ir_module,
                 registry,
-                &fu.cfg,
-                &fu.ssa,
                 &taints,
-                Some(&fu.sccp.values),
-                exec,
                 dialect,
+                standalone_warnings,
             ));
-        } else {
-            out.warnings
-                .extend(find_setter_constraint_warnings_for_module_function(
-                    fu,
-                    &cu.ir_module,
-                    registry,
-                    &taints,
-                ));
-        }
         out.warnings
             .extend(crate::uri_split::find_uri_split_suggestions(
                 &fu.cfg,
