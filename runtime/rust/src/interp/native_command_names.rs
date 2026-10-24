@@ -23,6 +23,15 @@ impl Interp {
             super::constructor_diagnostics::Work::Prune,
         );
         let world = self.namespaces();
+        let revision = world.original_publication_revision();
+        if revision.as_ref().is_some_and(|current| {
+            self.original_byte_command_registration_revision
+                .borrow()
+                .as_ref()
+                .is_some_and(|previous| previous.matches(current))
+        }) {
+            return;
+        }
         self.original_byte_command_registrations
             .borrow_mut()
             .retain(|&generation, registration| {
@@ -32,6 +41,9 @@ impl Interp {
                     generation,
                 )
             });
+        *self
+            .original_byte_command_registration_revision
+            .borrow_mut() = revision;
     }
 
     pub(super) fn remember_original_byte_command_registration(

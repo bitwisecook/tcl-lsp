@@ -11,6 +11,7 @@ impl Namespaces {
         name: &[u8],
         command: Command,
     ) -> u64 {
+        self.invalidate_original_publications();
         let ns = entry.namespace;
         let previous = self.arena[ns].commands.take_slot(name);
         let token = self.insert_bound_after_entry(entry, name.to_vec(), command);
@@ -70,6 +71,7 @@ impl Namespaces {
         self.leave_jim_command(token);
     }
     pub(crate) fn clean_jim_local_key(&mut self, key: &[u8]) {
+        self.invalidate_original_publications();
         // JimDeleteLocalProcs compares the original cleanup name directly in
         // the flat table, independently of the frame's current namespace.
         let protocol = tcl_syntax::naming::NativeNameProtocol::Jim084;
