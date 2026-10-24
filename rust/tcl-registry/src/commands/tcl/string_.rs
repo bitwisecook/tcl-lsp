@@ -1657,6 +1657,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "map",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringMap(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // S110: always builds a character string from the Unicode rep in both
         // 8.6 and 9.0 (`StringMapCmd`; tclsh 8.6.14-verified — a bytearray
         // operand yields a string). The canonical K22406348 corruption step.
