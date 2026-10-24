@@ -597,17 +597,91 @@ impl Backend {
         .await
     }
 
-    async fn publish_original_source_view_batch(
+    fn original_source_view_publications(
+        sources: &[Arc<ReadonlySourceDocument>],
+    ) -> Vec<&super::super::LibraryPublicationSource> {
+        sources
+            .iter()
+            .map(|source| &source.publication)
+            .collect::<Vec<_>>()
+    }
+
+    fn original_source_view_admissions(
+        sources: &[Arc<ReadonlySourceDocument>],
+    ) -> Vec<&super::super::DocumentPathAdmission> {
+        sources
+            .iter()
+            .map(|source| source.admission.as_ref())
+            .collect::<Vec<_>>()
+    }
+
+    fn original_source_view_id_for_handle(
         &self,
-        uri: &Uri,
-        drafts: Vec<OriginalSourceViewDraft>,
-        mode: SourceViewPublicationMode,
-    ) -> DocumentSourceResult<Option<Vec<Arc<PublishedOriginalSourceView>>>> {
-        let Some(first) = drafts.first() else {
-            return Ok(None);
+        handle: tcl_lsp_core::original_declaration::OriginalDeclarationHandle,
+    ) -> Option<OriginalSourceViewId> {
+        let Ok(registry) = self.original_declaration_registry.try_lock() else {
+            return None;
         };
-        let epoch = first.producer.seed.analyser_inputs_epoch;
-        let factory = first.producer.seed.class_factory_generation;
+        registry
+            .source_view_publication::<OriginalSourceViewId>(handle)
+            .copied()
+    }
+
+    fn source_view_call_groups(
+        views: &[Arc<PublishedOriginalSourceView>],
+        incoming: bool,
+        publication: &tcl_lsp_core::original_declaration::OriginalSourceViewPublication,
+        worker_identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+    ) -> Option<
+        Vec<(
+            tcl_lsp_core::original_source_views::OriginalSourceViewDeclaration,
+            Vec<tower_lsp_server::ls_types::Range>,
+        )>,
+    > {
+        let (publications, ancestors) = Self::original_source_view_labels(views)?;
+        let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+        let mut groups: Vec<(
+            tcl_lsp_core::original_source_views::OriginalSourceViewDeclaration,
+            Vec<tower_lsp_server::ls_types::Range>,
+        )> = Vec::new();
+        for edge in tcl_lsp_core::original_source_views::procedure_edges(&inventory) {
+            let (selected, other) = if incoming {
+                (&edge.target, &edge.caller)
+            } else {
+                (&edge.caller, &edge.target)
+            };
+            if selected.publication != *publication || selected.identity != *worker_identity {
+                continue;
+            }
+            let caller = inventory
+                .iter()
+                .find(|row| row.publication == &edge.caller.publication)?;
+            let range = tcl_lsp_core::definition::span_to_range(
+                caller.document.source,
+                &tcl_lexer::LineIndex::new_lsp(caller.document.source),
+                edge.span,
+            );
+            let range = super::super::lift_lsp_range(range);
+            if let Some((_, ranges)) = groups.iter_mut().find(|(key, _)| {
+                key.publication == other.publication && key.identity == other.identity
+            }) {
+                if !ranges.contains(&range) {
+                    ranges.push(range);
+                }
+            } else {
+                groups.push((other.clone(), vec![range]));
+            }
+        }
+        Some(groups)
+    }
+
+    fn original_source_view_batch_ancestors(
+        uri: &Uri,
+        drafts: &[OriginalSourceViewDraft],
+        mode: SourceViewPublicationMode,
+        epoch: u64,
+        factory: u64,
+    ) -> Option<Vec<Vec<Arc<PublishedOriginalSourceView>>>> {
         if drafts.iter().any(|draft| {
             &draft.physical.uri != uri
                 || draft.producer.seed.analyser_inputs_epoch != epoch
@@ -622,16 +696,19 @@ impl Backend {
                 || (mode == SourceViewPublicationMode::AppendInherited
                     && (draft.inherited.is_none() || draft.region.is_some()))
         }) {
-            return Ok(None);
+            return None;
         }
-        let Some(ancestors) = drafts
+        drafts
             .iter()
             .map(OriginalSourceViewDraft::ancestors)
             .collect::<Option<Vec<_>>>()
-        else {
-            return Ok(None);
-        };
-        let sources = drafts
+    }
+
+    fn original_source_view_batch_sources(
+        drafts: &[OriginalSourceViewDraft],
+        ancestors: &[Vec<Arc<PublishedOriginalSourceView>>],
+    ) -> Vec<Arc<ReadonlySourceDocument>> {
+        drafts
             .iter()
             .map(|draft| Arc::clone(&draft.physical))
             .chain(
@@ -640,11 +717,27 @@ impl Backend {
                     .flatten()
                     .map(|view| Arc::clone(&view.draft.physical)),
             )
-            .collect::<Vec<_>>();
-        let publications = sources
-            .iter()
-            .map(|source| &source.publication)
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    }
+
+    async fn publish_original_source_view_batch(
+        &self,
+        uri: &Uri,
+        drafts: Vec<OriginalSourceViewDraft>,
+        mode: SourceViewPublicationMode,
+    ) -> DocumentSourceResult<Option<Vec<Arc<PublishedOriginalSourceView>>>> {
+        let Some(first) = drafts.first() else {
+            return Ok(None);
+        };
+        let epoch = first.producer.seed.analyser_inputs_epoch;
+        let factory = first.producer.seed.class_factory_generation;
+        let Some(ancestors) =
+            Self::original_source_view_batch_ancestors(uri, &drafts, mode, epoch, factory)
+        else {
+            return Ok(None);
+        };
+        let sources = Self::original_source_view_batch_sources(&drafts, &ancestors);
+        let publications = Self::original_source_view_publications(&sources);
         let Some(saved) = self.readonly_saved_sources(&publications).await? else {
             return Ok(None);
         };
@@ -652,10 +745,7 @@ impl Backend {
             .iter()
             .map(|source| (source.admission.as_ref(), source.bytes.as_slice()))
             .collect::<Vec<_>>();
-        let admissions = sources
-            .iter()
-            .map(|source| source.admission.as_ref())
-            .collect::<Vec<_>>();
+        let admissions = Self::original_source_view_admissions(&sources);
         let validation_drafts = drafts.clone();
         let mut drafts = Some(drafts);
         self.with_current_readonly_source_state(
@@ -2759,14 +2849,7 @@ impl Backend {
         else {
             return Ok(None);
         };
-        let saved = {
-            let Ok(registry) = self.original_declaration_registry.try_lock() else {
-                return Ok(None);
-            };
-            registry
-                .source_view_publication::<OriginalSourceViewId>(handle)
-                .copied()
-        };
+        let saved = self.original_source_view_id_for_handle(handle);
         let Some(id) = saved else {
             return Ok(None);
         };
@@ -2808,42 +2891,7 @@ impl Backend {
             tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(id);
         let Some((owners, groups)) = self
             .compute_original_source_views(&ids, move |views| {
-                let (publications, ancestors) = Self::original_source_view_labels(views)?;
-                let inventory =
-                    Self::original_source_view_inventory(views, &publications, &ancestors);
-                let mut groups: Vec<(
-                    tcl_lsp_core::original_source_views::OriginalSourceViewDeclaration,
-                    Vec<tower_lsp_server::ls_types::Range>,
-                )> = Vec::new();
-                for edge in tcl_lsp_core::original_source_views::procedure_edges(&inventory) {
-                    let (selected, other) = if incoming {
-                        (&edge.target, &edge.caller)
-                    } else {
-                        (&edge.caller, &edge.target)
-                    };
-                    if selected.publication != publication || selected.identity != worker_identity {
-                        continue;
-                    }
-                    let caller = inventory
-                        .iter()
-                        .find(|row| row.publication == &edge.caller.publication)?;
-                    let range = tcl_lsp_core::definition::span_to_range(
-                        caller.document.source,
-                        &tcl_lexer::LineIndex::new_lsp(caller.document.source),
-                        edge.span,
-                    );
-                    let range = super::super::lift_lsp_range(range);
-                    if let Some((_, ranges)) = groups.iter_mut().find(|(key, _)| {
-                        key.publication == other.publication && key.identity == other.identity
-                    }) {
-                        if !ranges.contains(&range) {
-                            ranges.push(range);
-                        }
-                    } else {
-                        groups.push((other.clone(), vec![range]));
-                    }
-                }
-                Some(groups)
+                Self::source_view_call_groups(views, incoming, &publication, &worker_identity)
             })
             .await?
         else {
