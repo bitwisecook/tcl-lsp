@@ -355,3 +355,73 @@ pub fn references(
     }
     result
 }
+
+#[cfg(test)]
+mod nested_procedure_navigation_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, AnalysisResult};
+
+    fn select(
+        source: &str,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> Option<OriginalSourceViewDeclaration> {
+        let publication = OriginalSourceViewPublication::retain(1_u8);
+        let inventory = [OriginalSourceViewDocument {
+            publication: &publication,
+            document: OriginalDeclarationDocument {
+                uri: "file:///host-naming.tcl",
+                source,
+                analysis,
+            },
+            region: None,
+            ancestors: &[],
+        }];
+        prepare(&publication, offset, &inventory)
+    }
+
+    #[test]
+    fn nested_procedure_navigation_keeps_its_original_operand_horizon() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for source in [
+                "proc host_old {value} { return $value }\nputs \"🧪 café\"; puts [host_old 7]\n",
+                "proc host_old {value} {return $value}\nputs [list [host_old 7]]\n",
+                "proc host_old {value} {return $value}\nputs [host_old 7] $later\n",
+            ] {
+                let analysis = Analyser::new().analyse(source, dialect);
+                let offset = u32::try_from(source.find("host_old 7").unwrap()).unwrap();
+                let selected = select(source, &analysis, offset).expect(source);
+                assert_eq!(&source[selected.identity.span().as_range()], "host_old");
+                assert_eq!(selected.identity.span().start(), 5);
+                let call = tcl_compiler::registry_invocation::source_structure::source_original_procedure_call_at(
+                    source, &analysis, offset,
+                ).unwrap();
+                assert!(call.uncertain_operations().is_empty());
+                assert!(!call.has_lookup_operand_effects());
+                let independent = Analyser::new().analyse(source, dialect);
+                assert!(call.declaration(&independent).is_none());
+                let changed = source.replace("host_old 7", "host_old 8");
+                assert!(select(&changed, &analysis, offset).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn nested_procedure_navigation_retains_earlier_operand_and_parent_debts() {
+        for source in [
+            "proc host_old {value} {return $value}\nputs $earlier [host_old 7]\n",
+            "proc host_old {value} {return $value}\nputs $earlier(index) [host_old 7]\n",
+            "proc host_old {value} {return $value}\nputs [opaque] [host_old 7]\n",
+            "proc host_old {value} {return $value}\nputs [rename host_old removed; host_old 7]\n",
+            "proc host_old {value} {return $value}\nputs [host_old [opaque]]\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let offset = u32::try_from(source.rfind("host_old ").unwrap()).unwrap();
+            assert!(select(source, &analysis, offset).is_none(), "{source}");
+        }
+        let source = "proc host_old {value} {return $value}\nputs [host_old 7]; host_old 8\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind("host_old 8").unwrap()).unwrap();
+        assert!(select(source, &analysis, offset).is_none());
+    }
+}
