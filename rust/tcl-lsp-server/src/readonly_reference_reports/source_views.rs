@@ -807,7 +807,7 @@ impl Backend {
 
 impl super::super::FreshAnalysisDriver {
     fn analyse_conditional_region(
-        mut self,
+        mut self: Box<Self>,
         region: &tcl_compiler::command_binding::OriginalSourceConditionalRegion,
         parent: &tcl_compiler::analyser::AnalysisResult,
         child_prefix: &tcl_compiler::analyser::AnalysisResult,
@@ -819,16 +819,19 @@ impl super::super::FreshAnalysisDriver {
             .analyse_source_region(region, parent, child_prefix);
         self.path_admission
             .check_current(self.source_store.as_ref())?;
+        let path_admission = self.path_admission;
+        let analyser_inputs_epoch = &self.analyser_inputs_epoch;
+        let class_factory_generation = &self.class_factory_generation;
         Ok(analysis.map(|analysis| super::super::FreshAnalysisSeed {
-            path_admission: self.path_admission,
+            path_admission,
             analysis: Arc::new(analysis),
-            analyser_inputs_epoch: self.analyser_inputs_epoch,
-            class_factory_generation: self.class_factory_generation,
+            analyser_inputs_epoch: *analyser_inputs_epoch,
+            class_factory_generation: *class_factory_generation,
         }))
     }
 
     fn analyse_source_view(
-        mut self,
+        mut self: Box<Self>,
         source: &str,
         dialect: &str,
         point: &OriginalSourcePointEntry,
@@ -841,11 +844,14 @@ impl super::super::FreshAnalysisDriver {
             .analyse_with_source_point_entry(&source, dialect, point);
         self.path_admission
             .check_current(self.source_store.as_ref())?;
+        let path_admission = self.path_admission;
+        let analyser_inputs_epoch = &self.analyser_inputs_epoch;
+        let class_factory_generation = &self.class_factory_generation;
         Ok(analysis.map(|analysis| super::super::FreshAnalysisSeed {
-            path_admission: self.path_admission,
+            path_admission,
             analysis: Arc::new(analysis),
-            analyser_inputs_epoch: self.analyser_inputs_epoch,
-            class_factory_generation: self.class_factory_generation,
+            analyser_inputs_epoch: *analyser_inputs_epoch,
+            class_factory_generation: *class_factory_generation,
         }))
     }
 }

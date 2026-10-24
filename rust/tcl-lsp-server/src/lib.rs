@@ -1179,13 +1179,13 @@ struct FreshAnalysisDriver {
 }
 
 impl FreshAnalysisDriver {
-    fn into_structure_only(mut self) -> Self {
+    fn into_structure_only(mut self: Box<Self>) -> Box<Self> {
         self.analyser = self.analyser.structure_only();
         self
     }
 
     fn analyse(
-        mut self,
+        mut self: Box<Self>,
         text: &str,
         dialect: &str,
         namespace: Option<&str>,
@@ -13878,7 +13878,7 @@ impl Backend {
     async fn fresh_analysis_driver(
         &self,
         path_admission: Arc<DocumentPathAdmission>,
-    ) -> FreshAnalysisDriver {
+    ) -> Box<FreshAnalysisDriver> {
         let uri = path_admission.uri();
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
@@ -13939,7 +13939,7 @@ impl Backend {
             pack_key,
             resource: resource.clone(),
         };
-        FreshAnalysisDriver {
+        let driver = FreshAnalysisDriver {
             path_admission,
             source_store: Arc::clone(&self.store),
             analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
@@ -13948,7 +13948,8 @@ impl Backend {
             analyser_inputs_epoch,
             class_factory_generation,
             inputs,
-        }
+        };
+        Box::new(driver)
     }
 
     async fn fresh_index_generation_is_current(&self, seed: &FreshAnalysisSeed) -> bool {
@@ -15595,7 +15596,7 @@ impl Backend {
         document_overrides: Arc<HashMap<String, String>>,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
-        driver: FreshAnalysisDriver,
+        driver: Box<FreshAnalysisDriver>,
     ) -> DiskScanOutcome {
         let original_uri = uri.clone();
         match crate::rt::spawn_blocking(move || {
