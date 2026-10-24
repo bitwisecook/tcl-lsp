@@ -28,7 +28,7 @@ pub(crate) const STRING_RANGE_IMPLEMENTATION: NativeCompilerImplementationLookup
 pub enum NativeStringRangeOperation {
     /// POP the prepared subject and PUSH the compiled empty literal, without a getter.
     Empty,
-    /// STR_RANGE_IMM; the empty-subject branch keeps that original stack object.
+    /// `STR_RANGE_IMM`; the empty-subject branch keeps that original stack object.
     Immediate(NativeCompiledListRange),
 }
 

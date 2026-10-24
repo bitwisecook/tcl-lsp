@@ -984,16 +984,12 @@ fn selected_projected_instruction_plan(
         );
     }
     if let NativeCompilationGrammar::StringRange(scope) = spec.grammar {
-        return Some(
-            crate::native_string_range_compilation::compile_native_string_range(
-                words,
-                operand_from,
-                scope,
-                version,
-            )
-            .map(NativeInstructionPlan::StringRange)
-            .ok_or(Unavailable::OperandGeometry),
-        );
+        return Some(selected_string_range_instruction_plan(
+            words,
+            operand_from,
+            scope,
+            version,
+        ));
     }
     if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
         return Some(
@@ -1028,6 +1024,23 @@ fn selected_projected_instruction_plan(
         }
         _ => return None,
     })
+}
+
+fn selected_string_range_instruction_plan(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: crate::native_scalar_compilation::NativeScalarScope,
+    version: tcl_dialect::TclVersion,
+) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    use NativeInstructionPlanUnavailable as Unavailable;
+    crate::native_string_range_compilation::compile_native_string_range(
+        words,
+        operand_from,
+        scope,
+        version,
+    )
+    .map(NativeInstructionPlan::StringRange)
+    .ok_or(Unavailable::OperandGeometry)
 }
 
 fn selected_dictionary_instruction_plan(

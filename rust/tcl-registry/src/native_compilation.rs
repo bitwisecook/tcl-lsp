@@ -861,7 +861,7 @@ pub enum NativeCompilationGrammar {
     },
     /// Original C string-match hook and its actual registration operand scope.
     StringMatch(crate::native_string_compilation::NativeStringMatchScope),
-    /// C9 Basic2Arg fallback after a private compile-known non-pair map probe.
+    /// C9 `Basic2Arg` fallback after a private compile-known non-pair map probe.
     StringMap(crate::native_scalar_compilation::NativeScalarScope),
     /// Original C9 range compiler with represented compile-known indices.
     StringRange(crate::native_scalar_compilation::NativeScalarScope),
@@ -2502,15 +2502,7 @@ impl NativeCompilationSpec {
                 .then_some(NAMESPACE_WHICH_IMPLEMENTATION);
         }
         if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
-            return implementation_version_matches(dialect, TclVersion::V8_6).then_some(
-                NativeCompilerImplementationLookup {
-                    ensemble: "::namespace",
-                    member: "upvar",
-                    slot: "::tcl::namespace::upvar",
-                    command: "namespace",
-                    prepended: &["upvar"],
-                },
-            );
+            return Self::namespace_upvar_implementation_lookup(dialect);
         }
         if matches!(
             self.grammar,
@@ -2589,6 +2581,20 @@ impl NativeCompilationSpec {
             }
             _ => None,
         }
+    }
+
+    fn namespace_upvar_implementation_lookup(
+        dialect: InvocationDialect,
+    ) -> Option<NativeCompilerImplementationLookup> {
+        implementation_version_matches(dialect, TclVersion::V8_6).then_some(
+            NativeCompilerImplementationLookup {
+                ensemble: "::namespace",
+                member: "upvar",
+                slot: "::tcl::namespace::upvar",
+                command: "namespace",
+                prepended: &["upvar"],
+            },
+        )
     }
 
     fn public_string_implementation_lookup(
