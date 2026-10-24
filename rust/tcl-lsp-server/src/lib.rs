@@ -31805,6 +31805,16 @@ impl Backend {
     }
 }
 
+impl Backend {
+    fn hover_worker_error(err: &impl std::fmt::Display) -> jsonrpc::Error {
+        jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("hover worker panicked: {err}").into(),
+            data: None,
+        }
+    }
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         // A document can be opened, and analysed, before the start-up pack
@@ -35584,11 +35594,7 @@ impl LanguageServer for Backend {
             )
         })
         .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("hover worker panicked: {err}").into(),
-            data: None,
-        })?;
+        .map_err(|err| Self::hover_worker_error(&err))?;
         if let Some(hover) = result {
             // Same tier-order gate as `compute_definition`: a
             // class-side member dispatch the workspace visibility union
