@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T09:07:05.166719+00:00
+Last updated: 2026-10-24T10:39:17.552143+00:00
 
 ## Resume and rules
 
@@ -18,6 +18,209 @@ strict/baseline/semantic/performance gates remain binding. No duplicate dispatch
 Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz and
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
+
+## Current successors: EnvV2 independently clear; post-refusalV4 still HELD
+
+ccg-peer-env-successors-v2/receipt.json
+SHA031a5305200d68dc6c90b05923b5eba2559e71360c3f1fa1c85f808bce087477.
+AliasnotificationV1 permanentHOLD: prepared.finish can INSTALLalias then fail
+cleanup/currentness, so success-only note is incomplete. Required V2 moves sole
+note_variable_link(local,&link.name) inside existing Ok(prepared) BEFOREfinish.
+vm-env-original-alias-notification-v2 WORK34722f26/man3b83c868;
+CLEANb0b3b493/man4a429826, proofb625c50d. No actualalias/Native grant or olderror,
+callback, query, currentness or tests change; falsepositivefilter conservative.
+vm-env-destroyed-root-trace-v2 exactcurrent82586/1dbb (currencyintegrated),
+WORK434ee67d/manc89ea5fb CLEAN858daa59/man94cf5ebe, proof07a3b02d.
+Same V1 Envhelper+exact detachinterval currentcarry preservingwholecurrency+Range.
+Independent wholeowner/type/C9/current/copiedF-R-F0/fmt6 CLEAR; root notified.
+New outcomes remainUNRUN; allold1794negative outcomes retained untilfreshsource.
+
+vm-post-refusal-observations-v4-held BOTHpatch13c34fcd8a88dad77766d155b09306dbe0c0ce940bccb3da5a92dc6b2dfddf31
+WORKmanb8d3a924d2ca3d3efb2c8aeee3cb66d8c082796b23455391b9d6a6e2df89039e
+CLEAN621d4bd0deb0ee5a3a412eb503590204a8c413541fe50e7db1e6fcd2e438653a.
+Proofd001d09d currentowner/C9physicalLF. FixesV3E0616 viaexistingnamespaces()
+accessor, explicitcurrentlevel0/toplevel0/currentNsGLOBAL BEFORErootreads both
+cases. Same V3originalscripts/value/absence/pendingfirstcause, everypublicNative
+accessstillrefuses; residentbytes/exactstringlessIntstoredvalue stillgenuine
+observationcoveragechange and unanswereduserchoice. Varsgetat repeatedsame-value
+Rustpolicy metadatawrites disclosed (notgenericpure). Range technicaldeltapeer
+pending; HELD regardless technicalclear untilparent resolvesrequireduserdecision.
+No localbuild/native/oracle/test or canonicaledits.
+
+## Bounded independent peer handoff: server six nonassert source clear
+
+vm-peer-server-six-nonassert-v1/receipt.json
+SHA2a3ae026425e031b005042280748e07b85ca9f4bb47dd3bc35adfdefabfde340.
+Exactmaster342a/bothpatch275192/current2a3+1f02/copiedF-R-F0/fmt8. Independent
+actualhelper inline full4file inverse BYTEEXACT including alloriginal34asserts.
+Actual public SemToken4i64 types and tuple/slice/lifetime owners verified. Two
+expected buffers passiveVec<i64,&str>; exact optionthenvalue loop/assert order,
+Lsp/tokens/legend/source/URI/root retainedcaller. Panic relative passivebuffer
+free order differs; no Native/customDrop/lock/callback. No request/await/barrier/
+fixture/deadline/guard change. Freshstrict/e2e UNRUN. Root notified ready.
+WordVectorV3 peer reassigned to Names by root before our duplicate finalreview;
+only initial preread performed, no receipt/clearance issued by this role.
+
+## Current source review 10:24 UTC: currency independently clear; two Env candidates
+
+CCG full currencyV1+doccompanion SOURCE/API/TYPE/OWNER CLEAR receipt
+ccg-peer-command-currency-v1/receipt.json SHA14c1fb67060f7fd5e1db8136eb2c8ac241005c0be7ed6c141fb581b074548843.
+Originaltwo tests byteexact, allmutators/currentness/Weak/world/path/holder/token
+andpurpose checks read. Root informed; actualnewsource remainsUNRUN.
+
+Two distinct Env producer candidates frozen, independent peer pending:
+vm-env-original-alias-notification-v1 WORKpatch4f57f084/man79ee853e;
+CLEAN28cc1796/man53a7d0db; proof2443afa1. Only notify existing env_aliased filter
+AFTER genuine C alias publication prepared.finish Ok using alreadyheld local/link.name.
+Generic/Jim wrappers alreadynotify; nativeC omitted it. This proves fastpath seam,
+not sufficient for aliaswholearraydetach. scope-clarification.json records boundary.
+vm-env-destroyed-root-trace-v1 WORK08d04f11/man66d42d5a;
+CLEAN0a073304/mane8cbb4db; proof49fba093. Common old root trace-group detach removes
+only scripttraces; new Envowner helper clears exact armedSomeVarId from sameheld
+GLOBALroot identity BEFOREcallbacks at same old boundary. Members/linkmembers/
+foreign/local/newrearmedidentities untouched. Existing single VariableTrace epoch
+invalidation/drop/query/getter/callback/Native guards/tests remain unchanged.
+ActualC9 TclPtrUnsetVarIdx2591–2680 transfers oldregistration to dummy and detaches
+originalvartrace before callbacks; EnvTraceProc name2NULL leaveshostalone.
+Alloriginal10Env scripts/assertions unchanged; candidates current/copy0/fmt2+4.
+No sourcecandidate PASS or localbuild; root alone peer/integration/freshdispatch.
+
+## Current actual1794 10:20 UTC: all131 closed, original3 PASS, baseline10P4F
+
+vm-runtime-actual-40081151356/receipt.json
+SHAd7239cc37a17a46fe6b76b64afaf638b98f728312fa4c377bf1f3b70bb21685d.
+Exact1794fd639e26c3ee80b4ac0616698633212ffa9b run40081151356/job120834811159,
+artifact12556065635 ZIP28994903 SHA9c3a880e211eafa537b7cc68ad42e3cf35965880d87f0bc6dbb22b4616a8805d.
+All443members CRC+streamSHA, full126066BEFORE+AFTER/Gitmembership+26keyGitpins+
+4fixturefilejoins/C84sixmaps/ownedbootstrap/backend/cleanGit PASS. Build0, all131
+invocations executed/closed. Original3 PASS; append1035/180 actual119.480822897s,
+successfulmarkers suppressed so no constructor timings/crosshost causal claim.
+Separate baseline14 now10P4F: two Env former capability barriers nowPASS; remaining
+wholearrayaliasunset reaches hostKEEP Some1 vsNone, and scalaralias x fastpath says
+traces_may_observe false. Original2 guard failures unchanged; approvedcurrency not
+in this source. Other103 now9P94F: five exact list fixture targets newlyPASS; deep
+import now passes earlier C sorting barrier but Jim546publicrow assertion fails.
+StackABORT, oldprune7=6P1F, targeted3=3P. CFI unknown/omitted=>WHOLEPROTOCOLINCOMPLETE.
+Separate rawELF absence/loaded812RustUNRUN retained. Root notified fullreceipt.
+
+CurrencyV1 full independent deep review now owned by Codegen; no integration yet.
+Separate doc-only GuardDomain companion vm-command-guard-doc-companion-v1 BOTHpatch
+01582c821b714eab490455e011d85a31e45bdb52f29e1158f2a3f8c479eef07b
+WORKman7cffef3fa6f806576ecc38aedc1aae8e72aa1508a2f4f4d304c92e36f3e910f7
+CLEANfc76f8d2628d042ae8e58b3a5091b81b4d7e00b73321b7d14fbabe0cacea669c.
+Fullsources minus ///lines byteexact/current/copyF-R-F0/fmt2. CCG narrowpeer pending.
+Frozen sourceV1 untouched. Actual newcontrols/old2 correction stillUNRUN.
+
+## Approved finer currency V1 frozen, independent deep peer pending
+
+vm-command-guard-currency-v1 WORKpatch080ef30aa70e5987f2c457639daad8c9a3a5d8af588fab37b885771548fe971d
+manifestc6ac2ace47c90e88fac891897b6bfbad9d82b210ee2d64e9050eb722fbc0a66e;
+CLEAN4343e3fcc8190cd0d28d3103e9acb8ba40ebce1c111046800c9b86850c9801a8
+manifest7cb44db5e1711464d3cd803765ac2f52e03e970397af93e0bffaf058a5c57276.
+author-source-prooff93ade7c07bbbe7c2186506d2989e3ca45e49ac4d94b879387cfc4ed3d6da8bd
+binds decisionJSON hash, all5pinned C GetCommandFromObj windows (physical LF),
+full current/copiedF-R-F0/fmt6/noNewallow/type/owner/mutator/guard-purpose checks.
+Fourfiles namespace/interp/newprivate command_guard_lookup/contractparagraph.
+Original2 guard functions byteexact. Existing resolver ns.resolve PLUS
+ns.resolve_generation BOTH unchanged; new dependency check adds no name lookup,
+Nativegetter/contextprojection/callback. CE maps actual worldWeak/currentNs/path/
+selectedgeneration/publishedholder/policy revision; missing/dead/foreign/exhausted
+refuses. Explicit policy/barrier invalidations and all Namespace/Unknown revisions
+remain; NativeOperationCurrency and selectedDefinition6domains byteunchanged.
+Newer CE-only unrelated birth/teardown cases narrowly corrected with decision
+scope in evidence; all real binding/path/policy/observer/poison checks preserved.
+Three new meaningful controls remainUNRUN. Root requested fullindependentpeer;
+NO canonical integration/compile/test/performance claim yet. Root owns actualwave.
+
+Post-refusal V3 remains HOLD with independent Range receipt1c882ee2:
+concrete E0616 namespaces field access in siblingtests requires namespaces()
+accessor; before fixedroot inspection must assert exact current/top/root frame and
+namespace equivalence. get_at has same-value Rust table-policy metadata writes
+under proved stableC9 scalar fixtures, so generic purity claim withdrawn. NoV4
+authored yet, unresolved user observational boundary separate from approvedcurrency.
+
+## Active priority: user chose finer per-command currency
+
+Root decision user-decisions-20261024T094136Z.json, question41a47ee03fd745b9bf8e6b1f0234a2de:
+Implement finer per-command currency. Do NOT apply conservative old-test invalidation
+patch. Preserve BOTH original baseline guard functions BYTEEXACT. Newer CE-only
+unrelated birth/teardown/variable-policy expectations may be narrowly corrected
+with decision citation and actual dependency positives/negatives; Namespace and
+UnknownHandling counters and genuine binding/path/policy/observer/poison guards stay.
+
+Source HEAD6d640 read: profile repin deletes/recreates empty private stock namespaces;
+broad shared namespace revision plus direct facade invalidation stales CE token
+although selected builtin allocation survives. Actual scoped design under proof:
+keep broad Namespace/Unknown revision and poison; CE explicit policy/barrier revision
+plus token-bound original-world/current namespace/path/actual published holder
+snapshot after existing single genuine resolution. No extra Nativegetter/lookup,
+no naked bytes fallback, no Native-operation epoch change. Missing/dead/foreign/
+unknown or exhausted dependency fails closed. Root authorized newer CE-only
+unrelated structural expectation corrections after contradiction reported.
+
+Reserved off-tree guard prepare/check/release/sync and small state fields,
+namespace mutation/currency metadata, new private command_guard_lookup module.
+No canonical edits or local builds; proposal now frozen above, semantic actual UNRUN.
+Post-refusalV3 remains HELD and a separate unanswered user choice. Tiny Jimcontext
+0a5b integrated3431/26457 after Compiler09413peer; 3fixtures already1794/20dd.
+
+## Historical Resume 09:34 UTC: a079 source prerequisites, then all131 UNRUN
+
+Latest actual remains a079 run40080090430 all131 UNRUN due unused Visit import,
+receipt61df65be below. Env source08daba/289e integrated but no measured fresh Env4.
+No finalsource/Tommath-after seals in that failed-build artifact. Prior794 original3
+PASS+negative supplements remain authoritative; oldguard2 policy still pending.
+
+Root independently cleared three fixture prerequisites3525 and integrated
+WORK1794fd639/CLEAN20dd037fd: c62df56c descriptor registration(ORIGINAL/localLATER)
+plus ImportOutputHost existing native sorting forwarding. Six actual targeted
+source barriers/candidates, allnewoutcomes UNRUN; no guard/assert/budget change.
+
+Names inheritance V2 full independent source/API/owner+CARRY CLEAR:
+vm-peer-names-stock-inherited-v2/review.json
+SHA17e4011529f3df6e0981af38a03027eaf59cd725704f66141b54bfb62be8967d.
+Exact current/copiesF-R-F0/fmt8/enumcensus; source oo.tcl alias12→baseclass→old13
+stockoverwrites with unchanged Errorprefix loop/dependencies/actualallocation owners.
+One empty-base parent only; foreign/unknown/multibase/changedhelpers refuse. Exacttwo
+old supported negativeprefixes retained as genuine positive owner/allocation controls.
+V1permanentHOLD. NO322wrapper/Vars/frame/object/Native/Normal grant or actualPASS.
+Root notified ready; root-only integration/push/freshJim remains separate.
+
+Rootauthorized tiny genuine Jim original-List context prerequisite FROZENREADY:
+vm-jim-list-original-context-v1 masterd3baa0cba9cdc820b2e48c31a225ddfb1fd9421ee3d3018843e8b89d17c9cfef,
+BOTHpatch0a5bc39ac2da880b4f8c22906a1f83c9f7b869a2f4274dece3c5a7fb3e861e61.
+WORKmanc6203a2b8ab49fee83b146fd5c6b7417bd74527ed5ac2efbebcc7664f61a438c;
+CLEANe0e58708d862663ea7ddc2bd6d70191198e9a2292967e04c0b25b7dc006bf5a2.
+Three lines associate actual freshly created List with actual live selected Jim
+context before backing/copy/primitive observations. Weak association only after
+allocator/liveness check; allasserts unchanged/noNative refs/cache/getter/errnoreset.
+Current/fullinverse/copies0/fmt2 PASS. Peer/integration/actual still pending.
+
+Post-refusal V1 PERMANENTHOLD5ecd332d: author omitted existing obj_bytes→get_string
+updater effects, so making that path reachable is not pure physical inspection.
+No apply. New concrete vm-post-refusal-observations-v3-held remains HELD regardless
+of author mechanicalchecks: BOTHpatch29881f9379d30139bc0922f74eb5d68b6cba5934676905c85365c04e638bdbbf,
+mastere66efea868460c7468afeb9a51f7fee82bd960eaf4361af88a9c07a0d203f0c3.
+source-effect-reviewdcd91daaa7943ecca4dfc4914c6bb7f1dd7a1456fdc337ae15f61b85991e143b.
+No GetString/obj_bytes/bytes_of calls; nullable pointers checked before readonly
+resident String slices or exact TCL_INT_TYPE wide metadata. All scripts/absence
+checks retained, public Native reads explicitlyrefuse, full originalcause equality.
+Numeric1/10 stringless branch changes observable coverage to exact storedInt value,
+NOT claimed sameGetString APIcoverage. Parent effectreview+requireduserchoice before
+any integration. Original tests remainFAIL. V2unintegrateddraft alsoHELD.
+C citation companion f60bcfddd203631db4bb99e7c9e95fba8ca01f3fc42edc47287f7bf64dcf41d2
+corrects first arrays' Python splitlines(formfeed) mistake to exact physical LF;
+sourcehash/describedGetString effect unchanged, no proposal mutation.
+
+99 sourcecause assessment frozen vm-other99-fixture-triage-v1/source-cause-assessment.json
+SHA04d500d94c0758131934e38927da35e5b59fa1ccbf9f7428c4f5c6cbee88bd60.
+12distinct rows in5sourcegroups: legacydescriptor5, nativeSortingwrapper1,
+missingJimcontext1, postrefusalobservation2, unsupportedcompiledErrorfixture3.
+Remaining87 deeper causes explicit; no blanket provider/fixture diagnosis.
+PinnedC85 tclBasic.c134 error compileProcNULL vs C86 line249TclCompileErrorCmd joins
+existing faithful registryError<8.6Generic. Three returnboundary tests stop in
+entered(tcl8.5) requiringOperation::Error before intendedcallbacks. No skip/newC85
+compiler/assertionrepair authored; genuine C85 fixture-kind obligation needsrootjudge.
 
 ## Latest fresh a079 actual BUILD FAIL: all131 UNRUN
 

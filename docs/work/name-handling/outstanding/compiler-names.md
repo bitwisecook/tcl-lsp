@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-24T09:31:45.734322+00:00
+Last updated: 2026-10-24T10:29:34.862138+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Selected method Scope entry V1 HOLD 2026-10-24T10:30:55.896779+00:00: /workspace/naming-proof-storage/names-jim-selected-method-entry-v1/HOLD.json records pending independent Compiler review of quiet conditional caller/New-refGC/prelude command-world evidence before skipping wrapper opacity. Exact all13 current helpers DO reject custom constructor/Vars overrides: proposed constructor witness is blocked, not demonstrated accepted failure. No actual physical object/frame/GC/constructor outcome is issued; readonly layout cannot alone discharge arbitrary debt. Frozen patches/manifests unchanged, root notified HOLD/no integration until full guard/owner proof. Generic/manual Unknown preserved; no Native/cell/Normal grant or actual322 result. Latest1794 remains6P1F and excludes inherited632605/ScopeV1; no localbuild.
+
+Independent optimisation peers: token-only V4 CLEAR5a47afe8 (V3 held stale driver digest, corrected V4 exact c140 companion); CST V3 CLEAR74533356; Merge V4 CLEAR9a298aba. Word-vector reuse V3 independently CLEAR27184a45 with full lexical-owner/None-constructor/wholefile inverse, copy/fmt and JSON37229 driver companion; versioned current composition requires token-only V4 predecessor. New Jim actual always interrupts. No local builds.
 
 Lateractual authentication 2026-10-24T09:31:45.734322+00:00: a079Jim40080084315/job120831643012 all7UNRUN due strictunused NativeControlPreparationStep as Visit; independent956e787c verifiesallnonartifactseals/closedfailedbuild, noELF. Latest1794Jim40081144418/job120834791164 strictfresh2ELF0warnings/full21controls/seals PASS, original7=6P1F solemethod322 samefutureopaque/unclosedUnknown. Authenticfullsourcebefore/final+Git joins prove ordinarymethodV2 PRESENT andinheritance ABSENT; latercurrent632605 inheritedsource remainsUNRUN, no failure attributedtoit. NewselectedmethodScopeproducer draft remainsinterrupted/unfinished; noNative/frame/observerclosure/sourceconsumerrelaxation. BothZIPs hardlinkedofftree/largecapturesscannedZIPonly, no localbuild orredispatch.
 
