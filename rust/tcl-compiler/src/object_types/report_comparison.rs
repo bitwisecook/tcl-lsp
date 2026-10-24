@@ -219,9 +219,7 @@ fn retain_body_coordinates(
     bodies: &mut HashMap<ProcedureId, BodyCoordinate>,
 ) -> Option<()> {
     for (id, procedure) in module.original_source_procedure_bodies() {
-        let Some(original) = image.bytes().get(procedure.span.as_range()) else {
-            return None;
-        };
+        let original = image.bytes().get(procedure.span.as_range())?;
         if !module.procedure_ids.owns(*id) || original.is_empty() {
             return None;
         }
@@ -251,12 +249,8 @@ fn retain_body_coordinates(
         }
     }
     for (id, method) in &module.methods {
-        let Some(span) = method.span else {
-            return None;
-        };
-        let Some(original) = image.bytes().get(span.as_range()) else {
-            return None;
-        };
+        let span = method.span?;
+        let original = image.bytes().get(span.as_range())?;
         if !module.procedure_ids.owns(*id) || original.is_empty() {
             return None;
         }
@@ -272,13 +266,9 @@ fn retain_body_coordinates(
         }
     }
     for id in module.original_definition_scripts.keys() {
-        let Some(source) = module.original_definition_script_source(*id, registry) else {
-            return None;
-        };
+        let source = module.original_definition_script_source(*id, registry)?;
         let span = source.declaration_span();
-        let Some(original) = image.bytes().get(span.as_range()) else {
-            return None;
-        };
+        let original = image.bytes().get(span.as_range())?;
         let coordinate = BodyCoordinate {
             kind: BodyKind::Definition(source.family() as u8),
             declaration: Some(span.start()),

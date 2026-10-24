@@ -974,24 +974,18 @@ fn deep_lambda_parts(
     selected_lambda: Option<crate::registry_invocation::OriginalSourceScriptBody>,
 ) -> Option<(Vec<crate::signature_scan::types::ParamDef>, String, u32)> {
     let parts = if let Some(body) = selected_lambda {
-        let Some((params_text, body_text)) =
-            selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)
-        else {
-            return None;
-        };
+        let (params_text, body_text) =
+            selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)?;
         let parameter_defs = crate::signature_scan::params::parse_param_list(
             params_text,
             tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
         );
-        let Some(body_offset) = ctx
+        let body_offset = ctx
             .source_base
-            .and_then(|base| body.content_span().start().checked_sub(base))
-        else {
-            return None;
-        };
+            .and_then(|base| body.content_span().start().checked_sub(base))?;
         (parameter_defs, body_text.to_owned(), body_offset)
     } else if let Some((document, analysis, _)) = ctx.document {
-        let Some((params, body, offset)) = selected_lambda_source(
+        let (params, body, offset) = selected_lambda_source(
             document,
             analysis,
             seg.argv
@@ -999,32 +993,17 @@ fn deep_lambda_parts(
                 .and_then(|head| head.span.start().checked_add(ctx.source_base?)),
             idx,
             ctx.config,
-        ) else {
-            return None;
-        };
+        )?;
         (params, body, offset)
     } else {
-        let Some(&tok) = seg.argv.get(idx + 1) else {
-            return None;
-        };
+        let &tok = seg.argv.get(idx + 1)?;
         if tok.kind != tcl_lexer::TokenType::Str {
             return None;
         }
-        let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {
-            return None;
-        };
-        let Some(body_span) = elems.body else {
-            return None;
-        };
-        let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize)
-        else {
-            return None;
-        };
-        let Some(params_text) =
-            source.get(elems.params.start() as usize..elems.params.end() as usize)
-        else {
-            return None;
-        };
+        let elems = crate::lambda_literal::split_lambda_literal(source, tok)?;
+        let body_span = elems.body?;
+        let body_text = source.get(body_span.start() as usize..body_span.end() as usize)?;
+        let params_text = source.get(elems.params.start() as usize..elems.params.end() as usize)?;
         (
             crate::signature_scan::params::parse_param_list(
                 params_text,
