@@ -1,7 +1,7 @@
 {
   "current_input_pins": {
     ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
-    ".github/workflows/ci.yml": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
+    ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
     "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
     "docs/design/rust/engineering-guide.md": "04d61fc6541c126cf12eca781ca4621894a3277b0b563f94b657e9cc3f773648",
     "docs/design/rust/lsp-performance.md": "5c54e0a0f3a097194e6fdc23339daed698c3c8d0515731fb58d84322987c844c",
@@ -48,6 +48,14 @@
       "authenticated_source_commit": "516ef7b4801fcd7ee2fae446ec50e3e0e71630bd",
       "additive_step_sha256": "571f53bf30a2f1c0cffa50aed02c219bc9f0b6767fbd5a8a0651afefb2f0ecf6",
       "reason": "CI adds only the Tcl 8.4 integer-cache runtime provider bootstrap step. Removing that complete added step reproduces the previous CI file byte-for-byte. All existing CI bytes and original startup/Context workers, clients, assertions, fixtures and budgets remain unchanged."
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "previous_sha256": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
+      "current_sha256": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
+      "baseline_commit": "2da8828403ec216295874b2c662342f8c34c315e",
+      "additive_step_sha256": "a2eeaee51ae26559d485baa2c906e8d7bb165f3863d374978936badd930d2f58",
+      "reason": "CI rust-check now fetches the existing manifest-pinned Tcl 9.0.4 TomMath source before the unchanged strict command. Removing only this complete provider prerequisite restores the previous entire CI bytes. All original worker/client/assertion/fixture/budget and other CI job bytes stay unchanged. This is an approved provider-scope change; it does not repair any old failed capture."
     }
   ]
 }
