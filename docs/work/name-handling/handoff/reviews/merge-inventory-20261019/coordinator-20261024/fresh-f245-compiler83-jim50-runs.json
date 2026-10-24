@@ -1,0 +1,14 @@
+{
+  "source": "f245bd6e63423d502c4f0a956822cbab98aa5a6d",
+  "compiler83": {
+    "run": 40125903982,
+    "job": 120967119445,
+    "scope": "Original67 unchanged first, separateclosed16 after;3additionalfreshlib artifacts;shared20MiB/180s/deadline unchanged"
+  },
+  "jim": {
+    "run": 40125916736,
+    "job": 120967156933,
+    "scope": "Original45 unchanged first;5separateoldstaticselectors repeated withper-rowdebugflag"
+  },
+  "actual_outcome": "IN_PROGRESS_NO_ADMISSION"
+}

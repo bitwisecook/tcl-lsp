@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T18:34:46.502866+00:00
+Last updated: 2026-10-24T19:30:45.898047+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -413,3 +413,34 @@ refusing capability admitted. Diagnostic common constTLS suppression covers whol
 privateworker+TLS teardown; qualified/IO/FFIcensus16dependencycrates retained. Root
 accepted explicit Rustpanic/globalhook/fatalabort outsideNative-semantic limit, no
 globalhook/stdio/env mutation/OSsandbox claim. Compiler/API V4 dependency130e9fe2.
+
+## 19:25 structural closed consumer integrated; controls protocol ready
+
+Atomic productunion closed-native-consumer-atomic-cohort-v1 master9fffb5bc,
+WORKf95e3e0c/man0b001d61 andCLEANd0d4df5c/man80008434 exact89d3/efbe bases,
+CompilerV5+RuntimeV1 combined includingactualretainedEmpty+externalPackdenial+resource
+preflight. IndependentRange fullSOURCE/TYPE/OWNER/CLOSURE STATICCLEAR ebc83ce1a7835534
+(closed-native-consumer-cohort-independent-peer-v1/receipt.json),1082controls+23ownerpins.
+RootintegratedWORK6407384 andpushedf1e812/CLEAN70d38; wholefmtPASS, exactsourcepinV3
+preflightPASS. Allnewactualtypes/Clippy/native/tests UNRUN, no closed-fold PASS yet.
+FinalsourceproofV2 b5699f299c611a5ac9a8e836908d0b73e3e3994716d18378a5877f03cd54b8c2
+correctsprose: allOLDassertsexact butoneapprovedfixturegenuineingresschanges. Historical
+30be retainedunchanged. Sourcepins6fc208ad; no productbytes changedbyproofcorrection.
+
+WORK-only additivecontrol protocol compiler-closed-consumer-controls-v1 FROZEN
+886ccbe9ade7ee3a730345c2c2e24c79b0a8e51d24f05d4a44cbd16e78d23c0c/man
+cde929644921014ad21c17fac1fed879ca40f35a672ff315d499d7f11acf4e42, exactV3/current
+driver774510fc. Separate16: engine6/API3/registry2/compiler5.3nativeunitartifacts
+build/listafteroriginal5targets; actualclosedcasesAFTERunchangedoriginal65+taint2.
+AllinitialUNRUN, sourcefnattrs16/wholeinverse12edits/mock16zerochildren/AST/JSON/
+copyF-R-F0 PASS; Ruffunavailablehonestly. Same180/20MiB/2GiB/3600, newcontrolsreserve
+20scleanup, alloldrosters/env/order/guards kept. Rootpeerbeforeintegration/dispatch.
+
+Readonly production scope runtime-production-scope-current-v1/scope.json1750378e
+provesLSP/Spec/VMengine normalgraphs excludeStandalone runtime/rust. SharedVM/API/
+compiler/registry/syntax remainproduction. Spec-hooksDEVdirectruntime/rust(engine),
+compilerWASMownedguestbuild/artifactedges remainrequired; sourcefiles mixABI/shared
+APIcompatibility/oldbaselinefixes/generalparity, no wholeStandalone rollback justified.
+No extraction/restoration/omission authorised/performed. Actual66ef14oldmatchedP still
+14P;984otheroldrowsUNKNOWN, notzerofullP2F. Closedconsumer doesnotwaiveexistingRuntime
+85FAIL/stackABORT/prune1/heldC85With or anyfullsharedprocess/performancegate.

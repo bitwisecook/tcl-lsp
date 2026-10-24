@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T19:56:07.901211+00:00",
+  "scheduled_report_utc": "2026-10-24T19:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T20:25:37+00:00",
+  "change_since_previous_report": [
+    "19:55 checkpoint: six-hourtargetmissed; PRremainsCLOSED pendingsectionF/completezerooriginrustPASS-to-FAIL/allrequiredgreen/acceptedTclperformance. Noglobaladmissions.",
+    "Genuineclosedconsumer productioncohort andinputV3 pushed; bothRustworkspaceswholefmtPASS70d38. WORKonly prospective16realcontrols appendedafterold67 unchanged,3extrafreshlibs; sourcef245 compiler83run40125903982/job120967119445 active withfullauthowner. No newcapabilityexecution/typing claim beforecapturedverdict.",
+    "Freshf245Jim50fullauth880031b5/verifier4c26e46e: original45still31P14F, separatediagnostic5allFAIL, all50ownedtests/55processes2fresh0W/fullsealsPASS. Actualfourchain/readmapW210, onedynamic/declaredpotential; genericfallbackSome bypassesprivateoccurrencefilter. Needproductivequery/physical-proof fix, notgenericEq or blanketstatics suppression.",
+    "Full6a8hosts213bf4a2: browsermatching-call combinesmissinghead/offset/owns filters; WASIunique matchingcall refusedbyhelduncertainty. All builds0W/fullsource/provider/processguards match; unitPASS1. WORK-onlyboundedheldmetadata06ffc2 independentd192clear integrated/pushed571ce, newhost40126576780 active. No additionalqueries/source text/guard changes orCLEANobserver.",
+    "Strict6a8fullauth0a367: receiverlint no longerreached; twoprimaryArcNonSendSync diagramattach355/data908, overallFAIL. Diagramrepair auditedpublicArcCUsetter/callers; proposesprivateArc/Rc carrier withadditivelocalRc setter forsame-stackDiagram consumers, retainexistingpublicArcAPI andCUthread/semantic contracts. Noallow/unsafe/SendSyncimpl.",
+    "Pairedreadonlyinlining10 testfixturequery84013 independent169f8260clear: realissuedbodycard/reportlabel/currentregistry/source/store ID, primaryinvalidityterminal/unique readonlybodyID, alloriginalscripts/asserts/guards unchanged. 42actualIRrewrite+3recognition callers untouched. Existingbroader0304capture remainsinvalid/repeatedsuite; no broadregressioncount admission. Separate13validationcompanion authorized prospectivelyafter83withoutbudgetreset.",
+    "HeavyUpLevelV2+companion remainHELD16db afterauthenticC84source showsPureListoriginalelementheaders/per-slotrefs beforedispatch; enablingfreshwordrecipe wouldbeincorrect. Sourceowner auditsrealargvowning acrosssuspension/error/frame restoration; newpre-materializationWORKobserver54e5frozen, nofunctionalgrantaccepted.",
+    "CIcapture failure independentlytraced toNextestouterreporter ignored-count bookkeeping, notchildlibtestframing. No fixedreleasedupstreamversionfound. FirstpatchheldforwrongpackageIDs/allignoredlostterminals/PythonOptimizechecker bypass. Revisedsourcebuilder+smoke proposal remainsofftree/unrun; manualvalidationmustsupportWORK/releasehostedprePRwithpublishingdisabled. Originalcaptureduplicates/ignoredinventory/semanticassertions unchanged; sixCIpin consumersneedexactfollowupafterfinalYAML.",
+    "Productdocumentationdiscoverability updatedpairedWORK0ea823/CLEAN05982: designindexes/glossary/publicqualifiedAPI/source links. LastwholeRustfmt70d38 unchangedRustsince. Knownprocessmarker audit852fzero; fullrepositorysemanticcomments/docs/generated/fixture/prep-pr checksstillrequired.",
+    "ExternalBIGIP/perfheadersremainstale>60min, usernotified/no takeover; triagecomplete. Disk~234MiBworkspace/~68MiBtmp, nolocalRustbuild/targetcleanup/testexecutableremoval. NoPR/merge/tag/release."
+  ],
+  "committed": [
+    "44994061f540ca6022edabe9d1273b82e8c55b0a"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish19:55report/checkpoint/rearm20:25 reminder.",
+    "Authenticatecompiler83/nativeclosedconsumercontrols andnewheldmetadatahosts.",
+    "FixactualJimfallbackproducer, readonlyfixtureaccess andDiagramArcownership; preserveallguards/assertions.",
+    "Correct/review/host-validateCIreporter tooling andactualHeavyoriginalheaderroute.",
+    "Finishcompletebaseline/requiredgreen/Tclperformance andfinalreleasecleanup beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 227188736,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
