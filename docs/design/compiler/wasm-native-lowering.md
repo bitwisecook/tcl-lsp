@@ -192,6 +192,21 @@ metadata or a nominal class, variable or command name. A specialised result
 must preserve observable object sharing, conversion, completion and compiler
 entry effects as well as returned bytes.
 
+The original `string range` compiler recipe supports C Tcl 9.0 when both
+index words have retained compile-known values and encodable native
+coordinates. The public ensemble or its actual private worker must retain its
+independent compiler registration and original operand layout. Dynamic or
+malformed indices, uncertain coordinate widths, unsupported operand geometry
+and other releases remain `Unknown`.
+
+Only the original subject is prepared as a runtime operand. A compiler-selected
+empty result retires that subject before pushing the registered empty literal.
+The immediate range instruction keeps an empty subject as the same stack
+object. Otherwise it holds the newly constructed range result, retires the
+subject and then publishes the result. Actual command, frame, literal and
+operation owners remain required. Getter, callback and retirement failures
+preserve the first refusal through cleanup and prevent premature publication.
+
 ## Related
 
 - [WASM code generation](wasm-codegen.md)
