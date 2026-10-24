@@ -2915,10 +2915,7 @@ impl CodegenCtx<'_> {
             | NativeInstructionPlan::Control(_)
             | NativeInstructionPlan::Try(_)
             | NativeInstructionPlan::Switch(_)) => {
-                let Some(tasks) = self.native_registered_task_sequence(command, selected) else {
-                    return false;
-                };
-                *operations = tasks;
+                return self.replace_native_registered_sequence(command, selected, operations);
             }
 
             NativeInstructionPlan::DictionaryMutation(recipe) => {
@@ -3007,6 +3004,19 @@ impl CodegenCtx<'_> {
                 return self.append_native_variable_tasks(command, selected, operations);
             }
         }
+        true
+    }
+
+    fn replace_native_registered_sequence(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        let Some(tasks) = self.native_registered_task_sequence(command, instruction) else {
+            return false;
+        };
+        *operations = tasks;
         true
     }
 

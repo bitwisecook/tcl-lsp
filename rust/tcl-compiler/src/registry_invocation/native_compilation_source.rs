@@ -22,6 +22,119 @@ fn trace_original_projection(stage: &str, offset: u32, passed: bool, count: usiz
     }
 }
 
+#[cfg(test)]
+fn trace_original_projection_parse(
+    error: &tcl_lexer::NativeScriptWordsUnavailable,
+    offset: u32,
+    words: &[WordExpr],
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        use tcl_lexer::{NativeScriptWordsUnavailable, NativeWordError};
+        let stage = match error {
+            NativeScriptWordsUnavailable::SourceGeometry => "native_source_geometry",
+            NativeScriptWordsUnavailable::ParseOwnership(_) => "native_parse_ownership",
+            NativeScriptWordsUnavailable::Word(error) => match error {
+                NativeWordError::MisalignedGroup => "native_word_group",
+                NativeWordError::LexicalStreamUnavailable => "native_word_stream",
+                NativeWordError::SubstitutionDepthUnavailable => "native_word_depth",
+                NativeWordError::SourceBounds => "native_word_bounds",
+                NativeWordError::Parse(_) => "native_word_parse",
+                NativeWordError::NonContiguousContent => "native_word_content",
+            },
+        };
+        trace_original_projection(stage, offset, false, words.len());
+    }
+}
+
+#[cfg(test)]
+fn trace_original_projection_commands(parsed: &tcl_lexer::NativeScriptWordsPlan, offset: u32) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        trace_original_projection(
+            "fatal_tail",
+            offset,
+            parsed.fatal_tail.is_none(),
+            parsed.commands.len(),
+        );
+        trace_original_projection(
+            "native_commands",
+            offset,
+            parsed.commands.len() == 1,
+            parsed.commands.len(),
+        );
+    }
+}
+
+#[cfg(test)]
+fn trace_original_projection_spans(
+    native: &[NativeWord],
+    words: &[WordExpr],
+    spans: &[Span],
+    offset: u32,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        trace_original_projection(
+            "native_count",
+            offset,
+            native.len() == words.len(),
+            native.len(),
+        );
+        trace_original_projection(
+            "native_spans",
+            offset,
+            native
+                .iter()
+                .zip(spans)
+                .all(|(word, span)| word.span() == *span),
+            spans.len(),
+        );
+        for (index, (word, span)) in native.iter().zip(spans).enumerate() {
+            if word.span() != *span {
+                eprintln!(
+                    "ORIGINAL_SOURCE_JOIN stage=projection.span offset={offset} index={index} original_start={} original_end={} native_start={} native_end={}",
+                    span.start(),
+                    span.end(),
+                    word.span().start(),
+                    word.span().end()
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+fn trace_original_projection_ir(
+    words: &[WordExpr],
+    reconstructed: &CommandTokens,
+    segment: &crate::segmenter::SegmentedCommand,
+    offset: u32,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        trace_original_projection(
+            "cst_complete",
+            offset,
+            !segment.is_partial,
+            reconstructed.words().len(),
+        );
+        trace_original_projection(
+            "ir_vector",
+            offset,
+            reconstructed.words() == words,
+            words.len(),
+        );
+        for (index, (left, right)) in words.iter().zip(reconstructed.words()).enumerate() {
+            if left != right {
+                eprintln!(
+                    "ORIGINAL_SOURCE_JOIN stage=projection.ir_word offset={offset} index={index} original_start={} original_end={} reconstructed_start={} reconstructed_end={}",
+                    left.source().span.start(),
+                    left.source().span.end(),
+                    right.source().span.start(),
+                    right.source().span.end()
+                );
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct OriginalNativeCompilerInvocation<'a> {
     pub image: &'a SourceImage,
@@ -234,41 +347,13 @@ impl OriginalSourceCommandProjection {
             Ok(parsed) => parsed,
             Err(_error) => {
                 #[cfg(test)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-                    use tcl_lexer::{NativeScriptWordsUnavailable, NativeWordError};
-                    let stage = match &_error {
-                        NativeScriptWordsUnavailable::SourceGeometry => "native_source_geometry",
-                        NativeScriptWordsUnavailable::ParseOwnership(_) => "native_parse_ownership",
-                        NativeScriptWordsUnavailable::Word(error) => match error {
-                            NativeWordError::MisalignedGroup => "native_word_group",
-                            NativeWordError::LexicalStreamUnavailable => "native_word_stream",
-                            NativeWordError::SubstitutionDepthUnavailable => "native_word_depth",
-                            NativeWordError::SourceBounds => "native_word_bounds",
-                            NativeWordError::Parse(_) => "native_word_parse",
-                            NativeWordError::NonContiguousContent => "native_word_content",
-                        },
-                    };
-                    trace_original_projection(stage, offset, false, words.len());
-                }
+                trace_original_projection_parse(&_error, offset, words);
                 return None;
             }
         };
         if parsed.fatal_tail.is_some() || parsed.commands.len() != 1 {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-                trace_original_projection(
-                    "fatal_tail",
-                    offset,
-                    parsed.fatal_tail.is_none(),
-                    parsed.commands.len(),
-                );
-                trace_original_projection(
-                    "native_commands",
-                    offset,
-                    parsed.commands.len() == 1,
-                    parsed.commands.len(),
-                );
-            }
+            trace_original_projection_commands(&parsed, offset);
             return None;
         }
         let native = parsed.commands.pop()?.words;
@@ -279,34 +364,7 @@ impl OriginalSourceCommandProjection {
                 .any(|(word, span)| word.span() != *span)
         {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-                trace_original_projection(
-                    "native_count",
-                    offset,
-                    native.len() == words.len(),
-                    native.len(),
-                );
-                trace_original_projection(
-                    "native_spans",
-                    offset,
-                    native
-                        .iter()
-                        .zip(&spans)
-                        .all(|(word, span)| word.span() == *span),
-                    spans.len(),
-                );
-                for (index, (word, span)) in native.iter().zip(&spans).enumerate() {
-                    if word.span() != *span {
-                        eprintln!(
-                            "ORIGINAL_SOURCE_JOIN stage=projection.span offset={offset} index={index} original_start={} original_end={} native_start={} native_end={}",
-                            span.start(),
-                            span.end(),
-                            word.span().start(),
-                            word.span().end()
-                        );
-                    }
-                }
-            }
+            trace_original_projection_spans(&native, words, &spans, offset);
             return None;
         }
         // Compare the existing source IR owner too: an edit retaining old offsets
@@ -336,31 +394,7 @@ impl OriginalSourceCommandProjection {
             CommandTokens::from_segmented(&SourceMap::from_image(image), config, segment);
         if reconstructed.words() != words {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-                trace_original_projection(
-                    "cst_complete",
-                    offset,
-                    !segment.is_partial,
-                    reconstructed.words().len(),
-                );
-                trace_original_projection(
-                    "ir_vector",
-                    offset,
-                    reconstructed.words() == words,
-                    words.len(),
-                );
-                for (index, (left, right)) in words.iter().zip(reconstructed.words()).enumerate() {
-                    if left != right {
-                        eprintln!(
-                            "ORIGINAL_SOURCE_JOIN stage=projection.ir_word offset={offset} index={index} original_start={} original_end={} reconstructed_start={} reconstructed_end={}",
-                            left.source().span.start(),
-                            left.source().span.end(),
-                            right.source().span.start(),
-                            right.source().span.end()
-                        );
-                    }
-                }
-            }
+            trace_original_projection_ir(words, &reconstructed, segment, offset);
             return None;
         }
         #[cfg(test)]
