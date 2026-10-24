@@ -543,6 +543,11 @@ impl OriginalAuthoredJimClassCall {
     }
 }
 impl OriginalSourceTransitionAdviceTape {
+    /// Genuine conditional source calls; iteration supplies no runtime lookup.
+    pub(crate) fn jim_wrapper_calls(&self) -> impl Iterator<Item = &OriginalAuthoredJimClassCall> {
+        self.authored_jim_calls.values().filter_map(Option::as_ref)
+    }
+
     pub(crate) fn authored_jim_call(&self, offset: u32) -> Option<&OriginalAuthoredJimClassCall> {
         self.authored_jim_calls.get(&offset)?.as_ref()
     }

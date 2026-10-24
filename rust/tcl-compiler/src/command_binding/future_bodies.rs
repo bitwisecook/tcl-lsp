@@ -20,6 +20,7 @@ pub struct SourceFutureBodyInventory {
     source: ExecutedScriptSource,
     frame: VariableExecutionFrame,
     bindings: Arc<SourceCommandBindings>,
+    jim_wrapper: Option<Arc<super::jim_wrapper_body::OriginalJimWrapperBody>>,
 }
 
 /// One possible future caller, retained independently of document execution.
@@ -41,6 +42,13 @@ impl SourceFutureBodyInventory {
     /// retained point is uncertainty, not proof that a command is missing.
     #[must_use]
     pub fn invocation_at(&self, offset: u32) -> Option<SourceInvocationBinding> {
+        if self
+            .jim_wrapper
+            .as_ref()
+            .is_some_and(|owner| !owner.owns_source(&self.source, &self.frame))
+        {
+            return None;
+        }
         self.bindings
             .dispatch_points
             .contains_key(&offset)
@@ -223,12 +231,19 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
+        jim_wrapper: Option<Arc<super::jim_wrapper_body::OriginalJimWrapperBody>>,
     ) {
         let (Some(frame), Some((registration, _, source))) =
             (&root.future_frame, &root.executed_script)
         else {
             return;
         };
+        if jim_wrapper
+            .as_ref()
+            .is_some_and(|owner| !owner.owns_source(source, frame))
+        {
+            return;
+        }
         let mut state = incoming.clone();
         state.current_source_origin.clone_from(&root.source_origin);
         state.variable_frame = frame.clone();
@@ -244,6 +259,12 @@ impl SourceCommandBindings {
         variables.contents_kinds.clear();
         variables.retain_literal_values(|_| false);
         variables.invalidate_shared_representations();
+        if jim_wrapper.is_some() {
+            // The wrapper reaches a user-overridable `$self vars` callback
+            // before eval. This conditional source entry never closes it.
+            state.mark_opaque_binding_mutation();
+            super::seed_deferred_inputs(&mut state, root, frame, registry);
+        }
         let mut bindings = Self {
             declaration_preview_depth: 1,
             root_origin: root.source_origin.clone(),
@@ -290,6 +311,7 @@ impl SourceCommandBindings {
             source: source.clone(),
             frame: frame.clone(),
             bindings: Arc::new(bindings),
+            jim_wrapper,
         });
     }
 }
