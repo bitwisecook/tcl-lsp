@@ -18,6 +18,10 @@ pub(super) struct OriginalByteCommandRegistration {
 
 impl Interp {
     pub(super) fn prune_original_byte_command_registrations(&self) {
+        #[cfg(test)]
+        let _diagnostic = super::constructor_diagnostics::WorkMeasurement::new(
+            super::constructor_diagnostics::Work::Prune,
+        );
         let world = self.namespaces();
         self.original_byte_command_registrations
             .borrow_mut()

@@ -33,6 +33,64 @@ thread_local! {
     static APPEND_SCOPE: Cell<bool> = const { Cell::new(false) };
 }
 
+#[derive(Clone, Copy, Default)]
+struct WorkTotals {
+    prune_calls: u64,
+    prune_ns: u128,
+    currency_calls: u64,
+    currency_ns: u128,
+}
+
+thread_local! {
+    static SAMPLED_SCOPES: Cell<usize> = const { Cell::new(0) };
+    static WORK_TOTALS: Cell<WorkTotals> = const { Cell::new(WorkTotals {
+        prune_calls: 0,
+        prune_ns: 0,
+        currency_calls: 0,
+        currency_ns: 0,
+    }) };
+}
+
+pub(super) enum Work {
+    Prune,
+    Currency,
+}
+
+pub(super) struct WorkMeasurement {
+    kind: Work,
+    started: Option<Instant>,
+}
+
+impl WorkMeasurement {
+    pub(super) fn new(kind: Work) -> Self {
+        Self {
+            kind,
+            started: (SAMPLED_SCOPES.get() != 0).then(Instant::now),
+        }
+    }
+}
+
+impl Drop for WorkMeasurement {
+    fn drop(&mut self) {
+        let Some(started) = self.started else {
+            return;
+        };
+        let elapsed = started.elapsed().as_nanos();
+        let mut totals = WORK_TOTALS.get();
+        match self.kind {
+            Work::Prune => {
+                totals.prune_calls = totals.prune_calls.saturating_add(1);
+                totals.prune_ns = totals.prune_ns.saturating_add(elapsed);
+            }
+            Work::Currency => {
+                totals.currency_calls = totals.currency_calls.saturating_add(1);
+                totals.currency_ns = totals.currency_ns.saturating_add(elapsed);
+            }
+        }
+        WORK_TOTALS.set(totals);
+    }
+}
+
 pub(crate) struct AppendScope(bool);
 
 impl AppendScope {
@@ -80,6 +138,7 @@ pub(super) struct ConstructorDiagnostics {
     ordinal: usize,
     started: Option<Instant>,
     previous: Option<Instant>,
+    work_started: WorkTotals,
 }
 
 impl ConstructorDiagnostics {
@@ -91,12 +150,20 @@ impl ConstructorDiagnostics {
             0
         };
         let selected = enabled && (ordinal < 8 || ordinal.is_multiple_of(32));
+        if selected {
+            SAMPLED_SCOPES.set(SAMPLED_SCOPES.get().saturating_add(1));
+        }
         let started = selected.then(Instant::now);
         let mut diagnostic = Self {
             kind,
             ordinal,
             started,
             previous: started,
+            work_started: if selected {
+                WORK_TOTALS.get()
+            } else {
+                WorkTotals::default()
+            },
         };
         diagnostic.stage("start");
         diagnostic
@@ -115,13 +182,26 @@ impl ConstructorDiagnostics {
         }
         let now = Instant::now();
         let previous = self.previous.replace(now).unwrap_or(started);
+        let work = WORK_TOTALS.get();
         eprintln!(
-            "CTOR_DIAGNOSTIC kind={} sample={} stage={} total_us={} delta_us={}",
+            "CTOR_DIAGNOSTIC kind={} sample={} stage={} total_us={} delta_us={} prune_calls={} prune_ns={} currency_calls={} currency_ns={}",
             self.kind.label(),
             self.ordinal,
             stage,
             now.duration_since(started).as_micros(),
-            now.duration_since(previous).as_micros()
+            now.duration_since(previous).as_micros(),
+            work.prune_calls.saturating_sub(self.work_started.prune_calls),
+            work.prune_ns.saturating_sub(self.work_started.prune_ns),
+            work.currency_calls.saturating_sub(self.work_started.currency_calls),
+            work.currency_ns.saturating_sub(self.work_started.currency_ns),
         );
+    }
+}
+
+impl Drop for ConstructorDiagnostics {
+    fn drop(&mut self) {
+        if self.started.is_some() {
+            SAMPLED_SCOPES.set(SAMPLED_SCOPES.get().saturating_sub(1));
+        }
     }
 }

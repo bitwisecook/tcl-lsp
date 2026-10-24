@@ -139,6 +139,10 @@ impl NativeOperationCurrency {
     }
 
     pub(crate) fn ensure_current(&self) -> Result<(), NativeExecutionError> {
+        #[cfg(test)]
+        let _diagnostic = super::constructor_diagnostics::WorkMeasurement::new(
+            super::constructor_diagnostics::Work::Currency,
+        );
         let interpreter = self
             .interpreter
             .upgrade()
