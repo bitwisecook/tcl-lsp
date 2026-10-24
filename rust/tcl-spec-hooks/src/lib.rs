@@ -82,6 +82,21 @@ pub use sandbox::SANDBOX_COMMANDS;
 
 use tcl_engine_tclvm::TclVmEngine;
 
+fn engine_for_hook_release(profile: &str) -> Result<TclVmEngine, tcl_engine_api::EngineError> {
+    let native = tcl_registry::model::ingress::resolve_known_environment(profile)
+        .and_then(|environment| environment.catalogue_profile())
+        .is_some_and(|profile| {
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .execution_point()
+                .is_some()
+        });
+    if native {
+        TclVmEngine::for_native_release(profile)
+    } else {
+        Ok(TclVmEngine::new())
+    }
+}
+
 /// A host running its packs on `tcl-vm` — the canonical engine everywhere
 /// (`docs/design/registry/spec-packs.md`: server, CLI, and studio alike).
 ///
@@ -90,11 +105,12 @@ use tcl_engine_tclvm::TclVmEngine;
 /// the Tcl→WASM codegen runtime instead passes that and changes nothing else.
 #[must_use]
 pub fn tclvm_host() -> HookHost<TclVmEngine> {
-    HookHost::new(TclVmEngine::new)
+    HookHost::new(TclVmEngine::new).with_pinned_engine_factory(engine_for_hook_release)
 }
 
 /// A host running on `tcl-vm` with a non-default budget or server version.
 #[must_use]
 pub fn tclvm_host_with(config: HostConfig) -> HookHost<TclVmEngine> {
     HookHost::with_config(TclVmEngine::new, config)
+        .with_pinned_engine_factory(engine_for_hook_release)
 }
