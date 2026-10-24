@@ -1,0 +1,13 @@
+{
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "schema": "autoload-core2-v1",
+  "selectors": [
+    "package_resolver::original_names::tests::autoload_registration_structure_matches_full_source_records",
+    "package_resolver::original_names::tests::autoload_structure_retains_current_source_and_input_refusals"
+  ],
+  "source_pins": {
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "751d45d258ad1d173136ce7ab5b568fd824d3d119769f5639aefc06b5824773d",
+    "rust/tcl-lsp-core/src/source_structure.rs": "05e5bf98df3ef09b2a845add0f5f1cd86525b8cc899e93c1aae23c8717efb9ba"
+  },
+  "target": "tcl_lsp_core"
+}
