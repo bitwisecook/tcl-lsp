@@ -15,7 +15,7 @@
   "source_pins": {
     ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
     ".github/workflows/ci.yml": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
-    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "Cargo.lock": "2618d38400bdc6b833d979980e9c97b31b12aabd10137cc84e4b24ef6c7333e6",
     "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
     "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
     "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
