@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-#[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
-mod wasm_link;
+
+use crate::test_wasm_link as wasm_link;
 
 fn runtime_bytes() -> Option<Vec<u8>> {
     Some(std::fs::read(wasm_link::real_link_runtime()?).expect("actual runtime artefact"))

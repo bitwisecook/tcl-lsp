@@ -964,7 +964,7 @@ fn build_full_ssa_artifacts(
     (ssa, def_use, fold_policy)
 }
 
-fn build_full_sccp_artifacts(full: FullSccpInputs<'_>) -> FullSccpArtifacts {
+fn build_full_sccp_artifacts(full: &FullSccpInputs<'_>) -> FullSccpArtifacts {
     let FullSccpInputs {
         cfg,
         inputs,
@@ -972,7 +972,7 @@ fn build_full_sccp_artifacts(full: FullSccpInputs<'_>) -> FullSccpArtifacts {
         existence,
         tier,
         fold_policy,
-    } = full;
+    } = *full;
     let dynamic_names =
         crate::dynamic_names::dynamic_name_barrier(cfg, inputs.registry, inputs.config);
     let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
@@ -1941,7 +1941,7 @@ impl FunctionUnit {
         let tier = inputs
             .analysis_context
             .map_or(AnalysisTier::Deep, |key| key.tier);
-        let core = build_full_sccp_artifacts(FullSccpInputs {
+        let core = build_full_sccp_artifacts(&FullSccpInputs {
             cfg: &cfg,
             inputs,
             ssa: &ssa,
@@ -4397,7 +4397,7 @@ impl CompilationUnit {
     fn build_with_retained_entry_and_source_syntax(
         source: &str,
         options: UnitBuildOptions<'_>,
-        mut cache: Option<&mut ProcLatticeCache<'_>>,
+        cache: Option<&mut ProcLatticeCache<'_>>,
         body_caches: OriginalBodyCacheInputs<'_>,
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
@@ -4449,7 +4449,7 @@ impl CompilationUnit {
             cfg_module: &cfg_module,
             tainted_global_writes,
             prepared_cfg_context: &prepared_cfg_context,
-            cache: cache.as_deref_mut(),
+            cache,
         });
         let post = build_retained_post_analysis(RetainedPostAnalysisInput {
             ir_module: &ir_module,
@@ -5468,18 +5468,11 @@ impl CompilationUnit {
             .for_module(&self.ir_module, registry)
     }
 
-    /// Build conditional CFG/lattice facts for an authentic original child body.
-    /// The actual CU function and original parent vector select the source;
-    /// report labels supply no body, namespace or entered-frame assumptions.
-    pub(crate) fn conditional_original_body_unit(
+    fn conditional_original_body_input(
         &self,
         registry: &CommandRegistry,
         original_function: &FunctionUnit,
-        parent: &crate::ir::CommandTokens,
-        argument: usize,
-    ) -> Option<FunctionUnit> {
-        // naming.source.original-collection-body-owner
-
+    ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
         let module = &self.ir_module;
         if module.source != tcl_lexer::SourceImage::document(&self.source) {
             return None;
@@ -5505,6 +5498,23 @@ impl CompilationUnit {
         {
             return None;
         }
+        Some(input)
+    }
+
+    /// Build conditional CFG/lattice facts for an authentic original child body.
+    /// The actual CU function and original parent vector select the source;
+    /// report labels supply no body, namespace or entered-frame assumptions.
+    pub(crate) fn conditional_original_body_unit(
+        &self,
+        registry: &CommandRegistry,
+        original_function: &FunctionUnit,
+        parent: &crate::ir::CommandTokens,
+        argument: usize,
+    ) -> Option<FunctionUnit> {
+        // naming.source.original-collection-body-owner
+
+        let module = &self.ir_module;
+        let input = self.conditional_original_body_input(registry, original_function)?;
         let script =
             crate::lowering::Lowerer::original_body_for_module(module, registry, parent, argument);
         let script = script?;

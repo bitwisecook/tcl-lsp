@@ -1003,8 +1003,7 @@ pub(crate) fn read_string(
 }
 
 #[cfg(test)]
-#[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
-mod typed_transport_wasm_link;
+use crate::test_wasm_link as typed_transport_wasm_link;
 
 #[cfg(test)]
 mod tests {

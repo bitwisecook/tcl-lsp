@@ -76,7 +76,7 @@ impl Lowerer<'_> {
         // source label for readonly analysis/reporting without publishing a
         // callable, selecting a Native frame or deriving ownership from text.
         if let Some(label) = card.reporting_label(&self.module, &procedure) {
-            procedure.qualified_name = label.to_owned();
+            label.clone_into(&mut procedure.qualified_name);
         }
         let id = self.module.retain_body_unit(procedure);
         self.module
