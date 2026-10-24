@@ -4569,7 +4569,10 @@ impl Vm {
     fn tick_each_loop(&mut self, f: &mut Frame) -> Tick {
         use tcl_cmd_core::native_each_loop::EachLoopAction;
         use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
-        let Some(strings) = self.native_invocation_dialect().native_string_protocol() else {
+        let Some(strings) = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+        else {
             return Tick::Return(self.refuse_host_command("each-loop native List issuer".into()));
         };
         loop {
