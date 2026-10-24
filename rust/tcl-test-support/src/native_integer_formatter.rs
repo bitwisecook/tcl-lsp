@@ -14,13 +14,17 @@ static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0)
 // Native proof: naming.numeric.c84-integer-updater-build-pair
 // docs/design/analysis/name-resolution-proofs/numeric-c84-integer-updater-build-pair.md
 // Each exact archive/header pair has its own original updater observations.
-const REFERENCE_BUILDS: [(&str, &str); 2] = [
+const REFERENCE_BUILDS: [(&str, &str); 3] = [
     (
         "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
         "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
     ),
     (
         "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+        "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    ),
+    (
+        "dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff",
         "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
     ),
 ];
