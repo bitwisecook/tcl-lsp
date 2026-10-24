@@ -124,11 +124,19 @@ def original_result(stdout, exit_code):
     return "PASS" if passed == 1 else "FAIL"
 
 
-def execute(argv, prefix, artifact, seconds, environment, budget):
+def execute(
+    argv, prefix, artifact, seconds, environment, budget, *, on_budget_refusal=None
+):
+    if budget <= 0 and on_budget_refusal is not None:
+        on_budget_refusal()
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
+    if available <= 0 and on_budget_refusal is not None:
+        on_budget_refusal()
     require(available > 0, "absolute diagnostic deadline reached")
     if prefix.startswith(("jim_document-", "jim_own_surface-", "list-")):
+        if available < seconds and on_budget_refusal is not None:
+            on_budget_refusal()
         require(
             available >= seconds,
             "insufficient overall time for original full test/list budget",
@@ -149,9 +157,83 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     )
 
 
+def run_selected(
+    executable,
+    artifact,
+    target_name,
+    selectors,
+    selected_rows,
+    outcomes_name,
+    prefix_target,
+):
+    global remaining
+    for index, selector in enumerate(selectors):
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        row = next(
+            row
+            for row in selected_rows
+            if row["target"] == target_name and row["selector"] == selector
+        )
+        row["state"] = "RUNNING"
+        save(out / outcomes_name, selected_rows)
+        prefix = prefix_target + "-" + str(index).zfill(2)
+        print("RUN original " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+
+        def record_budget_refusal(row=row):
+            row["state"] = "UNRUN"
+            save(out / outcomes_name, selected_rows)
+
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+            on_budget_refusal=(
+                record_budget_refusal
+                if outcomes_name == "supplemental-outcomes.json"
+                else None
+            ),
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / outcomes_name, selected_rows)
+            raise
+        save(out / outcomes_name, selected_rows)
+        require(sha(executable) == artifact["sha256"], "selected test artifact changed")
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
+parser.add_argument("--full-rosters", action="store_true")
 args = parser.parse_args()
 require(re.fullmatch("[0-9a-f]{40}", args.sha), "full exact SHA required")
 require(os.environ.get("GITHUB_SHA") == args.sha, "checkout/workflow SHA mismatch")
@@ -195,6 +277,20 @@ require(
     "original core-row identity two required",
 )
 rows = [{**row, "state": "UNRUN"} for row in roster["selected"]]
+
+supplemental_rows = [
+    {"target": target_name, "selector": selector, "env": {}, "state": "UNRUN"}
+    for target_name, selectors in roster["full_rosters"].items()
+    for selector in selectors
+    if args.full_rosters
+    and (target_name, selector)
+    not in {(row["target"], row["selector"]) for row in roster["selected"]}
+]
+require(
+    len(supplemental_rows) == (38 if args.full_rosters else 0),
+    "exact supplemental full-roster inventory required",
+)
+
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -203,6 +299,7 @@ error = None
 final_errors = []
 status = 2
 save(out / "outcomes.json", rows)
+save(out / "supplemental-outcomes.json", supplemental_rows)
 try:
     executor = BASE / "runtime-diagnostics-exec.py"
     require(sha(executor) == EXECUTOR_SHA, "reviewed process owner changed")
@@ -414,8 +511,10 @@ try:
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
-            "scope": "Exact unchanged original Jim7 (five class/source, two core-row identity) on current WORK. Separate pinned-provider diagnosis only; no complete Jim, C1/C2, shared-process runtime, typing or release acceptance.",
+            "scope": "Exact unchanged original Jim7 (five class/source, two core-row identity) on current WORK, optionally followed by the remaining38 original full-roster tests in a separate ledger. Separate pinned-provider diagnosis only; no C1/C2, shared-process runtime, typing or release acceptance.",
             "original_roster": roster,
+            "supplemental_full_rosters_requested": args.full_rosters,
+            "supplemental_roster": supplemental_rows,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -586,70 +685,38 @@ try:
                 "executable_sha256": artifact["sha256"],
             },
         )
-        for index, selector in enumerate(selectors):
-            require(
-                remaining > 512 * 1024, "insufficient log budget before original test"
-            )
-            row = next(
-                row
-                for row in rows
-                if row["target"] == target_name and row["selector"] == selector
-            )
-            row["state"] = "RUNNING"
-            save(out / "outcomes.json", rows)
-            prefix = target_name + "-" + str(index).zfill(2)
-            print("RUN original " + selector, flush=True)
-            runtime_env = env.copy()
-            selected_env = row["env"]
-            if not isinstance(selected_env, dict):
-                raise TypeError("original per-selector environment is not a mapping")
-            for name, value in selected_env.items():
-                if not isinstance(name, str) or not isinstance(value, str):
-                    raise TypeError("original per-selector environment is not text")
-                runtime_env[name] = value
-            receipt = execute(
-                [
-                    str(executable),
-                    selector,
-                    "--exact",
-                    "--nocapture",
-                    "--test-threads=1",
-                ],
-                prefix,
-                executable,
-                180,
-                runtime_env,
-                remaining,
-            )
-            processes.append(receipt)
-            remaining -= receipt["retained_bytes"]
-            row.update(
-                exit_code=receipt["exit_code"],
-                receipt=prefix + ".process.json",
-                stdout=prefix + ".stdout",
-                stderr=prefix + ".stderr",
-            )
-            require(
-                lifecycle(receipt), "original test lifecycle/capture stop: " + selector
-            )
-            stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
-            try:
-                row["state"] = original_result(stdout, receipt["exit_code"])
-            except RuntimeError:
-                row["state"] = (
-                    "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
-                )
-                save(out / "outcomes.json", rows)
-                raise
-            save(out / "outcomes.json", rows)
-            require(
-                sha(executable) == artifact["sha256"], "selected test artifact changed"
-            )
+        run_selected(
+            executable,
+            artifact,
+            target_name,
+            selectors,
+            rows,
+            "outcomes.json",
+            target_name,
+        )
+    for artifact in artifacts:
+        target_name = artifact["target"]
+        selectors = [
+            row["selector"] for row in supplemental_rows if row["target"] == target_name
+        ]
+        run_selected(
+            Path(artifact["path"]),
+            artifact,
+            target_name,
+            selectors,
+            supplemental_rows,
+            "supplemental-outcomes.json",
+            target_name + "-supplemental",
+        )
+    require(
+        all(row["state"] in ["PASS", "FAIL"] for row in supplemental_rows),
+        "supplemental full-roster inventory incomplete",
+    )
     require(
         len(rows) == 7 and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
-    status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    status = 0 if all(row["state"] == "PASS" for row in rows + supplemental_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -697,6 +764,7 @@ finally:
     if not all(seals.values()):
         status = 2
     save(out / "outcomes.json", rows)
+    save(out / "supplemental-outcomes.json", supplemental_rows)
     save(
         out / "final.json",
         {
@@ -710,6 +778,12 @@ finally:
             "remaining_log_bytes": remaining,
             "outcomes": rows,
             "required_original_tests": 7,
+            "supplemental_full_rosters_requested": args.full_rosters,
+            "required_supplemental_tests": len(supplemental_rows),
+            "supplemental_outcomes": supplemental_rows,
+            "supplemental_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in supplemental_rows
+            ),
             "original_tests_closed": sum(
                 row["state"] in ["PASS", "FAIL"] for row in rows
             ),

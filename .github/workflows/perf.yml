@@ -1290,7 +1290,7 @@ jobs:
           printf 'TCL_LSP_JIM_ROOT=%s\n' "$TCL_LSP_JIM_ROOT" >> "$GITHUB_ENV"
           printf 'TCL_LSP_JIMSH=%s\n' "$TCL_LSP_JIM_ROOT/jimsh" >> "$GITHUB_ENV"
           test -f tmp/tcl9.0.4/libtommath/tommath.h
-      - name: Run unchanged original Jim7 with existing class-source trace
+      - name: Run original Jim7 then remaining full-roster tests
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/jim-source-target
           OUT: ${{ runner.temp }}/jim-source-output
@@ -1300,7 +1300,7 @@ jobs:
           set -euo pipefail
           unset TCL_RUNTIME_EXPECT_NO_TOMMATH
           export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
-          python3 -B docs/work/name-handling/validation-tools/jim-source-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+          python3 -B docs/work/name-handling/validation-tools/jim-source-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT" --full-rosters
       - name: Upload bounded original-test diagnostic evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
