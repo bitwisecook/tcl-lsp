@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T08:58:22.607004+00:00
+Last updated: 2026-10-24T09:07:05.166719+00:00
 
 ## Resume and rules
 
@@ -18,6 +18,44 @@ strict/baseline/semantic/performance gates remain binding. No duplicate dispatch
 Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz and
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
+
+## Latest fresh a079 actual BUILD FAIL: all131 UNRUN
+
+vm-runtime-actual-40080090430/receipt.json
+SHA61df65be7b7d0fd068ac2c4fe9047eb042a59a3a5f4d5de2ed30cb12fc8877a9.
+Exacta079ef42037b35409f133630039ebc377a6170a5 run40080090430/job120831660609,
+artifact12555026382 ZIP26865011 SHAd5a0283c470fe95730c72880b1beb7bd22b8345ed5b0b02ae93dd9568489e470.
+All25CRC+streamSHA;126063 BEFORE fullGitmembership/26keys+5cause/fixtureblobjoins.
+C84 sixmaps/postseal + owned900bootstrap complete exactdc67/824f. Cargo101 sole
+Rust unused_import NativeControlPreparationStep as Visit native_compilation.rs1899:35,
+configuration build.warnings denies. No eligiblelisting/ELF/CFI/testprocesses.
+ALL original3+128supplement planned invocations UNRUN. Envfixture present inactual
+source but UNMEASURED; earlier794 semantic outcome remains latest, no Env4PASS.
+Final source-after andTommath-after ABSENT, no whole source/runtime guardPASS.
+Root+Codegen notified; sourceowner correction root-controlled, no duplicate author.
+
+Three tiny source-owned fixtures now FROZENREADY for rootpeer:
+vm-original-fixture-capabilities-v1 bothpatchc62df56c9d726cbba8c91bc25387c0d50d3761fea78d59eabf0ecb7cedc52c79.
+WORKmanifest4c1f2600210e5e5b5c0f0a2b9aec1ae0ae33c03b605a192ab827d7dae22c78e1;
+CLEAN1eb4fe6357ff889ccf7fd59d5d85d3bfa9523aa6874f8dbe01f7b5b4d3720fc6.
+Master52aab0aefce212f38afd299fb685a46040ec97538978a42dac84dd4b40288669;
+fullactual/source/owner proof37983bc889358d717d7c0484f3a76ac6aeea9748c77849f6e04c1c480ce0f2b9.
+Root explicitly authorized all3preparations. Exactly two real immortal extension
+registration lines plus forwarding exact existing NativeHost listsorting producer;
+three cfgtestfiles only. Fulloldinverse/copiedF-R-F0/fmt6/currentpins PASS.
+All assertions/callbacks/guards/scripts/budgets remain; all new outcomes UNRUN.
+
+Neutral Jim scalar refinement: environment=None alone is not a defect (neutral
+getter can use original Jim object context). Failing Jim-frame List receipt fixture
+constructs native List without binding actual object context; other callers bind
+or obtain genuinely contextual original headers. No fix/default/errnoreset authored.
+
+Two further actual newfailures (lseq/codegen_abi) first prove exact/pending Host
+refusal, then public var_get unwrap fails. Source var_get enters NativeOperationScope,
+whose currency issue rejects sticky refusal before storage lookup; later var_exists
+false cannot prove absence either. Proposed physical fixture-observation route via
+existing vars::get_at for all original value/absence checks requires root direction;
+no production guard/reset/assertion change authored, actual tests stillFAIL.
 
 ## Current Resume 08:58 UTC
 

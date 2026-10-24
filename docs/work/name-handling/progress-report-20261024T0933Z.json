@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T09:33:27.902222+00:00",
+  "scheduled_report_utc": "2026-10-24T09:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T09:55:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product fixes are pushed on work 6d640b37c8560302a714b90595971d494c8bfd66 and release cleanup branch 4a23fd880e6e670b0c0d95dd2c4a61de88c07738 after a fresh shallow work fetch. No PR, merge, tag or release. The six-hour target was missed. Section F, all required green shipping gates, complete zero baseline regressions and accepted Tcl performance remain open.",
+    "All eight a079 focused modes were blocked by the same denied unused Visit import in the registry helper refactor. Authenticated compiler a66788cf has all67UNRUN; runtime61df65be all131UNRUN; startup4041d351 allcold/scan/ContextUNRUN; Spec c7273757 all12UNRUN, Heavy1f6fc359 all3UNRUN and WASM22c58860 all25UNRUN. Their early build seals differ from full semantic captures: no selectedELF and no runtime outcomes. The import is removed on both branches after independent df5467d6 review; prior semantic results are retained, not counted as new regressions or fixes.",
+    "The warning repair, original Env numeric-provider fixture and three genuine fixture prerequisite fixes are included in new exact1794fd639 validation. The three fixes register the existing ORIGINAL and distinct LATER descriptor before allocation and forward the actual NativeHost sorting provider; independent3525e49f preserves every script, callback, assertion and production guard. All eight1794 modes were dispatched, with actuals still being authenticated. Latest Jim40081144418 is fully authenticated6P1F, verification1b5ffe02; both selectedELFs are fresh0W and allnested6iterations pass. Source proof distinguishes present ordinary method publication from later inherited support, which was not in this run.",
+    "Bounded inherited Jim source support is integrated at632605173/4fb0487fa after independent17e40115 review. It covers one genuinely current empty-base parent, exact helper inventory and dependency allocations, the12 inherited aliases, baseclass publication, stock overwrites and every Error prefix. Previously rejected supported prefixes gain positive sealed-owner/allocation controls; unsupported multibase negatives and originalJim7 remain. This grants no object caller, Vars prelude, Native frame or normal-entry certificate; original method322 remains open.",
+    "Native C9 string range compilation is integrated atdb53bec21/5ee5ffaa5 with exact Heavy inputs21036d212 after independent product0f60321d and companiond69885d8. It is limited to retained compile-known encodable indices; dynamic, malformed, uncertain-width and other-release cases remainUnknown. Deep review caught and corrected subject-retirement order and pooled-literal identity before freeze. Empty POP-before-pooled-PUSH and immediate borrowed/created result stages preserve original owners, currentness, first refusal and callback cleanup. All original tests remain; new actual-owner controls are UNRUN. The shipping contract is updated in wasm-native-lowering.md without development evidence.",
+    "A three-line Jim fixture correction associates the actual newly created List with its existing interpreter context before original observations. Independent09413c6b confirms genuine allocator/liveness checks, Weak-only association and no header retain/cache/getter/reset/assertion change. It is integrated at3431f6bed/26457b49c but has no actual outcome yet. Post-refusal observation proposals are held: review found obj_bytes/get_string could generate a string and invoke an updater. A strictly readonly numeric-metadata successor changes the observation boundary and remains a concrete held proposal for user decision; no production refusal or original test is relaxed.",
+    "Compiler source work now distinguishes missing root-script symbol transport from dropped conditional source-sink schema. Existing admission guards pass the actual eval case; a source symbol alone is not claimed sufficient. Typed source Read/Write/MayWrite and possible-sink classification must preserve previous taint, Error/unknown, aliases/traces and clean-literal controls. Drafts remain ineligible. Names is preparing an actually owned instance-method source scope, retaining generic/manual uncertainty and constructor GC debt. No Native frame or blanket wrapper-opacity bypass is allowed.",
+    "Paired Tcl performance run40077894896 is still unaccepted: Linux small and medium runners received shutdown signals, exited143 and uploaded no result artifacts. This is incomplete infrastructure evidence, not a measured regression or pass. Other four jobs remain active at last poll. The cache setup also logs a nonfatal missing root Cargo.toml metadata probe under the three-checkout layout; its correction needs source review. Candidatea169 predates syntax reuse, so final shipping commit still needs its own paired comparison. Dedicated iRules performance remains waived.",
+    "Current source-input preflightV8 passes on6d640b37 with13startup inputs,27runners and13whole guards. Changed Rust files have pinned formatter checks; whole clean-root/runtime formatting on4a23fd880 is running and not yet accepted. All required CI/baseline/sectionF/editor/generated/documentation/cancellation-memory validations remain open. Two reviewed external BIGIP product fixes are held pending the user ownership question; no takeover or external message occurred.",
+    "09:25 checkpoint is being published late after the coherent product integrations. All primary-role headers are recent; BIGIP and perf external trackers remain over60minutes stale, user notified, ownership retained. Review triage is complete. Disk remains below2GiB, so no local builds run; tmp is also tight and artifacts stay ZIP-only in workspace. Next scheduled cycle09:55UTC."
+  ],
+  "committed": [
+    "ae24bf489d3cdafa015e886621b5fd3dbc666c54"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish09:25snapshot/report and rearm09:55reminder.",
+    "Authenticate1794 actuals; run strict build validation before broad Range/fixture semantic reruns.",
+    "Complete SCRIPT/sink and genuine Jim method-entry owners; review readonly observation policy and pending external ownership reply.",
+    "Require final green CI, zero baseline pass-to-fail, sectionF, complete Tcl performance and clean release docs/comments/generated/format before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions; all early build failures explicitly UNRUN. Source/owner reviews do not establish semantic, performance or shipping readiness.",
+  "disk_free_bytes": 1630687232,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
