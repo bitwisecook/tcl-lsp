@@ -548,15 +548,69 @@ enum CurrentDiagnostics {
 
 pub(super) fn trace_diagnostic_context_check(uri: &Uri, stage: &str, accepted: bool) -> bool {
     #[cfg(debug_assertions)]
-    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
+    let diagnostic_trace = std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1");
+    #[cfg(not(debug_assertions))]
+    let diagnostic_trace = false;
+    if diagnostic_trace || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
         eprintln!(
             "DIAGNOSTIC_CONTEXT uri={} stage={stage} accepted={accepted}",
             uri.as_str()
         );
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (uri, stage);
     accepted
+}
+
+fn trace_diagnostic_publication_result(
+    expected: &DiagnosticPublicationExpectation,
+    current: &Result<Vec<PublishedDiagnosticReport>, DiagnosticUnavailable>,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_none() {
+        return;
+    }
+    match current {
+        Err(reason) => {
+            let reason = match reason {
+                DiagnosticUnavailable::Pending => "pending",
+                DiagnosticUnavailable::Stale => "stale",
+                DiagnosticUnavailable::Context => "context",
+                DiagnosticUnavailable::ProviderError => "provider-error",
+                DiagnosticUnavailable::Cancelled => "cancelled",
+                DiagnosticUnavailable::Unsupported => "unsupported",
+                DiagnosticUnavailable::NotOpen => "not-open",
+            };
+            eprintln!(
+                "DIAGNOSTIC_PUBLICATION uri={} stage=reborrow reason={reason}",
+                expected.uri.as_str()
+            );
+        }
+        Ok(reports) => {
+            let [report] = reports.as_slice() else {
+                eprintln!(
+                    "DIAGNOSTIC_PUBLICATION stage=reborrow report_count={}",
+                    reports.len()
+                );
+                return;
+            };
+            eprintln!(
+                "DIAGNOSTIC_PUBLICATION uri={} stage=reborrow version={:?} expected_version={} revision={} expected_revision={} inputs_epoch={} expected_inputs_epoch={} result_id={} expected_result_id={}",
+                expected.uri.as_str(),
+                report.version,
+                expected.version,
+                report.revision,
+                expected.revision.as_str(),
+                report.inputs_epoch,
+                expected.inputs_epoch.as_str(),
+                report.result_id.as_str(),
+                expected.result_id.as_str(),
+            );
+        }
+    }
+}
+
+fn trace_diagnostic_publication_pending(stage: &str) {
+    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
+        eprintln!("DIAGNOSTIC_PUBLICATION stage={stage} reason=pending");
+    }
 }
 
 impl DiagInputs {
@@ -765,18 +819,44 @@ impl Backend {
         let current = self
             .current_published_diagnostic_reports(&[source], DiagnosticCacheQuery::PublisherOnly)
             .await?;
+        trace_diagnostic_publication_result(&expected, &current);
         let valid = current.is_ok_and(|reports| {
             let [report] = reports.as_slice() else {
                 return false;
             };
-            report.suppression.is_none()
-                && report.uri == expected.uri
-                && report.version == Some(expected.version)
-                && report.source.as_ref() == expected.source
-                && report.dialect == expected.dialect_id
-                && report.revision.to_string() == expected.revision
-                && report.inputs_epoch.to_string() == expected.inputs_epoch
-                && report.result_id == expected.result_id
+            trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.suppression",
+                report.suppression.is_none(),
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.uri",
+                report.uri == expected.uri,
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.version",
+                report.version == Some(expected.version),
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.source",
+                report.source.as_ref() == expected.source,
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.dialect",
+                report.dialect == expected.dialect_id,
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.revision",
+                report.revision.to_string() == expected.revision,
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.inputs-epoch",
+                report.inputs_epoch.to_string() == expected.inputs_epoch,
+            ) && trace_diagnostic_context_check(
+                &expected.uri,
+                "publication.result-id",
+                report.result_id == expected.result_id,
+            )
         });
         if !valid {
             return Ok(Some(serde_json::json!({"status":"unavailable"})));
@@ -2016,6 +2096,7 @@ impl Backend {
             None
         } else {
             let Ok(db) = self.db.try_lock() else {
+                trace_diagnostic_publication_pending("published-final-db");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             // Configuration values are checked under this same final database
@@ -2028,6 +2109,7 @@ impl Backend {
                 }
             }
             let Ok(files) = self.db_files.try_lock() else {
+                trace_diagnostic_publication_pending("published-final-files");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             let published = self
@@ -2047,6 +2129,7 @@ impl Backend {
         let _workspace_source_index = if workspace_sources.iter().any(|sources| !sources.is_empty())
         {
             let Ok(index) = self.workspace_index.try_read() else {
+                trace_diagnostic_publication_pending("published-final-index");
                 return Ok(Err(DiagnosticUnavailable::Pending));
             };
             if workspace_sources
