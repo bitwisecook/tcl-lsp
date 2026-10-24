@@ -767,7 +767,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "9421bc341b3b12d98a413cca77cdc5f5114e3ba82115a6ab3f8aa464f772758f",
+    == "d12efd55c758cb94dbf860c7f01a62c8b4ad724909eb3c4c040f9bcd33c86797",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -991,7 +991,7 @@ original65_rows = (
     original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
 )
 require(
-    sha(BASE / "compiler-closed-consumer-controls.json") == "f1fb07405e9ec2118fc5beb6afb6b48177e01379de1ce78e66f81d5a32853bbf",
+    sha(BASE / "compiler-closed-consumer-controls.json") == "cb536e99c07a87bd33d6d8fa5e2c86e7f115ac70d0ee0dc1c0a0b54a184db591",
     "exact separate closed-consumer control roster",
 )
 closed_controls = json.loads((BASE / "compiler-closed-consumer-controls.json").read_text())
@@ -1079,7 +1079,7 @@ require(
 )
 require(
     sha(BASE / "compiler-source-read-ancestry3.json")
-    == "ec6b24fc84a84b4488d3e6bf95427ff3c9b3cf71f9a248aaba32e5a9468ae1e6",
+    == "6850e925765149bc22707d6dc2f666b8f4315f62bb04cba9f679567d1a40d91a",
     "exact separate ancestry3 roster",
 )
 ancestry_validation = json.loads(
