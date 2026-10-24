@@ -1,0 +1,16 @@
+{
+  "decided_at_utc": "2026-10-24T11:48:26.498256+00:00",
+  "decision": "Use direct retained-state checks after intentional runtime refusal",
+  "user_answer": "Use direct retained-state checks (Recommended)",
+  "scope": [
+    "Two held tests in runtime/rust/src/cmd_lseq.rs and runtime/rust/src/codegen_abi.rs inspect retained table resident bytes or exact integer type/value.",
+    "Public reads still refuse; original refusal unchanged; original scripts/expected values/leak checks preserved. String conversion after refusal is outside this test observation coverage."
+  ],
+  "approved_proposal": {
+    "directory": "/workspace/naming-proof-storage/vm-post-refusal-observations-v4-held",
+    "patch_sha256": "13c34fcd8a88dad77766d155b09306dbe0c0ce940bccb3da5a92dc6b2dfddf31",
+    "independent_peer_sha256": "a71ab5fc37d3ddbbebf092a2a9194751c5d4bfc65d5e306e797c6390e9fa2e23"
+  },
+  "no_production_refusal_reset_or_getter_change": true,
+  "status": "USER_DECISION_LOCKED_NOT_REOPENABLE"
+}
