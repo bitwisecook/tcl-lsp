@@ -32395,13 +32395,7 @@ impl LanguageServer for Backend {
         if ranges.is_empty() {
             return Ok(None);
         }
-        let locations: Vec<Location> = ranges
-            .into_iter()
-            .map(|r| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(r),
-            })
-            .collect();
+        let locations = type_definition_locations(&uri, ranges);
         Ok(Some(GotoTypeDefinitionResponse::Array(locations)))
     }
 
@@ -32457,16 +32451,7 @@ impl LanguageServer for Backend {
             };
             let documents = self.original_declaration_documents(&uri).await?;
             let targets = crate::rt::spawn_blocking(move || {
-                let inventory = documents
-                    .iter()
-                    .map(|(uri, source, analysis)| {
-                        tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
-                            uri,
-                            source,
-                            analysis,
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                let inventory = implementation_inventory(&documents);
                 if let Some(class) = class {
                     core_type_hierarchy::related_from_inventory(&class, &inventory, true)
                         .into_iter()
@@ -33266,14 +33251,7 @@ impl LanguageServer for Backend {
             // (an empty edit list when nothing changed) rather than the whole
             // stream — the incremental path every `full/delta`-capable editor
             // benefits from.
-            let edits = match core_semantic_tokens::diff(&old_data, &new_data) {
-                Some(edit) => vec![SemanticTokensEdit {
-                    start: edit.start,
-                    delete_count: edit.delete_count,
-                    data: Some(lift_semantic_token_data(&edit.data)),
-                }],
-                None => Vec::new(),
-            };
+            let edits = semantic_token_delta_edits(&old_data, &new_data);
             Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
                 SemanticTokensDelta {
                     result_id: Some(result_id),
@@ -35318,6 +35296,42 @@ fn position_is_command_head(
                     && invocation.range.end() <= span.end()
             })
     })
+}
+
+fn type_definition_locations(uri: &Uri, ranges: Vec<CoreLspRange>) -> Vec<Location> {
+    ranges
+        .into_iter()
+        .map(|r| Location {
+            uri: uri.clone(),
+            range: lift_lsp_range(r),
+        })
+        .collect()
+}
+
+fn implementation_inventory(
+    documents: &[(String, Arc<str>, Arc<AnalysisResult>)],
+) -> Vec<tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'_>> {
+    documents
+        .iter()
+        .map(|(uri, source, analysis)| {
+            tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
+                uri,
+                source,
+                analysis,
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+fn semantic_token_delta_edits(old_data: &[u32], new_data: &[u32]) -> Vec<SemanticTokensEdit> {
+    match core_semantic_tokens::diff(old_data, new_data) {
+        Some(edit) => vec![SemanticTokensEdit {
+            start: edit.start,
+            delete_count: edit.delete_count,
+            data: Some(lift_semantic_token_data(&edit.data)),
+        }],
+        None => Vec::new(),
+    }
 }
 
 fn lift_lsp_range(r: CoreLspRange) -> Range {
