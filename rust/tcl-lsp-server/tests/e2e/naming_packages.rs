@@ -257,11 +257,11 @@ fn package_release_queries_are_order_independent_and_retire_old_library_paths() 
     // of naming results. The scan marker is emitted only after the new package
     // resolver and workspace index have been published.
     let cursor = lsp.notification_cursor();
-    let library_b_string = libraries_b.to_str().expect("library path is UTF-8");
+    let replacement_library_path = libraries_b.to_str().expect("library path is UTF-8");
     lsp.apply_configuration_settle(
-        json!({ "libraryPaths": [library_b_string] }),
+        json!({ "libraryPaths": [replacement_library_path] }),
         &callers[0].0,
-        |effective| effective.get("library_paths") == Some(&json!([library_b_string])),
+        |effective| effective.get("library_paths") == Some(&json!([replacement_library_path])),
     );
     lsp.await_log(&["workspace_folders_scan"], TIMEOUT, cursor);
     // The scan notification carries no configuration-generation identifier;

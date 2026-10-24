@@ -1834,8 +1834,34 @@ fn the_diagnostics_master_switch_clears_a_packs_notices() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+fn assert_upf_optional_option_tokens(
+    tokens: &[crate::common::helpers::SemToken],
+    legend: &[String],
+    expected_options: Vec<(i64, i64, &str)>,
+    expected_values: Vec<(i64, i64, &str, &str)>,
+) {
+    for (line, column, option) in expected_options {
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == column
+                && token.length == i64::try_from(option.len()).unwrap()
+                && legend[usize::try_from(token.ttype).unwrap()] == "decorator"),
+            "{line}:{column}: {option} must remain a declared option after its predecessor: {tokens:?}"
+        );
+    }
+    for (line, column, value, kind) in expected_values {
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == column
+                && token.length == i64::try_from(value.len()).unwrap()
+                && legend[usize::try_from(token.ttype).unwrap()] == kind),
+            "{line}:{column}: {value} must be consumed as the declared option value ({kind}): {tokens:?}"
+        );
+    }
+}
+
 /// Every shipped UPF optional-value slot reaches the ordinary server's option
-/// scanner. Direct upf_hooks tests independently prove all 17 body answers;
+/// scanner. Direct `upf_hooks` tests independently prove all 17 body answers;
 /// here a following option must remain an option when the value is omitted.
 #[test]
 fn every_bundled_upf_optional_value_hook_reaches_editor_option_scanning() {
@@ -1915,24 +1941,7 @@ fn every_bundled_upf_optional_value_hook_reaches_editor_option_scanning() {
             .map(ToOwned::to_owned)
             .collect();
     let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
-    for (line, column, option) in expected_options {
-        assert!(
-            tokens.iter().any(|token| token.line == line
-                && token.char == column
-                && token.length == i64::try_from(option.len()).unwrap()
-                && legend[usize::try_from(token.ttype).unwrap()] == "decorator"),
-            "{line}:{column}: {option} must remain a declared option after its predecessor: {tokens:?}"
-        );
-    }
-    for (line, column, value, kind) in expected_values {
-        assert!(
-            tokens.iter().any(|token| token.line == line
-                && token.char == column
-                && token.length == i64::try_from(value.len()).unwrap()
-                && legend[usize::try_from(token.ttype).unwrap()] == kind),
-            "{line}:{column}: {value} must be consumed as the declared option value ({kind}): {tokens:?}"
-        );
-    }
+    assert_upf_optional_option_tokens(&tokens, &legend, expected_options, expected_values);
     let diagnostics =
         lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
             !diags.iter().any(|diag| {

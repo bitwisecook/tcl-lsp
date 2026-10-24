@@ -240,7 +240,7 @@ fn pack(phase: Phase) -> String {
         ("Value", "value", "020")
     };
     format!(
-        r#"speclib d4 2.2 {{
+        r"speclib d4 2.2 {{
     command d4_with_var {{
         arity 2
         arg 0 -role VarWrite
@@ -267,7 +267,7 @@ fn pack(phase: Phase) -> String {
         }}
     }}
 }}
-"#
+"
     )
 }
 
@@ -307,8 +307,7 @@ fn await_environment(lsp: &mut Lsp, fixture: &Fixture, phase: Phase, old: Option
                     })
         },
     );
-    let publication = configs[0]["spec_pack_publication"].clone();
-    publication
+    configs[0]["spec_pack_publication"].clone()
 }
 
 fn publication_identity(report: &Value) -> Value {

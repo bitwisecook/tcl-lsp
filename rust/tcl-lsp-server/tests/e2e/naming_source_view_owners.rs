@@ -452,7 +452,7 @@ mod path_advice_controls {
         assert_eq!(session.len(), 16);
         assert!(session.iter().all(|byte| {
             byte.as_u64()
-                .is_some_and(|value| value <= u64::from(u8::MAX))
+                .is_some_and(|value| u8::try_from(value).is_ok())
         }));
         assert!(handle["token"].as_u64().is_some_and(|token| token > 0));
         assert_eq!(outgoing_parent(lsp, &item), fixture.parent);
