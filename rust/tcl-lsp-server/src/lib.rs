@@ -22784,6 +22784,7 @@ impl Backend {
         let ControlFlow::Break(Some(identity)) = selected else {
             return Ok(ControlFlow::Break(Ok(None)));
         };
+        drop(original_command_rename::take_missing_rename_world_trace());
         let planned = if member {
             tcl_lsp_core::original_member_rename::original_member_rename_edits(
                 &owners, &identity, new_name,
@@ -22795,7 +22796,13 @@ impl Backend {
         };
         let intents = match planned {
             Ok(intents) => intents,
-            Err(refusal) => return Ok(ControlFlow::Break(Err(refusal))),
+            Err(refusal) => {
+                if let Some(detail) = original_command_rename::take_missing_rename_world_trace() {
+                    self.trace_host_navigation(uri, "rename.refused", &detail)
+                        .await;
+                }
+                return Ok(ControlFlow::Break(Err(refusal)));
+            }
         };
         if !self
             .original_rename_documents_are_current(&documents, epoch)

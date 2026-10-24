@@ -181,6 +181,9 @@ class Session {
             this.diagnostics.set(message.params.uri, message.params.diagnostics);
         } else if (message.method === "window/logMessage") {
             this.logs.push(message.params.message);
+            if (message.params.message.startsWith("HOST_NAV_STAGE ")) {
+                console.log(message.params.message);
+            }
         }
         if (message.id === undefined) return;
         this.serverRequests.push(message.method);

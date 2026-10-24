@@ -1463,6 +1463,25 @@ struct OriginalSourceScopeProjection {
 }
 
 impl OriginalSourceViewSettlement {
+    fn host_navigation_scope_detail(&self, uri: &Uri) -> String {
+        let mut scopes = self
+            .scopes
+            .iter()
+            .map(|scope| {
+                format!(
+                    "root={} complete={} conditional={} selected_required={} owners={}",
+                    scope.root_uri,
+                    scope.complete,
+                    scope.conditional_obligations,
+                    scope.required.contains(uri),
+                    scope.ids.len(),
+                )
+            })
+            .collect::<Vec<_>>();
+        scopes.sort();
+        scopes.join("; ")
+    }
+
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -1606,9 +1625,13 @@ impl Backend {
             .prune_retired_original_source_view_presentations()
             .await
         {
+            self.trace_host_navigation_stage("graph.prune-refused")
+                .await;
             return Ok(None);
         }
         let Some(work) = self.original_source_root_work().await? else {
+            self.trace_host_navigation_stage("graph.root-work-unavailable")
+                .await;
             return Ok(None);
         };
         let mut reconciliation = OriginalSourceRootReconciliation {
@@ -1639,10 +1662,18 @@ impl Backend {
             .reconcile_excluded_original_roots(&mut reconciliation)
             .await?
         {
+            self.trace_host_navigation_stage("graph.excluded-reconciliation-refused")
+                .await;
             return Ok(None);
         }
-        self.finish_original_root_reconciliation(reconciliation)
-            .await
+        let result = self
+            .finish_original_root_reconciliation(reconciliation)
+            .await?;
+        if result.is_none() {
+            self.trace_host_navigation_stage("graph.final-reconciliation-refused")
+                .await;
+        }
+        Ok(result)
     }
 
     async fn publish_initial_original_roots(
@@ -2984,6 +3015,28 @@ impl Backend {
 }
 
 impl Backend {
+    async fn trace_host_navigation_stage(&self, stage: &str) {
+        if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+            self.client
+                .log_message(
+                    tower_lsp_server::ls_types::MessageType::LOG,
+                    format!("HOST_NAV_STAGE uri=* stage={stage}"),
+                )
+                .await;
+        }
+    }
+
+    pub(crate) async fn trace_host_navigation(&self, uri: &Uri, stage: &str, detail: &str) {
+        if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+            self.client
+                .log_message(
+                    tower_lsp_server::ls_types::MessageType::LOG,
+                    format!("HOST_NAV_STAGE uri={uri} stage={stage} {detail}"),
+                )
+                .await;
+        }
+    }
+
     async fn await_original_source_navigation_readiness(
         &self,
         uri: &Uri,
@@ -3016,90 +3069,47 @@ impl Backend {
     > {
         self.await_original_source_navigation_readiness(uri).await?;
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+            self.trace_host_navigation(uri, "graph.unavailable", "")
+                .await;
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let Some(ids) = settlement.projection(uri, references.is_some()) else {
+            if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+                let scopes = settlement.host_navigation_scope_detail(uri);
+                self.trace_host_navigation(uri, "projection.unavailable", &scopes)
+                    .await;
+            }
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let aggregate_complete = settlement.aggregate_complete();
+        let trace_uri = uri.clone();
         let uri = uri.clone();
         let computed = self
             .compute_original_source_views(&ids, move |views| {
-                let selected_views = views
-                    .iter()
-                    .filter(|view| view.draft.physical.uri == uri)
-                    .collect::<Vec<_>>();
-                if aggregate_complete
-                    && !selected_views
-                        .iter()
-                        .any(|view| view.draft.is_interpreted())
-                {
-                    return Some(std::ops::ControlFlow::Continue(()));
-                }
-                let (publications, ancestors) = Self::original_source_view_labels(views)?;
-                let inventory =
-                    Self::original_source_view_inventory(views, &publications, &ancestors);
-                let mut result = Vec::new();
-                let first = selected_views.first()?;
-                let source = &first.draft.physical.source;
-                let offset = tcl_lexer::LineIndex::new(source).offset_at_utf16(
-                    position.line,
-                    tcl_lexer::Utf16Col::new(position.character),
-                    source,
-                );
-                for publication in tcl_lsp_core::original_source_views::cursor_publications(
-                    uri.as_str(),
-                    offset,
-                    &inventory,
-                )? {
-                    let selected = tcl_lsp_core::original_source_views::prepare(
-                        &publication,
-                        offset,
-                        &inventory,
-                    )?;
-                    if references != Some(false) {
-                        let target = inventory
-                            .iter()
-                            .find(|row| row.publication == &selected.publication)?;
-                        let range = tcl_lsp_core::definition::span_to_range(
-                            target.document.source,
-                            &tcl_lexer::LineIndex::new_lsp(target.document.source),
-                            selected.identity.span(),
-                        );
-                        result.push(tower_lsp_server::ls_types::Location {
-                            uri: selected.identity.uri().parse().ok()?,
-                            range: super::super::lift_lsp_range(range),
-                        });
-                    }
-                    if references.is_some() {
-                        for reference in
-                            tcl_lsp_core::original_source_views::references(&selected, &inventory)
-                        {
-                            let caller = inventory
-                                .iter()
-                                .find(|row| row.publication == &reference.publication)?;
-                            let range = tcl_lsp_core::definition::span_to_range(
-                                caller.document.source,
-                                &tcl_lexer::LineIndex::new_lsp(caller.document.source),
-                                reference.span,
-                            );
-                            result.push(tower_lsp_server::ls_types::Location {
-                                uri: caller.document.uri.parse().ok()?,
-                                range: super::super::lift_lsp_range(range),
-                            });
-                        }
-                    }
-                }
-                let mut unique = Vec::new();
-                for location in result {
-                    if !unique.contains(&location) {
-                        unique.push(location);
-                    }
-                }
-                Some(std::ops::ControlFlow::Break(Some(unique)))
+                Some(Self::calculate_original_source_navigation(
+                    views,
+                    &uri,
+                    position,
+                    references,
+                    aggregate_complete,
+                ))
             })
             .await?;
-        let Some((owners, output)) = computed else {
+        let Some((
+            owners,
+            HostNavigationCalculation {
+                output,
+                stage,
+                detail,
+            },
+        )) = computed
+        else {
+            self.trace_host_navigation(&trace_uri, "views.current-scope-unavailable", "")
+                .await;
+            return Ok(std::ops::ControlFlow::Break(None));
+        };
+        self.trace_host_navigation(&trace_uri, stage, &detail).await;
+        let Some(output) = output else {
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let mut output = Some(output);
@@ -3109,7 +3119,133 @@ impl Backend {
                 output.take()
             })
             .await?;
+        if result.is_none() {
+            self.trace_host_navigation(&trace_uri, "views.final-current-scope-unavailable", "")
+                .await;
+        }
         Ok(result.unwrap_or(std::ops::ControlFlow::Break(None)))
+    }
+}
+
+type HostNavigationRoute = std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>;
+struct HostNavigationCalculation {
+    output: Option<HostNavigationRoute>,
+    stage: &'static str,
+    detail: String,
+}
+
+fn host_navigation_owner_detail(views: &[&Arc<PublishedOriginalSourceView>]) -> String {
+    if !matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        return String::new();
+    }
+    views
+        .iter()
+        .map(|view| {
+            format!(
+                "owner={:?} analysis={:p} interpreted={} region={} bytes={}",
+                view.id,
+                view.draft.producer.seed.analysis.as_ref(),
+                view.draft.is_interpreted(),
+                view.draft.region.is_some(),
+                view.draft.physical.source.len(),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+impl Backend {
+    fn calculate_original_source_navigation(
+        views: &[Arc<PublishedOriginalSourceView>],
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+        references: Option<bool>,
+        aggregate_complete: bool,
+    ) -> HostNavigationCalculation {
+        let selected_views = views
+            .iter()
+            .filter(|view| &view.draft.physical.uri == uri)
+            .collect::<Vec<_>>();
+        let detail = host_navigation_owner_detail(&selected_views);
+        let mut stage = "views.labels";
+        let output = (|| {
+            if aggregate_complete
+                && !selected_views
+                    .iter()
+                    .any(|view| view.draft.is_interpreted())
+            {
+                stage = "ordinary.continue";
+                return Some(std::ops::ControlFlow::Continue(()));
+            }
+            let (publications, ancestors) = Self::original_source_view_labels(views)?;
+            let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+            let mut result = Vec::new();
+            stage = "views.selected-first";
+            let first = selected_views.first()?;
+            let source = &first.draft.physical.source;
+            let offset = tcl_lexer::LineIndex::new(source).offset_at_utf16(
+                position.line,
+                tcl_lexer::Utf16Col::new(position.character),
+                source,
+            );
+            stage = "core.cursor-publications";
+            for publication in tcl_lsp_core::original_source_views::cursor_publications(
+                uri.as_str(),
+                offset,
+                &inventory,
+            )? {
+                stage = "core.prepare";
+                let selected =
+                    tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory)?;
+                if references != Some(false) {
+                    stage = "core.target-owner";
+                    let target = inventory
+                        .iter()
+                        .find(|row| row.publication == &selected.publication)?;
+                    let range = tcl_lsp_core::definition::span_to_range(
+                        target.document.source,
+                        &tcl_lexer::LineIndex::new_lsp(target.document.source),
+                        selected.identity.span(),
+                    );
+                    result.push(tower_lsp_server::ls_types::Location {
+                        uri: selected.identity.uri().parse().ok()?,
+                        range: super::super::lift_lsp_range(range),
+                    });
+                }
+                if references.is_some() {
+                    for reference in
+                        tcl_lsp_core::original_source_views::references(&selected, &inventory)
+                    {
+                        stage = "core.reference-owner";
+                        let caller = inventory
+                            .iter()
+                            .find(|row| row.publication == &reference.publication)?;
+                        let range = tcl_lsp_core::definition::span_to_range(
+                            caller.document.source,
+                            &tcl_lexer::LineIndex::new_lsp(caller.document.source),
+                            reference.span,
+                        );
+                        result.push(tower_lsp_server::ls_types::Location {
+                            uri: caller.document.uri.parse().ok()?,
+                            range: super::super::lift_lsp_range(range),
+                        });
+                    }
+                }
+            }
+            let mut unique = Vec::new();
+            for location in result {
+                if !unique.contains(&location) {
+                    unique.push(location);
+                }
+            }
+            stage = "core.complete";
+            Some(std::ops::ControlFlow::Break(Some(unique)))
+        })();
+        HostNavigationCalculation {
+            output,
+            stage,
+            detail,
+        }
     }
 }
 

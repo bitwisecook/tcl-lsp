@@ -160,12 +160,41 @@ fn renamed_slot(
     })
 }
 
+// WORK-only bounded diagnostic state, consumed synchronously by the server.
+thread_local! {
+    static MISSING_RENAME_WORLD: std::cell::RefCell<Option<String>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+/// Consume the last reached missing-world producer diagnostic, without querying it.
+#[must_use]
+pub fn take_missing_rename_world_trace() -> Option<String> {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        MISSING_RENAME_WORLD.with(|trace| trace.borrow_mut().take())
+    } else {
+        None
+    }
+}
+
 // WORK-only identity observer: the original producer getter above runs once.
 fn trace_missing_rename_world(
     document: &OriginalDeclarationDocument<'_>,
     ordinal: usize,
     count: usize,
 ) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        let detail = format!(
+            "rename.missing-world ordinal={ordinal} count={count} uri={} analysis_owner={:p} source_bytes={} resolved_input={} unavailable={} body_config={:?}",
+            document.uri,
+            document.analysis,
+            document.source.len(),
+            document.analysis.resolved_input.is_some(),
+            document.analysis.analysis_context_unavailable.is_some(),
+            document.analysis.body_lexer_config,
+        );
+        MISSING_RENAME_WORLD.with(|trace| *trace.borrow_mut() = Some(detail));
+    }
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     if *ENABLED.get_or_init(|| std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")) {
         eprintln!(
@@ -788,7 +817,7 @@ fn validate_rename_document_owners<'a>(
     documents: &[OriginalDeclarationDocument<'a>],
     uris: &mut HashSet<&'a str>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
-    for document in documents {
+    for (ordinal, document) in documents.iter().enumerate() {
         if !uris.insert(document.uri) {
             return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
         }
@@ -806,7 +835,10 @@ fn validate_rename_document_owners<'a>(
         let world = document
             .analysis
             .original_completed_command_world()
-            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
+            .ok_or_else(|| {
+                trace_missing_rename_world(document, ordinal, documents.len());
+                OriginalCommandRenameRefusal::UnknownWorld
+            })?;
         if world.source_image() != &image || world.lexer_config() != config {
             return Err(OriginalCommandRenameRefusal::StaleSource);
         }

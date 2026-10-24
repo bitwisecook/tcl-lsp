@@ -18,7 +18,7 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 COMMAND_SECONDS = 3600
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "d3df0ee4be48f84f71f753884c8baf3e916c00c6020736556531dd5c1d731496"
+ROSTER_SHA = "bd885b03fe2f1c5e5ddc0f6a0f7c531fa47ed309034a9706efcd69199141f95c"
 BASE = Path(__file__).resolve().parent
 COMMANDS = {
     "browser": ["make", "lsp-server-wasm-test"],
@@ -204,6 +204,8 @@ try:
         not any(k.startswith("TCL_LSP_TRACE_") and v for k, v in environment.items()),
         "original host commands require no diagnostic trace overrides",
     )
+    # WORK-only compile-time observer; no host deadline, assertion or command changes.
+    environment["TCL_LSP_TRACE_COARSE_SOURCE"] = "1"
     require(
         not any(
             k.startswith("CARGO_PROFILE_RELEASE_") and k != "CARGO_PROFILE_RELEASE_LTO"
@@ -275,6 +277,7 @@ try:
                     "CARGO_INCREMENTAL",
                     "CARGO_PROFILE_DEV_DEBUG",
                     "CARGO_PROFILE_RELEASE_LTO",
+                    "TCL_LSP_TRACE_COARSE_SOURCE",
                     "PATH",
                 ]
             },
@@ -379,7 +382,7 @@ finally:
             "host_outputs_after_only": outputs,
             "finished_utc": datetime.datetime.now(datetime.UTC).isoformat(),
             "limits": [
-                "Exact original make command/CI tool versions and unmodified harnesses only. No CLEAN required-CI, native, shipping or performance admission.",
+                "Exact original make command/CI tool versions, assertions and deadlines, with compile-time-gated WORK diagnostic logging only. No CLEAN required-CI, native, shipping or performance admission.",
                 "Cold product target enforced; original make builds bootstrap/download dependencies as CI normally does. Full pre-build consumed-provider/dependency sealing is NOT established by this runner.",
                 "Selected module hashes are after-command outputs; module payload is not retained or independently hashed at runtime. Process owner artifact is make, not the wasm module.",
                 "Failed original make may stop before host assertions; read raw logs before attributing any product cause.",

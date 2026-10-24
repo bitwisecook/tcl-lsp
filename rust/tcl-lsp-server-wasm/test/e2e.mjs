@@ -215,6 +215,9 @@ class Session {
             });
         } else if (message.method === "window/logMessage") {
             this.logs.push(message.params.message);
+            if (message.params.message.startsWith("HOST_NAV_STAGE ")) {
+                console.log(message.params.message);
+            }
         }
         if (message.id === undefined) return;
         // A server-initiated request. Answering promptly matters: the server
