@@ -2,11 +2,19 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-24T14:21:11.406155+00:00 (ACTIVE; exact46da Spec/Heavy authenticated, concrete callback classification and physical generic-loop candidates under review/preparation)
+Last updated: 2026-10-24T14:49:52.374347+00:00 (ACTIVE; SpecV5 native-card callback peer, physical each-loop integrated/currentHeavyb2b active, fp3 source dispatch drafts; actualC trace counterexample held for coverage)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+**14:49:52 UTC active handoff.** Heavyb2b40103610962/job120900630727 exactb2b287e39f480ae9d6dd925b289dae0294121efd is ACTIVE in build/original diagnostics, providers/setupPASS/noartifact at genuine14:49:02 clock. Includes independently clear physical generic-loop a360/a679 +inputcd87/a280 now rootintegrated. No new loop/Heavy outcome yet; old46da bootstrapFAIL/CLI2PASS preserved.
+
+Spec callback V4 independently HELD: canonical original body iterator primary branch only checks ID, so mutated canonical bodies could borrow coverage. V5 narrows to ONLY genuine original_native_declaration_body_units issuedID/body_lowering/card.matches_procedure FULL Script equality, no canonical published/Logical/Authored/hosted/installed fallback. New same-span node replacement/card-removal negatives authoredUNRUN; proof70b71767/controls b8126acd, product6640a856/55449bd6, conditionalSpec2pins6940cd75. Existing spec_callback_peer completes full independent review; fullactualcorrection unproved. ActualN17G3 proves lowering OriginalDeclaration body with original/current analysis correspondence, but no explicit Native card variant count was logged; positive eligibility is source-inferred, not falsely labelled observed.
+
+Root explicitly authorized tiny existing pinned C Tcl oracle execution (not builds). Actual C8.6.18+C9.0.4 eight deterministic runs captured under `ccg-native-fold-trace-counterexample-v1/receipt.json` SHA2caa2b40: plain original/manual puts2+puts1 candidate bothoutput2,1; preinstalled expr execution trace observes1 original vs0candidate. All wrapper/ELF/archive/lib/init/script/input before/after identities stable,10sperprocess andtinyownedlogs. This is HELD arbitrary-existing-world counterexample, not fresh-scope contradiction or source grant. Existing for_supplied_source contract explicitly says default Native document startsfresh; priorhistory mustsetunknown_entry. No original test/None/native result guard or coveragepolicy altered.
+
+fp3 exact46da owner flags prove first2Native retained declaration body_units are never diagnostic-dispatched; original Named procedure loop, methods/lambda pass omit them. Bounded draft `ccg-native-declaration-diagnostics-v1` adds exact current card/fullScript+FunctionUnit pointer/bodyID/metadata/preparedCFG diagnostic-only correspondence and standard guarded emission; controls/peer pending, not eligible. ThirdLogicalNamed alreadyemits but report ownership excludes existing DeclaredProcedure frame variant; existing matches_original_procedure_source is planned narrow owner reuse, no Native entry/frame/CFG/store grant. Excludes Compiler5 activeSSA/source files; all original3assertions untouched.
 
 **14:21:11 UTC exact46da actuals and productive successors.** Spec40099489339/job120888512317/API12562955529 fullauth0156e645: original11=9PASS2FAIL, separateNative1first42FAIL; all19groups/3freshstrict0W targets/endpointseals stable. Immutable exact firstgate7f55fe43 binds Git/sealed supplied169/173 and raw adjacent canonicalproc→schema-entered→print171→ANY173. Prior mapping173 to selected/resolver failure was WRONG and preserved as corrected hypothesis; actual selected-values None is164. Actual missing deferred_namespace(value.scope), coreproc has no GlobalFrame scope. No resolver probe or metadata bypass needed.
 

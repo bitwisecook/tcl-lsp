@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T14:18:31.587830+00:00
+Last updated: 2026-10-24T14:52:57.137768+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -21,16 +21,81 @@ preserves original2guards and all real dependency/Namespace/Unknown/Native inval
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
 
-## Fresh 3bb runtime active: all new outcomes pending
+## Latest independent generic-loop physical-source peer COMPLETE
 
-Root integrated paired dictionary4 setup8fa with correctedLFaddendum8ac09 and independent
-Compilerpeer36f69ba29adeb49aa0b62f352b912137dc686c088a87a671d9bad1412fdf0094.
-WORK3bb0a5c815c203304c62b8ced44f3ddffafcbae7 /CLEAN0ad1b3bfe published.
-Fresh run40101312391/job120893861373 authenticated exact3bb. At14:17UTC revision/source/
-C84/TomMath setupPASS; capture active, artifactnone, allnewcaseoutcomes PENDING.
-Evidence directory vm-runtime-actual-40101312391; metadata-only parsers staged, nowinclude
-three dictionary testfileGitjoins andseparate exactfour outcomejoins. No duplicate dispatch.
-DoNOTpromote earlierf51 resultsto3bb or3bb setupSUCCESS tosemanticPASS.
+vm-peer-physical-each-loop-v1/receipt.json
+SHAa679b0bb44868888e6bce33af77e8725540fa44373d984584fe07cfb5339b616
+clears paireda36068f68d0ab40117ae0e9b9a9a9c978b547cb4d834e8565e5fe167e292aefc.
+Sourcecurrentb4e9297d/b883eb7c,6APIowners,wholeold3filesinverse bothlanes,ownF/R/F0/fmt6.
+Onlyactualhost generic-loop recipe andtick physicalList adapter selection; no change to
+sourcegrammar/bodyadmission/Native/TMM/grants/headercopy/getterorder/cursor/leases/cleanup.
+Actual46da firstgenericloopgate7b5d77fc bound; bootstrapstillF/CLI2P historically.
+NewC9+F5emptylooppositive/missingengine+actualC84lmapnegativecontrols remainUNRUN.
+ConditionalHeavycompanioncd87fe05 independentlycleareda2801a34d75da4405df4c745d6febcc75e0f67fa6cd5c15038aa3898d9b38a2f
+samepeer/companion-receipt.json: all36pins current/productafter, wholeoldJSON+driverrawAST
+inverses/F-R-F0; all original3/listings/env/guards/caps/deadlines/floor unchanged. Rootinformed.
+At14:27:33 fresh3bb runtime capturestillactive/artifactnone; no testcaseverdictyet.
+
+## Latest guarded actual 3bb: original3+baseline14 PASS, dictionary3P1F newbarrier
+
+vm-runtime-actual-40101312391/receipt.json
+SHA7fa0878619f56fce4806f268424f72790fd4e3702c87e64ec2dce5021680a91f.
+Source3bb0a5c815c203304c62b8ced44f3ddffafcbae7 run40101312391/job120893861373,
+artifact12563711049 ZIP28994303 SHA0f40160542d6e128ed35049d6208c5a92b82f0d0cc127f51da478f5f569b4d84.
+All443membersCRC+SHA/full126114BEFORE+AFTERmembership/count/checksum/Git+33keyblobs/
+C84sixmaps/owned900bootstrap/TomMathbeforeafter PASS. All131executedclosed.
+Original3ALLPASS (append170.816481245s,all1035/original180; NO causal/perfclaim),
+baseline14ALLPASS/bothoriginalguards; bothapprovedretained-state testsPASS.
+Dictionaryfour: mutationPASS/readframePASS/publicationPASS; pendingreadFAIL nowline88
+actualoriginalDictionaryUpdate/With artifactNone BEFORE callback/setup inthatiteration.
+Other10315P88F;stack1ABORT;oldprune7=6P1F;target3P. CFIunknown/omitted makeswholeprotocol
+INCOMPLETE; no actualstackcause orfullsharedgate admission. RawELFabsent, reported
+24279f9c3441a9640c6d6052e1b3beaa877e59febf51f6e25dd234d0f7ae3dd2.
+comparison-to-f51.json SHAa6a5dcf383566e219b52cb0784b27756b409f7a52d4d2423d1f3c45dd1e82045
+joinsall128group/order/identities: ONLY3F→P, noselectedobservedP→F. Distinctisolatedruns,
+notfullbaseline25kcompleteness orperformancecorpus. OriginalRust812updaterstillUNRUN.
+Dictionary4 integratedWORK3bb/CLEAN0ad1b3bfe afterpaired8fa/Compiler36f69/correctedLF8ac09.
+
+## C85 Error prerequisite source correction eligible; separate With HELD
+
+Root judged Erroroption a narrowC-source fixture prerequisite correction, NOTnewpolicy,
+skip orcoverageboundary. Compilerindependentpeer
+cd55ca79ef9d32ff5421fc2cf1b41b78ce8891a29c0e9e9869669d16ebc08b07 confirmscontext/owner/API.
+Ordinaryintegration packet vm-c85-error-fixture-integration-v1 same40f65patch;
+WORKcurrentb2b287e3 man72e223a37f5b404a0542e1fd242d5b22f7a1af3722894350b5d5ee264b73857e;
+CLEANeda26726 man1cde226994b9dd05543abd88f94758b9bcfe759f05fa3d745b296143a8a41b8d;
+master206252fbe5aab89f58b560822e6ddc7cbcbaaae407e6299eb2b84d35e41f6650.
+All8WORKAPI current hashesexactpriorpeered. F/R/F0 repeated; no sourcebytechangefrompeer.
+Bothmanifests citeC85NULL/C86compilehook andexactrootGenericowner, integration-notes.md
+e93a0d80 off-tree/WORK only, no addedCLEANprocesschaff. OriginalHELDpacketremainsimmutable
+historical; thissuccessor carries rooteligibility. New3 outcomes stillUNRUN untilfreshcapture.
+next-capture-four-current-failures.json SHA3419bd040be5e470b55c528578ee5cf05530fa649298e7e619df8f77a8b936ad
+binds exact3bb threeErrorFAIL+oneWithFAIL as subsetunchangedother103, no newroster/dispatch.
+Withcoverage reassignment remainsHELD; no inference fromapprovedError correction.
+
+
+vm-c85-error-fixture-option-v1-held pairedpatch40f65dbcf41b340bfac6930248b740bc35feed448bedb59fa35b9f733d042f4e.
+WORKman994b62c93449790cf167d094e001f0faf686f98b0790f900bb179d5a684b6bcc;
+CLEAN2832f13a4897784809ddf2738381a51ea7df0fd7441b0009a8308ae8b21e1909.
+sourceproofb7f7adcffd33c9c4e1b05ad359a832628013df8840c73241d7d6c1edb8f8b509:
+sameoriginalerrorproc/eval/artifact/frame/reset/alllatersemanticassertions; C85 rootexactly
+oneInvoke+NOError; C86+oldErrorpredicateexact. C85errorcompileProcNULL andactualC85
+ErrorObjCmd→SetReturnOptions sourceboundfourrawLFwindows; Generic suppliesno newauthority,
+originalframe/currency/dictionaryobject/nativeC>=85returnoptionsguards stillindependent.
+RootjudgedC-sourcefixturecorrectioneligible asabove; originaloptionpacketstaysimmutable, newoutcomesUNRUN.
+
+vm-dictionary-with-c85-prerequisite-v1-held/assessment.json
+SHAa68626ce55378aba25c956287ff371fa02bc3957b8544e2289218c555e6da90f.
+Actual3bb newline88 followsoriginalsuccessfulproc/p evaluation. C85DictWithCmd existsbut
+compilehookNULL; Updatecompilehookexists. Currentregistry correctlyWith>=86/Update>=85.
+FixturecurrentlydemandsScopeforC85With too. No inventedWithopcode/Update-as-With/fallback;
+no sourcepatch. Anygenericnegative/compiledpositivecoverage reassignmentneedsrootreview.
+
+Separateprune7 exactfailure4666 isfinalmoved-current after callback-stylebind(old)+retire,
+notinitialdestinationpublication. Sourceinsert_bound retiresdisplacedsharedtoken; C86
+CreateObjCommand conflictdeletesCommand token andRename hPtrmovesbeforetraces. Potential
+contradictorynewtest andsurvivingdestinationtablecleanup areOPENsourcehypotheses, nofullC5
+proof/guardedit/testcorrection/nativeexecution. Actualstackabort/CFIincomplete unchanged.
 
 ## Latest guarded actual f51: original3 + baseline14 PASS, 91failures remain
 

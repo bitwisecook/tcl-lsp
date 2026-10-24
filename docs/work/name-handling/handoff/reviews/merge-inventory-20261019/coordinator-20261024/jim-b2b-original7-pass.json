@@ -1,0 +1,287 @@
+{
+  "utc": "2026-10-24T14:54:50.205744+00:00",
+  "run": 40103607955,
+  "job": 120900622509,
+  "source": "b2b287e39f480ae9d6dd925b289dae0294121efd",
+  "artifact_id": 12563797167,
+  "api_digest": "be9d6615b387e0f6a5e49890bd38716c2132a8381fb1a4f25845eb29bdb87c2f",
+  "archive_sha256": "be9d6615b387e0f6a5e49890bd38716c2132a8381fb1a4f25845eb29bdb87c2f",
+  "archive_bytes": 10909911,
+  "verification_sha256": "34b5bebc9ece9b3ac673c89fba933caef62884648936fdf4341c93a62ca56622",
+  "ordered_trace_v6_sha256": "e12e688d986e98199f189b48ddf202445c22cf0db198e3eb213ae6061378adc5",
+  "all21_authentication_controls": {
+    "requested_sha": true,
+    "job_run": true,
+    "job_head": true,
+    "work_ref": true,
+    "full_source_identity": true,
+    "full_source_count": true,
+    "original_and_driver_pins": true,
+    "original_roster": true,
+    "byte_seals": true,
+    "final_seals": true,
+    "tool_seal": true,
+    "original_required": true,
+    "original_row_identity": true,
+    "source_parent": true,
+    "required_tcl": true,
+    "jim_version": true,
+    "limits": true,
+    "strict_environment": true,
+    "diagnostic_scope": true,
+    "two_artifacts": true,
+    "build_and_rosters": true
+  },
+  "all7_independent_terminals_and_lifecycle_complete": true,
+  "original7_outcome": "7PASS0FAIL",
+  "outcomes": [
+    {
+      "target": "jim_document",
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {},
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {},
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    }
+  ],
+  "fresh_strict_artifacts": {
+    "jim_document": {
+      "original_full_roster": true,
+      "listed_count": 34,
+      "fresh_strict_artifact": true,
+      "Cargo_0warnings": true,
+      "Cargo_success_terminal": true
+    },
+    "jim_own_surface": {
+      "original_full_roster": true,
+      "listed_count": 11,
+      "fresh_strict_artifact": true,
+      "Cargo_0warnings": true,
+      "Cargo_success_terminal": true
+    }
+  },
+  "productive_source_before_after_and_git_join": {
+    "source-before.json": {
+      "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": "078952c7b8f2f634edc420f3b068f81710563536bdca4f295abdc3f3cdfbc388",
+      "rust/tcl-compiler/src/analyser/scope.rs": "55fc61ca3348060443780d9b6c88d30c41616b7f540c7191f1d5240942af0b28",
+      "rust/tcl-compiler/src/command_binding.rs": "d039f8dda5b219c0d61485ff91e44de046b5e990c78f4ebbd08a09889c7687ef",
+      "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "a765cfac3ed2ad1fc0b93382462cff097bc992a4aab0d8dd47b3851f9ddb3233",
+      "rust/tcl-compiler/src/command_binding/future_bodies.rs": "a4a49a9a66c09f8d95000dea3eac0feed3d9022ed5e0aa6ba52642e3282a284f",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class.rs": "c7399e73fbc095edc211491f8d8d0cbb2fe15889acf4a8301cb7ee6e274e9785",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/entry.rs": "524259e15f007ae6447471514a2a6261ac27ad10f9d8f4262945830c11fed765",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/method.rs": "b158880e42a5ea7eb03c833069bc8bb3ed77f4881a380777aadfa1c32afaaf73",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/reference_prefix.rs": "a677514f0b50196a44fb71786a9f1ae1bceb9b0620f6cfb3036a551f20bba433",
+      "rust/tcl-compiler/src/command_binding/jim_wrapper_body.rs": "de4c896a7d66731c20b26be0ed3d35fe985ac457e4926caf55897afa0d7a9372",
+      "rust/tcl-compiler/src/command_binding/jim_wrapper_body/scope_body.rs": "0adc3690c29ce81af8d5df8f51e216eb4c9e03f2e403ca09dde13f497847dcac",
+      "rust/tcl-registry/src/definer.rs": "35cccb207f6945518f848dc810c80d3cf439d0c3cf17f96b696364704ecc6377",
+      "rust/tcl-registry/src/definer/jim_source_stock.rs": "0a7b2a5579cab66b3b56ab8c4cc59beb8535dda99641486df70fdbbf742c1158",
+      "rust/tcl-syntax/src/naming/jim_enumeration.rs": "f6d91534bfc36beb83e29727b110f1bdc7a9699a3519f4ff863108951b5d474d"
+    },
+    "source-after.json": {
+      "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs": "078952c7b8f2f634edc420f3b068f81710563536bdca4f295abdc3f3cdfbc388",
+      "rust/tcl-compiler/src/analyser/scope.rs": "55fc61ca3348060443780d9b6c88d30c41616b7f540c7191f1d5240942af0b28",
+      "rust/tcl-compiler/src/command_binding.rs": "d039f8dda5b219c0d61485ff91e44de046b5e990c78f4ebbd08a09889c7687ef",
+      "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "a765cfac3ed2ad1fc0b93382462cff097bc992a4aab0d8dd47b3851f9ddb3233",
+      "rust/tcl-compiler/src/command_binding/future_bodies.rs": "a4a49a9a66c09f8d95000dea3eac0feed3d9022ed5e0aa6ba52642e3282a284f",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class.rs": "c7399e73fbc095edc211491f8d8d0cbb2fe15889acf4a8301cb7ee6e274e9785",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/entry.rs": "524259e15f007ae6447471514a2a6261ac27ad10f9d8f4262945830c11fed765",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/method.rs": "b158880e42a5ea7eb03c833069bc8bb3ed77f4881a380777aadfa1c32afaaf73",
+      "rust/tcl-compiler/src/command_binding/jim_stock_class/reference_prefix.rs": "a677514f0b50196a44fb71786a9f1ae1bceb9b0620f6cfb3036a551f20bba433",
+      "rust/tcl-compiler/src/command_binding/jim_wrapper_body.rs": "de4c896a7d66731c20b26be0ed3d35fe985ac457e4926caf55897afa0d7a9372",
+      "rust/tcl-compiler/src/command_binding/jim_wrapper_body/scope_body.rs": "0adc3690c29ce81af8d5df8f51e216eb4c9e03f2e403ca09dde13f497847dcac",
+      "rust/tcl-registry/src/definer.rs": "35cccb207f6945518f848dc810c80d3cf439d0c3cf17f96b696364704ecc6377",
+      "rust/tcl-registry/src/definer/jim_source_stock.rs": "0a7b2a5579cab66b3b56ab8c4cc59beb8535dda99641486df70fdbbf742c1158",
+      "rust/tcl-syntax/src/naming/jim_enumeration.rs": "f6d91534bfc36beb83e29727b110f1bdc7a9699a3519f4ff863108951b5d474d"
+    }
+  },
+  "original_jim_document_entire_file_unchanged_from_prior6P1F": true,
+  "method_322_original_assertion_completion": {
+    "state": "PASS",
+    "exit_code": 0,
+    "stdout_sha256": "3ae9bc2501b7fae4f08d6dd9cf5b54cebc9eddc83f36c49a6b7740ba10023ffd",
+    "stderr_sha256": "273e066f712defdd73c83874ff7891c0bcc56a483b97d23dbead7efc290179bd",
+    "original_function_unchanged": true,
+    "both_per_item_iterations_and_following_assertions_reached": "Original test has no early return and loops [false,true], each asserts W123/bodywalk plus norm/who method inventory and x/self/inherited-x variables. Named libtest PASS therefore completes both original tiers/all following assertions.",
+    "source_first_entry_trace_rows": [
+      {
+        "line": 422,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=19 branch=actual presence=Present"
+      },
+      {
+        "line": 433,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=41 branch=actual presence=Present"
+      },
+      {
+        "line": 446,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=66 branch=actual presence=Present"
+      },
+      {
+        "line": 459,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=89 branch=future presence=Unknown"
+      },
+      {
+        "line": 460,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=89 branch=combined presence=Unknown"
+      },
+      {
+        "line": 468,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=97 branch=future presence=Unknown"
+      },
+      {
+        "line": 469,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=97 branch=combined presence=Unknown"
+      },
+      {
+        "line": 482,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=125 branch=actual presence=Present"
+      },
+      {
+        "line": 1456,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=19 branch=actual presence=Present"
+      },
+      {
+        "line": 1467,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=41 branch=actual presence=Present"
+      },
+      {
+        "line": 1480,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=66 branch=actual presence=Present"
+      },
+      {
+        "line": 1493,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=89 branch=future presence=Unknown"
+      },
+      {
+        "line": 1494,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=89 branch=combined presence=Unknown"
+      },
+      {
+        "line": 1502,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=97 branch=future presence=Unknown"
+      },
+      {
+        "line": 1503,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=97 branch=combined presence=Unknown"
+      },
+      {
+        "line": 1516,
+        "stage": "jim.diagnostic.presence_return",
+        "raw": "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset=125 branch=actual presence=Present"
+      }
+    ]
+  },
+  "delta_from_last_semantic_actual": "1794 original7=6P1F method322 missingW123; b2b with current selected first-entry producer and actual namespace path correction is 7P0F. Intermediate3bb all7UNRUN E0433 is not a semantic regression/outcome.",
+  "limits": [
+    "This exact diagnostic original7 scope passed; no full original26/34 Jim suite, new compiler-lib negative/first-entry unit controls, full shared-process suite, browser/WASI/native purposes or shipping performance acceptance.",
+    "Separate compiler67 b2b cfg(test) artifact fails unused scope_body test import before tests; pending minimum import deletion does not negate these two fresh integration-target passes but requires its own build/test rerun.",
+    "No generic/manual future closure or Native/frame/Normal authority was granted; original opacity/debts/purpose/Eq retained."
+  ]
+}
