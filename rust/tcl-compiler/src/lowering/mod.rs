@@ -1126,6 +1126,7 @@ pub struct Lowerer<'r> {
     unknown_entry: bool,
     /// An explicit entry contract replaces the default authoring assumption.
     source_entry_origin: SourceEntryOrigin,
+    supplied_source: Option<crate::command_binding::SuppliedSourceAnalysisIssuance>,
     /// Availability phase supplied by the source entry owner.
     invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Invocation policy snapshot supplied by the driver.
@@ -1424,6 +1425,7 @@ impl<'r> Lowerer<'r> {
             trusted_source_modules: Vec::new(),
             unknown_entry: false,
             source_entry_origin: SourceEntryOrigin::Authoring,
+            supplied_source: None,
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
                 registry, None, config,
@@ -1627,20 +1629,28 @@ impl<'r> Lowerer<'r> {
 
     fn retain_resolved_analysis_input(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
         self.dialect = self.dialect.or(Some(input.unit_profile()));
-        let source_entry = (self.source_entry_origin == SourceEntryOrigin::Authoring).then(|| {
-            crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-                self.registry,
-                &input,
-                self.config,
-                self.dialect,
-            )
-        });
+        let fresh = self.source_entry_origin == SourceEntryOrigin::Authoring;
         self.dialect_context = Some(input.context_registry());
-        self.metadata_input = Some(input);
+        self.metadata_input = Some(input.clone());
         self.metadata_origin = LoweringMetadataOrigin::Supplied;
-        if let Some(entry) = source_entry {
-            self.set_source_analysis_options(entry.options());
+        if fresh {
+            self.set_supplied_source_analysis_input(&input);
         }
+    }
+
+    /// Choose the fresh supplied-document factory, independently of effective naming policy.
+    pub(crate) fn set_supplied_source_analysis_input(
+        &mut self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let (entry, issued) = crate::command_binding::SuppliedSourceAnalysisIssuance::issue(
+            self.registry,
+            input,
+            self.config,
+            self.dialect,
+        );
+        self.set_source_analysis_options(entry.options());
+        self.supplied_source = Some(issued);
     }
 
     /// Install a memoised per-procedure body-lowering callback (see
@@ -1784,6 +1794,7 @@ impl<'r> Lowerer<'r> {
                     bindings,
                     &self.module,
                     self.registry,
+                    self.supplied_source.as_ref(),
                 )
             });
     }
@@ -2313,6 +2324,8 @@ impl<'r> Lowerer<'r> {
     /// interpreter must pass `unknown_entry`; package advertisements alone do
     /// not establish loader implementation identity.
     pub fn set_source_analysis_options(&mut self, options: SourceAnalysisOptions<'_>) {
+        // Explicit replacement withdraws factory intent, even for equal options.
+        self.supplied_source = None;
         let options = if options.source_point_entry.is_some_and(|point| {
             point
                 .child_state(
@@ -7790,7 +7803,10 @@ impl Lowerer<'_> {
         module.retained_source_bindings =
             self.module_source_bindings.as_deref().and_then(|bindings| {
                 crate::command_binding::RetainedSourceModuleBindings::retain(
-                    bindings, &module, registry,
+                    bindings,
+                    &module,
+                    registry,
+                    self.supplied_source.as_ref(),
                 )
             });
         populate_trace_facts(&mut module, registry, standalone_metadata);
@@ -9383,6 +9399,48 @@ mod tests {
 
     // A proc body homes nested definitions to the proc's *defining*
     // namespace, not the lexical namespace of the `proc` call.
+
+    #[test]
+    fn explicit_equal_options_revoke_supplied_source_issuance() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                context.with_command_store(std::sync::Arc::clone(context.commands())),
+            ),
+            config,
+        );
+        let mut lowerer = Lowerer::with_config(registry, config)
+            .with_dialect(Some(profile))
+            .with_resolved_analysis_input(input);
+        let source = "set value VALUE";
+        let original = lowerer.lower(source);
+        assert!(
+            original
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .fresh_native_source_analysis(original, registry)
+                .is_some()
+        );
+        let entry = original.source_entry.clone();
+        lowerer.set_source_analysis_options(entry.options());
+        assert!(lowerer.supplied_source.is_none());
+        let explicit = lowerer.lower(source);
+        assert_eq!(explicit.source_entry, entry);
+        assert!(
+            explicit
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .fresh_native_source_analysis(explicit, registry)
+                .is_none()
+        );
+    }
 
     #[test]
     fn configured_source_ingress_retains_one_input_for_entry_and_module() {

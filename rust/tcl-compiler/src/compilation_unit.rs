@@ -2871,20 +2871,10 @@ fn lower_and_build_cfg_with_original_caches(
     } else if let Some(context) = context {
         lowerer = lowerer.with_context_registry(context);
     }
-    let supplied_entry = (source_entry.is_none() && standalone.is_none())
-        .then(|| {
-            input.map(|input| {
-                crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-                    registry,
-                    input,
-                    options.config,
-                    options.dialect,
-                )
-            })
-        })
-        .flatten();
-    if let Some(entry) = source_entry.or(supplied_entry.as_ref()) {
+    if let Some(entry) = source_entry {
         lowerer.set_source_analysis_options(entry.options());
+    } else if let Some(input) = input.filter(|_| standalone.is_none()) {
+        lowerer.set_supplied_source_analysis_input(input);
     }
     lowerer = lowerer.with_original_optimiser_lowering(caches.original, caches.integrity);
     if let Some(cache) = caches.source {

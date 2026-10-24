@@ -101,14 +101,16 @@ impl<'a> NativeSummaryContext<'a> {
             Some(OriginalInvocationSourcePurpose::Execution) => {
                 NativeTransferPurpose::ExecutionEntry
             }
-            None => NativeTransferPurpose::FreshSource(n17_native_option(
-                "factory.fresh-projection",
-                n17_native_option(
-                    "factory.fresh-retained",
-                    module.retained_source_bindings.as_ref(),
-                )?
-                .fresh_native_source_analysis(module, registry),
-            )?),
+            None | Some(OriginalInvocationSourcePurpose::AuthoredSimulation) => {
+                NativeTransferPurpose::FreshSource(n17_native_option(
+                    "factory.fresh-projection",
+                    n17_native_option(
+                        "factory.fresh-retained",
+                        module.retained_source_bindings.as_ref(),
+                    )?
+                    .fresh_native_source_analysis(module, registry),
+                )?)
+            }
             _ => return n17_native_option("factory.other-purpose", None),
         };
         n17_native_trace!(
@@ -563,13 +565,12 @@ mod tests {
         let source =
             NativeSummaryContext::for_module(module, registry, module.lexer_config).unwrap();
         assert!(module.source_entry.native_entry.is_none());
-        assert!(
-            module
-                .original_invocation_source_purpose(
-                    registry,
-                    InvocationMetadataContext::for_module(registry, module).unwrap()
-                )
-                .is_none()
+        assert_eq!(
+            module.original_invocation_source_purpose(
+                registry,
+                InvocationMetadataContext::for_module(registry, module).unwrap()
+            ),
+            Some(OriginalInvocationSourcePurpose::AuthoredSimulation)
         );
         assert!(matches!(
             source.purpose,
@@ -606,6 +607,41 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .fresh_native_source_analysis(&logical.ir_module, context.commands())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn equal_explicit_entry_and_standalone_do_not_acquire_fresh_issuance() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let text = "proc p {} {set known [string length abcde]}";
+        let fresh = CompilationUnit::build_for_dialect(text, registry, false, "tcl8.6");
+        let module = &fresh.ir_module;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let options = || crate::compilation_unit::UnitBuildOptions {
+            registry,
+            config: module.lexer_config,
+            dialect: Some(input.unit_profile()),
+            defer_top_level: false,
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let explicit = CompilationUnit::build_with_analysis_input(
+            text,
+            options(),
+            Some(&module.source_entry),
+            input,
+        );
+        assert_eq!(explicit.ir_module.source_entry, module.source_entry);
+        assert!(
+            NativeSummaryContext::for_module(&explicit.ir_module, registry, module.lexer_config,)
+                .is_none()
+        );
+        let standalone =
+            CompilationUnit::build_standalone_with_analysis_input(text, options(), input).unwrap();
+        assert!(
+            NativeSummaryContext::for_module(&standalone.ir_module, registry, module.lexer_config,)
                 .is_none()
         );
     }
