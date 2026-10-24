@@ -390,7 +390,7 @@ fn the_default_config_declares_no_range() {
     let cfg = FormatterConfig::default();
     assert!(cfg.profile.is_fallback());
     assert_eq!(cfg.dialect_query(), None);
-    assert!(cfg.target_range().is_empty());
+    assert_eq!(cfg.target_range(), &[] as &[&str]);
     // No dialect and no range: every declared keyword stays a candidate, the
     // conservative direction. `string c` is ambiguous under that rule (8.6's
     // `cat` is in the table whatever the target), so it is left alone.
@@ -498,7 +498,7 @@ fn a_vendor_dialect_has_no_core_range_and_behaves_as_before() {
     // `f5-irules` names a runtime, not a core release: the forward range is
     // empty, so the handed registry stays the whole story.
     let cfg_range = tcl_registry::version_range::forward_range("f5-irules");
-    assert!(cfg_range.is_empty());
+    assert_eq!(cfg_range, &[] as &[&str]);
     let out = fmt_over_range("string le $s\n", "f5-irules");
     assert!(out.contains("string length $s"), "{out}");
 }

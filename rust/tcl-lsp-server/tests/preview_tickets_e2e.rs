@@ -312,7 +312,7 @@ async fn current_published_codes(
                     if report
                         .get(field)
                         .and_then(serde_json::Value::as_str)
-                        .is_none_or(|value| value.is_empty())
+                        .is_none_or(str::is_empty)
                     {
                         return Err(format!(
                             "current-diagnostics response lacks {field}: {report}"
