@@ -1373,6 +1373,7 @@ impl Interp {
         };
         match bound {
             Ok(prepared) => {
+                self.note_variable_link(local, &link.name);
                 let reached = prepared.finish(
                     target.protocol.alias_publication_order(),
                     || {
