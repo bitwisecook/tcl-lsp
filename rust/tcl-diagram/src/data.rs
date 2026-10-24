@@ -905,7 +905,7 @@ pub fn diagram_data_for_dialect(
     };
     let availability = input.context_registry();
     let mut analyser = Analyser::new().with_resolved_input(input);
-    analyser.set_local_cu_override(std::rc::Rc::new(cu.clone()));
+    analyser.set_owned_cu_override(cu.clone());
     let analysis = analyser.analyse(source, dialect.name);
     diagram_data_for_analysis(source, &analysis, &cu.ir_module, &availability)
 }
@@ -1779,7 +1779,7 @@ mod original_source_tests {
             .expect("actual fixture source input");
         let context = input.context_registry();
         let mut analyser = Analyser::new().with_resolved_input(input);
-        analyser.set_local_cu_override(std::rc::Rc::new(unit.clone()));
+        analyser.set_owned_cu_override(unit.clone());
         let analysis = analyser.analyse(source, dialect);
         (analysis, unit, context)
     }
@@ -2022,7 +2022,7 @@ mod original_source_tests {
                 &input,
             );
             let mut analyser = Analyser::new().with_resolved_input(input);
-            analyser.set_local_cu_override(std::rc::Rc::new(unit.clone()));
+            analyser.set_owned_cu_override(unit.clone());
             let mut analysis = analyser.analyse(source, profile.name);
             let tokens = unit
                 .ir_module
