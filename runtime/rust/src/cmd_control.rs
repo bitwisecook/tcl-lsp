@@ -1036,13 +1036,52 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     arguments.finish(code)
 }
 
+// Owners are ordered as the old reverse local-declaration drop schedule.
+// Copy metadata follows them and has no retirement behavior.
+type EachLoopJimEmpty = Option<(
+    std::rc::Rc<crate::native_source::NativeJimObjectContext>,
+    Option<crate::obj::Owned>,
+)>;
+
+struct EachLoopExecution {
+    collected: Vec<crate::obj::Owned>,
+    cursor: tcl_cmd_core::native_each_loop::EachLoopState,
+    jim_empty: EachLoopJimEmpty,
+    info: Option<crate::interp::OriginalNamespaceInfoEachLoop>,
+    import: Option<crate::interp::OriginalJimImportEachLoop>,
+    groups: Vec<EachLoopGroup>,
+    compiled: bool,
+    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    kind: tcl_runtime_api::native_each_loop::NativeEachLoopKind,
+    padding: Option<*mut TclObj>,
+    policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+}
+
 fn each_loop_with_original(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     collect: bool,
     arguments: &OriginalArguments,
 ) -> Code {
-    use tcl_cmd_core::native_each_loop::{BodyDecision, EachLoopAction};
+    let mut prepared = match prepare_each_loop_execution(interp, argv, collect, arguments) {
+        Ok(prepared) => prepared,
+        Err(code) => return code,
+    };
+    let code = execute_each_loop(interp, argv, collect, arguments, prepared.as_mut());
+    drop(prepared);
+    code
+}
+
+// This fallible setup frame must unwind before the first nested body callback.
+#[inline(never)]
+fn prepare_each_loop_execution(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    collect: bool,
+    arguments: &OriginalArguments,
+) -> Result<Box<EachLoopExecution>, Code> {
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
     use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
     let kind = if collect {
@@ -1052,40 +1091,36 @@ fn each_loop_with_original(
     };
     let compiled = interp.release_compiles_control(argv);
     if argv.len() < 4 || argv.len() % 2 != 0 {
-        return interp.wrong_args(if collect {
+        return Err(interp.wrong_args(if collect {
             b"lmap varList list ?varList list ...? command"
         } else {
             b"foreach varList list ?varList list ...? command"
-        });
+        }));
     }
     let dialect = interp.native_invocation_dialect();
     let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
-        return interp.report_cmd_error(
+        return Err(interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("native generic each-loop")
                 .into(),
-        );
+        ));
     };
     let Some(strings) = dialect.native_string_protocol() else {
-        return interp.report_cmd_error(
+        return Err(interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native each-loop List storage",
             )
             .into(),
-        );
+        ));
     };
     let recipe = protocol.recipe();
-    let (mut groups, lengths) =
-        match prepare_each_loop_groups(interp, argv, protocol, strings, arguments) {
-            Ok(prepared) => prepared,
-            Err(code) => return code,
-        };
+    let (groups, lengths) = prepare_each_loop_groups(interp, argv, protocol, strings, arguments)?;
     let import = match interp.original_import_each_loop(
         argv,
         collect,
         &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
     ) {
         Ok(scope) => scope,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
     };
     let info = match interp.original_namespace_info_each_loop(
         argv,
@@ -1093,22 +1128,9 @@ fn each_loop_with_original(
         &lengths.iter().map(|length| length.0).collect::<Vec<_>>(),
     ) {
         Ok(scope) => scope,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return Err(interp.report_cmd_error(error.into())),
     };
-    let jim_empty = if recipe.live_iterators() {
-        match interp.native_jim_object_context() {
-            Ok(context) => {
-                // Jim retains resultObj, which is emptyObj only for foreach.
-                // lmap borrows emptyObj for padding and owns a separate List.
-                let result_owner =
-                    (!collect).then(|| crate::obj::Owned::retain(context.empty_object().as_ptr()));
-                Some((context, result_owner))
-            }
-            Err(error) => return interp.report_cmd_error(error.into()),
-        }
-    } else {
-        None
-    };
+    let jim_empty = prepare_each_loop_jim_empty(interp, collect, recipe)?;
     let padding = jim_empty
         .as_ref()
         .map(|(context, _)| context.empty_object().as_ptr());
@@ -1118,11 +1140,69 @@ fn each_loop_with_original(
         ControlOptionPolicy::FRESH_SETTLED
     };
     if let Err(first) = interp.begin_control_options_checked(policy) {
-        return interp.refuse_native_execution(first);
+        return Err(interp.refuse_native_execution(first));
     }
-    let mut cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
-    let mut collected = Vec::<crate::obj::Owned>::new();
+    let cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
+    let collected = Vec::<crate::obj::Owned>::new();
+    Ok(Box::new(EachLoopExecution {
+        collected,
+        cursor,
+        jim_empty,
+        info,
+        import,
+        groups,
+        compiled,
+        protocol,
+        recipe,
+        strings,
+        kind,
+        padding,
+        policy,
+    }))
+}
+
+fn prepare_each_loop_jim_empty(
+    interp: &mut Interp,
+    collect: bool,
+    recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
+) -> Result<EachLoopJimEmpty, Code> {
+    Ok(if recipe.live_iterators() {
+        match interp.native_jim_object_context() {
+            Ok(context) => {
+                // Jim retains resultObj, which is emptyObj only for foreach.
+                // lmap borrows emptyObj for padding and owns a separate List.
+                let result_owner =
+                    (!collect).then(|| crate::obj::Owned::retain(context.empty_object().as_ptr()));
+                Some((context, result_owner))
+            }
+            Err(error) => return Err(interp.report_cmd_error(error.into())),
+        }
+    } else {
+        None
+    })
+}
+
+#[inline(never)]
+fn execute_each_loop(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    collect: bool,
+    arguments: &OriginalArguments,
+    prepared: &mut EachLoopExecution,
+) -> Code {
+    use tcl_cmd_core::native_each_loop::EachLoopAction;
+    let protocol = prepared.protocol;
+    let recipe = prepared.recipe;
+    let strings = prepared.strings;
+    let padding = prepared.padding;
     loop {
+        let EachLoopExecution {
+            cursor,
+            import,
+            info,
+            groups,
+            ..
+        } = prepared;
         if let Err(error) = arguments.check_for(interp) {
             return interp.report_cmd_error(error);
         }
@@ -1130,8 +1210,8 @@ fn each_loop_with_original(
             action @ (EachLoopAction::Check(_) | EachLoopAction::Refresh(_)) => {
                 if let Err(code) = refresh_each_loop_group(
                     interp,
-                    &mut groups,
-                    &mut cursor,
+                    groups,
+                    cursor,
                     action,
                     recipe,
                     strings,
@@ -1163,86 +1243,120 @@ fn each_loop_with_original(
                 }
             }
             EachLoopAction::Body => {
-                if let Err(first) = interp.begin_control_options_checked(policy) {
-                    return interp.refuse_native_execution(first);
-                }
-                // A loop the release compiles runs its body as code of the
-                // script holding it (upstream `eval_compiled_control_body`);
-                // one it runs keeps the original-object body protocol.
-                let code = if compiled {
-                    interp.eval_compiled_control_body(argv[argv.len() - 1], true)
-                } else {
-                    interp.eval_generic_control_body(argv[argv.len() - 1])
-                };
-                if let Err(error) = arguments.check_for(interp) {
-                    return interp.report_cmd_error(error);
-                }
-                if let Some(import) = &import {
-                    if let Err(error) = import.body_completed(interp, code) {
-                        return interp.report_cmd_error(error.into());
-                    }
-                }
-                if let Some(info) = &info {
-                    if let Err(error) = info.body_completed(interp, code) {
-                        return interp.report_cmd_error(error.into());
-                    }
-                }
-                match cursor.body_completion(tcl_core_types::Code::from_int(
-                    i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
-                )) {
-                    BodyDecision::Collect => {
-                        collected.push(crate::obj::Owned::retain(interp.get_obj_result()))
-                    }
-                    BodyDecision::Continue | BodyDecision::Finish => {}
-                    BodyDecision::Propagate => {
-                        // `("<cmd>" body line N)`, the frame of the loop the
-                        // release runs rather than compiles.
-                        if code == Code::Error && !compiled {
-                            interp.append_body_frame(kind.name().as_bytes());
-                        }
-                        return code;
-                    }
+                if let Some(code) = execute_each_loop_body(interp, argv, arguments, prepared) {
+                    return code;
                 }
             }
-            EachLoopAction::Finish => {
-                if let Some(import) = &import {
-                    if let Err(error) = import.finish(interp) {
-                        return interp.report_cmd_error(error.into());
-                    }
-                }
-                if !collect {
-                    if let Some(info) = &info {
-                        if let Err(error) = info.finish_without_result(interp) {
-                            return interp.report_cmd_error(error.into());
-                        }
-                    }
-                }
-                if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
-                    let values = collected
-                        .iter()
-                        .map(crate::obj::Owned::as_ptr)
-                        .collect::<Vec<_>>();
-                    let list = interp.new_list_object(&values);
-                    if let Some(info) = &info {
-                        if let Err(error) = info.finish(interp, list) {
-                            drop_fresh(list);
-                            return interp.report_cmd_error(error.into());
-                        }
-                    }
-                    drop(collected);
-                    interp.set_result(list);
-                } else if let Some((context, _result_owner)) = jim_empty {
-                    interp.set_result(context.empty_object().as_ptr());
-                } else {
-                    interp.set_result_bytes(b"");
-                }
-                if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
-                    return interp.refuse_native_execution(first);
-                }
-                return Code::Ok;
+            EachLoopAction::Finish => return finish_each_loop(interp, collect, prepared),
+        }
+    }
+}
+
+#[inline(never)]
+fn execute_each_loop_body(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+    prepared: &mut EachLoopExecution,
+) -> Option<Code> {
+    use tcl_cmd_core::native_each_loop::BodyDecision;
+    let compiled = prepared.compiled;
+    let kind = prepared.kind;
+    let policy = prepared.policy;
+    let EachLoopExecution {
+        collected,
+        cursor,
+        import,
+        info,
+        ..
+    } = prepared;
+    if let Err(first) = interp.begin_control_options_checked(policy) {
+        return Some(interp.refuse_native_execution(first));
+    }
+    // A loop the release compiles runs its body as code of the
+    // script holding it (upstream `eval_compiled_control_body`);
+    // one it runs keeps the original-object body protocol.
+    let code = if compiled {
+        interp.eval_compiled_control_body(argv[argv.len() - 1], true)
+    } else {
+        interp.eval_generic_control_body(argv[argv.len() - 1])
+    };
+    if let Err(error) = arguments.check_for(interp) {
+        return Some(interp.report_cmd_error(error));
+    }
+    if let Some(import) = &import {
+        if let Err(error) = import.body_completed(interp, code) {
+            return Some(interp.report_cmd_error(error.into()));
+        }
+    }
+    if let Some(info) = &info {
+        if let Err(error) = info.body_completed(interp, code) {
+            return Some(interp.report_cmd_error(error.into()));
+        }
+    }
+    match cursor.body_completion(tcl_core_types::Code::from_int(
+        i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
+    )) {
+        BodyDecision::Collect => collected.push(crate::obj::Owned::retain(interp.get_obj_result())),
+        BodyDecision::Continue | BodyDecision::Finish => {}
+        BodyDecision::Propagate => {
+            // `("<cmd>" body line N)`, the frame of the loop the
+            // release runs rather than compiles.
+            if code == Code::Error && !compiled {
+                interp.append_body_frame(kind.name().as_bytes());
+            }
+            return Some(code);
+        }
+    }
+    None
+}
+
+fn finish_each_loop(interp: &mut Interp, collect: bool, prepared: &mut EachLoopExecution) -> Code {
+    let recipe = prepared.recipe;
+    let policy = prepared.policy;
+    let EachLoopExecution {
+        collected,
+        cursor,
+        jim_empty,
+        info,
+        import,
+        ..
+    } = prepared;
+    if let Some(import) = &import {
+        if let Err(error) = import.finish(interp) {
+            return interp.report_cmd_error(error.into());
+        }
+    }
+    if !collect {
+        if let Some(info) = &info {
+            if let Err(error) = info.finish_without_result(interp) {
+                return interp.report_cmd_error(error.into());
             }
         }
     }
+    if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
+        let values = collected
+            .iter()
+            .map(crate::obj::Owned::as_ptr)
+            .collect::<Vec<_>>();
+        let list = interp.new_list_object(&values);
+        if let Some(info) = &info {
+            if let Err(error) = info.finish(interp, list) {
+                drop_fresh(list);
+                return interp.report_cmd_error(error.into());
+            }
+        }
+        drop(std::mem::take(collected));
+        interp.set_result(list);
+    } else if let Some((context, _result_owner)) = jim_empty.take() {
+        interp.set_result(context.empty_object().as_ptr());
+    } else {
+        interp.set_result_bytes(b"");
+    }
+    if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+        return interp.refuse_native_execution(first);
+    }
+    Code::Ok
 }
 
 #[cfg(test)]
