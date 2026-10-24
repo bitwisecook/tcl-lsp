@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T15:55:37.197295+00:00",
+  "scheduled_report_utc": "2026-10-24T15:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T16:25:37+00:00",
+  "change_since_previous_report": [
+    "15:55 snapshot publishes reviewed WORK source and paired release cleanup without WORK-only evidence. No PR/merge/tag/release; six-hour deadline missed. SectionF, complete zero baseline pass-to-fail, allgreen, final docs/comments/generated/format/chaff and accepted final Tclcorpus performance remain mandatory.",
+    "Actual66ef Compiler67: original58 53PASS5FAIL unchanged, Native3/SH2/ReadFlow6/catch PASS; ownershippositivecontrol PASS/originaltaint FAIL. All145 owned groups closed. Exact scope/geometry/structure evidence narrows first refusal; no root fallback/Native grant. Logical source-occurrenceV3 nowintegrated7c7/c36 with independentc0f468, only conditionalW210 source advice, genericflow/suppression/W220 unchanged.",
+    "Actual66ef Spec11 now10PASS1FAIL: original reference42 FtoP from callbackV5; strictC84expectedNone stillfailsSome(xy), laterdialects unreached. NativeC86first42 stillrefuses. Independent35f0 proves actualC9 versus selectedC86 expressionpolicy mismatch; same22-byte foldwrapper/catalogueUnknown succeedsC9, so foldregistration is not lost. Runtime prepares fresh supported actual-core construction; refusal gates preserved.",
+    "Actual66ef runtime original3/baseline14/retainedstate2/C85Error3 allPASS, other10318PASS85FAIL. StackABORT, prune6PASS1FAIL, CFI absent => fullprotocol incomplete. Narrow C85Error fixture correction preserved all old runtime/return-option assertions. Dictionary3PASS/WithstillFAIL and held pending genuine compiledscope authority, no skip.",
+    "Actual66ef startup/Core2/hosts/unit fullycaptured: cold105.206msPASS and Core2bothPASS; originalscan30FAIL. FiveTk steadyrows4172\u20134281ms, no samehost ratio. New controlled pending-index unitPASS, but realbrowser rename unknown-completed-command-world and WASI definition[] remainfailures. Allgroups closed; host bootstrap/moduleafter-only limits explicit, no shipping/performance admission.",
+    "OriginalJim7 remains7PASS0FAIL atb2b, all21controls/bothmethod322tiers authenticated. Runtime guards and retained-state originaltests PASS. These bounded results do not close fullJim26/34, C1\u20132, wholebaseline or sectionF.",
+    "Reviewed native result recovery lint simplification651c integratedWORK26d6/CLEAN981d after independentda2e fullfile inverse/source/drop-order/API peer. Three NEWmissing-engine fixture constructors d0ef/06ae now use genuine existing engine-less constructor after independente43c; all old/new assertions and production unchanged. Heavycompanion a38c updates exactpins only.",
+    "Latestglobal66ef40105989803 independentlyauthenticated47532c95: actual3primaryClippy at deferred_writes/supplied.rs95/429/514, 131.58s naturalexit2/all126125filessealed; downstreamBPF/engineunreached. Codegenownsbounded3fix/Rangepeer. Earlier4 measured b2b strictsites enginebridge2+BPFprivateouterRc nowfixed sourceWORK26d6+d183/CLEAN981d+8705, staticpeer only. Freshstrictd183 launched, no greenclaim.",
+    "Freshchild C9 sharedchannel oracle demonstrates operand representation observable through supplied channel callbacks evenwith no authoredchild setup; no foldassertion/guard weakened. Freshinterp alone is insufficient consumer-erasure certificate. Complexitytest-only option and C85With coverage choice remain held.",
+    "ExternalBIGIP23Oct13:17/perf24Oct03:22 trackers staleover60minutes, usernotified; no takeover. Reviewtriagecomplete. Disk~0.24GiB workspace/tmp0.075GiB, NO localbuild. ZIP-only bounded artifacts/source proofs; targets/executables/evidence preserved. Finalwholefmt needs repeat after latest perfileformatted deltas.",
+    "Reviewedcohort d1834b5c265dea3ad34a885be9be676fb61ec230 pushedWORK; pairedCLEAN8705a81c2c29fb29cf506a120cf0c4384c8aeb3c pushedrelease/lsp-naming. Freshstrict/Compiler67/Heavy diagnosticdispatches sourceexact andpreflightV10 PASS13inputs30runners16guards. No changedbudgets/assertions orwholegateclaim.",
+    "Independent staticreleasecleanup audit exact8705 reports11036trackedpaths/pathlistc854714c: zeroWORK/scratchpad/zz/proofstorage/processartifactpaths or staleworkreferences; latest72changedfiles/designcontracts/comments reviewed, no justifieddeletion. Existingsemanticconformancefixtures retained. Staticonly, finalwholeformat/CI stillrequired."
+  ],
+  "committed": [
+    "c38bb83328804be950136fec6bde0a3f41715ad2"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish15:55snapshot/report/rearm16:25 reminder.",
+    "Review measured3 deferred_writes lint fixes then retry strict; d183strict40108817785/Compiler40108820581/Heavy40108857364 active.",
+    "Fresh actual-core Specfix; compiler taint source-purpose issuer; genuine browser/WASI completedworld producer; originalHeavy retry.",
+    "Complete baseline/sectionF/allgreen/finaldocs-comments-generated-format-chaff/Tclperformance gates before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 234446848,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

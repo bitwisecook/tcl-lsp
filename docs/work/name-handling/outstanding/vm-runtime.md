@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T15:19:10.703317+00:00
+Last updated: 2026-10-24T15:33:50.677479+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -20,6 +20,33 @@ reset/expansion); finer per-command currency094136Z(call41a47ee03fd745b9bf8e6b1f
 preserves original2guards and all real dependency/Namespace/Unknown/Native invalidations;
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
+
+## Latest guarded66ef COMPLETE: threeC85Error semanticgains, remaining85FAIL
+
+vm-runtime-actual-40106002271/receipt.json
+SHA08e7019992e9c0237ca4ff68dc543cb7abdc80debf6f5cf034619169bdcb0d71.
+Source66ef1bc8d3e83bf5dc215283f00ca7fe3ecdee06 run40106002271/job120907707634,
+artifact12564913544 ZIP28991222 SHA37183b73b0ec6e7797fc59b8f4953d93a1f3bc62fd416eee9f7229d8a49ce613.
+All443memberCRC+streamSHA/full126125BEFORE+AFTERcounts/membership/checksums/Git+34keyblobs,
+C84sixmaps/owned900bootstrap/TomMathbeforeafter PASS. All131invocations executedclosed.
+Original3ALLPASS append170.907055404s/1035/180 (no crosshost/source/perfclaim), baseline14
+ALLPASS/bothoriginalguards; approvedretained2PASS; dictionary3PASS/WithsameFAILline88.
+AllTHREEC85ErrororiginaltestsPASS withtheir fulloriginal4release loops andreturn-option
+assertions, notmerelyfixturepredicate. Other10318P85F;stackABORT;oldprune6P1F;target3P.
+CFIunknown/omitted=>WHOLEPROTOCOLINCOMPLETE; nofullsharedgate/stackcause/Tclcorpus admission.
+RawELFabsent; reportedcd7caa811388240ee7d0425c0b4a8db38804e57a19d8ad2fd5660f62e451c772.
+LaterphysicalvariableV2(04c5/4151)outsidecapture; no claimedoutcome. Withcoverageheld.
+Rootnotifiedfull08e7. comparison-to-3bb.json joinsall128identity/order: only3ErrorF→P,
+no selected observedP→F; original3bothP. No oldCI/baseline ledger overwritten.
+
+## New measured enginebridge2 authoring IN PROGRESS
+
+Rootactualglobal40103603460 ZIP root-global-rust-check-40103603460.zip reportstwo
+rust/tcl-engine-tclvm/src/lib.rs errors: let_and_return1043 +recover_original_result_in
+120lines1265. Role owns OFF-TREE paired minimalcorrection, noAPI/guard/Nativeownerchange.
+ActualScalarImport/OriginalObjectResult callback/header/list/dict alias memo/currentness/
+retirement/drop/order remainbinding. No newtests/allow/APIflag/build. Rootpeerrequired.
+Actual66ef artifactinterrupted sourceauthoringbeforeproductfilewrites; authorresumingnow.
 
 ## Latest physical variable declaration V2 peer COMPLETE, actuals UNRUN
 
@@ -56,7 +83,7 @@ samepeer/companion-receipt.json: all36pins current/productafter, wholeoldJSON+dr
 inverses/F-R-F0; all original3/listings/env/guards/caps/deadlines/floor unchanged. Rootinformed.
 At14:27:33 fresh3bb runtime capturestillactive/artifactnone; no testcaseverdictyet.
 
-## Latest guarded actual 3bb: original3+baseline14 PASS, dictionary3P1F newbarrier
+## Prior guarded actual 3bb: original3+baseline14 PASS, dictionary3P1F newbarrier
 
 vm-runtime-actual-40101312391/receipt.json
 SHA7fa0878619f56fce4806f268424f72790fd4e3702c87e64ec2dce5021680a91f.
@@ -117,7 +144,7 @@ CreateObjCommand conflictdeletesCommand token andRename hPtrmovesbeforetraces. P
 contradictorynewtest andsurvivingdestinationtablecleanup areOPENsourcehypotheses, nofullC5
 proof/guardedit/testcorrection/nativeexecution. Actualstackabort/CFIincomplete unchanged.
 
-## Latest guarded actual f51: original3 + baseline14 PASS, 91failures remain
+## Prior guarded actual f51: original3 + baseline14 PASS, 91failures remain
 
 vm-runtime-actual-40098368479/receipt.json
 SHA8cd854235801d02159a598a68e9e6368ba2f4d7e97393437a88b511a2e99c547.
