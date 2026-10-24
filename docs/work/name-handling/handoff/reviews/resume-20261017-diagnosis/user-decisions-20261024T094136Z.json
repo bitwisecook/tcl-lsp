@@ -1,0 +1,29 @@
+{
+  "recorded_utc": "2026-10-24T09:41:36.183287+00:00",
+  "source": "Explicit user replies in this coordinator session; no separate user timestamp was supplied",
+  "decisions": {
+    "shared_command_guard_currency": {
+      "question_item_id": "call_41a47ee03fd745b9bf8e6b1f0234a2de:0",
+      "question": "Two runtime tests require an old command guard to survive namespace creation, while the newer namespace-currency test requires the same guard API to refuse it. Should namespace creation invalidate these shared lookup guards? I recommend keeping conservative invalidation: the prepared test-only patch checks refusal, then obtains a fresh guard so every later binding, shadowing and rebinding assertion remains. The alternative requires finer per-command currency. This is a new contract choice; the patch remains held at /tmp/compiler-proof-runtime-guard-contract-option-v1/work/proposal.patch.",
+      "choice": "Implement finer per-command currency",
+      "implementation_boundary": "Implement actual finer command lookup/binding currency; do not apply the held conservative-invalidation test-only option. Preserve original guard assertions, fail-closed checks for genuinely changed dependencies, and narrowly document any contradictory newer test correction against this recorded decision. No blanket namespace-epoch bypass or spelling-only fallback."
+    },
+    "two_external_bigip_release_fixes": {
+      "question_item_id": "call_d9ab703b43584de5aefd649303bc0e19:0",
+      "question": "May I apply just these two reviewed fixes in the external BIGIP role\u2019s files: the CLI source-inventory gate and an equivalent empty-result assertion? Both are prepared and reviewed, with runtime guards and expected results preserved. I am asking because the stale-role instruction says to notify the user rather than take over that role\u2019s work.",
+      "choice": "Apply these two fixes",
+      "approved_product_files": [
+        "rust/f5-cli/src/commands/irule.rs",
+        "rust/tcl-lsp-core/tests/bigip_code_actions.rs"
+      ],
+      "review": "/workspace/naming-proof-storage/root-held-external-product-fixes-v3/review.json",
+      "review_sha256": "b7385ba62f21ff35ff0b4c522a9611b7a0794b1ea7e9042a13c24071792a09b4",
+      "implementation_boundary": "Only these two reviewed product changes and their exact necessary validation input bindings; no general external-role takeover. Functional edits first on work, then carry to release cleanup branch."
+    }
+  },
+  "unchanged": [
+    "No assertion weakening, Native grant or runtime refusal reset",
+    "Section F, required green shipping gates, complete zero baseline pass-to-fail and accepted Tcl performance before PR",
+    "No merge, tag or release authorization"
+  ]
+}
