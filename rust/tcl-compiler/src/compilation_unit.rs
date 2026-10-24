@@ -907,6 +907,7 @@ impl<'a> FunctionBuildInputs<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct FullSccpInputs<'a> {
     cfg: &'a CfgFunction,
     inputs: FunctionBuildInputs<'a>,
@@ -3060,6 +3061,7 @@ struct DeclaredBodyMemoContext<'a> {
     analysis_context: &'a crate::value_transfer::AnalysisContextKey,
 }
 
+#[derive(Clone, Copy)]
 struct BodyMemoBuildInputs<'a> {
     ir_module: &'a IrModule,
     registry: &'a CommandRegistry,
@@ -3263,6 +3265,7 @@ impl<'a> ProcedureBuildContext<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct ProcedureMemoInputs<'a> {
     ctx: &'a ProcedureBuildContext<'a>,
     id: &'a crate::ir::ProcedureId,
@@ -3461,7 +3464,7 @@ struct ProcedureBuildInfo<'a> {
 }
 
 enum PreparedProcedureBuild<'a> {
-    Guarded(crate::ir::ProcedureId, FunctionUnit),
+    Guarded(crate::ir::ProcedureId, Box<FunctionUnit>),
     Ready(ProcedureBuildInfo<'a>),
 }
 
@@ -3496,7 +3499,7 @@ fn prepare_procedure_build<'a>(
             config,
         );
         unit.irules_event_body = event_body;
-        return PreparedProcedureBuild::Guarded(*id, unit.with_body_id(*id));
+        return PreparedProcedureBuild::Guarded(*id, Box::new(unit.with_body_id(*id)));
     }
     let body_offset = proc.map_or(0, |p| p.span.start());
     let encoded_pc = encode_param_constants(param_constants.as_ref());
@@ -3540,7 +3543,7 @@ fn build_procedure_units(
         let build =
             match prepare_procedure_build(ctx, id, cfg, config, &mut param_constants_by_proc) {
                 PreparedProcedureBuild::Guarded(id, unit) => {
-                    procedures.insert(id, unit);
+                    procedures.insert(id, *unit);
                     continue;
                 }
                 PreparedProcedureBuild::Ready(build) => build,
@@ -3771,7 +3774,7 @@ fn build_retained_body_units(
     ir_module: &IrModule,
     extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
     context: BodyUnitContext<'_>,
-    mut cache: Option<&mut ProcLatticeCache<'_>>,
+    cache: Option<&mut ProcLatticeCache<'_>>,
     memo_context: DeclaredBodyMemoContext<'_>,
 ) -> RetainedBodyUnits {
     let methods = CompilationUnit::build_method_units(ir_module, extra_callers, context);
@@ -3785,13 +3788,8 @@ fn build_retained_body_units(
                 .map(|cfg| (*id, cfg.clone()))
         })
         .collect();
-    let body_units = CompilationUnit::build_body_units(
-        ir_module,
-        extra_callers,
-        context,
-        cache.as_deref_mut(),
-        memo_context,
-    );
+    let body_units =
+        CompilationUnit::build_body_units(ir_module, extra_callers, context, cache, memo_context);
     RetainedBodyUnits {
         methods,
         source_body_cfgs,
@@ -3799,6 +3797,7 @@ fn build_retained_body_units(
     }
 }
 
+#[derive(Clone, Copy)]
 struct RetainedProcedureBuildInputs<'borrow, 'module, 'registry> {
     ir_module: &'module IrModule,
     cfg_module: &'module CfgModule,
@@ -3811,7 +3810,7 @@ struct RetainedProcedureBuildInputs<'borrow, 'module, 'registry> {
 
 fn build_top_level_and_procedures(
     input: RetainedProcedureBuildInputs<'_, '_, '_>,
-    mut cache: Option<&mut ProcLatticeCache<'_>>,
+    cache: Option<&mut ProcLatticeCache<'_>>,
     #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
 ) -> (FunctionUnit, BuiltProcedureUnits) {
     let RetainedProcedureBuildInputs {
@@ -3874,7 +3873,7 @@ fn build_top_level_and_procedures(
             tainted_global_writes: &facts.tainted_global_writes,
             procedures: Some(module_procedures),
         },
-        cache.as_deref_mut(),
+        cache,
         config,
     );
     #[cfg(any(test, debug_assertions))]
@@ -3990,7 +3989,7 @@ fn build_retained_post_analysis(
         transfers,
         options,
         dialect,
-        mut cache,
+        cache,
     } = input;
     let mut procedures = procedures;
     let RetainedModuleFacts {
@@ -4022,7 +4021,7 @@ fn build_retained_post_analysis(
         ir_module,
         &extra_callers,
         body_unit_context,
-        cache.as_deref_mut(),
+        cache,
         DeclaredBodyMemoContext {
             prepared: cfg_context.map(|prepared| &prepared.context),
             dialect,
@@ -4084,7 +4083,7 @@ fn build_retained_analysis_stage<'a>(
         cfg_module,
         tainted_global_writes,
         prepared_cfg_context,
-        mut cache,
+        cache,
     } = input;
     let facts = retained_module_facts(
         RetainedModuleFactsInput {
@@ -4117,7 +4116,7 @@ fn build_retained_analysis_stage<'a>(
             dialect: options.dialect,
             config: options.config,
         },
-        cache.as_deref_mut(),
+        cache,
         #[cfg(any(test, debug_assertions))]
         phase_trace,
     );
@@ -4736,7 +4735,7 @@ impl CompilationUnit {
                 transfers,
                 options,
                 dialect,
-                cache: cache.as_deref_mut(),
+                cache,
             },
             #[cfg(any(test, debug_assertions))]
             &mut phase_trace,
