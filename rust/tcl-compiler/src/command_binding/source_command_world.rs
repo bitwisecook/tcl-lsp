@@ -745,6 +745,58 @@ impl OriginalSourceCommandWorld {
         entries.next().is_none().then(|| entry.scope.clone())
     }
 
+    pub(super) fn publish_jim_stock_helper(
+        &mut self,
+        state: &ModuleCommandBindings,
+        installed: &super::jim_stock_class::InstalledJimSourceHelper,
+    ) -> Option<()> {
+        if !installed.name.matches_publication_state(state)
+            || self.select_policy(state)? != installed.name.policy()
+            || state
+                .original_command_key_for_slot(&installed.slot, installed.name.policy())
+                .as_ref()
+                != Some(&installed.key)
+        {
+            return None;
+        }
+        let alternatives = state.bindings.get(&installed.key)?;
+        let super::MayBinding::Target(target) = alternatives.first()? else {
+            return None;
+        };
+        if alternatives.len() != 1
+            || target.implementation_allocation.as_ref() != Some(&installed.allocation)
+        {
+            return None;
+        }
+        let alias = installed
+            .alias_target
+            .as_ref()
+            .map(|input| OriginalAliasTarget {
+                input: input.clone(),
+                lookup: tcl_registry::AliasTargetLookup::Global,
+                arguments: Vec::new(),
+            });
+        self.publish(OriginalCommandPublication {
+            slot: installed.slot.clone(),
+            input: SignatureSourceNameInput::OriginalValue(
+                crate::signature_scan::scope::SignatureSourceNameValue::from_jim_stock_name(
+                    &installed.name,
+                ),
+            ),
+            site: installed.allocation.site.clone(),
+            kind: if alias.is_some() {
+                OriginalCommandPublicationKind::Alias
+            } else {
+                OriginalCommandPublicationKind::Command
+            },
+            definition: None,
+            origin: None,
+            implementation_allocation: Some(installed.allocation.clone()),
+            alias_target: alias,
+        });
+        Some(())
+    }
+
     fn publish(&mut self, publication: OriginalCommandPublication) {
         self.publications
             .retain(|previous| previous.slot != publication.slot);

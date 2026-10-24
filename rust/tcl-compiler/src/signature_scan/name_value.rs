@@ -15,6 +15,7 @@ use tcl_syntax::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum SourceNameValueOrigin {
     Evaluated(Box<crate::command_binding::original_name_value::OriginalProducedNameValue>),
+    JimStockPublication(Box<crate::command_binding::OriginalJimStockName>),
     ObjectCommandNameResult {
         receipt: Box<crate::command_binding::named_manufacture::OriginalObjectCommandNameResult>,
         contents_epoch: u64,
@@ -101,6 +102,16 @@ impl<'a> SignatureSourceStaticListContainer<'a> {
 }
 
 impl SignatureSourceNameValue {
+    /// Counted helper-name data from a sealed stock source publication recipe.
+    /// This issues no complete word, editable geometry, Native argument or lookup.
+    pub(crate) fn from_jim_stock_name(name: &crate::command_binding::OriginalJimStockName) -> Self {
+        Self {
+            origin: SourceNameValueOrigin::JimStockPublication(Box::new(name.clone())),
+            bytes: name.bytes().into(),
+            policy: name.policy(),
+        }
+    }
+
     /// Trace registration copies counted data. Its original producer receipts
     /// remain historical; subsequent writes to the producer cell do not alter
     /// the registered bytes or supply registration liveness.
@@ -351,6 +362,7 @@ impl SignatureSourceNameValue {
         *remaining = next;
         match &self.origin {
             SourceNameValueOrigin::Evaluated(value) => value.lineage_nodes_in(remaining),
+            SourceNameValueOrigin::JimStockPublication(name) => name.lineage_nodes_in(remaining),
             SourceNameValueOrigin::ObjectCommandNameResult { receipt, .. } => {
                 receipt.requested_name_input().lineage_nodes_in(remaining)
             }
@@ -385,6 +397,7 @@ impl SignatureSourceNameValue {
                         == Some(self.policy)
             }
             SourceNameValueOrigin::Evaluated(value) => value.is_current(context),
+            SourceNameValueOrigin::JimStockPublication(name) => name.is_current(context),
             SourceNameValueOrigin::ObjectCommandNameResult { contents_epoch, .. } => {
                 context.original_contents_epoch() == Some(*contents_epoch)
                     && context

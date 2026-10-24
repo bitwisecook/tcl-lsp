@@ -36,6 +36,9 @@
 //! [`CommandSpec`]: crate::CommandSpec
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
+mod jim_source_stock;
+pub use jim_source_stock::{SourceJimClassHelper, SourceJimStockClassRecipe};
+
 use crate::arg_role::ArgRole;
 use crate::invocation_words::{InvocationArgument, InvocationArguments, InvocationWord};
 use crate::value_transfer::inputs::OperandId;

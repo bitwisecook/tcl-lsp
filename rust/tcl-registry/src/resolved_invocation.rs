@@ -1348,6 +1348,15 @@ pub struct AuthoredSourceJimClassLists {
     pub variables: usize,
 }
 
+impl AuthoredSourceJimClassLists {
+    /// Finite stock source layout under this exact authored family recipe.
+    /// Current provider, operands, publication and observer proofs remain separate.
+    #[must_use]
+    pub fn stock_source_recipe(&self) -> Option<crate::definer::SourceJimStockClassRecipe> {
+        crate::definer::SourceJimStockClassRecipe::for_original_layout(self)
+    }
+}
+
 /// Lambda-literal source position and guaranteed trailing argument geometry.
 /// This is descriptive call syntax, not an entered lambda or parameter binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
