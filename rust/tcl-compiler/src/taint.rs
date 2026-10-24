@@ -2565,6 +2565,7 @@ pub(crate) fn propagate_taints(
         (registry, dialect),
         source,
     );
+    seed_original_script_unknown_taints(&mut taints, ssa);
 
     let mut changed = true;
     while changed {
@@ -2603,6 +2604,56 @@ pub(crate) fn propagate_taints(
         widen_opaque_native_taints(&mut taints, ssa);
     }
     taints
+}
+
+/// Source names have no complete current-contents coverage. Keep every issued
+/// SCRIPT version unknown for raw taint/interprocedural consumers; only the
+/// separate owned literal-read advisory may use a positive source constant.
+fn seed_original_script_unknown_taints(
+    taints: &mut HashMap<ValueKey, TaintLattice>,
+    ssa: &SsaFunction,
+) {
+    let symbols: HashSet<_> = ssa.original_script_source_symbols().collect();
+    if symbols.is_empty() {
+        return;
+    }
+    for &symbol in &symbols {
+        taints.insert((symbol, 0), TaintLattice::tainted());
+    }
+    for block in ssa.blocks.values() {
+        for (&symbol, &version) in block.entry_versions.iter().chain(&block.exit_versions) {
+            if symbols.contains(&symbol) {
+                taints.insert((symbol, version), TaintLattice::tainted());
+            }
+        }
+        for phi in &block.phis {
+            if symbols.contains(&phi.name) {
+                taints.insert((phi.name, phi.version), TaintLattice::tainted());
+                for &version in phi.incoming.values() {
+                    taints.insert((phi.name, version), TaintLattice::tainted());
+                }
+            }
+        }
+        for statement in &block.statements {
+            for (&symbol, &version) in statement.uses.iter().chain(&statement.defs) {
+                if symbols.contains(&symbol) {
+                    taints.insert((symbol, version), TaintLattice::tainted());
+                }
+            }
+        }
+    }
+    for versions in ssa
+        .value_clobbers
+        .values()
+        .flat_map(|markers| markers.values())
+    {
+        for (&symbol, &(prior, fresh)) in versions {
+            if symbols.contains(&symbol) {
+                taints.insert((symbol, prior), TaintLattice::tainted());
+                taints.insert((symbol, fresh), TaintLattice::tainted());
+            }
+        }
+    }
 }
 
 /// Compatibility taint maps cannot name the stores made by an opaque invocation.
@@ -2963,6 +3014,18 @@ fn classify_sink(
 fn selected_sink_schema<'a>(
     call: &SinkCall<'a>,
 ) -> Option<(&'a tcl_registry::CommandSpec, String, Vec<String>)> {
+    if let Some(read) = call.source_read
+        && let SourceWarningMetadata::Authored(selected) = read.metadata.invocation_metadata()
+    {
+        selected.matches_point(read.point).then_some(())?;
+        return selected.sink_schema(
+            call.registry,
+            call.tokens?,
+            call.effective,
+            call.argument_offset,
+            call.args,
+        );
+    }
     if call.source.allows_nominal_metadata() && call.source.metadata.is_none() {
         let spec = call.registry.get(call.command)?;
         return Some((spec, spec.name.to_owned(), call.args.to_vec()));
@@ -5638,6 +5701,27 @@ fn retained_sink_candidates<H>(
             Some(SourceWarningMetadata::Hosted(Box::new(hosted.metadata))),
         ));
     }
+    // The explicit current Standalone CU may carry possible source syntax,
+    // not an executed target. Native/hosted or missing ownership is terminal.
+    if !native_source
+        && context.source.allows_nominal_metadata()
+        && context.source.module().is_some()
+        && let Some(selected) = crate::registry_invocation::AuthoredSourceTaintInvocation::capture(
+            tokens,
+            context.registry,
+        )
+    {
+        let command = selected.command().to_owned();
+        let effective = selected.effective().clone();
+        candidates.retain(|(held_command, held_effective, _)| {
+            held_command != &command || held_effective != &effective
+        });
+        candidates.push((
+            command,
+            effective,
+            Some(SourceWarningMetadata::Authored(Box::new(selected))),
+        ));
+    }
     (candidates, native_source)
 }
 
@@ -6866,6 +6950,7 @@ fn original_sink_argument<'a>(call: &SinkCall<'a>, index: usize) -> Option<&'a W
 }
 
 enum SourceWarningMetadata {
+    Authored(Box<crate::registry_invocation::AuthoredSourceTaintInvocation>),
     Hosted(Box<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
     Native(Box<crate::registry_invocation::NativeSourceTaintInvocation>),
     Original(Box<crate::registry_invocation::OriginalSourceTaintReadOperands>),
@@ -6881,7 +6966,7 @@ impl SourceWarningMetadata {
     ) -> Option<&crate::registry_invocation::OriginalSourceTaintReadOperands> {
         match self {
             Self::Original(reads) | Self::WithOriginalReads { reads, .. } => Some(reads),
-            Self::Hosted(_) | Self::Native(_) => None,
+            Self::Authored(_) | Self::Hosted(_) | Self::Native(_) => None,
         }
     }
 
@@ -6968,10 +7053,22 @@ impl<'a> SourceWarningRead<'a> {
         }
         if !matches!(
             self.metadata.invocation_metadata(),
-            SourceWarningMetadata::Native(_) | SourceWarningMetadata::Hosted(_)
+            SourceWarningMetadata::Native(_)
+                | SourceWarningMetadata::Hosted(_)
+                | SourceWarningMetadata::Authored(_)
         ) {
             return false;
         }
+        let config = if let SourceWarningMetadata::Authored(selected) =
+            self.metadata.invocation_metadata()
+        {
+            if !selected.matches_point(self.point) || !selected.owns_operand(original) {
+                return false;
+            }
+            selected.config()
+        } else {
+            config
+        };
         original
             .sole_variable_substitution()
             .is_some_and(|(reference, _)| {
@@ -6994,6 +7091,10 @@ impl<'a> SourceWarningRead<'a> {
         }
         let (reference, site) = original.sole_variable_substitution()?;
         let (config, owns_word) = match self.metadata.invocation_metadata() {
+            SourceWarningMetadata::Authored(selected) => (
+                selected.config(),
+                selected.matches_point(self.point) && selected.owns_operand(original),
+            ),
             SourceWarningMetadata::Hosted(metadata) => (
                 metadata.shape().original_words().first()?.config(),
                 metadata
@@ -7019,12 +7120,29 @@ impl<'a> SourceWarningRead<'a> {
         if reference_root_with_config(reference, config) != Some(name) || !owns_word {
             return None;
         }
+        if let SourceWarningMetadata::Authored(selected) = self.metadata.invocation_metadata() {
+            let key = self
+                .point
+                .read_reference(site, reference)
+                .and_then(|read| read.version.map(|version| (read.symbol, version)));
+            return selected
+                .literal_read_coverage(self.point, key)
+                .map(|complete| {
+                    if complete {
+                        TaintLattice::clean()
+                    } else {
+                        TaintLattice::tainted()
+                    }
+                });
+        }
         // Only the exact positioned read receipt can select represented
         // contents. Missing cells or versions retain an unknown MAY value;
         // no SSA symbol, presence, effect or Normal receipt is created here.
         let read = self.point.read_reference(site, reference);
         let key = match self.metadata.invocation_metadata() {
-            SourceWarningMetadata::Hosted(_) | SourceWarningMetadata::Original(_) => {
+            SourceWarningMetadata::Authored(_)
+            | SourceWarningMetadata::Hosted(_)
+            | SourceWarningMetadata::Original(_) => {
                 read.and_then(|read| read.version.map(|version| (read.symbol, version)))
             }
             SourceWarningMetadata::Native(_) => {
@@ -15628,5 +15746,274 @@ mod original_taint_word_purpose_tests {
         );
         assert_eq!(leading_literal_prefix_char("${a{b}", config), None);
         assert_eq!(config.leading_bom, tcl_lexer::LeadingBom::Skip);
+    }
+}
+
+#[cfg(test)]
+mod authored_script_read_ownership_tests {
+    use super::{SourceWarningMetadata, SourceWarningRead, TaintLattice, ValueKey};
+    use crate::compilation_unit::CompilationUnit;
+    use crate::registry_invocation::AuthoredSourceTaintInvocation;
+    use crate::ssa::SsaSourceView;
+    use std::collections::HashMap;
+
+    fn source_point<'a>(unit: &'a CompilationUnit, head: &str) -> SsaSourceView<'a> {
+        for (&block, body) in &unit.top_level.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let point = SsaSourceView::at_statement(&unit.top_level.ssa, block, index);
+                if point
+                    .source_tokens()
+                    .and_then(|tokens| tokens.argv_texts.first())
+                    .is_some_and(|held| held == head)
+                {
+                    return point;
+                }
+            }
+        }
+        panic!("genuine original source point is retained");
+    }
+
+    #[test]
+    fn unknown_source_read_keeps_requested_operand_and_point_ownership() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for text in [
+            "eval $x [unknown_callback]",
+            "trace add variable x read callback\neval $x",
+        ] {
+            let unit = CompilationUnit::build_for(text, registry, false);
+            let point = source_point(&unit, "eval");
+            let tokens = point.source_tokens().unwrap();
+            let selected = AuthoredSourceTaintInvocation::capture(tokens, registry)
+                .expect("genuine conditional sink exists even with nonquiet source context");
+            assert!(selected.matches_point(point));
+            assert!(!selected.has_closed_scalar_read_context(), "{text}");
+            let original = &tokens.words()[1];
+            let metadata = SourceWarningMetadata::Authored(Box::new(selected));
+            let read = SourceWarningRead {
+                metadata: &metadata,
+                point,
+            };
+            let taints = HashMap::<ValueKey, TaintLattice>::new();
+            assert!(read.taint("x", original, &taints).unwrap().is_tainted());
+            assert!(read.taint("donated", original, &taints).is_none());
+            let foreign = CompilationUnit::build_for(text, registry, false);
+            let foreign_read = SourceWarningRead {
+                metadata: &metadata,
+                point: source_point(&foreign, "eval"),
+            };
+            assert!(foreign_read.taint("x", original, &taints).is_none());
+            let other = CompilationUnit::build_for("eval $y", registry, false);
+            let other_point = source_point(&other, "eval");
+            let unowned = &other_point.source_tokens().unwrap().words()[1];
+            assert!(read.taint("y", unowned, &taints).is_none());
+            assert!(!read.references("donated", original, tcl_lexer::LexerConfig::default()));
+        }
+    }
+}
+
+#[cfg(test)]
+mod authored_profileless_sink_owner_tests {
+    use super::{
+        SinkCall, SourceWarningMetadata, SourceWarningRead, TaintSourceContext,
+        selected_sink_schema,
+    };
+    use crate::compilation_unit::CompilationUnit;
+    use crate::registry_invocation::AuthoredSourceTaintInvocation;
+    use crate::ssa::SsaSourceView;
+    use tcl_registry::CommandRegistry;
+
+    fn eval_point(unit: &CompilationUnit) -> SsaSourceView<'_> {
+        for (&block, body) in &unit.top_level.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let point = SsaSourceView::at_statement(&unit.top_level.ssa, block, index);
+                if point
+                    .source_tokens()
+                    .and_then(|tokens| tokens.argv_texts.first())
+                    .is_some_and(|head| head == "eval")
+                {
+                    return point;
+                }
+            }
+        }
+        panic!("genuine profileless original eval point");
+    }
+
+    #[test]
+    fn present_profileless_source_sink_owner_is_terminal_before_legacy_metadata() {
+        let registry = CommandRegistry::build_default();
+        assert!(registry.profile().is_none());
+        let text = "eval $x";
+        let unit = CompilationUnit::build_for(text, &registry, false);
+        let point = eval_point(&unit);
+        let tokens = point.source_tokens().unwrap();
+        let selected = AuthoredSourceTaintInvocation::capture(tokens, &registry).unwrap();
+        let effective = selected.effective().clone();
+        let command = selected.command().to_owned();
+        let args = effective
+            .argument_spellings(&tokens.argv_texts[1..])
+            .unwrap();
+        let metadata = SourceWarningMetadata::Authored(Box::new(selected));
+        let source = TaintSourceContext::for_unit_function(&registry, &unit, &unit.top_level);
+        assert!(source.allows_nominal_metadata());
+        assert!(source.metadata.is_none());
+        assert!(source.module().is_some());
+        let call = SinkCall {
+            source,
+            command: &command,
+            args: &args,
+            tokens: Some(tokens),
+            registry: &registry,
+            effective: Some(&effective),
+            argument_offset: 0,
+            source_read: Some(SourceWarningRead {
+                metadata: &metadata,
+                point,
+            }),
+        };
+        assert!(selected_sink_schema(&call).is_some());
+        let foreign = CompilationUnit::build_for(text, &registry, false);
+        let wrong_point = SinkCall {
+            source_read: Some(SourceWarningRead {
+                metadata: &metadata,
+                point: eval_point(&foreign),
+            }),
+            ..call
+        };
+        assert!(selected_sink_schema(&wrong_point).is_none());
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "$donated".to_owned();
+        assert_ne!(changed.argv_texts, tokens.argv_texts);
+        let wrong_vector = SinkCall {
+            tokens: Some(&changed),
+            ..call
+        };
+        assert!(selected_sink_schema(&wrong_vector).is_none());
+        let untagged = SinkCall {
+            source_read: None,
+            ..call
+        };
+        assert!(selected_sink_schema(&untagged).is_some());
+    }
+}
+
+#[cfg(test)]
+mod original_script_contents_coverage_tests {
+    use super::{SourceWarningMetadata, SourceWarningRead, TaintLattice};
+    use crate::compilation_unit::CompilationUnit;
+    use crate::registry_invocation::AuthoredSourceTaintInvocation;
+    use crate::ssa::SsaSourceView;
+
+    fn eval_point(unit: &CompilationUnit) -> SsaSourceView<'_> {
+        for (&block, body) in &unit.top_level.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let point = SsaSourceView::at_statement(&unit.top_level.ssa, block, index);
+                if point
+                    .source_tokens()
+                    .and_then(|tokens| tokens.argv_texts.first())
+                    .is_some_and(|head| head == "eval")
+                {
+                    return point;
+                }
+            }
+        }
+        panic!("genuine original eval point");
+    }
+
+    fn set_location(unit: &CompilationUnit, rhs: &str) -> (crate::cfg::BlockId, usize) {
+        for (&block, body) in &unit.top_level.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let point = SsaSourceView::at_statement(&unit.top_level.ssa, block, index);
+                if point.source_tokens().is_some_and(|tokens| {
+                    tokens.argv_texts.len() == 3
+                        && tokens.argv_texts[0] == "set"
+                        && tokens.argv_texts[1] == "x"
+                        && tokens.argv_texts[2] == rhs
+                }) {
+                    return (block, index);
+                }
+            }
+        }
+        panic!("actual original Set site retained independently of IR operation kind");
+    }
+
+    #[test]
+    fn root_source_versions_stay_unknown_and_only_complete_literal_coverage_is_clean() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (text, literal) in [
+            ("set x SAFE; eval $x", true),
+            ("set x SAFE; set z OTHER; eval $x", true),
+            ("set x SAFE; set x $y; eval $x", false),
+            ("set x SAFE; set x $a(k); eval $x", false),
+            ("set x SAFE; unknown_writer; eval $x", false),
+            ("set x SAFE; upvar #0 y x; eval $x", false),
+            ("set x SAFE; if {$condition} {set x $y}; eval $x", false),
+            ("set x SAFE; eval $x [set x $y]", false),
+        ] {
+            let unit = CompilationUnit::build_for(text, registry, false);
+            let point = eval_point(&unit);
+            let tokens = point.source_tokens().unwrap();
+            let selected = AuthoredSourceTaintInvocation::capture(tokens, registry)
+                .expect("actual conditional source sink owner");
+            let metadata = SourceWarningMetadata::Authored(Box::new(selected));
+            let read = SourceWarningRead {
+                metadata: &metadata,
+                point,
+            };
+            let value = read
+                .taint("x", &tokens.words()[1], &unit.top_level.taints)
+                .unwrap();
+            assert_eq!(value.is_tainted(), !literal, "{text}");
+            let roots = unit
+                .top_level
+                .ssa
+                .original_script_source_symbols()
+                .collect::<Vec<_>>();
+            assert!(!roots.is_empty());
+            for ((symbol, _), value) in unit.top_level.taints.iter() {
+                if roots.contains(symbol) {
+                    assert_eq!(*value, TaintLattice::tainted(), "{text}");
+                }
+            }
+            for symbol in roots {
+                assert_eq!(
+                    unit.top_level.taints.get(&(symbol, 0)),
+                    Some(&TaintLattice::tainted())
+                );
+                assert!(unit.top_level.ssa.cell_key(symbol).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn removing_an_unknown_middle_statement_cannot_create_literal_source_coverage() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = CompilationUnit::build_for("set x SAFE; set x $y; eval $x", registry, false);
+        let point = eval_point(&unit);
+        let tokens = point.source_tokens().unwrap();
+        let selected = AuthoredSourceTaintInvocation::capture(tokens, registry).unwrap();
+        let metadata = SourceWarningMetadata::Authored(Box::new(selected));
+        let mut altered = unit.clone();
+        let (first_block, first_index) = set_location(&unit, "SAFE");
+        let first = unit.top_level.ssa.blocks[&first_block].statements[first_index]
+            .statement
+            .clone();
+        let (middle_block, middle_index) = set_location(&altered, "$y");
+        let middle = &mut altered
+            .top_level
+            .ssa
+            .blocks
+            .get_mut(&middle_block)
+            .unwrap()
+            .statements[middle_index];
+        assert_ne!(middle.statement, first);
+        middle.statement = first;
+        let read = SourceWarningRead {
+            metadata: &metadata,
+            point: eval_point(&altered),
+        };
+        assert!(
+            read.taint("x", &tokens.words()[1], unit.top_level.taints.as_ref())
+                .is_none()
+        );
     }
 }

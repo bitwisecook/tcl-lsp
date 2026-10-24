@@ -66,3 +66,39 @@ driver with no invocation dialect can instead inherit the registry dialect;
 normalising the returned advice keeps escaped argv consistent with its actual
 Document words as well as its head. Supplied/Native/Logical/hosted and unknown
 purposes retain their old dialect and constructor path.
+
+
+## Standalone SCRIPT source values
+
+A root SCRIPT variable identity comes only from its original analysis attachment,
+complete original vector, exact source/configuration/Registry, retained Global
+source frame and owned namespace geometry. It is separate from procedure BODY
+locals, supplied inputs and Native cells. The shared counted C/Jim variable-name
+constructor supplies the namespace source identity; spelling does not select a
+cell or an entered frame. Unsupported arrays, independent accesses, changed
+inputs and missing ownership do not become scalar projections.
+
+Private original SCRIPT point rows retain their source-only access and original
+SSA symbol/use/definition versions. Every version of these identities, including
+zero and phi versions, stays plain unknown in compatibility taint maps. An
+unrepresented intervening write therefore cannot preserve a clean source value
+for raw or interprocedural consumers. BODY-only and Native identities do not
+acquire this tag. This supplies no executable store, sanitizer, Normal event or
+optimizer erasure capability.
+
+An independently owned literal-read advisory may describe trusted source data
+only at the same current original point, operand, symbol and version. The whole
+selected block must still match the private original statement payloads. From
+the definition to that read, only closed, quiet, entirely literal Set source
+steps on the same or proved-disjoint source identities are supported. An
+unrepresented operation, array or independent access, callback, alias, trace,
+synthetic unseen call, barrier, missing local definition or branch leaves the
+value unknown; graph or owner corruption refuses the advice. No unknown effect
+is ignored to manufacture a positive literal case. All requested-name and
+operand/issuer checks precede conservative unknown taint.
+
+This is conditional source diagnostic information, not equality to runtime
+contents or full source-effect coverage. Compact point-row storage, repeated
+source preparation and same-block coverage scans have unmeasured cost. Focused
+original warning/ownership controls and full baseline/resource gates remain
+required.

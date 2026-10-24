@@ -1926,6 +1926,86 @@ impl DeclarationSourceVariableOperandAdvice {
 }
 
 impl super::SourceInvocationBinding {
+    /// Original root-script naming geometry for source analysis only. A held
+    /// declaration entry does not issue an entered frame or a selected cell.
+    pub(crate) fn original_standalone_script_variable_scope(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        if tokens.synthetic.is_some() || tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let owner = self.original_analysis_attachment()?;
+        if !owner.metadata.is_standalone() {
+            return None;
+        }
+        let rows =
+            original_source_catalogue_layouts(self.declaration_layout_observations.as_deref()?)?;
+        if rows.iter().any(|row| {
+            !matches!(
+                row.entry.as_ref(),
+                OriginalDiagnosticFrameEntry::RootScript { .. }
+            )
+        }) {
+            return None;
+        }
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let retained = self.retained_registry_for_tokens(tokens)?;
+        (retained.snapshot().semantic_key() == registry.snapshot().semantic_key()).then_some(())?;
+        let site = self.invocation_site()?;
+        if owner.config != config || !Arc::ptr_eq(&owner.source, &site.source) {
+            return None;
+        }
+        let mut selected = None;
+        for row in rows {
+            let OriginalDiagnosticFrameEntry::RootScript {
+                source,
+                frame,
+                namespace,
+            } = row.entry.as_ref()
+            else {
+                return None;
+            };
+            let state = &row.snapshot.state;
+            let baseline = &state.baseline;
+            if row.config != config
+                || row.words.as_ref() != tokens.words()
+                || !Arc::ptr_eq(&source.origin, &site.source)
+                || source.base() != 0
+                || source.text.bytes() != site.source.source_image().bytes()
+                || !row.entry.owns_source(&site.source, site.offset)
+                || frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global
+                || namespace != &row.namespace
+                || state.current_source_origin.as_ref() != Some(&site.source)
+                || !baseline.metadata_context.is_standalone()
+                || baseline.native_entry.is_some()
+                || baseline.logical_source_input.is_some()
+                || baseline.vendor_source_input.is_some()
+                || baseline.hosted_execution_context.is_some()
+                || baseline.unknown_entry
+                || baseline.registry_owner.as_ref()?.semantic_key()
+                    != registry.snapshot().semantic_key()
+            {
+                return None;
+            }
+            let policy = baseline.execution_name_policy?.native_recipe()?;
+            if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
+                return None;
+            }
+            let scope = state.original_namespace_geometry(namespace, policy)?;
+            let current = (scope, policy);
+            if selected.as_ref().is_some_and(|prior| prior != &current) {
+                return None;
+            }
+            selected = Some(current);
+        }
+        selected
+    }
+
     pub(crate) fn declaration_source_operand_layout_advice(
         &self,
         registry: &tcl_registry::CommandRegistry,
