@@ -37,7 +37,20 @@ FAILURE_LOG_FILE_SHA = (
     "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5"
 )
 FAILURE_LOG_SHA = "616b04e54b17eb137bb6f7942d3e07dcc691ee807a6233d0c47419f63a34967c"
-GROUPS = ("baseline14", "stack_abort1", "other103")
+PRUNE_CONTROL_AUTHORITY = "f82b1b05717e86fb250fda5cc65cad0ca987332c"
+PRUNE_CONTROL_AUTHORITY_SOURCE_SHA = (
+    "4c9481706b8f6f13847f48395517234e77483d0174be919a4e77bbfd017eeb8c"
+)
+PRUNE_CONTROLS = {
+    "namespace::tests::publication_revision_keeps_fresh_births_but_rejects_slot_retirement": "164dfbfa82d103fb7cfe7f16cdbe74d9f2ba23d737005ba352758e5c302b594d",
+    "namespace::tests::publication_revision_rejects_all_raw_withdrawal_paths": "ce5e6c635383b387bc15deb881ff481d8556578e7e5f76456a93516f037cd2a4",
+    "namespace::tests::publication_revision_rejects_tentative_alias_slots_and_restore": "5cadbcab9355d6189f420494a6d8e8fb7dc6e06a097b61f11d740b9f2cef7a78",
+    "namespace::tests::publication_revision_rejects_jim_local_shadow_and_restoration": "e2dc729fe689d522c0d35aad4844e07014f13651f880d887344ed3c811f4332c",
+    "namespace::tests::publication_revision_refuses_foreign_dead_and_exhausted_worlds": "d9a97c709949fe10b47f7840127d67c543fa4dbd83cee870f3dd7f33110dfc0a",
+    "namespace::tests::publication_revision_tracks_moves_and_callback_rebound_rename_sources": "ce0ed09d567fcdeea4c88c6c2e38b955f4ae3dd19b18e17dc0eabd24c456ecf4",
+    "namespace::tests::publication_revision_tracks_occupied_jim_value_replacement": "fce936d54393d46b21f602e708e9c3852ede5b3ee10840f63dd37094afe7cb30",
+}
+GROUPS = ("baseline14", "stack_abort1", "other103", "prune_controls7")
 CAP = 20 * 1024**2 - 65536
 FLOOR = 2 * 1024**3
 BASE = Path(__file__).resolve().parent
@@ -97,7 +110,34 @@ def inventories():
         "other103 is not exact original117 minus baseline14",
     )
     roster["other103"] = expected
+    roster["prune_controls7"] = list(PRUNE_CONTROLS)
     return roster, other
+
+
+def prune_control_source():
+    path = Path("runtime/rust/src/namespace.rs")
+    raw = path.read_text()
+    matched = {}
+    for name, expected in PRUNE_CONTROLS.items():
+        simple = re.escape(name.rsplit("::", 1)[1])
+        pattern = r"(?:^    #\[[^\n]*\]\n)+^    fn " + simple + r"\(\) \{\n.*?^    }\n"
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(
+            len(found) == 1
+            and hashlib.sha256(found[0].encode()).hexdigest() == expected,
+            "unchanged authored prune control source required: " + name,
+        )
+        matched[name] = expected
+    require(len(matched) == 7, "exact seven authored prune controls required")
+    return {
+        "authority_commit": PRUNE_CONTROL_AUTHORITY,
+        "authority_source_sha256": PRUNE_CONTROL_AUTHORITY_SOURCE_SHA,
+        "current_source_sha256": sha(path),
+        "path": str(path),
+        "function_sha256": matched,
+        "matched_count": 7,
+        "scope": "Authored Rust software controls only; no original C oracle or baseline identity grant.",
+    }
 
 
 def listed(suite, name):
@@ -123,6 +163,11 @@ def selection(out):
     require(
         len(set(wanted + roster["other103"])) == 118,
         "other103 intersects baseline14 or stack1",
+    )
+    require(
+        len(roster["prune_controls7"]) == len(set(roster["prune_controls7"])) == 7
+        and len(set(wanted + roster["other103"] + roster["prune_controls7"])) == 125,
+        "exact separate authored prune7 identities required",
     )
     listing = json.loads((out / "selected.json").read_text())
     suites = [
@@ -160,6 +205,11 @@ def selection(out):
         },
         "original3 identities or explicitly repeated103 inventory differs",
     )
+    require(
+        all(listed(suite, name) for name in roster["prune_controls7"])
+        and not selected.intersection(roster["prune_controls7"]),
+        "authored prune7 absent, ignored or substituted for original3",
+    )
     binary = Path(suite["binary-path"]).resolve()
     target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
     require(
@@ -187,6 +237,8 @@ def prepare(out, source):
             "supplemental14_count": 14,
             "separate_stack_count": 1,
             "separate_other103_count": 103,
+            "separate_prune_control_count": 7,
+            "prune_control_source": prune_control_source(),
             "other103_listing_unavailable": [
                 name for name in _roster["other103"] if not listed(suite, name)
             ],
@@ -201,6 +253,13 @@ def prepare(out, source):
             {"group": group, "selector": name, "status": "UNRUN"}
             for group in GROUPS
             for name in _roster[group]
+        ],
+    )
+    save(
+        out / "prune-controls-plan.json",
+        [
+            {"group": "prune_controls7", "selector": name, "status": "UNRUN"}
+            for name in PRUNE_CONTROLS
         ],
     )
     save(
@@ -243,7 +302,8 @@ def frames(out, source):
         prepared["source"] == source
         and prepared["binary"] == str(binary)
         and prepared["elf_sha256"] == sha(binary)
-        and prepared["listing_sha256"] == sha(out / "selected.json"),
+        and prepared["listing_sha256"] == sha(out / "selected.json")
+        and prepared["prune_control_source"] == prune_control_source(),
         "same prepared original3 ELF and listing required before inspection",
     )
     helper = BASE / "runtime-stack-frames.py"
@@ -344,6 +404,10 @@ def run(out, source):
         for name in roster[group]
     ]
     save(supplemental / "outcomes.json", rows)
+    save(
+        supplemental / "prune-controls-outcomes.json",
+        [row for row in rows if row["group"] == "prune_controls7"],
+    )
     roster, suite, binary = selection(out)
     errors = []
     started = time.monotonic()
@@ -361,7 +425,8 @@ def run(out, source):
         "same original3 ELF required",
     )
     require(
-        prepared["listing_sha256"] == sha(out / "selected.json"),
+        prepared["listing_sha256"] == sha(out / "selected.json")
+        and prepared["prune_control_source"] == prune_control_source(),
         "original full listing changed",
     )
     original = json.loads((out / "diagnostic-completeness.json").read_text())
@@ -408,6 +473,10 @@ def run(out, source):
             )
             errors.append("fresh listing does not authenticate " + row["selector"])
             save(supplemental / "outcomes.json", rows)
+            save(
+                supplemental / "prune-controls-outcomes.json",
+                [row for row in rows if row["group"] == "prune_controls7"],
+            )
             continue
         if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
             errors.append(
@@ -460,6 +529,10 @@ def run(out, source):
         row["stdout_sha256"] = sha(str(prefix) + ".stdout")
         row["stderr_sha256"] = sha(str(prefix) + ".stderr")
         save(supplemental / "outcomes.json", rows)
+        save(
+            supplemental / "prune-controls-outcomes.json",
+            [row for row in rows if row["group"] == "prune_controls7"],
+        )
         print(row["group"], row["selector"], row["status"], flush=True)
         if time.monotonic() > suite_deadline or time.time() > absolute:
             errors.append("suite or absolute diagnostic deadline exceeded after case")
@@ -514,6 +587,22 @@ def run(out, source):
             ),
             "stack_frame_accounting": "../stack-frame-accounting.json",
             "scope": "Original3 remain separate; unchangedbaseline14 and stack1 precede distinctactualother103. One authenticated numeric selector repeats original3 without identity/count merging. No baseline substitution, fullsharedprocessgate or performance acceptance. Unstarted cases stayUNRUN; samebudgets.",
+        },
+    )
+    save(
+        supplemental / "prune-controls-summary.json",
+        {
+            "source": source,
+            "count": 7,
+            "counts": counts["prune_controls7"],
+            "complete": all(
+                row["status"] not in ["UNRUN", "INCOMPLETE", "TIMEOUT"]
+                for row in rows
+                if row["group"] == "prune_controls7"
+            ),
+            "source_provenance": prepared["prune_control_source"],
+            "case_budget_seconds": 180,
+            "scope": "Separate authored controls after unchanged original3/baseline14/stack1/other103; no substitution or semantic gate acceptance.",
         },
     )
     return (
@@ -575,12 +664,33 @@ def main():
                 roster["other103"] = json.loads(
                     (BASE / "runtime-other-failures-roster.json").read_text()
                 )["other103"]
+                roster["prune_controls7"] = list(PRUNE_CONTROLS)
                 rows = [
                     {"group": group, "selector": name, "status": "UNRUN"}
                     for group in GROUPS
                     for name in roster[group]
                 ]
                 save(outcomes, rows)
+            save(
+                directory / "prune-controls-outcomes.json",
+                [row for row in rows if row["group"] == "prune_controls7"],
+            )
+            save(
+                directory / "prune-controls-summary.json",
+                {
+                    "source": args.sha,
+                    "complete": False,
+                    "errors": [repr(error)],
+                    "counts": dict(
+                        collections.Counter(
+                            row["status"]
+                            for row in rows
+                            if row["group"] == "prune_controls7"
+                        )
+                    ),
+                    "scope": "Authored prune controls unadmitted; original inventories remain separately reported.",
+                },
+            )
             save(
                 directory / "summary.json",
                 {
