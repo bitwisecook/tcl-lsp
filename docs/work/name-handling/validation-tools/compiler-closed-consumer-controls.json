@@ -1,0 +1,185 @@
+{
+  "build_only_targets": [
+    {
+      "expected_selected": 0,
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_engine_tclvm",
+      "package": "tcl-engine-tclvm"
+    },
+    {
+      "expected_selected": 0,
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_runtime_api",
+      "package": "tcl-runtime-api"
+    },
+    {
+      "expected_selected": 0,
+      "kind": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "package": "tcl-registry"
+    }
+  ],
+  "env": {},
+  "expected_selected": 16,
+  "group": "diagnostic-closed-consumer",
+  "rows": [
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::observer_channels_dynamic_heads_and_external_cells_are_not_admitted",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-engine-tclvm",
+      "selector": "closed_native_execution::tests::arithmetic_and_output_bounds_refuse_before_publication",
+      "source": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "target": "tcl_engine_tclvm"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-runtime-api",
+      "selector": "native_literal::empty_world_tests::retained_empty_observation_never_recaptures_or_revives_a_receipt",
+      "source": "rust/tcl-runtime-api/src/native_literal.rs",
+      "target": "tcl_runtime_api"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-runtime-api",
+      "selector": "native_literal::empty_world_tests::empty_world_capture_is_bound_to_actual_owner_epoch_and_capture",
+      "source": "rust/tcl-runtime-api/src/native_literal.rs",
+      "target": "tcl_runtime_api"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-runtime-api",
+      "selector": "diagnostic_output::tests::silence_is_thread_owned_and_has_no_restore_boundary",
+      "source": "rust/tcl-runtime-api/src/diagnostic_output.rs",
+      "target": "tcl_runtime_api"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-registry",
+      "selector": "pack_hooks::tests::private_worker_denies_installer_queries_and_receiver_installation",
+      "source": "rust/tcl-registry/src/pack_hooks.rs",
+      "target": "tcl_registry"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-registry",
+      "selector": "pack_hooks::tests::private_worker_denial_does_not_clear_an_existing_receiver",
+      "source": "rust/tcl-registry/src/pack_hooks.rs",
+      "target": "tcl_registry"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_remains_correspondence_without_a_consumer",
+      "source": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "target": "tcl_compiler"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_refuses_unbounded_and_unclassified_expression_effects",
+      "source": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "target": "tcl_compiler"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "optimiser::closed_consumer::tests::preparation_rejects_large_work_before_full_analysis",
+      "source": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "target": "tcl_compiler"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_bounds_source_before_compilation_unit_preparation",
+      "source": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "target": "tcl_compiler"
+    },
+    {
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_retains_the_exact_source_and_registry_semantics",
+      "source": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "target": "tcl_compiler"
+    }
+  ],
+  "scope": "Prospective separate closed-consumer16 controls after all unchanged original65+taint2 executions; all initial UNRUN. Does not replace any baseline/gate/performance evidence. Three extra native unit artifacts freshly built/listed in original target pipeline; tests reuse the existing owned executor and shared aggregate/time/floor/provider/source guards.",
+  "source_pins": {
+    "rust/tcl-compiler/src/optimiser/closed_consumer.rs": "58dd45bbbc503bc43e0bf6b9355c7acd3389315d949dcd7d97a648acf30830fb",
+    "rust/tcl-engine-tclvm/src/closed_native_execution.rs": "1df3587162519c3025fdb8879d15a6999b7fd3077c1675ad144d09e41e9f5c44",
+    "rust/tcl-registry/src/pack_hooks.rs": "f0702d3a33eb3441d37eaaddbe3a13436a8ea2ab8aefbf3bd0693247709efd3a",
+    "rust/tcl-runtime-api/src/diagnostic_output.rs": "4c7c00fdf0cf4623390d75ae070d0580b754a00b2757a1439c1b3ab3737d7d8b",
+    "rust/tcl-runtime-api/src/native_literal.rs": "4d81bce032a151aa6c0fbb8caa7d6a3c290c4dab1959fcc9e88c4b7899e5610b"
+  }
+}

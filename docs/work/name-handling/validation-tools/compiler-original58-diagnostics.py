@@ -137,6 +137,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-readflow1-",
             "diagnostic-catch1-",
             "diagnostic-taint2-",
+            "diagnostic-closed-consumer-",
             "list-",
             "select-",
         )
@@ -145,6 +146,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
+    if "diagnostic-closed-consumer-" in prefix:
+        require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
     seconds = min(seconds, available)
     if prefix.startswith(
         (
@@ -154,6 +157,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-readflow1-",
             "diagnostic-catch1-",
             "diagnostic-taint2-",
+            "diagnostic-closed-consumer-",
         )
     ):
         require(
@@ -439,7 +443,26 @@ taint_rows: list[dict[str, Any]] = [
 original65_rows = (
     original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
 )
-rows = original65_rows + taint_rows
+require(
+    sha(BASE / "compiler-closed-consumer-controls.json") == "b044aa64fac4cd0af91f4093974df33b1da11ca55e20af74bd1a0a34e7b47dbd",
+    "exact separate closed-consumer control roster",
+)
+closed_controls = json.loads((BASE / "compiler-closed-consumer-controls.json").read_text())
+require(closed_controls["expected_selected"] == len(closed_controls["rows"]) == 16
+        and closed_controls["env"] == {}, "separate closed16 count/environment")
+closed_rows = [dict(row, group="diagnostic-closed-consumer", env={}, state="UNRUN")
+               for row in closed_controls["rows"]]
+require(len({(row["package"], row["target"], row["selector"]) for row in closed_rows}) == 16,
+        "duplicate closed-consumer selector")
+require(not {(row["package"], row["target"], row["selector"]) for row in closed_rows}.intersection(
+        (row["package"], row["target"], row["selector"]) for row in original65_rows + taint_rows),
+        "closed-consumer controls overlap original groups")
+require(closed_controls["build_only_targets"] == [
+    {"package": package, "kind": ["lib"], "name": name, "expected_selected": 0}
+    for package, name in [("tcl-engine-tclvm", "tcl_engine_tclvm"),
+                          ("tcl-runtime-api", "tcl_runtime_api"), ("tcl-registry", "tcl_registry")]],
+        "exact closed-consumer fresh build-only targets")
+rows = original65_rows + taint_rows + closed_rows
 require(
     len(
         {
@@ -695,6 +718,7 @@ try:
                 **readflow["source_pins"],
                 **catch_diagnostic["source_pins"],
                 **taint_diagnostic["source_pins"],
+                **closed_controls["source_pins"],
             }.items()
         ),
         "original test/observer input changed",
@@ -747,13 +771,14 @@ try:
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
                 "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
-                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts.",
+                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged. After ALL original65 executions, separate taint diagnostic2 reuses the already freshly built compilerlib/taint artifacts. Three additional library artifacts are build/list-only until then; separate closed-consumer16 executes only after the unchanged taint2 group, within the same absolute deadline/log budget.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
             "scope": "Exact original native58 selectors on current WORK; standalone bounded per-test diagnosis only. No shared-process/compiler-complete/eight-package/wasm/release acceptance. Historical ambient WASI SDK path retained in provenance, not used by selected native artifacts.",
             "original_roster": original,
             "original_inputs_and_environment": roster,
+            "separate_closed_consumer_controls": closed_controls,
             "separate_supplemental3": supplemental,
             "separate_sh21_diagnostic2": sh21_diagnostic,
             "separate_readflow1": readflow,
@@ -798,7 +823,7 @@ try:
     execution_rows = (
         supplemental_rows + sh21_rows + readflow_rows + catch_rows + original_rows
     )
-    for target_spec in roster["targets"]:
+    for target_spec in roster["targets"] + closed_controls["build_only_targets"]:
         package = target_spec["package"]
         target_name = target_spec["name"]
         target_kind = target_spec["kind"]
@@ -1107,7 +1132,7 @@ try:
         and files(list(tools.values())) == tool_pins,
         "pre-taint diagnostic source/provider/tool/dependency drift",
     )
-    for index, row in enumerate(taint_rows):
+    for index, row in enumerate(taint_rows + closed_rows):
         package, target_kind, target_name = row["package"], row["kind"], row["target"]
         selected_artifacts = [
             value
@@ -1136,7 +1161,7 @@ try:
         require(remaining > 512 * 1024, "insufficient log budget before original test")
         prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
         group_label = (
-            "supplemental" if row["group"] == "diagnostic-taint2" else "original"
+            "supplemental" if row["group"] == "diagnostic-taint2" else "closed-consumer"
         )
         print("SELECT " + group_label + " " + selector, flush=True)
         runtime_env = env.copy()
@@ -1286,7 +1311,8 @@ try:
         and len(catch_rows) == 1
         and len(original65_rows) == 65
         and len(taint_rows) == 2
-        and len(rows) == 67
+        and len(closed_rows) == 16
+        and len(rows) == 83
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -1384,6 +1410,10 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in taint_rows
             ),
             "taint_diagnostic2_outcomes": taint_rows,
+            "required_separate_closed_consumer_controls": 16,
+            "closed_consumer_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in closed_rows),
+            "closed_consumer16_outcomes": closed_rows,
+            "separate_closed_consumer_roster": closed_controls,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
