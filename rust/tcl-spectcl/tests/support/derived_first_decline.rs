@@ -95,6 +95,7 @@ pub(super) fn report(
         );
         if let Some(function) = function {
             report_ssa(function);
+            report_held_barriers(unit, function);
             if let Some(symbol) = function.ssa.var_symbol("known") {
                 let mut versions: Vec<_> = function
                     .sccp
@@ -298,4 +299,48 @@ fn report_parent_call(statement: &tcl_compiler::ir::Statement) {
         return;
     };
     eprintln!("N17G2 parent-call defs={defs:?} reads={reads:?}");
+}
+
+fn report_held_barriers(
+    unit: &tcl_compiler::compilation_unit::CompilationUnit,
+    function: &tcl_compiler::compilation_unit::FunctionUnit,
+) {
+    if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() != Ok("first-gate-v1") {
+        return;
+    }
+    let module = &unit.ir_module;
+    eprintln!(
+        "N17G2 held-barriers body={:?} entry={:?} dynamic={:?} caller-frame={:?} module-dynamic-variable-trace={} deferred-any={} retained-module-input={} module-native-input={:?}",
+        function.body_id,
+        function.cfg.entry,
+        function.dynamic_names,
+        function.cfg.caller_frame_barrier,
+        module.has_dynamic_variable_trace,
+        module.deferred_writes.any,
+        module.source_metadata_input.is_some(),
+        module.source_metadata_input.as_ref().map(|input| {
+            tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .native_name_protocol()
+                .is_some()
+        }),
+    );
+    let Some(statement) = function
+        .ssa
+        .blocks
+        .get(&function.cfg.entry)
+        .and_then(|block| block.statements.first())
+    else {
+        return;
+    };
+    for symbol in statement.defs.keys() {
+        let name = function.ssa.var_name(*symbol);
+        eprintln!(
+            "N17G2 held-first-def symbol={symbol:?} name={name:?} qualified={} source-only={} physical-key={} module-traced={} module-deferred={}",
+            name.starts_with("::"),
+            function.ssa.source_variable_symbol(*symbol).is_some(),
+            function.ssa.cell_key(*symbol).is_some(),
+            module.traced_variables.contains(name),
+            module.deferred_writes.names.contains(name),
+        );
+    }
 }
