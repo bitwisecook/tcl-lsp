@@ -2589,7 +2589,11 @@ Ordinary fresh-document analysis has no runtime entry. Its distinct
 `FreshNativeSourceAnalysis` borrows the actual original source interpreter and
 complete Native-axis input, recognises the existing supplied-document contract,
 and rejects unknown history, foreign or changed inputs and other source
-purposes. The module's purpose and entry remain unchanged. This source owner
+purposes. The module's purpose and entry remain unchanged. Lowering privately retains
+issuance from its supplied-document factory alongside the effective entry.
+The effective authored naming policy is not execution provenance. An explicit
+entry replacement withdraws this issuance even when every effective field is
+equal; Standalone and unknown-history requests cannot obtain it. This source owner
 permits only conditional value analysis; the same per-command invocation,
 handler, completion, effect and receiver checks still apply.
 

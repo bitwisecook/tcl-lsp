@@ -103,9 +103,9 @@ pub use source_command_world::{
 };
 mod operand_layout;
 mod retained_source;
-pub(crate) use retained_source::FreshNativeSourceAnalysis;
 pub use retained_source::RetainedSourceModuleBindings;
 pub(crate) use retained_source::source_analysis_frame;
+pub(crate) use retained_source::{FreshNativeSourceAnalysis, SuppliedSourceAnalysisIssuance};
 #[cfg(test)]
 mod semantic_equality;
 mod shared_inventory;

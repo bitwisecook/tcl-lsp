@@ -33,6 +33,7 @@ use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 pub struct RetainedSourceModuleBindings {
     source: tcl_lexer::SourceImage,
     entry: SourceAnalysisEntry,
+    supplied_source: Option<SuppliedSourceAnalysisIssuance>,
     grammar: tcl_lexer::LexerConfig,
     namespace: String,
     native_namespace: Option<tcl_core_types::ByteNamespacePath>,
@@ -150,6 +151,49 @@ impl OriginalMethodSource {
     }
 }
 
+/// Issued only when lowering chooses the supplied-document factory itself.
+/// An equal explicit entry is not an issuance of this source-analysis intent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SuppliedSourceAnalysisIssuance {
+    input: crate::analyser::ResolvedAnalysisInput,
+    entry: SourceAnalysisEntry,
+    grammar: tcl_lexer::LexerConfig,
+    registry: RegistrySemanticKey,
+}
+
+impl SuppliedSourceAnalysisIssuance {
+    pub(crate) fn issue(
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> (SourceAnalysisEntry, Self) {
+        let entry = SourceAnalysisEntry::for_supplied_source(registry, input, config, profile);
+        let options = entry.options();
+        let grammar = options.native_lexer_config(config);
+        let dialect = options.source_invocation_dialect(grammar);
+        let policy = options.execution_name_policy();
+        let mut effective = entry.clone();
+        effective.invocation_dialect = dialect;
+        effective.execution_name_policy = policy;
+        let issued = Self {
+            input: input.clone(),
+            entry: effective,
+            grammar,
+            registry: registry.snapshot().semantic_key(),
+        };
+        (entry, issued)
+    }
+
+    fn matches(&self, module: &Module, registry: &CommandRegistry) -> bool {
+        self.registry == registry.snapshot().semantic_key()
+            && self.grammar == module.native_lexer_config()
+            && self.entry == module.source_entry
+            && module.source_metadata_input.as_ref() == Some(&self.input)
+            && self.entry.metadata_context.source_analysis_input() == Some(&self.input)
+    }
+}
+
 /// Conditional fresh Native source analysis under its original interpreter.
 /// This grants no runtime entry, physical store or completed invocation.
 pub(crate) struct FreshNativeSourceAnalysis<'a> {
@@ -191,22 +235,16 @@ impl RetainedSourceModuleBindings {
             || self.entry.native_entry.is_some()
             || self.entry.source_point_entry.is_some()
             || self.entry.unknown_entry
-            || self.entry.execution_name_policy.is_some()
             || self.entry.logical_source_input.is_some()
             || self.entry.vendor_source_input.is_some()
         {
             return None;
         }
-        // The actual retained issuer is already joined above. This comparison
-        // recognises its complete fresh-source value contract, including any
-        // incoming activation, loader or history fields; it issues no Native entry.
-        let fresh = SourceAnalysisEntry::for_supplied_source(
-            registry,
-            input,
-            self.grammar,
-            Some(input.unit_profile()),
-        );
-        (self.entry == fresh).then_some(FreshNativeSourceAnalysis {
+        self.supplied_source
+            .as_ref()?
+            .matches(module, registry)
+            .then_some(())?;
+        Some(FreshNativeSourceAnalysis {
             retained: self,
             input,
             registry,
@@ -240,6 +278,7 @@ impl RetainedSourceModuleBindings {
         bindings: &SourceCommandBindings,
         module: &Module,
         registry: &CommandRegistry,
+        supplied_source: Option<&SuppliedSourceAnalysisIssuance>,
     ) -> Option<Arc<Self>> {
         if bindings.root_origin.as_ref()?.source_image() != &module.source
             || bindings.lexer_config != Some(module.native_lexer_config())
@@ -250,6 +289,9 @@ impl RetainedSourceModuleBindings {
         Some(Arc::new(Self {
             source: module.source.clone(),
             entry: module.source_entry.clone(),
+            supplied_source: supplied_source
+                .filter(|issued| issued.matches(module, registry))
+                .cloned(),
             grammar: module.native_lexer_config(),
             namespace: module.top_level_namespace.clone(),
             native_namespace: module.native_namespace.clone(),
@@ -734,6 +776,49 @@ pub(crate) fn source_analysis_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supplied_issuance_refuses_changed_effective_contract_and_full_input() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "set value VALUE",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let issued = retained.supplied_source.as_ref().unwrap();
+        assert!(issued.matches(module, registry));
+        let mut changed = module.clone();
+        changed
+            .source_entry
+            .incoming_formals
+            .push("prior-frame".to_owned());
+        assert!(!issued.matches(&changed, registry));
+        let mut changed = module.clone();
+        changed.source_entry.unknown_entry = true;
+        assert!(!issued.matches(&changed, registry));
+        let mut changed = module.clone();
+        let mut config = issued.input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        changed.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            issued.input.analyser_profile(),
+            issued.input.unit_profile(),
+            issued.input.context_registry(),
+            config,
+        ));
+        assert!(!issued.matches(&changed, registry));
+        let mut changed = module.clone();
+        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
+        assert!(!issued.matches(&changed, registry));
+        let foreign = CommandRegistry::build_default();
+        assert!(!issued.matches(module, &foreign));
+        let mut changed = module.clone();
+        changed.source_entry.execution_name_policy = None;
+        assert!(!issued.matches(&changed, registry));
+    }
 
     #[test]
     fn fresh_source_transfer_refuses_a_matched_non_script_kind() {
