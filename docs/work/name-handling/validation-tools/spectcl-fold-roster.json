@@ -11,6 +11,7 @@
   "scope": "Original exact current pack_source_e2e ALL10 plus separate original catch1, no invented seven selectors; original9c7PASS/3FAIL retained. Separate new native_normal_store1 supplemental control; original11 and supplemental1 reported independently.",
   "source_head_at_preparation": "ae5965adfa43e222f04f985c9e9633d2836f97cd",
   "source_pins": {
+    "rust/tcl-compiler/src/compilation_unit.rs": "b210253a9fe5a2c348290d8990a2a6f92d772f7416e016dd597f160ad7c1c8ef",
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
     "rust/tcl-compiler/src/value_transfer.rs": "5563e8313e66e9727177001a8adb42fa465f67edebc02363f443dcf6401d14f3",
