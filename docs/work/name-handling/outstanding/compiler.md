@@ -2,11 +2,15 @@
 
 Area: compiler structure, source-owner correctness, and delegated LSP lint repairs.
 
-Last updated: 2026-10-24T05:13:49.097444+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-24T05:42:58.104248+00:00 (current evidence; no green release claim)
 
 Maintained by the compiler agent. Root alone integrates, commits, pushes and runs gates. Active source remains frozen; this role writes only off-tree proposals and owned documentation.
 
 ## Resume
+
+**Current productive taint candidate:** compiler-taint-standalone-unit-v7 WORKbd5f0009/man a9fdf638, CLEAN0d829470/man8b1a2d1e is frozen for independent deep peer, not integration. Original b0 eval_sink top-level default explicit Standalone loses strict source-input context; bounded factory reborrows existing explicit metadata only for current actual CU top-level function + original semantic-input owner/full registry + original CFG/SSA whole statements + private held terminators/successors + EVERY genuine retained original-analysis Arc token. Existing source_topology is now captured also for explicit Standalone builds lacking source variables, with per-block clone/storage cost explicit. No full graph clone, solver, Native/frame/Normal/source-input mint or body/supplied fallback. Original tests/assertions unchanged, source/new negative controls UNRUN. Whole8file author inverse0a4bb310, copied F/R/F0/fmt pass. V1–6 author drafts held. Native body carrier V3 Codegen authored/deep peer assigned independent runtime_cache_review; do not duplicate.
+
+Catch duplicate protocol V1 held metadata typo; immutable V2 f22f8902/man052c160d binds actual full f82 assessment984e3bfd5aa0499c32caa5ee212dce10cf9283b8ca85e1b8aaebde3e0f47dee9. Exact old64 rows/env/order/targets and all budgets/source/artifact guards preserved, separate existing-observer1 only; Codegen independent peer pending. Server next exclusive compiler5 functions commit_live_dialect/reload_spec_packs_inner/did_open/did_change/did_change_watched_files assigned root map310c313e; LSP composition manager and helper reservations pending. Functional actuals interrupt.
 
 **Latest b0 original64 COMPLETE, independently authenticated:** run40063325850/job120781288230 exactb0af4249e47e2fee8dd918de0aac214fd2a97be3 artifact12548892153 ZIP07f645f27c1d0c6a356b79301ee622d42e27ae428574a4988ad913a56c6c64ab/11,832,707B. /tmp/compiler-original64-40063325850/assessment.json SHAcbc1298a authenticates original58=52PASS/6FAIL/0UNRUN, separateNative3=3PASS/SH2=2PASS/ReadFlow1=PASS. Source126027/provider10202/deps21500/tools independently equal, all139 ownedgroups closed/timer/separate outerPython+RustELF/list/terminal stable, all5seals TRUE/0Rust diagnostics/noerrors. All64 lossless streams7,664,585encoded→20,457,129post-table bytes reconstruct exactly;11,642,762capremaining. Exactf82→b0 identity/env/order compare25698984 proves ONLY namespace_import F→PASS and no selectedP→F; no global baseline/Clippy/release gain inferred.
 

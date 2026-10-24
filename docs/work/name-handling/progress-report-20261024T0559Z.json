@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T05:59:03.970711+00:00",
+  "scheduled_report_utc": "2026-10-24T05:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T06:25:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product WORK 275961c5b06a7955c9bf74752e42068994e5b277 and CLEAN 3ee2f4f6f68dfbf844f1efb8243413e36f737d18. All product fixes first in work; release branch omits private diagnostic protocols and development evidence. Product publication and coherent hosted validation wave pending. No PR, merge, tag or release.",
+    "Latest authenticated actuals remain compiler 52/58 PASS plus all six supplements PASS; Jim 5/7 PASS; startup build PASS with zero warnings and 98ms cold tokens, original 30s scan FAIL and context publication FAIL; strict DB PASS, Core and Server lint FAIL. Heavy all three FAIL; SpecTcl original 9/11 PASS and Native supplement FAIL; WASM 22/25 PASS. Later source changes are not validated by these older runs. Complete origin/rust 24,312-test no-regression gate remains open.",
+    "Native body-module carrier V3 independently reviewed and integrated in WORK and CLEAN, including narrow body-memo bypass for genuine original declarations. Spec source-input companion integrated. Existing source-symbol Native receiver refusal remains; this supplies genuine context but does not certify 42/xy folding.",
+    "Genuine retained Logical analysis-input supplier V2 independently reviewed and integrated in both branches. It retains generation identity and exact purpose/input matching, with terminal refusal on mismatch. Jim selector observer is WORK-only; no new actual Jim outcome yet.",
+    "Core six empty-vector assertions preserve exact expected values. Current diagnostics eight measured lint emissions corrected by private borrowed packets, field names and lifetime spelling, retaining all currentness/cancellation/owner behavior. Both independently reviewed and integrated, but new strict Clippy execution pending.",
+    "LSP5 A1 pure lookup factoring independently reviewed and integrated in both branches. Other production-length groups remain immutable, disjoint interval proposals under review and parent composition; all seven long-test refactors preserve original assertions and await order. No new allow introduced.",
+    "Env first quiet-link error observer, WASM existing recursion-refusal observer, original catch diagnostic duplicate, and targeted-pruning three additional controls integrated WORK-only after independent review. Original scripts, assertion strings, fail-closed guards and time/log/disk budgets retained. Runtime supplement now 128 cases with three separately reported prospective controls; no actual128 execution yet. Source-pin preflight V7 additionally covers the new catch roster.",
+    "RBS normal-source-case V6 and targeted unlink pruning V2 remain source-reviewed but actual-unrun. Compiler genuine Standalone taint facade V7 is under independent LSP review. Native format instruction V2 runtime/object/lifecycle independently cleared, compiler/API/kernel peer pending; previous FormatUnknown frontier closed but instruction admission still failed in the latest actual run.",
+    "External BIGIP and perf headers remain over60 minutes old; user notified without taking ownership. Perf equality proof exists but final shipping corpus performance is not accepted. Review triage explicitly complete. Local disk below2GiB: no local builds or target/executable deletion. Six-hour delivery target missed; required green CI, complete baseline, Tcl corpus performance, latency/currentness, final docs/comments/format/generated/no-new-allows and section F remain open."
+  ],
+  "committed": [
+    "ec41b8339f2389b88218209ac318299532caaea7"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish05:55 snapshot and rearm06:25 reminder.",
+    "Dispatch coherent fresh source-pinned Spec/compiler/Jim/strict/startup/runtime/WASM hosted validation.",
+    "Complete functional taint/format peers, then server interval composition and remaining lint/documentation cleanup.",
+    "Run final release CI, complete baseline and Tcl corpus performance before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new runtime acceptance. Latest actual suites remain red; later independently reviewed source fixes require hosted execution.",
+  "disk_free_bytes": 1253376000,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

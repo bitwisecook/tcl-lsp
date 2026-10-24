@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, tcl-vm, runtime diagnostic protocols and assigned peers.
-Last updated: 2026-10-24T05:18:48Z
+Last updated: 2026-10-24T05:58:19Z
 
 ## Resume and rules
 
@@ -178,3 +178,37 @@ replays real118bounded records plus CLEARLY SYNTHETIC planned7UNRUN, preserving 
 oldcounts/CFI incomplete and7UNRUN. No new actualRust/native/C/build. Reader additionally
 joins7sourcefunction+attrs to actualGitnamespace/freshlisting/plan/standalone reports.
 Originalf82ZIP untouched. Latest actual remainsf82; no new runtime source/run supplied.
+
+05:34 CurrentDiag measured8 V1 HELD for newly introduced currentness:currentness
+redundant_field_names; eligibleV2 shorthand only corrected. Independent fullbounded
+TYPE/OWNER/CARRY STATIC CLEAR vm-peer-currentdiag-measured8-v2/review.json
+SHA4fb75f0cbbdc1d3ec88516623df8ed68fc909d4c0a1fa074f9b94192c0662632 binds
+WORK32a156cd/be79672a+CLEAN9879af2b/ba3151f1/masterd53434d6. Actual942d49bc maps7
+identities/8emissions (parent API/ZIPauth inherited only), no actualdischarge claimed.
+Batch11/Suppression8 fields explicitly allsharedrefs/u64/existingCopy purpose, no
+owned/uniqueCopy; same owner/drop/currentness/registry/cancel/query/lock/Vecpush scopes.
+Whole literal inverse/current/copyF-R-F0/fmt2/oldassertallows/WORKobserver exact.
+Freshstrict/testsUNRUN, no localCargo/native execution. Parent+author notified.
+
+05:58 currentintegration: root confirms WORK3de19073 EnvCopyobserver integrated,
+3fb3c5255 targeted3protocol integrated,3cd784509 WASM observer integrated. Newactual
+coherentwave pending; no dispatch/cancel fromrole. ReadonlyActions05:49 noactiveperf
+runs, latestff12540063829061 completedfailure (notnewruntimeverdict).
+Core6 assertion cleanup independentsame-strength sourceCLEAR
+vm-peer-core-assert6-v1/review.json SHAc8ac5f775300a216dcbe31a5a87d80d881d87a80b0d1c42e08993464543dd964,
+actualVec elementDebug+Eq verified, full6literalprojection/copy0/fmt2; freshstrictUNRUN.
+Targeted3protocol vm-targeted3-protocol-v1 manifestbb6a28cc/patch3297434b,39mockcontrols
+b8b01003, old125prefix/ownerAST/budgets/env/rosters unchanged. Independent
+release-lint-peer-vm-targeted3/review-v2.md SOURCE/PROTOCOL CLEAR (all39owncopy with
+launchAPIs blocked), actual3UNRUN. 128reader vm-inspect-runtime-supplement-v4-128.py
+prepared syntaxonly; source2files/functionattrs/plan/standalone3/128process joins,
+requiresnewactualsource/run. Prior125reader syntheticmetadata controlc0e7fe8a retained.
+
+Format V2 bounded native runtime/object/lifecycle sourceCLEAR
+vm-peer-native-format-v2/review.json SHA255d8c37dfba0e14a97bed3eee4ede5013afddd86b7db7e705e1b1dae4a46080,
+WORKaac44032/f1647662+CLEANee74dc2a/d4c9f01d. Full3Ccompiler bodies and91PUSHOBJ/
+AddLiteralObj pinned/read, sameObjectOperation/concatowner andprivate91header path,
+oldsourceonlyinsert+2Or-patterns/copy0/fmt. Perlaneownerbase/current joins explicit:
+CLEANpoolproofcomment andbytecode5observercalls/reporter omitted only, no ownerdrift.
+Compiler fullAPI/kernel peer remainsseparate; alltest/native/Heavy/functionalityUNRUN.
+Root nextassigned Names5V3 intervalpeer (ea6debd2/a694004c) afterparser; no canonwrites.
