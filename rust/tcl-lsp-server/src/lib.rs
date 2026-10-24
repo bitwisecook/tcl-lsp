@@ -40176,6 +40176,16 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 mod tests {
     use super::*;
 
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn fresh_analysis_driver_preserves_native_send_boundary() {
+        fn require_send<T: Send>() {}
+
+        require_send::<Analyser>();
+        require_send::<Arc<tcl_compiler::compilation_unit::CompilationUnit>>();
+        require_send::<Box<FreshAnalysisDriver>>();
+    }
+
     #[tokio::test]
     async fn namespace_coordinates_without_original_variable_symbols_do_not_start_workspace_edits()
     {

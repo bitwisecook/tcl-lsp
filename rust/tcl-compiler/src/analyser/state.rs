@@ -329,14 +329,14 @@ fn shift_span(span: Span, delta: u32) -> Span {
 #[derive(Debug)]
 pub(super) enum CompilationUnitOverride {
     Shared(std::sync::Arc<crate::compilation_unit::CompilationUnit>),
-    Local(std::rc::Rc<crate::compilation_unit::CompilationUnit>),
+    Owned(Box<crate::compilation_unit::CompilationUnit>),
 }
 
 impl CompilationUnitOverride {
     pub(super) fn as_unit(&self) -> &crate::compilation_unit::CompilationUnit {
         match self {
             Self::Shared(unit) => unit,
-            Self::Local(unit) => unit,
+            Self::Owned(unit) => unit,
         }
     }
 }
@@ -2211,13 +2211,10 @@ impl Analyser {
         self.cu_override = Some(CompilationUnitOverride::Shared(cu));
     }
 
-    /// Supply a unit shared only within this thread. The same source-equivalence
+    /// Supply an owned unit. The same source-equivalence
     /// and consume-once contract as [`Self::set_cu_override`] applies.
-    pub fn set_local_cu_override(
-        &mut self,
-        cu: std::rc::Rc<crate::compilation_unit::CompilationUnit>,
-    ) {
-        self.cu_override = Some(CompilationUnitOverride::Local(cu));
+    pub fn set_owned_cu_override(&mut self, cu: crate::compilation_unit::CompilationUnit) {
+        self.cu_override = Some(CompilationUnitOverride::Owned(Box::new(cu)));
     }
 
     /// Analyse exactly one issued conditional suffix, reusing its kernel world.
