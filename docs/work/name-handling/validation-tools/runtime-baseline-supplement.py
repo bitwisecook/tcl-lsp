@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only isolated original baseline14 and separate stack-abort diagnostic."""
+"""WORK-only isolated baseline14, stack1 and separate actual other103 diagnostics."""
 
 import argparse
 import collections
@@ -29,8 +29,15 @@ import resource
 import time
 from pathlib import Path
 
+STACK_FRAMES_SHA = "bfea2077ec3e3c166970478d3eb7d51d1d66c804d99609c70d211f478c5b203e"
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 ROSTER_SHA = "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f"
+OTHER_ROSTER_SHA = "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821"
+FAILURE_LOG_FILE_SHA = (
+    "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5"
+)
+FAILURE_LOG_SHA = "616b04e54b17eb137bb6f7942d3e07dcc691ee807a6233d0c47419f63a34967c"
+GROUPS = ("baseline14", "stack_abort1", "other103")
 CAP = 20 * 1024**2 - 65536
 FLOOR = 2 * 1024**3
 BASE = Path(__file__).resolve().parent
@@ -50,10 +57,56 @@ def save(path, value):
     Path(path).write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
+def inventories():
+    baseline_path = BASE / "runtime-baseline-supplement-roster.json"
+    require(sha(baseline_path) == ROSTER_SHA, "exact supplemental roster changed")
+    roster = json.loads(baseline_path.read_text())
+    other_path = BASE / "runtime-other-failures-roster.json"
+    require(sha(other_path) == OTHER_ROSTER_SHA, "exact other103 roster changed")
+    other = json.loads(other_path.read_text())
+    log = BASE / "runtime-a26-failed-originals.log.json"
+    require(sha(log) == FAILURE_LOG_FILE_SHA, "lossless failure log container changed")
+    original_log = json.loads(log.read_text())
+    original_bytes = original_log["text"].encode("utf-8")
+    require(
+        original_log["encoding"] == "utf-8"
+        and original_log["raw_byte_count"] == len(original_bytes) == 326773
+        and original_log["raw_sha256"] == FAILURE_LOG_SHA
+        and hashlib.sha256(original_bytes).hexdigest() == FAILURE_LOG_SHA,
+        "authenticated original failure log bytes changed",
+    )
+    require(
+        other["observed_source"] == "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+        and other["observed_run"] == 40039952540
+        and other["observed_job"] == 120708509600
+        and other["authenticated_decoded_log_sha256"] == FAILURE_LOG_SHA
+        and other["baseline_roster_sha256"] == ROSTER_SHA,
+        "original source/log/roster join differs",
+    )
+    failed = re.findall(
+        r"\btest ([A-Za-z0-9_:]+) \.\.\. FAILED\b", original_log["text"]
+    )
+    require(
+        len(failed) == len(set(failed)) == other["failed117_count"] == 117
+        and set(roster["baseline14"]).issubset(failed),
+        "exact authenticated117 failed identities required",
+    )
+    expected = [name for name in failed if name not in roster["baseline14"]]
+    require(
+        other["other103"] == expected and len(expected) == len(set(expected)) == 103,
+        "other103 is not exact original117 minus baseline14",
+    )
+    roster["other103"] = expected
+    return roster, other
+
+
+def listed(suite, name):
+    case = suite["testcases"].get(name)
+    return case is not None and case["kind"] == "test" and not case["ignored"]
+
+
 def selection(out):
-    roster_path = BASE / "runtime-baseline-supplement-roster.json"
-    require(sha(roster_path) == ROSTER_SHA, "exact supplemental roster changed")
-    roster = json.loads(roster_path.read_text())
+    roster, other = inventories()
     require(
         len(roster["baseline14"]) == len(set(roster["baseline14"])) == 14,
         "baseline14 identities",
@@ -67,6 +120,10 @@ def selection(out):
     )
     wanted = roster["baseline14"] + roster["stack_abort1"]
     require(len(wanted) == len(set(wanted)) == 15, "duplicate supplemental identities")
+    require(
+        len(set(wanted + roster["other103"])) == 118,
+        "other103 intersects baseline14 or stack1",
+    )
     listing = json.loads((out / "selected.json").read_text())
     suites = [
         suite
@@ -94,8 +151,14 @@ def selection(out):
         if case["filter-match"]["status"] == "matches"
     }
     require(
-        len(selected) == 3 and not selected.intersection(wanted),
-        "original3 and supplement scopes differ",
+        len(selected) == 3
+        and not selected.intersection(wanted)
+        and selected.intersection(roster["other103"])
+        == set(other["repeated_original3"])
+        == {
+            "builtins::tests::native_expression_and_increment_follow_selected_numeric_towers"
+        },
+        "original3 identities or explicitly repeated103 inventory differs",
     )
     binary = Path(suite["binary-path"]).resolve()
     target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
@@ -123,8 +186,118 @@ def prepare(out, source):
             "original_selected_count": 3,
             "supplemental14_count": 14,
             "separate_stack_count": 1,
+            "separate_other103_count": 103,
+            "other103_listing_unavailable": [
+                name for name in _roster["other103"] if not listed(suite, name)
+            ],
+            "other103_roster_sha256": OTHER_ROSTER_SHA,
+            "original_failure_log_sha256": FAILURE_LOG_SHA,
         },
     )
+
+    save(
+        out / "supplement-plan.json",
+        [
+            {"group": group, "selector": name, "status": "UNRUN"}
+            for group in GROUPS
+            for name in _roster[group]
+        ],
+    )
+    save(
+        out / "original3-plan.json",
+        {
+            "source": source,
+            "rows": [
+                {"selector": name, "status": "UNRUN"}
+                for name, case in suite["testcases"].items()
+                if case["filter-match"]["status"] == "matches"
+            ],
+            "scope": "Planned inventory only; actual original3 terminal events remain authoritative.",
+        },
+    )
+
+
+def stack_streams(out):
+    streams = {}
+    for name in ["worker.stdout", "worker.stderr"]:
+        path = out / "stack-frames" / name
+        streams[name] = {
+            "bytes": path.stat().st_size if path.exists() else 0,
+            "sha256": sha(path) if path.exists() else None,
+        }
+    return streams
+
+
+def frames(out, source):
+    _roster, _suite, binary = selection(out)
+    prepared = json.loads((out / "runtime-elf-before-original3.json").read_text())
+    require(
+        prepared["source"] == source
+        and prepared["binary"] == str(binary)
+        and prepared["elf_sha256"] == sha(binary)
+        and prepared["listing_sha256"] == sha(out / "selected.json"),
+        "same prepared original3 ELF and listing required before inspection",
+    )
+    helper = BASE / "runtime-stack-frames.py"
+    require(sha(helper) == STACK_FRAMES_SHA, "reviewed stack metadata helper changed")
+    spec = importlib.util.spec_from_file_location("runtime_stack_metadata", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("stack metadata helper loader unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    build_bytes = (out / "build.stderr").stat().st_size
+    record = module.capture_stack_frames(
+        out=out,
+        binary=binary,
+        source=source,
+        expected_elf_sha256=prepared["elf_sha256"],
+        environment=os.environ.copy(),
+        absolute_deadline=float(os.environ["RUNTIME_DIAGNOSTIC_DEADLINE"]),
+        remaining_log_bytes=max(0, 20 * 1024**2 - build_bytes),
+    )
+    streams = stack_streams(out)
+    retained = sum(stream["bytes"] for stream in streams.values())
+    process = record.get("process")
+    closed = (
+        record.get("status") == "UNRUN"
+        if process is None
+        else isinstance(process, dict)
+        and process.get("group_empty_before_parent_reap") is True
+        and process.get("consecutive_complete_empty_group_scans", 0) >= 2
+        and process.get("owned_live_group_members") == []
+    )
+    unchanged = sha(binary) == prepared["elf_sha256"]
+    complete = (
+        record["source"] == source
+        and record["binary"] == str(binary)
+        and record["expected_elf_sha256"] == prepared["elf_sha256"]
+        and record["status"] == "CAPTURED"
+        and record["capture_incomplete"] is False
+        and type(record["retained_bytes"]) is int
+        and record["retained_bytes"] == retained
+        and isinstance(process, dict)
+        and closed
+        and unchanged
+    )
+    save(
+        out / "stack-frame-accounting.json",
+        {
+            "source": source,
+            "elf_sha256": prepared["elf_sha256"],
+            "helper_sha256": STACK_FRAMES_SHA,
+            "summary_sha256": sha(out / "stack-frames/summary.json"),
+            "streams": streams,
+            "actual_retained_log_bytes": retained,
+            "reported_retained_bytes": record["retained_bytes"],
+            "owned_group_closed": closed,
+            "elf_unchanged": unchanged,
+            "complete": complete,
+            "scope": "Static metadata only, not active stack/depth or a stack fix. Unknown/omitted data stays incomplete. Actual retained bytes join the existing combined budget; original3 stream caps stay unchanged and do not guarantee a retroactive aggregate cap.",
+        },
+    )
+    if not closed or not unchanged:
+        return 126
+    return 0 if complete else 125
 
 
 def original_outcome(stdout, receipt):
@@ -156,13 +329,14 @@ def original_outcome(stdout, receipt):
 def run(out, source):
     supplemental = out / "supplement"
     supplemental.mkdir()
-    roster, suite, binary = selection(out)
+    roster, _other = inventories()
     rows = [
         {"group": group, "selector": name, "status": "UNRUN"}
-        for group in ["baseline14", "stack_abort1"]
+        for group in GROUPS
         for name in roster[group]
     ]
     save(supplemental / "outcomes.json", rows)
+    roster, suite, binary = selection(out)
     errors = []
     started = time.monotonic()
     suite_deadline = started + 2400
@@ -200,9 +374,32 @@ def run(out, source):
             out / "terminal/reporter.raw.jsonl",
         ]
     )
+    frame_streams = stack_streams(out)
+    used += sum(stream["bytes"] for stream in frame_streams.values())
+    accounting_path = out / "stack-frame-accounting.json"
+    if not accounting_path.exists():
+        errors.append("stack metadata accounting missing")
+    else:
+        accounting = json.loads(accounting_path.read_text())
+        if (
+            accounting["source"] != source
+            or accounting["elf_sha256"] != prepared["elf_sha256"]
+            or accounting["helper_sha256"] != STACK_FRAMES_SHA
+            or accounting["streams"] != frame_streams
+            or accounting["summary_sha256"] != sha(out / "stack-frames/summary.json")
+            or accounting["complete"] is not True
+        ):
+            errors.append("stack metadata unavailable, changed or incomplete")
     environment = os.environ.copy()
     environment["TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC"] = "1"
     for index, row in enumerate(rows):
+        if not listed(suite, row["selector"]):
+            row["unrun_reason"] = (
+                "original selector absent or ignored in fresh ELF listing"
+            )
+            errors.append("fresh listing does not authenticate " + row["selector"])
+            save(supplemental / "outcomes.json", rows)
+            continue
         if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
             errors.append(
                 "insufficient remaining time for unchanged 180s case plus 20s cleanup and 5s preflight reserve"
@@ -272,7 +469,7 @@ def run(out, source):
         group: dict(
             collections.Counter(row["status"] for row in rows if row["group"] == group)
         )
-        for group in ["baseline14", "stack_abort1"]
+        for group in GROUPS
     }
     complete = not errors and all(
         row["status"] not in ["UNRUN", "INCOMPLETE", "TIMEOUT"] for row in rows
@@ -293,7 +490,21 @@ def run(out, source):
             "workflow_bound_seconds": 3600,
             "aggregate_retained_log_bytes": used,
             "aggregate_log_cap_bytes": CAP + 65536,
-            "scope": "Isolated original14 baseline regressions plus separate original stack case; full shared-process semantic gate unchanged. No test body/assertion/fixture/row/timeout changes or performance acceptance.",
+            "inventory_complete": {
+                group: all(
+                    row["status"] not in ["UNRUN", "INCOMPLETE", "TIMEOUT"]
+                    for row in rows
+                    if row["group"] == group
+                )
+                for group in GROUPS
+            },
+            "other103_roster_sha256": OTHER_ROSTER_SHA,
+            "original_failure_log_sha256": FAILURE_LOG_SHA,
+            "stack_frame_retained_log_bytes": sum(
+                stream["bytes"] for stream in frame_streams.values()
+            ),
+            "stack_frame_accounting": "../stack-frame-accounting.json",
+            "scope": "Original3 remain separate; unchangedbaseline14 and stack1 precede distinctactualother103. One authenticated numeric selector repeats original3 without identity/count merging. No baseline substitution, fullsharedprocessgate or performance acceptance. Unstarted cases stayUNRUN; samebudgets.",
         },
     )
     return (
@@ -307,7 +518,7 @@ def run(out, source):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=["prepare", "run"])
+    parser.add_argument("phase", choices=["prepare", "frames", "run"])
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--sha", required=True)
     args = parser.parse_args()
@@ -326,6 +537,8 @@ def main():
         if args.phase == "prepare":
             prepare(out, args.sha)
             return 0
+        if args.phase == "frames":
+            return frames(out, args.sha)
         return run(out, args.sha)
     except (
         RuntimeError,
@@ -350,9 +563,12 @@ def main():
                 roster = json.loads(
                     (BASE / "runtime-baseline-supplement-roster.json").read_text()
                 )
+                roster["other103"] = json.loads(
+                    (BASE / "runtime-other-failures-roster.json").read_text()
+                )["other103"]
                 rows = [
                     {"group": group, "selector": name, "status": "UNRUN"}
-                    for group in ["baseline14", "stack_abort1"]
+                    for group in GROUPS
                     for name in roster[group]
                 ]
                 save(outcomes, rows)
@@ -368,7 +584,7 @@ def main():
                                 row["status"] for row in rows if row["group"] == group
                             )
                         )
-                        for group in ["baseline14", "stack_abort1"]
+                        for group in GROUPS
                     },
                     "scope": "Original supplemental assertions not admitted; completed process observations remain in outcomes, all unstarted cases stay UNRUN.",
                 },

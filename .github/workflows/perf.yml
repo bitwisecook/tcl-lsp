@@ -546,7 +546,7 @@ jobs:
           printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
           printf '%s\n' 'DIAGNOSTIC ONLY: original standalone lib/integration tests, actual selected roster authoritative. nextest excludes doctests. No full cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
-            printf '%s\n' 'DIAGNOSTIC ONLY: original three-test subtotal, followed by separate original baseline14 and stack1 diagnostics. Remaining tests and doctests excluded. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
+            printf '%s\n' 'DIAGNOSTIC ONLY: original three-test subtotal, followed by separate baseline14, stack1 and authenticated other103 inventories. Other tests and doctests excluded; numeric selector repeats original3 in other103 without identity/count merging. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
           fi
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         timeout-minutes: 3
@@ -682,15 +682,25 @@ jobs:
             test -f "$OUT/focus-selected-verified.json"
             filter_args=(-E "$(cat "$OUT/nextest-filter.txt")")
           fi
+          stack_capture_result=0
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
             set +e
             python3 docs/work/name-handling/validation-tools/runtime-baseline-supplement.py prepare --out "$OUT" --sha '${{ inputs.runtime_sha }}'
             prepare_result=$?
             set -e
             printf '%s\n' "$prepare_result" > "$OUT/supplement-prepare-exit.txt"
+            set +e
+            python3 docs/work/name-handling/validation-tools/runtime-baseline-supplement.py frames --out "$OUT" --sha '${{ inputs.runtime_sha }}'
+            stack_capture_result=$?
+            set -e
+            printf '%s\n' "$stack_capture_result" > "$OUT/stack-frame-capture-exit.txt"
+            if [[ ! -f "$OUT/stack-frame-accounting.json" ]] || (( stack_capture_result != 0 && stack_capture_result != 125 )); then
+              printf '%s\n' 'stack metadata process or ELF settlement unavailable; original cases unrun' > "$OUT/stack-frame-settlement-incomplete.txt"
+              exit 125
+            fi
           fi
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
-            printf '%s\n' 'SUPPLEMENT ONLY: fourteen exact original baseline regressions and one separately isolated stack case after original3, same sealed fullTom ELF. Independent subtotals; no full shared-process semantic gate acceptance.' > "$OUT/coverage-supplement.txt"
+            printf '%s\n' 'SUPPLEMENT ONLY: unchanged fourteen exact original baseline regressions, separate stack1, then exact other103 actual failures from authenticated a26 log, same sealed fullTom ELF after original3. Separate subtotals; one numeric repeat is explicit; UNRUN retained under unchanged budgets; no full shared-process semantic gate acceptance.' > "$OUT/coverage-supplement.txt"
           fi
           # Original cases retain their 180-second timeout and assertions.
           # The capture owns and drains nextest directly, retaining full reporter
@@ -773,6 +783,7 @@ jobs:
             echo "::error::bounded diagnostic evidence is missing, incomplete or inconsistent"
             exit 125
           fi
+          if (( stack_capture_result != 0 )); then exit 125; fi
           if (( supplement_result != 0 && supplement_result != 100 )); then exit 125; fi
           if (( result == 0 && supplement_result != 0 )); then result=$supplement_result; fi
           exit "$result"
