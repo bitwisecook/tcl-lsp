@@ -709,6 +709,34 @@ fn original_operand_count(
     Ok(count)
 }
 
+fn original_decline_preparations(
+    spec: NativeCompilationSpec,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    dialect: InvocationDialect,
+    context: NativeCompilationContext,
+) -> Option<
+    Result<
+        Vec<crate::native_control_compilation::NativeControlPreparationStep>,
+        NativeInstructionPlanUnavailable,
+    >,
+> {
+    if spec.grammar == NativeCompilationGrammar::FormatStringConcat {
+        let selection = crate::native_format_compilation::select(
+            words.literal(operand_from),
+            words.shapes().get(operand_from..)?,
+            dialect.tcl_version?,
+            context,
+            spec.operation,
+        );
+        // The attempted hook emits no instruction, literal registration or
+        // local reservation before this decline. The GenericPreparation
+        // consumer compiles the enclosing ordinary words once afterwards.
+        return (selection == NativeCompilationSelection::Generic).then_some(Ok(Vec::new()));
+    }
+    original_dictionary_preparations(spec, words, operand_from, dialect.tcl_version?, context)
+}
+
 fn native_instruction_plan_for_purpose(
     spec: NativeCompilationSpec,
     selection: NativeCompilationSelection,
@@ -728,7 +756,7 @@ fn native_instruction_plan_for_purpose(
     }
     if selection == NativeCompilationSelection::Generic
         && let Some(preparations) =
-            original_dictionary_preparations(spec, words, operand_from, version, context)
+            original_decline_preparations(spec, words, operand_from, dialect, context)
     {
         return preparations.map(NativeInstructionPlan::GenericPreparation);
     }
