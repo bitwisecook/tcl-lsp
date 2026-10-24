@@ -30215,146 +30215,41 @@ impl Backend {
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
             let store = Arc::clone(&self.store);
-            tasks.spawn(async move {
-                let _permit = permit;
-
-                crate::rt::spawn_blocking(move || {
-                    if open.contains(&uri) {
-                        return WorkspaceScanCandidate::Open;
-                    }
-                    if let Err(error) = driver.path_admission.check_for(&uri, store.as_ref()) {
-                        return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
-                            error,
-                        ));
-                    }
-                    // Analysis form, matching `read_document` / `scan_disk_file`.
-                    // Shared decoder, for the same reason `scan_disk_file`
-                    // uses it: an ill-formed byte must not silently remove the
-                    // file from the workspace index.
-                    let (raw, _) = match store.read_source(&path) {
-                        Ok(source) => source,
-                        Err(cause)
-                            if Self::source_read_is_absent(store.as_ref(), &path, &cause) =>
-                        {
-                            return match driver.path_admission.check_for(&uri, store.as_ref()) {
-                                Ok(()) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(
-                                    Arc::clone(&driver.path_admission),
-                                )),
-                                Err(error) => WorkspaceScanCandidate::Scanned(
-                                    DiskScanOutcome::Unavailable(error),
-                                ),
-                            };
-                        }
-                        Err(cause) => {
-                            return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
-                                DocumentSourceUnavailable::Read {
-                                    uri,
-                                    cause: Arc::new(cause),
-                                },
-                            ));
-                        }
-                    };
-                    let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
-                    if driver.analyser_inputs_epoch != scan_analyser_inputs_epoch
-                        || driver.class_factory_generation != scan_class_factory_generation
-                    {
-                        return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
-                            DocumentSourceUnavailable::ScanWorker {
-                                cause: "workspace scan inputs changed before row analysis"
-                                    .to_owned(),
-                            },
-                        ));
-                    }
-                    let document_override = document_dialect_overrides
-                        .get(uri.as_str())
-                        .map(String::as_str);
-                    let dialect = Self::dialect_for_closed_sync(
-                        &uri,
-                        &text,
-                        document_override,
-                        &folder_dialects,
-                        &default_dialect,
-                    );
-                    workspace_scan_trace!("candidate.analysis.begin path={path:?} bytes={} dialect={dialect}", text.len());
-                    match driver.analyse(&text, &dialect, None) {
-                        Ok(seed) => {
-                            workspace_scan_trace!("candidate.analysis.end path={path:?} commands={} procedures={} classes={}", seed.analysis.command_invocations.len(), seed.analysis.all_procs.len(), seed.analysis.all_classes.len());
-                            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
-                                Box::new(ScannedDocument {
-                                    uri,
-                                    text,
-                                    dialect,
-                                    expected_analyser_inputs_epoch: Some(scan_analyser_inputs_epoch),
-                                    expected_class_factory_generation: Some(
-                                        scan_class_factory_generation,
-                                    ),
-                                    seed,
-                                }),
-                            ))
-                        },
-                        Err(error) => {
-                            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(error))
-                        }
-                    }
-                })
-                .await
-                .unwrap_or_else(|error| {
-                    WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
-                        DocumentSourceUnavailable::ScanWorker {
-                            cause: error.to_string(),
-                        },
-                    ))
-                })
-            });
+            Self::enqueue_workspace_scan_candidate(
+                &mut tasks,
+                WorkspaceScanWorker {
+                    permit,
+                    open,
+                    uri,
+                    driver,
+                    store,
+                    path,
+                    scan_analyser_inputs_epoch,
+                    scan_class_factory_generation,
+                    document_dialect_overrides,
+                    folder_dialects,
+                    default_dialect,
+                },
+            );
         }
         let mut files_count = 0usize;
         let mut batch = Vec::new();
         while let Some(result) = tasks.join_next().await {
-            let item = result.unwrap_or_else(|error| {
-                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
-                    DocumentSourceUnavailable::ScanWorker {
-                        cause: error.to_string(),
-                    },
-                ))
-            });
-            match item {
-                WorkspaceScanCandidate::Open
-                | WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(_)) => continue,
-                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(_error)) => {
-                    coverage_complete = false;
-                    continue;
-                }
-                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(item)) => {
-                    if item.seed.analysis.analysis_context_unavailable.is_some() {
-                        // Retain the typed row, but do not let an analysis that
-                        // performed no declaration walk certify absence.
-                        coverage_complete = false;
-                    }
-                    batch.push(*item);
-                }
+            let item = result.unwrap_or_else(|error| Self::unavailable_scan_worker(&error));
+            if !Self::append_workspace_scan_candidate(item, &mut batch, &mut coverage_complete) {
+                continue;
             }
             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
-                let scanned_count = batch.len();
-                let batch = self
-                    .current_scanned_rows(std::mem::take(&mut batch))
-                    .await?;
-                coverage_complete &= batch.rows.len() == scanned_count;
-                let (published, currentness) = self
-                    .publish_scanned_disk_results(
-                        &batch,
-                        &[],
-                        DiskRemovalPolicy::ClosedOnly,
-                        "merge_workspace_scan_results",
+                let PublishedWorkspaceScanBatch {
+                    batch: _published_batch,
+                    published: _published,
+                    rows: published_rows,
+                } = self
+                    .publish_workspace_scan_batch(
+                        std::mem::take(&mut batch),
+                        &mut coverage_complete,
                     )
                     .await?;
-                coverage_complete &= currentness != DiskPublicationOutcome::Unavailable;
-                let published = published.into_iter().collect::<HashSet<_>>();
-                let published_rows = batch
-                    .rows
-                    .iter()
-                    .filter(|row| published.contains(&row.0))
-                    .cloned()
-                    .collect::<Vec<_>>();
                 files_count += published_rows.len();
                 // Only source rows that passed the final currentness commit
                 // may contribute their `auto_path` mutations to the resolver.
@@ -30366,25 +30261,13 @@ impl Backend {
             }
         }
         if !batch.is_empty() {
-            let scanned_count = batch.len();
-            let batch = self.current_scanned_rows(batch).await?;
-            coverage_complete &= batch.rows.len() == scanned_count;
-            let (published, currentness) = self
-                .publish_scanned_disk_results(
-                    &batch,
-                    &[],
-                    DiskRemovalPolicy::ClosedOnly,
-                    "merge_workspace_scan_results",
-                )
+            let PublishedWorkspaceScanBatch {
+                batch: _published_batch,
+                published: _published,
+                rows: published_rows,
+            } = self
+                .publish_workspace_scan_batch(batch, &mut coverage_complete)
                 .await?;
-            coverage_complete &= currentness != DiskPublicationOutcome::Unavailable;
-            let published = published.into_iter().collect::<HashSet<_>>();
-            let published_rows = batch
-                .rows
-                .iter()
-                .filter(|row| published.contains(&row.0))
-                .cloned()
-                .collect::<Vec<_>>();
             files_count += published_rows.len();
             resolver = extend_resolver_with_document_auto_paths(
                 self.store.as_ref(),
@@ -31903,6 +31786,195 @@ impl Backend {
             rehoming_guard,
             DiskPublicationOutcome::Unavailable,
         )
+    }
+}
+
+struct WorkspaceScanWorker {
+    permit: tokio::sync::OwnedSemaphorePermit,
+    open: Arc<HashSet<Uri>>,
+    uri: Uri,
+    driver: Box<FreshAnalysisDriver>,
+    store: Arc<dyn vfs::SourceStore>,
+    path: PathBuf,
+    scan_analyser_inputs_epoch: u64,
+    scan_class_factory_generation: u64,
+    document_dialect_overrides: Arc<HashMap<String, String>>,
+    folder_dialects: Arc<Vec<(Uri, String)>>,
+    default_dialect: String,
+}
+
+struct PublishedWorkspaceScanBatch {
+    batch: AdmittedDiskBatch,
+    published: HashSet<Uri>,
+    rows: Vec<(Uri, String, String, AnalysisResult)>,
+}
+
+impl Backend {
+    fn enqueue_workspace_scan_candidate(
+        tasks: &mut crate::rt::JoinSet<WorkspaceScanCandidate>,
+        worker: WorkspaceScanWorker,
+    ) {
+        let WorkspaceScanWorker {
+            permit,
+            open,
+            uri,
+            driver,
+            store,
+            path,
+            scan_analyser_inputs_epoch,
+            scan_class_factory_generation,
+            document_dialect_overrides,
+            folder_dialects,
+            default_dialect,
+        } = worker;
+        tasks.spawn(async move {
+            let _permit = permit;
+
+            crate::rt::spawn_blocking(move || {
+                if open.contains(&uri) {
+                    return WorkspaceScanCandidate::Open;
+                }
+                if let Err(error) = driver.path_admission.check_for(&uri, store.as_ref()) {
+                    return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                        error,
+                    ));
+                }
+                // Analysis form, matching `read_document` / `scan_disk_file`.
+                // Shared decoder, for the same reason `scan_disk_file`
+                // uses it: an ill-formed byte must not silently remove the
+                // file from the workspace index.
+                let (raw, _) = match store.read_source(&path) {
+                    Ok(source) => source,
+                    Err(cause)
+                        if Self::source_read_is_absent(store.as_ref(), &path, &cause) =>
+                    {
+                        return match driver.path_admission.check_for(&uri, store.as_ref()) {
+                            Ok(()) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(
+                                Arc::clone(&driver.path_admission),
+                            )),
+                            Err(error) => WorkspaceScanCandidate::Scanned(
+                                DiskScanOutcome::Unavailable(error),
+                            ),
+                        };
+                    }
+                    Err(cause) => {
+                        return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                            DocumentSourceUnavailable::Read {
+                                uri,
+                                cause: Arc::new(cause),
+                            },
+                        ));
+                    }
+                };
+                let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
+                if driver.analyser_inputs_epoch != scan_analyser_inputs_epoch
+                    || driver.class_factory_generation != scan_class_factory_generation
+                {
+                    return WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+                        DocumentSourceUnavailable::ScanWorker {
+                            cause: "workspace scan inputs changed before row analysis"
+                                .to_owned(),
+                        },
+                    ));
+                }
+                let document_override = document_dialect_overrides
+                    .get(uri.as_str())
+                    .map(String::as_str);
+                let dialect = Self::dialect_for_closed_sync(
+                    &uri,
+                    &text,
+                    document_override,
+                    &folder_dialects,
+                    &default_dialect,
+                );
+                workspace_scan_trace!("candidate.analysis.begin path={path:?} bytes={} dialect={dialect}", text.len());
+                match driver.analyse(&text, &dialect, None) {
+                    Ok(seed) => {
+                        workspace_scan_trace!("candidate.analysis.end path={path:?} commands={} procedures={} classes={}", seed.analysis.command_invocations.len(), seed.analysis.all_procs.len(), seed.analysis.all_classes.len());
+                        WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
+                            Box::new(ScannedDocument {
+                                uri,
+                                text,
+                                dialect,
+                                expected_analyser_inputs_epoch: Some(scan_analyser_inputs_epoch),
+                                expected_class_factory_generation: Some(
+                                    scan_class_factory_generation,
+                                ),
+                                seed,
+                            }),
+                        ))
+                    },
+                    Err(error) => {
+                        WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(error))
+                    }
+                }
+            })
+            .await
+            .unwrap_or_else(|error| Self::unavailable_scan_worker(&error))
+        });
+    }
+
+    fn append_workspace_scan_candidate(
+        item: WorkspaceScanCandidate,
+        batch: &mut Vec<ScannedDocument>,
+        coverage_complete: &mut bool,
+    ) -> bool {
+        match item {
+            WorkspaceScanCandidate::Open
+            | WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(_)) => return false,
+            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(_error)) => {
+                *coverage_complete = false;
+                return false;
+            }
+            WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(item)) => {
+                if item.seed.analysis.analysis_context_unavailable.is_some() {
+                    // Retain the typed row, but do not let an analysis that
+                    // performed no declaration walk certify absence.
+                    *coverage_complete = false;
+                }
+                batch.push(*item);
+            }
+        }
+        true
+    }
+
+    async fn publish_workspace_scan_batch(
+        &self,
+        rows: Vec<ScannedDocument>,
+        coverage_complete: &mut bool,
+    ) -> DocumentSourceResult<PublishedWorkspaceScanBatch> {
+        let scanned_count = rows.len();
+        let batch = self.current_scanned_rows(rows).await?;
+        *coverage_complete &= batch.rows.len() == scanned_count;
+        let (published, currentness) = self
+            .publish_scanned_disk_results(
+                &batch,
+                &[],
+                DiskRemovalPolicy::ClosedOnly,
+                "merge_workspace_scan_results",
+            )
+            .await?;
+        *coverage_complete &= currentness != DiskPublicationOutcome::Unavailable;
+        let published = published.into_iter().collect::<HashSet<_>>();
+        let published_rows = batch
+            .rows
+            .iter()
+            .filter(|row| published.contains(&row.0))
+            .cloned()
+            .collect::<Vec<_>>();
+        Ok(PublishedWorkspaceScanBatch {
+            batch,
+            published,
+            rows: published_rows,
+        })
+    }
+
+    fn unavailable_scan_worker(cause: &impl ToString) -> WorkspaceScanCandidate {
+        WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(
+            DocumentSourceUnavailable::ScanWorker {
+                cause: cause.to_string(),
+            },
+        ))
     }
 }
 
