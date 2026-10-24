@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only unchanged original Jim7 class/source diagnosis."""
+"""WORK-only original Jim45, separate static5 diagnosis and exact new control."""
 
 import argparse
 import datetime
@@ -36,6 +36,14 @@ CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 BASE = Path(__file__).resolve().parent
+STATIC_CONTROL_TARGET = "jim_static_read_alternatives"
+STATIC_CONTROL_SELECTOR = (
+    "original_static_alternatives_withdraw_only_their_synthetic_local_absence"
+)
+STATIC_CONTROL_SOURCE_PIN = (
+    "70929c92a61c0c07c784a8288193a3a12880be0ef6974ff7375b4cdd58c6d287"
+)
+STATIC_CONTROL_CLEANUP_RESERVE_SECONDS = 30
 
 
 def require(value, message):
@@ -131,10 +139,25 @@ def execute(
         on_budget_refusal()
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
+    if prefix.startswith(
+        (
+            "build-jim_static_read_alternatives",
+            "list-jim_static_read_alternatives",
+            "jim_static_read_alternatives-control-",
+        )
+    ):
+        available -= STATIC_CONTROL_CLEANUP_RESERVE_SECONDS
     if available <= 0 and on_budget_refusal is not None:
         on_budget_refusal()
     require(available > 0, "absolute diagnostic deadline reached")
-    if prefix.startswith(("jim_document-", "jim_own_surface-", "list-")):
+    if prefix.startswith(
+        (
+            "jim_document-",
+            "jim_own_surface-",
+            "list-",
+            "jim_static_read_alternatives-control-",
+        )
+    ):
         if available < seconds and on_budget_refusal is not None:
             on_budget_refusal()
         require(
@@ -207,7 +230,11 @@ def run_selected(
             on_budget_refusal=(
                 record_budget_refusal
                 if outcomes_name
-                in ["supplemental-outcomes.json", "diagnostic-static-outcomes.json"]
+                in [
+                    "supplemental-outcomes.json",
+                    "diagnostic-static-outcomes.json",
+                    "static-alternatives-outcomes.json",
+                ]
                 else None
             ),
         )
@@ -236,6 +263,7 @@ parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--full-rosters", action="store_true")
 parser.add_argument("--diagnostic-statics", action="store_true")
+parser.add_argument("--static-alternatives-control", action="store_true")
 args = parser.parse_args()
 require(re.fullmatch("[0-9a-f]{40}", args.sha), "full exact SHA required")
 require(os.environ.get("GITHUB_SHA") == args.sha, "checkout/workflow SHA mismatch")
@@ -318,6 +346,20 @@ diagnostic_rows = [
     for selector in static_selectors
     if args.diagnostic_statics
 ]
+require(
+    not args.static_alternatives_control
+    or (args.full_rosters and args.diagnostic_statics),
+    "new static alternatives control follows original45 and diagnostic5",
+)
+static_control_rows = [
+    {
+        "target": STATIC_CONTROL_TARGET,
+        "selector": STATIC_CONTROL_SELECTOR,
+        "env": {},
+        "state": "UNRUN",
+    }
+    for _ in range(1 if args.static_alternatives_control else 0)
+]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -328,6 +370,7 @@ status = 2
 save(out / "outcomes.json", rows)
 save(out / "supplemental-outcomes.json", supplemental_rows)
 save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
+save(out / "static-alternatives-outcomes.json", static_control_rows)
 try:
     executor = BASE / "runtime-diagnostics-exec.py"
     require(sha(executor) == EXECUTOR_SHA, "reviewed process owner changed")
@@ -493,6 +536,12 @@ try:
         all(sha(root / name) == pin for name, pin in roster["source_pins"].items()),
         "original test/observer input changed",
     )
+    if args.static_alternatives_control:
+        require(
+            sha(root / "rust/tcl-spectcl/tests/jim_static_read_alternatives.rs")
+            == STATIC_CONTROL_SOURCE_PIN,
+            "exact new static alternatives source changed",
+        )
     save(
         out / "job.json",
         {
@@ -548,6 +597,12 @@ try:
             "supplemental_roster": supplemental_rows,
             "diagnostic_static_requested": args.diagnostic_statics,
             "diagnostic_static_roster": diagnostic_rows,
+            "static_alternatives_control_requested": args.static_alternatives_control,
+            "static_alternatives_control_roster": static_control_rows,
+            "static_alternatives_control_source_pin": STATIC_CONTROL_SOURCE_PIN,
+            "static_alternatives_cleanup_reserve_seconds": (
+                STATIC_CONTROL_CLEANUP_RESERVE_SECONDS
+            ),
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -752,6 +807,148 @@ try:
             "diagnostic-static-outcomes.json",
             "jim_document-static-diagnostic",
         )
+    if args.static_alternatives_control:
+        control_roster = {STATIC_CONTROL_TARGET: [STATIC_CONTROL_SELECTOR]}
+        for package, target_name, selectors in [
+            ("tcl-spectcl", STATIC_CONTROL_TARGET, [STATIC_CONTROL_SELECTOR])
+        ]:
+            require(
+                remaining > 512 * 1024, "insufficient log budget before selected build"
+            )
+            print("BUILD new static alternatives target " + target_name, flush=True)
+            argv = [
+                str(tools["cargo"]),
+                "test",
+                "--locked",
+                "-p",
+                package,
+                "--test",
+                target_name,
+                "--no-run",
+                "--message-format=json",
+                "-j",
+                "2",
+            ]
+            built = execute(
+                argv, "build-" + target_name, tools["cargo"], 2400, env, remaining
+            )
+            processes.append(built)
+            remaining -= built["retained_bytes"]
+            require(
+                lifecycle(built) and built["exit_code"] == 0,
+                "selected target build failed or unclosed: " + target_name,
+            )
+            messages = [
+                json.loads(line)
+                for line in (out / ("build-" + target_name + ".stdout"))
+                .read_text()
+                .splitlines()
+                if line.startswith("{")
+            ]
+            require(
+                not any(
+                    row.get("reason") == "compiler-message"
+                    and row.get("message", {}).get("level") in ["warning", "error"]
+                    for row in messages
+                ),
+                "selected build emitted Rust warning/error",
+            )
+            require(
+                sum(
+                    row.get("reason") == "build-finished" and row.get("success") is True
+                    for row in messages
+                )
+                == 1,
+                "successful Cargo terminal missing",
+            )
+            selected = [
+                row
+                for row in messages
+                if row.get("reason") == "compiler-artifact"
+                and row.get("target", {}).get("name") == target_name
+                and row.get("target", {}).get("kind") == ["test"]
+                and row.get("manifest_path")
+                == str(root / "rust" / package / "Cargo.toml")
+                and row.get("profile", {}).get("test") is True
+                and row.get("executable")
+            ]
+            require(
+                len(selected) == 1
+                and selected[0].get("fresh") is False
+                and selected[0].get("profile", {}).get("debug_assertions") is True,
+                "fresh current diagnostic test artifact missing/ambiguous",
+            )
+            executable = Path(selected[0]["executable"]).resolve()
+            require(
+                executable.is_file() and executable.is_relative_to(target),
+                "test artifact outside fresh owned target",
+            )
+            artifact = {
+                "target": target_name,
+                "path": str(executable),
+                "sha256": sha(executable),
+                "cargo_event": selected[0],
+                "strict_Rust_0w": True,
+                "admission": "selected target compilation only",
+            }
+            artifacts.append(artifact)
+            save(out / "selected-artifacts.json", artifacts)
+            require(
+                files(dependency_roots) == dependencies_before
+                and source() == before
+                and files(provider_roots) == providers_before
+                and files(list(tools.values())) == tool_pins,
+                "pre-runtime source/provider/tool/dependency drift",
+            )
+            list_argv = [str(executable), "--list", "--format", "terse"]
+            listing = execute(
+                list_argv, "list-" + target_name, executable, 180, env, remaining
+            )
+            processes.append(listing)
+            remaining -= listing["retained_bytes"]
+            require(
+                lifecycle(listing) and listing["exit_code"] == 0,
+                "original roster listing failed or unclosed",
+            )
+            listed = []
+            for line in (
+                (out / ("list-" + target_name + ".stdout")).read_text().splitlines()
+            ):
+                if line.endswith(": test"):
+                    listed.append(line.removesuffix(": test"))
+                else:
+                    require(
+                        not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                        "unexpected listing data: " + line[:256],
+                    )
+            require(
+                len(listed) == len(set(listed)) == len(control_roster[target_name])
+                and set(listed) == set(control_roster[target_name])
+                and set(selectors).issubset(listed),
+                "original actual roster mismatch: " + target_name,
+            )
+            save(
+                out / ("roster-" + target_name + ".json"),
+                {
+                    "target": target_name,
+                    "selected": listed,
+                    "listing_sha256": sha(out / ("list-" + target_name + ".stdout")),
+                    "executable_sha256": artifact["sha256"],
+                },
+            )
+            run_selected(
+                executable,
+                artifact,
+                target_name,
+                selectors,
+                static_control_rows,
+                "static-alternatives-outcomes.json",
+                target_name + "-control",
+            )
+    require(
+        all(row["state"] in ["PASS", "FAIL"] for row in static_control_rows),
+        "new static alternatives control inventory incomplete",
+    )
     require(
         all(row["state"] in ["PASS", "FAIL"] for row in diagnostic_rows),
         "static diagnostic inventory incomplete",
@@ -767,7 +964,8 @@ try:
     status = (
         0
         if all(
-            row["state"] == "PASS" for row in rows + supplemental_rows + diagnostic_rows
+            row["state"] == "PASS"
+            for row in rows + supplemental_rows + diagnostic_rows + static_control_rows
         )
         else 1
     )
@@ -820,6 +1018,7 @@ finally:
     save(out / "outcomes.json", rows)
     save(out / "supplemental-outcomes.json", supplemental_rows)
     save(out / "diagnostic-static-outcomes.json", diagnostic_rows)
+    save(out / "static-alternatives-outcomes.json", static_control_rows)
     save(
         out / "final.json",
         {
@@ -833,6 +1032,12 @@ finally:
             "remaining_log_bytes": remaining,
             "outcomes": rows,
             "required_original_tests": 7,
+            "static_alternatives_control_requested": args.static_alternatives_control,
+            "required_static_alternatives_control_tests": len(static_control_rows),
+            "static_alternatives_control_outcomes": static_control_rows,
+            "static_alternatives_control_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in static_control_rows
+            ),
             "diagnostic_static_requested": args.diagnostic_statics,
             "required_diagnostic_static_tests": len(diagnostic_rows),
             "diagnostic_static_outcomes": diagnostic_rows,
