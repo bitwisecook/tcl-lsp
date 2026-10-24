@@ -36,6 +36,16 @@
 //! expression over this module's lattice services
 //! ([`crate::tcl_expr_eval::ExprServices`]).
 
+fn n17_transfer_decline(stage: &str, value: bool) -> bool {
+    #[cfg(debug_assertions)]
+    if value && std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+        eprintln!("N17_NATIVE decline={stage}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -3600,7 +3610,7 @@ impl<'a> LatticeDriver<'a> {
             return DefValues::PerDef(widened(&defs));
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
-        if !self.trusted(head) {
+        if n17_transfer_decline("call.untrusted", !self.trusted(head)) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return DefValues::PerDef(widened(&defs));
         }
@@ -3959,10 +3969,12 @@ impl<'a> LatticeDriver<'a> {
     ) -> DefValues {
         if let Some(module) = self.module {
             let Some(original) = original else {
+                n17_transfer_decline("source-call.original-tokens", true);
                 return DefValues::PerDef(widened(defs));
             };
             if module.has_original_native_source() {
                 let Some(body) = self.body_id else {
+                    n17_transfer_decline("source-call.body-id", true);
                     return DefValues::PerDef(widened(defs));
                 };
                 return module
