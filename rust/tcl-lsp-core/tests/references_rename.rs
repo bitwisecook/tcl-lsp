@@ -1112,7 +1112,7 @@ fn references_unrelated_word_yields_nothing() {
     // A bare literal argument (`hello`) is neither a proc, class, nor var.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         references(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1121,7 +1121,8 @@ fn references_unrelated_word_yields_nothing() {
             &analysis,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1130,7 +1131,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
     // Way past EOF — must return empty, not panic.
-    assert!(
+    assert_eq!(
         references(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1139,9 +1140,10 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
             &analysis,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
-    assert!(
+    assert_eq!(
         references(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1150,11 +1152,12 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
             &analysis,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
     // Empty document.
     let empty = analyse("");
-    assert!(
+    assert_eq!(
         references(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1163,7 +1166,8 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
             &empty,
             true
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1545,7 +1549,7 @@ fn rename_var_also_rejects_unsafe_new_name() {
     // The shape gate applies to variable renames too.
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1555,7 +1559,8 @@ fn rename_var_also_rejects_unsafe_new_name() {
             &analysis,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1633,7 +1638,7 @@ fn rename_unknown_word_yields_no_edits() {
     let src = "puts hello\n";
     let analysis = analyse(src);
     // `hello` is a bare literal — nothing to rename.
-    assert!(
+    assert_eq!(
         rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1643,7 +1648,8 @@ fn rename_unknown_word_yields_no_edits() {
             &analysis,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1653,7 +1659,7 @@ fn rename_builtin_without_registry_still_yields_no_edits() {
     // symbol whose definition/calls could be rewritten.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1663,7 +1669,8 @@ fn rename_builtin_without_registry_still_yields_no_edits() {
             &analysis,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1671,7 +1678,7 @@ fn rename_builtin_without_registry_still_yields_no_edits() {
 fn rename_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(
+    assert_eq!(
         rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1681,9 +1688,10 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
             &analysis,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
-    assert!(
+    assert_eq!(
         rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1693,10 +1701,11 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
             &analysis,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
     let empty = analyse("");
-    assert!(
+    assert_eq!(
         rename(
             "",
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
@@ -1706,7 +1715,8 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
             &empty,
             None
         )
-        .is_empty()
+        .as_slice(),
+        []
     );
 }
 
@@ -1881,7 +1891,7 @@ fn object_var_references_are_token_sized() {
         &analysis,
         true,
     );
-    assert!(!refs.is_empty());
+    assert_ne!(refs.as_slice(), []);
     for r in &refs {
         assert_eq!(
             r.start_line, r.end_line,

@@ -80,12 +80,12 @@ fn prepare_on_proc_call() {
 #[test]
 fn prepare_on_builtin_is_empty() {
     // A builtin (`puts`) is not a call-hierarchy proc.
-    assert!(items("puts hello", 0, 1).is_empty());
+    assert_eq!(items("puts hello", 0, 1).as_slice(), []);
 }
 
 #[test]
 fn prepare_on_empty_file_is_empty() {
-    assert!(items("", 0, 0).is_empty());
+    assert_eq!(items("", 0, 0).as_slice(), []);
 }
 
 #[test]
