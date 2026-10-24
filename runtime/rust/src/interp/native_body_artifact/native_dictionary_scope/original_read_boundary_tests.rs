@@ -88,9 +88,15 @@ fn original_compiled_scope_read_refuses_pending_role_before_missing_metadata_and
                     .expect("actual original Dictionary Update/With");
                 assert_eq!(matches!(instruction.recipe.kind, Kind::With { .. }), with);
                 assert!(instruction.root_slot.is_some());
+                let protocol = interp
+                    .native_invocation_dialect()
+                    .native_compiled_variable_protocol()
+                    .filter(|protocol| protocol.has_indexed_locals())
+                    .expect("actual native indexed-local protocol");
                 {
                     let mut frames = interp.frames.borrow_mut();
                     frames.push(crate::namespace::GLOBAL);
+                    frames.install_formal_cells(&[], protocol);
                     frames
                         .install_native_compiled_local_layout(
                             artifact.compiled_local_layout().unwrap(),
@@ -237,9 +243,15 @@ fn original_compiled_scope_read_checks_original_frame_before_selected_read_and_m
                     _ => None,
                 })
                 .expect("actual original Dictionary Update");
+            let protocol = interp
+                .native_invocation_dialect()
+                .native_compiled_variable_protocol()
+                .filter(|protocol| protocol.has_indexed_locals())
+                .expect("actual native indexed-local protocol");
             {
                 let mut frames = interp.frames.borrow_mut();
                 frames.push(crate::namespace::GLOBAL);
+                frames.install_formal_cells(&[], protocol);
                 frames
                     .install_native_compiled_local_layout(artifact.compiled_local_layout().unwrap())
                     .unwrap();

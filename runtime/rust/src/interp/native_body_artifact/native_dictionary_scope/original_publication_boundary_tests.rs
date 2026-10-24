@@ -163,9 +163,15 @@ fn original_compiled_dictionary_publication_retains_frame_before_working_cleanup
                     })
                     .expect("actual compiled Dictionary Update owner");
                 assert!(matches!(instruction.recipe.kind, Kind::Update { .. }));
+                let protocol = actual
+                    .native_invocation_dialect()
+                    .native_compiled_variable_protocol()
+                    .filter(|protocol| protocol.has_indexed_locals())
+                    .expect("actual native indexed-local protocol");
                 {
                     let mut frames = actual.frames.borrow_mut();
                     frames.push(crate::namespace::GLOBAL);
+                    frames.install_formal_cells(&[], protocol);
                     frames
                         .install_native_compiled_local_layout(
                             artifact.compiled_local_layout().unwrap(),
