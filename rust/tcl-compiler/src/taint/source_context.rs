@@ -431,7 +431,18 @@ mod original_standalone_unit_tests {
         );
 
         let mut replaced = unit.clone();
-        replaced.top_level.cfg.command_binding_sites.clear();
+        let tokens = replaced
+            .top_level
+            .cfg
+            .blocks
+            .values_mut()
+            .flat_map(|block| &mut block.statements)
+            .filter_map(crate::ir::Statement::tokens_mut)
+            .find(|tokens| tokens.source_binding.is_some())
+            .expect("the original statement retains its source binding");
+        let original_tokens = tokens.clone();
+        tokens.source_binding.take().unwrap();
+        assert_ne!(*tokens, original_tokens);
         assert!(
             !TaintSourceContext::for_unit_function(registry, &replaced, &replaced.top_level,)
                 .allows_nominal_metadata()
