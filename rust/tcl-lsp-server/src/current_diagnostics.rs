@@ -1311,6 +1311,7 @@ impl Backend {
                 projection: &projection,
             })
             .await?;
+        let path_registry = path_inputs.registry;
         Ok(ProposalAnalysisResult {
             report,
             _keepalive: ProposalAnalysisKeepalive {
@@ -1322,7 +1323,7 @@ impl Backend {
                 _proposal_recovery_names: proposal_recovery_names,
                 _analysis_text: analysis_text,
                 _lift: lift,
-                _registry: path_inputs.registry,
+                _registry: path_registry,
                 _currentness: currentness,
             },
         })
