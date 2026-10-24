@@ -39,6 +39,20 @@ use crate::segmenter::SegmentedCommand;
 use super::state::Analyser;
 use super::types::{CodeFix, Severity};
 
+/// Reuse immutable document bytes and line geometry; no source proof follows.
+fn original_document_source_image(
+    source: &str,
+    retained: Option<&tcl_lexer::SourceImage>,
+) -> tcl_lexer::SourceImage {
+    retained
+        .filter(|image| {
+            image.channel() == tcl_lexer::SourceChannel::Document
+                && image.bytes() == source.as_bytes()
+        })
+        .cloned()
+        .unwrap_or_else(|| tcl_lexer::SourceImage::document(source))
+}
+
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
 /// `(name, head-span, argc, callback_arity, ensemble_subcommand_candidate)`.
@@ -925,7 +939,10 @@ impl Analyser {
         // Implementation contract: naming.source.original-command-token-memo
 
         self.head_identities.retained_original_tokens(
-            &tcl_lexer::SourceImage::document(&self.source),
+            &original_document_source_image(
+                &self.source,
+                self.head_identities.original_source_image(),
+            ),
             self.file_lexer_config(),
             invocation_offset,
             argument_tokens,
@@ -2333,7 +2350,10 @@ impl Analyser {
             return None;
         }
         let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = original_document_source_image(
+            &self.source,
+            self.head_identities.original_source_image(),
+        );
         let config = self.file_lexer_config();
         // Reuse lexical geometry only. Every downstream binding, input and
         // declaration guard still runs against its current original inventory.
@@ -6745,6 +6765,34 @@ fn first_command_head(text: &str) -> Option<(&str, usize)> {
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    #[test]
+    fn document_image_reuse_preserves_full_bytes_channel_and_line_positions() {
+        for source in ["", "set x 1\r\nputs $x\r", "café\nλ", "a\0b"] {
+            let expected = tcl_lexer::SourceImage::document(source);
+            let native = tcl_lexer::SourceImage::native(source.as_bytes());
+            let changed = tcl_lexer::SourceImage::document(&format!("{source}different"));
+            let reused = original_document_source_image(source, Some(&expected));
+            assert!(Arc::ptr_eq(
+                &reused.shared_bytes(),
+                &expected.shared_bytes()
+            ));
+            for retained in [None, Some(&expected), Some(&native), Some(&changed)] {
+                let actual = original_document_source_image(source, retained);
+                assert_eq!(actual, expected);
+                assert_eq!(actual.channel(), tcl_lexer::SourceChannel::Document);
+                let actual_map = actual.source_map();
+                let expected_map = expected.source_map();
+                for offset in 0..=source.len() {
+                    let offset = u32::try_from(offset).unwrap();
+                    assert_eq!(
+                        actual_map.position_at(offset),
+                        expected_map.position_at(offset)
+                    );
+                }
+            }
+        }
+    }
 
     fn uncached_original_source_segment(
         analyser: &Analyser,
