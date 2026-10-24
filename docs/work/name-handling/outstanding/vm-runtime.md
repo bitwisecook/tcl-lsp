@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T11:43:10.729413+00:00
+Last updated: 2026-10-24T12:32:35.131671+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T114310Z.md.gz (lossless). Earlier0255/0431/0625 snapshots retained.
 
@@ -15,6 +15,70 @@ Stage large ZIP/evidence in workspace; maps/logs stay ZIP-only, extractsmall onl
 NoTom17typed+1refusal separate from FullTom sharedprocesssemanticgate. Exact original
 baselines/fullgates/performance remain binding, no PRGO. Numeric success fixture
 per-dialect zeroerrno USERLOCKED, no production errno reset or expansion to Env.
+
+## Current source peer and strict provider prerequisite
+
+Root source advanced through qualifier8d9298e1c/image d887 and OO producer ebc516/2da882;
+no new runtime dispatch visible at12:32UTC (latestperf run still988). Root alone publishes.
+OO foundation paired23a49 full independent SOURCE/API/TYPE/OWNER/ORDER STATIC CLEAR:
+vm-peer-oo-foundation-v1/receipt.json
+SHA958dffa45094e2004b348941756d6d7c256c89f0d1406e5fec17357c99aed3cf.
+Both exactcurrent manifests/files, F/R/F0/fmt4/fulloldsource/test inverse; actualsix
+current988sourcejoins+C9fullsource/LFwindows independently authentic. Two existing
+namespace-declaration owner calls beforehelpers preserve dying/retained refusal,
+realnamespace membership/command/compiler/guard invalidations andallOOName checks.
+C9 AllocObject alwayscreates namespace for bothfoundations; newC9/C91 Name-scope
+positive+reserved-onlynegative welltyped source-read. No native/build/newtest/Heavy
+closure or laterCLASSfacet PASS claimed. Root integrated afterreceipt.
+
+TomMath strict prerequisite component FROZEN/await independentpeer:
+vm-ci-tommath-prerequisite-v1 master27169b28a7522fd6fc8b3ac9daa64bd7059ed9b51d20b7f48b0533dc44962b5d.
+WORKpatchd5febf5a49258275f28d495f95e6d085423ea91e956a0565aad4c2f99f576f69
+man dc3d4532f15c9a6d6b8802167972a2045c14046721ffc9afff76b0e0b8a33957.
+CLEAN68d07be67da0c986f44015e1b1e16ed981937a6b37115c06d83fdd66aa1da6e3
+man a5bdbb04d3b51b2f6212d2555fffcf1c88a94a57e43f96b8b7827ca8b8c8880a.
+Only CIrust-check setupstep +matchingWORKglobaldiagnostic: real existing sourcefetch
+9.0→manifest9.0.4/core-9-0-4; GNU900/kill20,Actions16min/prepost2GiB/headerexists,
+require EXPECT_NO_TOMMATH absent. All originalcommands/flags/jobs/NoTomsequence exact;
+remove sole step reconstructs entireoldCI/perf, YAML/bash/copyF-R-F0 PASS. Setupuses
+existingglobal3300absolute deadline, no capbonus/fullsetupownedreceipt claim.
+No local fetch/build/native/tests, no warning suppression/C84whitelist expansion.
+WORKCI0ded→9596f721;CLEAN2b4→b869. Sourceownerproof05c5cb0beba03170dd9670a4567e7d9793465875066e1cd50ddc53360cfe1c62.
+
+Separate WORK CIpin companion FROZEN/awaitpeer:
+vm-ci-tommath-approved-pin-companion-v1 patch8ba5ee3f935ae17c5a595f83dde8978ce0fcf94253c3ea3f5c6dd6d8c75e3bc8
+manifestc65a676f90ffd857c5dd3ad8f0b87f88d1c5f3777a8bc2cec71c55108bf2b381.
+Bound2da882; onlyCI scalar inHeavy/WASM/startupcurrentmaps, corresponding2driver
+rosterhashconstants andstartup provenanceappend witholdhistoryretained. Allother
+pins/rosters/workers/clients/env/assertions/budgets exact; wholeASTconstantinverse,
+fullCIsole-stepinverse/copyF-R-F0 PASS. Rootnotifieddo notdispatchchangedCIwithout
+component+companionapproved together. No canonicalwrites or dispatch byrole.
+
+## Current fresh 988 build refusal; guard payload still UNRUN
+
+User approved direct retained-state V4; decision user-decisions-20261024T114826Z.json.
+Root applied exact13c34 WORK8dcfdc1/CLEAN80e473e and guard observerV2 at984; coherent
+WORK98835ce51cbc962c94fb247fc57d9159506df286 pushed/dispatched. Runtime40092365172
+job120867494088 COMPLETEFAIL BEFORE unit test ELF: sole E0433 cmd_lseq.rs250
+obj::has_string_rep(prior) is unqualified in sibling tests module.
+All131 planned case invocations, both approved retained-state tests, guard-stage
+payload and CFI remain UNRUN. No semantic verdict/firstcause from this compilefailure.
+
+Actual receipt vm-runtime-actual-40092365172/receipt.json
+SHAfcf75dc4105ef5c3fa18e2504c7aa50895a5e4c04c48a570867447663de84f0a.
+Artifact12558569738 ZIP26870614 SHA5a81123bd6466f133790d05441b3fcc76effc4a5e3aebee715ca83c4fd8befdb.
+All25memberCRC+streamSHA/full126090BEFORE membership/Gitpaths/15keyblob joins.
+C84sixmaps+owned900bootstrap PASS. SOURCE_AFTER/GIT_AFTER/TOM_AFTER missing after
+buildfailure: sourcefinalguard INCOMPLETE, no wholeprotocolPASS. ZIP-onlylarge maps.
+
+Minimal paired qualification proposal vm-post-refusal-obj-qualification-v1 frozen:
+bothpatchcab13e012eeac006342bf9106ebd9689510ba190967ad15a96d458d4d7a38345
+master2be3363cff20b591aed9ec2b9ff55e2b41b0b9792e72fbfaabd16acd72843283.
+WORKmana4e0f4bc85ce53d9250bc9dced0f19b274b3cc67eec7c5f0fe426c21d077fd9a
+CLEANman5845bad44ee4fbc445a621fd7de1f1fbed3c013fdd01781a9263aabc3ee736ae.
+Only obj::has_string_rep(prior)→crate::obj::has_string_rep(prior), actual pub(crate)
+owner/rootmodule proven; wholeinverse/copyF-R-F0/rustfmt2 PASS. Root independently applied qualifier8d9298e1c; no fresh compiler/build/test execution. No direct cmd_lseq source
+pin consumer found in validation-tools Git census. No dispatch/cancel by role.
 
 ## Immediate priority: remaining original guard profile-pin firstcause
 
@@ -43,7 +107,7 @@ MESSAGE lazily reads tuple after unchangedfalsepredicate. All771oldpredicates ex
 CLEAN untouched. Both changedRust sourcepins inWASMroster +ROSTER_SHA exact; noother
 selectors/env/argv/budgets/guards change. V1 permanentHOLD missingprivate-modulepin
 preserved. Full currentJSONconsumer census824f only2WASMkeys. Rootnotifiedready;
-root-only integration/dispatch pending, allnewobserver outcomesUNRUN.
+root integrated observerV2; newest988 compilefailure leaves allnewobserver outcomesUNRUN.
 
 ## Latest guarded focused actual: exact1b046 all131 closed
 
@@ -103,13 +167,12 @@ Rootnotifiedfullpins. No baselineidentity/rename/basename/unknownPASS substituti
 
 ## Held separate observation decision and coordinated ownership
 
-Post-refusalV4 HELD despite technicalRangea71ab5fc source/type/effectCLEAR.
-vm-post-refusal-observations-v4-held bothpatch13c34fcd8a88dad77766d155b09306dbe0c0ce940bccb3da5a92dc6b2dfddf31,
-WORKmanb8d3a924/CLEAN621d4bd0/proofd001d09d. FixesV3privatefield E0616 via namespaces()
-pluscurrent/top0/GLOBALguards beforefixedroot. Same-value Rusttablemetadatawrites
-explicitlydisclosed, no genericpurity. Residentbytes/exactstringlessIntstoredvalue
-instead ofpost-refusalGetString is a GENUINE coverageboundary; rootaskeduserchoice,
-UNANSWERED aslastreceived. DO NOTapply/reset/getter/materialize/retains untilrecorded.
+Post-refusalV4 technicallyRangea71ab5fc source/type/effectCLEAR, USERAPPROVED and
+root integrated exact13c34 WORK8dcfdc1/CLEAN80e473e. Decision114826Z recorded.
+No post-refusal reset/getter/materialization/retain added. Fresh988 compilefails on
+missing obj module qualification before both tests; all originalscripts/predicates
+and directresidentbytes/exactstringlessInt boundaries remain unchanged. Historical
+V1/V3HOLD and V4technicalreceipt retained; no actual V4PASS claimed.
 
 Codegen owns sharedVM original OO Name facet Heavybootstrap observer (source
 rust/tcl-vm/src/cmd_oo/original_name_operands.rs87/160), string/NativeAdd/recursion.

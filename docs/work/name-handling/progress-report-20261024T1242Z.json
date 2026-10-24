@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T12:42:10.302503+00:00",
+  "scheduled_report_utc": "2026-10-24T12:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T12:55:37+00:00",
+  "change_since_previous_report": [
+    "12:25 cycle is late and LOCAL ONLY: attempted fresh shallow fetch failed because inherited GH_TOKEN is invalid, so product/snapshot publication has not occurred. Current local reviewed WORK2da8828403ec216295874b2c662342f8c34c315e and CLEAN27eb20bd8c4e62119d5948d1955eef01581f58b2 are committed; last confirmed remoteWORK98835ce51 and CLEAN80e473e57. Connected GitHub read tools remain available; coordinator is testing safe authorized publication alternatives. No PR, merge, tag or release; six-hour target missed and all required gates remain open.",
+    "Freshruntime40092365172 exact988 FAILED TO BUILD: E0433 unqualified obj atcmd_lseq250 introduced by approved retained-state test. Authenticatedreceiptfcf75dc4 bindsall25ZIPmembers/exact126090BEFORE/Git15keyblobs/C84postseal, but NO finalsource/git/Tomseal or testELF/list/cases. All131plannedUNRUN. One-line crate::obj qualification independently checked/applied8d9298e1/c8aa5d33; no semantic/assertion change, freshretryrequired.",
+    "Owned-document-image11-site reuse independently SOURCE/API/OWNER/CURRENT+CLEAN cleara5dc2362 and appliedd88713e45/8c4bca99. SamefullDocument+bytes/currentcheck/lazyfreshfallback; ownedreturn avoidswhole-selfborrow, query/guard/callback/drop endpoints intact, onlyimmutable bytes/geometryArcs shared. No metadata memo orNativegrant. Actualtyping/performance pendingnewstartup+Core2.",
+    "Heavy98840092367635 fullauthenticatedcc7e408e/first-declineb19636b1: bootstrapFAIL, originalCLItrace2PASS. ExactfirstOOName predicate current.namespace-live failed; earlierobject/row/allocation/creation/token/destroyed passed, laterCLASSfacets UNOBSERVED. No exactobject/token recorded. Sourcecensus andC9AllocObject prove bothfoundation Object constructors omitnamespacepublication, whileall4ordinaryhelperscallers publish.",
+    "Genuinefoundationnamespacepublication23a49aef independentlyfullpeer958dffa4 appliedebc5164c3/27eb20bd8: exactlytwo declare_namespace_key callsbeforeexistinghelpercalls, originaltests/source unchanged, newC9/C91foundationownerpositive/reservednegativeUNRUN. No livenessguard/Native/TMM/descriptor weakening. ExactHeavyproducerpins2da882840 retainedall newerOO/global7 entries. Actualbootstrapclosure remainsunmeasured.",
+    "Globalstrict40092362807 artifact12559940981 ZIPa9492e59/4013248B verifiedCRC/rawANSIdecoded inventory: originalmakeexits2, source/toolsseals0. ItreachespastpreviousRegistry7 andnowreports38compiler+1engine duplicate_mod primaryClippy (39total) plusCargoTomMathabsencewarning. NoRusttypeerror identified inrawcapture. Disjointpairedstylecohorts assignedCompiler/analyser, Range/binding-lowering, LSP/unit-engine, Names/Jim andCodegen/nativecodegen; no newallows/assertion edits.",
+    "MainCI/globalstrict lackTomMath prerequisite despitegenerator/runtimeentry. Runtime isfreezing identicalboundedmanifest-pinnedC9TomMath fetch beforemainCIrustcheck andWORKglobalcommand; intentionalNoTomassertion mustnotbegloballyused anddedicatedNoTomgate remainsunchanged. Workflowcomponent/sourcepincompanion requireindependentreview beforeintegration. Cargoabsencewarning isNOTwaived.",
+    "Latestfullyauthenticated216 compilerabf38f33 remains original53PASS5FAIL/catchoriginal+diagnosticPASS/sixsupplementsPASS/taint2FAIL, within67zeroP-to-Fwithexplicitrow24envdelta. Startupcdaefbb3 cold99ms/Context2PASS/scan30FAIL; separateCore224731f38 bothtypedtestsPASS/fullseals. After-imagechecksnotyetrun. NewSCRIPTV12 soundcandidateunderNamespeer; meaningfulexistingtoken-withdrawal negativecontrol separatelyfrozen, no actualpositiveclaim.",
+    "Specresolverreviewer sources narrowstoUnknownLiteralHead, excludingNativefallback/contextswapping/arity/timing andTcl8.6realm-onlyfix. One-passheldcanonical/route/context/availabilitydiagnosticV2aa7e1501 independentlysourcecleared3081b715, pendingrootintegration. NofunctionalSpecfixclaimed. ExistingRBSownerflag3361 pendingrootintegration, no newRustinstrumentation. Nativefold literalreplacement hasanindependent result-allocation barrier provenactual-source1af44d33/eab02c98; no barrier bypass.",
+    "Userretained-state decision remainsimplemented/locked114826Z, compiler/modulequalificationrepair preservesexactchoice. Allremainingprofilepin/stack/OO/Spec/fp3/fold/taint/Jim/WASM/performance gates open. ExternalBIGIP/perf trackersstaleover60minutes, no takeover; reviewtriageCOMPLETE. Diskabout1GiB/tmp29MiB, no localbuilds, ZIP-onlyevidence. Nextcycle12:55UTC."
+  ],
+  "committed": [
+    "cf130a9b9c4f3371006d7196cde0af5ddce4be11"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publishlate12:25snapshot/report and rearm12:55reminder.",
+    "Push/retryruntime+startup/Core2afterqualification/imagefix; stageSpec/Heavy/Compilerafterreviewedneededdatachanges.",
+    "Complete39globalstylefixes andFullTomCIsetup withoutweakeninggates; finishsoundSCRIPTV12/Jim/OO/Spec/fp3/fold/stack/WASM.",
+    "RequireallsectionF/completebaseline/greenrepository-host-editor-generated-docs-comments-format/finalTclcorpusperformance beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 985944064,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

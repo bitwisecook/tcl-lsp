@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "7393de14973a0e7ccc6a10f0be3d03e1f5338cfd",
-  "last_published_snapshot": "3cd24e32b1aeb38d2e53d6caa0a804df42750e5f",
+  "last_source_snapshot": "cf130a9b9c4f3371006d7196cde0af5ddce4be11",
+  "last_published_snapshot": "98835ce51cbc962c94fb247fc57d9159506df286",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-24T11:26:50.474286+00:00",
+  "last_published_utc": "2026-10-24T12:00:37.727986+00:00",
   "product_tree_diff": [
     ".github/workflows/ci.yml",
     ".github/workflows/perf.yml",
@@ -34,6 +34,7 @@
     "runtime/rust/src/capi.rs",
     "runtime/rust/src/cmd_control/original_list_conversion_tests.rs",
     "runtime/rust/src/cmd_list.rs",
+    "runtime/rust/src/cmd_lseq.rs",
     "runtime/rust/src/cmd_scan.rs",
     "runtime/rust/src/cmd_var.rs",
     "runtime/rust/src/codegen_abi.rs",
@@ -362,6 +363,7 @@
     "rust/tcl-syntax/src/naming/native.rs",
     "rust/tcl-syntax/src/scalar_getter/target_tests.rs",
     "rust/tcl-test-support/src/native_integer_formatter.rs",
+    "rust/tcl-vm/src/cmd_oo/original_name_operands.rs",
     "rust/tcl-vm/src/interp.rs",
     "rust/tcl-vm/src/literal_pool.rs",
     "rust/xtask/src/fp_sweep.rs",
@@ -372,19 +374,20 @@
     "scripts/dev/nextest-terminal-capture.py",
     "scripts/dev/runtime-rust-path.sh",
     "scripts/dev/test-runtime-rust-paths.sh",
-    "scripts/dev/tracked-source-snapshot.py"
+    "scripts/dev/tracked-source-snapshot.py",
+    "scripts/perf/paired_bench.py"
   ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "7393de14973a0e7ccc6a10f0be3d03e1f5338cfd",
-  "active_current_head": "7393de14973a0e7ccc6a10f0be3d03e1f5338cfd",
+  "unpublished_active_base": "cf130a9b9c4f3371006d7196cde0af5ddce4be11",
+  "active_current_head": "cf130a9b9c4f3371006d7196cde0af5ddce4be11",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-24T11:26:50.474286+00:00",
+  "updated_utc": "2026-10-24T12:00:37.727986+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": true,
-  "external_product_base": "21669895cee28eeff1dc18d40634f6752d2749d6",
+  "external_product_base": "8dcfdc1f2aa1b4573c5f360cc62c2ccb3c641725",
   "source_equivalence_checked_at": "2026-10-23T17:08:33.347195+00:00",
   "source_equivalence_published_head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4"
 }
