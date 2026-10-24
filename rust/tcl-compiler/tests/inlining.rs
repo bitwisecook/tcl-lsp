@@ -80,6 +80,10 @@
 mod body_identity;
 use body_identity::{fixture_id, fixture_id_if_present};
 
+#[path = "support/analysis_body_identity.rs"]
+mod analysis_body_identity;
+use analysis_body_identity::original_body_for_analysis;
+
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::inline_uplevel::{
     PassthroughShape, body_has_frame_reach, detect_passthrough_candidates,
@@ -170,20 +174,14 @@ fn summary_for<'a>(
 #[test]
 fn statement_count_empty_body_is_zero() {
     let module = module_for("proc foo {} {}\n");
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::foo"))
-        .expect("authored fixture body");
+    let (_, proc) = original_body_for_analysis(&module, "::foo").expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), 0);
 }
 
 #[test]
 fn statement_count_flat_body_counts_top_level() {
     let module = module_for("proc foo {} {\n  set a 1\n  set b 2\n  set c 3\n}\n");
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::foo"))
-        .expect("authored fixture body");
+    let (_, proc) = original_body_for_analysis(&module, "::foo").expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), 3);
 }
 
@@ -192,10 +190,7 @@ fn statement_count_nested_if_counts_inner() {
     // The `if` contributes its clause plus the nested `set`, so the body
     // counts >= 1.
     let module = module_for("proc foo {x} {\n  if {$x} { set a 1 }\n}\n");
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::foo"))
-        .expect("authored fixture body");
+    let (_, proc) = original_body_for_analysis(&module, "::foo").expect("authored fixture body");
     assert!(count_statements(&proc.body) >= 1);
 }
 
@@ -215,11 +210,9 @@ fn static_call_count_drives_large_proc_decision() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::big"))
-        .expect("authored fixture body");
-    let s = summary_for(&summaries, fixture_id(&module.procedures, "::big"));
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::big").expect("authored fixture body");
+    let s = summary_for(&summaries, body_id);
     assert_eq!(classify_proc(proc, s, 0), InlineDecision::Never);
     assert_eq!(classify_proc(proc, s, 1), InlineDecision::IfSingleCall);
     assert_eq!(classify_proc(proc, s, 2), InlineDecision::Never);
@@ -234,16 +227,10 @@ fn classify_small_pure_leaf_is_always() {
     // inlining `add` must preserve that result.
     let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::add"))
-        .expect("authored fixture body");
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::add").expect("authored fixture body");
     assert_eq!(
-        classify_proc(
-            proc,
-            summary_for(&summaries, fixture_id(&module.procedures, "::add")),
-            0
-        ),
+        classify_proc(proc, summary_for(&summaries, body_id), 0),
         InlineDecision::Always
     );
 }
@@ -257,20 +244,11 @@ fn classify_non_pure_leaf_is_never() {
     // caller's frame; inlining must NOT relocate that body.
     let module = module_for("proc setter {name val} {\n  upvar 1 $name v\n  set v $val\n}\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::setter"))
-        .expect("authored fixture body");
-    assert!(
-        !summary_for(&summaries, fixture_id(&module.procedures, "::setter"))
-            .is_some_and(ProcEscapeSummary::safe_to_inline)
-    );
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::setter").expect("authored fixture body");
+    assert!(!summary_for(&summaries, body_id).is_some_and(ProcEscapeSummary::safe_to_inline));
     assert_eq!(
-        classify_proc(
-            proc,
-            summary_for(&summaries, fixture_id(&module.procedures, "::setter")),
-            0
-        ),
+        classify_proc(proc, summary_for(&summaries, body_id), 0),
         InlineDecision::Never
     );
 }
@@ -280,16 +258,10 @@ fn classify_large_pure_leaf_one_caller_is_if_single_call() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::big"))
-        .expect("authored fixture body");
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::big").expect("authored fixture body");
     assert_eq!(
-        classify_proc(
-            proc,
-            summary_for(&summaries, fixture_id(&module.procedures, "::big")),
-            1
-        ),
+        classify_proc(proc, summary_for(&summaries, body_id), 1),
         InlineDecision::IfSingleCall
     );
 }
@@ -299,16 +271,10 @@ fn classify_large_pure_leaf_two_callers_is_never() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
     let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\nbig\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::big"))
-        .expect("authored fixture body");
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::big").expect("authored fixture body");
     assert_eq!(
-        classify_proc(
-            proc,
-            summary_for(&summaries, fixture_id(&module.procedures, "::big")),
-            2
-        ),
+        classify_proc(proc, summary_for(&summaries, body_id), 2),
         InlineDecision::Never
     );
 }
@@ -320,17 +286,11 @@ fn classify_threshold_boundary_is_always() {
     let body = assign_body(SMALL_BODY_THRESHOLD);
     let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
     let summaries = analyse_var_escape(&module, true);
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::edge"))
-        .expect("authored fixture body");
+    let (body_id, proc) =
+        original_body_for_analysis(&module, "::edge").expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), SMALL_BODY_THRESHOLD);
     assert_eq!(
-        classify_proc(
-            proc,
-            summary_for(&summaries, fixture_id(&module.procedures, "::edge")),
-            2
-        ),
+        classify_proc(proc, summary_for(&summaries, body_id), 2),
         InlineDecision::Always
     );
 }
@@ -340,10 +300,7 @@ fn classify_missing_summary_is_never() {
     // Edge case driving the `!summary.is_some_and(...)` early return: with no
     // escape summary at all, a proc is conservatively NEVER inlinable.
     let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
-    let proc = module
-        .procedures
-        .get(&fixture_id(&module.procedures, "::add"))
-        .expect("authored fixture body");
+    let (_, proc) = original_body_for_analysis(&module, "::add").expect("authored fixture body");
     assert_eq!(classify_proc(proc, None, 0), InlineDecision::Never);
 }
 
