@@ -63,7 +63,9 @@ mod frozen_arguments;
 mod future_bodies;
 mod hosted_procedure_body;
 mod incomplete_body_metadata;
+mod jim_stock_class;
 mod jim_wrapper_body;
+pub(crate) use jim_stock_class::OriginalJimStockName;
 mod logical_definition;
 pub use hosted_procedure_body::OriginalHostedProcedureBody;
 mod logical_operation;
@@ -10887,6 +10889,9 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
         let facts = prepared.facts.as_ref();
+        if let Some(outcomes) = Self::walk_jim_stock_class(native, facts, state, *context) {
+            return outcomes;
+        }
         if let Some(mut outcomes) =
             Self::prepare_non_body_source_result(native, facts, state, context)
         {

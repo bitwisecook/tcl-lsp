@@ -1006,6 +1006,25 @@ impl NativeNameProtocol {
             .map(NativeCommandSlotProjection::into_slot)
     }
 
+    /// Counted data interpolated by Jim's two-word member-name construction.
+    /// This is readonly value data, without a source word, publication or frame.
+    ///
+    /// # Errors
+    /// Refuses engines without the audited Jim construction recipe.
+    pub fn jim_two_word_member_value(
+        self,
+        class_name: &[u8],
+        member: &[u8],
+    ) -> Result<Vec<u8>, NameProjectionUnavailable> {
+        if !self.is_jim084() {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut name = class_name.to_vec();
+        name.push(b' ');
+        name.extend_from_slice(member);
+        Ok(name)
+    }
+
     /// Publication geometry of Jim's factory-generated two-word commands.
     /// The provider interpolates the original counted class-name value, one
     /// space and the selected member units before the independently selected
@@ -1022,12 +1041,7 @@ impl NativeNameProtocol {
         member: &[u8],
         purpose: NativeNamePurpose,
     ) -> Result<ByteCommandSlot, NameProjectionUnavailable> {
-        if !self.is_jim084() {
-            return Err(NameProjectionUnavailable::PurposeNotModelled);
-        }
-        let mut name = class_name.to_vec();
-        name.push(b' ');
-        name.extend_from_slice(member);
+        let name = self.jim_two_word_member_value(class_name, member)?;
         match purpose {
             NativeNamePurpose::CommandPublication => self.command_publication_slot(context, &name),
             NativeNamePurpose::AliasPublication => self.alias_publication_slot(context, &name),
