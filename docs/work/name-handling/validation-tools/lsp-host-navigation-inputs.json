@@ -22,7 +22,7 @@
   "scope": "Exact original CI make commands, assertions and deadlines with bounded WORK compile-time diagnostic logging. No required CLEAN CI, host closure, shipping performance or full pre-build consumed-provider attestation.",
   "source_pins": {
     ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
-    ".github/workflows/ci.yml": "062cd06dd344b3294b5f1d08a3c0610e90e8e856d1c3c68bede210a17a21c62e",
+    ".github/workflows/ci.yml": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
     "Cargo.lock": "a4f6ceda29b7f8d1dbb6dd40bda959e445fabc4bbd5dd93284455e02e600c602",
     "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
     "Makefile": "b1436acc2f05c29ccca44f2f375d408a6208c3942706d04b002b6362450f2210",

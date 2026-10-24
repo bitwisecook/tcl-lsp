@@ -44,6 +44,55 @@ if [ -z "$doctest_job" ]; then
     exit 1
 fi
 
+validator_source=$REPO_ROOT/scripts/dev/nextest-tool/validate.py
+for source_fragment in \
+    'for message_format in ("libtest-json-plus", "libtest-json"):' \
+    'for fixture, name in (("mixed", "mixed"), ("all-ignored", "all-ignored")):' \
+    'optimized_env["PYTHONOPTIMIZE"] = "1"' \
+    'empty_log = supervise(' \
+    'malformed_log = supervise(' \
+    'cargo_home_bin not in current_path.split(os.pathsep)' \
+    'CARGO_ALIAS_NEXTEST' \
+    'cargo", "--color", "never", "--list", "--verbose' \
+    'shutil.which(' \
+    'if "\r" in binary_dir_text or "\n" in binary_dir_text:' \
+    'if not cargo_home.is_absolute():' \
+    'initial_hash = hashlib.sha256(binary.read_bytes()).hexdigest()' \
+    'def verify_install():' \
+    'command_list = supervise(' \
+    'command_version = supervise(' \
+    'actual_hash = hashlib.sha256(binary.read_bytes()).hexdigest()' \
+    'with Path(github_path).open("a") as path_file:' \
+    'with Path(github_env).open("a") as env_file:'; do
+    if ! grep -Fq "$source_fragment" "$validator_source"; then
+        echo "pinned Nextest install contract missing from validator: $source_fragment" >&2
+        exit 1
+    fi
+done
+smoke_line=$(grep -nF 'for message_format in ("libtest-json-plus", "libtest-json"):' "$validator_source" | cut -d: -f1)
+empty_line=$(grep -nF 'empty_log = supervise(' "$validator_source" | cut -d: -f1)
+malformed_line=$(grep -nF 'malformed_log = supervise(' "$validator_source" | cut -d: -f1)
+publish_line=$(grep -nF 'with Path(github_path).open("a") as path_file:' "$validator_source" | cut -d: -f1)
+absolute_home_count=$(grep -cF 'if not cargo_home.is_absolute():' "$validator_source")
+verify_home_line=$(grep -nF 'if not cargo_home.is_absolute():' "$validator_source" | head -1 | cut -d: -f1)
+verify_list_line=$(grep -nF 'command_list = supervise(' "$validator_source" | head -1 | cut -d: -f1)
+verify_pre_hash_line=$(grep -nF 'initial_hash = hashlib.sha256(binary.read_bytes()).hexdigest()' "$validator_source" | cut -d: -f1)
+verify_version_line=$(grep -nF 'command_version = supervise(["cargo", "nextest", "--version"])' "$validator_source" | head -1 | cut -d: -f1)
+verify_post_hash_line=$(grep -nF 'actual_hash = hashlib.sha256(binary.read_bytes()).hexdigest()' "$validator_source" | cut -d: -f1)
+if [ "$smoke_line" -ge "$empty_line" ] || [ "$empty_line" -ge "$malformed_line" ] || [ "$malformed_line" -ge "$publish_line" ]; then
+    echo "private Nextest publication must follow all smoke and optimized negative controls" >&2
+    exit 1
+fi
+if [ "$absolute_home_count" -ne 2 ] || [ "$verify_home_line" -ge "$verify_pre_hash_line" ]; then
+    echo "both install and verify must reject relative Cargo homes before probes" >&2
+    exit 1
+fi
+if [ "$verify_pre_hash_line" -ge "$verify_list_line" ] || [ "$verify_list_line" -ge "$verify_version_line" ] || [ "$verify_version_line" -ge "$verify_post_hash_line" ]; then
+    echo "verify-install must hash the binary before and after bounded Cargo probes" >&2
+    exit 1
+fi
+
+
 # Parse the workflow without PyYAML or another unprovisioned dependency. This
 # is a strict parser for the YAML subset used by the contract: mappings,
 # sequences, scalar values, and block scalars. It records paths only after
@@ -289,11 +338,35 @@ END {
     contains(shard_job ".steps." enable ".run", "RUSTC_WRAPPER=sccache", "successful setup must enable compiler cache")
     contains(shard_job ".steps." enable ".run", "continuing with uncached compilation", "failed setup must report uncached fallback")
     validate_nextest = step(shard_job, "name", "Validate patched cargo-nextest on hosted worker")
-    validate_if = values[shard_job ".steps." validate_nextest ".if"]
-    need(validate_nextest > enable && index(validate_if, "github.event_name == '\''pull_request'\''") != 0 && index(validate_if, "runner_policy_changed == '\''true'\''") != 0 && index(validate_if, "github.event_name == '\''workflow_dispatch'\''") != 0 && index(validate_if, "github.ref == '\''refs/heads/work'\''") != 0 && index(validate_if, "github.ref == '\''refs/heads/release/lsp-naming'\''") != 0 && index(validate_if, "inputs.rust_tests_runner == '\''hosted'\''") != 0 && index(validate_if, "inputs.native_release_build_proof == false") != 0 && index(validate_if, "matrix.shard == '\''1/5'\''") != 0 && index(validate_if, "refs/tags") == 0, "patched reporter validation must allow hosted PR policy proof or hosted manual runs only on the authorized branches")
-    contains(shard_job ".steps." validate_nextest ".run", "scripts/dev/nextest-tool/validate.sh", "hosted validation must build and exercise the pinned patched reporter")
+    need(validate_nextest < 0, "separate validation-only preflight must be folded into the gated source install")
     nextest_setup = step(shard_job, "name", "Install cargo-nextest")
-    need(nextest_setup > enable && values[shard_job ".steps." nextest_setup ".if"] == active, "cargo-nextest setup must be warm-path-gated")
+    need(nextest_setup > enable && values[shard_job ".steps." nextest_setup ".if"] == active, "cargo-nextest source install must retain its original warm-path and tag gates")
+    contains(shard_job ".steps." nextest_setup ".run", "bash scripts/dev/nextest-tool/validate.sh --install", "active shard install must build and smoke-test the pinned source")
+    nextest_verify = step(shard_job, "name", "Verify cargo-nextest source install resolution")
+    need(nextest_verify > nextest_setup && values[shard_job ".steps." nextest_verify ".if"] == active, "post-publication custody check must share the exact install gate")
+    contains(shard_job ".steps." nextest_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "post-publication custody check must use the bounded owner")
+
+    heavy_install = step("jobs.rust-tests-heavy", "name", "Install cargo-nextest")
+    heavy_verify = step("jobs.rust-tests-heavy", "name", "Verify cargo-nextest source install resolution")
+    need(heavy_install >= 0 && heavy_verify > heavy_install && values["jobs.rust-tests-heavy.steps." heavy_install ".if"] == "" && values["jobs.rust-tests-heavy.steps." heavy_verify ".if"] == "", "heavy source install and custody check must preserve their unconditional job-step gates")
+    contains("jobs.rust-tests-heavy.steps." heavy_install ".run", "bash scripts/dev/nextest-tool/validate.sh --install", "heavy tests must use the pinned source install")
+    contains("jobs.rust-tests-heavy.steps." heavy_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "heavy tests must verify post-publication custody")
+
+    archive_job = "jobs.lsp-e2e-archive"
+    archive_gate = "needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')"
+    archive_install = step(archive_job, "name", "Install cargo-nextest")
+    archive_verify = step(archive_job, "name", "Verify cargo-nextest source install resolution")
+    need(archive_install >= 0 && archive_verify > archive_install && values[archive_job ".steps." archive_install ".if"] == archive_gate && values[archive_job ".steps." archive_verify ".if"] == archive_gate, "archive source install must preserve its exact lsp-e2e path and tag gate")
+    contains(archive_job ".steps." archive_install ".run", "bash scripts/dev/nextest-tool/validate.sh --install", "archive must use the pinned source install")
+    contains(archive_job ".steps." archive_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "archive must verify post-publication custody")
+
+    partition_job = "jobs.lsp-e2e-partition"
+    partition_gate = "needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'"
+    partition_install = step(partition_job, "name", "Install cargo-nextest")
+    partition_verify = step(partition_job, "name", "Verify cargo-nextest source install resolution")
+    need(partition_install >= 0 && partition_verify > partition_install && values[partition_job ".steps." partition_install ".if"] == partition_gate && values[partition_job ".steps." partition_verify ".if"] == partition_gate, "partition source install must preserve its exact lsp-e2e already-green gate")
+    contains(partition_job ".steps." partition_install ".run", "bash scripts/dev/nextest-tool/validate.sh --install", "partition must use the pinned source install")
+    contains(partition_job ".steps." partition_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "partition must verify post-publication custody")
 
     nextest = step(shard_job, "name", "cargo nextest run (binary-aware workspace shard)")
     need(nextest >= 0, "Rust shards must retain the broad nextest step")

@@ -5,4 +5,12 @@
 
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec python3 "$SCRIPT_DIR/validate.py" --validate-only
+if [ "$#" -gt 1 ]; then
+  echo "usage: validate.sh [--validate-only|--install|--verify-install]" >&2
+  exit 2
+fi
+mode=--validate-only
+if [ "$#" -eq 1 ]; then
+  mode=$1
+fi
+exec python3 "$SCRIPT_DIR/validate.py" "$mode"

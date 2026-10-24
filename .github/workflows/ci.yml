@@ -1396,15 +1396,13 @@ jobs:
           target=$(bash scripts/dev/persistent-cargo-target.sh prepare tank "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE" "$registration")
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
-      - name: Validate patched cargo-nextest on hosted worker
-        if: (github.event_name == 'pull_request' && needs.channel.outputs.runner_policy_changed == 'true' || github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/work' || github.ref == 'refs/heads/release/lsp-naming') && inputs.rust_tests_runner == 'hosted' && inputs.native_release_build_proof == false) && needs.channel.outputs.rust_tests_changed == 'true' && matrix.shard == '1/5'
-        run: bash scripts/dev/nextest-tool/validate.sh
-
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
-        with:
-          tool: nextest@0.9.148
+        run: bash scripts/dev/nextest-tool/validate.sh --install
+
+      - name: Verify cargo-nextest source install resolution
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        run: bash scripts/dev/nextest-tool/validate.sh --verify-install
 
       # The real-tclsh conformance binaries fail closed when no manifest-pinned
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
@@ -1752,9 +1750,10 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
-        with:
-          tool: nextest@0.9.148
+        run: bash scripts/dev/nextest-tool/validate.sh --install
+
+      - name: Verify cargo-nextest source install resolution
+        run: bash scripts/dev/nextest-tool/validate.sh --verify-install
 
       # Same skip/downgrade contract as rust-tests-shard — see the channel job header.
       # tcl-fuzz lives here, not in rust-tests-shard: its wasmtime/cranelift
@@ -2293,10 +2292,12 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
-        with:
-          # Archive/list/execute must use the exact same nextest format.
-          tool: nextest@0.9.148
+        # Archive/list/execute must use the exact same nextest format.
+        run: bash scripts/dev/nextest-tool/validate.sh --install
+
+      - name: Verify cargo-nextest source install resolution
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        run: bash scripts/dev/nextest-tool/validate.sh --verify-install
 
       - name: Warm already-green merge push once
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green == 'true' && !startsWith(github.ref, 'refs/tags/')
@@ -2448,12 +2449,14 @@ jobs:
           cache-key: lsp-e2e
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        with:
-          # Keep the machine-readable partition proof and the runner on the
-          # same nextest format/version.
-          tool: nextest@0.9.148
+        # Keep the machine-readable partition proof and the runner on the
+        # same nextest format/version.
+        run: bash scripts/dev/nextest-tool/validate.sh --install
+
+      - name: Verify cargo-nextest source install resolution
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: bash scripts/dev/nextest-tool/validate.sh --verify-install
 
       # The integration tests spawn the real `tcl-lsp-server` binary via
       # nextest's runtime `NEXTEST_BIN_EXE_tcl-lsp-server` path (the archive
