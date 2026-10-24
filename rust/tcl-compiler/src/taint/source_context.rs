@@ -389,9 +389,14 @@ mod original_standalone_unit_tests {
             .blocks
             .values_mut()
             .flat_map(|block| &mut block.statements)
-            .next()
-            .unwrap();
-        statement.statement = crate::ir::Statement::unseen_call_marker(statement.statement.span());
+            .find(|statement| {
+                statement.statement
+                    != crate::ir::Statement::unseen_call_marker(statement.statement.span())
+            })
+            .expect("the original script retains a non-marker statement");
+        let replacement = crate::ir::Statement::unseen_call_marker(statement.statement.span());
+        assert_ne!(statement.statement, replacement);
+        statement.statement = replacement;
         assert!(
             !TaintSourceContext::for_unit_function(registry, &changed, &changed.top_level,)
                 .allows_nominal_metadata()
