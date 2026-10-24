@@ -68,7 +68,10 @@ fn no_folds_in_flat_file() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set x 1\nset y 2\n");
-    assert!(folds(&lsp.folding_range(&uri)).is_empty());
+    assert_eq!(
+        folds(&lsp.folding_range(&uri)),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 // Backslash line-continuation folding, end-to-end.
@@ -128,7 +131,7 @@ fn widens_from_inner_to_outer() {
     lsp.open_ready(&uri, "proc greet {} {\n    set x 1\n    return $x\n}\n");
     let result = lsp.selection_range(&uri, json!([{ "line": 2, "character": 11 }]));
     let arr = result.as_array().cloned().unwrap_or_default();
-    assert!(!arr.is_empty());
+    assert_ne!(arr, [] as [serde_json::Value; 0]);
     let mut node = arr[0].clone();
     let mut depth = 0;
     loop {

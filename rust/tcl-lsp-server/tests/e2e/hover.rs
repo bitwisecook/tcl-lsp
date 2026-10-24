@@ -54,7 +54,7 @@ fn unknown_command_no_hover() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "mycommand arg\n");
-    assert!(hover_text(&lsp.hover(&uri, 0, 4)).is_empty());
+    assert_eq!(hover_text(&lsp.hover(&uri, 0, 4)), "");
 }
 
 #[test]
@@ -268,7 +268,7 @@ fn proc_declaration_hover_respects_the_settled_hover_toggle_1337() {
     lsp.apply_configuration_settle(json!({ "features": { "hover": false } }), &uri, |cfg| {
         cfg["features"]["hover"] == false
     });
-    assert!(hover_text(&lsp.hover(&uri, 0, 6)).is_empty());
+    assert_eq!(hover_text(&lsp.hover(&uri, 0, 6)), "");
     assert_eq!(starts(&lsp.definition(&uri, 0, 6)), [(0, 5)].into());
     assert!(symbol_names(&lsp.document_symbols(&uri)).contains("greet"));
 

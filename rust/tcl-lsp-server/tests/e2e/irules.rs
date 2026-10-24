@@ -323,7 +323,7 @@ fn argument_value_has_documentation() {
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, "when ");
     let items = completion_items(&lsp.completion(&uri, 0, 5));
-    assert!(!items.is_empty());
+    assert_ne!(items, [] as [serde_json::Value; 0]);
     assert!(
         items
             .iter()

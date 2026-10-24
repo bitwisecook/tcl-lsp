@@ -580,11 +580,12 @@ fn assert_targets(fixture: &Fixture, answer: &Value, phase: Phase) {
                     .as_array()
                     .is_some_and(Vec::is_empty)
         );
-        assert!(
+        assert_eq!(
             answer["callback"]
                 .as_array()
                 .expect("callback definitions")
-                .is_empty()
+                .as_slice(),
+            &[] as &[serde_json::Value]
         );
     }
     assert_roles(answer, phase);

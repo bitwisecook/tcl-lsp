@@ -249,7 +249,10 @@ fn test_code_action_edits_do_not_overlap() {
     let actions = actions.as_array().cloned().unwrap_or_default();
     for action in &actions {
         let edit = action.get("edit").cloned().unwrap_or(Value::Null);
-        assert!(workspace_edit_violations(&edit, "code-action").is_empty());
+        assert_eq!(
+            workspace_edit_violations(&edit, "code-action"),
+            [] as [std::string::String; 0]
+        );
     }
 }
 

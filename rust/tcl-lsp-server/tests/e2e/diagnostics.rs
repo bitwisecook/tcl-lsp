@@ -114,7 +114,7 @@ fn arity_error_is_e002_with_error_severity() {
         .iter()
         .filter(|d| code_str(d).as_deref() == Some("E002"))
         .collect();
-    assert!(!e002.is_empty());
+    assert_ne!(e002, [] as [&serde_json::Value; 0]);
     assert_eq!(e002[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
 }
 
@@ -240,9 +240,9 @@ fn e004_no_duplicate_e002_for_the_same_malformed_if() {
 fn clean_file_has_no_diagnostics() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    assert!(
-        lsp.open_ready(&uri, "set x [clock seconds]\nputs $x\n")
-            .is_empty()
+    assert_eq!(
+        lsp.open_ready(&uri, "set x [clock seconds]\nputs $x\n"),
+        [] as [serde_json::Value; 0]
     );
 }
 
@@ -307,7 +307,7 @@ fn file_link_too_many_positionals_is_e003() {
         .iter()
         .filter(|d| code_str(d).as_deref() == Some("E003"))
         .collect();
-    assert!(!e003.is_empty());
+    assert_ne!(e003, [] as [&serde_json::Value; 0]);
     assert_eq!(e003[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
 }
 
@@ -1582,7 +1582,7 @@ fn clean_dataflow_has_no_diagnostics() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc p {x} {\n    set d [dict create a 1]\n    if {[dict exists $d a]} {\n        return [dict get $d a]\n    }\n    return $x\n}\n";
-    assert!(lsp.open_ready(&uri, src).is_empty());
+    assert_eq!(lsp.open_ready(&uri, src), [] as [serde_json::Value; 0]);
 }
 
 // FP-STY-12: `${var}(idx)` in a varname position is the indirect-array-element
@@ -2483,7 +2483,10 @@ fn fixing_the_source_clears_the_diagnostic() {
 fn introducing_an_error_publishes_it() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    assert!(lsp.open_ready(&uri, "puts hello\n").is_empty());
+    assert_eq!(
+        lsp.open_ready(&uri, "puts hello\n"),
+        [] as [serde_json::Value; 0]
+    );
     // Replace the whole line with an arity error.
     lsp.replace_document(&uri, 2, "set\n");
     let diags = lsp.await_diagnostics_version(&uri, Some(2), Duration::from_secs(30));

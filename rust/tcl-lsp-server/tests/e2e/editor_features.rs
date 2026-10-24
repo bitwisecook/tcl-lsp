@@ -118,7 +118,7 @@ fn test_no_lens_without_procs() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set x 1\nputs $x\n");
-    assert!(lenses(&mut lsp, &uri).is_empty());
+    assert_eq!(lenses(&mut lsp, &uri), [] as [serde_json::Value; 0]);
 }
 
 #[test]

@@ -655,7 +655,7 @@ fn fuzzy_fallback_skips_one_char_fragment() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "q");
-    assert!(labels(&mut lsp, &uri, 0, 1).is_empty());
+    assert_eq!(labels(&mut lsp, &uri, 0, 1), [] as [std::string::String; 0]);
 }
 
 /// A typo'd switch word offers the real switch with a replace edit covering

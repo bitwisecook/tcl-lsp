@@ -74,7 +74,10 @@ fn test_cursor_on_whitespace_returns_empty() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc greet {} { return }\n");
-    assert!(highlights(&mut lsp, &uri, 0, 0).is_empty());
+    assert_eq!(
+        highlights(&mut lsp, &uri, 0, 0),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 #[test]

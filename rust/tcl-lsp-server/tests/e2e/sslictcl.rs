@@ -532,7 +532,10 @@ fn an_excluded_document_publishes_nothing() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("sslictcl");
     lsp.open_ready(&uri, THREE_ERRORS);
-    assert!(!codes(&lsp.pull_diagnostics(&uri)).is_empty());
+    assert_ne!(
+        codes(&lsp.pull_diagnostics(&uri)),
+        [] as [std::string::String; 0]
+    );
 
     let since = lsp.notification_cursor();
     lsp.apply_configuration(json!({ "diagnostics": { "exclude": ["*.sslictcl"] } }));
