@@ -1,0 +1,229 @@
+{
+  "schema": "compiler-readonly-original-body13-v1",
+  "expected_selected": 13,
+  "rows": [
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_large_pure_leaf_one_caller_is_if_single_call",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_large_pure_leaf_two_callers_is_never",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_missing_summary_is_never",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_non_pure_leaf_is_never",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_small_pure_leaf_is_always",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "classify_threshold_boundary_is_always",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "statement_count_empty_body_is_zero",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "statement_count_flat_body_counts_top_level",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "statement_count_nested_if_counts_inner",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "package": "tcl-compiler",
+      "kind": [
+        "test"
+      ],
+      "target": "inlining",
+      "selector": "static_call_count_drives_large_proc_decision",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "compilation_unit::tests::authored_fixture_lookup_keeps_actual_body_owner_without_publication",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "compilation_unit::tests::authored_fixture_lookup_refuses_duplicate_reporting_labels",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation",
+      "env": {}
+    }
+  ],
+  "build_only_target": {
+    "package": "tcl-compiler",
+    "kind": [
+      "test"
+    ],
+    "name": "inlining",
+    "expected_selected": 0
+  },
+  "full_target_inventory": [
+    "args_at_callsite_prevents_inline",
+    "arity_mismatch_declines",
+    "array_element_write_inlines_with_array_rename",
+    "array_read_after_write_uses_same_rename",
+    "body_has_frame_reach_flags_uplevel_and_upvar",
+    "braced_literal_arg_uses_assign_const",
+    "call_inside_for_body_dropped",
+    "call_inside_if_clause_dropped",
+    "classify_large_pure_leaf_one_caller_is_if_single_call",
+    "classify_large_pure_leaf_two_callers_is_never",
+    "classify_missing_summary_is_never",
+    "classify_non_pure_leaf_is_never",
+    "classify_small_pure_leaf_is_always",
+    "classify_threshold_boundary_is_always",
+    "default_arg_inlines",
+    "detect_static_passthrough_recognises_zero_param",
+    "detect_static_passthrough_rejects_param_and_frame_reach",
+    "early_return_in_if_inlines_via_wrap",
+    "empty_body_call_is_dropped",
+    "expand_arg_declines_inlining",
+    "gvn_shared_allowlist_puts_is_frame_independent",
+    "gvn_shared_allowlist_user_call_is_opaque",
+    "implicit_trailing_call_declines",
+    "implicit_trailing_return_with_early_return_captured",
+    "inlinable_proc_kept_after_inlining",
+    "inlining_is_idempotent",
+    "input_module_unchanged_by_inlining",
+    "missing_arg_no_default_declines",
+    "mixed_safe_calls_unqualified_inline",
+    "namespace_eval_body_is_opaque_barrier_not_a_block",
+    "nested_control_flow_inlines",
+    "nested_uplevel_poisons_inlining",
+    "non_body_param_not_inlined",
+    "non_empty_body_v3_inlines_and_keeps_proc",
+    "non_inlinable_proc_kept_even_if_unreferenced",
+    "non_passthrough_not_inlined",
+    "non_pure_leaf_is_not_inlined",
+    "non_unit_frame_shift_not_inlined",
+    "param_body_dynamic_arg_at_call_site_stays_call",
+    "param_body_explicit_level_one_call_site_inlined",
+    "param_body_explicit_level_other_than_one_not_recognised",
+    "param_body_implicit_level_call_site_inlined",
+    "param_body_multiple_params_not_recognised",
+    "param_body_non_param_var_reference_not_recognised",
+    "param_body_shape_carries_param_name",
+    "param_body_wrong_arity_at_call_site_stays_call",
+    "proc_with_local_write_uses_mangled_name",
+    "proc_with_one_param_inlines",
+    "proc_with_trailing_return_at_non_terminal_via_wrap",
+    "proc_with_trailing_return_inlines_at_terminal_position",
+    "qualified_registry_command_body_is_inlined_without_rewriting_the_head",
+    "return_inside_catch_declines",
+    "return_inside_loop_declines",
+    "set_in_wrapper_body_v3_inlines_with_alpha_rename",
+    "statement_count_empty_body_is_zero",
+    "statement_count_flat_body_counts_top_level",
+    "statement_count_nested_if_counts_inner",
+    "static_call_count_drives_large_proc_decision",
+    "static_shape_carries_body",
+    "substitution_arg_keeps_assign_value",
+    "two_call_sites_get_distinct_mangling",
+    "two_call_wrapper_inlines_both",
+    "unqualified_call_in_namespace",
+    "unreferenced_inlinable_proc_kept",
+    "uplevel_running_twice_is_noop",
+    "variadic_args_inlines_with_list_pack",
+    "variadic_args_with_quoted_word_declines",
+    "variadic_args_with_zero_extras_inlines_to_empty",
+    "wrapper_call_is_replaced_with_inner",
+    "wrapper_with_args_at_call_site_declined",
+    "wrapper_with_unqualified_proc_call_declined",
+    "zero_param_single_uplevel_is_candidate"
+  ],
+  "approved_product_patch_sha256": "84013f9ae40eda38ebd17dce57e8b223af4ed7c8feba4793d4fe8060f75029e5",
+  "source_pins": {
+    "rust/tcl-compiler/tests/inlining.rs": "b75a59b79b29f9db284ced26d7bf6b16c99c14d0e7aeca4e2ab6c69b1989b612",
+    "rust/tcl-compiler/tests/support/analysis_body_identity.rs": "2f7baea078affa320ee2b78ed12801e4c6687e58e063717c42d37b9c07d7fe3f",
+    "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
+    "rust/tcl-compiler/src/compilation_unit.rs": "202123edb5b7c911865fc5e128163636c37f82438e843881c23375113a0634c1",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
+    "rust/tcl-compiler/src/var_escape/api.rs": "c7789fca948fdbcb3e39a7bd4af83a414a223dadc68bd0c232409f3348ff1d5c",
+    "rust/tcl-compiler/src/inlining/mod.rs": "9798d1137462203ac5585b65e24870144549985ee8a970199c196c4adc6ed9ef"
+  },
+  "scope": "Prospective additive readonly10 plus original-owner3, only after all old83 close. Source-owner/card-qualified body metadata retrieval; classifier and all transform/erasure/Native guards unchanged. Fresh inlining artifact and complete72list required, all shared budgets retained. Initial UNRUN; no baseline/full-process/performance acceptance."
+}

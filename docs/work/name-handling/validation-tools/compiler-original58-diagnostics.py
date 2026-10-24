@@ -138,6 +138,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-catch1-",
             "diagnostic-taint2-",
             "diagnostic-closed-consumer-",
+            "diagnostic-inlining-readonly10-",
+            "diagnostic-original-body-owner3-",
             "list-",
             "select-",
         )
@@ -146,7 +148,14 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
-    if "diagnostic-closed-consumer-" in prefix:
+    if any(
+        label in prefix
+        for label in (
+            "diagnostic-closed-consumer-",
+            "diagnostic-inlining-readonly10-",
+            "diagnostic-original-body-owner3-",
+        )
+    ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
     seconds = min(seconds, available)
     if prefix.startswith(
@@ -158,6 +167,8 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-catch1-",
             "diagnostic-taint2-",
             "diagnostic-closed-consumer-",
+            "diagnostic-inlining-readonly10-",
+            "diagnostic-original-body-owner3-",
         )
     ):
         require(
@@ -186,6 +197,345 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
         disk_floor_bytes=FLOOR,
         disk_paths=(root, out, target, Path(os.environ["RUNNER_TEMP"])),
     )
+
+
+def run_readonly_body_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in original65_rows + taint_rows + closed_rows
+        ),
+        "readonly diagnostics cannot precede original83 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-readonly source/provider/tool/dependency drift",
+    )
+    target_spec = readonly_validation["build_only_target"]
+    package = target_spec["package"]
+    target_name = target_spec["name"]
+    target_kind = target_spec["kind"]
+    selected_rows = [
+        row
+        for row in execution_rows
+        if row["package"] == package
+        and row["kind"] == target_kind
+        and row["target"] == target_name
+    ]
+    selectors = [row["selector"] for row in selected_rows]
+    require(remaining > 512 * 1024, "insufficient log budget before selected build")
+    print("BUILD original target " + target_name, flush=True)
+    argv = [
+        str(tools["cargo"]),
+        "test",
+        "--locked",
+        "-p",
+        package,
+        *(["--lib"] if target_kind == ["lib"] else ["--test", target_name]),
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2",
+    ]
+    built = execute(argv, "build-" + target_name, tools["cargo"], 2400, env, remaining)
+    processes.append(built)
+    remaining -= built["retained_bytes"]
+    require(
+        lifecycle(built) and built["exit_code"] == 0,
+        "selected target build failed or unclosed: " + target_name,
+    )
+    messages = [
+        json.loads(line)
+        for line in (out / ("build-" + target_name + ".stdout"))
+        .read_text()
+        .splitlines()
+        if line.startswith("{")
+    ]
+    require(
+        not any(
+            row.get("reason") == "compiler-message"
+            and row.get("message", {}).get("level") in ["warning", "error"]
+            for row in messages
+        ),
+        "selected build emitted Rust warning/error",
+    )
+    require(
+        sum(
+            row.get("reason") == "build-finished" and row.get("success") is True
+            for row in messages
+        )
+        == 1,
+        "successful Cargo terminal missing",
+    )
+    selected = [
+        row
+        for row in messages
+        if row.get("reason") == "compiler-artifact"
+        and row.get("target", {}).get("name") == target_name
+        and row.get("target", {}).get("kind") == target_kind
+        and row.get("manifest_path") == str(root / "rust" / package / "Cargo.toml")
+        and row.get("profile", {}).get("test") is True
+        and row.get("executable")
+    ]
+    require(
+        len(selected) == 1
+        and selected[0].get("fresh") is False
+        and selected[0].get("profile", {}).get("debug_assertions") is True,
+        "fresh current diagnostic test artifact missing/ambiguous",
+    )
+    executable = Path(selected[0]["executable"]).resolve()
+    require(
+        executable.is_file() and executable.is_relative_to(target),
+        "test artifact outside fresh owned target",
+    )
+    artifact = {
+        "target": target_name,
+        "package": package,
+        "kind": target_kind,
+        "path": str(executable),
+        "sha256": sha(executable),
+        "cargo_event": selected[0],
+        "strict_Rust_0w": True,
+        "admission": "selected target compilation only",
+    }
+    artifacts.append(artifact)
+    save(out / "selected-artifacts.json", artifacts)
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-runtime source/provider/tool/dependency drift",
+    )
+    list_argv = [str(executable), "--list", "--format", "terse"]
+    listing = execute(list_argv, "list-" + target_name, executable, 180, env, remaining)
+    processes.append(listing)
+    remaining -= listing["retained_bytes"]
+    require(
+        lifecycle(listing) and listing["exit_code"] == 0,
+        "original roster listing failed or unclosed",
+    )
+    listed = []
+    for line in (out / ("list-" + target_name + ".stdout")).read_text().splitlines():
+        if line.endswith(": test"):
+            listed.append(line.removesuffix(": test"))
+        else:
+            require(
+                not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
+                "unexpected listing data: " + line[:256],
+            )
+    require(
+        len(listed) == len(set(listed))
+        and set(selectors).issubset(listed)
+        and len(selectors)
+        == target_spec["expected_selected"]
+        + sum(
+            row["target"] == target_name
+            and row["package"] == package
+            and row["kind"] == target_kind
+            for row in supplemental_rows + sh21_rows + readflow_rows + catch_rows
+        ),
+        "original actual roster mismatch: " + target_name,
+    )
+    save(
+        out / ("roster-" + target_name + ".json"),
+        {
+            "target": target_name,
+            "selected": listed,
+            "listing_sha256": sha(out / ("list-" + target_name + ".stdout")),
+            "executable_sha256": artifact["sha256"],
+        },
+    )
+    require(
+        len(listed) == 72
+        and set(listed) == set(readonly_validation["full_target_inventory"])
+        and {row["selector"] for row in readonly_rows[:10]}.issubset(listed),
+        "readonly fresh complete72 inventory differs",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in readonly_rows[10:]}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "readonly owner controls absent from actual original lib inventory",
+    )
+    for index, row in enumerate(readonly_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "taint diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "taint diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "taint diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = (
+            "readonly-inlining"
+            if row["group"] == "diagnostic-inlining-readonly10"
+            else "original-body-owner"
+        )
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "outcomes.json", rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "outcomes.json", rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "outcomes.json", rows)
+            raise
+        save(out / "outcomes.json", rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
 
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -462,7 +812,75 @@ require(closed_controls["build_only_targets"] == [
     for package, name in [("tcl-engine-tclvm", "tcl_engine_tclvm"),
                           ("tcl-runtime-api", "tcl_runtime_api"), ("tcl-registry", "tcl_registry")]],
         "exact closed-consumer fresh build-only targets")
-rows = original65_rows + taint_rows + closed_rows
+require(
+    sha(BASE / "compiler-inlining-readonly13.json")
+    == "9a5ed7e5774738c938d7aafda9a4891895fa4ff954deb1706c975b95f5ca8930",
+    "exact separate readonly13 input roster",
+)
+readonly_validation = json.loads(
+    (BASE / "compiler-inlining-readonly13.json").read_text()
+)
+require(
+    readonly_validation["expected_selected"] == len(readonly_validation["rows"]) == 13,
+    "separate readonly13 count",
+)
+readonly_rows: list[dict[str, Any]] = [
+    dict(row, state="UNRUN") for row in readonly_validation["rows"]
+]
+require(
+    [row["group"] for row in readonly_rows]
+    == ["diagnostic-inlining-readonly10"] * 10 + ["diagnostic-original-body-owner3"] * 3
+    and all(row["env"] == {} for row in readonly_rows),
+    "readonly13 groups/env",
+)
+require(
+    readonly_validation["build_only_target"]
+    == {
+        "package": "tcl-compiler",
+        "kind": ["test"],
+        "name": "inlining",
+        "expected_selected": 0,
+    },
+    "readonly fresh target",
+)
+require(
+    len(readonly_validation["full_target_inventory"]) == 72
+    and len(set(readonly_validation["full_target_inventory"])) == 72,
+    "readonly full source inventory",
+)
+require(
+    all(
+        row["package"] == "tcl-compiler"
+        and row["kind"] == ["test"]
+        and row["target"] == "inlining"
+        for row in readonly_rows[:10]
+    )
+    and all(
+        row["package"] == "tcl-compiler"
+        and row["kind"] == ["lib"]
+        and row["target"] == "tcl_compiler"
+        for row in readonly_rows[10:]
+    ),
+    "readonly13 exact target kinds",
+)
+require(
+    len(
+        {
+            (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+            for row in readonly_rows
+        }
+    )
+    == 13
+    and not {
+        (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+        for row in readonly_rows
+    }.intersection(
+        (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+        for row in original65_rows + taint_rows + closed_rows
+    ),
+    "readonly13 overlaps/duplicates",
+)
+rows = original65_rows + taint_rows + closed_rows + readonly_rows
 require(
     len(
         {
@@ -706,6 +1124,9 @@ try:
     provider_roots.append(sysroot / "lib")
     providers_before = files(provider_roots)
     save(out / "providers-before.json", providers_before)
+    for pinned_path, pinned_digest in readonly_validation["source_pins"].items():
+        require(sha(root / pinned_path) == pinned_digest,
+                "readonly body source pin changed: " + pinned_path)
     before = source()
     save(out / "source-before.json", before)
     require(
@@ -779,6 +1200,7 @@ try:
             "original_roster": original,
             "original_inputs_and_environment": roster,
             "separate_closed_consumer_controls": closed_controls,
+            "separate_readonly_body13": readonly_validation,
             "separate_supplemental3": supplemental,
             "separate_sh21_diagnostic2": sh21_diagnostic,
             "separate_readflow1": readflow,
@@ -1303,6 +1725,7 @@ try:
             sha(executable) == diagnostic_artifact["sha256"],
             "selected test artifact changed",
         )
+    run_readonly_body_controls()
     require(
         len(original_rows) == 58
         and len(supplemental_rows) == 3
@@ -1312,7 +1735,8 @@ try:
         and len(original65_rows) == 65
         and len(taint_rows) == 2
         and len(closed_rows) == 16
-        and len(rows) == 83
+        and len(readonly_rows) == 13
+        and len(rows) == 96
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -1413,6 +1837,13 @@ finally:
             "required_separate_closed_consumer_controls": 16,
             "closed_consumer_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in closed_rows),
             "closed_consumer16_outcomes": closed_rows,
+            "required_separate_readonly_body_controls": 13,
+            "readonly_body_controls_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in readonly_rows
+            ),
+            "readonly_inlining10_outcomes": readonly_rows[:10],
+            "readonly_owner3_outcomes": readonly_rows[10:],
+            "separate_readonly_body_roster": readonly_validation,
             "separate_closed_consumer_roster": closed_controls,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
