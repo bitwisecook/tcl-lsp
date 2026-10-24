@@ -1016,6 +1016,56 @@ fn selected_projected_instruction_plan(
     })
 }
 
+fn selected_dictionary_instruction_plan(
+    command: crate::native_dictionary::NativeDictionaryCommand,
+    ensemble: bool,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: tcl_dialect::TclVersion,
+    context: NativeCompilationContext,
+) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    use NativeInstructionPlanUnavailable as Unavailable;
+    let from = operand_from + usize::from(ensemble);
+    if matches!(
+        command,
+        crate::native_dictionary::NativeDictionaryCommand::Update
+            | crate::native_dictionary::NativeDictionaryCommand::With
+    ) {
+        return crate::native_dictionary_scope_compilation::compile_native_dictionary_scope(
+            command, words, from, version, context,
+        )
+        .map(NativeInstructionPlan::DictionaryScope)
+        .map_err(|_| Unavailable::OperandGeometry);
+    }
+    if matches!(
+        command,
+        crate::native_dictionary::NativeDictionaryCommand::Set
+            | crate::native_dictionary::NativeDictionaryCommand::Unset
+            | crate::native_dictionary::NativeDictionaryCommand::Append
+            | crate::native_dictionary::NativeDictionaryCommand::Lappend
+            | crate::native_dictionary::NativeDictionaryCommand::Incr
+    ) {
+        return crate::native_dictionary_compilation::compile_native_dictionary_mutation(
+            command, words, from, version, context,
+        )
+        .map_err(|_| Unavailable::OperandGeometry)
+        .and_then(|recipe| match recipe.outcome {
+            crate::native_control_compilation::NativeControlOutcome::Inline(recipe) => {
+                Ok(NativeInstructionPlan::DictionaryMutation(recipe))
+            }
+            _ => Err(Unavailable::Selection),
+        });
+    }
+    crate::native_dictionary_compilation::compile_native_dictionary_lookup(
+        command,
+        words,
+        operand_from + usize::from(ensemble),
+        version,
+    )
+    .map(NativeInstructionPlan::DictionaryLookup)
+    .map_err(|_| Unavailable::Operation)
+}
+
 fn selected_container_and_string_instruction_plan(
     spec: NativeCompilationSpec,
     words: &NativeCompilerWords<'_>,
@@ -1031,49 +1081,14 @@ fn selected_container_and_string_instruction_plan(
                 .ok_or(Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::Dictionary { command, ensemble } => {
-            let from = operand_from + usize::from(ensemble);
-            if matches!(
+            selected_dictionary_instruction_plan(
                 command,
-                crate::native_dictionary::NativeDictionaryCommand::Update
-                    | crate::native_dictionary::NativeDictionaryCommand::With
-            ) {
-                return Some(
-                    crate::native_dictionary_scope_compilation::compile_native_dictionary_scope(
-                        command, words, from, version, context,
-                    )
-                    .map(NativeInstructionPlan::DictionaryScope)
-                    .map_err(|_| Unavailable::OperandGeometry),
-                );
-            }
-            if matches!(
-                command,
-                crate::native_dictionary::NativeDictionaryCommand::Set
-                    | crate::native_dictionary::NativeDictionaryCommand::Unset
-                    | crate::native_dictionary::NativeDictionaryCommand::Append
-                    | crate::native_dictionary::NativeDictionaryCommand::Lappend
-                    | crate::native_dictionary::NativeDictionaryCommand::Incr
-            ) {
-                return Some(
-                    crate::native_dictionary_compilation::compile_native_dictionary_mutation(
-                        command, words, from, version, context,
-                    )
-                    .map_err(|_| Unavailable::OperandGeometry)
-                    .and_then(|recipe| match recipe.outcome {
-                        crate::native_control_compilation::NativeControlOutcome::Inline(recipe) => {
-                            Ok(NativeInstructionPlan::DictionaryMutation(recipe))
-                        }
-                        _ => Err(Unavailable::Selection),
-                    }),
-                );
-            }
-            crate::native_dictionary_compilation::compile_native_dictionary_lookup(
-                command,
+                ensemble,
                 words,
-                operand_from + usize::from(ensemble),
+                operand_from,
                 version,
+                context,
             )
-            .map(NativeInstructionPlan::DictionaryLookup)
-            .map_err(|_| Unavailable::Operation)
         }
         NativeCompilationGrammar::StringTrim { scope, operation } => {
             crate::native_string_trim_compilation::instruction(
