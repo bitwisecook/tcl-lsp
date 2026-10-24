@@ -112,7 +112,10 @@ struct SourceImageGeometry {
 
 impl PartialEq for SourceImage {
     fn eq(&self, other: &Self) -> bool {
-        self.channel == other.channel && self.bytes == other.bytes
+        // One shared allocation is trivially the same bytes; only distinct
+        // allocations need the complete comparison.
+        self.channel == other.channel
+            && (std::sync::Arc::ptr_eq(&self.bytes, &other.bytes) || self.bytes == other.bytes)
     }
 }
 impl Eq for SourceImage {}

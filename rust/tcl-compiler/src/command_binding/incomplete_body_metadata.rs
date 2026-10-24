@@ -24,8 +24,59 @@ struct IncompleteHeader {
     content: Span,
 }
 
+/// [`header_uncached`], memoised per region of the most recent source image
+/// and configuration. Each command's query walks every earlier declaration
+/// site and asks for that site's header over the rest of the document, so
+/// without the memo one analysis re-parses the document tail once per
+/// (command, earlier site) pair. The result is a pure function of the image
+/// bytes/channel, the region and the configuration. The key compares the
+/// image by `SourceImage` equality (shared-allocation fast path, complete
+/// byte comparison otherwise) and the memo retains the image clone, so its
+/// bytes stay alive and no other image can alias them.
+fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<Arc<IncompleteHeader>> {
+    type Memo = Option<(
+        SourceImage,
+        LexerConfig,
+        std::collections::HashMap<(u32, u32), Option<Arc<IncompleteHeader>>>,
+    )>;
+    thread_local! {
+        static MEMO: std::cell::RefCell<Memo> = const { std::cell::RefCell::new(None) };
+    }
+    let key = (region.start(), region.end());
+    let current = |memo: &Memo| {
+        memo.as_ref().is_some_and(|(retained, retained_config, _)| {
+            retained == image && *retained_config == config
+        })
+    };
+    let retained = MEMO.with_borrow(|memo| {
+        current(memo)
+            .then(|| {
+                memo.as_ref()
+                    .and_then(|(_, _, entries)| entries.get(&key).cloned())
+            })
+            .flatten()
+    });
+    if let Some(retained) = retained {
+        return retained;
+    }
+    let prepared = header_uncached(image, region, config).map(Arc::new);
+    MEMO.with_borrow_mut(|memo| {
+        if !current(memo) {
+            *memo = Some((image.clone(), config, std::collections::HashMap::new()));
+        }
+        if let Some((_, _, entries)) = memo.as_mut() {
+            entries.insert(key, prepared.clone());
+        }
+    });
+    prepared
+}
+
 /// The real parse cut and independently complete header words; no invented closer.
-fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<IncompleteHeader> {
+fn header_uncached(
+    image: &SourceImage,
+    region: Span,
+    config: LexerConfig,
+) -> Option<IncompleteHeader> {
     if region.end().checked_sub(region.start())? > 64 * 1024 {
         return None;
     }

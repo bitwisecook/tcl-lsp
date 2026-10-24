@@ -64,14 +64,19 @@ impl LocalPackSourceWord {
     /// Bind a whole document selected by the caller, without DSL/notice authority.
     #[must_use]
     pub fn in_document(&self) -> OriginalPackSourceWord {
-        OriginalPackSourceWord {
+        let word = OriginalPackSourceWord {
             local: self.clone(),
             root: self.statement.image.clone(),
             root_config: self.statement.config,
             base: 0,
             parent: None,
             depth: 0,
-        }
+        };
+        debug_assert!(
+            word.matches_source(&word.root, word.root_config),
+            "a document word is its own complete original root"
+        );
+        word
     }
     /// Bind only through the actual original braced parent word. Cooked, changed,
     /// detached or differently configured buffers cannot recover a full source.
@@ -103,9 +108,16 @@ impl LocalPackSourceWord {
             parent: Some(Arc::new(parent.clone())),
             depth: parent.depth.checked_add(1)?,
         };
-        candidate
-            .matches_source(&candidate.root, candidate.root_config)
-            .then_some(candidate)
+        // `parent` was bound by `in_document` or `in_body`, which establish
+        // `parent.matches_source(&parent.root, parent.root_config)`, and the
+        // candidate shares that root and config: only the new parent link
+        // needs checking. Re-proving the ancestor chain (or even one ancestor
+        // link) per word compares that ancestor's whole body again; with debug
+        // assertions load_embedded measured 6.9-7.0 s with such an assert vs
+        // 1.9 s without. The root is debug-asserted in `in_document`, and
+        // `every_bound_body_word_satisfies_the_full_chain_proof` asserts the
+        // full chain on every bound word of nested packs.
+        candidate.matches_parent_link().then_some(candidate)
     }
 }
 
@@ -249,19 +261,27 @@ impl OriginalPackSourceWord {
             return false;
         }
         if let Some(parent) = &self.parent {
-            parent.matches_source(image, config)
-                && parent.local.is_braced()
-                && self.local.statement.config == parent.local.statement.config.nested()
-                && parent.content_span().is_some_and(|span| {
-                    span.start() == self.base
-                        && image.bytes().get(span.as_range())
-                            == Some(self.local.statement.image.bytes())
-                })
+            parent.matches_source(image, config) && self.matches_parent_link()
         } else {
             self.base == 0
                 && self.local.statement.image == self.root
                 && self.local.statement.config == config
         }
+    }
+
+    /// The link to the immediate parent, against this word's own root image.
+    /// A root word has no link and never satisfies it.
+    fn matches_parent_link(&self) -> bool {
+        let Some(parent) = &self.parent else {
+            return false;
+        };
+        parent.local.is_braced()
+            && self.local.statement.config == parent.local.statement.config.nested()
+            && parent.content_span().is_some_and(|span| {
+                span.start() == self.base
+                    && self.root.bytes().get(span.as_range())
+                        == Some(self.local.statement.image.bytes())
+            })
     }
     /// Reparse only this exact selected original container path under another
     /// independently supplied full config. No recursive brace search or line/name
@@ -392,6 +412,101 @@ pub fn original_pack_source_statements(
 mod tests {
     use super::*;
     use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
+
+    #[test]
+    fn pack_line_numbers_keep_lf_coordinates_and_checked_bounds() {
+        for channel in [
+            tcl_lexer::SourceChannel::Document,
+            tcl_lexer::SourceChannel::NativeValue,
+        ] {
+            let image = SourceImage::from_bytes(&b"a\r\nb\rc\n"[..], channel);
+            assert_eq!(
+                (0..=7)
+                    .map(|offset| line_at(&image, offset))
+                    .collect::<Vec<_>>(),
+                vec![
+                    Some(1),
+                    Some(1),
+                    Some(1),
+                    Some(2),
+                    Some(2),
+                    Some(2),
+                    Some(2),
+                    Some(3)
+                ]
+            );
+            assert_eq!(line_at(&image, 8), None);
+            let opaque = SourceImage::from_bytes(&b"\xff\nx"[..], channel);
+            assert_eq!(line_at(&opaque, 2), Some(2));
+            assert_eq!(line_at(&opaque, 3), Some(2));
+            assert_eq!(line_at(&opaque, 4), None);
+            assert_eq!(
+                line_at(&SourceImage::from_bytes(&b""[..], channel), 0),
+                Some(1)
+            );
+        }
+    }
+
+    /// Every word bound through `in_body` satisfies the full-chain proof that
+    /// `in_body` itself checks only inductively (one parent link per word).
+    #[test]
+    fn every_bound_body_word_satisfies_the_full_chain_proof() {
+        fn walk(
+            word: &OriginalPackSourceWord,
+            image: &SourceImage,
+            config: LexerConfig,
+            depth: usize,
+            seen: &mut usize,
+            deepest: &mut usize,
+        ) {
+            assert!(
+                word.matches_source(image, config),
+                "{}",
+                word.captured_text()
+            );
+            *seen += 1;
+            *deepest = (*deepest).max(depth);
+            if !word.is_braced() {
+                return;
+            }
+            let rows = original_pack_source_statements(
+                word.captured_text(),
+                word.local.statement.config.nested(),
+            );
+            for (row, statement) in rows.iter().enumerate() {
+                for ordinal in 0..statement.row().argv.len() {
+                    if let Some(child) = word.body_word(row, ordinal) {
+                        walk(&child, image, config, depth + 1, seen, deepest);
+                    }
+                }
+            }
+        }
+        for source in [
+            "speclib demo 1 {\n  command a {\n    option -x {\n      hover {x}\n      arty {1 {2 {3}}}\n    }\n  }\n  command b {arty 1; arty 2}\n}\n",
+            "speclib demo 1 {\r\n  command a {\r\n    option -x {\r\n      hover {x\r\ny}\r\n    }\r\n  }\r\n}\r\n",
+        ] {
+            let config =
+                super::super::pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
+            let image = SourceImage::document(source);
+            let (mut seen, mut deepest) = (0, 0);
+            for statement in original_pack_source_statements(source, config) {
+                for ordinal in 0..statement.row().argv.len() {
+                    if let Some(local) = statement.local_word(ordinal) {
+                        walk(
+                            &local.in_document(),
+                            &image,
+                            config,
+                            0,
+                            &mut seen,
+                            &mut deepest,
+                        );
+                    }
+                }
+            }
+            assert!(deepest >= 3, "{source:?} reached depth {deepest}");
+            assert!(seen > 10, "{source:?} bound {seen} words");
+        }
+    }
 
     #[test]
     fn original_pack_word_geometry_keeps_selected_rows_parents_and_full_configuration() {
