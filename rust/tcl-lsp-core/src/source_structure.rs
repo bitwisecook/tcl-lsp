@@ -21,12 +21,33 @@ pub(crate) fn analyse_document(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> AnalysisResult {
+    document_analyser(profile, registry, config).analyse(source, profile.name)
+}
+
+/// Autoload registration source purpose: retain the complete original input,
+/// realm and structural schema inventories, without requesting diagnostics or
+/// navigation references. Callers must use only those source-owned outputs.
+#[must_use]
+pub(crate) fn analyse_autoload_registration_structure(
+    source: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> AnalysisResult {
+    document_analyser(profile, registry, config)
+        .structure_only()
+        .analyse(source, profile.name)
+}
+
+fn document_analyser(
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Analyser {
     let generation = crate::context_for_dialect_profile(profile);
     let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
     let input = ResolvedAnalysisInput::new(profile, profile, context, config);
-    Analyser::new()
-        .with_resolved_input(input)
-        .analyse(source, profile.name)
+    Analyser::new().with_resolved_input(input)
 }
 
 #[derive(Clone, Copy)]
