@@ -2808,7 +2808,9 @@ impl Interp {
                 && matches!(operation, b"read" | b"unset")
                 && self.native_error_variable_at(home).is_some())
                 || (self.native_precision_trace_at(home)
-                    && matches!(operation, b"read" | b"write" | b"unset")));
+                    && matches!(operation, b"read" | b"write" | b"unset"))
+                || (self.env_trace_reaches(home)
+                    && matches!(operation, b"read" | b"write" | b"unset" | b"array")));
         registered || intrinsic
     }
 
