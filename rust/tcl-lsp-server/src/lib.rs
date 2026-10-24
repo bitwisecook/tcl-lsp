@@ -209,6 +209,9 @@ fn sha256_digest_hex(digest: &[u8]) -> String {
     encoded
 }
 
+#[cfg(test)]
+type CrossDocumentSourceRows = Vec<(Uri, Arc<str>, String)>;
+
 type OriginalDocumentSnapshot = (String, Arc<str>, Arc<AnalysisResult>);
 
 /// Checked original URI-to-path data for one source-publication operation.
@@ -22555,30 +22558,7 @@ impl Backend {
         // files the editor never opened would be missing from the
         // incoming-call results even though they are indexed for
         // every other cross-document feature.
-        let mut open_uris: HashSet<Uri> = HashSet::new();
-        let mut docs: Vec<(Uri, Arc<str>, String)> = {
-            let store = self.documents.lock("cross_document_incoming_calls").await;
-            store
-                .iter()
-                .filter(|(u, _)| *u != current_uri)
-                .map(|(u, d)| {
-                    open_uris.insert(u.clone());
-                    (u.clone(), d.text.clone(), d.dialect.clone())
-                })
-                .collect()
-        };
-        let indexed = self.workspace_index.read().await.document_uris();
-        for uri_str in indexed {
-            let Ok(uri) = Uri::from_str(&uri_str) else {
-                continue;
-            };
-            if uri == *current_uri || open_uris.contains(&uri) {
-                continue;
-            }
-            if let Some(doc) = self.read_document(&uri).await? {
-                docs.push((uri, doc.text, doc.dialect));
-            }
-        }
+        let (_open_uris, docs) = self.collect_cross_document_sources(current_uri).await?;
         let mut out = Vec::new();
         for (doc_uri, source, dialect) in docs {
             let analysis = self
@@ -22661,6 +22641,38 @@ impl Backend {
             }
         }
         Ok(out)
+    }
+
+    #[cfg(test)]
+    async fn collect_cross_document_sources(
+        &self,
+        current_uri: &Uri,
+    ) -> DocumentSourceResult<(HashSet<Uri>, CrossDocumentSourceRows)> {
+        let mut open_uris: HashSet<Uri> = HashSet::new();
+        let mut docs: Vec<(Uri, Arc<str>, String)> = {
+            let store = self.documents.lock("cross_document_incoming_calls").await;
+            store
+                .iter()
+                .filter(|(u, _)| *u != current_uri)
+                .map(|(u, d)| {
+                    open_uris.insert(u.clone());
+                    (u.clone(), d.text.clone(), d.dialect.clone())
+                })
+                .collect()
+        };
+        let indexed = self.workspace_index.read().await.document_uris();
+        for uri_str in indexed {
+            let Ok(uri) = Uri::from_str(&uri_str) else {
+                continue;
+            };
+            if uri == *current_uri || open_uris.contains(&uri) {
+                continue;
+            }
+            if let Some(doc) = self.read_document(&uri).await? {
+                docs.push((uri, doc.text, doc.dialect));
+            }
+        }
+        Ok((open_uris, docs))
     }
 
     /// Cross-document outgoing calls from the queried proc /
@@ -40390,48 +40402,8 @@ info exists ::N::v\uD800";
         let symbol = Backend::original_namespace_symbol(source, &analysis, Position::new(0, 16))
             .expect("actual namespace operand");
         let position = Position::new(4, 14);
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_INDEXED_LOCATION").is_some() {
-            let rows = analysis
-                .original_variable_symbols
-                .iter()
-                .map(|row| {
-                    (
-                        row.span(),
-                        row.is_declaration(),
-                        row.symbol().is_namespace(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            eprintln!(
-                "ORIGINAL_INDEXED rows={rows:?} selected={}",
-                matches!(
-                    tcl_lsp_core::variable_symbol::select(
-                        source,
-                        &analysis,
-                        position.line,
-                        position.character
-                    ),
-                    std::ops::ControlFlow::Break(Some(_))
-                )
-            );
-            let current = backend
-                .analysis_for(&second, std::sync::Arc::from(source), "tcl8.6".to_owned())
-                .await
-                .unwrap();
-            let context =
-                core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&analysis)
-                    .unwrap();
-            for row in &analysis.original_variable_symbols {
-                let owner =
-                    OriginalIndexedSourceLocation::from_variable(second.as_str(), &context, row)
-                        .unwrap();
-                eprintln!(
-                    "ORIGINAL_INDEXED span={:?} current={}",
-                    row.span(),
-                    owner.validated_span(source, &current).is_some()
-                );
-            }
-        }
+        trace_original_indexed_owner_validation(&backend, &second, source, &analysis, position)
+            .await;
         assert_eq!(
             backend
                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
@@ -40477,46 +40449,11 @@ info exists ::N::v\uD800";
             second.clone(),
             DocumentState::new(source.replace("D800", "D802"), "tcl8.6".to_owned()),
         );
-        let declarations = backend
-            .original_namespace_locations(&first, source, &analysis, &symbol, true, true)
-            .await
-            .unwrap();
-        assert_eq!(declarations.len(), 1);
-        assert_eq!(declarations[0].uri, first);
-        let references = backend
-            .cross_document_variable_references(source, &analysis, position, false)
-            .await
-            .unwrap();
-        assert_eq!(references.len(), 1);
-        assert_eq!(references[0].uri, first);
-        assert_eq!(
-            backend
-                .cross_document_variable_definition(&first, source, position, &analysis,)
-                .await
-                .unwrap(),
-            [] as [tower_lsp_server::ls_types::Location; 0]
-        );
-        assert!(
-            backend
-                .cross_document_variable_hover(&first, source, position, &analysis,)
-                .await
-                .unwrap()
-                .is_none()
-        );
-        let hover = backend
-            .original_namespace_hover(&first, &analysis, &symbol)
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(hover.value.contains("1 `namespace eval` block"));
-        assert!(hover.value.contains("1 other reference(s)"));
-        assert_eq!(
-            backend
-                .resolve_original_indexed_locations(vec![retained.clone()])
-                .await
-                .unwrap(),
-            [] as [tower_lsp_server::ls_types::Location; 0]
-        );
+        let (_declarations, _references, _hover) =
+            assert_stale_original_indexed_source_is_withdrawn(
+                &backend, &first, source, &analysis, &symbol, position, &retained,
+            )
+            .await;
 
         // Equal source geometry does not make another selected dialect current.
         backend.documents.lock("test").await.insert(
@@ -40545,6 +40482,110 @@ info exists ::N::v\uD800";
                 .len(),
             1
         );
+    }
+
+    async fn trace_original_indexed_owner_validation(
+        backend: &Backend,
+        second: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        position: Position,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_INDEXED_LOCATION").is_some() {
+            let rows = analysis
+                .original_variable_symbols
+                .iter()
+                .map(|row| {
+                    (
+                        row.span(),
+                        row.is_declaration(),
+                        row.symbol().is_namespace(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            eprintln!(
+                "ORIGINAL_INDEXED rows={rows:?} selected={}",
+                matches!(
+                    tcl_lsp_core::variable_symbol::select(
+                        source,
+                        analysis,
+                        position.line,
+                        position.character
+                    ),
+                    std::ops::ControlFlow::Break(Some(_))
+                )
+            );
+            let current = backend
+                .analysis_for(second, std::sync::Arc::from(source), "tcl8.6".to_owned())
+                .await
+                .unwrap();
+            let context =
+                core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)
+                    .unwrap();
+            for row in &analysis.original_variable_symbols {
+                let owner =
+                    OriginalIndexedSourceLocation::from_variable(second.as_str(), &context, row)
+                        .unwrap();
+                eprintln!(
+                    "ORIGINAL_INDEXED span={:?} current={}",
+                    row.span(),
+                    owner.validated_span(source, &current).is_some()
+                );
+            }
+        }
+    }
+
+    async fn assert_stale_original_indexed_source_is_withdrawn(
+        backend: &Backend,
+        first: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
+        position: Position,
+        retained: &OriginalIndexedSourceLocation,
+    ) -> (Vec<Location>, Vec<Location>, CoreHover) {
+        let declarations = backend
+            .original_namespace_locations(first, source, analysis, symbol, true, true)
+            .await
+            .unwrap();
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(declarations[0].uri, *first);
+        let references = backend
+            .cross_document_variable_references(source, analysis, position, false)
+            .await
+            .unwrap();
+        assert_eq!(references.len(), 1);
+        assert_eq!(references[0].uri, *first);
+        assert_eq!(
+            backend
+                .cross_document_variable_definition(first, source, position, analysis,)
+                .await
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
+        );
+        assert!(
+            backend
+                .cross_document_variable_hover(first, source, position, analysis,)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let hover = backend
+            .original_namespace_hover(first, analysis, symbol)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(hover.value.contains("1 `namespace eval` block"));
+        assert!(hover.value.contains("1 other reference(s)"));
+        assert_eq!(
+            backend
+                .resolve_original_indexed_locations(vec![retained.clone()])
+                .await
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
+        );
+
+        (declarations, references, hover)
     }
 
     #[tokio::test]
@@ -40738,19 +40779,40 @@ namespace exists n\uD800";
                 .unwrap(),
             definitions
         );
+        assert_terminal_original_method_ambiguity(
+            &backend,
+            &consumer,
+            consumer_source,
+            &consumer_analysis,
+            position,
+            provider_source,
+            &provider_analysis,
+        )
+        .await;
+    }
+
+    async fn assert_terminal_original_method_ambiguity(
+        backend: &Backend,
+        consumer: &Uri,
+        consumer_source: &str,
+        consumer_analysis: &AnalysisResult,
+        position: Position,
+        provider_source: &str,
+        provider_analysis: &AnalysisResult,
+    ) {
         let duplicate = Uri::from_str("file:///opaque-method-duplicate.tcl").unwrap();
-        register(&backend, &duplicate, provider_source).await;
+        register(backend, &duplicate, provider_source).await;
         backend
             .workspace_index
             .write()
             .await
-            .add_document(duplicate.as_str(), &provider_analysis);
+            .add_document(duplicate.as_str(), provider_analysis);
         assert!(matches!(
             backend
                 .original_method_candidate_at(
-                    &consumer,
+                    consumer,
                     consumer_source,
-                    &consumer_analysis,
+                    consumer_analysis,
                     position,
                 )
                 .await
@@ -40758,16 +40820,16 @@ namespace exists n\uD800";
             std::ops::ControlFlow::Break(None)
         ));
         assert_eq!(
-            Box::pin(backend.compute_definition(&consumer, position))
+            Box::pin(backend.compute_definition(consumer, position))
                 .await
                 .unwrap(),
             [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert!(matches!(
             Box::pin(backend.original_method_hover_at(
-                &consumer,
+                consumer,
                 &format!("#{consumer_source}"),
-                &consumer_analysis,
+                consumer_analysis,
                 position,
             ))
             .await
@@ -59258,29 +59320,8 @@ proc p {} {
                         .await;
                 }
             });
-            crate::rt::timeout(std::time::Duration::from_secs(5), async {
-                loop {
-                    let edited = backend
-                        .documents
-                        .lock("original-library-edit-visible")
-                        .await
-                        .get(&edited_uri)
-                        .is_some_and(|document| {
-                            document.text.as_ref() == edited_source && document.revision > 0
-                        });
-                    if edited {
-                        break;
-                    }
-                    crate::rt::yield_now().await;
-                }
-            })
-            .await
-            .expect("the edit must splice while publication waits for rehoming");
-            assert_eq!(
-                backend.diag_inputs_epoch(),
-                epoch,
-                "document edits are independent of configuration epochs"
-            );
+            wait_for_original_library_edit(&backend, &edited_uri, edited_source).await;
+            assert_library_edit_keeps_configuration_epoch(&backend, epoch);
             drop(gate);
             assert!(
                 !crate::rt::timeout(std::time::Duration::from_secs(5), publishing)
@@ -59288,26 +59329,76 @@ proc p {} {
                     .unwrap()
                     .unwrap()
             );
-            crate::rt::timeout(std::time::Duration::from_secs(5), editing)
+            assert_original_library_edit_result(
+                &backend,
+                &edited_uri,
+                edited_source,
+                edit_provider,
+                editing,
+            )
+            .await;
+        }
+    }
+
+    async fn wait_for_original_library_edit(
+        backend: &Backend,
+        edited_uri: &Uri,
+        edited_source: &str,
+    ) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let edited = backend
+                    .documents
+                    .lock("original-library-edit-visible")
+                    .await
+                    .get(edited_uri)
+                    .is_some_and(|document| {
+                        document.text.as_ref() == edited_source && document.revision > 0
+                    });
+                if edited {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the edit must splice while publication waits for rehoming");
+    }
+
+    async fn assert_original_library_edit_result(
+        backend: &Backend,
+        edited_uri: &Uri,
+        edited_source: &str,
+        edit_provider: bool,
+        editing: crate::rt::JoinHandle<()>,
+    ) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), editing)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            backend
+                .read_document(edited_uri)
                 .await
                 .unwrap()
-                .unwrap();
-            assert_eq!(
-                backend
-                    .read_document(&edited_uri)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .text
-                    .as_ref(),
-                edited_source
-            );
-            let index = backend.workspace_index.read().await;
-            assert!(!index.workspace_command_exists("::original_library_target"));
-            if edit_provider {
-                assert!(index.workspace_command_exists("::current_library_target"));
-            }
+                .unwrap()
+                .text
+                .as_ref(),
+            edited_source
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(!index.workspace_command_exists("::original_library_target"));
+        if edit_provider {
+            assert!(index.workspace_command_exists("::current_library_target"));
         }
+    }
+
+    fn assert_library_edit_keeps_configuration_epoch(backend: &Backend, epoch: u64) {
+        assert_eq!(
+            backend.diag_inputs_epoch(),
+            epoch,
+            "document edits are independent of configuration epochs"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -63654,10 +63745,26 @@ proc p {} {
         assert_eq!(current.text.as_ref(), edited_text);
         assert_eq!(current.version, Some(2));
         assert_eq!(current.publication, DocumentPublication::Indexed);
+        assert_superseding_edit_database_and_index(&backend, &uri, edited_text).await;
+        seed_release.notify_waiters();
+        assert!(
+            !crate::rt::timeout(std::time::Duration::from_secs(5), opening)
+                .await
+                .expect("the obsolete seed task must finish")
+                .expect("the obsolete seed task must not panic"),
+            "the old seed must lose its final revision check",
+        );
+    }
+
+    async fn assert_superseding_edit_database_and_index(
+        backend: &Backend,
+        uri: &Uri,
+        edited_text: &str,
+    ) {
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
         assert_eq!(
-            files.get(&uri).map(|file| file.text(&*db).as_str()),
+            files.get(uri).map(|file| file.text(&*db).as_str()),
             Some(edited_text),
             "Salsa must contain the superseding edit while the old seed is pending",
         );
@@ -63674,15 +63781,6 @@ proc p {} {
                 "the rejected open seed must not leave obsolete facts",
             );
         }
-
-        seed_release.notify_waiters();
-        assert!(
-            !crate::rt::timeout(std::time::Duration::from_secs(5), opening)
-                .await
-                .expect("the obsolete seed task must finish")
-                .expect("the obsolete seed task must not panic"),
-            "the old seed must lose its final revision check",
-        );
     }
 
     /// A diagnostics run publishes a standalone analysis before the next
@@ -63781,13 +63879,7 @@ proc p {} {
         }
         drop(query_guard);
 
-        assert!(
-            crate::rt::timeout(std::time::Duration::from_secs(5), publisher)
-                .await
-                .expect("publisher must resume after the query releases the gate")
-                .expect("publisher task must not panic"),
-            "the current diagnostics run must publish",
-        );
+        assert_rehomed_diagnostics_publisher_resumes(publisher).await;
 
         let analysis = Analyser::new().analyse(b_src, "tcl8.6").clone();
         let refs = backend
@@ -63797,6 +63889,16 @@ proc p {} {
         assert!(
             refs.iter().any(|location| location.uri == a),
             "the next query must reconcile the standalone publish before reading: {refs:?}",
+        );
+    }
+
+    async fn assert_rehomed_diagnostics_publisher_resumes(publisher: crate::rt::JoinHandle<bool>) {
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), publisher)
+                .await
+                .expect("publisher must resume after the query releases the gate")
+                .expect("publisher task must not panic"),
+            "the current diagnostics run must publish",
         );
     }
 
@@ -68145,20 +68247,14 @@ mod pack_configuration_input_gate_tests {
             message: "source-bound notice".to_owned(),
             ..Default::default()
         };
-        let mut by_uri = HashMap::new();
-        by_uri.insert(
-            uri.clone(),
-            vec![PackNoticeEntry {
-                diagnostic: diagnostic.clone(),
-                source: Arc::from(source),
-                owner: PackNoticeSourceOwner::Saved(origin.clone()),
-            }],
-        );
-        backend.diagnostic_publisher.set_pack_notices(
-            7,
-            Arc::clone(&packs),
-            vec![Arc::clone(&registry)],
-            by_uri,
+        install_saved_pack_notice(
+            &backend,
+            &uri,
+            source,
+            &packs,
+            &registry,
+            &diagnostic,
+            &origin,
         );
         let merged = backend.diagnostic_publisher.with_pack_notices(
             PackNoticeContext {
@@ -68178,91 +68274,27 @@ mod pack_configuration_input_gate_tests {
             DocumentPathAdmission::capture(&uri, backend.store.as_ref())
                 .expect("capture the selected Studio source path"),
         );
-        backend.diagnostic_publisher.set_pack_notices(
-            7,
-            Arc::clone(&packs),
-            vec![Arc::clone(&registry)],
-            HashMap::from([(
-                uri.clone(),
-                vec![PackNoticeEntry {
-                    diagnostic: diagnostic.clone(),
-                    source: Arc::from(source),
-                    owner: PackNoticeSourceOwner::Studio(studio_admission),
-                }],
-            )]),
+        install_studio_pack_notice(
+            &backend,
+            &uri,
+            source,
+            &packs,
+            &registry,
+            &diagnostic,
+            studio_admission,
         );
-        assert_eq!(
-            backend.diagnostic_publisher.with_pack_notices(
-                PackNoticeContext {
-                    uri: &uri,
-                    source,
-                    pack_seq: 7,
-                    packs: &packs,
-                    registry: &registry,
-                    store: backend.store.as_ref()
-                },
-                Vec::new()
-            ),
-            std::slice::from_ref(&diagnostic)
-        );
-        assert_eq!(
-            backend.diagnostic_publisher.with_pack_notices(
-                PackNoticeContext {
-                    uri: &uri,
-                    source: "speclib changed 1.0 {}\n",
-                    pack_seq: 7,
-                    packs: &packs,
-                    registry: &registry,
-                    store: backend.store.as_ref()
-                },
-                Vec::new()
-            ),
-            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
-        );
-        assert_eq!(
-            backend.diagnostic_publisher.with_pack_notices(
-                PackNoticeContext {
-                    uri: &uri,
-                    source,
-                    pack_seq: 8,
-                    packs: &packs,
-                    registry: &registry,
-                    store: backend.store.as_ref()
-                },
-                Vec::new()
-            ),
-            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        assert_studio_and_stale_pack_notice_rejections(
+            &backend,
+            &uri,
+            source,
+            &packs,
+            &registry,
+            &diagnostic,
         );
         let replacement = Arc::new(tcl_spectcl::PackSet::default());
-        assert_eq!(
-            backend.diagnostic_publisher.with_pack_notices(
-                PackNoticeContext {
-                    uri: &uri,
-                    source,
-                    pack_seq: 7,
-                    packs: &replacement,
-                    registry: &registry,
-                    store: backend.store.as_ref()
-                },
-                Vec::new()
-            ),
-            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
-        );
+        assert_pack_notice_wrong_publication_owner(&backend, &uri, source, &replacement, &registry);
         let other_registry = backend.registry_for_dialect("tcl9.0").await;
-        assert_eq!(
-            backend.diagnostic_publisher.with_pack_notices(
-                PackNoticeContext {
-                    uri: &uri,
-                    source,
-                    pack_seq: 7,
-                    packs: &packs,
-                    registry: &other_registry,
-                    store: backend.store.as_ref()
-                },
-                Vec::new()
-            ),
-            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
-        );
+        assert_pack_notice_wrong_publication_owner(&backend, &uri, source, &packs, &other_registry);
         std::fs::write(&path, "speclib changed 1.0 {}\n")
             .expect("change the actual provider source");
         assert_eq!(
@@ -68280,6 +68312,131 @@ mod pack_configuration_input_gate_tests {
             [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         std::fs::remove_file(path).expect("remove the temporary pack source");
+    }
+
+    fn install_saved_pack_notice(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+        diagnostic: &tower_lsp_server::ls_types::Diagnostic,
+        origin: &vfs::SourcePathOrigin,
+    ) {
+        let mut by_uri = HashMap::new();
+        by_uri.insert(
+            uri.clone(),
+            vec![PackNoticeEntry {
+                diagnostic: diagnostic.clone(),
+                source: Arc::from(source),
+                owner: PackNoticeSourceOwner::Saved(origin.clone()),
+            }],
+        );
+        backend.diagnostic_publisher.set_pack_notices(
+            7,
+            Arc::clone(packs),
+            vec![Arc::clone(registry)],
+            by_uri,
+        );
+    }
+
+    fn install_studio_pack_notice(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+        diagnostic: &tower_lsp_server::ls_types::Diagnostic,
+        studio_admission: Arc<DocumentPathAdmission>,
+    ) {
+        backend.diagnostic_publisher.set_pack_notices(
+            7,
+            Arc::clone(packs),
+            vec![Arc::clone(registry)],
+            HashMap::from([(
+                uri.clone(),
+                vec![PackNoticeEntry {
+                    diagnostic: diagnostic.clone(),
+                    source: Arc::from(source),
+                    owner: PackNoticeSourceOwner::Studio(studio_admission),
+                }],
+            )]),
+        );
+    }
+
+    fn assert_studio_and_stale_pack_notice_rejections(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+        diagnostic: &tower_lsp_server::ls_types::Diagnostic,
+    ) {
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri,
+                    source,
+                    pack_seq: 7,
+                    packs,
+                    registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            std::slice::from_ref(diagnostic)
+        );
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri,
+                    source: "speclib changed 1.0 {}\n",
+                    pack_seq: 7,
+                    packs,
+                    registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri,
+                    source,
+                    pack_seq: 8,
+                    packs,
+                    registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
+    }
+
+    fn assert_pack_notice_wrong_publication_owner(
+        backend: &Backend,
+        uri: &Uri,
+        source: &str,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registry: &Arc<CommandRegistry>,
+    ) {
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri,
+                    source,
+                    pack_seq: 7,
+                    packs,
+                    registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
     }
 }
 
