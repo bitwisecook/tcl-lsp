@@ -18,7 +18,7 @@
 
 //! Complete original DSL scripts and their fixed transformation phases.
 
-use std::sync::Arc;
+use std::rc::Rc;
 
 use tcl_compiler::cfg::Function;
 use tcl_compiler::ir::SourceBpfModuleContext;
@@ -37,9 +37,9 @@ use crate::diag::{BpfDiag, BpfError};
 pub(crate) struct BpfSourceScript {
     script: Script,
     source: OriginalBpfSource,
-    context: Arc<SourceBpfModuleContext>,
+    context: Rc<SourceBpfModuleContext>,
     registry: RegistrySnapshot,
-    environment: Arc<BpfEnvironment>,
+    environment: Rc<BpfEnvironment>,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +54,7 @@ pub(crate) struct BpfPreparedFunction {
     function: Function,
     registry: RegistrySnapshot,
     config: LexerConfig,
-    _context: Arc<SourceBpfModuleContext>,
+    _context: Rc<SourceBpfModuleContext>,
     _effects: tcl_compiler::ir::SourceBpfClosedEffects,
 }
 
@@ -100,9 +100,9 @@ impl BpfSourceScript {
         Ok(Self {
             script,
             source: source.clone(),
-            context: Arc::new(context.clone()),
+            context: Rc::new(context.clone()),
             registry: registry.snapshot(),
-            environment: Arc::new(environment),
+            environment: Rc::new(environment),
         })
     }
 
@@ -148,9 +148,9 @@ impl BpfSourceScript {
         Ok(Self {
             script,
             source,
-            context: Arc::clone(&self.context),
+            context: Rc::clone(&self.context),
             registry: self.registry.clone(),
-            environment: Arc::clone(&self.environment),
+            environment: Rc::clone(&self.environment),
         })
     }
 
