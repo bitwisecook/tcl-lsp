@@ -1532,7 +1532,8 @@ impl<'r> Lowerer<'r> {
 
     fn retain_standalone_source_metadata(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
         if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
-            self.retain_resolved_analysis_input(input);
+            self.retain_resolved_analysis_input(&input);
+            drop(input);
         } else {
             // The explicit driver already selected authoring independently. Metadata
             // retains its exact store/configuration without replacing that purpose.
@@ -1577,18 +1578,19 @@ impl<'r> Lowerer<'r> {
         mut self,
         input: crate::analyser::ResolvedAnalysisInput,
     ) -> Self {
-        self.retain_resolved_analysis_input(input);
+        self.retain_resolved_analysis_input(&input);
+        drop(input);
         self
     }
 
-    fn retain_resolved_analysis_input(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
+    fn retain_resolved_analysis_input(&mut self, input: &crate::analyser::ResolvedAnalysisInput) {
         self.dialect = self.dialect.or(Some(input.unit_profile()));
         let fresh = self.source_entry_origin == SourceEntryOrigin::Authoring;
         self.dialect_context = Some(input.context_registry());
         self.metadata_input = Some(input.clone());
         self.metadata_origin = LoweringMetadataOrigin::Supplied;
         if fresh {
-            self.set_supplied_source_analysis_input(&input);
+            self.set_supplied_source_analysis_input(input);
         }
     }
 
