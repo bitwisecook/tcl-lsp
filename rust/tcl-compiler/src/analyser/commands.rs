@@ -2370,29 +2370,37 @@ impl Analyser {
         let config = self.file_lexer_config();
         // Reuse lexical geometry only. Every downstream binding, input and
         // declaration guard still runs against its current original inventory.
-        let native = if let Some(origin) = self
+        let prepared = if let Some(origin) = self
             .head_identities
             .source_bindings_ref()
             .source_origin()
             .filter(|origin| origin.source_image() == &image)
         {
-            origin
-                .original_lexical_command(tokens.words(), offset, config)?
-                .native_words()
-                .to_vec()
+            Some(origin.original_lexical_command(tokens.words(), offset, config)?)
         } else {
-            crate::registry_invocation::original_native_compiler_words(
-                &image,
-                tokens.words(),
-                offset,
-                config,
-            )?
+            None
         };
+        let native: std::borrow::Cow<'_, [tcl_lexer::NativeWord]> =
+            if let Some(prepared) = prepared.as_ref() {
+                std::borrow::Cow::Borrowed(prepared.native_words())
+            } else {
+                std::borrow::Cow::Owned(crate::registry_invocation::original_native_compiler_words(
+                    &image,
+                    tokens.words(),
+                    offset,
+                    config,
+                )?)
+            };
         let first = native.first()?;
         let last = native.last()?;
         let source = self
             .source
             .get(first.span().start() as usize..last.span().end() as usize)?;
+        if let Some(prepared) = prepared.as_ref() {
+            // Capture already parsed this exact region and configured complete
+            // vector. Its immutable CST carries no lookup or Native admission.
+            return Some((prepared.command().clone(), first.clone()));
+        }
         let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             first.span().start(),
