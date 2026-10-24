@@ -5248,6 +5248,12 @@ fn expand_uses(
     out
 }
 
+type AuthoredScalarSourceAccess = (
+    crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    String,
+    crate::registry_invocation::AuthoredSourceVariableAccess,
+);
+
 fn authored_scalar_source_variable(
     points: &PointResolveContexts,
     block: BlockId,
@@ -8796,6 +8802,29 @@ impl<'a> RenameWalk<'a> {
         }
     }
 
+    fn record_authored_scalar_source_reads(
+        &mut self,
+        authored: Option<&AuthoredScalarSourceAccess>,
+        point: (BlockId, usize),
+        uses_map: &mut HashMap<Symbol, Version>,
+        quoted_uses: &mut HashSet<Symbol>,
+    ) {
+        if let Some((symbol, name, definition)) = authored {
+            let identity = SsaVariableIdentity::Source(symbol.clone());
+            let symbol = self.interner.intern_identity(&identity);
+            self.point_symbols
+                .entry(point)
+                .or_default()
+                .insert(name.clone(), symbol);
+            if !definition.is_definition() || definition.is_may_write() {
+                uses_map.insert(symbol, self.top_identity(&identity));
+                if definition.is_may_write() {
+                    quoted_uses.insert(symbol);
+                }
+            }
+        }
+    }
+
     /// Rename one statement's uses and defs into SSA form: look up each read's
     /// current version (carrying its [`UseClass`] through to `quoted_uses`),
     /// then push a fresh version for each def. Extracted from
@@ -8835,20 +8864,12 @@ impl<'a> RenameWalk<'a> {
         );
 
         let authored = authored_scalar_source_variable(&self.points, frame.block, index, registry);
-        if let Some((symbol, name, definition)) = &authored {
-            let identity = SsaVariableIdentity::Source(symbol.clone());
-            let symbol = self.interner.intern_identity(&identity);
-            self.point_symbols
-                .entry((frame.block, index))
-                .or_default()
-                .insert(name.clone(), symbol);
-            if !definition.is_definition() || definition.is_may_write() {
-                uses_map.insert(symbol, self.top_identity(&identity));
-                if definition.is_may_write() {
-                    quoted_uses.insert(symbol);
-                }
-            }
-        }
+        self.record_authored_scalar_source_reads(
+            authored.as_ref(),
+            (frame.block, index),
+            &mut uses_map,
+            &mut quoted_uses,
+        );
         let direct_defs = bound_defs(
             stmt,
             frame.block,
@@ -9498,6 +9519,19 @@ fn source_cfg_topology(
     }
 }
 
+fn sorted_dominance_frontier(
+    frontier: HashMap<BlockId, HashSet<BlockId>>,
+) -> HashMap<BlockId, Vec<BlockId>> {
+    frontier
+        .into_iter()
+        .map(|(k, v)| {
+            let mut sorted: Vec<BlockId> = v.into_iter().collect();
+            sorted.sort_unstable();
+            (k, sorted)
+        })
+        .collect()
+}
+
 fn build_ssa_inner(
     func: &cfg::Function,
     registry: &CommandRegistry,
@@ -9599,14 +9633,7 @@ fn build_ssa_inner(
         blocks: ssa_blocks,
         value_clobbers: walk.value_clobbers,
         idom,
-        dominance_frontier: df
-            .into_iter()
-            .map(|(k, v)| {
-                let mut sorted: Vec<BlockId> = v.into_iter().collect();
-                sorted.sort_unstable();
-                (k, sorted)
-            })
-            .collect(),
+        dominance_frontier: sorted_dominance_frontier(df),
         dominator_tree: tree,
         block_names: func.block_names().to_vec(),
         var_names: walk.interner.names,
