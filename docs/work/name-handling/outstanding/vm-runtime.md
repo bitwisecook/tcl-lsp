@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T15:33:50.677479+00:00
+Last updated: 2026-10-24T16:15:42.980441+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -39,14 +39,37 @@ LaterphysicalvariableV2(04c5/4151)outsidecapture; no claimedoutcome. Withcoverag
 Rootnotifiedfull08e7. comparison-to-3bb.json joinsall128identity/order: only3ErrorF→P,
 no selected observedP→F; original3bothP. No oldCI/baseline ledger overwritten.
 
-## New measured enginebridge2 authoring IN PROGRESS
+## Fresh actual-core constructor independently SOURCE CLEAR, root integration pending
 
-Rootactualglobal40103603460 ZIP root-global-rust-check-40103603460.zip reportstwo
-rust/tcl-engine-tclvm/src/lib.rs errors: let_and_return1043 +recover_original_result_in
-120lines1265. Role owns OFF-TREE paired minimalcorrection, noAPI/guard/Nativeownerchange.
-ActualScalarImport/OriginalObjectResult callback/header/list/dict alias memo/currentness/
-retirement/drop/order remainbinding. No newtests/allow/APIflag/build. Rootpeerrequired.
-Actual66ef artifactinterrupted sourceauthoringbeforeproductfilewrites; authorresumingnow.
+Enginebridge2 Range-cleared da2e9537, integrated26d6/981d; immutable651c/ownerbcaa.
+OriginalSpec66ef Native1 actual C9/sourceC86 mismatch independent35f0e952; C84stock
+String stillactualC9. No soleUnknownLiteralHead or lost-callback-owner claim.
+vm-engine-fresh-native-release-v1 master3d97724c: WORKc8ad0271/manf50b2097,
+CLEAN10698492/manebd3f1ba; source-owner-proofd3ec7223. NewNativeonlyconstructor validates
+knowncatalogue+executionpoint before actualfreshcore/commands/objects/handles. Optional
+falliblegenericHostfactory runsbeforeold exactsandbox; factoryErr cachesNone/no fallback.
+Conveniencehost selectsfresh onlygenuineNativepoints; nonnativeF5/unknown retainsold
+explicitdefaultC9+unchangedsourcepinpath, NOinferredvendorNativegrant. OlddefaultOption
+expect/set_release/alloriginalasserts exact. All8wholeoldsource actualhelper inverses,
+current/copiedF-R-F0/fmt8 PASS; alltrackedworkflow/validation directpath+SHA censusZERO.
+Specpeer independent SOURCEACCEPT74d3dee36f276297b4c5714f33264d31a92c4a7f350ee90f40583b660e8e93da
+(spec-engine-fresh-native-independent-v1/receipt.json) current/actualhelperinverse/types/
+bootstrap/owner/order/drop/aliases/genericAPI/factoryrefusal/CLEANdrift reviewed. Rootnotified.
+No localCargo/native/test/driver/build; allnewcontrols/outcomes UNRUN, noperfclaim.
+
+## Concrete C85With coverage OPTION FROZEN + HELD, no application
+
+vm-c85-with-coverage-option-v1-held master049f84ba; paired3bb73819,
+WORKmana0ce0395/CLEAN47b17f51, coverage-and-source-proof43e3ba1c.
+All16oldprofile/with/pendingtuples keepexactscripts+twooriginalpublicevalassertions;
+14genuinecompiledcases retainALLoldobserver/refcount/refusal/result/error/cleanup body.
+Only2C85With iterations takeexplicitGenericrootInvoke+NODictionaryScope branch, assert
+C86hookfloor/noNativeRefusal/publicKBresult. Those2provide NOcompiledpending-role
+coverage andarenotpromotedasScope. Thisprecisecoverageassignment remainsHELD pending
+rootindependentpeer/judgmentandanyrequireduserchoice. Noignore/skip/productionchange/
+providerfallback/newcapability/budgetchange applied. Fulloldfileinverse/F-R-F0/fmt2,
+C85NULL+C86hook physicalLF/rawSHA exact. No localexecution/newtestPASSclaim.
+C85Error isseparatelyalreadyapproved/integrated/three66efactualPASS; notWithauthority.
 
 ## Latest physical variable declaration V2 peer COMPLETE, actuals UNRUN
 
