@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T17:29:19.602065+00:00
+Last updated: 2026-10-24T17:58:56.531691+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -382,3 +382,19 @@ WORKglobal setup consumes existing3300absolute deadline, no capbonus/ownedsetupp
 receipt claim. ActualzeroWarnings/currentstrict stillrootownedpendingmeasurements.
 
 No new active localbuild/process, no canonicalmutation or Actionsdispatch byrole.
+
+## Closed consumer implementation in progress 17:58 UTC
+
+Root approved structural2043156; compiler/API frozen2e37a197/paired a1417136 (Spec owner).
+Concrete private backend draft vm-closed-native-owner-v1/work/after now written, NOTFROZEN.
+Private joinedworker owns fresh actualVM, fixedconcretecompiler/equalfullregistrykeys,
+memoryI/O/env, actualinteger-onlynumericprovider/noreset/nodouble, boundedplan+output,
+authenticstocktokenretention/wholeworldrecapture, actual-entryplainbytecompile/fullop
+inventory. No incomingHost/VM/Value/compiler or ordinaryoptimisation grant. Allnewcode
+UNBUILT/UNRUN. New genuineclosurefinding: env-activatedRustdiagnostics bypassHost and
+processenvprecheck races. Census diagnostic-census.txt; proposed boundedconstTLS scoped
+suppression and crateprivate standard-printforwarders awaitingrootdirection. No unsafe
+stderr/globalenv mutation; no detachedtimeout/freshFPbaseline claim. PerVMliteralworld
+andfreshRc headers audited, mutableprecision/Jimallocator scopes TLSretirebeforejoin.
+Remainingglobalmutableheader census/finaltypes/negativecontrols/freeze+independentpeer
+required. Canonicalrootstillsolewriter; no source edits/builds/dispatch.
