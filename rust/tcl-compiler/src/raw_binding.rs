@@ -541,6 +541,80 @@ impl ResolveContext {
         Ok((name, key, possible_error))
     }
 
+    /// A known failed capture cannot supply even a possible static lookup.
+    /// This classifies the existing source-variable model only, without
+    /// cloning the context, constructing wrappers or changing any bindings.
+    pub(crate) fn original_static_capture_is_definitely_invalid(
+        &self,
+        declaration: &tcl_registry::native_procedure::ByteStaticVariableDeclaration,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        use tcl_registry::native_procedure::StaticVariableInitialiser as Initialiser;
+        match &declaration.initialiser {
+            Initialiser::Literal(_) => false,
+            Initialiser::CaptureCurrentCell(name) => self
+                .original_static_reference_is_definitely_invalid(
+                    &NameBytes::from(name.as_slice()),
+                    registry,
+                ),
+            Initialiser::CopyCurrent(name) => {
+                let target = raw_value_bytes(name, self, registry);
+                let observers = self.variable_observers_at(
+                    &target,
+                    tcl_registry::TraceOperation::Read,
+                    registry,
+                );
+                target.kind != crate::place::PlaceKind::Unknown
+                    && !target.dynamic
+                    && !target.observed
+                    && !observers.unknown_residual
+                    && observers.callbacks.is_empty()
+                    && observers.possible_callbacks.is_empty()
+                    && self.contents_presence(&target)
+                        == crate::var_resolve::ContentsPresence::Undefined
+            }
+        }
+    }
+
+    /// Exact `Invalid` exits of `capture_original_static_reference` and its
+    /// `capture_raw_slot_at` callee, without creating even a discarded wrapper.
+    fn original_static_reference_is_definitely_invalid(
+        &self,
+        name: &NameBytes,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        let slot = raw_destination_bytes(name.as_bytes(), self, registry);
+        let key = crate::var_resolve::cell_key(&slot);
+        if slot.kind == crate::place::PlaceKind::Unknown
+            || slot.cell.is_none()
+            || self.dynamic_bindings
+            || self.unknown_bindings.contains(&key)
+            || self.raw_bindings.bindings.contains_key(&key)
+        {
+            return false;
+        }
+        let link = self
+            .namespace_name_alias_bindings
+            .get(&key)
+            .or_else(|| self.name_alias_bindings.get(&key));
+        let target = link
+            .cloned()
+            .unwrap_or_else(|| raw_value_bytes(name.as_bytes(), self, registry));
+        if target.kind == crate::place::PlaceKind::Unknown {
+            return false;
+        }
+        if link.is_none()
+            && self.contents_presence(&target) == crate::var_resolve::ContentsPresence::Undefined
+        {
+            return true;
+        }
+        canonical_place_key(&slot).is_some()
+            && link.is_none()
+            && !self.namespace_alias_bindings.contains_key(&key)
+            && !self.alias_bindings.contains_key(&key)
+            && target.cell.is_none()
+    }
+
     fn capture_original_static_variable(
         &mut self,
         allocation: &CallableStorageIdentity,
@@ -1478,5 +1552,57 @@ mod original_callable_static_tests {
             StaticCaptureResult::Unknown
         );
         assert_eq!(context, before);
+    }
+
+    #[test]
+    fn possible_static_capture_refuses_known_failure_without_changing_context() {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut current = context();
+        for (text, invalid) in [
+            (b"missing".as_slice(), true),
+            (b"&missing", true),
+            (b"{n VALUE}", false),
+        ] {
+            let declarations = tcl_registry::native_procedure::parse_static_variables_bytes(
+                text,
+                current.invocation_dialect.unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+            let before = current.clone();
+            assert_eq!(
+                current.original_static_capture_is_definitely_invalid(&declarations[0], registry),
+                invalid
+            );
+            assert_eq!(
+                current, before,
+                "a possible-lookup query cannot install storage"
+            );
+        }
+        store(&mut current, b"n", b"VALUE", 1);
+        for text in [b"n".as_slice(), b"&n"] {
+            let declarations = tcl_registry::native_procedure::parse_static_variables_bytes(
+                text,
+                current.invocation_dialect.unwrap(),
+            )
+            .unwrap()
+            .unwrap();
+            let before = current.clone();
+            assert!(
+                !current.original_static_capture_is_definitely_invalid(&declarations[0], registry)
+            );
+            assert_eq!(current, before);
+        }
+        current.mark_unenumerated_variable_observers();
+        let declarations = tcl_registry::native_procedure::parse_static_variables_bytes(
+            b"missing",
+            current.invocation_dialect.unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            !current.original_static_capture_is_definitely_invalid(&declarations[0], registry),
+            "an unknown read observer can supply contents"
+        );
     }
 }

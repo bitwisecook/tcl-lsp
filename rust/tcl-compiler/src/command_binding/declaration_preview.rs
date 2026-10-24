@@ -276,6 +276,151 @@ pub(super) struct OriginalProcedureReadFlowEntry {
     pub(super) snapshot: Arc<super::SourceLookupSnapshot>,
 }
 
+/// An original declaration may route a source read through a captured static
+/// slot rather than the synthetic local used by an `OriginalDeclaration` CFG.
+/// This receipt can withdraw that local-absence claim only; it supplies no
+/// existing value, entered frame, constructor completion or physical cell.
+pub(crate) struct OriginalProcedureStaticReadAlternatives {
+    owner: Arc<super::OriginalSourceAnalysisOwner>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    declaration: OriginalProcedureReadFlowEntry,
+    names: std::collections::BTreeSet<String>,
+}
+
+impl OriginalProcedureStaticReadAlternatives {
+    pub(crate) fn may_select_static(&self, name: &str, span: tcl_lexer::Span) -> bool {
+        self.names.contains(name) && self.declaration.read.owns_original_read(span)
+    }
+
+    /// Original direct argument reads have a source-relative local frame even
+    /// when readonly CFG entry has no physical activation. This does not turn
+    /// an authored compatibility key into a native address or an existing value.
+    pub(crate) fn may_select_direct_source_read(
+        &self,
+        view: crate::ssa::SsaSourceView<'_>,
+        symbol: crate::ssa::Symbol,
+        name: &str,
+        span: tcl_lexer::Span,
+    ) -> bool {
+        self.direct_source_read(view, symbol, name, span).is_some()
+    }
+
+    fn direct_source_read(
+        &self,
+        view: crate::ssa::SsaSourceView<'_>,
+        symbol: crate::ssa::Symbol,
+        name: &str,
+        span: tcl_lexer::Span,
+    ) -> Option<()> {
+        self.may_select_static(name, span).then_some(())?;
+        matches!(
+            view.function().cell_key(symbol),
+            Some(crate::var_resolve::VariableCellKey::Authored(_))
+        )
+        .then_some(())?;
+        (view.source_names()?.get(name) == Some(&symbol)).then_some(())?;
+        let tokens = view.source_tokens()?;
+        let binding = tokens.source_binding.as_ref()?;
+        Arc::ptr_eq(binding.original_analysis_attachment()?, &self.owner).then_some(())?;
+        let registry = self.input.borrowed_context_registry().commands();
+        let metadata =
+            binding.original_invocation_metadata_for_input(tokens, &self.input, registry)?;
+        let advice = binding.original_conditional_operand_layout_advice(tokens, registry)?;
+        if advice.has_unclosed_source_coverage() {
+            return None;
+        }
+        (advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()??
+            .source_analysis_input()
+            == metadata.source_analysis_input())
+        .then_some(())?;
+        let selected =
+            crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)?;
+        if selected.effects.frame_reachable()
+            || selected.effects.unknown_reads
+            || selected.effects.unknown_writes
+            || !selected.aliases.is_empty()
+            || !selected.reads.is_empty()
+            || !matches!(
+                selected.flow,
+                tcl_registry::script_body_flow::ScriptBodyFlow::None
+            )
+        {
+            return None;
+        }
+        let image = self.declaration.read.original_image();
+        let config = self.input.lexer_config();
+        let at = tokens.words().first()?.source().span.start();
+        let original = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            at,
+            config,
+        )?;
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            self.declaration.read.original_body_span()?,
+            config,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some()
+            || !plan
+                .commands
+                .iter()
+                .any(|command| command.words == original)
+        {
+            return None;
+        }
+        let mut found = false;
+        for word in &original {
+            if word.group().expand || word.group().kind == tcl_lexer::WordKind::Braced {
+                return None;
+            }
+            let arena = word.executable_parts();
+            for part in arena.all_parts() {
+                match &part.part {
+                    tcl_lexer::ExecutablePart::Text(_) => {}
+                    tcl_lexer::ExecutablePart::Variable { name: root, index }
+                        if index.is_none() =>
+                    {
+                        if arena.source_span(part) == Some(span)
+                            && arena.bytes(*root)? == name.as_bytes()
+                        {
+                            found = true;
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        found.then_some(())
+    }
+
+    pub(crate) fn may_select_static_in_declared_frame(
+        &self,
+        name: &str,
+        span: tcl_lexer::Span,
+        context: &crate::var_resolve::ResolveContext,
+    ) -> bool {
+        SourceCommandBindings::context_owns_frame(
+            context,
+            &self.declaration.header.frame,
+            Some(&self.declaration.header.namespace),
+        ) && self.may_select_static(name, span)
+    }
+}
+
+#[derive(PartialEq, Eq)]
+struct OriginalStaticReadAlternativeFacet {
+    declaration: OriginalProcedureReadFlowEntry,
+    original: Vec<tcl_lexer::NativeWord>,
+    effective: crate::registry_invocation::EffectiveCommandWords,
+    values: Vec<Vec<u8>>,
+    statics: crate::signature_scan::scope::SignatureSourceNameInput,
+    parsed: Vec<tcl_registry::native_procedure::ByteStaticVariableDeclaration>,
+}
+
 impl OriginalProcedureReadFlowEntry {
     pub(super) fn owns_source(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
         &self.header.declaration.source == origin
@@ -1638,6 +1783,90 @@ impl SourceCommandBindings {
         agreed
     }
 
+    /// A possible static lookup is independent of successful construction.
+    /// Every original observation and target must retain the same full argv,
+    /// static operand, source/formal/body recipe and caller-variable context.
+    pub(crate) fn original_procedure_static_read_alternatives(
+        &self,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalProcedureStaticReadAlternatives> {
+        if procedure.body_kind != crate::ir::ProcedureBodyKind::OriginalDeclaration
+            || !self.matches_original_source_image(image, input.lexer_config())
+        {
+            return None;
+        }
+        let binding = self.invocation_at_source("", procedure.span.start());
+        let (_, mut tokens) = binding.original_recorded_command()?;
+        tokens.source_binding = Some(binding);
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        (procedure.declaration_site.as_ref() == Some(site)).then_some(())?;
+        let owner = self.original_analysis_owner()?;
+        owner.matches(self, input).then_some(())?;
+        let read = self.original_procedure_read_declaration(&tokens, registry, input)?;
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )?;
+        let mut agreed = None;
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || declaration_tokens(site, row)?.words() != tokens.words()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                &tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            (advice.dialect() == super::source_analysis_entry::source_input_dialect(input))
+                .then_some(())?;
+            for target in advice.targets() {
+                let facet = original_static_read_alternative_facet(
+                    site,
+                    &tokens,
+                    row,
+                    target,
+                    &advice,
+                    &OriginalProcedureReadFlowRequest {
+                        registry,
+                        metadata,
+                        read: &read,
+                    },
+                )?;
+                if !facet.declaration.owns_original_procedure(procedure, image)
+                    || procedure.body.namespace_context.as_deref()
+                        != Some(&facet.declaration.header.namespace)
+                    || agreed.as_ref().is_some_and(|old| old != &facet)
+                {
+                    return None;
+                }
+                agreed = Some(facet);
+            }
+        }
+        let facet = agreed?;
+        let names = facet
+            .parsed
+            .into_iter()
+            .filter_map(|declaration| {
+                let name = String::from_utf8(declaration.name).ok()?;
+                (!tcl_syntax::naming::is_qualified(name.as_bytes())
+                    && tcl_syntax::naming::split_element_ref(&name).is_none())
+                .then_some(name)
+            })
+            .collect();
+        Some(OriginalProcedureStaticReadAlternatives {
+            owner: Arc::clone(owner),
+            input: input.clone(),
+            declaration: facet.declaration,
+            names,
+        })
+    }
+
     pub(super) fn original_procedure_read_flow_entry(
         &self,
         tokens: &crate::ir::CommandTokens,
@@ -2933,6 +3162,95 @@ struct OriginalProcedureReadFlowRequest<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
     read: &'a OriginalProcedureReadDeclaration,
+}
+
+fn original_static_read_alternative_facet(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &DeclarationLayoutObservation,
+    target: &super::SourceCommandTarget,
+    advice: &super::OriginalCompilationLookupAdvice,
+    request: &OriginalProcedureReadFlowRequest<'_>,
+) -> Option<OriginalStaticReadAlternativeFacet> {
+    let declaration = procedure_read_flow_for_target(site, tokens, row, target, advice, request)?;
+    let effective = effective_words_for_target(tokens, target)?;
+    let dialect = advice.dialect();
+    let values = effective
+        .words
+        .iter()
+        .map(|word| {
+            effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+                .literal_bytes()
+                .map(<[u8]>::to_vec)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let words = values
+        .iter()
+        .map(|value| {
+            std::str::from_utf8(value)
+                .ok()
+                .map(tcl_registry::InvocationWord::Literal)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let (&head, arguments) = words.split_first()?;
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            request.registry,
+            Some(request.metadata.context()),
+            tcl_registry::InvocationWords::structured(head, arguments).with_dialect(dialect),
+            advice.realm(),
+        );
+    let at = match resolution
+        .resolved()?
+        .authored_source_procedure_static_list()?
+    {
+        tcl_registry::resolved_invocation::AuthoredSourceProcedureStaticList::Argument(at) => at,
+        tcl_registry::resolved_invocation::AuthoredSourceProcedureStaticList::Absent => {
+            return None;
+        }
+    };
+    matches!(
+        effective.origins.get(at.checked_add(1)?),
+        Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+    )
+    .then_some(())?;
+    let statics = original_declaration_operand_input(
+        site,
+        tokens,
+        row,
+        target,
+        &effective,
+        at.checked_add(1)?,
+    )?;
+    statics
+        .is_current(&row.snapshot.state.source_variables)
+        .then_some(())?;
+    (statics.bytes() == values.get(at.checked_add(1)?)?).then_some(())?;
+    let parsed =
+        tcl_registry::native_procedure::parse_static_variables_bytes(statics.bytes(), dialect)?
+            .ok()?;
+    if parsed.iter().any(|declaration| {
+        row.snapshot
+            .state
+            .source_variables
+            .original_static_capture_is_definitely_invalid(declaration, request.registry)
+    }) {
+        return None;
+    }
+    let original = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        row.config,
+    )?;
+    Some(OriginalStaticReadAlternativeFacet {
+        declaration,
+        original,
+        effective,
+        values,
+        statics,
+        parsed,
+    })
 }
 
 fn procedure_read_flow_for_target(

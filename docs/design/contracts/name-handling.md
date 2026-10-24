@@ -3703,3 +3703,41 @@ occurrence receipt; it never means an absent static operand. Positively selected
 static names withhold absence candidates for their persistent contents. Generic
 procedure equality, report/cache identity, flow facts and physical warning paths
 remain independent; no Native or incoming/definedness fact is issued.
+
+### Original declared static lookup alternatives
+
+An `OriginalDeclaration` procedure CFG can represent a source read with a
+synthetic local even though the same original header permits a captured Jim
+static lookup. A separate sealed receipt checks the current analysis input,
+registry, exact original source/formals/body, complete original argv, static
+operand and all retained declaration observations/targets. The shared registry
+static grammar remains the parser. Known failed captures, qualified/element
+names and other procedure frames supply no alternative.
+
+This purpose withdraws a chain-derived synthetic-local absence only at that
+exact use, after all existing guards and before the earliest-per-name reduction.
+The actual SSA point must positively own the chain symbol's current activation;
+foreign/up-frame reads and missing point/frame provenance survive. A later
+eligible occurrence remains eligible even if an earlier static use is withheld.
+The separate original declared-absence projection already owns conditional
+local-frame source occurrences and can withhold those mapped candidates. It grants no
+static value, definite existence, constructor success/Normal, entered frame,
+physical cell, SSA state or general report ownership. Independent physical
+missing-read proofs and all unrelated diagnostics retain their authority.
+Generic declaration identity, equality, reports, caches and State are unchanged.
+
+The same possible-static purpose can use an independently checked direct source
+argument frame when the readonly physical entry is unknown. A private use scope
+pins the receipt to the exact current SSA function. The positioned source-symbol
+map must identify an Authored synthetic symbol, and the complete unchanged token
+vector must be a direct top-level command in the sealed original body. Existing
+typed declaration-flow metadata must exclude frame reach, unknown reads/writes,
+aliases, named handler reads and nested script flow. Braced/expanded words, nested
+commands/expressions, array indices and opaque executable parts refuse this
+source-relative path. Only an exact canonical lexical Variable part/span/name
+can supply the argument occurrence. Scope aliases, including killed aliases,
+cannot borrow it. This proves a conditional source-local argument lookup only;
+physical activation, storage, values and completion remain unknown. Other
+unknown/foreign/up-frame uses retain their old diagnostics. Nested named reads
+and expression reads need their own stronger occurrence owner and do not fall
+back to body containment. Parsing/allocation costs remain unmeasured.
