@@ -1,6 +1,6 @@
 # Compiler filter and resource comparison
 
-Last updated: 2026-10-24 01:47 UTC
+Last updated: 2026-10-24 02:08 UTC
 
 Status: **Blocked/routed to compiler/compiler-names for the resource gate**.
 Perf source is frozen83774d43464c7d177bcd505ef22fe898ffee9a25 plus full8 batch
@@ -28,9 +28,13 @@ The ordinary extraReadFlow foreign-card test still fails BOTH at frozen837;
 compiler's canonical0f4b8e19 repair is later and must be retained at final rebase.
 Its test assertion is unchanged. See readflow-owner-failure.md.
 
-The clean six-file/no-switch compiler comparison runs next with the same inputs
-and unchanged depth1000 alone BOTH. Old ENV is ignored there. Its results are
-pending; do not infer them from the switched full8 build.
+The clean six-file/no-switch comparison completes all231 nondeep outcomes
+BOTH: identical142pass/89fail,662.793/593.669s, peaks409624/407420KiB. Every
+actual named outcome in BOTH clean6 runs matches the real switched OLD baseline;
+full-only native0xff control is the extra232nd test. Zero observed P2F. Old ENV
+is ignored in clean6, so this explicit cross-build comparison is required:
+evidence/current-83774d43-clean6-workflow-api22/nondeep-cross-baseline-comparison.json.
+Unchanged depth1000 now runs alone new then old; that strict gate is pending.
 
 The empty-checked-regions draft avoids a clone only after existing complete
 empty coverage. It remains uncompiled/unproven/Blocked to the owner and is

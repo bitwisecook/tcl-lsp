@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-24 02:01 UTC
+Last updated: 2026-10-24 02:08 UTC
 
 ## Resume
 
@@ -13,7 +13,7 @@ Preserve every failed/incomplete result; no assertion or budget weakening.**
 Active FROZEN proof source:83774d43464c7d177bcd505ef22fe898ffee9a25.
 - /workspace/tcl-lsp-diagnostic: full8 batch + temporary switch (9 Rust files).
 - /workspace/tcl-lsp-owned: exactly six owned files, no switch/no routed2.
-- /workspace/tcl-lsp-publish: publisher, latest prior own push935727b9 at01:47UTC; current checkpoint follows.
+- /workspace/tcl-lsp-publish: publisher, latest prior own push54b293f8 at02:01UTC; current checkpoint follows.
 - /workspace/tcl-lsp-work writes evidence but has old product source; never
   compile new probes there. /workspace/tcl-lsp-perf-latest is retired b6 evidence.
 Keep both active sources unchanged until every active child has finished and
@@ -51,12 +51,13 @@ Current execution:
   evidence current-83774d43-clean6-workflow-api22/. Lexer586/586 BOTH PASS,
   2.716/2.197s,0warnings/removed. Compiler0 build0warnings, private ELF hash
   eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23.
-  First nondeep run COMPLETE231/231:142pass/89fail in662.8s. Every outcome
-  matches the actual switched OLD baseline; extra full232nd case is native0xff
-  passing control. Cross-baseline receipt, not an inference from ignored ENV:
-  cross-baseline-new-comparison.json. Second no-switch/ENV-old repeat ACTIVE;
-  ENV is ignored and no regression observed yet. Unchanged depth1000 runs
-  alone BOTH afterward. All4CPUs released after full/Spec cleanup, original
+  BOTH nondeep runs COMPLETE231/231: identical142pass/89fail;662.793/593.669s,
+  peaks409624/407420KiB. Every named outcome in BOTH runs matches the actual
+  switched OLD baseline; extra full232nd case is native0xff passing control.
+  This is not an inference from ignored ENV. Final cross-baseline receipt:
+  nondeep-cross-baseline-comparison.json. Unchanged depth1000 is now active
+  ALONE new mode, then old. Full strict inventory remains pending/blocked,
+  not an asserted pass. All4CPUs released after full/Spec cleanup, original
   testthreads2/inputs/assertions/budgets unchanged; quiet-cpu-release.json.
 
 - Fresh SpecTcl COMPLETE/PASS at SAME837 source: eval_loader28/28 BOTH
@@ -150,7 +151,7 @@ perf-NOTES.md with final current before/after timings remains required before
 stopping. No PR/force; footer Co-Authored-By: Codex <noreply@openai.com>.
 
 Publish own evidence/NOTES/outstanding at most30min apart, Last updated from
-date-u. Own checkpoint in this update at2026-10-24 02:01 UTC; next push within30min. Fetch origin
+date-u. Own checkpoint in this update at2026-10-24 02:08 UTC; next push within30min. Fetch origin
 work and rebase before every normal push, retry rejection, never force.
 
 ## Completed evidence and current failures
