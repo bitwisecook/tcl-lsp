@@ -642,6 +642,47 @@ fn destroys_variable(
         .then_some(selected)
 }
 
+/// Bind source-relative advice to this exact current SSA function. A source
+/// receipt from another body cannot use an equal display name or numeric slot.
+struct StaticReadUseScope<'a> {
+    ssa: &'a crate::ssa::SsaFunction,
+    source: crate::command_binding::OriginalProcedureStaticReadAlternatives,
+}
+impl StaticReadUseScope<'_> {
+    fn may_select_static(&self, name: &str, span: tcl_lexer::Span) -> bool {
+        self.source.may_select_static(name, span)
+    }
+    fn may_select_static_in_declared_frame(
+        &self,
+        name: &str,
+        span: tcl_lexer::Span,
+        context: &crate::var_resolve::ResolveContext,
+    ) -> bool {
+        self.source
+            .may_select_static_in_declared_frame(name, span, context)
+    }
+    fn may_select_direct_source_read(
+        &self,
+        view: crate::ssa::SsaSourceView<'_>,
+        symbol: crate::ssa::Symbol,
+        name: &str,
+        span: tcl_lexer::Span,
+    ) -> bool {
+        std::ptr::eq(view.function(), self.ssa)
+            && self
+                .source
+                .may_select_direct_source_read(view, symbol, name, span)
+    }
+}
+
+/// Declaration source advice and a separately sealed possible static lookup.
+#[derive(Clone, Copy)]
+struct W210DeclarationReads<'a> {
+    advice: Option<&'a crate::script_binds::AuthoredProcedureReadAdvice>,
+    statics: Option<&'a StaticReadUseScope<'a>>,
+    scope_aliases: &'a HashSet<String>,
+}
+
 /// Facts used while recording the read sites of one undef def-use chain.
 struct W210ChainCtx<'a> {
     cell_facts: &'a super::helpers::DiagnosticCellFacts,
@@ -1716,6 +1757,31 @@ is renamed or deleted in this file."
             .original_namespace_scope_at(site.cmd_span.start())
     }
 
+    fn static_read_alternatives<'a>(
+        &self,
+        fu: &'a crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+    ) -> Option<StaticReadUseScope<'a>> {
+        let registry = self.profile_registry();
+        let input = fu.source_metadata_input()?;
+        fu.invocation_metadata_context(&registry)?;
+        let source = rbs_read_option(
+            "static_lookup_alternatives",
+            self.head_identities
+                .source_bindings()
+                .original_procedure_static_read_alternatives(
+                    procedure,
+                    &tcl_lexer::SourceImage::document(&self.source),
+                    &registry,
+                    input,
+                ),
+        )?;
+        Some(StaticReadUseScope {
+            ssa: &fu.ssa,
+            source,
+        })
+    }
+
     fn declared_read_flow_for_procedure(
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -1871,12 +1937,18 @@ is renamed or deleted in this file."
         };
         let params = &params_owned;
 
+        let alternatives =
+            ir_proc.and_then(|procedure| self.static_read_alternatives(fu, procedure));
         self.collect_chain_read_before_set_spans(
             fu,
             ctx,
             params,
             &exists_guards,
-            declaration_advice.as_ref(),
+            W210DeclarationReads {
+                advice: declaration_advice.as_ref(),
+                statics: alternatives.as_ref(),
+                scope_aliases: ctx.scope_aliases,
+            },
             &mut w210_min,
         );
 
@@ -1911,7 +1983,7 @@ is renamed or deleted in this file."
         ctx: &ReadBeforeSetCtx<'_>,
         params: &HashSet<&str>,
         exists_guards: &[super::helpers::ExistenceGuard],
-        declaration_advice: Option<&crate::script_binds::AuthoredProcedureReadAdvice>,
+        declaration: W210DeclarationReads<'_>,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::DefKind;
@@ -2048,7 +2120,7 @@ is renamed or deleted in this file."
                     supp: ctx.supp,
                     startup,
                 },
-                declaration_advice,
+                declaration,
                 w210_min,
             );
         }
@@ -2094,6 +2166,7 @@ is renamed or deleted in this file."
         {
             return None;
         }
+        let alternatives = self.static_read_alternatives(fu, procedure);
         let mut reads = std::collections::HashMap::new();
         for (name, &span) in report.declared_absence_warning_occurrences() {
             #[cfg(debug_assertions)]
@@ -2104,6 +2177,9 @@ is renamed or deleted in this file."
             }
             if !declaration.owns(span)
                 || !report.allows_declared_absence_warning(name, span)
+                || alternatives
+                    .as_ref()
+                    .is_some_and(|alternative| alternative.may_select_static(name, span))
                 || proved.contains_key(name)
                 || ctx.scope_aliases.contains(name)
                 || report.has_declared_alias(name)
@@ -2441,7 +2517,7 @@ is renamed or deleted in this file."
         fu: &crate::compilation_unit::FunctionUnit,
         chain: &crate::def_use::DefUseChain,
         ctx: &W210ChainCtx<'_>,
-        declaration_advice: Option<&crate::script_binds::AuthoredProcedureReadAdvice>,
+        declaration: W210DeclarationReads<'_>,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::UseKind;
@@ -2534,7 +2610,7 @@ is renamed or deleted in this file."
                     };
                     (fu.abs_span(stmt.span()), Some(stmt))
                 };
-            if span.is_empty() || declaration_advice.is_some_and(|advice| !advice.owns(span)) {
+            if span.is_empty() || declaration.advice.is_some_and(|advice| !advice.owns(span)) {
                 continue;
             }
             let Some(use_id) = fu.ssa.block_id(&use_site.block) else {
@@ -2738,6 +2814,51 @@ is renamed or deleted in this file."
             // Anchor at the `$var` read token; fall back to the command
             // span when the read is nested inside a quoted/compound word.
             let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
+            // Only this exact use's own activation can have the alternate
+            // static lookup. Explicit foreign/up-frame reads and missing point
+            // contexts survive; later surviving uses still enter the minimum.
+            let own_activation = source_view.owns_activation_cell(symbol);
+            let native_alternative = own_activation == Some(true)
+                && matches!(
+                    cell_name,
+                    crate::var_resolve::VariableCellKey::Activation { simple, .. }
+                        if simple.as_bytes() == var.as_bytes()
+                )
+                && !declaration.scope_aliases.contains(var)
+                && declaration.statics.is_some_and(|alternatives| {
+                    fu.ssa
+                        .point_contexts
+                        .as_ref()
+                        .and_then(|points| points.context_before(use_id, use_index))
+                        .is_some_and(|context| {
+                            alternatives
+                                .may_select_static_in_declared_frame(var, read_span, context)
+                        })
+                });
+            let static_alternative = native_alternative
+                || (!declaration.scope_aliases.contains(var)
+                    && declaration.statics.is_some_and(|alternatives| {
+                        alternatives.may_select_direct_source_read(
+                            source_view,
+                            symbol,
+                            var,
+                            read_span,
+                        )
+                    }));
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+                let storage_kind = match cell_name.root() {
+                    crate::var_resolve::VariableCellKey::Authored(_) => "authored",
+                    crate::var_resolve::VariableCellKey::Activation { .. } => "activation",
+                    _ => "other",
+                };
+                eprintln!(
+                    "RBS_READ_OWNER stage=static_lookup_at_use name={var} storage_kind={storage_kind} own_activation={own_activation:?} native_alternative={native_alternative} static_alternative={static_alternative}"
+                );
+            }
+            if static_alternative {
+                continue;
+            }
             #[cfg(debug_assertions)]
             rbs_trace_read("chain_candidate", var, read_span);
             w210_min
