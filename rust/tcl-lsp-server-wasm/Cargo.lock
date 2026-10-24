@@ -1550,6 +1550,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-platform",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
