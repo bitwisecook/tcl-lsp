@@ -3040,6 +3040,7 @@ struct BodyUnitContext<'a> {
     /// [`FunctionBuildInputs::command_trust`].
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
     config: tcl_lexer::LexerConfig,
+    native_source: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
 }
 
 #[derive(Clone, Copy)]
@@ -3762,11 +3763,29 @@ struct RetainedBodyUnits {
 
 fn build_retained_body_units(
     ir_module: &IrModule,
-    extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
-    context: BodyUnitContext<'_>,
+    facts: &RetainedModuleFacts<'_>,
+    module_procedures: &crate::interprocedural::ModuleProcedures<'_>,
+    options: UnitBuildOptions<'_>,
     cache: Option<&mut ProcLatticeCache<'_>>,
-    memo_context: DeclaredBodyMemoContext<'_>,
 ) -> RetainedBodyUnits {
+    let extra_callers = &facts.extra_callers;
+    let context = BodyUnitContext {
+        registry: options.registry,
+        known_class_set: &facts.module_wide.known_class_set,
+        trace_facts: facts.trace_facts,
+        command_trust: &facts.command_mutations,
+        config: options.config,
+        native_source: module_procedures
+            .has_original_native_source()
+            .then_some(module_procedures),
+    };
+    let memo_context = DeclaredBodyMemoContext {
+        prepared: facts.cfg_context.map(|prepared| &prepared.context),
+        dialect: options.dialect,
+        known_classes: &facts.module_wide.known_classes,
+        traced_variables: &facts.module_wide.traced_variable_names,
+        analysis_context: &facts.analysis_context,
+    };
     let methods = CompilationUnit::build_method_units(ir_module, extra_callers, context);
     let source_body_cfgs = ir_module
         .body_units
@@ -3932,9 +3951,10 @@ struct RetainedAnalysisStage<'a> {
     procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     transfers: crate::interprocedural::TransferSummaries,
+    body_units: RetainedBodyUnits,
 }
 
-struct RetainedPostAnalysisInput<'a, 'b, 'borrow, 'callback> {
+struct RetainedPostAnalysisInput<'a, 'b> {
     ir_module: &'a IrModule,
     facts: RetainedModuleFacts<'a>,
     top_level: FunctionUnit,
@@ -3942,8 +3962,7 @@ struct RetainedPostAnalysisInput<'a, 'b, 'borrow, 'callback> {
     param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     transfers: crate::interprocedural::TransferSummaries,
     options: UnitBuildOptions<'b>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    cache: Option<&'borrow mut ProcLatticeCache<'callback>>,
+    body_units: RetainedBodyUnits,
 }
 
 struct RetainedPostAnalysis {
@@ -3967,7 +3986,7 @@ struct RetainedPostAnalysis {
 }
 
 fn build_retained_post_analysis(
-    input: RetainedPostAnalysisInput<'_, '_, '_, '_>,
+    input: RetainedPostAnalysisInput<'_, '_>,
     #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
 ) -> RetainedPostAnalysis {
     let RetainedPostAnalysisInput {
@@ -3978,50 +3997,26 @@ fn build_retained_post_analysis(
         param_constants_by_proc,
         transfers,
         options,
-        dialect,
-        cache,
+        body_units,
     } = input;
     let mut procedures = procedures;
     let RetainedModuleFacts {
         command_mutations,
         proc_binding_trust,
         analysis_context,
-        cfg_context,
         call_site_constants,
         linkage,
         extra_callers,
         has_cross_file_evidence,
         module_wide,
         tainted_global_writes,
-        trace_facts,
         ..
     } = facts;
-    let body_unit_context = BodyUnitContext {
-        registry: options.registry,
-        known_class_set: &module_wide.known_class_set,
-        trace_facts,
-        command_trust: &command_mutations,
-        config: options.config,
-    };
     let RetainedBodyUnits {
         methods,
         source_body_cfgs,
         body_units,
-    } = build_retained_body_units(
-        ir_module,
-        &extra_callers,
-        body_unit_context,
-        cache,
-        DeclaredBodyMemoContext {
-            prepared: cfg_context.map(|prepared| &prepared.context),
-            dialect,
-            known_classes: &module_wide.known_classes,
-            traced_variables: &module_wide.traced_variable_names,
-            analysis_context: &analysis_context,
-        },
-    );
-    #[cfg(any(test, debug_assertions))]
-    phase_trace.phase("method-and-body-lattices");
+    } = body_units;
     let connection_scope =
         CompilationUnit::build_connection_scope(&procedures, options.registry, ir_module);
     CompilationUnit::drop_cross_event_existence_folds(
@@ -4073,7 +4068,7 @@ fn build_retained_analysis_stage<'a>(
         cfg_module,
         tainted_global_writes,
         prepared_cfg_context,
-        cache,
+        mut cache,
     } = input;
     let facts = retained_module_facts(
         RetainedModuleFactsInput {
@@ -4106,12 +4101,16 @@ fn build_retained_analysis_stage<'a>(
             dialect: options.dialect,
             config: options.config,
         },
-        cache,
+        cache.as_deref_mut(),
         #[cfg(any(test, debug_assertions))]
         phase_trace,
     );
     let procedures = built.procedures;
     let param_constants_by_proc = built.param_constants_by_proc;
+    let body_units =
+        build_retained_body_units(ir_module, &facts, &module_procedures, options, cache);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("method-and-body-lattices");
     let transfers = module_procedures.into_summaries();
     RetainedAnalysisStage {
         facts,
@@ -4119,6 +4118,7 @@ fn build_retained_analysis_stage<'a>(
         procedures,
         param_constants_by_proc,
         transfers,
+        body_units,
     }
 }
 
@@ -4670,7 +4670,6 @@ impl CompilationUnit {
             optimiser_source_owner::OriginalSourceBuildIngress::RetainedEntry
         };
 
-        let UnitBuildOptions { dialect, .. } = options;
         #[cfg(any(test, debug_assertions))]
         let mut phase_trace = SourcePipelineTrace::new("unit", source.len());
         #[cfg(any(test, debug_assertions))]
@@ -4702,6 +4701,7 @@ impl CompilationUnit {
             procedures,
             param_constants_by_proc,
             transfers,
+            body_units,
         } = build_retained_analysis_stage(
             RetainedAnalysisStageInput {
                 source,
@@ -4724,8 +4724,7 @@ impl CompilationUnit {
                 param_constants_by_proc,
                 transfers,
                 options,
-                dialect,
-                cache,
+                body_units,
             },
             #[cfg(any(test, debug_assertions))]
             &mut phase_trace,
@@ -4775,6 +4774,7 @@ impl CompilationUnit {
             trace_facts,
             command_trust,
             config,
+            native_source: _,
         } = ctx;
         if ir_module.methods.is_empty() {
             return HashMap::new();
@@ -4909,6 +4909,7 @@ impl CompilationUnit {
             trace_facts,
             command_trust,
             config,
+            native_source,
         } = ctx;
         if ir_module.body_units.is_empty() {
             return HashMap::new();
@@ -4931,22 +4932,29 @@ impl CompilationUnit {
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
                 let (original_declaration_body, _, entry_context) =
                     body_unit_entry_context(ir_module, registry, id, proc, &cfg);
-                let memoised = memoized_body_unit(
-                    &mut cache,
-                    BodyMemoBuildInputs {
-                        ir_module,
-                        registry,
-                        id,
-                        proc,
-                        cfg: &cfg,
-                        qname,
-                        context: body_context,
-                        memo_context,
-                        original_request_scope: original_request_scope.as_ref(),
-                    },
-                    body_bytes,
-                    original_declaration_body,
-                );
+                let native_source = native_source.filter(|_| original_declaration_body);
+                // This body-only memo has no module-source query dependencies.
+                // Keep both successful and refused new queries on the current view.
+                let memoised = if native_source.is_some() {
+                    None
+                } else {
+                    memoized_body_unit(
+                        &mut cache,
+                        BodyMemoBuildInputs {
+                            ir_module,
+                            registry,
+                            id,
+                            proc,
+                            cfg: &cfg,
+                            qname,
+                            context: body_context,
+                            memo_context,
+                            original_request_scope: original_request_scope.as_ref(),
+                        },
+                        body_bytes,
+                        original_declaration_body,
+                    )
+                };
                 let mut fu = memoised
                     .unwrap_or_else(|| {
                         if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
@@ -4978,7 +4986,7 @@ impl CompilationUnit {
                                     command_trust,
                                     object_state: None,
                                     initial_global: false,
-                                    procedures: None,
+                                    procedures: native_source,
                                 },
                             )
                         }
