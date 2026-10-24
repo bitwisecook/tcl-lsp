@@ -39,6 +39,73 @@ use crate::segmenter::SegmentedCommand;
 use super::state::Analyser;
 use super::types::{CodeFix, Severity};
 
+/// Fixed-size timing evidence for the opt-in workspace scan diagnostic only.
+/// Stage intervals include nested work; they do not grant source authority.
+struct WorkspaceCommandPhases {
+    started: std::time::Instant,
+    bytes: usize,
+    site: u32,
+    previous_us: std::cell::Cell<u128>,
+    stage_us: [std::cell::Cell<u128>; 14],
+    seen: std::cell::Cell<u16>,
+}
+
+impl WorkspaceCommandPhases {
+    // Array order: original names, scoped bodies, variable receivers, direct
+    // invocations, nested invocations, callback invocations, command-name
+    // invocations, namespace roles, nested diagnostics, variable-command sites,
+    // procedure resolution, expression diagnostics, dispatch diagnostics, handlers.
+    const STAGES: [&str; 14] = [
+        "original-names",
+        "scoped-bodies",
+        "variable-receivers",
+        "direct-invocations",
+        "nested-invocations",
+        "callback-invocations",
+        "command-name-invocations",
+        "namespace-role-facts",
+        "nested-diagnostics",
+        "variable-command-sites",
+        "procedure-resolution",
+        "expression-diagnostics",
+        "dispatch-diagnostics",
+        "handlers-complete",
+    ];
+
+    fn start(bytes: usize, site: u32) -> Option<Self> {
+        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| Self {
+            started: std::time::Instant::now(),
+            bytes,
+            site,
+            previous_us: std::cell::Cell::new(0),
+            stage_us: [const { std::cell::Cell::new(0) }; 14],
+            seen: std::cell::Cell::new(0),
+        })
+    }
+
+    fn record(&self, stage: &str) {
+        let Some(index) = Self::STAGES
+            .iter()
+            .position(|candidate| *candidate == stage)
+        else {
+            return;
+        };
+        let elapsed = self.started.elapsed().as_micros();
+        let previous = self.previous_us.replace(elapsed);
+        self.stage_us[index].set(elapsed.saturating_sub(previous));
+        self.seen.set(self.seen.get() | (1 << index));
+        if index == 13 && elapsed >= 20_000 {
+            let stage_us = self.stage_us.each_ref().map(std::cell::Cell::get);
+            eprintln!(
+                "WORKSPACE_COMMAND_PHASE bytes={} site={} total_us={elapsed} seen={} stage_us={stage_us:?}",
+                self.bytes,
+                self.site,
+                self.seen.get(),
+            );
+        }
+    }
+}
+
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
 /// `(name, head-span, argc, callback_arity, ensemble_subcommand_candidate)`.
@@ -647,6 +714,8 @@ impl Analyser {
         if argv_texts.is_empty() || arg_tokens_in.is_empty() {
             return;
         }
+        let workspace_phase =
+            WorkspaceCommandPhases::start(self.source.len(), arg_tokens_in[0].span.start());
         #[cfg(debug_assertions)]
         let phase_started =
             std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").map(|_| std::time::Instant::now());
@@ -654,24 +723,24 @@ impl Analyser {
         let phase_site = arg_tokens_in[0].span.start();
         #[cfg(debug_assertions)]
         let phase_bytes = self.source.len();
-        #[cfg(debug_assertions)]
         let report_phase = |stage: &str| {
+            #[cfg(debug_assertions)]
             if let Some(started) = &phase_started {
                 eprintln!(
                     "ANALYSER_COMMAND_PHASE bytes={phase_bytes} site={phase_site} stage={stage} ms={}",
                     started.elapsed().as_millis()
                 );
             }
+            if let Some(trace) = &workspace_phase {
+                trace.record(stage);
+            }
         };
-        #[cfg(not(debug_assertions))]
-        let report_phase = |_: &str| {};
         // See `AnalyserState::presubstituted_args`: taken (and reset) so only
         // *this* command level skips the substitution re-walks below.
         let presubstituted_args = std::mem::take(&mut self.presubstituted_args);
         if !presubstituted_args {
             self.retain_original_static_source_names(arg_tokens_in);
         }
-        #[cfg(debug_assertions)]
         report_phase("original-names");
         let cmd_name = argv_texts[0].as_str();
         // Conditional source visibility never removes possible invocation
@@ -703,10 +772,8 @@ impl Analyser {
         if !presubstituted_args {
             self.record_original_scoped_body_advice(cmd_tok.span.start(), arg_tokens, scope_path);
         }
-        #[cfg(debug_assertions)]
         report_phase("scoped-bodies");
         self.record_original_variable_receivers(cmd_tok.span.start(), arg_tokens, scope_path);
-        #[cfg(debug_assertions)]
         report_phase("variable-receivers");
         self.record_dynamic_variable_name_sites(
             args,
@@ -736,8 +803,6 @@ impl Analyser {
                 cmd_tok.span.start(),
                 presubstituted_args,
             );
-
-            #[cfg(debug_assertions)]
             report_phase("direct-invocations");
             self.record_command_site_facts(
                 &DispatchSite {
@@ -754,8 +819,6 @@ impl Analyser {
                 &report_phase,
             );
         } // end `if !self.structure_only`
-
-        #[cfg(debug_assertions)]
         report_phase("dispatch-diagnostics");
         self.dispatch_command_handlers(
             cmd_name,
@@ -765,7 +828,6 @@ impl Analyser {
             cmd_tok,
             scope_path,
         );
-        #[cfg(debug_assertions)]
         report_phase("handlers-complete");
     }
 
