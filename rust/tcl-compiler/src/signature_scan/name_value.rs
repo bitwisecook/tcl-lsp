@@ -102,6 +102,14 @@ impl<'a> SignatureSourceStaticListContainer<'a> {
 }
 
 impl SignatureSourceNameValue {
+    /// Borrow the sealed source producer, independently of current dispatch.
+    pub(crate) fn jim_stock_name(&self) -> Option<&crate::command_binding::OriginalJimStockName> {
+        match &self.origin {
+            SourceNameValueOrigin::JimStockPublication(name) => Some(name),
+            _ => None,
+        }
+    }
+
     /// Counted helper-name data from a sealed stock source publication recipe.
     /// This issues no complete word, editable geometry, Native argument or lookup.
     pub(crate) fn from_jim_stock_name(name: &crate::command_binding::OriginalJimStockName) -> Self {

@@ -4,6 +4,8 @@
 
 //! Bounded authored stock Jim class effects, without Native entry or class objects.
 
+mod method;
+
 use super::{
     Arc, BindingKind, CommandAllocation, CommandAllocationSite, MayBinding, ModuleCommandBindings,
     ResolvedCommandTarget, SourceCommandBindings, SourceCommandKey, SourceCommandTarget,
@@ -35,6 +37,7 @@ pub(crate) struct OriginalJimStockName {
     owner: Arc<OriginalJimStockClass>,
     helper: SourceJimClassHelper,
     bytes: NameBytes,
+    method: Option<Arc<method::OriginalJimStockMethod>>,
 }
 
 impl OriginalJimStockName {
@@ -52,12 +55,26 @@ impl OriginalJimStockName {
             && self.is_current(&state.source_variables)
     }
 
+    fn publication_site(&self) -> &CommandAllocationSite {
+        self.method
+            .as_ref()
+            .map_or(&self.owner.site, |method| method.registration())
+    }
+
     pub(crate) fn lineage_nodes_in(&self, remaining: &mut usize) -> bool {
         self.owner.class_name.lineage_nodes_in(remaining)
+            && self
+                .method
+                .as_ref()
+                .is_none_or(|method| method.lineage_nodes_in(remaining))
     }
 
     pub(crate) fn is_current(&self, context: &crate::var_resolve::ResolveContext) -> bool {
         self.owner.class_name.is_current(context)
+            && self
+                .method
+                .as_ref()
+                .is_none_or(|method| method.is_current(context, &self.owner))
             && context
                 .execution_name_policy
                 .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
@@ -269,6 +286,7 @@ impl OriginalJimStockClass {
                     owner: Arc::clone(self),
                     helper: *helper,
                     bytes: bytes.into(),
+                    method: None,
                 },
                 slot,
                 key,
@@ -278,13 +296,7 @@ impl OriginalJimStockClass {
     }
 }
 
-fn bounded_entry(
-    native: SourceNativeInvocation<'_>,
-    facts: &tcl_registry::InvocationFacts,
-    state: &ModuleCommandBindings,
-    context: SourceExecutionContext<'_>,
-) -> Option<()> {
-    let policy = state.baseline.execution_name_policy?.native_recipe()?;
+fn bounded_source_entry(state: &ModuleCommandBindings, policy: NamePolicyProtocol) -> Option<()> {
     if policy.authority() != NamePolicyAuthority::AuthoredSimulation
         || policy.recipe() != NativeNameProtocol::Jim084
         || state.baseline.native_entry.is_some()
@@ -301,7 +313,21 @@ fn bounded_entry(
             .is_empty()
         || !state.command_observers.is_quiet()
         || !state.source_variables.namespace_known
-        || !native.target.registry_backed
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn bounded_entry(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    let policy = state.baseline.execution_name_policy?.native_recipe()?;
+    bounded_source_entry(state, policy)?;
+    if !native.target.registry_backed
         || native.target.implementation_generation != 0
         || native.target.kind != BindingKind::Builtin
         || !native.target.prepended.is_empty()
@@ -340,6 +366,7 @@ impl PlannedJimSourceHelper {
                 owner: Arc::clone(&self.name.owner),
                 helper: SourceJimClassHelper::DefaultConstructor,
                 bytes: bytes.into(),
+                method: None,
             })
         } else {
             None
@@ -369,7 +396,7 @@ impl PlannedJimSourceHelper {
                 } else {
                     BindingKind::Command
                 },
-                implementation_generation: self.name.owner.site.offset,
+                implementation_generation: self.name.publication_site().offset,
                 implementation_allocation: None,
                 terminal: alias_target.is_none(),
                 target_lookup: tcl_registry::AliasTargetLookup::Global,
@@ -526,6 +553,53 @@ mod tests {
             assert!(
                 state.original_publication_at(&slot, policy).is_none(),
                 "{source}"
+            );
+        }
+    }
+    #[test]
+    fn fresh_stock_method_retains_original_source_publication_without_entry() {
+        let state = state_before_unknown(
+            "class C {x 0}; C method m {arg} {missing_jim_method $arg $self $x}",
+        );
+        assert!(!state.has_opaque_domain());
+        assert!(!state.unclosed_command_world);
+        assert!(state.baseline.native_entry.is_none());
+        assert!(state.baseline.source_point_entry.is_none());
+        let policy = state
+            .baseline
+            .execution_name_policy
+            .unwrap()
+            .native_recipe()
+            .unwrap();
+        let slot = policy
+            .recipe()
+            .command_publication_slot(NativeNameContext::root(), b"C m")
+            .unwrap();
+        let publication = state.original_publication_at(&slot, policy).unwrap();
+        assert!(publication.definition().is_none());
+        let SignatureSourceNameInput::OriginalValue(value) = publication.name_input() else {
+            panic!("sealed generated source method name");
+        };
+        let name = value.jim_stock_name().unwrap();
+        let method = name.method.as_ref().unwrap();
+        assert_eq!(name.bytes(), b"C m");
+        assert_eq!(publication.declaration_site(), method.registration());
+    }
+
+    #[test]
+    fn stock_method_publication_keeps_missing_and_replaced_owners_opaque() {
+        for prefix in [
+            "class C {}; proc proc args {}; C method m {} {}",
+            "class C {}; proc {C method} args {}; C method m {} {}",
+            "class C {}; proc C args {}; C method m {} {}",
+            "class Base {}; class C Base {}; C method m {} {}",
+            "unknown_stock_mutator; class C {}; C method m {} {}",
+            "class C {}; C method m {} {}; C method m {} {}",
+        ] {
+            let state = state_before_unknown(prefix);
+            assert!(
+                state.has_opaque_domain() || state.unclosed_command_world,
+                "{prefix}"
             );
         }
     }
