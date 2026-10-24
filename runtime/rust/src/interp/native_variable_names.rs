@@ -1753,20 +1753,31 @@ impl Interp {
         let mut target = match self.prepare_selected_c_link_target(original, level) {
             Ok(Some(target)) => target,
             Ok(None) => {
+                #[cfg(test)]
+                crate::env_trace::remember_upvar_failure("missing-C-target", Code::Error, None);
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original upvar target cell").into(),
                 );
             }
-            Err(code) => return code,
+            Err(code) => {
+                #[cfg(test)]
+                crate::env_trace::remember_upvar_failure("select-C-target", code, None);
+                return code;
+            }
         };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
+            #[cfg(test)]
+            crate::env_trace::remember_upvar_failure("prepare-C-target", Code::Error, Some(error));
             return self.original_c_lookup_var_error(
                 original,
                 NativeVariableNameLookupPurpose::Link,
                 error,
             );
         }
-        self.bind_selected_c_alias_local(local, target)
+        let code = self.bind_selected_c_alias_local(local, target);
+        #[cfg(test)]
+        crate::env_trace::remember_upvar_failure("bind-C-local", code, None);
+        code
     }
 
     #[cfg(test)]

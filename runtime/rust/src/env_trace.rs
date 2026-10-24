@@ -203,6 +203,40 @@ std::thread_local! {
 }
 
 #[cfg(test)]
+#[derive(Clone, Copy)]
+pub(crate) struct EnvFailureSnapshot {
+    pub(crate) compilation_busy: bool,
+    pub(crate) execution_kind: Option<&'static str>,
+    pub(crate) execution_access: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
+    pub(crate) access: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
+    pub(crate) admission: Option<tcl_runtime_api::NativeCompilationAdmissionError>,
+    pub(crate) host_command: bool,
+    pub(crate) result: Option<(usize, crate::obj::TclSize, crate::obj::TclSize, bool, usize)>,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static FIRST_UPVAR_FAILURE: std::cell::Cell<Option<(
+        &'static str,
+        crate::interp::Code,
+        Option<crate::frame::VarError>,
+    )>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn remember_upvar_failure(
+    phase: &'static str,
+    code: crate::interp::Code,
+    error: Option<crate::frame::VarError>,
+) {
+    FIRST_UPVAR_FAILURE.with(|first| {
+        if code != crate::interp::Code::Ok && first.get().is_none() {
+            first.set(Some((phase, code, error)));
+        }
+    });
+}
+
+#[cfg(test)]
 pub(crate) fn remember_original_c_link_error(error: crate::frame::VarError) {
     FIRST_ORIGINAL_C_LINK_ERROR.with(|first| {
         if first.get().is_none() {
@@ -351,15 +385,27 @@ mod tests {
 
     fn ok(interp: &mut Interp, script: &str) -> String {
         super::FIRST_ORIGINAL_C_LINK_ERROR.set(None);
+        super::FIRST_UPVAR_FAILURE.set(None);
         let code = interp.eval_str(script.as_bytes());
+        let failure = (code != Code::Ok).then(|| interp.capture_env_failure_snapshot());
         let result = String::from_utf8_lossy(&interp.result_bytes()).into_owned();
         if code != Code::Ok
             && std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
                 == Some(std::ffi::OsStr::new("1"))
         {
             eprintln!(
-                "ENV_TRACE_LINK_FAILURE error={:?}",
+                "ENV_TRACE_LINK_FAILURE error={:?} upvar={:?} held={:?}",
                 super::FIRST_ORIGINAL_C_LINK_ERROR.get(),
+                super::FIRST_UPVAR_FAILURE.get(),
+                failure.map(|held| (
+                    held.compilation_busy,
+                    held.execution_kind,
+                    held.execution_access,
+                    held.access,
+                    held.admission,
+                    held.host_command,
+                    held.result,
+                )),
             );
         }
         assert_eq!(code, Code::Ok, "{script} -> {result}");

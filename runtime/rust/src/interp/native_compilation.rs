@@ -182,6 +182,57 @@ impl Interp {
         super::Code::Error
     }
 
+    /// Test-only Copy snapshot of held failure fields; no native operation is entered.
+    #[cfg(test)]
+    pub(crate) fn capture_env_failure_snapshot(&self) -> crate::env_trace::EnvFailureSnapshot {
+        use crate::env_trace::EnvFailureSnapshot;
+        use tcl_runtime_api::NativeExecutionError;
+
+        let mut snapshot = EnvFailureSnapshot {
+            compilation_busy: false,
+            execution_kind: None,
+            execution_access: None,
+            access: None,
+            admission: None,
+            host_command: false,
+            result: None,
+        };
+        match self.native_compilation.try_borrow() {
+            Ok(state) => {
+                snapshot.execution_kind =
+                    state.execution_refusal.as_ref().map(|error| match error {
+                        NativeExecutionError::CompilationAdmission(_) => "compilation-admission",
+                        NativeExecutionError::CompileServiceRefusal(_) => "compile-service",
+                        NativeExecutionError::ExpressionRefusal(_) => "expression",
+                        NativeExecutionError::ValueAccessRefusal(_) => "value-access",
+                        NativeExecutionError::HostCommandRefusal(_) => "host-command",
+                    });
+                if let Some(NativeExecutionError::ValueAccessRefusal(error)) =
+                    &state.execution_refusal
+                {
+                    snapshot.execution_access = Some(*error);
+                }
+                snapshot.access = state.native_access_refusal;
+                snapshot.admission = state.admission_error;
+                snapshot.host_command = state.host_command_refusal.is_some();
+            }
+            Err(_) => snapshot.compilation_busy = true,
+        }
+        let result = self.result.get();
+        // SAFETY: the live interpreter owns its result role; null is explicit.
+        // No callback, getter, conversion or native reference change occurs.
+        snapshot.result = unsafe { result.as_ref() }.map(|header| {
+            (
+                result as usize,
+                header.ref_count,
+                header.length,
+                header.bytes.is_null(),
+                header.type_ptr as usize,
+            )
+        });
+        snapshot
+    }
+
     /// Actual retained host cause; guest completion state never supplies it.
     pub fn native_execution_refusal(&self) -> Option<tcl_runtime_api::NativeExecutionError> {
         let state = self.native_compilation.borrow();

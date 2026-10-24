@@ -433,7 +433,11 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         tcl_registry::FrameEffectSpec::UPVAR,
     ) {
         Ok(selected) => selected,
-        Err(code) => return code,
+        Err(code) => {
+            #[cfg(test)]
+            crate::env_trace::remember_upvar_failure("frame-selection", code, None);
+            return code;
+        }
     };
     let pairs_start = 1 + width;
     if argv.len() - pairs_start < 2 || (argv.len() - pairs_start) % 2 != 0 {
