@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only original58 with separate Native35three, SH21two and ReadFlowone groups."""
+"""WORK-only original58 and separate Native35/SH21/ReadFlow/catch diagnostics."""
 
 import argparse
 import datetime
@@ -134,6 +134,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-native35-",
             "supplemental-sh21-",
             "supplemental-readflow1-",
+            "diagnostic-catch1-",
             "list-",
             "select-",
         )
@@ -149,6 +150,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-native35-",
             "supplemental-sh21-",
             "supplemental-readflow1-",
+            "diagnostic-catch1-",
         )
     ):
         require(
@@ -359,7 +361,45 @@ require(
     ),
     "separate ReadFlow1 selector overlaps an existing group",
 )
-rows = original_rows + supplemental_rows + sh21_rows + readflow_rows
+require(
+    sha(BASE / "compiler-catch-diagnostic1.json")
+    == "bf26a59a222199741ac571cabff01a46d8ea01d847d3ea62d79484459726dd2b",
+    "exact separate catch diagnostic1 input pin",
+)
+catch_diagnostic = json.loads((BASE / "compiler-catch-diagnostic1.json").read_text())
+catch_original = [
+    row
+    for row in original_rows
+    if row["package"] == "tcl-compiler"
+    and row["kind"] == ["test"]
+    and row["target"] == "var_escape_residual2"
+    and row["selector"] == "cu_catch_literal_body_threads_its_upvar"
+]
+require(
+    len(catch_original) == 1, "catch duplicate requires exactly one original identity"
+)
+catch_env = {
+    **catch_original[0]["env"],
+    "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1",
+}
+require(
+    catch_diagnostic["package"] == catch_original[0]["package"]
+    and catch_diagnostic["kind"] == catch_original[0]["kind"]
+    and catch_diagnostic["target"] == catch_original[0]["target"]
+    and catch_diagnostic["expected_selected"] == 1
+    and catch_diagnostic["selectors"] == [catch_original[0]["selector"]]
+    and catch_diagnostic["env"] == catch_env,
+    "separate catch diagnostic roster or environment differs",
+)
+catch_rows = [
+    {
+        **catch_original[0],
+        "group": "diagnostic-catch1",
+        "env": catch_env,
+        "state": "UNRUN",
+    }
+]
+rows = original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
 require(
     len(
         {
@@ -373,8 +413,8 @@ require(
             for row in rows
         }
     )
-    == 64,
-    "separate original58/native35three/SH21two/ReadFlowone group identity conflict",
+    == 65,
+    "separate original58/native35three/SH21two/ReadFlowone/catchone group identity conflict",
 )
 expected_targets = [
     ("tcl-compiler", ["lib"], "tcl_compiler", 52),
@@ -539,6 +579,10 @@ try:
         "TCL_LSP_TRACE_SH21_PRODUCER" not in env,
         "separate SH21 diagnostic flag must remain per-selector only",
     )
+    require(
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS" not in env,
+        "separate catch diagnostic flag must remain per-selector only",
+    )
     jim_root = Path(env["TCL_LSP_JIM_ROOT"]).resolve()
     jim_reference = dict(
         line.split("=", 1)
@@ -605,6 +649,7 @@ try:
                 **supplemental["source_pins"],
                 **sh21_diagnostic["source_pins"],
                 **readflow["source_pins"],
+                **catch_diagnostic["source_pins"],
             }.items()
         ),
         "original test/observer input changed",
@@ -657,7 +702,7 @@ try:
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Existing exact ORIGINAL_COMMAND_INSTALLED table summaries remain. Only ORIGINAL_WORD_CONFIG and REMOTE_SOURCE_WORDS repeated complete lines use bounded lossless dictionary/RLE records; each distinct full line and ordered repeat records reconstruct exact post-table stderr, verified per case. Other stderr and all stdout remain verbatim except escaped record-marker collisions, which reconstruct exactly.",
                 "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the pinned layered filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
-                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
+                "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib, plus catch diagnostic before its unchanged original integration row; original58 relative ordering, selectors and semantic flags unchanged.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
@@ -667,6 +712,7 @@ try:
             "separate_supplemental3": supplemental,
             "separate_sh21_diagnostic2": sh21_diagnostic,
             "separate_readflow1": readflow,
+            "separate_catch_diagnostic1": catch_diagnostic,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -703,7 +749,9 @@ try:
     require(bool(dependency_roots), "resolved Cargo dependency inputs absent")
     dependencies_before = files(dependency_roots)
     save(out / "dependencies-before-build.json", dependencies_before)
-    execution_rows = supplemental_rows + sh21_rows + readflow_rows + original_rows
+    execution_rows = (
+        supplemental_rows + sh21_rows + readflow_rows + catch_rows + original_rows
+    )
     for target_spec in roster["targets"]:
         package = target_spec["package"]
         target_name = target_spec["name"]
@@ -832,7 +880,7 @@ try:
                 row["target"] == target_name
                 and row["package"] == package
                 and row["kind"] == target_kind
-                for row in supplemental_rows + sh21_rows + readflow_rows
+                for row in supplemental_rows + sh21_rows + readflow_rows + catch_rows
             ),
             "original actual roster mismatch: " + target_name,
         )
@@ -853,7 +901,7 @@ try:
             prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
             group_label = (
                 "supplemental"
-                if row["group"] == "supplemental-readflow1"
+                if row["group"] in ["supplemental-readflow1", "diagnostic-catch1"]
                 else "original"
             )
             print("SELECT " + group_label + " " + selector, flush=True)
@@ -1007,7 +1055,8 @@ try:
         and len(supplemental_rows) == 3
         and len(sh21_rows) == 2
         and len(readflow_rows) == 1
-        and len(rows) == 64
+        and len(catch_rows) == 1
+        and len(rows) == 65
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -1095,6 +1144,11 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in readflow_rows
             ),
             "readflow1_outcomes": readflow_rows,
+            "required_separate_catch_diagnostic_tests": 1,
+            "catch_diagnostic_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in catch_rows
+            ),
+            "catch_diagnostic1_outcomes": catch_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,

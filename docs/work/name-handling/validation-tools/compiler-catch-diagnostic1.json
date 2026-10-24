@@ -1,0 +1,24 @@
+{
+  "env": {
+    "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+  },
+  "expected_selected": 1,
+  "kind": [
+    "test"
+  ],
+  "package": "tcl-compiler",
+  "provenance": {
+    "actual_assessment_sha256": "984e3bfd5aa0499c32caa5ee212dce10cf9283b8ca85e1b8aaebde3e0f47dee9",
+    "actual_run": "40060515094",
+    "expected_outcome": "No expected PASS or FAIL supplied. Observer distinguishes retained body/card/label/summary membership. Original semantic assertions remain actual authority.",
+    "store_membership_audit_sha256": "4323d8526d85f442efc155dc87be239dc1d3b5cd93cbc5bdccab242a3f779353"
+  },
+  "scope": "Separate diagnostic duplicate of one unchanged original58 catch test, using only its already existing opt-in body-owner observer. Original58+Native3+SH2+ReadFlow1 remain unchanged and separately counted. No test/assertion/observer/product/build-target changes.",
+  "selectors": [
+    "cu_catch_literal_body_threads_its_upvar"
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/tests/var_escape_residual2.rs": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265"
+  },
+  "target": "var_escape_residual2"
+}
