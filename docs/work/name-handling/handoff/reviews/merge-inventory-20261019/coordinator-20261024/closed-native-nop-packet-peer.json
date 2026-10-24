@@ -1,0 +1,35 @@
+{
+  "verdict": "PAIRED STATIC SOURCE / PURPOSE / TYPE / CURRENT PAYLOAD / INPUT CLEAR",
+  "packet": "/workspace/naming-proof-storage/closed-native-nop-boundary-v1",
+  "heads": {
+    "WORK": "334fdc24d47afcd46916371608a0943f58f0ecdc",
+    "CLEAN": "4c2adadde1c872c5ef4777fa583fd628e96ea37a"
+  },
+  "checks": 48,
+  "checks_sha256": "696e61e9d608e8ad0e6ba06c49424c6fa01c0001c28ec3953455d11dd5fd8027",
+  "source_review_sha256": "22f12e1f733435f6b99eb2554c3190839948af3116701538edbee429c8a5d599",
+  "author_receipt_sha256": "ed6fddc4fc30e89f616a94d9e99f447dc7cbd21e56f44a55a286aafc64c521cd",
+  "lanes": {
+    "WORK": {
+      "patch_sha256": "680fade5412362e70380028b69e501d601cbf295464c15316d8d40275ed14e01",
+      "manifest_sha256": "58c6487a99312e666f6dea769bcdef3f222a9ad704804114d8ad34e0a764c451"
+    },
+    "CLEAN": {
+      "patch_sha256": "33d55c16629081945788ea317a5af1dae356c99c8c3316a477043f6aab4280b3",
+      "manifest_sha256": "6e47b26a642c2e75f673e648f21b3aa4c833cb681f03e997c97e7a16cdf8972a"
+    }
+  },
+  "review": [
+    "Exact current WORK334fdc24 and CLEAN4c2adadd beforeimages checked; both patches applied forward/reverse/forward on temporary small copies with zero fuzz or offsets and full-byte equality. No canonical write.",
+    "Full module byte inverse in each lane succeeds by removing exactly one Op::NOP alternative. This proves all Native entry, full currency/equality, metadata, retained-empty, callback, body/header, resource, opcode refusal and execution/drop checks remain byte-identical. No common prologue, compiler producer, engine, kernel, test assertion or ordinary optimiser changes.",
+    "NOP opcode arm has no operation-specific stack/data/callback behavior, but NOP command boundaries intentionally run the ordinary shared prologue. Paired patch preserves all selection/replay/result-retirement/debug/limit semantics; it does not delete metadata or claim globally inert instructions. Safety relies on the existing actual private owner and bounded source, stock command retention, absent external callbacks/debug hooks, full compiler prerequisite/currentness validation and transcript-only retirement/join. See independent source review22f12e for exact owner paths and actual d62 markers.",
+    "Existing four genuine positive owner/transcript controls and negative closed16 cases plus both original fold assertions remain unchanged. No implementation-mirroring test is necessary for the one-alternative change; current tests are the meaningful hosted verification. Previous d62 failures occurred before later positive/negative assertions; no new passing outcome is inferred.",
+    "WORK companion changes exactly one existing VM source pin and the sole closed16 roster wholehash in driver. Whole JSON byte inverse and whole driver byte+AST inverse pass. All99 existing identities/order/environments/provider/process/resource guards and other input maps remain exact by whole-file inverse. Six complete closed16 overlay pins checked; current JSON consumer census contains only this roster.",
+    "Rustfmt parse/check succeeds on both after files. No local Cargo/rustc/native/build/test/driver execution, no release gate or performance claim."
+  ],
+  "limits": [
+    "Actual NOP metadata and exact emitting function not logged; marker establishes only opcode/index/first gate.",
+    "Later opcode/header/native-entry/currentness/runtime checks may still refuse and must not be weakened based on this approval.",
+    "Actual hosted passing private owner/original fold assertions remain UNRUN for these patches."
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "utc": "2026-10-24T21:55:39.025765+00:00",
+  "source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+  "assessment_sha256": "83ff652ecb15d6f0b1cd239b07dd08d1084ea6f1736eed60c7d0e35ca9891b55",
+  "zip_sha256": "e4bd6628dd0fe5c9d01926ac01d5291e83641d224fcea3cd817a0ef2523bb559",
+  "all_zip_members_crc_and_stream_sha": true,
+  "member_count": 770,
+  "source_membership_actual_vs_Git": {
+    "count": 126218,
+    "exact": true
+  },
+  "key_git_joins": {
+    "rust/tcl-vm/src/interp/closed_native_execution.rs": "398d1169e00f6126af1d36facabb37f2ee23ce1499a7815927399f823e3af1a4",
+    "rust/tcl-vm/src/interp.rs": "0005ce2b2455e01405be3e86a941932bdec099ed06415cb3e4301948e969d41f",
+    "rust/tcl-vm/src/exec.rs": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6",
+    "rust/tcl-vm/src/frame.rs": "5d38d73a5b6c731d10b193209d7707a16594e216805854ab561d823d100d24c8",
+    "rust/tcl-engine-tclvm/src/closed_native_execution.rs": "e482f4f40a63819b35637e3f9cb28ec313a5e016a597f6b86a6d446d1fd7264e",
+    "rust/tcl-runtime-api/src/closed_native_consumer.rs": "8c9b7e9e5e3debcfdae721fde3769d3dfed6c5973936adc81c562928690ad1b4",
+    "rust/tcl-runtime-api/src/diagnostic_output.rs": "eb0b6ba4c58717983f3dc6c982cd9ae1511c63db0bba520212dcfbc5354c3548",
+    "rust/tcl-runtime-api/src/native_literal.rs": "4d81bce032a151aa6c0fbb8caa7d6a3c290c4dab1959fcc9e88c4b7899e5610b",
+    "rust/tcl-bytecode/src/lib.rs": "a33965157f865294a0a935d17ce4436ea730111c0506a8321f5ce8dd495e12a0",
+    "rust/tcl-compiler/src/optimiser/closed_consumer.rs": "58dd45bbbc503bc43e0bf6b9355c7acd3389315d949dcd7d97a648acf30830fb",
+    "rust/tcl-compiler/src/compile_service.rs": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+    "rust/tcl-compiler/src/codegen/values.rs": "a9aa017c22544154f98863bdb28eee2fffb80b4c8e5c5bed38eb0f5ed72abec4",
+    "rust/tcl-compiler/src/codegen/cmd_subst.rs": "25254e3b825601cb4e4e11314a9d31a2e17a173e5a043b8186d0877fce68070b",
+    "rust/tcl-compiler/src/codegen/statements.rs": "a20a319f3a343307387a4b7bae6baf0f9f162557625aa08b007ca750d20222df",
+    "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json": "f1fb07405e9ec2118fc5beb6afb6b48177e01379de1ce78e66f81d5a32853bbf",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py": "d7b5d7f11bbbfa5af24b3f9fb52e19fc078d69b0b551c0c317c00f3968058728"
+  },
+  "stages": [
+    {
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "record": [
+        "22",
+        "85",
+        "6"
+      ],
+      "interpretation": "top-level opcode inventory; portable enum NOP; instruction ordinal6"
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "record": [
+        "22",
+        "85",
+        "6"
+      ],
+      "interpretation": "top-level opcode inventory; portable enum NOP; instruction ordinal6"
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "record": [
+        "22",
+        "85",
+        "6"
+      ],
+      "interpretation": "top-level opcode inventory; portable enum NOP; instruction ordinal6"
+    },
+    {
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "record": [
+        "22",
+        "85",
+        "6"
+      ],
+      "interpretation": "top-level opcode inventory; portable enum NOP; instruction ordinal6"
+    }
+  ],
+  "enum_count": 219,
+  "opcode85": "NOP",
+  "groups": {
+    "original58": {
+      "PASS": 56,
+      "FAIL": 2
+    },
+    "supplemental-native35": {
+      "PASS": 3
+    },
+    "supplemental-sh21": {
+      "PASS": 2
+    },
+    "supplemental-readflow1": {
+      "PASS": 1
+    },
+    "diagnostic-catch1": {
+      "PASS": 1
+    },
+    "diagnostic-taint2": {
+      "PASS": 2
+    },
+    "diagnostic-closed-consumer": {
+      "FAIL": 4,
+      "PASS": 12
+    },
+    "diagnostic-inlining-readonly10": {
+      "FAIL": 4,
+      "PASS": 6
+    },
+    "diagnostic-original-body-owner3": {
+      "PASS": 2,
+      "FAIL": 1
+    },
+    "diagnostic-source-read-ancestry3": {
+      "PASS": 3
+    }
+  },
+  "owned_processes": 217,
+  "all_owned_closed": true,
+  "limits": [
+    "Marker reports first existing failed inventory predicate only. NOP arm empty does not imply common metadata prologue inert. No subsequent opcode/callback/oldfold assertion success inferred. No independent raw ELF bytes uploaded."
+  ]
+}

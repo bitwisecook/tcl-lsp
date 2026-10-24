@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T20:27:56+00:00
+Last updated: 2026-10-24T21:57:09.969917+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -21,7 +21,42 @@ preserves original2guards and all real dependency/Namespace/Unknown/Native inval
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
 
-## Latest primary: detached closed-consumer first-stage observer V2 frozen
+## Current authenticated compiler99: first failure is real NOP boundary
+
+Exact d62cf52d55e0bf89aabc5048f63480c6efdf4a09 run40133511279/job120990073267,
+artifact12576543168 ZIP12152114 SHAe4bd6628dd0fe5c9d01926ac01d5291e83641d224fcea3cd817a0ef2523bb559.
+SingleZIP retained /workspace/naming-proof-storage/compiler-original99-40133511279/artifact.zip.
+Mainassessment /workspace/naming-proof-storage/compiler-original99-40133511279/assessment.json
+SHA83ff652ecb15d6f0b1cd239b07dd08d1084ea6f1736eed60c7d0e35ca9891b55.
+Runtimeextendedseal runtime-first-stage-receipt.json SHA55b511e69eb8cf021fb1158e142aa81e0b14a5adece6dde8ca78703ce0e6cf54:
+all770ZIPmembersCRC+streamSHA, exact126218Gitpaths/source membership+16keyGitjoins,
+source126218/providers10202/dependencies21503 equalbeforeafter/all5reportedseals,
+217ownedprocessesALLclosed, zeroRustbuilddiagnostics. All99 exactroster/env/order.
+Original58 56P2F: fp_rbs_15_all_exiting_opaque_switch_is_a_terminator and oldbracedfold
+(foldfailsinitialprivateNativeContext, notitsoldassertions). Otheroriginal65extensions
+allPASS, taint2ALLPASS; closed16 12P4F; readonly10 6P4F +bodyowner3 2P1F; ancestry3ALLPASS.
+AllFOURfailedenginepositives actualmarker stage22/detail85/ordinal6 =TOPLEVELinventory.
+Pinned219fieldlessOpvariants maps85=NOP. Earlierinline/auxprofile theories NOTproved.
+NOPopcodearmempty butWHOLEinstructioncommonprologue performsretainedNativechecks,
+commandboundary/resultreset/replay/counter/debugbookkeeping; deletingproducerunsafe.
+Specpeer independently supports one explicit NOP inventory alternative withinactual
+privateowner, preservingALLcommonprologue/entry/token/observer/registry/source/budgets.
+Paired tiny proposal closed-native-nop-boundary-v1 drafting/finalsealing,32source/copy/
+wholeinverse/pincontrolsPASS; existingall16negative/positive controls+oldfoldassertions
+unchanged, no newactualPASS/performanceclaim. WORKmandatoryonepin/wholehash only.
+SourcefirstgatedoesNOTproveNOPproduceridentityorlateropcodes/runtimecompletion.
+
+Standalone deepforeach abort remainsseparate: currentd62fullCI120990596799 aborts
+sameoriginal300nesthost-limit test. Prior66efpartialCFI hasselectedknownframe bounds
+but21885unknownCFArecords, so NOTcompleteactivecallstackcause. Concrete source seam:
+compiled native_each calls execute_body_region recursively without fresh host-depth
+activation; actualtest branchstillunproved. Investigate realhoststackreduction or
+properexisting128hostguard coverage, no largerstack/lowerassertions. No patchyet.
+Generalparityparked doesNOTauthorizeblanketstandalonerollback: productionLSP/sharedVM
+excludesruntime/rust, spec-hooksdev+WASMguestABIstillrequirecompatibility; method-level
+consumer/extraction proof remainsread-only/unproved. No tests/diffs removed.
+
+## Prior observer handoff: detached closed-consumer first-stage observer V2 frozen
 
 Authenticated f245 initial positives fail NativeContext before original fold/owner
 assertions, later adversarial checks UNREACHED (Compiler assessment aeadc473).

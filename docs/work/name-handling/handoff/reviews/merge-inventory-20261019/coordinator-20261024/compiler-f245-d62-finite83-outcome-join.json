@@ -1,0 +1,134 @@
+{
+  "utc": "2026-10-24T22:08:47.497401+00:00",
+  "old_source": "f245bd6e63423d502c4f0a956822cbab98aa5a6d",
+  "new_source": "d62cf52d55e0bf89aabc5048f63480c6efdf4a09",
+  "old_receipt_sha256": "aeadc473719878585c360075c05be1edf946cbd42af16d371a79aeea87cbc7ab",
+  "new_receipt_sha256": "83ff652ecb15d6f0b1cd239b07dd08d1084ea6f1736eed60c7d0e35ca9891b55",
+  "matched_existing_identities": 83,
+  "original67_envs_unchanged": true,
+  "separate_closed16_env_change": [
+    {
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "closed_native_execution::tests::observer_channels_dynamic_heads_and_external_cells_are_not_admitted",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "closed_native_execution::tests::arithmetic_and_output_bounds_refuse_before_publication",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "native_literal::empty_world_tests::retained_empty_observation_never_recaptures_or_revives_a_receipt",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "native_literal::empty_world_tests::empty_world_capture_is_bound_to_actual_owner_epoch_and_capture",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "diagnostic_output::tests::silence_is_thread_owned_and_has_no_restore_boundary",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "pack_hooks::tests::private_worker_denies_installer_queries_and_receiver_installation",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "pack_hooks::tests::private_worker_denial_does_not_clear_an_existing_receiver",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "optimiser::closed_consumer::tests::closed_plan_remains_correspondence_without_a_consumer",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "optimiser::closed_consumer::tests::closed_plan_refuses_unbounded_and_unclassified_expression_effects",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "optimiser::closed_consumer::tests::preparation_rejects_large_work_before_full_analysis",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "optimiser::closed_consumer::tests::closed_plan_bounds_source_before_compilation_unit_preparation",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    },
+    {
+      "selector": "optimiser::closed_consumer::tests::closed_plan_retains_the_exact_source_and_registry_semantics",
+      "before": {},
+      "after": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "group": "original58",
+      "target": "tcl_compiler",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "added_identities": 16,
+  "limitations": "Bounded work-to-work outcome join only; source/helper changes and separate closed16 observer environment retained explicitly. No causal attribution, origin/rust whole comparison, Native grant, release or audit-unit admission."
+}

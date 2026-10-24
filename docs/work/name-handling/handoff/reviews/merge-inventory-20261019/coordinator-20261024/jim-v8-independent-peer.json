@@ -1,0 +1,65 @@
+{
+  "utc": "2026-10-24T22:16:03.450662+00:00",
+  "status": "INDEPENDENT SOURCE/API/TYPE/PURPOSE STATIC CLEAR V8 ONLY; actual Rust/Jim/performance UNPROVED",
+  "proposal_sha256": "6e4825cb2a362cc5c8ab856c7c1dd57576f07882376bfa521a3904b10be7ccea",
+  "product": {
+    "work": {
+      "base_head": "920115d455492259c4c9798aef4f8841ebed7dcd",
+      "actual_current_head": "5593449b56c13c72aacc189f680dac0a01fab07c",
+      "manifest_sha256": "a52c6041995dfffb5d2e90de6b14ac75a0f73efa142b5e5404f7d7775ff7a363",
+      "patch_sha256": "76a96f402c39d1e8d399d96d99fdb1f008ba60cec13c7bdd90c4e80751ebbd69"
+    },
+    "clean": {
+      "base_head": "380116851b1c80a7c41bcd6684b49fdfaaa98c2b",
+      "actual_current_head": "e70967470c0bab05db7e868835693aad9c754000",
+      "manifest_sha256": "2dfa5a48764fa0d540ec7997f692595c247f54381c38a3f8449f60e13e9b189c",
+      "patch_sha256": "0845986d421674e6df5fe418a80823b7098c19a1a5a4d0d6526a9aa96de4183e"
+    }
+  },
+  "final_mechanical_sha256": "55e232b0ccda9774861b76a0db3bcbaf5baaf29e38cb766ac10b7c2d91b2bc2f",
+  "whole_original_four_modules_byte_inverse_sha256": "846f8d0a51c6204521ccfb21f3574201c9bad6723a7e2a595e1bc739b02e4a51",
+  "inherited_independent_copied_full_product_F_R_F0_and_format_sha256": "c22e6fe033a319df85230380e2e7fdf9b99e961c1c0152bfb4a6d7d1f52ea123",
+  "independent_V5_V6_exact_key_delta_copied_F_R_F0_and_current_companion_sha256": "11955b6493494fb655d0d3f646752ad10ed75009165e5aa6d668c9930a2f9d72",
+  "independent_source_controls_refusal_equations_and_census_sha256": "2603617593144576549d91481d293e515bf8c53a8f834820b9b960442b901da4",
+  "substantive_review": [
+    "Sealed possible-static source purpose only. OriginalDeclaration body kind, actual original analysis owner/input/registry/source, declaration site/body/formals/namespace, complete original argv, Written static operand and all observation/target equality remain necessary. Shared Jim084 static parser is used; unknown/missing/disagreeing or known failed capture refuses.",
+    "V1 map-wide minimum-collapse defect is resolved: both routes filter at each actual chain use after every old guard and before minimum insertion. Later foreign/unknown/unqualified candidate survives independently; original definite physical map and all old candidate filters remain unchanged.",
+    "Absolute route now requires the exact unwrapped Activation cell key and exact simple name bytes, positive current-point activation membership, absence of known scope aliases including killed aliases, and the existing full declared frame/namespace equation. Element, Lifetime, retained/selected/namespace/Authored keys cannot borrow this route.",
+    "Relative route independently pins the actual SSA object, exact positioned source name\u2192Authored symbol, source tokens/original owner Arc, full input metadata and genuine conditional advice with matching source input. The correct existing three-argument declaration_invocation_flow API is used.",
+    "Relative advice must have closed source coverage before selected flow is consumed, preserving unknown/may-be-absent/opaque/source-step/command-observer residual refusal. Selected flow must additionally exclude frame reach, unknown reads/writes, aliases, named reads and nested script flow. No selected-target-only closure inference survives.",
+    "Relative lexical occurrence must be in an exact direct top-level command vector of the sealed original body with no fatal tail, no braced/expanded words, nested Command/Expr/array-index/opaque parts, and exact Variable source span/name bytes. Qualified/element/child/up-frame or arbitrary containment/name-only fallback cannot establish it. Existing invocation-metadata refusal for missing Native reached state remains terminal.",
+    "Separate declared-potential warning withholding retains its existing conditional-local source report/header/occurrence guards. It does not donate current physical frame, full graph custody, State/definedness/alias suppression, generic report/owner/Eq/cache or execution authority.",
+    "New reference invalid classifier exactly models unchanged early Unknown/existing-wrapper and final Invalid exits without cloning ResolveContext or creating RawBindingSlot/callable storage. Source model place/name data may allocate Rust heap; this is no runtime Native value/cell/constructor grant.",
+    "Jim root arrays are dictionary scalars, so no C Tcl array-root copy rejection was invented. Actual Jim13 and supplemental4 finite observations were read as supporting evidence, not rerun by this reviewer.",
+    "No Normal/construction success/entered frame/Native/TMM/value/erasure permission, weakened test assertion, new allow/ignore, default metadata, profile fallback or stronger original-procedure owner is issued. WORK alone has existing-flag held eligibility logs; CLEAN omits those observations."
+  ],
+  "resolved_history": [
+    "V1 HOLD702e per-use aggregation custody",
+    "V3 HOLDa538 missing third required advice argument",
+    "V4 alias purpose gap: both routes now refuse known aliases",
+    "V5 element/lifetime presentation gap: exact bare Activation key+simple bytes now required",
+    "V6 unclosed advice residual: relative route now refuses has_unclosed_source_coverage",
+    "V7 new Rustdoc identifiers: V8 exact three-line backtick-only correction"
+  ],
+  "checks": [
+    "Both lane six current preimages and after hashes; exact final patch/manifests/master",
+    "Independent full V5 copied F/R/F0 zero fuzz/offset and independent V5\u2192V6 narrow copied F/R/F0; final V6\u2192V7 residual and V7\u2192V8 doc-only whole-image deltas independently proven",
+    "All ten final Rust edition2024 formatter checks; entire four old Rust modules reconstructed byte-exact from final V8",
+    "8192 independent pure reference Invalid equation cases and108 per-use local/foreign/unknown/alias/element order cases; these are model controls only",
+    "All20 active validation JSON maps independently read: only command_binding reexport pin in compiler-taint-diagnostic2 is a direct changed-file consumer",
+    "Current versioned companion JSON/driver bytes+AST restore exact old content by one approved sourcepin and sole Taint2 wholeJSON guard replacement; Root NOP guard/current driver preserved",
+    "Ruff check0 before/after; inherited formatter check failure1 remains explicitly disclosed, not introduced or silently fixed"
+  ],
+  "companion": {
+    "patch_sha256": "8ed123e1c3fb281cf35ce1df3ffd1937b0c0bd3f3fc9d8c37dad3d7ce87c8434",
+    "manifest_sha256": "84ba0037ff43ee43f3dcbc739fbecf983dbc52317d5028b4e7abcf7ff24e495a",
+    "status": "BOUNDED CURRENT SOURCE_PIN_AND_GUARD_DELTA STATIC CLEAR; not actual driver execution"
+  },
+  "limits": [
+    "No local Cargo/rustc/build/native/test execution. New eight\u00d7two integration controls and raw classifier test remain UNRUN. Existing original45 31P14F plus separate diagnostic5F are prior actual outcomes, not repaired claims.",
+    "Unknown readonly entry or absent Native metadata is not waived. Absolute/relative positive original-case coverage is unproved until hosted actuals; new WORK held logs may show continued refusal.",
+    "Direct relative proof currently reparses the whole original body per eligible use, plus schema/provenance queries. Cost is unmeasured and can scale as eligible_reads\u00d7body_bytes (potentially quadratic); this source/type clearance is not performance acceptance. A source-owned once-per-body inventory may be needed before performance/shipping admission.",
+    "No current whole-SSA/CFG freshness is inferred merely from setup BodyFrame or source extent. The private possible-source purpose and existing actual-CU diagnostic caller/retained owner joins are the bounded justification.",
+    "No release/global/Jim45/shared-process/performance green claim or generic VM parity disposition. Root alone integrates and dispatches."
+  ]
+}

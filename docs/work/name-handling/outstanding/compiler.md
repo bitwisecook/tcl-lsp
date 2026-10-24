@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-24T21:11:55.577289+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-24T21:57:32.331242+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**CURRENT d62 Compiler99 fully authenticated by shared capture:** /workspace/naming-proof-storage/compiler-original99-40133511279/assessment.json SHA83ff652ecb15d6f0b1cd239b07dd08d1084ea6f1736eed60c7d0e35ca9891b55, run40133511279/job120990073267 exactd62cf52d55e0bf89aabc5048f63480c6efdf4a09. Original58 now56PASS2FAIL: Native all-break foreach switch gainsPASS; remainingLogical all-exiting-switch and oldbracedfoldFAIL. Allold9controlsPASS; closed16=12P4F; readonly10=6P4F, originalowner3=2P1F, ancestry3=3PASS. All217ownedprocesses/5seals/126218source/10202providers/21503deps/0Rustbuilddiagnostics, no first/finalerror. New ancestry guards actualcontrols pass; no solepatch/fullrelease/performance claim. RootRuntime+Spec own NativeContext NOP firstcause/fix; Compiler owns remainingLogicalRBS +readonly4/owner1 actualsource diagnosis, no Native/guard/assertion weakening. Sourcecurrent includes separatelyreviewed5lint repair, not tested d62. No duplicateZIPdownload/localbuild/canonicalwrite; disk45MiB, metadata/minimalcaptures only.
 
 **Compiler99 prospective union FROZEN/current930da, rootpeer pending:** compiler-ancestry3-and-approved-pins-work-v1 patchf884061d0440de683b75a469f153ef34b14b659bc8e3c3f7ab21bdfc2588bfc8/manf0311da0aa334a256cfdf4d889a82d40e3226cbb8b611331e38d69be0ddff9f8. Threefiles only: original58mainJSON2eabe→9421bc34 changes ONLY approved/current Scope056c→3521 +DeclFlow579b→39ef; driverebfb→d7b5d7f1 preserves all NativeStage/Readonly/new96 fields and appends separate ancestry3 phase; new ancestryJSONec6b24fc. All old96 initializer payload/env/order/targets, NativeStagef1fb, Readonly9a5 and entireReadonlyhelper AST exact. New3 actual SourceReadScope unitselectors use existing fresh compilerlib ELF/list, no extra build. Old96 mustterminal first; newcases exactold isolated case AST exceptiter/label, same selected list180+run180, cleanup20/shared20MiB/2GiB/absolute3600/88125owner/seals/lossless/terminal checks. Global remaining updates even partialfailure. Actual AST initializer5negatives/executemocks/old96closure/retained123 failure/copyF-R-F0/sourceoverlay controls32aa34ca +proof61026384, Ruff/Ty/Pyright0PASS. Root must add mandatory third ancestryroster beforedispatch. Allnew3/repairedRBS outcomesUNRUN; no further source/metadata/probefield changes until freshcapture.
 
