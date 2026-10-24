@@ -33,9 +33,7 @@ original statement payloads for that purpose. Statement cloning can traverse
 nested Scripts and retain source owners; later snapshot clones share those
 payloads. Existing topology equality still compares exactly terminators and
 successors; statement custody is a separate check at this diagnostic boundary.
-No source or execution owner is minted. Original assertions/selectors
-are unchanged. Runtime correctness and corpus
-performance still require the full gates.
+The adapter does not create source or execution ownership.
 
 
 ## Independent Document grammar and authored naming
@@ -98,7 +96,5 @@ is ignored to manufacture a positive literal case. All requested-name and
 operand/issuer checks precede conservative unknown taint.
 
 This is conditional source diagnostic information, not equality to runtime
-contents or full source-effect coverage. Compact point-row storage, repeated
-source preparation and same-block coverage scans have unmeasured cost. Focused
-original warning/ownership controls and full baseline/resource gates remain
-required.
+contents or full source-effect coverage. The query stores compact point rows
+and repeats source preparation and same-block coverage scans.
