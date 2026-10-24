@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T06:49:26Z
+Last updated: 2026-10-24T07:18:06Z
 
 ## Resume and rules
 
@@ -19,16 +19,54 @@ Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz 
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
 
-## Active fresh runtime dd9: outcome PENDING
+## Latest actual dd9: original3 PASS, supplement negative, CFI incomplete
 
-Root dispatched40071615657 at06:47:50Z on exact
-dd9d8c46e3b4c8fe13dcf9053a1744d9730011d7; job120806075549 actualstarted06:47:54.
-Read-only06:49 activecheckout. Includes reviewed actualE0282/E0004/API3 repairs;
-original3+separate128supplements=131planned invocations unchanged. No outcome/ELF/
-finalsource seal known yet. No duplicate dispatch. Rawnextartifact directory
-vm-runtime-actual-40071615657/planned.json. WorkfullCI40071600890 separateactive.
-Disk<900MB/no localbuild/newlargecopies; ZIP-only large maps. Priorclosed failures
-below remain genuine historical allUNRUN, not retroactively repaired.
+vm-runtime-actual-40071615657/receipt.json
+SHAb83f15c7ce87a5e8cc8ec35bdc957a48c7a418d7f584ef2a5fcf3087e6f68b80.
+Exactdd9d8c46e3b4c8fe13dcf9053a1744d9730011d7 run40071615657/job120806075549,
+artifact12551388351 ZIP28982031 SHAfcd2bc3e5745e87cb57e8b499ae31de7230d46863593972af8076286940eae16.
+All443CRC+streamSHA,126047strictsourceBEFORE+AFTER/fullGitmembership+26keyblobs,
+C84sixmaps+owned900sbootstrap/Tommath/cleanGit/backend JOIN. Fresh buildEXIT0.
+Original3 raw/terminal/JUnit allPASS: PublicC3.489044962s, numeric16.089985301s,
+append165.042411881s ORIGINAL1035freshInterps/180unchanged. Successfulnextestoutput
+SUPPRESSED: no APPEND/CTOR markers retained (stderr1098B), so NO new per-row/profile/
+prune/currency timings. Whole testcasePASS source-joined; no crosshost/sourcecausality.
+128supplements ALL EXECUTED/closedcomplete, noUNRUN/unknown/validationerrors:
+baseline14=8P6F (same4Env+2guardsFAIL); stack1ABORT; other103=4P99F;
+oldprune7=6P1F; newtargeted3=3P. Old7 FAIL exact
+namespace::tests::publication_revision_tracks_moves_and_callback_rebound_rename_sources
+atnamespace.rs4476 original_publication_is_current(GLOBAL,b"new",moved) false.
+FourEnv held Copy observer error=None; armed/root/traceRoot sameactualIDs/refusalNone.
+This excludes only observedquietCLinkerrorbranch, no guessed otherproducer cause.
+CFI ownedcapture/tool+ELFseals complete but21832unknownCFA/6unparsednm/237gaps/
+25698relevantomissions keep WHOLEPROTOCOL INCOMPLETE. All131invocations real;
+originalnumericrepeat neveruniqueidentitypromotion. ELF0434783a... hostedseals only,
+rawELF absent. SeparateRust812UNRUN, sharedFullTomgate/perfcorpus unaccepted.
+
+Next rootassignment: bounded WASM seven-once-retained allocation owner source triage.
+Actual dd9 WASM40071619719 assessment53ef299696505ba3dcfe4302a4355efa02b0d59c2e5b14eac2cad233a279917b
+under ccg-wasmdd9-40071619719-actual-v1. Rawsmall/wasm_real_link-06.stderr witness
+1111→1118→1118→0→0 thenstrictbalance trap. No header/cache identities or allocator
+stage attribution proved yet. CCG owns recursion/String/Spec, no depth overlap.
+No count/assert/budget/guard/Native authority waiver; held-state observer onlyifneeded,
+WORK-only after sourcepeer. Rootonlycanonical/build/dispatch; no localbuild.
+
+Source fact: finalize=live TclObj headers+ownedString buffers; +7 is allocationunits,
+not proved sevenobjects. free_obj counts logicalheaderfree+bufferfree before lifetime
+pins release physicalallocation, so allocation-only pins alone cannot cause residual.
+Completion/callback cleanup source traced, exact ownerstillUNKNOWN. Observer frozen
+WORK-only vm-wasm-held-allocation-observer-v1 patch
+ec7aac36e94341aa56227c821989011c945230f131fb7cfa59cd786d1063907d
+manifest2d70a1cb6554386c23ac718f62e628a357a2df2477b046b661de68033c497868
+owner-controls8ff24da1f26ace6703ff68081e72f5b352bbbfa61adc6fb4d4267c8952a12761.
+Fivefiles: capiunsafe livecurrent diagnosticexport; native_error_headers heldCopy
+sixrootmetadata/splitcounts/weakarraycounts/busyflags; same3existingfailure-only
+freshdiagnostic top→snapshot calls; WASMroster sourcepins+soledriverdigest companion.
+Originalstrict_start byteexact/asserts/scripts/25roster/deadlines/capsunchanged.
+No Nativegetters/retain/clone/bytes/descriptor-name/cachewalk/counterreset/newprocess.
+Refguards droppedbeforestderr; rawaddresses diagnosticONLY, pointerreuse notidentity.
+Partialroots, no ownership/cause/fix acceptance. Current5pins/copyF-R-F0/fmt3/wholeold
+source+WATinverse PASS; independentpeer PENDING(rootrouted), allactualUNRUN.
 
 ## Latest actual TWO hosted BUILD FAILURES: all131 planned invocations UNRUN
 
@@ -136,6 +174,12 @@ througherrorlog awaits; false/Break maps onlysameoldreturns. All5wholeOLD interv
 occur exactlyonce inbothCURRENT lanes; all15helpernames absent. LSP MUST versioned
 interval/helper union, neverfullafteroverwrite. Nestedfuture layout/stack/type/Clippy
 acceptance/runtime remain unmeasured. Root/LSP notified06:41.
+
+Names5V3 actual dd9 startup BUILDFAIL supersedes runnable implication: E0407 two
+rename helpers lift_local_rename_edits/guarded_rename_source_tiers were placed inside
+LanguageServer trait impl, consequentE0599. My2fdb0f82 staticpeer missed trait-vs-
+inherent placement. Names owns sole minimum relocation; LSP independentpeer, no
+canonical work here. Historicalreceipt untouched, freshstrictrequired.
 
 Names5V3 ea6debd2/a694004c independent vm-peer-names-server5-v3/review.json
 SHA2fdb0f82ec5234f72c01673c63c631f2f2cb764351610c89fa506cac2cb07637. All5prod funcs/

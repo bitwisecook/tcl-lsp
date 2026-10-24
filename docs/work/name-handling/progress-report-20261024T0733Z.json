@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T07:33:50.808719+00:00",
+  "scheduled_report_utc": "2026-10-24T07:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T07:55:37+00:00",
+  "change_since_previous_report": [
+    "Current reviewed product WORK 1625b1d2abe15957ba98b11d07e819a8af0e8adc, CLEAN 8adf2f285953ca5d9ab9162a25b599808573f88c pushed after fresh shallow fetch/rebase. Actual fixes firstwork, private evidence/protocols omittedCLEAN. No PR/merge/tag/release; sixhour target missed and final gates remain open.",
+    "Fresh dd9 Jim40071598267 independently authenticated4786aeb9/337b4930 ZIP: original7 NOW6PASS1FAIL, all21controls/2strictfreshELF0W/fullsource/provider/dependency/tool/process seals. ALL6 nested namespace/if/proc Authored/Logical iterationsPASS, previousprocloops nowreached. Purpose/metadata/declarationfacts/Ifroles actualpositive, frame/bodyexecution remainfalse; selected-roster repair closes originalnestedfailure. Solemethod322FAIL despiteactualbodyvisit148 because futureworldUnknown/opaque/unclosed; genuine stockcaller/base/prelude sourceownership stillneeded. No overallJim26/C1C2closure.",
+    "Fresh dd9 fullTom runtime40071615657 completeb83f15c7: original3 allPASS, append165.042s/PublicC3.489s/numeric16.090s. Append success output suppressed, NOnewrow/countermarkers orspeedattribution. Baseline14=8P6F; stackABORT; other103=4P99F; oldprune7=6P1F; targeted3=3P, all131actualinvocations known/closed0UNRUN. Full126047source+26keyGit/Tommath/C84/provider/tools/finalguards/443ZIPmembers verified. WholeprotocolINCOMPLETE due CFI21832unknown/6nm/237gaps/25698omissions. Exactnewprunefailure world.current(new,moved) false at4476; Env4 firstCopy observerNone allcases, notquietCLinkcause.",
+    "Compiler baseline inventory9ee0e2bd independently joins main24312 and separate753lib+245integration samefcb baseline. Main24312contains no runtimepackage. Exactcurrent confirmed standalonePASS\u2192FAIL=6(4Env+2guard),8otherbaseline nowPASS. Other103/stack/prune/targeted/original3 testidentifiers absent from complete89baselineRustfiles and998namedledger: newnamedtests, relatedrenamedbehavior coverageUNKNOWN. This doesnotauthoriseexclusion/assertion/cfgweakening or waive fullTomCI/Spec/runtime gates.",
+    "Fresh dd9 compiler40071596079 full88635323/all141ownedgroups/full126047source/provider10202/deps21503/tools/ELF/lossless65 terminalguards: original58same52P6F,6suppPASS,catchduplicateFAIL; exactall65identities/env/order/outcomes unchangedvs e347. TaintV8 andselectedroster yieldno selectedgain; no speculativeguardrepair. Existingtaintdebughooks AREactive in compiler testprofile, prior ci-disabled assumptioncorrected; originalrow lackedflag. Separatediagnostic2 underexistingflag afterold65 beingauthored withoutnewqueries/purpose/fallback.",
+    "Fresh dd9 Spec40071593807 full54b0793b original11same9P2F+Nativefirst42FAIL/all20groups/3strictfresh0W/all5seals. WASM40071619719 full53ef2996/all297checks/25cases/29groups/all6seals/requiredrealguest:22P3F; allsharedtablepositivecontrolsPASS. Actualrecursion refusal codegenActivation eval128/dispatch63/limit128, stillok/error/error vsok/ok/error. Allocation1111\u21921118\u21921118\u21920\u21920 countsHEADER+STRING-BUFFERunits, NOTproved7objects; nofurthergrowth/frames/doubles. NativeAddsameGeneral+InconsistentCompletionReturn/ClosedProgramUncovered. No limit/assertion/budget changes.",
+    "Heavydd9 full9f0a7ad8 original3allFAIL/sameunknownstring61offset9/7instructions, whileFormat1736NotRequired203instructions remainsfixed. Registry-owned StringMapV2 independently656bcbe2 accepted C9 exactprivate-temp list retirement beforegenuineBasic2Arg namedworker, oldlookup&&oldvisits compose, no newRuntimeOperation/Genericgrant; bothbranches integrated plus7pinHeavycompanion2886ce92. Actual61identity/bootstrapsuccess stillunproven; newtests unrun.",
+    "Startupdd9 full228cc5ef andstrictjob120806029048 actual4E: twoNames5helpers werewronglyinsideLanguageServer trait; no serverELF/cold/scan/Context. Minimumliteral2defrelocation independentlycf13ea32 accepted andpushedWORK7250/CLEAN9cbc, all33knownhelpernamespacecensuscorrectafter, bodies/caller/tests unchanged. Historicalsourcepeer miss retained, freshRustrequired. Corrected-current publication/WillRename carries pending; scan2+diskpublication1 stillunprepared.",
+    "FullWORKCI40071600890 remainsred/active. Newglobalrust-check24locatedblocks include CmdCore/Syntax/Registrylintdebt; sourcefixedAPI3 no longerfirstbarrier. Core scopednewhover_completion1206 nonemptyassert reported, otherCoretargetscoveragepartial; no disappearance-as-resolution claims. cargo-deny rootlockupdateworked but sameadvisory remains standalonebigip-query-wasmlock. Census finds7actualstandalonelocks atcrypto0.7.5/ctutils0.4.4, historicalscratchpadlocks retainedunchanged. Narrow7lockresolverupdate next; no advisory suppression.",
+    "WORK-only heldSpecbarriersobserverce60 independentlyd1f18f35 reviewed/integrated7cf9; exactheldfields/sixAPIpins/noquerydup/noSCCPedit, originalassertions unchanged. Runtimeallocationobserverec7aac36 frozen forCodegenindependentunsafe/type/lifetime/protocolpeer; readsafterSAME3failed-case diagnosticcalls, partialrootmetadata notallocationidentity/heapcensus. No actualobservercauseyet.",
+    "CLEANwhole111026 audit typo avoided: exactd6fcc membership11026files/181068002bytes, allblobs scanned0errors. FourfilechaffV3/twofilesupplement/13file18-stalerefV2 prepared; rootreview editorialcorrections preservenative/source scope and removeexperimentalreportnarrative, integrationpending. LastwholefmtPASS057cceonly; currentunaccepted. Disk<2GiBbuildstop; rootreclaimedonly746ownedsourcecopyfiles23.6MB fromcompleteddependencyresolver, locks/receipts retained, no target/executabledeletion.",
+    "Allfiveprimaryroleheadersunder60min. ExternalBIGIP/perfremainstaleover60minutes, usernotifiedwithouttakeover; triagecomplete. RequiredgreenCI/fullmain24312+standalone998baseline/Tclcorpusperformance/currentness/latency/memory/docs/comments/generated/no-new-allows/sectionFremainopen. Next07:55UTC."
+  ],
+  "committed": [
+    "c8cef61e61e6f843a4ea95ae54c9c5439059dee9"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish07:25report/snapshotandrearm07:55reminder.",
+    "Fixconfirmedruntimebaseline6 andremainingSpec/Jim/compiler/Nativefailures withactualfirstcause.",
+    "Finishcorrectedservercarries/last3functions, allsourceClippydebt andCLEANdoc/commentcleanup.",
+    "Update7standalonelockswithouttouchinghistoricalevidence, thenrequiredfullCI/baseline/Tclperformance/sectionFbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "ActualJim6P1F andruntimeoriginal3PASS recorded; overallred remains. No fullbaseline orcorpusperformance acceptance or auditunitadmission.",
+  "disk_free_bytes": 453402624,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
