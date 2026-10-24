@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T03:55:40.610418+00:00",
+  "scheduled_report_utc": "2026-10-24T03:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T04:25:37+00:00",
+  "change_since_previous_report": [
+    "Pushed WORK 5a6ffd220ba237748719355c19c086c6610d0a33 and CLEAN f51dd1b9afaa8818e5adf9a26f536488500266fd; fixes firstWORK and clean source-only counterparts, no evidence/private observers in release. Fresh shallow fetch/rebase preserves external product changes. No PR/merge/tag/publish.",
+    "03:26 wave refused before build because explicit source and workflow event head differed after concurrent external push. Root acknowledged dispatch mistake; strict source guard retained. Coherent516 retry then exposed actual E0433 NativeCompilationFrame crate-root path and two E0609 new runtime-test accesses. Every selected test in these jobs remains UNRUN, not an observed regression or pass.",
+    "Independent API and protocol peers approved minimum module path/accessor fix plus two driver whole-roster hashes; integrated both branches. Startup516 sole stale CI input pin and early-finalizer NameError repaired WORK-only with original13-input guard and all assertions/deadlines unchanged. Expanded preflight authoring checks startup inputs and runner whole-roster hashes before next dispatch.",
+    "External perf owner03:22 records routed patch PROVEN. Full102Tcl+15iRules+7synthetic complete current-owner report correspondence equal in all three old/mixed pairs, global/runtime equality strict. Six source prerequisites plus realm/interprocedural route carried into CLEAN after independent product-token/cleanup-preserving proof. Matching89 existing compiler failures, all depth1000 OOMs and both quiet-server failures remain. This is not final release performance acceptance.",
+    "Runtime namespace-pruning memo independently source-reviewed through all15 mutation doors, callback order, live weak world identity, checked revision overflow/refusal, new-registration checks and retirement order. Integrated WORK/CLEAN; seven controls, original1035-row180s append, stack and full runtime suites remain UNRUN on new source. No performance improvement claim.",
+    "LSP library3 production phase split and exact immutable document-image reuse independently reviewed/integrated; no currentness guard skip or new token/role cache. Last measured startup remains81.107ms cold tokensPASS and30s scanFAIL. CurrentDiagV8 actual typing remains blocked by compiler dependency until fresh run.",
+    "Deep review HELD test7 V1 for missing diagnostic binding, changed registry-await ordering, wrong hover type and reference mismatches; DB explicit imports V1 HELD for missing cfg(test) names. No held patch integrated. Successors must preserve all original test assertions/order/owner semantics.",
+    "Actual516 C84 bootstrap completed pinned provider setup, but runtime tests did not build. Full runtime118 acceptance absent. Prior f1dc remains original3=2PASS1TIMEOUT/append743of1035, baseline14=7PASS7FAIL, stackABORT, other103=1PASS102FAIL; incomplete old frame metadata cannot be retroactively repaired.",
+    "Latest functional compiler42 remains original58=48PASS10FAIL, Native3PASS, SH2onePASSoneFAIL, ReadFlowPASS; Jim42=5PASS2FAIL; Spec42 original11=9PASS2FAIL plus Native1FAIL; Heavy6323all3FAIL and earlier WASM25=18PASS7FAIL. New build refusals do not erase these actual outcomes.",
+    "Five primary trackers checked; BIGIP external header remains over60min stale, user notified without takeover. Perf03:22 fresh and review-triage explicitly COMPLETE. CLI reviewed patch held pending user ownership answer; shared namespace test decision pending. Locked user decisions never reopened.",
+    "Disk below2GiB (workspace about1.6GB, tmp about0.47GB) means no local builds. Cargo/rustc names present; no target cleanup or young executable deletion. Six-hour deadline missed; sectionF/requiredCI/complete24312baseline/host/performance/format/generated/docs/no-new-allow gates still open."
+  ],
+  "committed": [
+    "2505fbfa5580614ced16d85d59591032daddddc2"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish03:55 WIP snapshot/report and rearm04:25 reminder.",
+    "Run expanded pin preflight and dispatch coherent fresh source after all known build/protocol repairs.",
+    "Finish namespace/body-query/stockJim/product lint proposals and independent peers; observe actual source-value and Native recipe causes.",
+    "Complete final clean release fullCI, zero baseline regressions, Tcl performance, comments/docs/format/generated/no-new-allows before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Latest516 jobs are failed builds or pre-process protocol refusals, all selected tests UNRUN; source reviews and performance equivalence are not whole-release green acceptance.",
+  "disk_free_bytes": 1623855104,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -2,7 +2,7 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T02:55:57.605898+00:00
+Last updated: 2026-10-24T03:45:24Z
 
 ## Resume
 
@@ -13,10 +13,12 @@ WORK/CLEAN exact current Git before pins, copied roundtrips, formatting and inde
 semantic peer. Earlier complete tracker retained losslessly at
 /workspace/naming-proof-storage/vm-runtime-tracker-20261024T0255Z.md.gz.
 
-Root batch currently pushing WORK944e461b0/releasea112f1775 (parent report). Exact
-publisher/release heads must be re-read before new proposals. C84 prerequisite V2
+Actual Git heads at03:28 WORK516ef7b4801fcd7ee2fae446ec50e3e0e71630bd /
+CLEANea93ad7ccc30cf574265991534ae05da0e04094e. Re-read before new proposals.
+Disk workspace1.70GB/tmp514MB: no local builds or deletions. C84 prerequisite V2
 root reviewed/integrated WORK89758223e/CLEANe0c189520, pushed in75768f. Guarded
-Definition V7 source review clear below; actual validation still pending. No PR/
+Definition V7 historical source clear was superseded by a canonical-dialect
+comparison defect; correction independently clear below, actual validation pending. No PR/
 full shared-process semantic gate/performance acceptance. NoTom17+1 capability split
 and per-dialect zeroerrno success-fixture decisions LOCKED, no production errno reset.
 
@@ -102,20 +104,95 @@ provider/seals only; CLEAN ordinaryCI NoTom→GNUtimeout900+20/512KiB drain/2GiB
 C84→unchangedC9/Tom/fulltests. Scope differs from old C9-only runs, no futurepair
 coverage. C84V2 rootpeer ebfe5194. No evidence-framework helper/artifacts shipCLEAN.
 
+CurrentDiag extraction final V8 FULL independent SOURCE/TYPE/OWNER STATIC CLEAR:
+/tmp/vm-peer-current-diagnostics-v8/review.json
+SHA95c3993cbaee930ab23b7a61c7b1aabf6e4cc8e7f106822204eae15d0298b3c9.
+Manifest18dda058/WORK21823b3b/CLEAN090fba55. Entire two originals+17helpers read;
+query/epoch/vector-push order, languageID/11Arcs, exact registry owner, transient
+vs retained borrow lifetimes, cancellation and lift-before-registry-before-DB/
+projection teardown checked. V2-V7 HELD. Passive grouped String/map/Uri allocation
+free ordering not claimed exact; actual passive owner types read. Same four original
+WORK trace removals independently reproduce complete CLEAN before+after. Copies,
+formatting, oldtests/asserts PASS; no rustc/Cargo/lint/test execution. Root/LSP notified.
+
+Guarded Definition canonical comparator successor independently STATIC CLEAR:
+/tmp/vm-peer-definition-policy-canonical-v1/review.json
+SHA8263eacb67491de124730277dda4c60aeda669069ac6d1feb5a7c2c7f5cc7f02.
+WORK220d17e2/CLEAN0f02cb64 sole production hunk replaces raw dialect equality with
+existing has_same_execution_policy: both actual concrete execution points required,
+only core_point representation normalized then full policy equality. Existing static
+profiles have None vs concrete points Some; V7 raw equality made candidates no-op.
+Unknown/foreign/F5 negatives and runtime actual-entry/purpose/currency/body guards
+retained. Source/type/copy/fmt/oldasserts clear; all actual execution UNRUN. Historical
+V7 receipt is not fresh acceptance. Root/Codegen notified.
+
 ## Next actions
 
-1. ROOT PRIORITY full CurrentDiag extraction peer while root peers savedhome:
-/tmp/lsp-current-diagnostics-length-v3 V3 HELD (unqualified associatedhelper call,
-local currentness lifetime incorrectly tied to LiftInputs, registry Arc extra clone
-under audit). Author preparing V4. Read original source and entire extraction,
-source queries/snapshot/project admissions/11 evidenceArcs/languageID/locks/drop/
-cancellation/borrow errorpaths/types; no inherited V2 clear. V3 manifesta2846823.
-2. Root-reviewed savedhome source candidate, upload globs and authenticated f1dc
-receipt handed off. Future fresh actual runtime with C84 provider should retain
-original3/14/stack/103 separately under same180/2400/3600/20MiB/2GiB. No own dispatch.
-3. Resume source-owned prune validity scheduling proof only after no unsafe skip;
-no general VM parity expansion or semantic fixture changes. Actual frames await
-future retained reports; no guessed boxing/stack/depth budget changes.
-4. External BIGIP genuine C9/F5 NativePreflightRequired provider dependency stays
-routed Compiler/Codegen; no Logical substitution, admission bypass or generalized
-user-approved two trace cases. Spec/Jim/compiler producers owned other roles.
+1. Prune revision V1 FROZEN pending independent deep mutation/owner/type peer:
+/workspace/naming-proof-storage/vm-prune-revision-v1 manifest006b4772f41935b6afeb9f8f27788994ba7bcec0f951e20c4c636a13da40cf08,
+WORK681d8d2252727e8f337bf0846876c3da079165289cd9cfcc45772b907a40636c,
+CLEAN71c3d5182829e44f9ee8f3f85d3a54e0ec10872f2befb3ca16e7c40d8a89e673.
+Four source files; all15 invalidator doors instrumented before original writes/releases.
+Same old retain predicate/call boundaries and new-entry validation; fresh empty births
+cannot invalidate older registrations. New pureRust Rc world birth and Weak stamp plus
+checked invalidation revision; dead/foreign/None/overflow always fullscan. Seven meaningful
+mutation-control tests authored UNRUN, existing retirement tests/asserts untouched.
+Currentpins/copyfwdrevfwd0/fmt2021 PASS; no Cargo/runtime/performance claim. Root notified.
+Source design beforecode 2ca29083, complete source-proof.json in frozen proposal.
+2. Await root's fresh runtime ID after savedhome/upload-globs/C84 prerequisite and
+functional changes. Original3/14/stack/103 stay distinct under same180/2400/3600/
+20MiB/2GiB. No duplicate dispatch, no repair of old missing stack evidence.
+3. LSP lib3 V2 full independent SOURCE/TYPE/OWNER STATIC CLEAR:
+/workspace/naming-proof-storage/vm-peer-lsp-lib3-v2/review.json
+SHAa7f7fac74963058a6eb9b01fe7f99e07333c4618bcc302534648fd6d78a03f53.
+Exactmanifest3af87cab/WORKbd04b1ec/CLEAN196f1bc8; wholefile inverse, actual helper
+payloads, identical bothlane functions, copies0/fmt PASS. No compile/lint/runtime claim.
+Optional image geometry adapter V2 queued by LSP, not yet reviewed: /tmp/lsp-original-
+document-image-reuse-v2 manifestf02dbf4d, WORKd855f30a/CLEANe5bace98.
+4. External BIGIP genuine C9/F5 NativePreflightRequired stays routed Compiler/Codegen;
+no Logical substitution, bypass or generalized two-trace-case authority.
+
+Fresh attempted run40058338281/job120766189772 refused before any build/C84prep
+on GITHUB_SHA mismatch (external docs push raced requested source); original3+118
+ALL UNRUN, no product verdict. Parent preparing retry against exact remote516ef7b4;
+await authenticated ID, never duplicate dispatch or weaken source guard.
+
+Retry516 ACTUAL run40058807678/job120767614334 BUILDFAIL10103:37:45,
+artifact12546900501 ZIP26855889 SHAde7fd15b7de572341202e658c69e7ad40a3947ae9adb40a221586805b7811f86.
+/workspace/naming-proof-storage/vm-runtime-actual-40058807678/receipt.json
+SHA8ede4c0c1e5f73579ca7afd7d12f31ce5c058f8e89955c40d591a4a6c752965e.
+All25CRC+streamSHA/source-before126019 strictrows+ALL Gitmembership+11keyGitblobs.
+TWO E0609 in new GuardedDefinition tests codegen_abi.rs6055/6110: proc.native
+field absent on NativeProcedureCommand. CCG owns narrow correction. Emptyselected:
+original3/baseline14/stack1/other103 ALL UNRUN. No new product/performance verdict.
+C84 prerequisite realmake12.755645236s exit0/complete/twoempty, exactdc67; sixcomponent
+before/current maps identical/aftercomplete/866providerentries. Source-after/TomMath-
+after and structured buildgroup report ABSENT: wholeprotocol incomplete, no afterseal
+acceptance or Rustformatter verdict. Root notified; no duplicate dispatch.
+
+Prune V1 dedicated runtime_cache_review owns full independent15door peer; Names
+stopped duplicate preread to prioritize actual Jim. Immutable proposal untouched.
+Optional SourceImage geometry reuse V2 independently SOURCE/TYPE/OWNER STATIC CLEAR
+/workspace/naming-proof-storage/vm-peer-document-image-reuse-v2/review.json
+SHAc28499b9c2ea6a9390b662591248c3cfe1b6220f853444bd81f1854811da1cbd.
+Only full-byte+Document channel equality shares immutable Arc bytes/derived geometry;
+all token/stamp/entry/role/config/currentness gates remain, lazy original fallback.
+Copies/fullinverse/fmt/currentpins PASS; no compile/runtime/performance claim.
+Startup soleCIpin+dependencyfinalizer tinyurgent successor peer awaits frozen pins.
+
+PruneV1 dedicated independent SOURCE REVIEW PASS (runtime/performance HOLD):
+/workspace/naming-proof-storage/runtime-cache-independent-review-v1
+manifest8bf9fb114593b7c302756061cd146ea1525e15bfa9c358619add88947332422e.
+All15doors/private mutation closure/native namespace-name Drop and owner release
+ordering checked, bothlane copy0/fmt. No canonical integration from this role.
+Startup urgentCIpin/defaultdependencyroot companion independent193fba30840c771489fd17d189133c1f0f0e2104a284565daeb02abf183ece2b
+/workspace/naming-proof-storage/vm-peer-startup-ci-pin-repair-v1/review.json clear.
+Actual13pin positive+13changed negatives; originalCI recovered removing soleC84step;
+wholeASTminusinit exact; earlyNone dependency seal remains false. Fresh startup required.
+CCG actualbuild/hardpin companion WORK protocol part independent963ccc4c682accead2e160d3c7a6e704e7d293f310cb5a59a93bc7cbeb204d95
+/workspace/naming-proof-storage/vm-peer-guard-build-hardpin-companion-v1/review.json.
+Exactoriginal25/Heavy3/full59/full14 payloads/build/env/history unchanged, same strict
+whole-roster guards; currentallsourcepins joined. Compiler independentlyclearedactual
+Rust2API repair76af342e; no runtime outcome repaired. Root owns integration/dispatch.
+All four remaining f1dc Env failures reach upvar/alias; compatible with pending savedhome
+repair but exact dynamic cause remains unproven. No new speculative Env patch.
