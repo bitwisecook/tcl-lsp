@@ -61,6 +61,7 @@ User-facing compiler troubleshooting and how-tos live in
   rules.
 - [lowering-dispatch.md](lowering-dispatch.md) — argument roles and
   command classification.
+- [closed-native-consumer.md](closed-native-consumer.md) — owned Native transcript execution, bounded source proposals and observer closure.
 - [native-format-compilation.md](native-format-compilation.md) — original format compiler concatenation and operand preparation.
 - [normal-source-case-layout.md](normal-source-case-layout.md) — original case regions on a conditioned source continuation.
 - [standalone-unit-taint-context.md](standalone-unit-taint-context.md) — explicit standalone source ownership for CU taint.
