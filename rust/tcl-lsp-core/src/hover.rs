@@ -44,6 +44,7 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
+use crate::original_invocation::schema_format_arguments;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 
@@ -480,13 +481,9 @@ fn proc_hover_at(
 /// [`CompilationUnit`], and building that with the default (plain-Tcl) lexer
 /// config mis-tokenises a dialect-specific construct — an iRules word
 /// operator, `{*}` under 8.4 — which skews or drops the inferred type.
-// The cursor triple, the shared line index and the two request contexts
-// are the hover entry's own inputs; bundling them would only rename them.
-#[allow(clippy::too_many_arguments)]
 fn variable_hover(
     source: &str,
-    line: u32,
-    character: u32,
+    (line, character): (u32, u32),
     line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
@@ -592,13 +589,9 @@ fn variable_hover(
 /// with the card of an unrelated same-named `TclOO` accessor method — a
 /// wrong-kind answer, worse than none.  `definition` forces the same
 /// abstention in `position_definition`.
-// The cursor triple, the shared line index and the two request contexts
-// are the hover entry's own inputs; bundling them would only rename them.
-#[allow(clippy::too_many_arguments)]
 fn variable_position_hover(
     source: &str,
-    line: u32,
-    character: u32,
+    (line, character): (u32, u32),
     line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
@@ -609,7 +602,13 @@ fn variable_position_hover(
         return PositionHover::FallThrough;
     }
     if let Some(hover) = variable_hover(
-        source, line, character, line_index, analysis, ctx, profile, annotate,
+        source,
+        (line, character),
+        line_index,
+        analysis,
+        ctx,
+        profile,
+        annotate,
     ) {
         return PositionHover::Answer(hover);
     }
@@ -702,11 +701,8 @@ fn original_pattern_format_hover(
         };
         return Some(Hover::markdown(text));
     }
-    // The closure is required: the method path is not general enough
-    // over the schema borrow's higher-ranked lifetime.
-    #[allow(clippy::redundant_closure_for_method_calls)]
     let formats = words
-        .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
+        .with_source_schema(&context, schema_format_arguments)
         .flatten()?;
     for format in formats {
         let Some(text) = original_embedded_operand(&words, format.index, cursor)
@@ -1017,8 +1013,7 @@ fn hover_impl(
     }
     match variable_position_hover(
         source,
-        line,
-        character,
+        (line, character),
         &line_index,
         analysis,
         ctx,

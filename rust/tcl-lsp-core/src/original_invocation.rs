@@ -7,6 +7,31 @@
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
+// Explicit callback signatures keep all schema borrow lifetimes independent.
+pub(crate) fn schema_script_arguments(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<Vec<usize>> {
+    schema.authored_source_script_arguments()
+}
+
+pub(crate) fn schema_format_arguments(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<Vec<tcl_registry::FormatStringArg>> {
+    schema.authored_source_format_arguments()
+}
+
+pub(crate) fn schema_clause_plan(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::ClausePlan> {
+    schema.clause_plan()
+}
+
+pub(crate) fn schema_argument_roles(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<Vec<(usize, tcl_registry::ArgRole)>> {
+    schema.arg_roles()
+}
+
 #[derive(Clone)]
 pub(crate) struct OriginalOperandSource {
     pub(crate) span: tcl_lexer::Span,

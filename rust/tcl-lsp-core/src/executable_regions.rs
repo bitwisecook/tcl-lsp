@@ -11,6 +11,7 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
+use crate::original_invocation::schema_script_arguments;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::lambda_literal::{split_lambda_literal, split_original_lambda_literal};
 use tcl_compiler::realm::CommandBindingRealm;
@@ -568,11 +569,8 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         context: &tcl_registry::model::ContextRegistry,
         depth: u32,
     ) -> bool {
-        // The closure is required: the method path is not general enough
-        // over the schema borrow's higher-ranked lifetime.
-        #[allow(clippy::redundant_closure_for_method_calls)]
         let executable = words
-            .with_source_schema(context, |schema| schema.authored_source_script_arguments())
+            .with_source_schema(context, schema_script_arguments)
             .flatten()
             .unwrap_or_default();
         for (index, role) in words.roles().unwrap_or_default() {
