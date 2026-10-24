@@ -24,10 +24,13 @@ pub enum VendorCatalogueSourceObligation {
     EarlierBindingAlternative(NameBytes),
     /// The selected source cell may have a non-Registry implementation.
     SelectedBindingAlternative(NameBytes),
+    /// Independent original command-slot geometry retains its own residuals.
+    OriginalCommandSlots(Vec<super::OriginalCatalogueSourceObligation>),
 }
 
 /// Genuine hosted input and conditional source coordinate evidence.
-/// No C/Jim name policy, current native holder or executable target is supplied.
+/// Vendor policy stays separate from retained original slot geometry; no
+/// current Native holder or executable target is supplied.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VendorCatalogueSourceCandidate {
     head: VendorSourceNameInput,
@@ -39,7 +42,48 @@ pub struct VendorCatalogueSourceCandidate {
     snapshot: Option<std::sync::Arc<super::SourceLookupSnapshot>>,
     body_origin: Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>>,
     registry: RegistrySemanticKey,
+    original_slots: Option<std::sync::Arc<OriginalVendorSourceSlots>>,
 }
+
+/// A same-point source table projection. Vendor coordinates remain separate;
+/// original naming geometry supplies no current handler or Native execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalVendorSourceSlots {
+    snapshot: std::sync::Arc<super::SourceLookupSnapshot>,
+    analysis: std::sync::Arc<super::OriginalSourceAnalysisOwner>,
+    namespace: SourceNamespaceKey,
+    head: crate::signature_scan::original_name::SourceOriginalNameOccurrence,
+    candidate: super::DeclaredCommandCandidate,
+    paths: Vec<Vec<tcl_core_types::ByteCommandSlot>>,
+    obligations: Vec<super::OriginalCatalogueSourceObligation>,
+}
+
+impl OriginalVendorSourceSlots {
+    fn matches_invocation(&self, binding: &SourceInvocationBinding) -> bool {
+        binding
+            .lookup_state
+            .as_ref()
+            .is_some_and(|snapshot| std::sync::Arc::ptr_eq(snapshot, &self.snapshot))
+            && binding
+                .original_analysis_attachment()
+                .is_some_and(|owner| std::sync::Arc::ptr_eq(owner, &self.analysis))
+            && binding.lookup_namespace_key == self.namespace
+            && binding.invocation_site() == Some(self.head.site())
+    }
+
+    fn matches_state(
+        &self,
+        state: &super::ModuleCommandBindings,
+        current: &SourceNamespaceKey,
+    ) -> bool {
+        std::ptr::eq(state, &self.snapshot.state)
+            && current == &self.namespace
+            && !state.has_opaque_domain()
+            && !state.baseline.unknown_entry
+            && !self.paths.is_empty()
+    }
+}
+
 impl VendorCatalogueSourceCandidate {
     /// Complete original hosted command head and its separate policy.
     #[must_use]
@@ -142,6 +186,19 @@ impl VendorCatalogueSourceCandidate {
         if !same_lookup {
             return false;
         }
+        if self.original_slots.as_ref().is_some_and(|slots| {
+            !slots.matches_invocation(binding)
+                || crate::registry_invocation::original_native_compiler_words(
+                    self.head.source_image(),
+                    tokens.words(),
+                    self.site.offset,
+                    self.head.lexer_config(),
+                )
+                .as_deref()
+                    != Some(self.original.as_slice())
+        }) {
+            return false;
+        }
         if self.snapshot.is_some() {
             return binding.original_lexer_config_for_tokens(tokens)
                 == Some(self.head.lexer_config())
@@ -195,6 +252,16 @@ impl SourceInvocationBinding {
         {
             return None;
         }
+        self.vendor_catalogue_at_original(head, original, registry, site)
+    }
+
+    fn vendor_catalogue_at_original(
+        &self,
+        head: &VendorSourceNameInput,
+        original: &[NativeWord],
+        registry: &CommandRegistry,
+        site: &super::CommandAllocationSite,
+    ) -> Option<VendorCatalogueSourceCandidate> {
         let command =
             std::str::from_utf8(head.literal_units(VendorSourceNamePurpose::CommandHead)?).ok()?;
         let snapshot = self.lookup_state.as_ref()?;
@@ -211,8 +278,31 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let (command, paths, obligations) =
-            state.vendor_catalogue_source_candidate(&self.lookup_namespace_key, command)?;
+        let original_slots = if state.has_vendor_original_slots() {
+            Some(std::sync::Arc::new(
+                self.vendor_original_slots(original, snapshot)?,
+            ))
+        } else {
+            None
+        };
+        let (command, paths, mut obligations) = original_slots.as_deref().map_or_else(
+            || state.vendor_catalogue_source_candidate(&self.lookup_namespace_key, command),
+            |slots| {
+                state.vendor_catalogue_source_candidate_with_slots(
+                    &self.lookup_namespace_key,
+                    command,
+                    Some(slots),
+                )
+            },
+        )?;
+        if let Some(slots) = &original_slots {
+            if slots.candidate.name != command {
+                return None;
+            }
+            obligations.push(VendorCatalogueSourceObligation::OriginalCommandSlots(
+                slots.obligations.clone(),
+            ));
+        }
         Some(VendorCatalogueSourceCandidate {
             head: head.clone(),
             original: original.to_vec(),
@@ -223,10 +313,50 @@ impl SourceInvocationBinding {
             snapshot: Some(std::sync::Arc::clone(snapshot)),
             body_origin: None,
             registry: registry_key,
+            original_slots,
         })
     }
 }
 impl SourceInvocationBinding {
+    fn vendor_original_slots(
+        &self,
+        original: &[NativeWord],
+        snapshot: &std::sync::Arc<super::SourceLookupSnapshot>,
+    ) -> Option<OriginalVendorSourceSlots> {
+        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        let state = &snapshot.state;
+        if state.has_opaque_domain() || state.baseline.unknown_entry {
+            return None;
+        }
+        let analysis = self.original_analysis_attachment()?;
+        let policy = state.baseline.execution_name_policy?.native_recipe()?;
+        let word = original.first()?;
+        let input = SignatureSourceNameKey::from_original_native_word(
+            word,
+            tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+            policy,
+        )?;
+        let head = crate::signature_scan::original_name::SourceOriginalNameOccurrence::new(
+            self.invocation_site()?,
+            input.clone(),
+        )?;
+        let namespace = state.original_namespace_geometry(&self.lookup_namespace_key, policy)?;
+        let (candidate, paths, obligations) = state.original_catalogue_source_candidate(
+            &self.lookup_namespace_key,
+            &namespace,
+            &SignatureSourceNameInput::OriginalWord(input),
+        )?;
+        Some(OriginalVendorSourceSlots {
+            snapshot: std::sync::Arc::clone(snapshot),
+            analysis: std::sync::Arc::clone(analysis),
+            namespace: self.lookup_namespace_key.clone(),
+            head,
+            candidate,
+            paths,
+            obligations,
+        })
+    }
+
     pub(crate) fn original_vendor_script_body_source_candidate(
         &self,
         context: &tcl_registry::model::ContextRegistry,
@@ -296,6 +426,7 @@ impl SourceInvocationBinding {
             snapshot: None,
             body_origin: Some(std::sync::Arc::new(body.clone())),
             registry: context.commands().snapshot().semantic_key(),
+            original_slots: None,
         })
     }
 }
@@ -305,6 +436,27 @@ impl super::ModuleCommandBindings {
         &self,
         current: &SourceNamespaceKey,
         command: &str,
+    ) -> Option<(
+        String,
+        Vec<Vec<NameBytes>>,
+        Vec<VendorCatalogueSourceObligation>,
+    )> {
+        self.vendor_catalogue_source_candidate_with_slots(current, command, None)
+    }
+
+    fn has_vendor_original_slots(&self) -> bool {
+        self.hosted_rule_loader_world()
+            && self
+                .bindings
+                .keys()
+                .any(|key| matches!(key, SourceCommandKey::Slot { .. }))
+    }
+
+    fn vendor_catalogue_source_candidate_with_slots(
+        &self,
+        current: &SourceNamespaceKey,
+        command: &str,
+        slots: Option<&OriginalVendorSourceSlots>,
     ) -> Option<(
         String,
         Vec<Vec<NameBytes>>,
@@ -321,14 +473,10 @@ impl super::ModuleCommandBindings {
         {
             return None;
         }
-        // The fresh F5 world installs document commands in original table
-        // slots, which these authored coordinates do not read: any such
-        // installation withdraws the catalogue candidate.
-        if self.hosted_rule_loader_world()
-            && self
-                .bindings
-                .keys()
-                .any(|key| matches!(key, SourceCommandKey::Slot { .. }))
+        // A document publication must be read through its original typed
+        // table at this same point; authored coordinates cannot bypass it.
+        if self.has_vendor_original_slots()
+            && slots.is_none_or(|slots| !slots.matches_state(self, current))
         {
             return None;
         }
@@ -418,6 +566,26 @@ impl super::ModuleCommandBindings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_vendor_slot_projection_retains_before_opaque_remote_source() {
+        let source = "proc invoke {} {set h [ILX::init p e]; ILX::call $h m}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let calls =
+            crate::registry_invocation::source_remote_first_operand_associations(source, &analysis)
+                .unwrap();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].matches_source_analysis(source, &analysis));
+        let blocked = "proc invoke {} {set h [ILX::init p e]; unknown_command; ILX::call $h m}";
+        let analysis = crate::analyser::Analyser::new().analyse(blocked, "f5-irules");
+        assert!(
+            crate::registry_invocation::source_remote_first_operand_associations(
+                blocked, &analysis
+            )
+            .unwrap()
+            .is_empty()
+        );
+    }
 
     #[test]
     fn original_conditional_vendor_catalogue_keeps_policy_and_cell_barriers_separate() {
