@@ -40,7 +40,7 @@
     "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
     "rust/tcl-compiler/src/realm.rs": "dc0f7a23e77db3446e293082cca28fd10dfa933c73feedb0d6bf396ded93c08d",
     "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
-    "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "8b5174a6b81ba81f2b54147fdbf2cf28606ab1841aca2a4d2fc774b3d5ddd287",
+    "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "abcd8c0af33d7f511cc01048e95c0202dbd03202a3ae3b40abd7d81e49bb9769",
     "rust/tcl-compiler/src/ssa.rs": "9283d9cca3e8ce628b5064b3d4c2d577268ff43621579151fbb198a5162f7345",
     "rust/tcl-compiler/src/taint.rs": "72ef52f097dd2e60aacb0bea4bed03e1bd6c3d5d93dae116bd1877348b8aca7f",
     "rust/tcl-compiler/src/taint/source_context.rs": "c2d90bef19004c90693f8e4c1a7bed819f09d21bd275c21b22d92a2292922ffd",

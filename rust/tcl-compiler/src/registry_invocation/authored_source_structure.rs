@@ -544,12 +544,11 @@ impl AuthoredSourceTaintInvocation {
                 original_authored_source_structure(tokens, registry),
             )
         });
-        let (source, conditional) = match strong {
-            Some(source) => (source, None),
-            None => {
-                let (source, candidate) = original_possible_sink_structure(tokens, registry)?;
-                (source, Some(candidate))
-            }
+        let (source, conditional) = if let Some(source) = strong {
+            (source, None)
+        } else {
+            let (source, candidate) = original_possible_sink_structure(tokens, registry)?;
+            (source, Some(candidate))
         };
         if !source.direct_written_arguments()
             || source.original_words.iter().any(|word| word.group().expand)
