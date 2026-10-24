@@ -4,10 +4,19 @@
 
 //! Checked project source topology and caller evidence.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    AnalyserConfig, CallSiteEvidence, DeclaredSurface, DispatchComponents, FileDecls,
+    FileSourceTarget, ItemTree, Project, SourceFile, TclDb, conditional_source_links,
+    document_analyser, document_analysis_input, merge_dispatch_components, project_token_inputs,
+};
+use std::collections::{BTreeSet, HashSet};
+use std::sync::Arc;
+
+#[cfg(test)]
+use super::{
+    NonAsciiMode, TclDatabase, file_call_site_evidence, project_dispatch_components,
+    set_overlay_epoch,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct FileSourceStructure {
