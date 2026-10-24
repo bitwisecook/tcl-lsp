@@ -110,6 +110,9 @@ expect_relevant Makefile
 expect_relevant .github/workflows/ci.yml
 expect_relevant scripts/dev/runtime-rust-path.sh
 expect_relevant scripts/dev/test-runtime-rust-paths.sh
+expect_relevant scripts/dev/ensure-test-deps.sh
+expect_relevant scripts/dev/tcl-reference-toolchains.sh
+expect_relevant .claude/skills/fetch-tcl-source/fetch_tcl_source.sh
 
 expect_unrelated README.md
 expect_unrelated samples/hello.tcl

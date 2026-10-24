@@ -62,6 +62,9 @@ case "$PATH_TO_CLASSIFY" in
     # classifier or its test all change what the job would do.
     .cargo/config.toml | rust-toolchain.toml | Makefile | \
     .github/workflows/ci.yml | \
+    scripts/dev/ensure-test-deps.sh | \
+    scripts/dev/tcl-reference-toolchains.sh | \
+    .claude/skills/fetch-tcl-source/fetch_tcl_source.sh | \
     scripts/dev/runtime-rust-path.sh | scripts/dev/test-runtime-rust-paths.sh)
         exit 0
         ;;

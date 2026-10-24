@@ -548,6 +548,51 @@ jobs:
           if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
             printf '%s\n' 'DIAGNOSTIC ONLY: original three-test subtotal, followed by separate baseline14, stack1 and authenticated other103 inventories. Other tests and doctests excluded; numeric selector repeats original3 in other103 without identity/count merging. No full roster or shared-process cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
           fi
+      - name: Prepare the pinned Tcl 8.4 integer-cache provider
+        timeout-minutes: 17
+        env:
+          OUT: ${{ runner.temp }}/runtime-fulltom-output
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/runtime-fulltom-output/c84-provider/reference-bin
+        run: |
+          set -euo pipefail
+          python3 docs/work/name-handling/validation-tools/runtime-c84-provider.py preflight --out "$OUT/c84-provider"
+          python3 - <<'PROVIDER'
+          import hashlib
+          import importlib.util
+          import os
+          import shutil
+          import time
+          from pathlib import Path
+
+          owner_path = Path("docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py")
+          with owner_path.open("rb") as stream:
+              assert hashlib.file_digest(stream, "sha256").hexdigest() == "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+          spec = importlib.util.spec_from_file_location("runtime_provider_owner", owner_path)
+          assert spec is not None and spec.loader is not None
+          owner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(owner)
+          out = Path(os.environ["OUT"]) / "c84-provider"
+          root = Path.cwd()
+          make = Path(shutil.which("make") or "/absent").resolve()
+          remaining = float(os.environ["RUNTIME_DIAGNOSTIC_DEADLINE"]) - time.time() - 20
+          if remaining <= 0:
+              raise SystemExit("provider deadline elapsed; original cases UNRUN")
+          receipt = owner.run(
+              [str(make), "TCL_LSP_TCL_RELEASES=8.4", "ensure-tcl-deps"],
+              cwd=root,
+              env=os.environ.copy(),
+              stdout_path=out / "bootstrap.stdout",
+              stderr_path=out / "bootstrap.stderr",
+              receipt_path=out / "bootstrap.process.json",
+              artifact_path=make,
+              deadline_seconds=min(900, remaining),
+              cap_bytes=512 * 1024,
+              disk_floor_bytes=2 * 1024**3,
+              disk_paths=(root, out, Path(os.environ["RUNNER_TEMP"])),
+          )
+          raise SystemExit(0 if receipt["complete"] and receipt["exit_code"] == 0 else 125)
+          PROVIDER
+          python3 docs/work/name-handling/validation-tools/runtime-c84-provider.py ready --out "$OUT/c84-provider"
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         timeout-minutes: 3
         run: |
@@ -787,6 +832,10 @@ jobs:
           if (( supplement_result != 0 && supplement_result != 100 )); then exit 125; fi
           if (( result == 0 && supplement_result != 0 )); then result=$supplement_result; fi
           exit "$result"
+      - name: Verify the Tcl 8.4 provider after runtime capture
+        if: always()
+        timeout-minutes: 3
+        run: python3 docs/work/name-handling/validation-tools/runtime-c84-provider.py verify --out '${{ runner.temp }}/runtime-fulltom-output/c84-provider'
       - name: Upload full diagnostic evidence
         timeout-minutes: 5
         if: always()

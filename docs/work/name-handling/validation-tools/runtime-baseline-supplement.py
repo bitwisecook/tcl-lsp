@@ -217,6 +217,14 @@ def prepare(out, source):
     )
 
 
+def provider_log_bytes(out):
+    paths = [
+        out / "c84-provider/bootstrap.stdout",
+        out / "c84-provider/bootstrap.stderr",
+    ]
+    return sum(path.stat().st_size for path in paths if path.is_file())
+
+
 def stack_streams(out):
     streams = {}
     for name in ["worker.stdout", "worker.stderr"]:
@@ -245,7 +253,7 @@ def frames(out, source):
         raise RuntimeError("stack metadata helper loader unavailable")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    build_bytes = (out / "build.stderr").stat().st_size
+    build_bytes = (out / "build.stderr").stat().st_size + provider_log_bytes(out)
     record = module.capture_stack_frames(
         out=out,
         binary=binary,
@@ -374,6 +382,7 @@ def run(out, source):
             out / "terminal/reporter.raw.jsonl",
         ]
     )
+    used += provider_log_bytes(out)
     frame_streams = stack_streams(out)
     used += sum(stream["bytes"] for stream in frame_streams.values())
     accounting_path = out / "stack-frame-accounting.json"
