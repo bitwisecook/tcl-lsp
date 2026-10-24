@@ -16,6 +16,17 @@ fn matches(pattern: &[u8], candidate: &[u8]) -> Result<bool, NativeGlobUnavailab
 }
 
 impl NativeNameProtocol {
+    /// Necessary name fragment of a Jim-generated reference object command.
+    /// This broad check only withdraws absence; it proves no allocated name,
+    /// receiver, interpreter state or execution authority.
+    #[must_use]
+    pub fn could_name_generated_reference(self, name: &[u8]) -> bool {
+        self == Self::Jim084
+            && name
+                .windows(b"<reference.<".len())
+                .any(|part| part == b"<reference.<")
+    }
+
     /// Apply the original `CString` space exclusion after its reached key getter.
     ///
     /// # Errors
@@ -237,5 +248,32 @@ mod tests {
                 .unwrap(),
             [b"p\xff".to_vec()]
         );
+    }
+}
+
+#[cfg(test)]
+mod generated_reference_footprint_tests {
+    use super::NativeNameProtocol;
+
+    #[test]
+    fn generated_reference_fragment_only_withdraws_absence() {
+        let protocol = NativeNameProtocol::Jim084;
+        for name in [
+            b"::<reference.<C______>.00000000000000000000>".as_slice(),
+            b"<reference.<Point3_>.18446744073709551615>",
+            b"ns::<reference.<C______>.00000000000000000000>",
+            b"<reference.<",
+            b"prefix\0<reference.<suffix",
+        ] {
+            assert!(protocol.could_name_generated_reference(name));
+        }
+        for name in [
+            b"not_a_command_anywhere".as_slice(),
+            b"ref",
+            b"<reference",
+            b"",
+        ] {
+            assert!(!protocol.could_name_generated_reference(name));
+        }
     }
 }

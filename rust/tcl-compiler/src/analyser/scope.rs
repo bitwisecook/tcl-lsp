@@ -215,6 +215,18 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
     }
 }
 
+/// Select only the actual innermost method body for an original-owner rejoin.
+/// This span is not an entry receipt: the caller must match the full document,
+/// input and genuine current wrapper before issuing any first-entry advice.
+pub(crate) fn selected_jim_method_body_span_at(root: &Scope, offset: u32) -> Option<Span> {
+    let mut scope = root;
+    while let Some(child) = innermost_containing_child(scope, offset) {
+        scope = child;
+    }
+    (scope.kind == ScopeKind::Method).then_some(())?;
+    scope.body_span
+}
+
 /// The innermost child scope of `cursor` whose `body_span` contains
 /// `byte_offset` — the one step both byte-offset scope walks below take.
 ///

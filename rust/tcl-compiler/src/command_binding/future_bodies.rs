@@ -38,6 +38,12 @@ pub struct SourceFutureCallSite {
 }
 
 impl SourceFutureBodyInventory {
+    pub(super) fn original_jim_wrapper(
+        &self,
+    ) -> Option<&Arc<super::jim_wrapper_body::OriginalJimWrapperBody>> {
+        self.jim_wrapper.as_ref()
+    }
+
     /// Positioned assistance in this independent future entry. Absence of a
     /// retained point is uncertainty, not proof that a command is missing.
     #[must_use]

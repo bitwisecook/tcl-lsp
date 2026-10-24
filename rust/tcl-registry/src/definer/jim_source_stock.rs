@@ -60,6 +60,27 @@ impl SourceJimClassHelper {
     }
 }
 
+/// Symbolic object-dispatch command produced by stock Jim construction.
+/// It supplies no exact name, implementation allocation or actual receiver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SourceJimObjectCommandFootprint {
+    /// A generated reference name published in the root command namespace.
+    GlobalGeneratedReference,
+}
+
+impl SourceJimObjectCommandFootprint {
+    /// A necessary fragment of every generated Jim object name. This broad
+    /// test only withdraws absence; it never identifies an allocated object.
+    #[must_use]
+    pub fn may_be_named_by(self, name: &[u8]) -> bool {
+        match self {
+            Self::GlobalGeneratedReference => {
+                tcl_syntax::naming::NativeNameProtocol::Jim084.could_name_generated_reference(name)
+            }
+        }
+    }
+}
+
 /// Closed source-effect layout of the stock Jim class procedure. Selecting this
 /// layout supplies neither an installed provider nor successful execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -122,6 +143,41 @@ impl SourceJimStockClassRecipe {
     #[must_use]
     pub const fn inheritance_dependencies(self) -> &'static [&'static str] {
         &["lsort", "lmap", "info", "lindex", "split"]
+    }
+
+    /// Class, supported single-base inheritance and method-creator calls only
+    /// publish definitions. Their reference operations remain inside New.
+    #[must_use]
+    pub const fn publication_preserves_references(self) -> bool {
+        true
+    }
+
+    /// Symbolic command name introduced by stock object construction.
+    #[must_use]
+    pub const fn object_command_footprint(self) -> SourceJimObjectCommandFootprint {
+        SourceJimObjectCommandFootprint::GlobalGeneratedReference
+    }
+
+    /// Core implementations used by the conditional stock object-call prelude.
+    /// Their identity does not prove object construction or quiet GC effects.
+    #[must_use]
+    pub const fn method_entry_dependencies(self) -> &'static [&'static str] {
+        &[
+            "exists", "uplevel", "lindex", "info", "set", "foreach", "upvar", "unset", "eval",
+            "lsort", "dict", "ref",
+        ]
+    }
+
+    /// Wrapper locals that cannot also be an incoming formal or instance link.
+    #[must_use]
+    pub const fn method_entry_reserved_locals(self) -> &'static [&'static [u8]] {
+        &[b"self", b"__", b"__body"]
+    }
+
+    /// Local written by the selected wrapper before its original body.
+    #[must_use]
+    pub const fn method_entry_self_name(self) -> &'static str {
+        "self"
     }
 
     /// Direct stock commands called while installing an empty-base class.

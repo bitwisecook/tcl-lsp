@@ -20,6 +20,10 @@ pub(super) struct OriginalJimStockMethod {
 }
 
 impl OriginalJimStockMethod {
+    pub(super) fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+
     pub(super) fn registration(&self) -> &CommandAllocationSite {
         &self.registration
     }
