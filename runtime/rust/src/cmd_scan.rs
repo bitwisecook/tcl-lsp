@@ -23,8 +23,12 @@
 //! before any conversion) or, with no vars, collects them into a list (*inline*
 //! mode).
 
-use tcl_cmd_core::scan::{scan_match, validate_format, Scanned};
+use tcl_cmd_core::scan::{
+    plan_c86_character_scan, scan_match, validate_format, ScanOutcome, Scanned,
+};
+use tcl_syntax::{naming::NamePolicyAuthority, native_string::NativeStringProtocol};
 
+use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_double_obj, new_string_bytes, new_wide_int_obj, TclObj};
 
@@ -47,6 +51,18 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"scan string format ?varName ...?");
     }
+    let native_c86 = interp.name_policy_protocol().is_some_and(|policy| {
+        policy.authority() == NamePolicyAuthority::Native
+            && policy.string_protocol() == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6)
+    });
+    if native_c86 {
+        let arguments = match OriginalArguments::enter(interp, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let code = scan_native_c86(interp, argv, &arguments);
+        return arguments.finish(code);
+    }
     let input: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[1]))
         .chars()
         .collect();
@@ -54,7 +70,6 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .chars()
         .collect();
     let vars = &argv[3..];
-    let inline = vars.is_empty();
 
     // Reject malformed format strings up front, as C's `ValidateFormat` does.
     if let Err(msg) = validate_format(&fmt, vars.len()) {
@@ -62,7 +77,44 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     let outcome = scan_match(&input, &fmt);
+    apply_scan_outcome(interp, vars, &outcome)
+}
 
+fn scan_native_c86(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
+    // C validates the original format before reaching the input String getter.
+    let format = match arguments.bytes(2) {
+        Ok(format) => format,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let end = format
+        .iter()
+        .position(|&byte| byte == 0)
+        .unwrap_or(format.len());
+    let fmt: Vec<char> = String::from_utf8_lossy(&format[..end]).chars().collect();
+    if let Err(message) = validate_format(&fmt, argv.len() - 3) {
+        return interp.set_error(message.as_bytes());
+    }
+    let input = match arguments.bytes(1) {
+        Ok(input) => input,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let native = match plan_c86_character_scan(&input, &fmt) {
+        Ok(outcome) => outcome,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let outcome = native.unwrap_or_else(|| {
+        let characters: Vec<char> = String::from_utf8_lossy(&input).chars().collect();
+        scan_match(&characters, &fmt)
+    });
+    apply_scan_outcome(interp, &argv[3..], &outcome)
+}
+
+fn apply_scan_outcome(interp: &mut Interp, vars: &[*mut TclObj], outcome: &ScanOutcome) -> Code {
+    let inline = vars.is_empty();
     if inline {
         // The list of scanned values; a failed (trailing) conversion renders as
         // an empty string, but an outright EOF-before-anything is empty (the

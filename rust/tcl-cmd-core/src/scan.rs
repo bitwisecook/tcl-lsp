@@ -167,6 +167,57 @@ pub fn validate_format(fmt: &[char], num_vars: usize) -> Result<usize, String> {
     Ok(total)
 }
 
+/// Match a validated sole `%c` directive using C86's original counted bytes.
+/// Other formats and positional slots beyond the first retain the general matcher.
+/// The caller supplies actual native C86 authority and original String getters.
+///
+/// # Errors
+/// Refuses a decoder result outside the owned C-string prefix.
+pub fn plan_c86_character_scan(
+    source: &[u8],
+    fmt: &[char],
+) -> Result<Option<ScanOutcome>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::{native_tcl_utf::NativeTclUtf, value::ValueError};
+
+    if fmt.first() != Some(&'%') {
+        return Ok(None);
+    }
+    let mut end = 1;
+    let Ok(conversion) = parse_conversion(fmt, &mut end) else {
+        return Ok(None);
+    };
+    if end != fmt.len()
+        || conversion.verb != 'c'
+        || conversion.xpg_index.is_some_and(|index| index != 1)
+    {
+        return Ok(None);
+    }
+    // Tcl_ScanObjCmd stops at literal NUL; modified UTF-8 NUL is a character.
+    let source = &source[..source
+        .iter()
+        .position(|&byte| byte == 0)
+        .unwrap_or(source.len())];
+    let value = if source.is_empty() {
+        None
+    } else {
+        let unavailable = || ValueError::CommandProtocolUnavailable("original C86 scan extent");
+        let unit = NativeTclUtf::for_version(tcl_dialect::TclVersion::V8_6)
+            .decode_c86_ucs4(source)
+            .filter(|unit| unit.width != 0 && unit.width <= source.len())
+            .ok_or_else(unavailable)?;
+        Some(Scanned::Int(i64::from(unit.value)))
+    };
+    Ok(Some(ScanOutcome {
+        nconv: usize::from(value.is_some()),
+        eof_before_conv: value.is_none(),
+        values: if conversion.suppress {
+            Vec::new()
+        } else {
+            vec![value]
+        },
+    }))
+}
+
 /// Match `fmt` against `input` (both code-point slices), producing the scanned
 /// values. Pure: no value model, no interp.
 #[must_use]
