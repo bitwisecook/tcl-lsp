@@ -1116,9 +1116,9 @@ remain in the loader; Native and writable-reference permissions are unchanged.
 The owner-resolution manifest/gate covers this domain facet. Fixed regressions
 exercise original wrapped Unicode/name spans, full configuration and whole-file
 versus nested BOM, dynamic/malformed/expanded/nested rows, first-pack selection,
-path/roster refusals, and agreement with the actual loader resolver. The required
-caller migration is `lsp-document-links-pack-include`; the shared extraction is
-one owner facet, not a separate count for each helper or unchanged loader use.
+path/roster refusals, and agreement with the actual loader resolver. The shared
+extraction is one owner facet, rather than a separate count for each helper that
+uses it.
 
 The shared numeric `declared_pack_major` query preserves the loader's separate
 `Option<u32>` forward-vocabulary question. `unsupported_pack_major` uses that

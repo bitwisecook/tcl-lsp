@@ -47,9 +47,8 @@ pub enum SourceChannel {
     /// Document text, read the way the dialect's `source` reads a script
     /// file. Under C Tcl's `-translation auto`
     /// ([`tcl_dialect::SourceLineEndings::TranslateAuto`]) a lone CR ends a
-    /// command or comment ([`Self::script_byte`]). Backslash-CR and
-    /// backslash-CRLF continuations currently apply to every Document; gating
-    /// them on the same axis for `JimTcl` is a tracked follow-up.
+    /// command or comment ([`Self::script_byte`]). Backslash-CR and backslash-CRLF
+    /// continuations currently apply to every Document, including `JimTcl`.
     Document,
 }
 

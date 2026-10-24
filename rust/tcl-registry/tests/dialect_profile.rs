@@ -62,8 +62,8 @@ fn is_mathop_spelling(name: &str) -> bool {
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
     // Reconstructed from the non-iRules/Tk/BPF providers that still exist;
-    // the 5 EDA vendor surfaces that were also part of this union were
-    // retired by the EDA-as-packages migration (eda-library-packages.md).
+    // EDA tool commands are loaded from library packages, not spec surfaces
+    // (eda-library-packages.md).
     let retired: &[SpecSurface] = surface![
         SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]),
         SpecSurface::package("iapps"),

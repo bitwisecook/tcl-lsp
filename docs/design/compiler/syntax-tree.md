@@ -218,8 +218,7 @@ replaced, kept as a permanent regression net:
 
 ## Performance
 
-The line index is built twice — once in the lexer, once in the red layer;
-sharing the lexer's index is the open follow-up.
+The line index is built independently in the lexer and in the red layer.
 
 ## Known gap — the minifier
 
@@ -227,16 +226,16 @@ The segmenter derives from the tree, and everything downstream of
 `segment_commands` therefore rides it. Two source-rewriting consumers do not:
 
 - The **minifier** (`rust/tcl-lsp-core/src/minify.rs`) — `minify_body` runs
-  its own `Lexer::new(source).tokenise_all()` and hands the raw token slice to
-  `parse_commands`, and `collect_string_literals` runs a second private loop
-  with an explicit descent stack over `Str` / `Cmd` inner text.
+  `Lexer::with_config(source, local_config).tokenise_all()` and passes the
+  tokens to `parse_commands`; `collect_string_literals` reads quoted-word
+  components from `lexical_metadata::command_census`.
 - The **formatter** (`rust/tcl-lsp-core/src/formatting/engine.rs`) — lexes the
   document and each nested body with `Lexer::with_source_map(…)
   .tokenise_all()`.
 
-Both are offset-precise source-edit machinery. Folding them onto the tree's
-descent needs a byte-identical bar over the corpus for every tier before it
-can land.
+Together, these paths derive source edits from token spans, so source bytes
+and offsets must stay aligned. Any tree-derived alternative is required to
+preserve byte-identical output across the supported corpus for each tier.
 
 Cursor-local prefix lexers (hover, symbol resolution) and the separate expr and
 `f5/query` tokenisers are deliberately not on this tree — they are different

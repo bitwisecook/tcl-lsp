@@ -44,9 +44,10 @@
 //!    `matches!` pattern, above the enclosing `match` or `matches!` too — and
 //!    a file whose sites all wait on one axis may carry one
 //!    `// registry-axis-ok(file): <axis> — <reason>; until <expiry>` in its
-//!    header. The axis is one of [`AXES`], the names of the migration page's
-//!    § *Debt on other axes* table, so a site waived for both this gate and
-//!    the value-transfer gate names one axis. The expiry names the change
+//!    header. The axis is one of [`AXES`], matching the shared waiver axes in
+//!    `docs/design/compiler/registry-consumer-contracts.md` § *The per-axis
+//!    lint and ledger*, so a site waived for both gates names one axis. The
+//!    expiry names the change
 //!    that retires the site — the registry query the consumer will ask
 //!    instead — or is `never`, which only `irreducible` may carry.
 //! 3. **A ratchet and the generated ledger.** A file in [`CLEAN_FILES`] has
@@ -76,8 +77,8 @@ use crate::util::{ANALYSIS_TIER_ROOTS, repo_root};
 
 const REPORT_PATH: &str = "docs/generated/registry-axes.md";
 
-/// The axes a waiver may name: the migration page's § *Debt on other axes*
-/// destinations for vocabulary sites, and the sanctioned exception.
+/// The axes a waiver may name, matching the shared waiver axes in the
+/// registry consumer contract, and the sanctioned exception.
 const AXES: &[&str] = &[
     "command",
     "subcommands",

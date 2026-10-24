@@ -41,11 +41,11 @@
 //!    the gate's other half. Every scanned file is held to one of two
 //!    rules. A *clean* file has every site waived or gone.
 //!    Every other file is *ratcheted*: its count of unwaived sites is
-//!    pinned here, `--check` fails when the count rises, and the pin is
-//!    lowered beside the review that removes or waives the file's sites,
-//!    never raised and never added. The migration page's ledger lists
-//!    each ratcheted file with its pin and the review that retires it;
-//!    the gate holds the two in agreement.
+//!    pinned here; `--check` fails when the count rises above the pin. The
+//!    pin is lowered when sites are removed or waived, never raised or added.
+//!    The ratchet table in the value-transfer consumer contract lists each
+//!    ratcheted file and its pin; the gate holds the table and pins in
+//!    agreement.
 //! 2. **A registry enumeration**, written to
 //!    `docs/generated/value-transfers.md`: every command, subcommand, and
 //!    declaring form with its declaration state, route, route owner, target

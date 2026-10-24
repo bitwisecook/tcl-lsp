@@ -408,9 +408,8 @@ every hover:
   `analyser::param_traits::caller_frame_upvar_params`, which shares `upvar`'s
   arity-parity split with the trait scan through the registry's
   `FrameEffectSpec`, so the two views of a proc cannot drift apart.  It is a
-  deliberate near-duplicate of `param_targets`, differing only in reading the
-  proc's *source* rather than its lowered IR; if the cross-file interning
-  above lands, merging them is the obvious follow-up.
+  deliberate near-duplicate of `param_targets`: this function reads the
+  proc's *source*, while `param_targets` reads its lowered IR.
 * `ProcDef::caller_frame_literals` — the analyser side of `literal_targets`
   (`upvar 1 name name`), which spells its name nowhere at the call site so
   there is no argument word to key on.  A `name → written-through` map

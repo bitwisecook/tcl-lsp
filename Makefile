@@ -1813,8 +1813,7 @@ $(CANONICAL_TCL_MD): $(ROOT)ai/prompts/tcl_system.md
 	@echo "==> Copying canonical tcl_system.md"
 	cp $< $@
 
-# Static prompt (no .j2), relocated to ai/claude/skills/_prompts/ by the
-# skills-off-Python migration (d3d5c4f74). Copy it from its real location.
+# Static prompt (no .j2); copy it from its source location.
 $(CANONICAL_TK_MD): $(ROOT)ai/claude/skills/_prompts/tk_system.md
 	@mkdir -p $(CANONICAL_DIR)
 	@echo "==> Copying canonical tk_system.md"

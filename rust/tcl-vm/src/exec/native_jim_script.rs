@@ -325,7 +325,7 @@ impl Vm {
                 self.publish_quiet_jim_dictionary_read_error(&completion, report, names)?;
                 return Ok(Err(completion));
             }
-            // Match the old temporary projection's native role retirement stage.
+            // Drop the converted dictionary pairs before reading the key.
             drop(converted);
             names.current_for_value(self, root)?;
             let key_bytes = names.read(self, key)?;
