@@ -76,7 +76,7 @@ impl OriginalVendorSourceSlots {
         state: &super::ModuleCommandBindings,
         current: &SourceNamespaceKey,
     ) -> bool {
-        std::ptr::eq(state, &self.snapshot.state)
+        std::ptr::eq(state, &raw const self.snapshot.state)
             && current == &self.namespace
             && !state.has_opaque_domain()
             && !state.baseline.unknown_entry

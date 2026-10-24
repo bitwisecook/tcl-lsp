@@ -44,6 +44,9 @@ mod dylink;
 mod extension_host;
 mod host_call;
 mod session;
+#[cfg(test)]
+#[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
+mod test_wasm_link;
 mod wasi;
 
 use std::rc::Rc;
