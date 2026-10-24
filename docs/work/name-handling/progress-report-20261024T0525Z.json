@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T05:25:40.454409+00:00",
+  "scheduled_report_utc": "2026-10-24T05:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T05:55:37+00:00",
+  "change_since_previous_report": [
+    "Current reviewed product WORK d53077a6c3e6a22061b0d3fd7f2921692c86e73d, CLEAN 56817b77f4b956404d728dda078149cd80eccef1; fresh shallow fetch/rebase/push being completed before docs snapshot publication. All fixes firstWORK, private observers/evidence omittedCLEAN. NoPR/merge/tag/publish; all finalreleasegatesopen.",
+    "Compiler b0 fullauth cbc1298a original58=52PASS6FAIL, allNative3/SH2/ReadFlowPASS, zeroUNRUN/0W/all139groups/full126027source/provider/ELF/transportguards. Namespaceimport isnewFtoP, no selectedPtoF. RemainingRBS3,evaltaint,bracedexpr,catchfixture. Thisdoesnotclosewhole24312baseline.",
+    "Startup2dd nowactualbuildPASS0W903.280s; coldtokens97.904639ms, original30sscanFAIL. Same7347BTclindexall5profilescomplete(2992\u20133492ms total each), thennew24190BTkindexwalk11442ms beforebarrier; no causalcomparisonclaim. Context nowactualFAIL: fooreport17\u2192validation18all7fieldsMatch; extrareport27pd-2hasmatchingwirepublication, validation28Unavailable. OneWait/bothround0settle, no16Cancelledloop. Full34528e61source/providers/deps/system330/tools/4owned/wireseals verified; no private refusalreasonyet. WORK-only held-decision observer independentlyreviewed/integrated, originalassertions/guards/budgets unchanged.",
+    "Strictb0 fullauth942d49bc: DBalltargetallfeaturePASS0W; Core6emptyassertions inlsp_edit_workspace; Server36distinctlints/37emissions (8CurrentDiaghelp inclduplicateunderscore +29lengths incl7tests), noRustEerrors. LaterCore9/server8sourcecleanups andtest7V4areintegratedbutexcludedb0; nosubtraction/dischargeclaim. LSPowns8CurrentDiag+22productionlengths. RootpreparingCore6sameexpectedemptyarrays. Directwait/EOFonly, no inventedwholeownedgroupproof.",
+    "RBSV6 source reviewed a75751 andintegratedbothbranches. V4heldrealnestedmutationcoveragehole/V5heldtestimport; V6nestedwalker+regressionandtypingfix/Cbyteoffsetprovenancecorrected. SeparateC>=8.5 normal-sourcecaselayout witholdunknown/no_match/error/compiledecline guards; nogenericCall\u2192Switch/Native/frame/Normalcertificatepromotion. OriginalRBS3andnewcontrolsUNRUN; preciseHeavycompanion38bd9ca0integrated. Compilertaint nowtracesgenuineStandaloneexistingcompatibilityadapterwithstrictCU/body/owner proof, notarbitrarymissinginputfallback.",
+    "Heavyff125 fullauth84523c92 all3stillFAIL, butFormatUnknownfrontierCLOSED: possible_errorfalse/visits25children9/noRecipeRequests. Newemitterdependency_refusaltrue/cfgadmissionNone; Formatinstructionplan deliberatelyabsent, nextsource-backedSTR_CONCAT1recipeauditing, nogenericfallback. Spec2ddsame9PASS2FAIL+Native1FAIL. Body-unitlatticedriver getsproceduresNone soNativeadaptormoduleunreachable; CodegenpreparinggenuineNativeOriginalDeclarationcarrierandnarrowmemo-safetyproofbeforeanygrant. No42/xyPASSclaim.",
+    "Jim b0original5PASS2FAIL/fullguards. Stock13partialsourceeffectproven4c6b621b: firstPointandmethodsecondclassUnknown\u2192Present/unclosedfalse; Logical-iforderedfactsunchangedandmethod322stillfails. LogicalV3originaloutcomesno-op, notallStockfactsno-op. LaterMethodpublicationcandidateheldpendingpeer/actualpath. Existingflag body/StockselectorobserverV2independentLSPa9e764clearandintegratedWORK-only; no oldquery/Eqduplication, newparserV6readonly, original7unchanged.",
+    "TargetedpruningV2 sourcePASS4f0e8b1b independentlyallmutation/callback/world/generation/retain-orderproof; V1heldnewtestscopeandvacuousforeigncontrolcorrectedV2. Integratedbothbranches, exactoneCunlinkwitnessonly; broad/Jim/multi/None/foreign/dead/overflowfulloldpredicate. Original7fullattrs/bodiesunchanged; new3testsUNRUN. Earlierf82append931TIMEOUT/baseline8P6F/stackABORT/other4P99Fremainactual; no speed/runtimeacceptance. Prospective7protocolindependent7689c471integratedWORKonlyafterold3+118prefix, originalbudgetsunchanged. New3requiresactualcoveragebeforeacceptance.",
+    "Env4 firstCopyVarErrorquietLinkobserverfrozenawaitingpeer, firstcaught-errorattributionlimitexplicit; oldscripts/assertions unchanged. WASMrecursionobserverhasRuntime1ee4da+Compiler430f17clears butnotyetintegrated; no depthcause. CorrectedserverTest7V4deepRuntime8338clearintegrated source/testordersame, oldV1\u2013V3held. ReleaseLintfrozenpurecleanupcohortsawaitrootpeer; WORK-onlyproofgatefullcarryheld, pureCLEANfactoringpreservesexcludeddevelopmentmachinery.",
+    "04:55report written04:55:53 andsnapshotpushed05:00:06 afterpreservingproductsource, timerrearmed05:25. Allfiveprimaryroleheaderschecked; staleBIGIP/Perfheadersnotifiedwithouttakeover, perfpatchproofcomplete/finalshippingperformanceopen, reviewtriageexplicitlycomplete. Disk<2GiBlocalbuildstop, notargetoryoungexecutabledeletion. FinalgreenrequiredCI/whole24312baseline/Tclperformance/latency/cancellation/memory/docs/comments/format/generated/no-new-allows/sectionFremainopen; sixhourtargetmissed."
+  ],
+  "committed": [
+    "46c777f3dc2a027f5b1b5233b5c308e1a3fe7e55"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish05:25WIPreport/snapshotandrearm05:55reminder.",
+    "Freeze/reviewcarrier/currentDiagrepairs; freshRBS/compiler/Jim/Context/runtime/WASMaftereligibleprotocol/sourcepins.",
+    "FinishremainingCore/Server/VM/toolinglintsourceandpureCLEANcarrypeers.",
+    "FinalshippingfullCI/completebaseline/Tclperformance/sourceparity/docs/format/generatedgatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actualb0compiler52P6F/2ddContextregression/strictred; laterRBS/targetedprune/staticcleanupareUNRUN. No fullshippingacceptance.",
+  "disk_free_bytes": 1448226816,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

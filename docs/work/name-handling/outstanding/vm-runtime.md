@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, tcl-vm, runtime diagnostic protocols and assigned peers.
-Last updated: 2026-10-24T04:30:45Z
+Last updated: 2026-10-24T05:18:48Z
 
 ## Resume and rules
 
@@ -121,3 +121,60 @@ f670922f no currentapplicability/gateclear. Compilerowns dependencyaudit, no rol
 ExternalBIGIP NativePreflight C9/F5 dependency staysCompiler/Codegen; no Logical
 substitution. CCG owns actualWASM recursion61/62 accounting+Nativeadd, no depthpatch
 from runtime. Allocation1111→1118→1118 residualowner remains unproved/rootroutes.
+
+## 05:08 current proposals and peer handoffs
+
+Targeted C-only captured-unlink prune V1 FROZEN awaiting independent full peer:
+/workspace/naming-proof-storage/vm-targeted-prune-v1 manifest9ebeabeb, WORKff7a2b4a,
+CLEANef95e322, sourceproofb93c902e. Two entire before files equal prior deeply-reviewed
+pruneV1 after. Fixed Copy one-change witness, exactliveworld/previous+1; all broad,
+Jim/None,multi,foreign,dead,overflow fullfallback. SAME HashMap retain walk/erase order,
+skips only unaffected pure BTree predicate reads. Three additive targeted tests UNRUN;
+old7 exact full attrs/body in both lanes. No localbuild/actual/performance claim.
+
+Prospective supplemental7 WORK protocol V1 at vm-prune7-protocol-v1 manifest82a9c1cd/
+patch87309658 independently SOURCE/PROTOCOL CLEAR release-lint-peer-vm-prune7/review.md.
+Own13pure/mock negatives replayed independently with allprocess APIs blocked; seven
+realtests stillUNRUN. Root owns integration/dispatch; original3+14+stack1+103 unchanged.
+
+LSP corrected test7 V4 independent full corrective STATIC CLEAR review
+vm-peer-lsp-test7-v4/review.json SHA8338ec7f4b413012b7badf271eb577e7ecda62cd11870c1986981303437cb1c3.
+Binds WORKadd9974f/bbc22eda+CLEANb7346223/d354f87c on actual lib3. All7 originals and
+helpers read; prior concrete type/order/owner issues corrected. Independent copyF/R/F0,
+fmt2, outside-projection wholefile inverse, arity/test/allow attrs. Fresh strict/testsUNRUN.
+
+CCG depth observer b49054e3/d528892a bounded runtime/stderr STATIC CLEAR
+vm-peer-wasm-depth-observer-v1/review.json SHA1ee4da246c7312d4e061857e5f5c35cb2d2b84bd96abb4ce3c8c7ea18fc94d25.
+Held numeric reads only in3existing refusal branches; conditions/128/counters/errors same.
+Debug wasm builder verified, success-only marker512/4096UTF8/refusal accounting; failed
+guest no duplicate. Compiler full protocol peer separate; no execution/depthcause claim.
+
+Env4 remains source-open: ordinary C Link VarError deliberately yields empty CodeError
+and refusalNone. A first held CopyVarError TLS post-eval failure-only observer proposed
+to root, not yet authored/approved. No guessed production alias repair.
+
+05:14 successor updates: Targeted V1 HELD by independent reviewer for sibling-private
+native_interpreter/TclVersion test scope and nonmeaningful foreign/dead check aftergap.
+V2 immutable vm-targeted-prune-v2 manifest a9d7db53120b7836965d89bf5e0c1f0b21322f35c6c67ae30d4b0e35ec1372b3,
+WORK768922e6/CLEAN129494fa; production bytes sameV1. Actual local C9 constructor and
+otherwise-valid Some→liveforeign(equalrevision)None→deadactualNone controls nowfixed;
+reviewer continuing FULL semantic proof. New3controls remainUNRUN/unselected.
+
+Root authorized Env4 observer; WORK-only frozen vm-env-link-observer-v1 manifest
+4c54490dc882bb93e9732c1196836305154817ecc1a714fc326fd0dc322b9c62 /patch6f754176 /owner1fe7d641.
+Const TLS Cell<Option<VarError>>,9unit Copyvariants/noOwnedNativeDrop; firstheld ONLY
+existing quietLinkerrorbranch, originalpendingerr/CodeError untouched. OnlyprivateTLS
+reset before originalsoleeval; <96B enum postFAIL+existingbaselineflag. No preeval env
+read/log/query/Native/errno/FP effects; no CLEANcarry/pincompanion. Root peerpending;
+no actualcause or runtime fix claimed. Actualnext runtime125 authentication pending
+source/run IDs, no duplicate dispatch.
+
+05:19 handoff: targetedV2 independent SOURCE PASS (runtime/compiled/perf HOLD),
+targeted-prune-independent-review-v1 manifest4f0e8b1b5f6e382fd9461a8a21c7b654206a0557f7a1f4075645683a736cfaed.
+Root owns integration. Env observer still frozen awaiting peer. New125reader
+vm-inspect-runtime-supplement-v3-125.py ready; synthetic metadata control
+vm-runtime125-inspector-controls-v1/receipt.json SHAc0e7fe8a097b02fa4c07a678a6336e3c2073bf9c77111958ac1072f8b4c9c207
+replays real118bounded records plus CLEARLY SYNTHETIC planned7UNRUN, preserving all
+oldcounts/CFI incomplete and7UNRUN. No new actualRust/native/C/build. Reader additionally
+joins7sourcefunction+attrs to actualGitnamespace/freshlisting/plan/standalone reports.
+Originalf82ZIP untouched. Latest actual remainsf82; no new runtime source/run supplied.
