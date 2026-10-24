@@ -2771,6 +2771,8 @@ fn registered_original_words_at<'a>(
     let binding = realm.invocation_at_source("", offset);
     let native = if let Some((_, tokens)) = binding.original_recorded_command() {
         super::original_native_compiler_words(&image, tokens.words(), offset, config)?
+    } else if let Some(original) = realm.original_authored_jim_parent_words(input, offset) {
+        original
     } else {
         // The original tape remains the body/source-role authority below.
         // Parsing a suffix only supplies unchanged word geometry for that join.
