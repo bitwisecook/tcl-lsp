@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T20:12:49+00:00
+Last updated: 2026-10-24T20:27:56+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -21,7 +21,34 @@ preserves original2guards and all real dependency/Namespace/Unknown/Native inval
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
 
-## Current priority: Nextest validation V6 frozen, independent peer pending
+## Latest primary: detached closed-consumer first-stage observer V2 frozen
+
+Authenticated f245 initial positives fail NativeContext before original fold/owner
+assertions, later adversarial checks UNREACHED (Compiler assessment aeadc473).
+Spec callback peer owns source candidate audit; no opcode allowlist expansion or
+entry-equality weakening authorized. Root authorized WORK-only detached diagnostic.
+Immutable closed-native-first-stage-observer-v2: patchffc8321ca117e6ca12d2426384c45c693031c871b2b4a8e61a0b604bfec1662f,
+manifest4acd3c13a075ddd44d35d264fb573c2b7e58748d4cc5b6bf55cbff0202b4547c,
+receiptd67de22950289661df3c3e52cf460d407a68fb18c78ab0f69d596e43ffb109f1,
+membership8f40cdf7d9c41de377754e7b1df3aa6d5fad9a404eda492326646243d4fb5eb1.
+Three WORK Rust files +closed16 exact first-decline flag/sourcepins/whole driver.
+CLEAN untouched. Passive Arc<AtomicU64> marker holds only stage/body/enumdiscriminant/
+ordinal; first compare_exchange wins, no source/value/header/Native ref/callback.
+Worker writes no output/env; parent inspects ONLY after full retirement+join and
+failed result/panic. Guard/query/OR order/error/opcodeallowlist and all oldtestbodies
+unchanged. Stages distinguish actual restriction/root/policy/table/stock binding,
+original compiler/module/full Native-entry validation, top/auxheader and opcode.
+V1 immutable but superseded by tiny six-stage V2 delta (no scope change).57source/
+guard/copy/metadata controls +Rustfmt3 PASS; no Cargo/types/native/test execution.
+Spec callback peer reviewing complete V1+V2 source/type/owner now. Actualfirstcause
+stillUNPROVEN until next authenticated payload; no functional fix admitted.
+
+Nextest V6 independent Range review found non-plus reporter completion still
+ignores ignored_remaining. Root assigned Range narrow V7 BOTH-branch correction
+and metadata controls; V6 remains immutable HELD, official adoptionUNRUN. This role
+stays primary closed-consumer actualstage diagnosis, no shared Nextest edits.
+
+## Prior handoff: Nextest validation V6 frozen, independent peer pending
 
 Root explicitly assigned successor authorship after independent V5 HOLDs: numeric
 smoke IDs disagreed with fixture source; supervisor direct-wait/EOF did not prove
