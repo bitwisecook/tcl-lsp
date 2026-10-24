@@ -2236,7 +2236,14 @@ fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
 #[test]
 fn a_braced_expr_word_with_no_nested_write_still_folds() {
     let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
-    let out = optimised(src, TCL);
+    let completed = tcl_engine_tclvm::execute_optimised_closed_source(
+        src.to_owned(),
+        tcl_dialect::TclVersion::V8_6,
+    )
+    .expect("actual private Native consumer");
+    assert_eq!(completed.transcript.stdout, b"2\n1\n");
+    assert_eq!(completed.transcript.stderr, Vec::<u8>::new());
+    let out = completed.rewritten_source;
     assert!(
         out.contains("puts 2"),
         "the expression must still fold: {out}"
@@ -3726,5 +3733,35 @@ fn a_constant_in_the_empty_name_variable_inlines_cleanly() {
     let out = optimised(src, TCL);
     for want in ["\"a=5b\"", "\"a=5\"", "\"55\""] {
         assert!(out.contains(want), "{want}: {out}");
+    }
+}
+
+/// Only the explicit actual private owner may discharge the expression's
+/// conversion/result differences. A normal source-analysis entry stays open.
+#[test]
+fn closed_native_consumer_does_not_grant_the_ordinary_optimiser() {
+    let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
+    assert!(optimised(src, TCL).contains("[expr {$x + 1}]"));
+}
+
+#[test]
+fn closed_native_consumer_refuses_callbacks_rebinding_and_value_escape() {
+    for source in [
+        "set x 1\nputs [expr {$x + [incr x]}]\n",
+        "set x 1\nunknown_call\nputs $x\n",
+        "set x 1\nrename puts saved_puts\nputs $x\n",
+        "set x 1\ntrace add variable x read observe\nputs $x\n",
+        "set x 1\nchan push stdout observe\nputs $x\n",
+        "set x 1\nreturn $x\n",
+        "set tcl_version 1\nputs $tcl_version\n",
+    ] {
+        assert!(
+            tcl_engine_tclvm::execute_optimised_closed_source(
+                source.to_owned(),
+                tcl_dialect::TclVersion::V8_6,
+            )
+            .is_err(),
+            "{source}"
+        );
     }
 }

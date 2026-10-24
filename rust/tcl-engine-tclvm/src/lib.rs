@@ -57,6 +57,9 @@
 //! Every operation that runs the VM claims the engine's own grammar and hands
 //! the thread's back on the way out ([`GrammarGuard`]).
 
+mod closed_native_execution;
+pub use closed_native_execution::execute_optimised_closed_source;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 

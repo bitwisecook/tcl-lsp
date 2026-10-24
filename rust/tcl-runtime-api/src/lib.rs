@@ -45,6 +45,8 @@ pub use tcl_core_types::{
 /// Original native script bytes with explicit source-channel semantics.
 pub use tcl_lexer::{SourceChannel, SourceImage};
 
+/// Single-use proposals inside a concrete private Native transcript consumer.
+pub mod closed_native_consumer;
 /// Actual Jim LIFO header reuse with separate exact and neutral observations.
 pub mod jim_object_pool;
 /// Independent supported-backend C ABI issuance for native hash owners.
@@ -2480,3 +2482,5 @@ pub mod variable_destruction;
 
 /// Checked allocation for concrete identity-domain owners.
 pub mod checked_counter;
+/// Thread-owned host diagnostic output policy, independent of Native authority.
+pub mod diagnostic_output;
