@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T10:55:42.221601+00:00",
+  "scheduled_report_utc": "2026-10-24T10:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T11:25:37+00:00",
+  "change_since_previous_report": [
+    "The10:55 snapshot records current reviewed WORK 952c4517f2e6bc7633fe1a34af6085f075b94dc7 and CLEANee6ad0fc1d7505d331ff550c9342c72040a846d3. Functional fixes remain on work and cleanup on release/lsp-naming. No PR, merge, tag or release; six-hour deadline missed. SectionF, all required green gates, complete zero baseline regressions and accepted Tcl performance remain open.",
+    "User decisions for finer command currency and exactly two external BIGIP fixes are implemented and pushed. Two original guard assertions remain intact. Both distinct Env production successors are independently source-cleared031a5305 and pushed: monotone alias notification covers partial-publication refusal; original destroyed-root identity detaches its own Env trace. No actual new runtime pass is inferred.",
+    "Current fresh source-input preflightf20b passes13startup/27runners/13whole guards. Corrected AuthoredDocumentV3, validated original token/word reuse, NativeC9 Range14, Env and currency remain awaiting matching semantic reruns. WORK-only selected-values gate labels use the existing flag and preserve original12Spec selectors/assertions.",
+    "Fresh scoped strict40086988230 on exactf20b is CLOSED: rawconsole exposes Core two formatting_keywords empty-slice test assertions and Server one redundant closure. No shared Rust compiler error observed in console; complete artifact authentication remains underway. Three narrow test-only fixes are prepared for independent review; all41 sites observed in previous1794 run were repaired. No complete all-workspace green claim. Those three fixes are now independently source-cleared3350bedb and committed952c4517/ee6ad0fc; no actual fresh lint pass is implied.",
+    "Root read-only whole formatting passed on currentCLEAN6d3244 with source unchanged,0output/exit0/no remaining processes,172.24s. Earlier concurrent root/runtime180s attempts timed out and remain recorded; sequential runtime format is pending. Complete current pinned Gitblob census covers11033entries/181190681bytes, no unreadable/drift,0removedwork/evidence path hits. Contextual delta review ongoing; scan alone is not semantic documentation validation. The subsequent three-line lint delta is individually formatted; a final whole-tree check on the exact final revision remains required.",
+    "Latest authenticated1794 actuals stay bounded: startupcold78.162616ms PASS, Context2 PASS, original30s scanFAIL; compileroriginal58 52PASS6FAIL plus6controlsPASS/catchFAIL/taint2FAIL; Jim6PASS1FAIL; Runtimeoriginal3PASS/baseline14 10PASS4FAIL/other103 9PASS94FAIL/stackABORT/prune6PASS1FAIL/targeted3PASS; Specoriginal11 9PASS2FAIL+NativeFirstFAIL; Heavy0/3; WASM22PASS3FAIL. Later source changes do not erase these failures.",
+    "Productive LSP structural tclIndex consumer V6 and compiler typed SCRIPT/sink V6 are frozen for independent deep review. GenericpkgIndex and runtime/Native purposes stay guarded; new positive/adversarial controls are UNRUN. Jim selected-body successor preserves possible generated caller name and unresolved GC/prelude debts; original7tests remain unchanged and original diagnostic failure remains open.",
+    "Pairedperf40077894896 correction: macOSmedium artifact shows oldera169 candidate original120s scanFAIL and original1800s benchmark deadline before separate outercleanup PermissionError. Baseline pair1 completed but no complete candidate receipt/pairedratio. Three Linux jobs shutdown143 without artifacts. This is neither acceptable performance nor solely an infrastructure failure. Final candidate needs fresh matched corpus comparison; iRulesperformance waived.",
+    "Old full workCI40071600890 dd9 remains incomplete. Authenticated terminal-heavy355=321PASS34FAIL; shard1 selected10633/closed309=268PASS39FAIL2ignored withshutdown andinvalidcapture; shard3 selected3898/closed2087=1397PASS689FAIL1ignored invalidcapture; shard4 log lacks terminal/footer andcauseunknown. Two shards remainactive. No complete zero baseline comparison can be admitted. Clean40068590762 is terminalFAIL; exactnamed baseline joins underway.",
+    "Post-refusal observation V4 is technically reviewed a71ab5fc and held pending a new user observation-coverage answer. Public refusal, originalerror, expectedvalues/scripts/leakchecks remain intact in proposal; no integration until answer. No repeated old decision or broad external role takeover.",
+    "Primary-role trackers remain monitored; external BIGIP13:17 and perf03:22 headers remain staleover60minutes, user notified. Review triage is COMPLETE. Diskbelow2GiB forbids local builds; hostedchecks continue and evidence staysZIP-only. Nextcycle11:25UTC."
+  ],
+  "committed": [
+    "2e04ccc5e744f9b07453776ef292463dc1fab713"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish10:55 WIP snapshot/report and rearm11:25 reminder.",
+    "Integrate independently reviewed3testlintfixes; run coherent required semantic modes after known buildblockers close.",
+    "Complete LSPstruct/CompilerSCRIPT independentpeers and actual Spec/runtime/Jim/recursion/fold fixes.",
+    "Finish full baselineper-test comparison, accepted final Tclperformance and all requiredgreen sectionF/repository/host/editor/generated/docs/comments/format gates beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 1316360192,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
