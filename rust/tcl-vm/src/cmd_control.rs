@@ -199,7 +199,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
             ),
         );
     }
-    let dialect = vm.native_invocation_dialect();
+    let dialect = vm.actual_native_invocation_dialect();
     let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
         return vm.refuse_host_command("native generic each-loop protocol is unavailable".into());
     };

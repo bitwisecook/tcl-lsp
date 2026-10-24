@@ -5,6 +5,62 @@ use std::{cell::RefCell, rc::Rc};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::value::ValueOps;
 
+#[test]
+fn generic_each_loop_uses_the_actual_host_with_a_separate_source_policy() {
+    let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+    let source = tcl_dialect::DialectProfile::irules();
+    let mut vm = crate::native_fixture::core(host);
+    // Case3 has no elements and an invalid body: the genuine generic loop
+    // must complete without compiling or entering that unvisited body.
+    let original = inputs(&mut vm, 3, false);
+    vm.set_dialect_profile(source);
+    assert!(vm.set_command_surface_profile(host));
+    let policy = vm.native_compiler_policy();
+    assert!(vm.native_invocation_dialect().execution_point().is_none());
+    let reached = vm
+        .try_invoke_command("foreach", &original.argv)
+        .expect("actual supplied C9 generic loop");
+    assert_eq!(reached.code, Code::Ok);
+    assert!(vm.execution_refusal.is_none());
+    assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+    assert_eq!(
+        vm.actual_native_execution_profile().cache_key(),
+        host.cache_key()
+    );
+    assert_eq!(vm.native_compiler_policy(), policy);
+}
+
+#[test]
+fn generic_each_loop_keeps_missing_and_unsupported_host_recipes_closed() {
+    let source = tcl_dialect::DialectProfile::irules();
+    let mut missing = Vm::new();
+    missing.set_dialect_profile(source);
+    assert!(!missing.set_native_engine_profile(source));
+    let arguments = [
+        Value::new_native_string_bytes(b"v".as_slice()),
+        Value::new_native_string_bytes(b"".as_slice()),
+        Value::new_native_string_bytes(b"".as_slice()),
+    ];
+    assert_eq!(
+        super::each_loop(&mut missing, &arguments, false).code,
+        Code::Error
+    );
+    assert!(missing.pending.each_loop.is_none());
+    let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
+    let mut unsupported = crate::native_fixture::core(host);
+    let original = inputs(&mut unsupported, 3, false);
+    unsupported.set_dialect_profile(source);
+    assert_eq!(
+        super::each_loop(&mut unsupported, &original.argv, true).code,
+        Code::Error
+    );
+    assert!(unsupported.pending.each_loop.is_none());
+    assert_eq!(
+        unsupported.actual_native_execution_profile().cache_key(),
+        host.cache_key()
+    );
+}
+
 const FIXTURES: [(&str, &str, &str); 6] = [
     (
         "tcl8.4",
