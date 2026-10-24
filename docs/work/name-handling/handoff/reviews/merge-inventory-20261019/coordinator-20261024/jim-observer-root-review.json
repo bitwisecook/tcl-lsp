@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-24T19:06:30.786632+00:00",
+  "patch_sha256": "520e881da422d0bf7029c433322f2f4f212b2f5a2eaa6c6071ca40f90cf47177",
+  "checks": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "current_and_after": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "current_and_after": true
+    },
+    {
+      "path": ".github/workflows/perf.yml",
+      "current_and_after": true
+    },
+    {
+      "review": "Debug_assertions and existing flag only; held primitive values; no semantic query/effect/flow changes",
+      "pass": true
+    },
+    {
+      "review": "Original45 loops/env unchanged; separate5 ledger appended; same owner/time/shared shrinking20MiB; failures count",
+      "pass": true
+    },
+    {
+      "review": "Exact original static5 subset enforced; no source roster weakening or CLEAN changes",
+      "pass": true
+    }
+  ],
+  "static_review": "PASS",
+  "typing_actual_capture": "UNRUN"
+}

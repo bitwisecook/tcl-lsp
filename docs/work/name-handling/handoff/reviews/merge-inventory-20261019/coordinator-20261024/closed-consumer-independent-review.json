@@ -1,0 +1,67 @@
+{
+  "atomic_master_sha256": "9fffb5bca3744e423edd0e38dd6fec4eed296229d9ae6b61066ce0bdfbcb94e7",
+  "atomic_parts": {
+    "clean": {
+      "manifest_sha256": "8000843498b4de19ba3122108df36e934ed032117c10f9925480b5fc478b81e7",
+      "patch_sha256": "d0d4df5c2d290d035fd8ee708a851dd8a3d716cb81c027ce5f9d83806df9d2f4"
+    },
+    "work": {
+      "manifest_sha256": "0b001d6109be49145ba4465ae43c34f5956a87133b501798df7f322baa7174ee",
+      "patch_sha256": "f95e3e0c8c7b9bd141f79e8011fd166c4eeebcbbba1dd06d43590fd765412e35"
+    }
+  },
+  "compiler_v5_master_sha256": "376bc4a4792b3e368affc1a3b12928a00bd95ac2fc3a437692a9b80b17104017",
+  "current_heads": {
+    "clean": "efbe9ddd03eb1b348560c3474be2df3aa4fe11b7",
+    "work": "1e7dd1736e2f09522f1fdfff2ac9b2119575053f"
+  },
+  "findings_resolved": [
+    "V1 lacked pre-CU resource restriction: V5 applies256-byte/brace8/bracket1 shared syntax budgets plus metadata-only complete shape/domain check before any general CU evaluation. Every arithmetic child/leaf is bounded before parent evaluation; only +-*, no pow/shift/function/command node enters CU. Full retained-owner proof independently follows.",
+    "Real external pack installer escape is closed physically on worker before registry/CU; actual HOST None and generation NO_HOST are checked, denial is monotone, all installer/receiver/cache/dispatch paths gate before callback. No clearing/fake absence, default non-denied behavior/lookup order reconstructed exact. Source-only IR continuation threads carry pure Clone/Eq metadata; no admitted structured/procedure/nested script can reach them.",
+    "Ordinary empty-world capture still invalidates old observations. Dedicated retained view validates exact Weak/Arc owner identity/world/interpreter/epoch/generation and actual empty index before cloning weak metadata, with no new capture/revival or missing-field fallback. Every other NativeEntry field freshly recaptured and full equality retained. Entire original interp and old literal/pack modules independently restored.",
+    "Borrowed kernel scope/rewrite are uncloneable and nonSend through !Sync Cell/RefCell owner; owner identity plus checked selection epoch prevents foreign/superseded use. Backend take is once, RefCell guard ends before execute, postexecute selection refuses. Public backend is documented trusted implementation seam, not a copied metadata/fresh flag proof.",
+    "Only concrete engine entry creates fresh actual VM/compiler/memoryHost from owned source+explicit native release, accepts no importedVM/registry/host/writer/callback/value. Stock identities rely on actual fresh core installation and token/current table retention, never names alone. Actual root/frame/namespace/observers/scalar root-key absence checks include links/undefined cells and special-variable refusal.",
+    "Original and candidate separately use genuine actual-entry plain-byte compiler, no profile-only fallback. Both whole top-level/body inventories, native compiler/math prerequisites, image/channel/namespace/profile/plain stamps and full before/after currency are validated; unsupported opcode/procedure/binding/refusal remains declined.",
+    "Memory sink and private env are owned; actual integer NumericEnvironment supplies ABI/error state/conversion, double unavailable/no errno reset and small integer domain uses no default FP assumption. Sink must stay empty/unrefused through scope/currency checks. Executed actual bytes are compared only after execution/retirement; predicted output never issues closure.",
+    "VM/original modules/compiler/value owners retire before detached bytes extraction; scope/captured metadata/pure plan/registry retire before worker result, native TLS pools end before joined return. Fresh primitives are per-worker Rc objects, canonical empty storage is immutable bytes, no Native object/cell or ordinary Optimisation escapes.",
+    "Const TLS diagnostic silence persists through native TLS teardown; full dependency print/stdio/FFI context and precise WORK/CLEAN cfg wrapper coverage read. Qualified macro paths resolve correctly; no new unused-macro exposure found. Public docs explicitly exclude unexpected panic-hook/allocator instrumentation/fatal-abort guarantees; no process-global hook mutation.",
+    "New actual-owner source controls cover checked successful replacement, actual sink overflow, foreign/superseded/consumed/recaptured/foreign literal anchor; old tests cannot pass simply because replacement was unavailable or copied bool changed. All new Rust controls UNRUN. Existing two fold assertions exact; only specific fixture ingress opts into private consumer, ordinary optimiser counterpart retains refusal."
+  ],
+  "independent_checks": {
+    "actual_whole_old_owner_module_reconstruction": 14,
+    "atomic_union_current_copy_and_ruff": 226,
+    "component_union_and_input_overlay": 673,
+    "input_cargo_and_all_active_map_controls": 169,
+    "receipts": {
+      "atomic-checks.json": "089f3e6df2042cbc29e3732609dfa7e3cf60596d27e79119b38371c5143508bc",
+      "broad-consumer-census.json": "2feddcb981c1273ec2fe956f38d037c1a928a99f993fba8582340eaa1f012e05",
+      "checks.json": "79704e27b44906e46a43d08147e5b404db74bd9b1d965f72413f55b586401988",
+      "independent-owner-pins.json": "9f37642e6ce4ea12307ca5ce8774fa4fd5a351ecba9f4536a1802badbc458007",
+      "input-checks.json": "25b394dd1a8a33093e3b4fa324202ecbd5ec844afd1d84f0de2fb6d726353366",
+      "inverse-checks.json": "95f5e63b0fab04b79891c1844e642ca3a0a30040f1a22822de3d715e0beadecc"
+    },
+    "total": 1082
+  },
+  "inputs": {
+    "currentness": "HELD: later Root WORK1e7dd173 updates original58 JSON/driver with main817c0a4d/DeclFlow579b/SourceScope056c/Taint3fa0. Root must versioned-rebase approved pin/hash-only companion preserving these before dispatch. Product source currentness freshly verified and clear.",
+    "manifest_sha256": "0e05d7e98cedf2b8f06ea6fce08a4f6fd6b00b01a07f7c66ce862ce862afaaea",
+    "patch_sha256": "3e23fdc38504a3aefe4bf67148dcb2f93d67a14070fff475cd2a1fba19db8bee",
+    "reviewed_packet": "/workspace/naming-proof-storage/closed-native-consumer-input-v2",
+    "source_protocol_verdict": "Eight approved existing pin deltas,5wholeinput literals,5rosters10files,101 full map pins; complete old JSON and whole driver byte/AST inverse and Ruff pass; broad current old-product-hash census found exactly8covered references, no unmatched live consumer. No selectors/env/budgets/providers/assertions/source payload changes."
+  },
+  "limits": [
+    "STATIC product source/type-signature/owner review only. No cargo/rustc/Clippy/native/oracle/driver/test execution, no actual test pass/performance/zeroP2F or fullbaseline gate claim.",
+    "Actual Native/compiler/function/refusal/representation/refcount/retirement guards remain authoritative; no stock BeforeArguments/NoCallbacks/Normal grant from metadata.",
+    "Unexpected host panic can run global hook/stderr; fatal abort may prevent join/retirement. No OS sandbox or hard lock deadline guarantee.",
+    "Input V2 cannot be blindly applied over newer original58 observer. Final current input carry required; Root alone integrates/pushes/dispatches."
+  ],
+  "owner_evidence": {
+    "independently_verified_owner_pin_count": 23,
+    "old_proof_30be": "Historical overbroad claim all old tests exact corrected by immutable V2; only all old assertions and all old tests outside approved fixture ingress are byteexact.",
+    "source_owner_pins_sha256": "6fc208ad62767bbc144748175dafb46bf0da6ac5700e0550b5c5947e5221abf2",
+    "source_owner_proof_v2_sha256": "b5699f299c611a5ac9a8e836908d0b73e3e3994716d18378a5877f03cd54b8c2"
+  },
+  "runtime_v1_master_sha256": "b97bd5224158ba70efd5e93ead817678ed9d361c774213efba39176808fc2359",
+  "utc": "2026-10-24T19:19:11.046468+00:00",
+  "verdict": "WHOLE_PRODUCT_COHORT_STATIC_SOURCE_TYPE_OWNER_CLOSURE_CLEAR; INPUT_V2_CURRENTNESS_HOLD"
+}

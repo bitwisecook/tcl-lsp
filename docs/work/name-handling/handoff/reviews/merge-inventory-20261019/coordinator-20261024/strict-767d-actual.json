@@ -1,0 +1,225 @@
+{
+  "artifact_id": 12570978244,
+  "artifact_sha256": "156fc1eab71a43fd6afab68886148783cf467d86994b676ddd303b35b266b5b3",
+  "artifact_size_bytes": 4011029,
+  "capture_exit": 2,
+  "coverage": "DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.",
+  "critical_git_blob_sha256": {
+    "rust/f5-cli/src/commands/irule.rs": "c168b66218b722d22562a01c8d9edae8ca97ee90334e502881a8a8685fb75a68",
+    "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "f72d11a4a5116914edb4fc3ebcd770fcb19f9b2f4d5755fa2616b7d35cfc9a43",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
+    "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
+    "rust/tcl-registry/src/native_compilation.rs": "aa152ab69569fb68c4fbb390b715819a1c584af7b30b3515f65c3d7a231ecdc4",
+    "rust/tcl-registry/src/native_eval_object.rs": "d26098d5114d622a1eef2db49c02161b05872b4d9d7636f266b8b1564e01b378",
+    "rust/tcl-registry/src/native_format_compilation.rs": "d14359a0ce6d538688d44c0c66d08fb4896b85d3b22607d7c198a89429687f41",
+    "rust/tcl-registry/src/native_instruction_plan.rs": "308eb9a8297b6a8396a461a36cc534717a059a17a231f2e410389210520b4d5c",
+    "rust/tcl-spec-hooks/src/host.rs": "8d8060eb05dfb1d14c6ba32d7c2d1dc312871c59a87753a63279148ecf8ce357",
+    "rust/tcl-vm/src/literal_pool.rs": "68ca806aedcb25afc09c055a73f13c99ea830224b6d27ab0a98f4b6d6102ae4c"
+  },
+  "job_id": 120952128851,
+  "limitations": [
+    "Only exact WORK source 767d178a8e16c23ccb8895bab54aca0dc8a25b60; no CLEAN or other test roster result.",
+    "Run stops at the one fatal lint; no later lint sites are inferred.",
+    "No local build or source edit."
+  ],
+  "member_count": 21,
+  "members": [
+    {
+      "bytes": 2,
+      "path": "capture-exit.txt",
+      "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3"
+    },
+    {
+      "bytes": 36,
+      "path": "cargo-version.txt",
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    {
+      "bytes": 38,
+      "path": "clippy-version.txt",
+      "sha256": "514f4171a1bed07e7d27a872fc29ebb3e32360eb297e28acf00ab796f80e1038"
+    },
+    {
+      "bytes": 233,
+      "path": "coverage.txt",
+      "sha256": "f8d5622d0903bc52289b155cb5e030755a4e8e431a0672459a87e1fd5fd3fca3"
+    },
+    {
+      "bytes": 0,
+      "path": "git-after.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 24,
+      "path": "job.txt",
+      "sha256": "645c4cea2ec06b5fca08e84f9616e271e2ea8cfcce68a6055c02bb134d044b75"
+    },
+    {
+      "bytes": 0,
+      "path": "git-before.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 1956,
+      "path": "make-rust-check.process.json",
+      "sha256": "e3ab7c610f2af75ae973ae10cfbe4acc730b5fccaa26dd971347ab867594a3b2"
+    },
+    {
+      "bytes": 11115,
+      "path": "make-rust-check.stderr",
+      "sha256": "d728993e243c6496b2df8cbd86ec437ecd8ee5c255e6346232f36e2aee7559ba"
+    },
+    {
+      "bytes": 899,
+      "path": "make-rust-check.stdout",
+      "sha256": "8cfd05025f609f811fad9750df3750f54ef69e5a8710f9e07281cb1a19cf3862"
+    },
+    {
+      "bytes": 300,
+      "path": "make-version.txt",
+      "sha256": "cb84250d994234272d0a465014ce2931be76e9e0cb114b9bffa078c3c211e8eb"
+    },
+    {
+      "bytes": 17,
+      "path": "original-exit.json",
+      "sha256": "0c0f888bbcfbebb60db029d9de74401c5105787fce727f52bdff37bcbcbdf33e"
+    },
+    {
+      "bytes": 196,
+      "path": "rustc-version.txt",
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    {
+      "bytes": 46,
+      "path": "rustfmt-version.txt",
+      "sha256": "5599925a145edaa750ffdd40d2dc1adb031362d0932dd5935e20440a5f51d2be"
+    },
+    {
+      "bytes": 2,
+      "path": "seals-exit.txt",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "bytes": 543,
+      "path": "source-after.json",
+      "sha256": "4851178d74e8728684a43c48ef142839ece40fa3573f1bc54cca1f4446619bda"
+    },
+    {
+      "bytes": 41,
+      "path": "source-commit.txt",
+      "sha256": "40043445200a00c9c15d2b39cde6a2d7d533d80a6b80c63c64f7ce08633a9468"
+    },
+    {
+      "bytes": 41,
+      "path": "source-tree.txt",
+      "sha256": "5dc247ebf1df33047cae2dbe88cbe7e7b9396da2a29e8c996ac3e5ddba48a6bf"
+    },
+    {
+      "bytes": 431,
+      "path": "tools-after.txt",
+      "sha256": "c6f238d9a939c09b52284649e1e79182a5ca9a1c27824d8bcafd3cdc617c340e"
+    },
+    {
+      "bytes": 989,
+      "path": "tools.sha256",
+      "sha256": "24701916880477b753f8e4c9116ddc1f2edf5a22eba42f14b052322438babeb8"
+    },
+    {
+      "bytes": 26509085,
+      "path": "tracked-source-before.json",
+      "sha256": "b0d01abd609147750cceedea5ee1ea729ae7e5b0e647214346ec860e75f92de1"
+    }
+  ],
+  "nul_git_membership_exact": true,
+  "original_exit": 2,
+  "primary_lints": [
+    {
+      "column": 9,
+      "line": 549,
+      "lint": "clippy::unused_self",
+      "message": "unused `self` argument",
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs"
+    }
+  ],
+  "process": {
+    "argv": [
+      "/usr/bin/make",
+      "rust-check"
+    ],
+    "artifact": "/usr/bin/make",
+    "artifact_sha256_after": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_sha256_before": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 3087.840866088867,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp",
+      "/usr/bin/make",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output"
+    ],
+    "elapsed_seconds": 145.779848032,
+    "ended_utc": "2026-10-24T18:35:09.939637+00:00",
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 74657619968,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 358447384645,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 2852,
+      "si_status": 2
+    },
+    "pid": 2852,
+    "pid_start_ticks": 21293,
+    "process_group": 2852,
+    "retained_bytes": 12014,
+    "spawn_return_monotonic_ns": 212931246428,
+    "spawn_return_utc": "2026-10-24T18:32:44.160677+00:00",
+    "stderr": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stderr",
+    "stderr_bytes": 11115,
+    "stdout": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stdout",
+    "stdout_bytes": 899,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 212930374435,
+    "timer_armed_utc": "2026-10-24T18:32:44.159806+00:00"
+  },
+  "run_id": 40120938931,
+  "schema": "auth-767d-strict-v1",
+  "source_after_verifier": {
+    "checked_file_count": 126157,
+    "checksum_mismatches": [],
+    "current_tracked_file_count": 126157,
+    "expected_file_count": 126157,
+    "expected_source_commit": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+    "extra_tracked_paths": [],
+    "manifest_sha256": "b0d01abd609147750cceedea5ee1ea729ae7e5b0e647214346ec860e75f92de1",
+    "matched_file_count": 126157,
+    "missing_tracked_paths": [],
+    "read_errors": [],
+    "source_commit": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+    "stable_membership_during_verification": true,
+    "status": "PASS"
+  },
+  "source_commit": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+  "source_manifest_sha256": "b0d01abd609147750cceedea5ee1ea729ae7e5b0e647214346ec860e75f92de1",
+  "source_tree": "fb4d2fb71fbcd88b90752e38aa327d42aec5b435",
+  "tool_checks": "9 paths OK with 9 hash entries",
+  "zip_crc": "PASS"
+}

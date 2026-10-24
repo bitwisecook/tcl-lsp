@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-24T19:03:12.219784+00:00",
+  "verdict": "INDEPENDENT BOUNDED SOURCE/API/TYPE/OWNER/LAZY-ORDER/CURRENT/CARRY STATIC CLEAR",
+  "candidate": "/workspace/naming-proof-storage/lsp-core-prepare-stage-v1",
+  "patch_sha256": "ce7221a63965492a38efb9684911b96149012c4814b42e799c8d3c85d26f6e39",
+  "manifest_sha256": "62f682e3522bd46017dbf6779b0021df4e4335e4d10e15fd80d3fbef5b5e3fbf",
+  "independent_checks_sha256": "f0022424cdc2c821478e5bfc2a54dfabbdea58118ee01562d752c56b8438ba44",
+  "active_hash_consumers": [
+    "HEAD:docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py:21:ROSTER_SHA = \"26735e5beb5ae97072d4ecf7593493234d7f20174a89b2935173c0117293523c\"",
+    "HEAD:docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json:42:    \"rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs\": \"16c6f91a3e68b00a635c1be2c180b61d5daaba16b4ae9820cbd78696f615d3e9\",",
+    "HEAD:docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py:20:ROSTER_SHA = \"badb6a8173526d71d1f0da5e91e685009e305027293e9c77bc3d586c4d4dabd5\"",
+    "HEAD:docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json:18:    \"rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs\": \"16c6f91a3e68b00a635c1be2c180b61d5daaba16b4ae9820cbd78696f615d3e9\""
+  ],
+  "source_findings": [
+    "Each prepare_required call consumes and returns the same already computed Option<T> exactly once with no Clone/Copy/type/lifetime bound added. Queries, lazy iterator advancement, unique-owner checks and then-closure allocation stay in their original order.",
+    "The uncertainty OR split retains the exact short circuit: lookup operand effects are queried only when uncertainty is empty. Every old None and Some result and original currentness/target/owner refusal remains terminal.",
+    "Compile-time exact flag1 gates all TLS writes. A Cell contains only the first static stage label, no source or ambient environment values. prepare clears it before work. Server calls prepare and drains its failure in one synchronous closure before any await, without holding a TLS borrow. No cross-thread/future trace or semantic memo is created.",
+    "Original Server detail string gains one bounded static-label suffix on failure; the existing LSP window/logMessage path renders it. No raw stdio-protocol output, JS assertions, async guard/currentness/coverage decisions, source lookup or callee visit changes.",
+    "Own all six current/historical pins, full Core actual Option-wrapper erasure and Server observer-block inverse, whole original tests/nonobserver Rust, F/R/F0 zero fuzz/offset, formatter2, both JSON payload and driver byte/AST inverses, and all source-pin overlays pass. Active oldhash consumers are exactly the four covered map/guard files."
+  ],
+  "limits": [
+    "WORK only; no CLEAN source change.",
+    "No Cargo/Rust/type/Clippy/test/host observer execution or corrected host outcome established.",
+    "The first failed outer primitive is observed; prepare.target-owner and prepare.current-owner remain aggregate callee boundaries, not unique internal producer findings.",
+    "TLS writes and extra log text change diagnostic work/timing. Original retained-stream caps/deadlines/flags/commands/assertions remain; no performance or full-host acceptance.",
+    "Existing failures remain authoritative; no owner, Native/frame/Normal/edit/coverage grant."
+  ]
+}

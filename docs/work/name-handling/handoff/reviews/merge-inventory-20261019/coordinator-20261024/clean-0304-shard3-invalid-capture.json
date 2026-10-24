@@ -1,0 +1,78 @@
+{
+  "utc": "2026-10-24T19:13:43.876670+00:00",
+  "run": 40113209300,
+  "source": "0304ce9796c6016465aaac67ec3440f955afd21a",
+  "artifact": 12571012450,
+  "zip_sha256": "4928c79c7f4a023407f58767937e0806170657a271bf2c99504117c3f46437aa",
+  "summary_counts": {
+    "nextest_exit": 100,
+    "terminal_count": 2085,
+    "selected_count": 3900,
+    "stderr_truncated": true
+  },
+  "started_unfinished": 4,
+  "never_started": 1812,
+  "capture_errors": [
+    "repeated suite start"
+  ],
+  "lifecycle": {
+    "parent_pid": 17631,
+    "parent_start_ticks": 51666,
+    "owned_pgid": 17631,
+    "group_scan_attempts": 2,
+    "group_empty_before_parent_reap": true,
+    "cleanup_signals": [],
+    "last_live_members": [],
+    "last_scan_complete": true
+  },
+  "terminal_statuses": {
+    "ok": 1506,
+    "failed": 578,
+    "ignored": 1
+  },
+  "classification_counts": {
+    "matched_passes": 1375,
+    "regressions": 567,
+    "unknown": 22370,
+    "extra_current_passes": 131,
+    "unmatched_current_nonpass": 12
+  },
+  "regressions_by_binary": {
+    "bpf-tcl::deploy": 1,
+    "bpf-tcl::diagnostics": 3,
+    "bpf-tcl::templates": 2,
+    "tcl-cli::compile_verbs": 2,
+    "tcl-compiler::command_resolution_conformance": 1,
+    "tcl-compiler::complexity_guard": 1,
+    "tcl-compiler::fp_depth": 15,
+    "tcl-compiler::inlining": 55,
+    "tcl-compiler::inlining_interproc_residual": 39,
+    "tcl-compiler::optimiser": 64,
+    "tcl-compiler::optimiser_codegen_residual": 30,
+    "tcl-compiler::optimiser_depth": 15,
+    "tcl-compiler::release_units": 3,
+    "tcl-compiler::side_effects_binding": 12,
+    "tcl-compiler::taint": 140,
+    "tcl-compiler::tcl_expr_eval": 14,
+    "tcl-compiler::type_propagation": 39,
+    "tcl-compiler::var_escape_residual2": 36,
+    "tcl-cshim": 9,
+    "tcl-cshim::pkga_e2e": 4,
+    "tcl-explorer": 36,
+    "tcl-irules::event_emission": 6,
+    "tcl-irules::object_refs": 2,
+    "tcl-irules::script_bearing_args": 3,
+    "tcl-lsp-core::authoring_dialect_completion": 1,
+    "tcl-lsp-core::hover_residual": 3,
+    "tcl-lsp-core::lsp_core_residual": 4,
+    "tcl-lsp-core::lsp_edit_workspace": 2,
+    "tcl-lsp-core::lsp_lens_links_symbols": 6,
+    "tcl-lsp-core::name_resolution": 6,
+    "tcl-lsp-core::oo_mro_parity": 12,
+    "tcl-registry::registry_commands": 1
+  },
+  "scope": "Observed shard3 terminal rows only, incomplete source/provider/process admission; not current source",
+  "global_admission": false,
+  "comparison_status": "DIAGNOSTIC_ONLY_INVALID_CAPTURE",
+  "identity_limit": "repeated suite start capture error: comparator output is a candidate list, not an admitted exact-identity regression count"
+}

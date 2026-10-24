@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-24T19:00:25.478636+00:00",
+  "checks": [
+    [
+      "work",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "current/inverse/fmt PASS"
+    ],
+    [
+      "work",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "current/inverse/fmt PASS"
+    ],
+    [
+      "clean",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "current/inverse/fmt PASS"
+    ],
+    [
+      "clean",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "current/inverse/fmt PASS"
+    ]
+  ],
+  "scope": "Only receiver removal and two call spellings; old evaluation/guards/helper body restored byte exact",
+  "static_review": "PASS",
+  "typecheck_or_runtime": "UNRUN"
+}

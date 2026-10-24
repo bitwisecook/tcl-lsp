@@ -1,0 +1,16 @@
+{
+  "source": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887",
+  "strict": {
+    "run": 40123651878,
+    "job": 120960368771
+  },
+  "hosts": {
+    "run": 40123667183,
+    "browser": 120960413043,
+    "wasi": 120960413214,
+    "unit": 120960413278
+  },
+  "actual_outcomes": "UNRUN_OR_IN_PROGRESS_NOT_GREEN",
+  "preflight": "/tmp/naming-required-source-preflight-1904-v10.json",
+  "work_only_core_observer": true
+}

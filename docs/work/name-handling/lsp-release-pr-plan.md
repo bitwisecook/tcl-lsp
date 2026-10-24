@@ -59,31 +59,25 @@ inputs; the fresh driver seals and retains them and identifies the internal
 analysis phase and cancellation reason. This needs a producer fix and a fresh
 successful protocol run, not a larger budget or skipped Tcl release.
 
-Fresh7-mode diagnostics were dispatched at23:29 on exact WORK
-`b52ff0b6c7ef223da6b920031be4d6b314346311`; full CI including native build
-proof runs on clean `a26ab0ffd2b1dc1681710dbf14e518025545ec33`
-([CI40039952540](https://github.com/bitwisecook/tcl-lsp/actions/runs/40039952540)).
-Keep these immutable source identities distinct from subsequent repairs.
-The active documentation checkout has frozen older product bytes and must not
-be built or reported as the shipping source. All functional changes first land
-in the publisher's `work`, then reviewed counterparts carry to release.
+Latest authenticated focused results on24October are recorded in `current-state.md`: compiler55/58 with all9 controls passing; focused Spec11/11 and Native4/4 passing; Jim31/45; browser/WASI still failing with the separate navigation unit passing. Runtime's selected baseline14 pass, but984 original baseline identities remain unselected and the full comparison is incomplete. Strict has one reached receiver lint with a minimal repair committed for rerun. Heavy bootstrap still refuses a mismatched protocol/string purpose; two CLI cases pass. None of these bounded results closes sectionF.
 
-Actually observed gains are narrow: DB's requested strict all-target/all-feature
-command passes without warnings; O129 folding and the older Jim class case
-pass. Core4 and Server131 old lint findings require fresh measurement after
-later fixes. Spec's original derived42/xy still fail; Jim method and nested-body
-ownership remain unresolved. Runtime append times out, numeric Jim retains
-ERANGE, and the separate fullTom baseline has14PASS-to-FAIL plus382unknown.
-The main24312namedPASS baseline comparison remains unknown. No full required
-CI, sectionF or Tcl corpus performance gate passes yet.
+The active documentation checkout retains frozen older product bytes and must
+not be built or reported as the shipping source. Functional fixes land in the
+publisher's `work` first, then reviewed counterparts carry to release. Current
+source identities and immutable capture receipts live in `current-state.md`.
 
-1. Authenticate the current7diagnostic runs and clean CI without canceling
+The user-selected genuine closed-consumer capability is frozen for independent
+whole-cohort review and remains unexecuted. Both original expression-fold
+assertions stay intact. Complete current baseline, hosted correctness and
+shipping Tcl corpus performance proof are still required.
+
+1. Authenticate each current focused run and clean CI without canceling
    healthy runs. Preserve failures, resource stops and unreached tests. Required
    source pins now pass before dispatch; actual source/provider/artifact and
    process seals remain necessary when interpreting results.
-2. Fix the measured startup/cancellation producers, compiler ILX/RBS/SH and
-   ReadFlow owner failures, Jim method/nested-world ownership, Spec derived
-   execution and runtime baseline regressions/stack failure. Keep all original
+2. Fix the measured startup/cancellation producers, remaining compiler flow
+   failures, Jim W210/body ownership, host navigation, Heavy bootstrap and runtime
+   failures. Validate the genuine closed-consumer implementation independently. Keep all original
    assertions, currentness and fail-closed guards; handle unanswered new policy
    questions only when the user's decision arrives.
 3. Complete strict Core/Server checks and every required native, browser,

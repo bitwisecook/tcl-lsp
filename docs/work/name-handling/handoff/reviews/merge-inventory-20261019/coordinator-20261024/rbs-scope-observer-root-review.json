@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-24T19:12:42.302854+00:00",
+  "patch_sha256": "13732ea15d31a0e9fa58f3334362f4fb4ccd9ed62dbe6192b5c12b39eedd1737",
+  "checks": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+      "current_after": true,
+      "whole_Rust_inverse_and_format": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+      "current_after": true,
+      "whole_Rust_inverse_and_format": true
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-inputs.json",
+      "current_after": true,
+      "whole_Rust_inverse_and_format": null
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py",
+      "current_after": true,
+      "whole_Rust_inverse_and_format": null
+    }
+  ],
+  "review": "PASS: identity wrappers on held values; existing lazy bool predicates once/same order; no semantic queries, clone, solver or acceptance changes",
+  "actual_type_trace": "UNRUN"
+}

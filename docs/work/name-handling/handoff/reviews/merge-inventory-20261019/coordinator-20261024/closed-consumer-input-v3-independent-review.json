@@ -1,0 +1,38 @@
+{
+  "changed_existing_source_pins": [
+    "rust/tcl-compiler/tests/optimiser.rs",
+    "rust/tcl-vm/src/literal_pool.rs",
+    "rust/tcl-bytecode/src/lib.rs",
+    "rust/tcl-registry/src/lib.rs",
+    "rust/tcl-vm/src/interp.rs",
+    "Cargo.lock",
+    "Cargo.lock",
+    "Cargo.lock"
+  ],
+  "checks": "156 independent semantic/complete-map/oldJSONbyte/driverbyte+AST/census controls, copiedF/R/F0all10fileszerooffset/fuzz, then-current before and frozenSHA, Ruffcheck/formatcheck. All8oldpinvalues independently match atomicBEFORE andall102AFTERmapvalues match current/atomic overlay. Fresh final current check finds all10 exactV3AFTER (Root integrated while peer checks completed).",
+  "current_after_pins": {
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py": "774510fca934b557701e9ce4aaae2bd2575e058fe8188874b03e0e7bd97b9fad",
+    "docs/work/name-handling/validation-tools/compiler-original58-inputs.json": "2eabe4a5fc97ec1092586d4b4dde0cfe3c478618b0bb15526d3a509ed97160a4",
+    "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py": "88bdc4f01c550516efbefc16a65e733c636c2d977dbb778a442a00503e7a3085",
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json": "20d28ac836af75d46aa3bf8161788241acca80ff4ba8b668a7d101e4c56b82ca",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py": "ee5e0bc11aaea17ca9dee2929cd4b017325be999f674a46d50653adc5ba3b34c",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json": "e4bbedaa7ac59cebe591c13298c9cd0377a4c4e0a0c3ad2bd38f88f170b01f97",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py": "7fa41ce7907d01e87fa5e4d1139e40b5f6f0e5654db2f06817029302c5273364",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json": "7a7bf45e96359f0a49ee427e76f820a20fe2107b55dd1a78295dc5de3c9e7853",
+    "docs/work/name-handling/validation-tools/wasm-real-link-diagnostics.py": "083addcf43b8d8814cae37d27e093ac40ef27c904dda001c13152336d02ff46a",
+    "docs/work/name-handling/validation-tools/wasm-real-link-roster.json": "53cc55f19378feed00b26a58c16eed8503a3b0dd9cb86a769c6510b7efeb66d0"
+  },
+  "current_head": "f1e812c795152202255cc95d81ec0eb64c9f5e43",
+  "evidence": {
+    "input_v3_checks_sha256": "b7f91d32edac643a269b159dd727898f83ee454ec2f15a0980880babc8f9b032",
+    "input_v3_copy_checks_sha256": "9a73d712e7d6db3f7d24bf283027e2261c69cb0559f922d64713bd879bc673b3",
+    "product_peer_sha256": "ebc83ce1a78355344b275eb6fa06f6bb663284fe3bfa7fc3a3497ef5038806da"
+  },
+  "limits": "No actualdriver/build/Rust/native/tests executed. Runtime additive controls must use exactV3driverAFTER; Root alone canonicalmutations.",
+  "manifest_sha256": "bf3dd3177880bd9217c78c0c14df24d929cf5cf2a1f606f64652685571419329",
+  "packet": "/workspace/naming-proof-storage/closed-native-consumer-input-v3",
+  "patch_sha256": "2ec64fee2cac0dce42d91289073c3bb9ece970264b62abfbc2a22b8ce4459427",
+  "preservation": "Only8approvedsourcepins+5wholehashes; alloriginal58observerpayload/SourceScope/DeclFlow/Corefields andallotheroldJSONbytes/driverAST+bytes preserved. No selectors/budgets/env/provider/assertion/sourcechanges.",
+  "utc": "2026-10-24T19:22:41.569009+00:00",
+  "verdict": "STATIC_INPUT_V3_CLEAR; NOW_ALL10_ALREADY_INTEGRATED_AFTER_EXACT"
+}

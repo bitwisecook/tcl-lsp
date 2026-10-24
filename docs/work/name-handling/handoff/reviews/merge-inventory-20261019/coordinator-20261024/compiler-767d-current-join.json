@@ -1,0 +1,68 @@
+{
+  "utc": "2026-10-24T18:53:32.502049+00:00",
+  "source": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+  "assessment_sha256": "1847399930d9ef67e8286e088a4e545d6fe2e84a0ced70471c50d199c3558cdc",
+  "all67identities_env_order_exact_1184": true,
+  "all145processes_closed": true,
+  "five_fresh_driver_selected_targets_zero_Rust_diagnostics": true,
+  "fresh_Git_NUL_path_count": 126157,
+  "NUL_listing_sha256": "ec4523a99de62f548a0f11cf9a6613833f388561307b6cbc12b5a8d6f12f7666",
+  "full_captured_source_path_set_equals_fresh_Git": true,
+  "input_pin_maps": {
+    "compiler-original58-inputs.json": {
+      "rust/tcl-compiler/tests/optimiser.rs": "7751bb4488e42fec69f4d03ae50b11bfac35b36cfc065e095359ef1f74c0255d",
+      "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
+      "rust/tcl-compiler/tests/var_escape_residual2.rs": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+      "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+      "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+      "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+      "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b",
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "e8e715f0e0374de3398285e2c75a1046b46c07b2c5d0944cb1d36ec4f14ce1c5"
+    },
+    "compiler-native35-supplemental3.json": {
+      "rust/tcl-compiler/src/analyser/authenticated_report.rs": "a6376ba49f26d519bdd5ec9cd9e55bdb7230f944dd110fee8d5f8c0653364597",
+      "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
+      "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "a981896963d87c0464325a8a3549a2fcb8987750ddbb6062f1d1f7bda57072f8"
+    },
+    "compiler-sh21-supplemental2.json": {
+      "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+      "rust/tcl-compiler/src/shimmer/use_site.rs": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+      "rust/tcl-compiler/src/shimmer/hints.rs": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1",
+      "rust/tcl-compiler/src/shimmer/commit.rs": "5624cc34653344cfeec645fdb1d08e43bbcd19f26d813df16a3c5f116f3e4936"
+    },
+    "compiler-readflow-supplemental1.json": {
+      "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "fce78aeb2f2197fa38ed1f16190bbb958a7ac4e08e9afdf6930534cfaf33464c"
+    },
+    "compiler-catch-diagnostic1.json": {
+      "rust/tcl-compiler/tests/var_escape_residual2.rs": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265"
+    },
+    "compiler-taint-diagnostic2.json": {
+      "rust/tcl-compiler/src/command_binding.rs": "03a65303ee99d7ab356e9ea5e0badb2c9fff8e10ecb2fe3ec3df86bd7e994bc0",
+      "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "5cb32d88f5bb8bc4659351a90f2804932266316fda5b4950a9a3e8eed394d330",
+      "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
+      "rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs": "247cbac9085a9363fa2eabefe5b12fabdef5f964fe5605e7ddb700726df6518b",
+      "rust/tcl-compiler/src/compilation_unit.rs": "202123edb5b7c911865fc5e128163636c37f82438e843881c23375113a0634c1",
+      "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
+      "rust/tcl-compiler/src/realm.rs": "dc0f7a23e77db3446e293082cca28fd10dfa933c73feedb0d6bf396ded93c08d",
+      "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
+      "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "abcd8c0af33d7f511cc01048e95c0202dbd03202a3ae3b40abd7d81e49bb9769",
+      "rust/tcl-compiler/src/ssa.rs": "9283d9cca3e8ce628b5064b3d4c2d577268ff43621579151fbb198a5162f7345",
+      "rust/tcl-compiler/src/taint.rs": "72ef52f097dd2e60aacb0bea4bed03e1bd6c3d5d93dae116bd1877348b8aca7f",
+      "rust/tcl-compiler/src/taint/source_context.rs": "c2d90bef19004c90693f8e4c1a7bed819f09d21bd275c21b22d92a2292922ffd",
+      "rust/tcl-compiler/src/taint_interproc.rs": "c42540595453dbaba933d6e6bb92cc0ff09697ce487c0a1ec6ed04d094ca60c0",
+      "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d"
+    }
+  },
+  "cap_bytes": 20971520,
+  "retained_stdout_stderr_bytes": 10010703,
+  "remaining_retained_stream_budget_bytes": 10960817,
+  "encoded_post_table_stderr_bytes": 8340933,
+  "reconstructed_diagnostic_bytes": 20444057,
+  "outcome_changes": [],
+  "limits": [
+    "No independent uploaded ELF payload rehash; fresh Cargo/process before-after seals bind execution.",
+    "Clean Git commit/current path set and before-after source seals are rejoined; no separate SHA256 recomputation for all126157 blobs.",
+    "Decoded diagnostics are not charged as retained stream bytes; preexisting table summaries remain summaries.",
+    "No new named unit controls or full release/global lint/performance outcome inferred."
+  ]
+}

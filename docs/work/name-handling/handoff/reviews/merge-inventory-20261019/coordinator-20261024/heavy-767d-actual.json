@@ -1,0 +1,496 @@
+{
+  "all_seven_process_receipts_closed": true,
+  "artifact_id": 12571651705,
+  "artifact_sha256": "ce9a373722e34db1c86937ad77f8479c75711ab436ca7f6edb6eb1b071bf85a1",
+  "artifact_size_bytes": 10196203,
+  "critical_git_blob_sha256": {
+    "rust/f5-cli/src/commands/irule.rs": "c168b66218b722d22562a01c8d9edae8ca97ee90334e502881a8a8685fb75a68",
+    "rust/f5-cli/tests/irule.rs": "bde298c3a21aa1a8d0840c12a045cfb99fe685675c9ebf12f8c3d4b147dc3f6a",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "f72d11a4a5116914edb4fc3ebcd770fcb19f9b2f4d5755fa2616b7d35cfc9a43",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
+    "rust/tcl-registry/src/commands/tcl/format_.rs": "99ddacd3c0bf52b8bf904afbbbc1cb0844f30e16a6f334c976bdd5d0db634c04",
+    "rust/tcl-registry/src/native_compilation.rs": "aa152ab69569fb68c4fbb390b715819a1c584af7b30b3515f65c3d7a231ecdc4",
+    "rust/tcl-registry/src/native_eval_object.rs": "d26098d5114d622a1eef2db49c02161b05872b4d9d7636f266b8b1564e01b378",
+    "rust/tcl-registry/src/native_format_compilation.rs": "d14359a0ce6d538688d44c0c66d08fb4896b85d3b22607d7c198a89429687f41",
+    "rust/tcl-registry/src/native_instruction_plan.rs": "308eb9a8297b6a8396a461a36cc534717a059a17a231f2e410389210520b4d5c",
+    "rust/tcl-spec-hooks/src/host.rs": "8d8060eb05dfb1d14c6ba32d7c2d1dc312871c59a87753a63279148ecf8ce357",
+    "rust/tcl-vm/src/literal_pool.rs": "68ca806aedcb25afc09c055a73f13c99ea830224b6d27ab0a98f4b6d6102ae4c"
+  },
+  "dependencies_before_after_byte_identical": true,
+  "dependencies_before_sha256": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d",
+  "direct_refusal_log": "TCL_NATIVE_DIRECT_SOURCE_REFUSAL facet=protocol-purpose selected=NativeEvalObjectProtocol { version: Some(V8_4), native_c: false } purpose=UpLevel strings=C(V9_0) plain=true",
+  "environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": null,
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/home/runner/work/_temp/irules-preflight-target",
+    "RUSTFLAGS": "-Dwarnings",
+    "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0",
+    "TCL_LSP_TCLSH90": "/home/runner/work/_temp/irules-preflight-reference-bin/tclsh9.0",
+    "TCL_TOMMATH_DIR": "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/libtommath"
+  },
+  "failure_site": {
+    "column": 50,
+    "first_logged_refusal": true,
+    "guard_lines": "112-129",
+    "guard_path": "rust/tcl-registry/src/native_eval_object.rs",
+    "interpretation_limit": "The provider origin is not in the log; no F5-to-C84 provider inference.",
+    "line": 2444,
+    "logged_version_mismatch": "selected protocol V8_4 vs NativeStringProtocol C(V9_0), rejected by the exact version-match guard",
+    "logger_line": 1210,
+    "logger_path": "rust/tcl-vm/src/literal_pool.rs",
+    "operation": "LiveSession::new(&lib_dir())",
+    "path": "rust/tcl-irule-test/src/live.rs"
+  },
+  "final": {
+    "authored_simulation_or_TMM_policy_change": false,
+    "diagnostic_only": true,
+    "final_errors": [],
+    "full_heavy355_gate_admission": false,
+    "full_shared_process_gate_admission": false,
+    "original_tests_closed": 3,
+    "overall_exit": 1,
+    "remaining_log_bytes": 20317518,
+    "required_original_tests": 3,
+    "seals": {
+      "artifacts": true,
+      "dependencies": true,
+      "providers": true,
+      "source": true,
+      "tools": true
+    },
+    "shipping_performance_admission": false
+  },
+  "job_id": 120952163795,
+  "limitations": [
+    "This is the selected original bootstrap1 plus CLI trace2 diagnostic, not the full Heavy355 or shared-process gate.",
+    "The bootstrap failure occurs while constructing LiveSession, before the test scenario.",
+    "The single logger record provides only its stated selected protocol and purpose evidence; it does not justify a provider handoff assumption.",
+    "No local build or source edit."
+  ],
+  "member_count": 34,
+  "members": [
+    {
+      "bytes": 2340,
+      "path": "build-heavy.process.json",
+      "sha256": "3bf887260ac28ed2f7433bd0f35f8e713dfa1ead57beb7344a655056d8f6cd46"
+    },
+    {
+      "bytes": 13169,
+      "path": "build-heavy.stderr",
+      "sha256": "c6b95bdf2475595d1d3acc33ad13961d0cc7477b3769b8b8b145b22226f33bc0"
+    },
+    {
+      "bytes": 352664,
+      "path": "build-heavy.stdout",
+      "sha256": "6735537448f4aebccfad86724c9549033e0a6db8132dae271a352ad3df798da1"
+    },
+    {
+      "bytes": 4812357,
+      "path": "dependencies-after.json",
+      "sha256": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d"
+    },
+    {
+      "bytes": 4812357,
+      "path": "dependencies-before-build.json",
+      "sha256": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d"
+    },
+    {
+      "bytes": 2200,
+      "path": "fetch.process.json",
+      "sha256": "5043bed399cdfc13d2167d81abab0db58a5cf44a1d2c9f38ceb043447d5b19a9"
+    },
+    {
+      "bytes": 14757,
+      "path": "fetch.stderr",
+      "sha256": "72fcb363b8774e5663701c18003906fcd9269a49189f82a5813417bb734f9f44"
+    },
+    {
+      "bytes": 0,
+      "path": "fetch.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 24147,
+      "path": "final.json",
+      "sha256": "41d8a3451fec2453f3e8b727f7d4be388d51b2aa37c41836d6f9fa08d0a1669e"
+    },
+    {
+      "bytes": 2283,
+      "path": "irule-00.process.json",
+      "sha256": "1d0b2595ab3e05d4770eeba6903859fdafd1a009aff585a7d555e50e98a6e36c"
+    },
+    {
+      "bytes": 0,
+      "path": "irule-00.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 179,
+      "path": "irule-00.stdout",
+      "sha256": "a05a03de6cb464f665307aff5a6d26646d5060a96ae19ec54024f225c0643ebf"
+    },
+    {
+      "bytes": 2285,
+      "path": "irule-01.process.json",
+      "sha256": "27c28c6f38b346eed5fe1d978c620ff1ef85e40eab197f986726bc646ce44298"
+    },
+    {
+      "bytes": 0,
+      "path": "irule-01.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 181,
+      "path": "irule-01.stdout",
+      "sha256": "9e80c4319e5b93663c73f4e5f3705de317a97d11c3743d02333e1b0359c6efec"
+    },
+    {
+      "bytes": 15642,
+      "path": "job.json",
+      "sha256": "f5e380b272dda7bf171957a120355230f79bf5127c2dada02532885a1c533e6c"
+    },
+    {
+      "bytes": 2199,
+      "path": "list-irule.process.json",
+      "sha256": "1e910986fd32301e9976fd9d185c37da2630dc3fcae743e3aea3674c9d38c20e"
+    },
+    {
+      "bytes": 0,
+      "path": "list-irule.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 647,
+      "path": "list-irule.stdout",
+      "sha256": "6889c3af6002b805d14bc7c28e2232684f5eb3b8ad280d6979513d88dae59882"
+    },
+    {
+      "bytes": 2246,
+      "path": "list-tcl_irule_test.process.json",
+      "sha256": "f59153f16232f48685d95f41cca74b74a9d9147afd89dd5ef28f65e023690419"
+    },
+    {
+      "bytes": 4609,
+      "path": "list-tcl_irule_test.stdout",
+      "sha256": "dcad28a6271e9c6f9fce4ff73d05e280276b2904447f2e9a4351163e8691db89"
+    },
+    {
+      "bytes": 0,
+      "path": "list-tcl_irule_test.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 787,
+      "path": "outcomes.json",
+      "sha256": "e51cbd534a01180a70269c9e66134260eafa90d4e90ef4d23dc6d542d835e2dd"
+    },
+    {
+      "bytes": 465933,
+      "path": "providers-after.json",
+      "sha256": "598ef51f45d162c9f5c58bd3c6fe1d90962a548ba3735356094e6fe59d6284ec"
+    },
+    {
+      "bytes": 465933,
+      "path": "providers-before.json",
+      "sha256": "598ef51f45d162c9f5c58bd3c6fe1d90962a548ba3735356094e6fe59d6284ec"
+    },
+    {
+      "bytes": 884,
+      "path": "roster-irule.json",
+      "sha256": "d7c52ce1c5f9f1aa62cd7dfbc5462e3bc202f7cae1671f1fb25f308a8de47160"
+    },
+    {
+      "bytes": 4900,
+      "path": "roster-tcl_irule_test.json",
+      "sha256": "1088b86d85d37c5188d67390c1ef45a89b503221cc70ab31fa48a5ba70c65761"
+    },
+    {
+      "bytes": 3888,
+      "path": "selected-artifacts.json",
+      "sha256": "01fa398d615919d6e34a5e8715016512d66df1fedf5359370e4cb0fc8d032dce"
+    },
+    {
+      "bytes": 31933841,
+      "path": "source-after.json",
+      "sha256": "9a5c2c2e3fc1b1f03b6cc895fe7e365ebe42d2ae4ef363ab8db48e2587cc36ac"
+    },
+    {
+      "bytes": 31933841,
+      "path": "source-before.json",
+      "sha256": "9a5c2c2e3fc1b1f03b6cc895fe7e365ebe42d2ae4ef363ab8db48e2587cc36ac"
+    },
+    {
+      "bytes": 2341,
+      "path": "tcl_irule_test-00.process.json",
+      "sha256": "e9f2ae9e3a7b139f747ce98e4878ddf93e34294636aef48a4aaa14e3d046a30e"
+    },
+    {
+      "bytes": 267545,
+      "path": "tcl_irule_test-00.stderr",
+      "sha256": "73019fb7d9eb88601a35f9444ce727c353837047d4ae4b95023cd52745a36021"
+    },
+    {
+      "bytes": 251,
+      "path": "tcl_irule_test-00.stdout",
+      "sha256": "4462417e9f6b665ff2b6088498c5423929717fa6d1da3200329aeb6861f53f31"
+    },
+    {
+      "bytes": 1345,
+      "path": "tools-after.json",
+      "sha256": "b31acc4dcf40a3cc90c2d4a01372e1fe575159e8a904a93d825104b2ebfc2330"
+    }
+  ],
+  "nul_git_membership_exact": true,
+  "outcomes": [
+    {
+      "exit_code": 101,
+      "receipt": "tcl_irule_test-00.process.json",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "state": "FAIL",
+      "stderr": "tcl_irule_test-00.stderr",
+      "stdout": "tcl_irule_test-00.stdout",
+      "target": "tcl_irule_test"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "irule-00.process.json",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "state": "PASS",
+      "stderr": "irule-00.stderr",
+      "stdout": "irule-00.stdout",
+      "target": "irule"
+    },
+    {
+      "exit_code": 0,
+      "receipt": "irule-01.process.json",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "state": "PASS",
+      "stderr": "irule-01.stderr",
+      "stdout": "irule-01.stdout",
+      "target": "irule"
+    }
+  ],
+  "process_closure_requirements": "all seven complete, timer armed before spawn, selected artifact unchanged, group empty before parent reap, no live owned members/cleanup signals, stop_reason null",
+  "providers_before_after_byte_identical": true,
+  "providers_before_sha256": "598ef51f45d162c9f5c58bd3c6fe1d90962a548ba3735356094e6fe59d6284ec",
+  "rosters": {
+    "irule": {
+      "executable_sha256": "5eabf937523bc05aa6c63bf2e10f9573081cd547bdfa0b6ec0b9011bac997468",
+      "listing_sha256": "6889c3af6002b805d14bc7c28e2232684f5eb3b8ad280d6979513d88dae59882",
+      "selected": [
+        "context_no_irules_found_exits_1",
+        "extract_rejects_standalone_irule",
+        "extract_rejects_the_long_irules_spelling_too",
+        "format_accepts_both_irules_dialect_spellings",
+        "format_resolves_the_irules_profile_for_its_dialect",
+        "format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone",
+        "help_works_for_all_subs",
+        "lint_clean_input_no_findings",
+        "minify_aggressive_survives_deeply_nested_irule",
+        "no_input_errors_exit_2",
+        "pgo_is_not_a_known_subcommand",
+        "pgo_not_listed_in_irule_help",
+        "trace_keeps_data_group_from_braced_expression_command",
+        "trace_uses_the_event_closure_not_the_first_handler_body"
+      ],
+      "selected_count": 14
+    },
+    "tcl_irule_test": {
+      "executable_sha256": "94a8b4fe3c26f8b29c34d654c954b700187d1f74a2c6b5885b7d6257dd52833d",
+      "listing_sha256": "dcad28a6271e9c6f9fce4ff73d05e280276b2904447f2e9a4351163e8691db89",
+      "selected": [
+        "embedded::tests::materialise_writes_orchestrator",
+        "embedded::tests::missing_file_guidance_names_a_real_command",
+        "embedded::tests::smoke_bundled_tcl_has_balanced_top_level_commands",
+        "live::original_projection_tests::original_event_enrolment_refuses_utf8_before_domain_or_later_operand",
+        "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+        "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+        "live::tests::completion_api_keeps_missing_execution_provider_outside_guest_errors",
+        "live::tests::completion_api_preserves_guest_bytes_before_text_projection",
+        "live::tests::embedded_session_scenarios",
+        "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+        "live::tests::event_frames_preserve_cells_aliases_and_traces",
+        "live::tests::harness_runs_the_tmm_84_surface",
+        "live::tests::irule_source_rewrite_only_touches_command_positions",
+        "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+        "live::tests::live_session_class_match_honours_every_operator",
+        "live::tests::live_session_drives_the_request_lifecycle",
+        "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+        "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+        "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+        "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+        "live::tests::missing_lib_dir_errors",
+        "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+        "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+        "live::tests::retained_event_frame_preserves_native_completion_options",
+        "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+        "live::tests::rule_init_uses_each_workers_global_cells_once",
+        "live::tests::scf_loader_stores_parsed_snatpool_members",
+        "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+        "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+        "live::tests::tmm_select_mode_survives_the_per_test_reset",
+        "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+        "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+        "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+        "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+        "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+        "pure_functions::binary_boundary_tests::opaque_reference_input_keeps_typed_host_refusal_outside_guest_catch",
+        "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+        "pure_functions::original_projection_tests::original_pure_callback_preserves_strict_nul_words_and_actual_argument_roles",
+        "pure_functions::original_projection_tests::original_pure_callback_refuses_first_utf8_word_before_later_string_getter",
+        "pure_functions::stub_transport_tests::optional_stub_lookup_accepts_only_actual_selected_action_members",
+        "pure_functions::stub_transport_tests::optional_stub_lookup_preserves_host_failure_before_any_fallback_or_dispatch",
+        "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+        "session::tests::bootstrap_assembles_orchestrator_script",
+        "session::tests::named_source_bootstrap_preserves_literal_identity_and_library_attachment",
+        "session::tests::plan_from_topology",
+        "sim::tests::decision_list_split_handles_braces",
+        "sim::tests::empty_sources_reports_nothing_to_simulate",
+        "sim::tests::log_entry_split_follows_tcl_list_semantics",
+        "sim::tests::simulation_degrades_gracefully_until_vm_is_ready",
+        "sim::tests::simulator_values_use_the_shared_tcl_word_encoder",
+        "topology::tests::datagroup_records_keep_arbitrary_keys_as_literal_list_elements",
+        "topology::tests::duplicate_exact_rule_rows_keep_first_source_and_refuse_short_name",
+        "topology::tests::full_test_script_wraps_setup",
+        "topology::tests::generates_setup_for_vs",
+        "topology::tests::infers_profile_types",
+        "topology::tests::infers_profile_types_for_custom_names",
+        "topology::tests::lists_virtual_servers",
+        "topology::tests::topology_loads_unattached_rules_as_named_libraries_and_refuses_ambiguous_names",
+        "topology::tests::unknown_vs_errors"
+      ],
+      "selected_count": 59
+    }
+  },
+  "run_id": 40120950759,
+  "schema": "auth-767d-heavy-v1",
+  "selected_artifacts": [
+    {
+      "admission": "current nested CLI executable only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/f5-query",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/f5-query"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": false
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": true,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "bin"
+          ],
+          "name": "f5-query",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/src/main.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/f5-query",
+      "sha256": "5e68efc46d6d5eb7ebf9a0b4439d1181ed0b99d71cd6300967e57d0fa38076af",
+      "strict_Rust_0w": true,
+      "target": "f5-query"
+    },
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-3561237543989580",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-3561237543989580"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_irule_test",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/src/lib.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/deps/tcl_irule_test-3561237543989580",
+      "sha256": "94a8b4fe3c26f8b29c34d654c954b700187d1f74a2c6b5885b7d6257dd52833d",
+      "strict_Rust_0w": true,
+      "target": "tcl_irule_test"
+    },
+    {
+      "admission": "selected target compilation only",
+      "cargo_event": {
+        "executable": "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-c49fae84e7a6484b",
+        "features": [],
+        "filenames": [
+          "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-c49fae84e7a6484b"
+        ],
+        "fresh": false,
+        "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml",
+        "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "irule",
+          "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/tests/irule.rs",
+          "test": true
+        }
+      },
+      "path": "/home/runner/work/_temp/irules-preflight-target/debug/deps/irule-c49fae84e7a6484b",
+      "sha256": "5eabf937523bc05aa6c63bf2e10f9573081cd547bdfa0b6ec0b9011bac997468",
+      "strict_Rust_0w": true,
+      "target": "irule"
+    }
+  ],
+  "source_before_after_byte_identical": true,
+  "source_commit": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+  "source_file_count": 126157,
+  "source_manifest_sha256": "9a5c2c2e3fc1b1f03b6cc895fe7e365ebe42d2ae4ef363ab8db48e2587cc36ac",
+  "source_tree": "fb4d2fb71fbcd88b90752e38aa327d42aec5b435",
+  "tool_map_matches_after": true,
+  "zip_crc": "PASS"
+}

@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T19:25:37.324484+00:00",
+  "scheduled_report_utc": "2026-10-24T19:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T19:55:37+00:00",
+  "change_since_previous_report": [
+    "19:25 checkpoint: PR gate remains CLOSED; six-hour target missed. No global admissions, no current zeroPASS-to-FAIL or accepted shippingTclperformance.",
+    "Minimalunused_self receiver removal independentlyroot reviewed entirehelperbody inverse/fmt and integratedWORKf22e/CLEANefbe; bothpushed afterfreshfetch/rebase. Fresh strict40123651878 source6a8 running, actual newverdict pending.",
+    "WORKonlyCoreprepare observerce7221 independentlycompiler9fd9823e reviewed with entireRust erasure/inverse/currentpins/synchronousTLS/lazyqueryorder; integrated/pushed6a8. Freshhost40123667183 browser/WASI/unit active; lastactual767d hostFAIL/unitPASS remainsunchanged.",
+    "WORKonlyJim staticproducer520e independentlyroot reviewed/integrated89d3. Original45 execute first with unchanged environments and ledger; five diagnostic repeats have separate outcomes, same180s owner and shared shrinking20MiB. Prior767d31P14F showszero measuredstaticsgain.",
+    "WORKonlyRBS privateScopeobserver13732 independentlyroot fullRust inverse/fmt/current reviewed integrated2fdb; final two literal labels9a3a integrated1e7. Catalogue-vsprocedure parent-span refusals distinguish actual producer without accepting ancestry/spancontainment; exactoldguards/query/lazyorder remain. Original67 unchanged; currentmain817c/DeclFlow579b/SourceScope056c/Taint3fa0 preserved.",
+    "User-approved closedconsumer atomicproductcohort9fffb freezes exact CompilerV5+RuntimeV1 union (22WORK/21CLEANfiles) including realpack denial, bounded shared-syntax preCU restriction, fullactualoriginal+candidate preparation, retainedemptyworld validator, physicalprivatecommand/sink closure and owner retirement. Bothoriginalfoldasserts unchanged. Independent673checks initiallyclear; finalwholepeer and currentinputcompanion carry required beforeintegration/hostedtyping. No test-only fold rewrite.",
+    "Heavy actual sourceproof identifies realcmd_uplevel and selected target frame before sourceinspection, logicalC84 dispatcher with C9physicalhost and existingC84sourcewordprovider. Typed authoredreceipt draft retainsnativeversionguard andalloldpurpose/plain/private/discard/current/framechecks; no runtimegain untilreview/execution.",
+    "CurrentCLEANefbe marker audit852f90ad findszero knownprocess/evidence/observer markers across11037trackedpaths; broadersemantic documentation/comment/fixtures/generated/format audit remainsopen. No developmentobservers carriedCLEAN.",
+    "OlderfullCLEAN0304 run40113209300 stillhasredjobs/unfinishedpartitions. Shard3 terminalZIP4928c79c CRC/hashchecked:2085/3900terminal,4unfinished,1812neverstarted, repeatedsuite captureerror. Any baselinejoin isDIAGNOSTIC_ONLY_INVALID_CAPTURE, not anadmittedregressioncount; captureproducerassignedindependentread-onlyaudit. Broad inlining/taint/optimiser/provider failures remainopen, not hiddenbehind focused67.",
+    "ExternalBIGIP/perf trackersremainstale>60min; usernotified/no takeover. Triagecomplete. Disk~273MiB workspace/~68MiBtmp: no localRustbuilds, no executable/targetcleanup. No PR/merge/tag/release.",
+    "UPDATE before publication: atomicclosedconsumer fullyindependentebc83 sourceclear integratedWORK640738/CLEAN70d38; currentinputV3 independentce1dd androotexact8pin/5hashsemanticinverse integratedf1e812. Bothpushedfreshfetch/rebase. WholecargoformatbothworkspacesPASS70d38 (99.5/87.8s,0bytes,groupsclosed); preflightf1e812PASS13startup/30runners/16wholeguards. Actualnewcapabilitytests/typechecks remainUNRUN.",
+    "Fresh6a8 browsercommand nowclosedFAIL; actualtrace reports prepare.matching-call at main.tcl, meaning preceding owner/current/declaration/callinventory Option gates passed. This comes beforeuncertainty/operand/targetguards. SeparateunitclosedPASS, fullauthpending; WASIstillactive. No causeguess, rename stillmissingrootworld."
+  ],
+  "committed": [
+    "862ba330fa8f35891bef88a82970d731f6956ce9"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish19:25 checkpoint and rearm19:55.",
+    "Finish closedcohort independentpeer/currentpins and hostedactualcontrols.",
+    "Complete first-predicate compiler/Jim/host diagnostics and review typedHeavyrepair.",
+    "Fix broad current correctness/infrastructure failures and complete baseline/allgreen/Tclperformance/docs/generated/fmt/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 261697536,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

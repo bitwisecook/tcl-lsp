@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-24T18:58:39.874565+00:00
+Last updated: 2026-10-24T19:25:37.203282+00:00
 
 ## Resume
 
@@ -13,13 +13,17 @@ Last updated: 2026-10-24T18:58:39.874565+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (18:55 UTC)
+### Current cycle and routing (19:25 UTC)
 
-- 18:55 checkpoint; six-hour target missed, PR remains blocked by actual correctness/host/complete baseline/performance gates. No global admissions.
-- Current767d compiler FULLAUTH18473999: original55P3F, all9controlsPASS unchanged1184,145closed groups,5fresh zero-warning targets,5seals. Retained10,010,703B within20MiB. Graph actual nested switch/arm selection is absent and unknown-prefix propagation stops before y read; exact private subguard remains unproven.
-- Current767d Jim FULLAUTH4a1d91a0: original45 still31P14F, original7allPASS. StaticsV3 has no measured gain; twelve new controls unselected. Existing RBS producer observer plus5 separately ledgered diagnostic reruns prepared next, original45 unchanged.
-- Current767d host full indexbec3b6f8: browser/WASI unchangedFAIL; separate unitPASS1. Browser still missing rootworld ordinal2/count3; WASI genuine77byte owner reaches Coreprepare and returnsnone. First private predicate observerce7221a6 frozen/reviewready; no cause guessed from aggregate state.
-- Current767d strict first primary unused_self source_procedure.rs549. Minimal associatedfunction fix assigned, full capture auth pending. Heavy bootstrapFAIL/CLI2PASS, actual first facet protocol-purpose selects nonNativeV8_4 for UpLevel with C(V9_0) strings; actual caller/purpose proof required before repair.
-- User-approved genuine closed-consumer cohort remains HELD before integration: real fresh worker, no caller callbacks/values, token/IO/instruction closure, original and candidate complete preparation. Final producer fixes close process-global pack installer access, bounded pre-CU resource exposure and retained-empty literal observation. No test-only fold expectation rewrite; original two assertions preserved. Independent whole-cohort peer still required.
-- WORK767d/CLEAN12a32 remain pushed; development observers/evidence stay WORK-only. Latest full clean CI0304 is older and failing; complete current origin/rust zeroPASS-to-FAIL join, Tcl corpus performance, allgreen, generated docs/comments/fmt/chaff cleanup still required. No PR/merge/tag/release.
-- ExternalBIGIP13:17(previous day)/perf03:22 are stale over60min; user notified, no takeover. Triage marked complete. Workspace below2GiB, no local Rust builds; bounded ZIP evidence only.
+- 19:25 checkpoint: PR gate remains CLOSED; six-hour target missed. No global admissions, no current zeroPASS-to-FAIL or accepted shippingTclperformance.
+- Minimalunused_self receiver removal independentlyroot reviewed entirehelperbody inverse/fmt and integratedWORKf22e/CLEANefbe; bothpushed afterfreshfetch/rebase. Fresh strict40123651878 source6a8 running, actual newverdict pending.
+- WORKonlyCoreprepare observerce7221 independentlycompiler9fd9823e reviewed with entireRust erasure/inverse/currentpins/synchronousTLS/lazyqueryorder; integrated/pushed6a8. Freshhost40123667183 browser/WASI/unit active; lastactual767d hostFAIL/unitPASS remainsunchanged.
+- WORKonlyJim staticproducer520e independentlyroot reviewed/integrated89d3. Original45 execute first with unchanged environments and ledger; five diagnostic repeats have separate outcomes, same180s owner and shared shrinking20MiB. Prior767d31P14F showszero measuredstaticsgain.
+- WORKonlyRBS privateScopeobserver13732 independentlyroot fullRust inverse/fmt/current reviewed integrated2fdb; final two literal labels9a3a integrated1e7. Catalogue-vsprocedure parent-span refusals distinguish actual producer without accepting ancestry/spancontainment; exactoldguards/query/lazyorder remain. Original67 unchanged; currentmain817c/DeclFlow579b/SourceScope056c/Taint3fa0 preserved.
+- User-approved closedconsumer atomicproductcohort9fffb freezes exact CompilerV5+RuntimeV1 union (22WORK/21CLEANfiles) including realpack denial, bounded shared-syntax preCU restriction, fullactualoriginal+candidate preparation, retainedemptyworld validator, physicalprivatecommand/sink closure and owner retirement. Bothoriginalfoldasserts unchanged. Independent673checks initiallyclear; finalwholepeer and currentinputcompanion carry required beforeintegration/hostedtyping. No test-only fold rewrite.
+- Heavy actual sourceproof identifies realcmd_uplevel and selected target frame before sourceinspection, logicalC84 dispatcher with C9physicalhost and existingC84sourcewordprovider. Typed authoredreceipt draft retainsnativeversionguard andalloldpurpose/plain/private/discard/current/framechecks; no runtimegain untilreview/execution.
+- CurrentCLEANefbe marker audit852f90ad findszero knownprocess/evidence/observer markers across11037trackedpaths; broadersemantic documentation/comment/fixtures/generated/format audit remainsopen. No developmentobservers carriedCLEAN.
+- OlderfullCLEAN0304 run40113209300 stillhasredjobs/unfinishedpartitions. Shard3 terminalZIP4928c79c CRC/hashchecked:2085/3900terminal,4unfinished,1812neverstarted, repeatedsuite captureerror. Any baselinejoin isDIAGNOSTIC_ONLY_INVALID_CAPTURE, not anadmittedregressioncount; captureproducerassignedindependentread-onlyaudit. Broad inlining/taint/optimiser/provider failures remainopen, not hiddenbehind focused67.
+- ExternalBIGIP/perf trackersremainstale>60min; usernotified/no takeover. Triagecomplete. Disk~273MiB workspace/~68MiBtmp: no localRustbuilds, no executable/targetcleanup. No PR/merge/tag/release.
+- UPDATE before publication: atomicclosedconsumer fullyindependentebc83 sourceclear integratedWORK640738/CLEAN70d38; currentinputV3 independentce1dd androotexact8pin/5hashsemanticinverse integratedf1e812. Bothpushedfreshfetch/rebase. WholecargoformatbothworkspacesPASS70d38 (99.5/87.8s,0bytes,groupsclosed); preflightf1e812PASS13startup/30runners/16wholeguards. Actualnewcapabilitytests/typechecks remainUNRUN.
+- Fresh6a8 browsercommand nowclosedFAIL; actualtrace reports prepare.matching-call at main.tcl, meaning preceding owner/current/declaration/callinventory Option gates passed. This comes beforeuncertainty/operand/targetguards. SeparateunitclosedPASS, fullauthpending; WASIstillactive. No causeguess, rename stillmissingrootworld.

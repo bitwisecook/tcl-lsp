@@ -1,0 +1,109 @@
+{
+  "utc": "2026-10-24T18:51:51.586689+00:00",
+  "status": "AUTHENTICATED_FULL45_STILL_FAIL31PASS14FAIL_STATICSV3_ZERO_MEASURED_GAIN",
+  "run": 40120947973,
+  "job": 120952156220,
+  "source": "767d178a8e16c23ccb8895bab54aca0dc8a25b60",
+  "artifact_id": 12571682034,
+  "zip_sha256": "236e53ca91e4a1c5835418a6377b7c4e0aacc829e70af5d02bbf94809afcb349",
+  "zip_bytes": 10982225,
+  "verification_sha256": "abc17a237c36bc5580b5634eb2bc4be8a6465da2480cdf47cf1a913498581eae",
+  "all_controls_pass": true,
+  "all50_owned_processes_closed": true,
+  "two_fresh0W": {
+    "jim_document": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true
+    },
+    "jim_own_surface": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true
+    }
+  },
+  "original7": {
+    "PASS": 7,
+    "FAIL": 0
+  },
+  "supplemental38": {
+    "PASS": 24,
+    "FAIL": 14
+  },
+  "group_counts": {
+    "original26:PASS": 12,
+    "added8:PASS": 8,
+    "own11:PASS": 11,
+    "original26:FAIL": 14
+  },
+  "delta_from1184": [],
+  "all14_failed_selectors_same": true,
+  "static5": [
+    {
+      "target": "jim_document",
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "exit_code": 101,
+      "stdout_sha256": "c5df69caf3c1ede191561d866e859e346b94993f3eb79859630255c7aaacd9e6",
+      "stderr_sha256": "3568a1225914419749e1b98a3f61d9b8b4ee2b4c29d213548a2d1c7fe660bbdf"
+    },
+    {
+      "target": "jim_document",
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "exit_code": 101,
+      "stdout_sha256": "faa666363edc3bffa78d4237f79dd50922fc98d15fa3bf4ca54cbb118373572f",
+      "stderr_sha256": "f188f023cae8c0b1580311119a7edfe488a8195c28d5f69e2e6f70e4961ee1cb"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "exit_code": 101,
+      "stdout_sha256": "21c7a73d6b3e31cb5d1286d0a50d0866f8d1f7f2c625d9a29497114ba074d61d",
+      "stderr_sha256": "814fe06cb079564ee7378cb2c5866dc7aebcf19f0a51516a5911c7dd41a00bf8"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "exit_code": 101,
+      "stdout_sha256": "cb2859ce759a191b56c51c02bae08012c248e9bb77d1393ec5257be380dde0bd",
+      "stderr_sha256": "e5be653c44396e1195d5e0390672e7907a77aa2570425fa2cec1d35cb8321184"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "exit_code": 101,
+      "stdout_sha256": "22e948ae050f364d004c2bece51e0c85fcab008cfea1f3debd3586ffd5cda5fb",
+      "stderr_sha256": "c389472c7eef3a6de90eecf0ba0a30556372d7c99a878a67a9c6f0d32c37ae28"
+    }
+  ],
+  "actual_staticsV3_all5_productive_source_before_after_Git_join": {
+    "source-before.json": {
+      "docs/design/contracts/name-handling.md": "d2a150c22a284fa91287352e162925aa9ae5c8486100d6fb11bddb1a4758643c",
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "e8e715f0e0374de3398285e2c75a1046b46c07b2c5d0944cb1d36ec4f14ce1c5",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "8f605b87b339aae6654b26307ef23b4a9719cbee13dcb4f0114a318b92c9f3a5",
+      "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+      "rust/tcl-spectcl/tests/jim_static_source_uncertainty.rs": "6c97c16ca00b66c2829c067b75e92f5faeb6bc327d162417bd4dbb6de2911dd1"
+    },
+    "source-after.json": {
+      "docs/design/contracts/name-handling.md": "d2a150c22a284fa91287352e162925aa9ae5c8486100d6fb11bddb1a4758643c",
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "e8e715f0e0374de3398285e2c75a1046b46c07b2c5d0944cb1d36ec4f14ce1c5",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "8f605b87b339aae6654b26307ef23b4a9719cbee13dcb4f0114a318b92c9f3a5",
+      "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+      "rust/tcl-spectcl/tests/jim_static_source_uncertainty.rs": "6c97c16ca00b66c2829c067b75e92f5faeb6bc327d162417bd4dbb6de2911dd1"
+    }
+  },
+  "new_jim_static_source_uncertainty_test_file_stored_but_not_compiled_or_selected": true,
+  "limits": [
+    "No statics V3 executed gain; source purpose alone did not identify actual warning producer.",
+    "Native7 semantics finite inherited only; actual new Rust6x2 and registry controls remain unselected.",
+    "All14 original failures remain:5staticsW210,2rawmethodinventory,2objecttypefacts,1two-wordheadW123,1compound,3TclunavailableW002.",
+    "C1-C2/fullshared/fullbaseline/performance and privateKernelAPI acceptance not established."
+  ],
+  "next": "Root-authorized WORK-only held actual W210 producer observer and separate originalstatic5 rerun, no new semantic change before first producer."
+}
