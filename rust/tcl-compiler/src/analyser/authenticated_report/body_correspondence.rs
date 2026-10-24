@@ -276,18 +276,11 @@ impl ReportBodyInventory {
         Some(())
     }
 
-    fn procedure(
+    fn report_declaration_purposes(
         module: &crate::ir::Module,
         id: ProcedureId,
-        body: &Procedure,
-        role: ReportBodyRole,
-    ) -> Option<ReportBodyOwner> {
-        if body.body_kind == ProcedureBodyKind::Event
-            && !module.irules_event_bodies.contains_key(&id)
-        {
-            return None;
-        }
-        let purposes = [
+    ) -> [(ReportDeclarationPurpose, bool); 5] {
+        [
             (
                 ReportDeclarationPurpose::Allocated,
                 module.original_declaration_body_units.contains_key(&id),
@@ -316,7 +309,21 @@ impl ReportBodyInventory {
                     .original_hosted_declaration_body_units
                     .contains_key(&id),
             ),
-        ];
+        ]
+    }
+
+    fn procedure(
+        module: &crate::ir::Module,
+        id: ProcedureId,
+        body: &Procedure,
+        role: ReportBodyRole,
+    ) -> Option<ReportBodyOwner> {
+        if body.body_kind == ProcedureBodyKind::Event
+            && !module.irules_event_bodies.contains_key(&id)
+        {
+            return None;
+        }
+        let purposes = Self::report_declaration_purposes(module, id);
         let mut present = purposes
             .into_iter()
             .filter_map(|(purpose, present)| present.then_some(purpose));

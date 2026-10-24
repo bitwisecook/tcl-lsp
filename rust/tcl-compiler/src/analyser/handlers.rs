@@ -7413,13 +7413,70 @@ impl Analyser {
         Some(proof)
     }
 
+    fn logical_segment_invocation_completion(
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<(
+        crate::registry_invocation::ResolvedStatementInvocation,
+        tcl_registry::registry::InvocationCompletion,
+    )> {
+        let invocation =
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            );
+        let Some(invocation) = invocation else {
+            return None;
+        };
+        let realm = tokens.source_binding.as_ref().and_then(|binding| {
+            binding.original_source_realm_for_input(
+                tokens,
+                metadata.source_analysis_input()?,
+                registry,
+            )
+        });
+        let Some(realm) = realm else {
+            return None;
+        };
+        let completion = invocation.with_metadata_schema(registry, metadata, realm, |selected| {
+            Some(selected.authored_source_invocation_completion())
+        });
+        let Some(completion) = completion else {
+            return None;
+        };
+        Some((invocation, completion))
+    }
+
+    fn written_segment_completion(
+        effective: &crate::registry_invocation::EffectiveCommandWords,
+        completion: tcl_registry::registry::InvocationCompletion,
+    ) -> tcl_registry::registry::InvocationCompletion {
+        use crate::registry_invocation::InvocationWordOrigin;
+        use tcl_registry::registry::InvocationCompletion;
+        match completion {
+            InvocationCompletion::ReturnsResult(Some(index)) => {
+                match index
+                    .checked_add(1)
+                    .and_then(|index| effective.origins.get(index))
+                {
+                    Some(InvocationWordOrigin::Written(index)) => index
+                        .checked_sub(1)
+                        .map_or(InvocationCompletion::Unknown, |index| {
+                            InvocationCompletion::ReturnsResult(Some(index))
+                        }),
+                    _ => InvocationCompletion::Unknown,
+                }
+            }
+            completion => completion,
+        }
+    }
+
     /// Completion follows the actual selected implementation and frozen argv.
     /// A captured alias operand has no original segment index to return.
     fn segment_invocation_completion(
         &self,
         seg: &SegmentedCommand,
     ) -> tcl_registry::registry::InvocationCompletion {
-        use crate::registry_invocation::InvocationWordOrigin;
         use tcl_registry::registry::InvocationCompletion;
         let context = self.analysis_context();
         let registry = context.commands();
@@ -7459,30 +7516,12 @@ impl Analyser {
             let Some(metadata) = metadata else {
                 return InvocationCompletion::Unknown;
             };
-            let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-                registry, metadata, &tokens,
-            );
-            let Some(invocation) = invocation else {
+            let Some(selected) =
+                Self::logical_segment_invocation_completion(registry, metadata, &tokens)
+            else {
                 return InvocationCompletion::Unknown;
             };
-            let realm = tokens.source_binding.as_ref().and_then(|binding| {
-                binding.original_source_realm_for_input(
-                    &tokens,
-                    metadata.source_analysis_input()?,
-                    registry,
-                )
-            });
-            let Some(realm) = realm else {
-                return InvocationCompletion::Unknown;
-            };
-            let completion =
-                invocation.with_metadata_schema(registry, metadata, realm, |selected| {
-                    Some(selected.authored_source_invocation_completion())
-                });
-            let Some(completion) = completion else {
-                return InvocationCompletion::Unknown;
-            };
-            (invocation, completion)
+            selected
         } else {
             // Native completion retains its independently proved handler path.
             let Some(invocation) =
@@ -7504,22 +7543,7 @@ impl Analyser {
             (invocation, completion)
         };
         let (invocation, completion) = selected;
-        match completion {
-            InvocationCompletion::ReturnsResult(Some(index)) => {
-                match index
-                    .checked_add(1)
-                    .and_then(|index| invocation.effective.origins.get(index))
-                {
-                    Some(InvocationWordOrigin::Written(index)) => index
-                        .checked_sub(1)
-                        .map_or(InvocationCompletion::Unknown, |index| {
-                            InvocationCompletion::ReturnsResult(Some(index))
-                        }),
-                    _ => InvocationCompletion::Unknown,
-                }
-            }
-            completion => completion,
-        }
+        Self::written_segment_completion(&invocation.effective, completion)
     }
 
     fn possible_if_body_spans(
