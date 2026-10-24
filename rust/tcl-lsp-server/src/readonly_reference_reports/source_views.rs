@@ -1470,7 +1470,7 @@ impl OriginalSourceViewSettlement {
             .map(|scope| {
                 format!(
                     "root={} complete={} conditional={} selected_required={} owners={}",
-                    scope.root_uri,
+                    scope.root_uri.as_str(),
                     scope.complete,
                     scope.conditional_obligations,
                     scope.required.contains(uri),
@@ -3031,7 +3031,7 @@ impl Backend {
             self.client
                 .log_message(
                     tower_lsp_server::ls_types::MessageType::LOG,
-                    format!("HOST_NAV_STAGE uri={uri} stage={stage} {detail}"),
+                    format!("HOST_NAV_STAGE uri={} stage={stage} {detail}", uri.as_str()),
                 )
                 .await;
         }
