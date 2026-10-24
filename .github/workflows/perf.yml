@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1031,6 +1031,69 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Separate WORK-only typed structural controls; original startup job unchanged.
+  lsp-autoload-core2-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-startup-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Reserve bounded Core2 run and upload time
+        run: echo "DIAGNOSTIC_DEADLINE_EPOCH=$(($(date +%s) + 4500))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        timeout-minutes: 10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust
+        timeout-minutes: 5
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Fetch full TomMath provider for Core2
+        timeout-minutes: 10
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run separate structural autoload Core2 controls
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/lsp-autoload-core2-target
+          OUT: ${{ runner.temp }}/lsp-autoload-core2-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload separate Core2 diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-autoload-core2-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-autoload-core2-output/*.json
+            ${{ runner.temp }}/lsp-autoload-core2-output/*.stdout
+            ${{ runner.temp }}/lsp-autoload-core2-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
   # Temporary WORK-only startup diagnosis; never carry to release.
   lsp-startup-diagnostics:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-startup-diagnostics' && github.ref == 'refs/heads/work'
@@ -1527,5 +1590,137 @@ jobs:
             ${{ runner.temp }}/irules-preflight-output/*.json
             ${{ runner.temp }}/irules-preflight-output/*.stdout
             ${{ runner.temp }}/irules-preflight-output/*.stderr
+          if-no-files-found: error
+          retention-days: 30
+
+  # Temporary WORK-only reproduction of the CI rust-check worker.
+  release-rust-check-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'release-rust-check-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - name: Record diagnostic deadline
+        env:
+          OUT: ${{ runner.temp }}/release-rust-check-output
+        run: |
+          set -euo pipefail
+          mkdir "$OUT"
+          echo "RELEASE_RUST_CHECK_DEADLINE=$(( $(date +%s) + 3300 ))" >> "$GITHUB_ENV"
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - name: Validate revision and record source and tools
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          OUT: ${{ runner.temp }}/release-rust-check-output
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_WORK_SHA,,}"
+          test "${EXPECTED_WORK_SHA,,}" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          test -z "${SKIP_CHECK_RUST:-}${SKIP_RUST:-}${CLIPPY_LINT_FLAGS:-}${MAKEFLAGS:-}${MFLAGS:-}"
+          git rev-parse HEAD > "$OUT/source-commit.txt"
+          git rev-parse HEAD^{tree} > "$OUT/source-tree.txt"
+          git status --porcelain > "$OUT/git-before.txt"
+          python3 scripts/dev/tracked-source-snapshot.py record "$OUT/tracked-source-before.json"
+          cargo --version > "$OUT/cargo-version.txt"
+          cargo clippy --version > "$OUT/clippy-version.txt"
+          cargo fmt --version > "$OUT/rustfmt-version.txt"
+          rustc -vV > "$OUT/rustc-version.txt"
+          make --version > "$OUT/make-version.txt"
+          sha256sum "$(rustup which cargo)" "$(rustup which rustc)" "$(rustup which clippy-driver)" "$(rustup which rustfmt)" "$(command -v make)" "$(command -v git)" "$(command -v python3)" "$(command -v bash)" "$(command -v rustup)" > "$OUT/tools.sha256"
+          printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
+          printf '%s\n' 'DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.' > "$OUT/coverage.txt"
+      - name: Capture the original global strict command
+        env:
+          OUT: ${{ runner.temp }}/release-rust-check-output
+        run: |
+          set -euo pipefail
+          set +e
+          python3 -B - <<'CAPTURE'
+          import hashlib
+          import importlib.util
+          import json
+          import os
+          import shutil
+          import time
+          from pathlib import Path
+
+          out = Path(os.environ["OUT"])
+          owner_path = Path(
+              "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py"
+          )
+          with owner_path.open("rb") as stream:
+              if (
+                  hashlib.file_digest(stream, "sha256").hexdigest()
+                  != "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+              ):
+                  raise RuntimeError("process owner pin changed")
+          spec = importlib.util.spec_from_file_location("release_rust_check_owner", owner_path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError("process owner loader unavailable")
+          owner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(owner)
+          make = Path(shutil.which("make") or "/absent").resolve()
+          remaining = float(os.environ["RELEASE_RUST_CHECK_DEADLINE"]) - time.time() - 30
+          if remaining <= 0:
+              (out / "command-unrun.txt").write_text("deadline elapsed before command; UNRUN\n")
+              raise SystemExit(125)
+          receipt = owner.run(
+              [str(make), "rust-check"],
+              cwd=Path.cwd(),
+              env=os.environ.copy(),
+              stdout_path=out / "make-rust-check.stdout",
+              stderr_path=out / "make-rust-check.stderr",
+              receipt_path=out / "make-rust-check.process.json",
+              artifact_path=make,
+              deadline_seconds=remaining,
+              cap_bytes=20 * 1024**2,
+              disk_floor_bytes=2 * 1024**3,
+              disk_paths=(Path.cwd(), out, Path(os.environ["RUNNER_TEMP"])),
+          )
+          code = receipt["exit_code"]
+          (out / "original-exit.json").write_text(json.dumps({"exit_code": code}) + "\n")
+          raise SystemExit(
+              code if receipt["complete"] and isinstance(code, int) and 0 <= code <= 255 else 125
+          )
+          CAPTURE
+          result=$?
+          set -e
+          printf '%s\n' "$result" > "$OUT/capture-exit.txt"
+          exit "$result"
+      - name: Verify source and tools after capture
+        if: always()
+        env:
+          OUT: ${{ runner.temp }}/release-rust-check-output
+        run: |
+          set -euo pipefail
+          seal_result=0
+          python3 scripts/dev/tracked-source-snapshot.py verify "$OUT/tracked-source-before.json" > "$OUT/source-after.json" || seal_result=125
+          sha256sum -c "$OUT/tools.sha256" > "$OUT/tools-after.txt" || seal_result=125
+          git status --porcelain > "$OUT/git-after.txt" || seal_result=125
+          test ! -s "$OUT/git-after.txt" || seal_result=125
+          printf '%s\n' "$seal_result" > "$OUT/seals-exit.txt"
+          exit "$seal_result"
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-rust-check-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-rust-check-output
           if-no-files-found: error
           retention-days: 30
