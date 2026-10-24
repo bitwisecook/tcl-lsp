@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T14:25:53.057477+00:00",
+  "scheduled_report_utc": "2026-10-24T14:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T14:55:37+00:00",
+  "change_since_previous_report": [
+    "14:25 WIP snapshot includes the reviewed Jim first-entry source and qualified type-path repair, four compiled-frame fixture corrections, outer indexed readiness navigation fix, and passive tracefield lint repair. Latest local WORKb4e9297dd0e2192a06f11ae7c430f82ef7216143/CLEANb883eb7c013f9af0a207201d1d30da54985c0d5e are being published after a fresh shallow work fetch/rebase. No PR/merge/tag/release; six-hourtarget missed.",
+    "Fresh46da Compiler40099484152 fullyauthenticated b49a5c7c: original58 stays53 pass/5 fail, all6Native/SH/read-flow supplements and catch pass, genuine taintownership control nowpasses while originaleval_sink fails. All145 ownedgroups close, full126099/source/providers/deps/tools and Rust0diagnostics. No original5 closure or completebaseline acceptance.",
+    "Fresh46da Spec40099489339 authenticated0156e645: original11 stays9 pass/2 fail, firstNative42 fails. Exact raw/Git source mapping7f55fe43 corrects stale inherited classifications: schema enters successfully and supplied.rs169 deferred_namespace refuses before ANY173. No resolver failure inferred. Own-frame callback correction V4 is held after independent a94cc36 source counterexample: deleting retained body statements could incorrectly suppress unknown effects. Narrower full-body V5 is pending; nothing unsafe integrated.",
+    "Fresh46da bootstrap40099493049 authenticated3bd8a10e: CLI2pass/bootstrapfail. Physical activation refusal is gone; next actual refusal is generic each-loop native protocol, with frame1/namespaceorch. Two physical-host selector corrections frozen and under independent Runtime peer; no fallback/Native/TMM guard weakening.",
+    "Fresh46da startup40099496763 authenticated94046c36: strict freshCI build0warnings, cold99.870476ms and Context2 pass; original30second scan fails. Core2 separate two controls pass (9b956bf1). Full actual source/provider/tool/process seals match. Aggregate walk intervals identify constructor about890\u2013898ms and handlers1732\u20131792ms per Tk profile, with nested/instrumentation limits; no isolated CPU sum or causal performance ratio.",
+    "Actualglobal make rust-check40099930418 exact136c failed with six new primaryClippy diagnostics after prior39 sites were fixed: handlers3 questionmark rewrites, private tracefields commonpostfix, SSA2 lengthlimits. ExactZIP19b6d787/capped closed147sprocess/source-tools verifier captured. Tracefields repair17f is integrated; strict5 source review clear5af68, current scalar SSA/input carry pending. No strictgreen or wholeworkspace0W verdict.",
+    "JimV4 source and metadata were independently reviewed and integrated0b2cf/4d56. ActualJim40101309370 exact3bb builds fail at unresolved super::SignatureSourceNameInput: all7UNRUN, no method322 outcome. Minimum fully qualified existing owner path repairb4e/b883 preserves every body/guard and is integrated. Fresh Jim retry will use repaired exact source.",
+    "Four dictionary fixtures now install the genuine selected indexed-local protocol with zeroformals before their existing layout, matching production/C85-C91 reference ownership. Original scripts/asserts/order and deliberate anonymous controls remain. Fullpeer36f69 plus corrected physicalLF evidence8ac accepted; freshRuntime40101312391 exact3bb is active, outcomes pending. Prior f51 baseline14/14 remains bounded accepted result.",
+    "Host navigation readiness V2 independently reviewedb6d and integrated9399/64acf, all originalrefusals/assertions intact. It waits through existing Indexed read outside view/rehoming locks, then rebuilds views; racing-close ordinaryproviderIO/errors remain disclosed. Browser completedworld and actualWASI closure unmeasured. WORK-only originalhost/test diagnostic harness being prepared; finalfullCI stillrequired.",
+    "Whole CLEANroot and runtime cargo fmt --all --check pass on565234511 with exactstableHEAD/0output/emptygroups,123.7/129.7s. Later Jim/readiness changes have per-file formatting but finalwholeformat stillneeded. Release-only standalone taint documentation removes process/gate commentary; evidence remains onlywork.",
+    "Broader older ee6 partialcensus records582 named compiler baseline losses, not latest-source outcomes or completecapture; shared primary-only fixturehelper mismatch is a sourcelead. A concrete test-only complexity option is HELD for sourcepurpose/contract review, with no productioniterator broadening or Nativegrant. No assertions weakened or policy silently changed.",
+    "ExternalBIGIP/perf trackers remain olderthan60minutes; usernotified, no takeover. All five primary role trackers are current; reviewtriage complete. Diskabout0.5GB/tmp95MB, no localbuilds, ZIP-only evidence; duplicate ZIP census found none toprune. Nextreport14:55UTC."
+  ],
+  "committed": [
+    "0abf2fda27345db67c7233d5f84ab56eea58f9b2"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish14:25report/snapshot and rearm14:55 reminder.",
+    "Complete strict5 current metadata carry; retry strictglobal and repairedJim.",
+    "Authenticate runtime3bb and fix only actual causes; peer/admit sound SpecV5 and loop physical fixes.",
+    "Diagnose constructor/handler scan cost and run unchanged host/pending-index tests.",
+    "Keep sectionF/fullzero-regression/allgreen/finaldocs-comments-generated-format-chaff/Tclperformance gates open until proven."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 464961536,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

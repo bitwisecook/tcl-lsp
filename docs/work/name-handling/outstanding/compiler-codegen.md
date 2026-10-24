@@ -2,11 +2,17 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-24T13:47:10.432156+00:00 (ACTIVE; exact46da Spec/Heavy captures running after E0599 repair, no new outcome yet)
+Last updated: 2026-10-24T14:21:11.406155+00:00 (ACTIVE; exact46da Spec/Heavy authenticated, concrete callback classification and physical generic-loop candidates under review/preparation)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+**14:21:11 UTC exact46da actuals and productive successors.** Spec40099489339/job120888512317/API12562955529 fullauth0156e645: original11=9PASS2FAIL, separateNative1first42FAIL; all19groups/3freshstrict0W targets/endpointseals stable. Immutable exact firstgate7f55fe43 binds Git/sealed supplied169/173 and raw adjacent canonicalproc→schema-entered→print171→ANY173. Prior mapping173 to selected/resolver failure was WRONG and preserved as corrected hypothesis; actual selected-values None is164. Actual missing deferred_namespace(value.scope), coreproc has no GlobalFrame scope. No resolver probe or metadata bypass needed.
+
+Paired callback candidate `ccg-deferred-own-frame-callback-v4` WORK7a348eb6/CLEAN2edfc3b1/manbc09ab67/d03656ea, owner8ad99700/proof516ef323, ready independent peer. Existing registry own-frame callback distinction applied ONLY for selected procedure-definition descriptor plus exact current canonical original-body declaration-site coverage. Borrowed-site HashSet cached once; all original body stores/childscripts still scanned, materialized values get false coverage, unknown/foreign/missing/unretained callbacks retainANY. No global/current namespace fallback, no Native frame/store grant. Complete role/script phase extracted privately for93/90lines, old query/drop order retained; oldfiles/tests inverse/copies0/fmt, new2genuineCU controls UNRUN. Spec2existingpin-only companion66e34db7/man665ad2da all14overlaypins/copied0/oldJSONinverse.
+
+Heavy40099493049/job120888525467/API12562552417 fullauth3bd8a10e: bootstrapFAIL/CLI2PASS, all7groups/3freshstrict0W/all5seals/source126099/providers2466/deps21503/tools8 stable. Old procedureactivation refusal absent; new frame1/orch/token57 generic each-loop protocol unavailable, exact firstgate7b5d77fc. Separate paired physical-loop candidate changes ONLY actual engine recipe selector in cmd_control::each_loop and List adapter selector in exec::tick_each_loop; source F5/providers/headers/cursor/argv/body/Native guards/counters unchanged. Existing C9 genuine zero-iteration/invalid-unvisited-body control plus missing engine/C84lmap refusal controls authoredUNRUN; validation/peer preparation active. No fullHeavy/TMM/shipping/performance acceptance.
 
 **13:47:10 UTC new root-dispatched captures.** Exact46da3269b67d3068b088c1bbb2216dc25d02c7d9 Spec40099489339/job120888512317 and Heavy40099493049/job120888525467 are ACTIVE, initial connector observations both checkout/in-progress and no artifacts. Includes minimum E0599 iterator API repair and physical activation selectors3b8/f53; all original selectors/assertions/budgets unchanged. No new canonical/activation datum or build/pass claim. This role owns full ZIP/source/seal/group/terminal authentication, no duplicate dispatch/cancel. Original prior semantic failures and f51f all12UNRUN preserved.
 

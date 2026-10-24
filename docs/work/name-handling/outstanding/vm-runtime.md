@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T13:46:59.270376+00:00
+Last updated: 2026-10-24T14:18:31.587830+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -20,6 +20,17 @@ reset/expansion); finer per-command currency094136Z(call41a47ee03fd745b9bf8e6b1f
 preserves original2guards and all real dependency/Namespace/Unknown/Native invalidations;
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
+
+## Fresh 3bb runtime active: all new outcomes pending
+
+Root integrated paired dictionary4 setup8fa with correctedLFaddendum8ac09 and independent
+Compilerpeer36f69ba29adeb49aa0b62f352b912137dc686c088a87a671d9bad1412fdf0094.
+WORK3bb0a5c815c203304c62b8ced44f3ddffafcbae7 /CLEAN0ad1b3bfe published.
+Fresh run40101312391/job120893861373 authenticated exact3bb. At14:17UTC revision/source/
+C84/TomMath setupPASS; capture active, artifactnone, allnewcaseoutcomes PENDING.
+Evidence directory vm-runtime-actual-40101312391; metadata-only parsers staged, nowinclude
+three dictionary testfileGitjoins andseparate exactfour outcomejoins. No duplicate dispatch.
+DoNOTpromote earlierf51 resultsto3bb or3bb setupSUCCESS tosemanticPASS.
 
 ## Latest guarded actual f51: original3 + baseline14 PASS, 91failures remain
 
@@ -59,6 +70,44 @@ C84nomatchedwindow/noC84claim. Original2testfunctions untouched. Newmeaningfulco
 checks noopsurvival/broadchange/realhandlerinstall+retirement/pathinvalidations UNRUN.
 Git5aa→f51 standalone runtime diff ONLY namespacecondition+newunit; observed original
 profile-pin guard nowPASS. No guessed globalepoch deletion or nakedrelookup.
+
+## Current dictionary4 source-owned fixture prerequisite (awaiting peer; UNRUN)
+
+vm-dictionary-compiled-frame-fixture-v1 SAMEpairedpatch8fa046bab0585705312b80bc7a1eda94e15d3a16a474f0e5f8b6822e977d1187.
+WORKmanifest174f4cd9534f1de74378554ada5957ca4b4cabb77786f58e00152fb89b49c83e;
+CLEAN04b55f8032f9eeb16eed70012fe3d0e334d5ef7f79bcb4a201e51a123680b73b.
+source-proofcdf69e1db1ff31a9d0754aefe5262c6843ae84c8143d18632c6389122a57b5dd.
+Original C8windows EVIDENCEHOLD: str.splitlines incorrectlysplitFF despiteLFlinecounts.
+Immutable physical-LF-authority-addendum-v2.json SHA8ac09c806a6094a4b5e640d94a9932de01ef65d2030d7493111f3bf916821522
+replacesonlythose8excerpt fields with bytes.split(LF)/absoluteoffsets/exactrawSHA+readback;
+4windows preserveFF. Originalcdf69 remainsunchanged; product8fa/manifestsunchanged.
+Compiler hascorrectedaddendum forfinalpeer; no source/runtimeclaimfrombadwindows.
+Onlyfour existing setup blocks inthree testfiles: select actual indexed-local protocol,
+install_formal_cells([],protocol) afteroldpush/beforeoldlayout. Original files exactinverse,
+F/R/F0/fmt2021. No scripts/asserts/runtimeguards/callback/order changes. No directvalidation
+source-pin consumer for3files. Root requested independentpeer beforecanonical integration.
+Sourcecause: declared compiledcells are searched by name ONLYwith compiled_protocol Some.
+Manualfixtures omitted installation, namedobserver could selectdifferentdynamiccell while
+indexedreceiver correctly kept actualcompiledcell. Soleproduction entry among25layoutcalls
+installs protocol evenzeroformals BEFORElayout. Eight C85/86/90/91 Var+Proc fullhash windows
+provecompiledlocals namesearch/zeroarg initialization. No newfallback or absent/Jim grant.
+Actualfirstcause unprinted; originalfour outcomes remainFAIL untilfreshsameassertionsrun.
+
+## Remaining91 actual symptom/source inventory frozen
+
+vm-runtime-f51-failure-families-v1/receipt.json
+SHA49af2b63b7b8b1be3fd0b97494df5baca955339555749125ca01ce70f42ebd45;
+cases.json487d0ca1897c7a9ce86595c7aec3c8e67966d6831ba0e8b3d8c07c0ff75734f2.
+Every91 joins exactf51 panic-siteGitblob/window andactualstreamSHA. Nineprintactual
+Native/name refusal;82firstNativecausesnotprinted. Grouping isobservational, notone
+commonprovider verdict:17Error-vs-Ok,3Jim+26refs,3commandretirementEMPTYfalse(after
+callbackalreadyran),4dictionarycallbacks0,3source-provenC85Errorprerequisiteabsent,
+2furtherpostrefusalNone(notcoveredbyapprovedexact2),9missingfixture/state,41other.
+C85wholefixturebyteexact topriorproof; noinventedopcode/skip/assertionpolicy.
+
+Compiler requested CLEANee6workspace1/3/4 rawjoblogs120854453100/120854453090/120854453094:
+NONEretained. Sentdirectly; boundedfetchtheirs. Currentee6runtime/Spec/WASM ZIPsonlyretained;
+historicalclean-logs.zip isolder3ee, explicitlynotcurrentee6. No currentPF inferencefromdd9.
 
 ## Immediate next: 91remaining first-refusal families and bounded getter census
 
