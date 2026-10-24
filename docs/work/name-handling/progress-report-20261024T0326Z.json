@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T03:26:10.591628+00:00",
+  "scheduled_report_utc": "2026-10-24T03:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T03:55:37+00:00",
+  "change_since_previous_report": [
+    "Pushed WORK fa3955d2912686c5d16a2772f11afcefc914bcfc and release ea93ad7ccc30cf574265991534ae05da0e04094e, preserving concurrent externald8136caf8 via fresh depth1 fetch/rebase. Current diagnosticsV8, saved-frame native-cell checker, numeric-costV2 and canonical Definition-policy comparator are independently reviewed/integrated. Actual fixes firstWORK; release excludes private observers/evidence.",
+    "Guarded Definition producer raw Eq was a second functional no-op: independently selected concrete point versus static profile differs optional core_point. Existing has_same_execution_policy correction reviewed8263eacb and integrated with5canonical/20foreign controls UNRUN. Surrounding source/currentness/purpose/grammar/Native/body guards unchanged. WASM25 rerun required.",
+    "New runtime f1dc authenticated original3=2PASS1TIMEOUT; append743of1035 complete rows. Baseline14 now7PASS7FAIL (regsub and6Env pass), stackSIGABRT, other103=1PASS102FAIL; zeroUNRUN. All118selected cases and124owned timing groups close, source125935/fullmembership/20criticalGitblobs/ELF match. Whole frame-metadata protocol remainsINCOMPLETE because four nested uploaded members are absent; accountingfalse/reasonUNKNOWN. No stack-cause or complete protocol claim. C84 positive explicitly fails missing source provider, not semantic formatting.",
+    "Runtime savedhome source bug identified: target frame capture restores caller then incorrectly checks caller active slot; narrow existing savedlevel checker repair frozen/unrun. Actual lappend Frame1slot3linkl is consistent but exact dynamic checker not independently logged. Constructor1373/442 prune counts identify repeated sweeps; no unsafe revision/profile cache accepted.",
+    "New startup42 fullseals: cold tokens81.107msPASS, originalworkspace30sFAIL, Context2assertionsPASS/19pending/tworound0settled/zeroWaitandCancelled thisrun; controlled wait branch remainsunexercised.90 exactsystemindex rows isolate nested-command median95.639ms versus expr4.991ms; no crosshost speed claim. Existing genuine lexical memo reuse independently reviewed/pushed; no stamp/currentness guard cache or skip.",
+    "Compiler original58 remains fully observed48PASS10FAIL plus Native3PASS, SH2onePASSoneFAIL andReadFlowPASS. New readonly-body label repair preserves issuedIDs/no publication/Native authority. Broad Standalone source semantic-value adapter is distinct from physical cells and raw erasure-safe SCCP map; no conditional values may bypass that boundary. Namespace import unknown compilation error alternatives retained; SH numeric-cost evidence draft unrun.",
+    "Heavy3 exact6323 all3FAIL with all7ownedgroups/full125932source/provider/ELF guards andfresh0Wbuilds. Existing live session already owns realC9 engine, refusal frontier is Unknown compiledNative recipe/preflight flag. CLItrace2 fails readonly event intake separately. Original355/34failure ledger remains; no test weakening or actualTMM claim.",
+    "Jim42 remains5PASS2FAIL; parentword fix observed for namespace cases, if-inherited x stillmissing. Sameflag existing base-provider guards instrumented without newqueries/Eq changes. Conditional wrapper owner stays opaque at prelude. Registry-owned finite13-helper stock source contract approved for bounded off-tree implementation, no NativeNormal/receiver/frame grant.",
+    "Current diagnosticsV8 is independently source/type/owner/order/cancellation clear95c3993c and integrated; prior versions held. It retains original epoch order, eleven Arc handles/languageID, original vector insertion points and critical drop order. Fresh actual compilation/strict/startup needed. Production lib3/test7 remain off-tree untyped proposals awaiting independent review.",
+    "02:25 cycle officialreport written on schedule/pushed02:26:33, next02:55 report slightlylate during new integrations. Five active roles fresh; staleBIGIP timestamp notified without takeover, perf fresh, triage ownercomplete. Localdisk<2GiB, no builds/target or youngexecutable deletion. Sixhour target missed, no PR/merge/tag/publish.",
+    "Expanded required-source preflight now covers compiler58/Native3/SH2/ReadFlow/Spec/Jim/WASM/Heavy explicit source maps; approved SH companion binds only reviewed numeric-cost delta and exact roster digest. All current explicit maps PASS at exact pushed source, no runtime verdict inferred.",
+    "Release suppression audit confirms unapproved wildcard imports in11newLSP/DBmodules, twoNativeLiteral argument allows and twoBIGIP-owned enum/test allows; further HRTB cases require source fixes or explicit user decisions. Only user Instruction bool exception is approved. DB3 explicit imports authoring, no unsafe blanket exception.",
+    "Reviewed CLI-only source-inventory fix is held pending user ownership answer because externalBIGIP tracker is stale; original compiled Native/TMM refusals stay unchanged. Separate compiler Unknown-recipe observer reviewed and integratedWORK only. Shared namespace guard decision stillpending."
+  ],
+  "committed": [
+    "9223d968a676b9bee18e5698740ce58c87471df8"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish03:25snapshot/report and rearm03:55 timer.",
+    "Dispatch exactfa3955d29 runtime/compiler/Jim/Spec/strict/startup/WASM/Heavy modes; preserve ordinary CI and healthy runs.",
+    "Finish namespace/body-fixture/stockJim/libstyle peers and actual source-value/erasure/root recipe causes without weakened guards.",
+    "Complete final source fullCI/baseline/performance/no-new-allows/documentation/format/generated gates beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 02:08 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new actual outcomes since authenticated42/f1dc/6323; current reviewed source fixes and expanded pin preflight are not functional or performance acceptance.",
+  "disk_free_bytes": 1708118016,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
