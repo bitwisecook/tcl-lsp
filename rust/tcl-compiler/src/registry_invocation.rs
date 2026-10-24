@@ -73,7 +73,10 @@ pub(crate) use source_name_roles::{
     standalone_written_source_name_roles,
 };
 mod authored_source_structure;
-pub(crate) use authored_source_structure::original_authored_source_structure;
+pub(crate) use authored_source_structure::{
+    AuthoredSourceTaintInvocation, AuthoredSourceVariableAccess,
+    original_authored_script_scalar_variable, original_authored_source_structure,
+};
 mod execution_trace;
 mod metadata_context;
 pub(crate) use execution_trace::{

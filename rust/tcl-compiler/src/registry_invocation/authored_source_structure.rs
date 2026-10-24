@@ -213,6 +213,320 @@ pub(crate) fn original_authored_source_structure(
     })
 }
 
+/// Source-data access on a conditional Registry handler path. These variants
+/// describe the analysis model, not a successful runtime store or Native step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AuthoredSourceVariableAccess {
+    Read,
+    Write,
+    MayWrite,
+}
+
+impl AuthoredSourceVariableAccess {
+    pub(crate) fn is_definition(self) -> bool {
+        self != Self::Read
+    }
+    pub(crate) fn is_may_write(self) -> bool {
+        self == Self::MayWrite
+    }
+}
+
+fn authored_script_scalar_context_is_quiet(tokens: &CommandTokens) -> bool {
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let variables = &binding.variable_context;
+    variables.frame_kind == crate::var_resolve::VariableFrameKind::Global
+        && variables.namespace_known
+        && !variables.dynamic_bindings
+        && !variables.dynamic_traces
+        && variables.globals.is_empty()
+        && variables.ns_vars.is_empty()
+        && variables.upvar_aliases.is_empty()
+        && variables.instance_vars.is_empty()
+        && variables.alias_bindings.is_empty()
+        && variables.namespace_alias_bindings.is_empty()
+        && variables.name_alias_bindings.is_empty()
+        && variables.namespace_name_alias_bindings.is_empty()
+        && variables.traced.is_empty()
+        && variables.trace_registrations.is_empty()
+        && variables.trace_registration_receivers.is_empty()
+        && variables.untracked_traces.is_empty()
+        && variables.possible_trace_registrations.is_empty()
+}
+
+type AuthoredScriptScalarVariable = (
+    crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    String,
+    AuthoredSourceVariableAccess,
+);
+
+fn authored_script_scalar_definition(
+    source: &AuthoredSourceStructuredInvocation,
+    tokens: &CommandTokens,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    registry: &CommandRegistry,
+) -> Result<Option<AuthoredScriptScalarVariable>, ()> {
+    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::variable_symbol::{
+        OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+        SignatureSourceVariableSymbol,
+    };
+    let form = source
+        .with_source_schema(registry, |schema| {
+            let facts = schema.facts();
+            if facts.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::Set) {
+                return Some(Ok(None));
+            }
+            if facts.argument_offset != 0
+                || facts.arity_accepts_frozen_arguments() != Some(true)
+                || source.original_words.len() != 3
+                || schema.semantics.frame_effect.is_some()
+                || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+            {
+                return Some(Err(()));
+            }
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete || !roles.contains(&(0, tcl_registry::ArgRole::VarWrite)) {
+                return Some(Err(()));
+            }
+            Some(
+                schema
+                    .authored_source_variable_receiver_operand_form(0)
+                    .map(Some)
+                    .ok_or(()),
+            )
+        })
+        .ok_or(())??;
+    let Some(form) = form else {
+        return Ok(None);
+    };
+    let word = source.original_argument_word(0).ok_or(())?;
+    let input = SignatureSourceNameInput::OriginalWord(
+        SignatureSourceNameKey::from_original_logical_source_word(
+            word,
+            tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+            policy,
+        )
+        .ok_or(())?,
+    );
+    let name = String::from_utf8(input.bytes().to_vec()).map_err(|_| ())?;
+    if name.as_bytes().contains(&0) || tcl_syntax::naming::split_element_ref(&name).is_some() {
+        return Err(());
+    }
+    let symbol = SignatureSourceVariableSymbol::from_original_input(
+        &input,
+        namespace,
+        OriginalVariableSymbolPurpose::NamespaceStorage,
+        OriginalVariableSymbolReceiver::Operand(form),
+    )
+    .ok_or(())?;
+    let access = if !source.has_unknown_residual()
+        && authored_script_scalar_context_is_quiet(tokens)
+        && source
+            .original_words
+            .iter()
+            .all(|word| tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some())
+    {
+        AuthoredSourceVariableAccess::Write
+    } else {
+        AuthoredSourceVariableAccess::MayWrite
+    };
+    Ok(Some((symbol, name, access)))
+}
+
+fn authored_script_scalar_reference(
+    word: &tcl_lexer::NativeWord,
+    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Result<Option<AuthoredScriptScalarVariable>, ()> {
+    use crate::signature_scan::scope::SignatureSourceNameInput;
+    use crate::signature_scan::variable_symbol::{
+        OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+        SignatureSourceVariableSymbol,
+    };
+    let Some(reference) =
+        tcl_lexer::word_parts::whole_var_ref(word.bytes(), word.config()).map_err(|_| ())?
+    else {
+        return Ok(None);
+    };
+    if reference.index.is_some()
+        || reference.name.contains(&0)
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return Err(());
+    }
+    let root = crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_logical_source_executable(
+        word.executable_parts(), word.image(), word.config(), word.span(),
+        tcl_syntax::word_rules::WordValueRules::from_config(&word.config()), policy,
+    ).ok_or(())?;
+    if root.is_separate_array_root() {
+        return Err(());
+    }
+    let input = SignatureSourceNameInput::OriginalVariableRoot(root);
+    let name = String::from_utf8(input.bytes().to_vec()).map_err(|_| ())?;
+    let symbol = SignatureSourceVariableSymbol::from_original_input(
+        &input,
+        namespace,
+        OriginalVariableSymbolPurpose::NamespaceStorage,
+        OriginalVariableSymbolReceiver::LexicalRoot,
+    )
+    .ok_or(())?;
+    Ok(Some((symbol, name, AuthoredSourceVariableAccess::Read)))
+}
+
+/// A bounded scalar source access in the independently retained Standalone
+/// root script. Multiple independent names and arrays remain unavailable.
+pub(crate) fn original_authored_script_scalar_variable(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<AuthoredScriptScalarVariable> {
+    let (namespace, policy) = tokens
+        .source_binding
+        .as_ref()?
+        .original_standalone_script_variable_scope(tokens, registry)?;
+    let source = original_authored_source_structure(tokens, registry)?;
+    if !source.direct_written_arguments()
+        || source.original_words.iter().any(|word| word.group().expand)
+    {
+        return None;
+    }
+    let mut selected =
+        authored_script_scalar_definition(&source, tokens, &namespace, policy, registry).ok()?;
+    for word in source.original_words.iter().skip(1) {
+        let Some(current) = authored_script_scalar_reference(word, &namespace, policy).ok()? else {
+            continue;
+        };
+        if selected.as_ref().is_some_and(|prior| prior != &current) {
+            return None;
+        }
+        selected = Some(current);
+    }
+    if selected
+        .as_ref()
+        .is_some_and(|(_, _, access)| !access.is_definition())
+        && (source.has_unknown_residual()
+            || !authored_script_scalar_context_is_quiet(tokens)
+            || source.original_words.iter().any(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none()
+                    && tcl_lexer::word_parts::whole_var_ref(word.bytes(), word.config())
+                        .ok()
+                        .flatten()
+                        .is_none()
+            }))
+    {
+        return None;
+    }
+    selected
+}
+
+/// Conditional taint syntax for one genuine original Standalone script call.
+/// The schema retains possible handler applicability, including unknown/error
+/// alternatives. It cannot supply effects, a sanitizer, Normal or compilation.
+pub(crate) struct AuthoredSourceTaintInvocation {
+    source: AuthoredSourceStructuredInvocation,
+    tokens: CommandTokens,
+}
+
+impl AuthoredSourceTaintInvocation {
+    pub(crate) fn capture(tokens: &CommandTokens, registry: &CommandRegistry) -> Option<Self> {
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_standalone_script_variable_scope(tokens, registry)?;
+        let source = original_authored_source_structure(tokens, registry)?;
+        if !source.direct_written_arguments()
+            || source.original_words.iter().any(|word| word.group().expand)
+            || source.facts().arity_accepts_frozen_arguments() == Some(false)
+        {
+            return None;
+        }
+        Some(Self {
+            source,
+            tokens: tokens.clone(),
+        })
+    }
+
+    pub(crate) fn command(&self) -> &str {
+        &self.source.facts().canonical_command
+    }
+
+    pub(crate) fn effective(&self) -> &super::EffectiveCommandWords {
+        &self.source.invocation.effective
+    }
+
+    pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
+        self.source.config
+    }
+
+    /// Original operand value/geometry at the held source point. This is not
+    /// a cell or a donated display-name lookup.
+    pub(crate) fn owns_operand(&self, original: &crate::ir::WordExpr) -> bool {
+        self.tokens.words().iter().any(|word| word == original)
+    }
+
+    pub(crate) fn has_closed_scalar_read_context(&self) -> bool {
+        !self.source.has_unknown_residual() && authored_script_scalar_context_is_quiet(&self.tokens)
+    }
+
+    /// Independent readonly literal advice. Raw source SSA taint stays unknown.
+    pub(crate) fn literal_read_coverage(
+        &self,
+        point: crate::ssa::SsaSourceView<'_>,
+        key: Option<crate::ssa::ValueKey>,
+    ) -> Option<bool> {
+        self.matches_point(point).then_some(())?;
+        let complete = point.original_script_literal_read_coverage(key)?;
+        Some(complete && self.has_closed_scalar_read_context())
+    }
+
+    pub(crate) fn matches_point(&self, point: crate::ssa::SsaSourceView<'_>) -> bool {
+        let Some(tokens) = point.source_tokens() else {
+            return false;
+        };
+        let issued = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.original_analysis_attachment())
+            .zip(
+                self.tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.original_analysis_attachment()),
+            )
+            .is_some_and(|(actual, held)| std::sync::Arc::ptr_eq(actual, held));
+        issued && tokens == &self.tokens
+    }
+
+    /// Only conditional registry classification; this does not call the strict
+    /// executed-invocation resolver or reopen a refused Native/hosted owner.
+    pub(crate) fn sink_schema<'a>(
+        &self,
+        registry: &'a CommandRegistry,
+        tokens: &CommandTokens,
+        effective: Option<&super::EffectiveCommandWords>,
+        argument_offset: usize,
+        arguments: &[String],
+    ) -> Option<(&'a tcl_registry::CommandSpec, String, Vec<String>)> {
+        if tokens != &self.tokens
+            || effective.is_some_and(|effective| effective != self.effective())
+        {
+            return None;
+        }
+        self.source.with_source_schema(registry, |_| Some(()))?;
+        let args = self
+            .effective()
+            .argument_spellings(tokens.argv_texts.get(1..)?)?;
+        let selected = args.get(argument_offset..argument_offset.checked_add(arguments.len())?)?;
+        (selected == arguments).then_some(())?;
+        let command = self.command().to_owned();
+        let spec = registry.get(&command)?;
+        Some((spec, command, args))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,5 +618,224 @@ mod tests {
             .find_map(|statement| script.retained_source_tokens_for_statement(statement))
             .expect("actual supplied source owner");
         assert!(original_authored_source_structure(supplied_tokens, profiled).is_none());
+    }
+}
+
+#[cfg(test)]
+mod standalone_script_source_variable_tests {
+    use super::*;
+
+    fn scalar_point<'a>(
+        unit: &'a crate::compilation_unit::CompilationUnit,
+        head: &str,
+    ) -> crate::ssa::SsaSourceView<'a> {
+        for (&block, body) in &unit.top_level.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let point =
+                    crate::ssa::SsaSourceView::at_statement(&unit.top_level.ssa, block, index);
+                if point
+                    .source_tokens()
+                    .and_then(|tokens| tokens.argv_texts.first())
+                    .map(String::as_str)
+                    == Some(head)
+                {
+                    return point;
+                }
+            }
+        }
+        panic!("original scalar point is retained");
+    }
+
+    #[test]
+    fn script_source_symbols_retain_original_scalar_definitions_without_cells() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set x [read $fd]\neval $x",
+            registry,
+            false,
+        );
+        let write = scalar_point(&unit, "set");
+        let definition =
+            original_authored_script_scalar_variable(write.source_tokens().unwrap(), registry)
+                .expect("genuine root-script scalar definition");
+        assert_eq!(definition.1, "x");
+        assert!(definition.2.is_may_write());
+        let ssa = &unit.top_level.ssa;
+        let symbol = ssa
+            .source_variable_symbols()
+            .find_map(|(symbol, held)| (held == &definition.0).then_some(symbol))
+            .expect("own script source symbol independently of display names");
+        assert!(ssa.cell_key(symbol).is_none());
+        let statement = unit
+            .top_level
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|body| &body.statements)
+            .find(|statement| statement.defs.contains_key(&symbol))
+            .expect("actual source definition participates in SSA");
+        assert!(statement.may_defs.contains(&symbol));
+        assert!(statement.uses.contains_key(&symbol));
+        let version = statement.defs[&symbol];
+        assert_eq!(
+            unit.top_level.sccp.values.get(&(symbol, version)),
+            Some(&crate::analyses::LatticeValue::Overdefined)
+        );
+        assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.ir_module.source_metadata_input.is_none());
+    }
+
+    #[test]
+    fn conditional_script_sink_keeps_actual_point_and_refuses_foreign_or_changed_vectors() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let text = "set x [read $fd]\neval $x";
+        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let point = scalar_point(&unit, "eval");
+        let tokens = point.source_tokens().unwrap();
+        let sink = AuthoredSourceTaintInvocation::capture(tokens, registry).unwrap();
+        assert!(sink.matches_point(point));
+        assert_eq!(sink.command(), "eval");
+        let args = sink
+            .effective()
+            .argument_spellings(&tokens.argv_texts[1..])
+            .unwrap();
+        assert!(
+            sink.sink_schema(registry, tokens, Some(sink.effective()), 0, &args)
+                .is_some()
+        );
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_none()
+        );
+        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        assert!(!sink.matches_point(scalar_point(&foreign, "eval")));
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "different".to_owned();
+        assert!(
+            sink.sink_schema(registry, &changed, Some(sink.effective()), 0, &args)
+                .is_none()
+        );
+        assert!(AuthoredSourceTaintInvocation::capture(&changed, registry).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(AuthoredSourceTaintInvocation::capture(&missing, registry).is_none());
+        let other = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert!(
+            sink.sink_schema(other, tokens, Some(sink.effective()), 0, &args)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_source_and_multiple_scalar_accesses_cannot_borrow_root_script_projection() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let supplied = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set x value\neval $x",
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let point = scalar_point(&supplied, "eval");
+        assert!(
+            AuthoredSourceTaintInvocation::capture(point.source_tokens().unwrap(), registry)
+                .is_none()
+        );
+        let mixed =
+            crate::compilation_unit::CompilationUnit::build_for("set x $y", registry, false);
+        assert!(
+            original_authored_script_scalar_variable(
+                scalar_point(&mixed, "set").source_tokens().unwrap(),
+                registry
+            )
+            .is_none()
+        );
+        for text in [
+            "eval $x $a(k)",
+            "set x $a(k)",
+            "set a(k) $x",
+            "eval $x [unknown_callback]",
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+            let head = if text.starts_with("set ") {
+                "set"
+            } else {
+                "eval"
+            };
+            let tokens = scalar_point(&unit, head).source_tokens().unwrap();
+            assert!(tokens.source_binding.is_some());
+            assert!(
+                original_authored_script_scalar_variable(tokens, registry).is_none(),
+                "{text}"
+            );
+        }
+        let array =
+            crate::compilation_unit::CompilationUnit::build_for("set a(k) value", registry, false);
+        assert!(
+            original_authored_script_scalar_variable(
+                scalar_point(&array, "set").source_tokens().unwrap(),
+                registry
+            )
+            .is_none()
+        );
+    }
+    #[test]
+    fn possible_root_script_sink_uses_original_argv_without_execution_grant() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "set x [read $fd]\neval $x",
+            registry,
+            false,
+        );
+        let warnings =
+            crate::taint::find_taint_warnings_for_cu(&unit, registry, registry.profile());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code.to_string() == "T100"
+                    && warning.sink_command == "eval"
+                    && warning.variable == "x")
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.ir_module.source_metadata_input.is_none());
+    }
+    #[test]
+    fn literal_script_write_and_unknown_rhs_keep_distinct_advisory_taint() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (text, tainted) in [
+            ("set x VALUE\neval $x", false),
+            ("set x [read $fd]\neval $x", true),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+            let point = scalar_point(&unit, "set");
+            let definition =
+                original_authored_script_scalar_variable(point.source_tokens().unwrap(), registry)
+                    .expect("actual root-script definition");
+            assert_eq!(definition.1, "x");
+            assert_eq!(definition.2.is_may_write(), tainted);
+            let symbol = unit
+                .top_level
+                .ssa
+                .source_variable_symbols()
+                .find_map(|(symbol, held)| (held == &definition.0).then_some(symbol))
+                .expect("genuine source identity participates in the solver");
+            assert!(unit.top_level.ssa.cell_key(symbol).is_none());
+            let warnings =
+                crate::taint::find_taint_warnings_for_cu(&unit, registry, registry.profile());
+            assert_eq!(
+                warnings.iter().any(|warning| {
+                    warning.code.to_string() == "T100"
+                        && warning.sink_command == "eval"
+                        && warning.variable == "x"
+                }),
+                tainted,
+                "{text}"
+            );
+            assert!(unit.ir_module.source_entry.native_entry.is_none());
+        }
     }
 }

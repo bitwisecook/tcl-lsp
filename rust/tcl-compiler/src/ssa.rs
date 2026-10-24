@@ -601,6 +601,14 @@ struct SourceMayClobber {
     locations: std::sync::Arc<Vec<(Symbol, VariableCellKey)>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OriginalScriptSourcePoint {
+    symbol: Symbol,
+    access: crate::registry_invocation::AuthoredSourceVariableAccess,
+    used: Option<Version>,
+    defined: Option<Version>,
+}
+
 #[derive(Debug, Clone)]
 struct SourceCfgBlockSnapshot {
     terminator: Option<cfg::Terminator>,
@@ -719,6 +727,8 @@ pub struct SsaFunction {
     source_variables:
         FxHashMap<Symbol, crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol>,
     source_may_effects: HashMap<(BlockId, usize), SourceMaySsaCall>,
+    // Positive RootScript issuer rows; never inferred from a slot shape.
+    original_script_points: HashMap<(BlockId, usize), OriginalScriptSourcePoint>,
     source_topology: HashMap<BlockId, SourceCfgBlockSnapshot>,
     /// Reverse interner index: variable name → its [`Symbol`].
     var_to_symbol: FxHashMap<String, Symbol>,
@@ -1793,6 +1803,68 @@ impl<'a> SsaSourceView<'a> {
     #[must_use]
     pub const fn function(self) -> &'a SsaFunction {
         self.ssa
+    }
+
+    /// Readonly literal source fact, not a represented cell or raw SSA value.
+    /// Missing graph custody refuses; incomplete source coverage stays unknown.
+    pub(crate) fn original_script_literal_read_coverage(
+        self,
+        key: Option<ValueKey>,
+    ) -> Option<bool> {
+        let (block, index) = self.point?;
+        let body = self.ssa.blocks.get(&block)?;
+        let held = self
+            .ssa
+            .source_topology
+            .get(&block)?
+            .standalone_statements
+            .as_ref()?;
+        if body.statements.len() != held.len()
+            || body
+                .statements
+                .iter()
+                .zip(held.iter())
+                .any(|(current, original)| &current.statement != original)
+        {
+            return None;
+        }
+        let Some((symbol, version)) = key else {
+            return Some(false);
+        };
+        let Some(read) = self.ssa.original_script_points.get(&(block, index)) else {
+            return Some(false);
+        };
+        let current = body.statements.get(index)?;
+        if read.symbol != symbol
+            || read.used != Some(version)
+            || read.access.is_definition()
+            || current.uses.get(&symbol) != read.used.as_ref()
+        {
+            return None;
+        }
+        for prior in (0..index).rev() {
+            let Some(write) = self.ssa.original_script_points.get(&(block, prior)) else {
+                return Some(false);
+            };
+            // Only closed, quiet, entirely literal Set source steps survive.
+            // Any read/callback/unknown/array/multi-name/synthetic step stops.
+            if write.access != crate::registry_invocation::AuthoredSourceVariableAccess::Write {
+                return Some(false);
+            }
+            let statement = body.statements.get(prior)?;
+            if write.defined.is_none()
+                || statement.defs.get(&write.symbol) != write.defined.as_ref()
+                || statement.may_defs.contains(&write.symbol)
+            {
+                return None;
+            }
+            if write.symbol == symbol {
+                return Some(write.defined == Some(version));
+            }
+            // Distinct interned source identities have different counted
+            // namespace slots, under each step's proved alias/trace closure.
+        }
+        Some(false)
     }
 
     /// Iterate source spellings with their proved symbols; missing positioned facts yield no names.
@@ -3341,6 +3413,14 @@ fn register_unique_source_names(
 }
 
 impl SsaFunction {
+    /// Source identities positively issued by actual standalone SCRIPT points.
+    /// Duplicates are harmless; no physical location or contents is returned.
+    pub(crate) fn original_script_source_symbols(&self) -> impl Iterator<Item = Symbol> + '_ {
+        self.original_script_points
+            .values()
+            .map(|point| point.symbol)
+    }
+
     /// Compare current CFG topology with the private original SSA source snapshot.
     /// Empty snapshots provide no correspondence proof.
     pub(crate) fn has_current_source_cfg_topology(&self, cfg: &cfg::Function) -> bool {
@@ -3395,6 +3475,7 @@ impl SsaFunction {
             cell_indices: Vec::new(),
             source_variables: FxHashMap::default(),
             source_may_effects: HashMap::new(),
+            original_script_points: HashMap::new(),
             source_topology: HashMap::new(),
             var_to_symbol: FxHashMap::default(),
             cell_to_symbol: FxHashMap::default(),
@@ -5175,7 +5256,7 @@ fn authored_scalar_source_variable(
 ) -> Option<(
     crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
     String,
-    bool,
+    crate::registry_invocation::AuthoredSourceVariableAccess,
 )> {
     let tokens = points.source_tokens_at(block, index)?;
     let site = tokens.source_binding.as_ref()?.invocation_site()?;
@@ -5185,8 +5266,21 @@ fn authored_scalar_source_variable(
         &mut original,
         i64::from(site.offset) - i64::from(offset),
     );
-    crate::registry_invocation::original_authored_scalar_invocation(&original, registry)?
-        .scalar_source_variable(registry)
+    crate::registry_invocation::original_authored_scalar_invocation(&original, registry)
+        .and_then(|invocation| invocation.scalar_source_variable(registry))
+        .map(|(symbol, name, definition)| {
+            let access = if definition {
+                crate::registry_invocation::AuthoredSourceVariableAccess::Write
+            } else {
+                crate::registry_invocation::AuthoredSourceVariableAccess::Read
+            };
+            (symbol, name, access)
+        })
+        .or_else(|| {
+            crate::registry_invocation::original_authored_script_scalar_variable(
+                &original, registry,
+            )
+        })
 }
 
 fn record_authored_terminator_use(
@@ -5196,7 +5290,7 @@ fn record_authored_terminator_use(
     defined_here: &SsaIdentitySet,
     nonlocal_names: &mut SsaIdentitySet,
 ) {
-    if let Some((symbol, _, false)) =
+    if let Some((symbol, _, crate::registry_invocation::AuthoredSourceVariableAccess::Read)) =
         authored_scalar_source_variable(points, bn, usize::MAX, registry)
     {
         let identity = SsaVariableIdentity::Source(symbol);
@@ -5318,7 +5412,10 @@ fn nonlocal_names_and_defsites(
                 authored_scalar_source_variable(points, *bn, index, registry)
             {
                 let identity = SsaVariableIdentity::Source(symbol);
-                if definition {
+                if definition.is_definition() {
+                    if definition.is_may_write() {
+                        nonlocal_names.or_default(identity.clone());
+                    }
                     defsites.or_default(identity.clone()).insert(*bn);
                     defined_here.or_default(identity);
                 } else if !defined_here.contains_key(&identity) {
@@ -7637,6 +7734,75 @@ fn retained_read_references(
     references
 }
 
+fn original_script_source_points(
+    points: &PointResolveContexts,
+    blocks: &HashMap<BlockId, SsaBlock>,
+    interner: &VarInterner,
+    registry: &CommandRegistry,
+) -> HashMap<(BlockId, usize), OriginalScriptSourcePoint> {
+    let mut rows = HashMap::new();
+    for (&(block, index), tokens) in points.source_token_inventory() {
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            continue;
+        };
+        if binding
+            .original_standalone_script_variable_scope(tokens, registry)
+            .is_none()
+        {
+            continue;
+        }
+        let Some(site) = binding.invocation_site() else {
+            continue;
+        };
+        let Some(offset) = tokens
+            .words()
+            .first()
+            .map(|word| word.source().span.start())
+        else {
+            continue;
+        };
+        let mut original = tokens.clone();
+        crate::lattice_rebase::rebase_command_tokens(
+            &mut original,
+            i64::from(site.offset) - i64::from(offset),
+        );
+        let Some((identity, _, access)) =
+            crate::registry_invocation::original_authored_script_scalar_variable(
+                &original, registry,
+            )
+        else {
+            continue;
+        };
+        let Some(&symbol) = interner.source_to_symbol.get(&identity) else {
+            continue;
+        };
+        let Some(body) = blocks.get(&block) else {
+            continue;
+        };
+        let (used, defined) = if index == usize::MAX {
+            (body.exit_versions.get(&symbol).copied(), None)
+        } else {
+            let Some(statement) = body.statements.get(index) else {
+                continue;
+            };
+            (
+                statement.uses.get(&symbol).copied(),
+                statement.defs.get(&symbol).copied(),
+            )
+        };
+        rows.insert(
+            (block, index),
+            OriginalScriptSourcePoint {
+                symbol,
+                access,
+                used,
+                defined,
+            },
+        );
+    }
+    rows
+}
+
 fn retained_source_read_references(
     points: &PointResolveContexts,
     blocks: &HashMap<BlockId, SsaBlock>,
@@ -7696,7 +7862,7 @@ fn retained_source_read_references(
                         version: authored
                             .as_ref()
                             .filter(|(held, held_name, definition)| {
-                                !definition
+                                !definition.is_definition()
                                     && held_name == name
                                     && interner.source_variables.get(&symbol) == Some(held)
                             })
@@ -7919,7 +8085,7 @@ fn intern_terminator_reads(
                 symbols.insert(source, walk.interner.intern(&name));
             } else if !authored
                 .as_ref()
-                .is_some_and(|(_, name, definition)| !definition && name == &source)
+                .is_some_and(|(_, name, definition)| !definition.is_definition() && name == &source)
             {
                 walk.unknown_source_names.insert(source);
             }
@@ -7942,7 +8108,12 @@ fn intern_terminator_reads(
             symbols.remove(&source);
             walk.unknown_source_names.insert(source);
         }
-        if let Some((symbol, name, false)) = authored {
+        if let Some((
+            symbol,
+            name,
+            crate::registry_invocation::AuthoredSourceVariableAccess::Read,
+        )) = authored
+        {
             let symbol = walk
                 .interner
                 .intern_identity(&SsaVariableIdentity::Source(symbol));
@@ -8671,8 +8842,11 @@ impl<'a> RenameWalk<'a> {
                 .entry((frame.block, index))
                 .or_default()
                 .insert(name.clone(), symbol);
-            if !definition {
+            if !definition.is_definition() || definition.is_may_write() {
                 uses_map.insert(symbol, self.top_identity(&identity));
+                if definition.is_may_write() {
+                    quoted_uses.insert(symbol);
+                }
             }
         }
         let direct_defs = bound_defs(
@@ -8727,10 +8901,15 @@ impl<'a> RenameWalk<'a> {
             (&mut uses_map, &mut name_only_uses),
         );
 
-        if let Some((symbol, _, true)) = authored {
+        if let Some((symbol, _, access)) = authored
+            && access.is_definition()
+        {
             let identity = SsaVariableIdentity::Source(symbol);
             let symbol = self.interner.intern_identity(&identity);
             let version = self.push_identity(&identity);
+            if access.is_may_write() {
+                may_defs.insert(symbol);
+            }
             frame.pushed_vars.push(identity);
             defs_map.insert(symbol, version);
         }
@@ -9412,6 +9591,8 @@ fn build_ssa_inner(
 
     let unseen_call_versions = intern_unseen_call_versions(&mut walk);
     let source_topology = source_cfg_topology(func, &walk.interner, standalone_owner);
+    let original_script_points =
+        original_script_source_points(&walk.points, &ssa_blocks, &walk.interner, registry);
     let mut result = SsaFunction {
         name: func.name.clone(),
         entry: func.entry,
@@ -9433,6 +9614,7 @@ fn build_ssa_inner(
         cell_indices: walk.interner.cell_indices,
         source_variables: walk.interner.source_variables,
         source_may_effects: walk.out.source_may_effects,
+        original_script_points,
         source_topology,
         cell_keys,
         var_to_symbol: walk.interner.source_symbols,
@@ -10412,6 +10594,7 @@ mod tests {
             cell_indices: Vec::new(),
             source_variables: FxHashMap::default(),
             source_may_effects: HashMap::new(),
+            original_script_points: HashMap::new(),
             source_topology: HashMap::new(),
             var_to_symbol: rustc_hash::FxHashMap::default(),
             cell_to_symbol: rustc_hash::FxHashMap::default(),
