@@ -1794,6 +1794,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "range",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringRange(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringRange)),
         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
         // (`Tcl_GetRange`'s `TclIsPureByteArray` path returns

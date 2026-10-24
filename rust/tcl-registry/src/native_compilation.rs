@@ -863,6 +863,8 @@ pub enum NativeCompilationGrammar {
     StringMatch(crate::native_string_compilation::NativeStringMatchScope),
     /// C9 Basic2Arg fallback after a private compile-known non-pair map probe.
     StringMap(crate::native_scalar_compilation::NativeScalarScope),
+    /// Original C9 range compiler with represented compile-known indices.
+    StringRange(crate::native_scalar_compilation::NativeScalarScope),
     /// C8.6+ original trim subject and explicit/default character set.
     StringTrim {
         /// Public member or actual private worker operand layout.
@@ -1822,7 +1824,59 @@ impl NativeCompilationSpec {
                 effects
             };
         }
+        if let NativeCompilationGrammar::StringRange(scope) = self.grammar {
+            return self.original_string_range_name_effects(
+                words,
+                operand_from,
+                scope,
+                dialect,
+                context,
+            );
+        }
         self.selected_original_argument_name_effects(words, operand_from, dialect, version, context)
+    }
+
+    fn original_string_range_name_effects(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        scope: crate::native_scalar_compilation::NativeScalarScope,
+        dialect: InvocationDialect,
+        context: NativeCompilationContext,
+    ) -> NativeOriginalCompilerNameEffects {
+        use NativeOriginalCompilerNameEffects::{Unknown, Visits};
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true)
+            || self.compiler_hook_presence(dialect) != Some(true)
+            || !matches!(
+                crate::native_string_range_compilation::select_original(
+                    words,
+                    operand_from,
+                    scope,
+                    version,
+                    self,
+                    context
+                ),
+                NativeCompilationSelection::Inline { .. }
+            )
+        {
+            return Unknown;
+        }
+        crate::native_string_range_compilation::compile_native_string_range(
+            words,
+            operand_from,
+            scope,
+            version,
+        )
+        .map_or(Unknown, |recipe| {
+            Visits(vec![
+                crate::native_control_compilation::NativeControlPreparationStep::Word(
+                    recipe.operand,
+                ),
+            ])
+        })
     }
 
     fn selected_original_argument_name_effects(
@@ -2055,6 +2109,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::Unresolved
             | NativeCompilationGrammar::FormatStringConcat
             | NativeCompilationGrammar::StringMap(_)
+            | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::HookFrom(_)
             | NativeCompilationGrammar::ProcedureHookFrom(_)
             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
@@ -2128,6 +2183,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringLength(_)
             | NativeCompilationGrammar::StringIsAscii(_)
             | NativeCompilationGrammar::StringMap(_)
+            | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::StringOperand { .. }
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Tailcall
@@ -2367,7 +2423,10 @@ impl NativeCompilationSpec {
             return None;
         }
         let version = dialect.tcl_version?;
-        if matches!(self.grammar, NativeCompilationGrammar::StringMap(_)) {
+        if matches!(
+            self.grammar,
+            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
+        ) {
             return (version == TclVersion::V9_0).then_some(true);
         }
         Some(match self.grammar {
@@ -2482,6 +2541,8 @@ impl NativeCompilationSpec {
                 crate::native_string_compilation::NativeStringMatchScope::PublicMember,
             ) | NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringRange(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringOperand {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
                 ..
@@ -2583,6 +2644,15 @@ impl NativeCompilationSpec {
                 .then_some(*operation.implementation());
         }
         if self.grammar
+            == NativeCompilationGrammar::StringRange(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            )
+        {
+            return (dialect.tcl_version == Some(TclVersion::V9_0)
+                && dialect.family() == Some(Family::Tcl))
+            .then_some(crate::native_string_range_compilation::STRING_RANGE_IMPLEMENTATION);
+        }
+        if self.grammar
             == NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             )
@@ -2642,7 +2712,10 @@ impl NativeCompilationSpec {
         if self.grammar == NativeCompilationGrammar::FormatStringConcat {
             return self.operation == SemanticOperationId::Invoke;
         }
-        if matches!(self.grammar, NativeCompilationGrammar::StringMap(_)) {
+        if matches!(
+            self.grammar,
+            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
+        ) {
             return self.operation == SemanticOperationId::Invoke
                 && self.body == NativeBodyCompilation::Inherit;
         }
@@ -2926,6 +2999,16 @@ impl NativeCompilationSpec {
                 version,
                 context,
                 self.operation,
+            ));
+        }
+        if let NativeCompilationGrammar::StringRange(scope) = self.grammar {
+            return Some(crate::native_string_range_compilation::select_original(
+                words,
+                operand_from,
+                scope,
+                version,
+                self,
+                context,
             ));
         }
         if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
@@ -3488,6 +3571,8 @@ impl NativeCompilationSpec {
             } | NativeCompilationGrammar::StringMatch(
                 crate::native_string_compilation::NativeStringMatchScope::PublicMember
             ) | NativeCompilationGrammar::StringMap(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringRange(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringOperand {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -4299,7 +4384,9 @@ impl NativeCompilationSpec {
                 1,
             ),
             // The map probe requires the exact retained compiler words.
-            NativeCompilationGrammar::StringMap(_) => NativeCompilationSelection::Unknown,
+            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_) => {
+                NativeCompilationSelection::Unknown
+            }
             NativeCompilationGrammar::StringOperand { scope, operation } => {
                 crate::native_string_operand_compilation::select_shapes(
                     shapes,

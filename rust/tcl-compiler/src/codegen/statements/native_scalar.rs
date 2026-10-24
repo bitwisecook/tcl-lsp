@@ -148,3 +148,39 @@ impl CodegenCtx<'_> {
         true
     }
 }
+
+impl CodegenCtx<'_> {
+    pub(super) fn append_native_string_range_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_string_range_compilation::NativeStringRangeInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_string_range_compilation::NativeStringRangeOperation;
+        let Some(task) = Self::native_namespace_word_task(&command.words, recipe.operand) else {
+            return false;
+        };
+        operations.push(task);
+        match recipe.operation {
+            NativeStringRangeOperation::Empty => {
+                operations.push(NativeEmissionTask::SwitchOperation(
+                    Op::POP,
+                    Vec::new(),
+                    version,
+                ));
+                operations.push(NativeEmissionTask::Literal(Vec::new()));
+            }
+            NativeStringRangeOperation::Immediate(coordinates) => {
+                operations.push(NativeEmissionTask::SwitchOperation(
+                    Op::STR_RANGE_IMM,
+                    vec![
+                        Operand::Imm(coordinates.first.encoded()),
+                        Operand::Imm(coordinates.last.encoded()),
+                    ],
+                    version,
+                ))
+            }
+        }
+        true
+    }
+}

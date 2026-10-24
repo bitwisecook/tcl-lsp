@@ -42,6 +42,8 @@ mod native_compiled;
 pub use native_compiled::{
     compiled_find, compiled_index, compiled_qualifiers, compiled_range, compiled_tail,
 };
+mod native_range;
+pub use native_range::{NativeCompiledRangeResult, compiled_immediate_range};
 mod native_trim;
 pub use native_trim::compiled_trim;
 
