@@ -657,6 +657,16 @@ applies the release's cached-reuse namespace gate. A fresh binding in a dying
 namespace cannot be rejected solely because a previous cached binding there
 was unsuitable for reuse.
 
+Shared named command guards retain the actual selected publication, owning
+namespace lifetime, referencing namespace and lookup path. They still resolve
+and validate the live semantic attestation at each check. Unrelated namespace
+birth or teardown does not retire that command's currency; a changed binding,
+lookup path, dead or foreign owner, missing dependency or exhausted counter
+refuses it. Explicit lookup-policy barriers remain conservative. Namespace and
+unknown-handler domain epochs remain independent, as do interpreter/profile,
+observer, entered-operation and native cached-name requirements. These shared
+guards supply no original object or native cache-reuse authority.
+
 ## Dynamic code and familiar naming patterns
 
 Tcl naming is executable behaviour. Definitions, command prefixes, aliases,

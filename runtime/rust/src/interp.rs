@@ -81,6 +81,7 @@ pub(crate) mod namespace_address;
 mod native_ensemble_objects;
 mod native_error_variables;
 pub(crate) use native_error_variables::OriginalJimErrorCodeCapture;
+mod command_guard_lookup;
 mod guarded_definition;
 mod native_execution_constants;
 mod native_hidden_invocation;
@@ -1389,6 +1390,10 @@ pub struct InterpState {
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<OwnedGuardManager<u64>>,
     guard_lookup_environment_revision: Cell<Option<u64>>,
+    guard_command_lookup_policy_revision: Cell<Option<u64>>,
+    command_guard_lookups: RefCell<
+        std::collections::BTreeMap<GuardToken, Option<crate::namespace::CommandGuardLookup>>,
+    >,
     guarded_definitions: RefCell<Vec<guarded_definition::DefinitionRequest>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
@@ -2059,6 +2064,8 @@ impl Interp {
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(OwnedGuardManager::new(guards)),
             guard_lookup_environment_revision: Cell::new(Some(0)),
+            guard_command_lookup_policy_revision: Cell::new(Some(0)),
+            command_guard_lookups: RefCell::new(std::collections::BTreeMap::new()),
             guarded_definitions: RefCell::new(Vec::new()),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
@@ -3573,9 +3580,21 @@ impl Interp {
         } else {
             identities.first().copied()
         };
-        self.guards
+        let token = self
+            .guards
             .borrow_mut()
-            .prepare(expected, observed, domains, generation)
+            .prepare(expected, observed, domains, generation)?;
+        let lookup = match self.prepare_command_guard_lookup(generation, domains) {
+            Ok(lookup) => lookup,
+            Err(error) => {
+                self.guards.borrow_mut().release(token);
+                return Err(error);
+            }
+        };
+        self.command_guard_lookups
+            .borrow_mut()
+            .insert(token, lookup);
+        Ok(token)
     }
 
     /// Re-check a guard against the current resolved implementation identity.
@@ -3585,6 +3604,9 @@ impl Interp {
         let Some((generation, identities)) = self.attested_command_identity(name) else {
             return false;
         };
+        if !self.command_guard_lookup_is_current(token, generation) {
+            return false;
+        }
         identities.iter().any(|identity| {
             self.guards
                 .borrow()
@@ -3608,6 +3630,9 @@ impl Interp {
         let Some((generation, identities)) = self.attested_command_identity(name) else {
             return false;
         };
+        if !self.command_guard_lookup_is_current(token, generation) {
+            return false;
+        }
         if !identities.contains(&expected) {
             return false;
         }
@@ -3640,6 +3665,7 @@ impl Interp {
     /// Release one runtime guard token exactly once.
     #[must_use]
     pub fn release_command_guard(&self, token: GuardToken) -> bool {
+        self.command_guard_lookups.borrow_mut().remove(&token);
         self.guards.borrow_mut().release(token)
     }
 
@@ -3675,9 +3701,16 @@ impl Interp {
     /// Observe the actual table owner's policy revision before any guard door.
     /// A mutable namespace borrow alone is not a lookup-policy mutation.
     fn synchronise_command_environment_guards(&self) {
-        let revision = self.namespaces().guard_lookup_environment_revision();
+        let (revision, policy) = {
+            let namespaces = self.namespaces();
+            (
+                namespaces.guard_lookup_environment_revision(),
+                namespaces.guard_command_lookup_policy_revision(),
+            )
+        };
         let previous = self.guard_lookup_environment_revision.replace(revision);
-        if revision.is_none() {
+        let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
+        if revision.is_none() || policy.is_none() {
             let mut guards = self.guards.borrow_mut();
             for domain in [
                 GuardDomain::CommandEnvironment,
@@ -3686,8 +3719,13 @@ impl Interp {
             ] {
                 guards.poison(domain);
             }
-        } else if previous != revision {
-            self.invalidate_command_environment();
+        } else {
+            if previous != revision {
+                self.invalidate_namespace_structure_guards();
+            }
+            if previous_policy != policy {
+                self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
+            }
         }
     }
 
@@ -10641,7 +10679,7 @@ impl Interp {
     /// Resolve (creating if needed) a namespace by name, relative to the current
     /// namespace — for `apply`'s optional namespace term.
     pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
-        self.invalidate_command_environment();
+        self.invalidate_namespace_structure_guards();
         self.namespaces
             .borrow_mut()
             .ensure_namespace(self.current_ns.get(), name)
@@ -10661,7 +10699,7 @@ impl Interp {
     /// Create an internal test namespace from the global token.
     #[cfg(test)]
     pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
-        self.invalidate_command_environment();
+        self.invalidate_namespace_structure_guards();
         self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)
     }
 
@@ -10693,7 +10731,7 @@ impl Interp {
                 return;
             }
         };
-        self.invalidate_command_environment();
+        self.invalidate_namespace_structure_guards();
         if self.defer_namespace_teardown(ns) {
             let _ = cleanup.check();
             return;
@@ -22135,9 +22173,10 @@ mod tests {
             // an Interp facade adding an invalidation after table mutation.
             interpreter
                 .register_builtin(b"::RegistrationBorn::unrelated", registration_host_worker);
-            assert!(tokens
-                .iter()
-                .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+            assert!(tokens.iter().zip(domains).all(|(token, domain)| {
+                interpreter.check_command_guard(*token, b"registrationGuarded")
+                    == (domain == GuardDomain::CommandEnvironment)
+            }));
             for token in tokens {
                 assert!(interpreter.release_command_guard(token));
             }
@@ -22579,7 +22618,15 @@ mod tests {
                 }
                 assert!(tokens
                     .iter()
-                    .all(|token| !interpreter.check_command_guard(*token, b"registrationGuarded")));
+                    .zip([
+                        GuardDomain::CommandEnvironment,
+                        GuardDomain::Namespace,
+                        GuardDomain::UnknownHandling,
+                    ])
+                    .all(|(token, domain)| {
+                        interpreter.check_command_guard(*token, b"registrationGuarded")
+                            == (domain == GuardDomain::CommandEnvironment && mutation >= 6)
+                    }));
                 for token in tokens {
                     assert!(interpreter.release_command_guard(token));
                 }
@@ -23192,6 +23239,37 @@ mod tests {
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
+        });
+    }
+
+    #[test]
+    fn command_currency_retains_original_lookup_but_refuses_path_and_scope_changes() {
+        leak_free(|interpreter| {
+            let caller = interpreter
+                .namespaces_mut()
+                .ensure_namespace(GLOBAL, b"caller");
+            interpreter.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            interpreter.current_ns.set(caller);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = interpreter
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .unwrap();
+            interpreter.register_builtin(b"::unrelated::worker", guarded_builtin);
+            assert!(interpreter.check_command_guard(token, b"guarded"));
+            interpreter
+                .namespaces_mut()
+                .delete_namespace(GLOBAL, b"unrelated");
+            assert!(interpreter.check_command_guard(token, b"guarded"));
+            interpreter.current_ns.set(GLOBAL);
+            assert!(!interpreter.check_command_guard(token, b"guarded"));
+            interpreter.current_ns.set(caller);
+            assert!(interpreter.check_command_guard(token, b"guarded"));
+            interpreter.namespaces_mut().set_path(caller, vec![GLOBAL]);
+            assert!(!interpreter.check_command_guard(token, b"guarded"));
+            interpreter.namespaces_mut().set_path(caller, Vec::new());
+            assert!(!interpreter.check_command_guard(token, b"guarded"));
+            assert!(interpreter.release_command_guard(token));
+            interpreter.current_ns.set(GLOBAL);
         });
     }
 
