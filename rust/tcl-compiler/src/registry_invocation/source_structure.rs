@@ -2080,6 +2080,8 @@ fn trace_source_registry_barrier(
     tokens: &crate::ir::CommandTokens,
     blocked: bool,
 ) {
+    #[cfg(not(any(debug_assertions, test)))]
+    let _ = blocked;
     trace_remote_source_flag(
         "source.binding",
         segment.argv.first().map(|word| word.span.start()),
