@@ -23,6 +23,7 @@
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-compiler/src/codegen/wasm/backend.rs": "c72183b108c7020856e6ae8f0be24dc3482aa94c8b673429d55eeaff69a2cfd7",
     "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": "159c9d3667935a2e2affb21d00d811df64fc184b4da2ed34590b4b8762f1dd1f",
+    "rust/tcl-compiler/src/command_binding/command_publication.rs": "5ffe3fbb5baad5d77af9932f154b98e2a43eddb5b6b635e68be568bb49072ee8",
     "rust/tcl-compiler/src/common_aot_plan.rs": "069f86c5fe0ce9e017c2175b22050e6404dd129891c43f2cd6105f6f81bfb8c8",
     "rust/tcl-compiler/src/native_lowering/lower.rs": "eef08d81c0bfd6db449a92afbff717788716a7db925e5fa94df133541266d0d6",
     "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "10e3e629bb3b7266aa16ab9dbd123d4b9a172ae9237b54809719c1109b3d71ed",
