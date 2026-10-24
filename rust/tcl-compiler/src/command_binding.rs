@@ -4859,6 +4859,23 @@ fn initial_source_interpretation_state(
     state
 }
 
+fn source_entry_namespace_key(
+    options: &SourceAnalysisOptions<'_>,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    namespace: &str,
+) -> SourceNamespaceKey {
+    options
+        .source_point_entry
+        .map(|entry| entry.namespace().clone())
+        .or_else(|| frame.namespace_identity().cloned())
+        .or_else(|| {
+            options
+                .native_entry
+                .and_then(|entry| SourceNamespaceKey::from_native_entry(entry).ok())
+        })
+        .unwrap_or_else(|| SourceNamespaceKey::authored(namespace))
+}
+
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
     use crate::var_resolve::VariableExecutionFrame;
     match frame.layout() {
@@ -7327,6 +7344,40 @@ fn trace_source_analysis(
 }
 
 #[cfg(any(test, debug_assertions))]
+struct SourceAnalysisTrace {
+    phase_start: Option<std::time::Instant>,
+    lookup_start: Option<(u64, u128)>,
+    query_start: Option<original_command_table::OriginalSourceQueryTotals>,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl SourceAnalysisTrace {
+    fn start() -> Self {
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        let lookup_start = phase_start.map(|_| original_command_table::baseline_lookup_totals());
+        let query_start =
+            phase_start.map(|_| original_command_table::original_source_query_totals());
+        Self {
+            phase_start,
+            lookup_start,
+            query_start,
+        }
+    }
+
+    fn phase(&self, stage: &str, source_len: usize, bindings: &SourceCommandBindings) {
+        trace_source_analysis(self.phase_start, stage, source_len, bindings);
+        trace_source_original_queries(self.query_start.as_ref(), stage, source_len);
+    }
+
+    fn phase_with_lookup(&self, stage: &str, source_len: usize, bindings: &SourceCommandBindings) {
+        self.phase(stage, source_len, bindings);
+        trace_source_lookup(self.lookup_start, stage, source_len);
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
 fn trace_source_lookup(before: Option<(u64, u128)>, stage: &str, source_len: usize) {
     if let Some((before_calls, before_nanos)) = before {
         let (calls, nanos) = original_command_table::baseline_lookup_totals();
@@ -7342,7 +7393,7 @@ fn trace_source_lookup(before: Option<(u64, u128)>, stage: &str, source_len: usi
 
 #[cfg(any(test, debug_assertions))]
 fn trace_source_original_queries(
-    before: Option<original_command_table::OriginalSourceQueryTotals>,
+    before: Option<&original_command_table::OriginalSourceQueryTotals>,
     stage: &str,
     source_len: usize,
 ) {
@@ -7561,6 +7612,22 @@ impl SourceCommandBindings {
         ))
     }
 
+    fn initial_source_analysis_bindings(
+        options: &SourceAnalysisOptions<'_>,
+        logical_conditional_source_control: bool,
+        config: tcl_lexer::LexerConfig,
+    ) -> Self {
+        Self {
+            analyser_source_settings: options
+                .source_point_entry
+                .map(OriginalSourcePointEntry::analyser_source_settings),
+            logical_conditional_source_control,
+            compilation_scope: options.compilation_scope,
+            lexer_config: Some(config),
+            ..Self::default()
+        }
+    }
+
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
@@ -7575,14 +7642,7 @@ impl SourceCommandBindings {
             logical_conditional_source_control,
         } = entry;
         #[cfg(any(test, debug_assertions))]
-        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(std::time::Instant::now);
-        #[cfg(any(test, debug_assertions))]
-        let lookup_start = phase_start.map(|_| original_command_table::baseline_lookup_totals());
-        #[cfg(any(test, debug_assertions))]
-        let query_start =
-            phase_start.map(|_| original_command_table::original_source_query_totals());
+        let tracing = SourceAnalysisTrace::start();
         let config = options.native_lexer_config(config);
         let inherited_frame = options
             .source_point_entry
@@ -7604,19 +7664,15 @@ impl SourceCommandBindings {
                 .cloned()
                 .map(Arc::new);
             #[cfg(any(test, debug_assertions))]
-            trace_source_analysis(phase_start, "memo", source.len(), &bindings);
+            trace_source_analysis(tracing.phase_start, "memo", source.len(), &bindings);
             return bindings;
         }
         let namespace = source_frame_namespace(frame);
-        let mut bindings = Self {
-            analyser_source_settings: options
-                .source_point_entry
-                .map(OriginalSourcePointEntry::analyser_source_settings),
+        let mut bindings = Self::initial_source_analysis_bindings(
+            &options,
             logical_conditional_source_control,
-            compilation_scope: options.compilation_scope,
-            lexer_config: Some(config),
-            ..Self::default()
-        };
+            config,
+        );
         let mut state = initial_source_interpretation_state(image, config, registry, options);
         bindings
             .root_origin
@@ -7628,16 +7684,7 @@ impl SourceCommandBindings {
                 config,
             })
         });
-        let namespace_key = options
-            .source_point_entry
-            .map(|entry| entry.namespace().clone())
-            .or_else(|| frame.namespace_identity().cloned())
-            .or_else(|| {
-                options
-                    .native_entry
-                    .and_then(|entry| SourceNamespaceKey::from_native_entry(entry).ok())
-            })
-            .unwrap_or_else(|| SourceNamespaceKey::authored(namespace));
+        let namespace_key = source_entry_namespace_key(&options, frame, namespace);
         let frame = frame.clone().with_namespace_identity(namespace_key.clone());
         // This API's supplied frame is the entry activation. It is not a
         // nested call whose final state should restore the initial model frame.
@@ -7649,9 +7696,7 @@ impl SourceCommandBindings {
             Arc::make_mut(&mut state.source_variables).bind_unknown_incoming(name, registry);
         }
         #[cfg(any(test, debug_assertions))]
-        trace_source_analysis(phase_start, "initial", source.len(), &bindings);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_original_queries(query_start, "initial", source.len());
+        tracing.phase("initial", source.len(), &bindings);
         let root_outcomes = bindings.walk_source(
             source,
             0,
@@ -7667,11 +7712,7 @@ impl SourceCommandBindings {
             ),
         );
         #[cfg(any(test, debug_assertions))]
-        trace_source_analysis(phase_start, "walk", source.len(), &bindings);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_original_queries(query_start, "walk", source.len());
-        #[cfg(any(test, debug_assertions))]
-        trace_source_lookup(lookup_start, "walk", source.len());
+        tracing.phase_with_lookup("walk", source.len(), &bindings);
         bindings.conditional_source.root_outcomes = Some(Arc::new(root_outcomes.clone()));
         bindings.original_completed_root_state = options
             .source_point_entry
@@ -7685,11 +7726,7 @@ impl SourceCommandBindings {
             bindings.analyse_deferred_entries(&state, config, registry);
         }
         #[cfg(any(test, debug_assertions))]
-        trace_source_analysis(phase_start, "deferred", source.len(), &bindings);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_original_queries(query_start, "deferred", source.len());
-        #[cfg(any(test, debug_assertions))]
-        trace_source_lookup(lookup_start, "deferred", source.len());
+        tracing.phase_with_lookup("deferred", source.len(), &bindings);
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
         if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
@@ -7701,9 +7738,7 @@ impl SourceCommandBindings {
             source_analysis_cache::retain(key, &bindings);
         }
         #[cfg(any(test, debug_assertions))]
-        trace_source_analysis(phase_start, "complete", source.len(), &bindings);
-        #[cfg(any(test, debug_assertions))]
-        trace_source_original_queries(query_start, "complete", source.len());
+        tracing.phase("complete", source.len(), &bindings);
         bindings
     }
 
@@ -7731,16 +7766,18 @@ impl SourceCommandBindings {
                     started.elapsed().as_millis()
                 );
             }
-            for (_root_index, (root, entry)) in
+            for (root_index, (root, entry)) in
                 self.deferred_entry_states(incoming).into_iter().enumerate()
             {
+                #[cfg(not(any(test, debug_assertions)))]
+                let _ = root_index;
                 #[cfg(any(test, debug_assertions))]
                 if let Some(started) = started
-                    && (_root_index == 0
+                    && (root_index == 0
                         || last_report.is_some_and(|last| last.elapsed().as_secs() >= 1))
                 {
                     eprintln!(
-                        "SOURCE_DEFERRED_PROGRESS stage=entry iteration={iteration} index={_root_index} ms={} roots={root_count} bytes={} offset={} outcomes={} layouts={}",
+                        "SOURCE_DEFERRED_PROGRESS stage=entry iteration={iteration} index={root_index} ms={} roots={root_count} bytes={} offset={} outcomes={} layouts={}",
                         started.elapsed().as_millis(),
                         root.source.len(),
                         root.offset,
@@ -9794,9 +9831,9 @@ impl SourceCommandBindings {
         compiled: &compiled_invocation::CompiledInvocationSelection,
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
+        use tcl_registry::native_compilation::NativeCompilationSelection;
         #[cfg(any(test, debug_assertions))]
         let _timing = root_owner_work::Timing::at(root_owner_work::Query::SelectedCommand);
-        use tcl_registry::native_compilation::NativeCompilationSelection;
         let SourceCommandInput {
             image,
             segment,
@@ -10920,6 +10957,86 @@ impl SourceCommandBindings {
         self.walk_prepared_source_target(native, &prepared, effective, state, context, &incoming)
     }
 
+    #[cfg(test)]
+    fn trace_unclosed_prepared_source_early(
+        native: &SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+    ) {
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
+                native.segment.texts,
+                facts.state_transitions,
+                native.target.kind,
+                native.target.registry_backed,
+                facts.arg_roles_complete,
+                facts.subcommand,
+                facts.effects.callback(),
+                facts.effects.legacy().command_table_mutation,
+                facts.traits
+            );
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_prepared_source_receiver(
+        native: &SourceNativeInvocation<'_>,
+        receipts: &CapturedNativeResultReceipts,
+        read_complete: bool,
+        write_complete: bool,
+        route: &tcl_registry::completion_route::InvocationCompletionRoute,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_CLOSED_RECEIVER site={} read_captured={} read_current={} write_current={} route={route:?}",
+                native.segment.span.start(),
+                receipts.normal_read.is_some(),
+                read_complete,
+                write_complete
+            );
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_prepared_source_return(
+        native: &SourceNativeInvocation<'_>,
+        outcomes: &SourceOutcomes,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+            eprintln!(
+                "ORIGINAL_HANDLER_RETURN site={} normal={} abrupt={} normal_dynamic={}",
+                native.segment.span.start(),
+                outcomes.normal.is_some(),
+                outcomes.abrupt.len(),
+                outcomes
+                    .normal
+                    .as_ref()
+                    .is_some_and(|normal| normal.source_variables.dynamic_bindings)
+            );
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_unclosed_prepared_source(
+        native: &SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+    ) {
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
+                native.segment.texts,
+                facts.state_transitions,
+                native.target.kind,
+                native.target.registry_backed,
+                facts.arg_roles_complete,
+                facts.subcommand,
+                facts.effects.callback(),
+                facts.effects.legacy().command_table_mutation,
+                facts.traits
+            );
+        }
+    }
+
     fn walk_prepared_source_target(
         &mut self,
         native: SourceNativeInvocation<'_>,
@@ -10945,20 +11062,7 @@ impl SourceCommandBindings {
                 && let Some(normal) = outcomes.normal.as_mut()
             {
                 #[cfg(test)]
-                if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                    eprintln!(
-                        "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                        native.segment.texts,
-                        facts.state_transitions,
-                        native.target.kind,
-                        native.target.registry_backed,
-                        facts.arg_roles_complete,
-                        facts.subcommand,
-                        facts.effects.callback(),
-                        facts.effects.legacy().command_table_mutation,
-                        facts.traits
-                    );
-                }
+                Self::trace_unclosed_prepared_source_early(&native, facts);
                 normal.unclosed_command_world = true;
             }
             return *outcomes;
@@ -10985,30 +11089,17 @@ impl SourceCommandBindings {
             route
         };
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
-            eprintln!(
-                "ORIGINAL_HANDLER_CLOSED_RECEIVER site={} read_captured={} read_current={} write_current={} route={route:?}",
-                native.segment.span.start(),
-                receipts.normal_read.is_some(),
-                read_complete,
-                write_complete
-            );
-        }
+        Self::trace_prepared_source_receiver(
+            &native,
+            &receipts,
+            read_complete,
+            write_complete,
+            &route,
+        );
         let mut outcomes =
             self.walk_prepared_native_target(native, state, context, facts, route, incoming);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
-            eprintln!(
-                "ORIGINAL_HANDLER_RETURN site={} normal={} abrupt={} normal_dynamic={}",
-                native.segment.span.start(),
-                outcomes.normal.is_some(),
-                outcomes.abrupt.len(),
-                outcomes
-                    .normal
-                    .as_ref()
-                    .is_some_and(|normal| normal.source_variables.dynamic_bindings)
-            );
-        }
+        Self::trace_prepared_source_return(&native, &outcomes);
         // Implementation contract: naming.variable.original-set-read-completion
         // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
         if read_complete
@@ -11042,20 +11133,7 @@ impl SourceCommandBindings {
             && let Some(normal) = outcomes.normal.as_mut()
         {
             #[cfg(test)]
-            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                eprintln!(
-                    "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                    native.segment.texts,
-                    facts.state_transitions,
-                    native.target.kind,
-                    native.target.registry_backed,
-                    facts.arg_roles_complete,
-                    facts.subcommand,
-                    facts.effects.callback(),
-                    facts.effects.legacy().command_table_mutation,
-                    facts.traits
-                );
-            }
+            Self::trace_unclosed_prepared_source(&native, facts);
             normal.unclosed_command_world = true;
         }
         outcomes.publish(state);
