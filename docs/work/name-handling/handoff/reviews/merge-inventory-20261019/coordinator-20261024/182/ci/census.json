@@ -1,0 +1,646 @@
+{
+  "artifacts": {
+    "run40039952540-heavy-listing.zip": {
+      "bytes": 51478,
+      "members": {
+        "rust-tests-heavy-selected.json": {
+          "bytes": 51304,
+          "sha256": "3a8f229b8dd36986a25b7bd55b0e12aeb54c337a16a51ea657c19a6ad8b01408"
+        }
+      },
+      "sha256": "052bfeb1b75b6bc26dc5de2e62e9a49edd5f21925792baab07bdb3ddfdd5a587"
+    },
+    "run40039952540-heavy-terminal.zip": {
+      "bytes": 247220,
+      "members": {
+        "nextest-stderr.txt": {
+          "bytes": 157205,
+          "sha256": "6b98b6e2b82a30335865932c52246e0d0333989dcbcae5ea6f46793e529482b4"
+        },
+        "summary.json": {
+          "bytes": 620,
+          "sha256": "0d980a880b4f4ef98280a190a968f88e4259cd76af41729d2189be4d9d218219"
+        },
+        "terminal.jsonl": {
+          "bytes": 89009,
+          "sha256": "7c1f32e3d0a524549baa00e6f3dd1a1d8a23a939edd02d5b5f703f5e2564d6c5"
+        }
+      },
+      "sha256": "01cb81e1878cf9551ce301ca7e61c2850d5816e362297c0606f1a0a464d3b01a"
+    },
+    "run40039952540-lsp-e2e-result.zip": {
+      "bytes": 1868962,
+      "members": {
+        "result-metadata.json": {
+          "bytes": 635,
+          "sha256": "aec3ba5b2efa966fd84672cccd4809004bcccd4375ba413bd46ce92f6a2fbbeb"
+        },
+        "selected.json": {
+          "bytes": 382746,
+          "sha256": "0f975cd01c4239ec4d36a2e140d130dffba33dee137260a17e91f63e1d4b5d08"
+        },
+        "terminal-capture/nextest-stderr.txt": {
+          "bytes": 1213700,
+          "sha256": "b65f4917805b087bdea6c2e68c11aa3f2de1f53ec491bd1e6f257bb270df916e"
+        },
+        "terminal-capture/summary.json": {
+          "bytes": 4456,
+          "sha256": "cc490cfecc54150ac5453e5b3a8b94927663d7fd0328104dbab080468141e91f"
+        },
+        "terminal-capture/terminal.jsonl": {
+          "bytes": 266687,
+          "sha256": "b3af5c3928338dccf9b0946af16b00890d518af77a366d340577778cdc133cc0"
+        }
+      },
+      "sha256": "cf48b47158d473a5916888b54353a9cb9e6b04dbc873c5f6011109e27002a1c9"
+    },
+    "run40039952540-rust-listing-1-5.zip": {
+      "bytes": 1673011,
+      "members": {
+        "rust-tests-1-5.json": {
+          "bytes": 1672859,
+          "sha256": "3ea456f88fa802e1606969dad872934c140b477e760251c4e77e4aa689fb6f67"
+        }
+      },
+      "sha256": "2aaa21916c29403e8b1abb2f1bfdd9a0fc3976fe3c5394a23f87c7554a055bb9"
+    },
+    "run40039952540-rust-listing-2-5.zip": {
+      "bytes": 1196754,
+      "members": {
+        "rust-tests-2-5.json": {
+          "bytes": 1196602,
+          "sha256": "56be729e9e22ee6aad247ca7212897b68e049fad2d40c5571d714189b0d12ff2"
+        }
+      },
+      "sha256": "f6a370e42ae240cdacb5dc72270ce352ee5ec28f422f4922c441e489733c0724"
+    },
+    "run40039952540-rust-listing-3-5.zip": {
+      "bytes": 550854,
+      "members": {
+        "rust-tests-3-5.json": {
+          "bytes": 550702,
+          "sha256": "08e5536bb0cd47e4d7b1f3f020f6a5438248b7be65ba945e3750e0246487b5ce"
+        }
+      },
+      "sha256": "6ef72bb84e90aa3e0c9d2a68f15573c2b3af4bb5110fd2a319783d10c7440dcf"
+    },
+    "run40039952540-rust-listing-4-5.zip": {
+      "bytes": 455648,
+      "members": {
+        "rust-tests-4-5.json": {
+          "bytes": 455496,
+          "sha256": "e1774dd7d53479d42e50ff231e6c440d002b66efd9a2f2d55113bd9c1905d01f"
+        }
+      },
+      "sha256": "d3370c345f156eeb5a50882adf524ad811e113c522e753a0357f39d7e19e3a3c"
+    },
+    "run40039952540-rust-listing-5-5.zip": {
+      "bytes": 768042,
+      "members": {
+        "rust-tests-5-5.json": {
+          "bytes": 767890,
+          "sha256": "5f2c463ed9e6285e626c9d2662dbe212c9cbe6350e328a168e9b94c9bf96d7ec"
+        }
+      },
+      "sha256": "e298ec8d47050fdcdbc129db4f5f9859bbdbd54ebf4140ec51a43a43403f6412"
+    },
+    "run40039952540-rust-tests-metadata.zip": {
+      "bytes": 263567,
+      "members": {
+        "rust-tests-metadata.json": {
+          "bytes": 263405,
+          "sha256": "dbc6eef56b38176be7b8be688e195deaf39cb73128224b0d70b8f154b5f05201"
+        }
+      },
+      "sha256": "fabe0bc2accfab303f581931c16c75b39c2bb3ecdb15d28b09159511626b3f17"
+    },
+    "run40039952540-vscode-partition-three.zip": {
+      "bytes": 109539,
+      "members": {
+        "mocha-result.json": {
+          "bytes": 109391,
+          "sha256": "02b482e3538566eae187104eb5eb279ba9ea017714a2c947fc8ba8f3d1505d95"
+        }
+      },
+      "sha256": "93935a7246c289b2937d40fc89c3b0d9ca301a27969d079871b90a4131156a55"
+    }
+  },
+  "full_24312_join": {
+    "evidence": "Five rust listing artifacts are the 1/5..5/5 captures and their matched identities total 30,558, not the requested exact 24,312 baseline. Heavy selected list gives 355 unique exact identities for this job. Rust metadata artifact contains Cargo package metadata, not the full baseline identity set. No exact 24,312 join source was found in these retained artifacts; do not infer join by basename.",
+    "status": "unresolved"
+  },
+  "jobs": {
+    "120708509715": {
+      "capture_summary": {
+        "capture_errors": [],
+        "ignored_unreported": [],
+        "lifecycle": {
+          "cleanup_signals": [],
+          "group_empty_before_parent_reap": true,
+          "group_scan_attempts": 2,
+          "last_live_members": [],
+          "last_scan_complete": true,
+          "owned_pgid": 3777,
+          "parent_pid": 3777,
+          "parent_start_ticks": 23584
+        },
+        "listing_sha256": "3a8f229b8dd36986a25b7bd55b0e12aeb54c337a16a51ea657c19a6ad8b01408",
+        "missing_terminal": [],
+        "never_started": [],
+        "nextest_exit": 100,
+        "schema": "nextest-capture-v1",
+        "selected_count": 355,
+        "started_unfinished": [],
+        "stderr_truncated": false,
+        "terminal_count": 355
+      },
+      "classification": {
+        "f5-cli explain_flow": 2,
+        "f5-cli irule": 2,
+        "tcl-irule-test": 30
+      },
+      "conclusion": "failure",
+      "decoded_log_chars": 321709,
+      "decoded_log_sha256": "3e734db57b22daf126435fb48d480a818856d0ca5fc0002aba0e2ae6fe4caf24",
+      "failure_count": 34,
+      "failures": [
+        {
+          "binary_id": "f5-cli::explain_flow",
+          "exec_time": 103.870693915,
+          "output_sha256": "69ceed1428f49b0694d5e66f45a7bb61e093a2b28cab6b4261836bd336883c71",
+          "status": "failed",
+          "test": "simulate_runs_irule_and_selects_pool"
+        },
+        {
+          "binary_id": "f5-cli::explain_flow",
+          "exec_time": 103.914934683,
+          "output_sha256": "2beae08aa04495c4529a086c2c42d7b0a51c1c2a0fce88ef2346ac520987aec1",
+          "status": "failed",
+          "test": "simulate_json_populates_simulated_fields"
+        },
+        {
+          "binary_id": "f5-cli::irule",
+          "exec_time": 0.206694478,
+          "output_sha256": "686d7ca439216163987eeeb4779820f3cb3a320ef7d4142551651462fe24fb7f",
+          "status": "failed",
+          "test": "trace_keeps_data_group_from_braced_expression_command"
+        },
+        {
+          "binary_id": "f5-cli::irule",
+          "exec_time": 0.232771351,
+          "output_sha256": "1ab150048530569c9b894672a0f74c31f04faa56336b34288ed0d1d781c63122",
+          "status": "failed",
+          "test": "trace_uses_the_event_closure_not_the_first_handler_body"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 100.896876468,
+          "output_sha256": "a2bea79a22d80b74bbc3580fe6b74b68103a2b885a2800f7c709a2d88483fb8c",
+          "status": "failed",
+          "test": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 99.941644623,
+          "output_sha256": "f4fcc2c5056086a1801f8dbdb657b4188a2a35ecd9cc2b475b747d1cdce8d755",
+          "status": "failed",
+          "test": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.119707044,
+          "output_sha256": "85653e733ae218475861fccda12fd1a34e670515b86504fdd841415314b0be0b",
+          "status": "failed",
+          "test": "live::tests::embedded_session_scenarios"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 97.336246319,
+          "output_sha256": "d865bb282ff019e2dc6ef28560b2de889429ac9b20f23546e2ccd9b52d49158d",
+          "status": "failed",
+          "test": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.939998043,
+          "output_sha256": "25eeb89cdbb6440f8c764d5d52cc6705850a73a2da98a028e8f13fc0711d713e",
+          "status": "failed",
+          "test": "live::tests::event_frames_preserve_cells_aliases_and_traces"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.4390482,
+          "output_sha256": "dec92558f379460ff26cd1878cda37d5299b8f54dc6dbf84d7696a63c88e5774",
+          "status": "failed",
+          "test": "live::tests::harness_runs_the_tmm_84_surface"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.801072038,
+          "output_sha256": "6bd7ccf151322aa7f4a1b22f409b5b192091d41ad2b02f1cd7042fdbda64f977",
+          "status": "failed",
+          "test": "live::tests::irule_source_rewrite_only_touches_command_positions"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 97.44283789,
+          "output_sha256": "ebbfced1d9d9a812012147f439c5b462ecaad58c0146b3e65050f2b61da8a7e1",
+          "status": "failed",
+          "test": "live::tests::itest_loader_event_registration_matches_rust_when_blocks"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 95.311126211,
+          "output_sha256": "0b9e9a90ffd8a3a4ccd35096e2bd95725ae2fe43f6614552bf4613114a3cd825",
+          "status": "failed",
+          "test": "live::tests::live_session_class_match_honours_every_operator"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.996880869,
+          "output_sha256": "b81d6dabc0bb6b75df7d49b42688b1858d25c436500a3b09a290d964979607e2",
+          "status": "failed",
+          "test": "live::tests::live_session_drives_the_request_lifecycle"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 95.855037673,
+          "output_sha256": "cf8b2a8e38a4ef7f273be7aca81131dc58bf0954b74b2bd8dda5c5493b42bcc3",
+          "status": "failed",
+          "test": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 95.616426076,
+          "output_sha256": "55464e204c73a33add046a4a0f1ba0bcdb2cc4e1908704b734548769c1edb4c8",
+          "status": "failed",
+          "test": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 95.922210626,
+          "output_sha256": "e125f910b5a13fd4f80fd4bee6f374a9343a108ca50c68710733e1deddcc5ee8",
+          "status": "failed",
+          "test": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 97.125932189,
+          "output_sha256": "06d82d6d09bb20389a44d3dd45a9c91089424eef2217c8ff97cbf4513c1e83a8",
+          "status": "failed",
+          "test": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.619993332,
+          "output_sha256": "bdfe9e323e84e351c51ecfc6a28a82e9e3b4d0f1afe5333f60b02f30fa16cb8d",
+          "status": "failed",
+          "test": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 95.973454639,
+          "output_sha256": "7a8aceeb31441d3be109e2cf758bc3466668a390a3531fe3002b788c9135e9bb",
+          "status": "failed",
+          "test": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.83951138,
+          "output_sha256": "6db9da74a440f87d7572d8775ed466199945e37d608a7f4599801414492613e8",
+          "status": "failed",
+          "test": "live::tests::retained_event_frame_preserves_native_completion_options"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.90749715,
+          "output_sha256": "d486ea82e9e50fcfbbb00f4393e0219dbf94e86f6647aec1066e0350af85e132",
+          "status": "failed",
+          "test": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.44749985199999,
+          "output_sha256": "c2f38913cc8428eca1ab9a019c810f7fa7875e96a85753a54884fdb816c37cb0",
+          "status": "failed",
+          "test": "live::tests::rule_init_uses_each_workers_global_cells_once"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.311234517,
+          "output_sha256": "81aa665743ded4be3b0ae25287224e08ab8b40306dd75535f8e0a21d4483c92c",
+          "status": "failed",
+          "test": "live::tests::scf_loader_stores_parsed_snatpool_members"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.543741096,
+          "output_sha256": "e2a6fb81e7e7a9e53a884a0c7998df05cba5b62b55a52770cab2400a3cdb10ba",
+          "status": "failed",
+          "test": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.941822244,
+          "output_sha256": "2a5509892c2a801e8d977d487a5d77b154abec423ac977f9e1d24dc7dd031696",
+          "status": "failed",
+          "test": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.913322063,
+          "output_sha256": "525977355358a8274f3b1ab2f3dddba24c6e132469b4fdcb612774bace0bb48a",
+          "status": "failed",
+          "test": "live::tests::tmm_select_mode_survives_the_per_test_reset"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.225609499,
+          "output_sha256": "13288f8f25dc02f8f036a6843be2f1afa8a7e4f31131da603f8edd1ed5831d62",
+          "status": "failed",
+          "test": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.367226463,
+          "output_sha256": "14aadc873e1561249b1390f2cc83c0f59ddc879f46a9991dd6493c1dbb40da35",
+          "status": "failed",
+          "test": "live::tests::worker_array_recreation_retires_element_aliases_and_traces"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.698601691,
+          "output_sha256": "7ecd3ef62fc9de52bf7f40f274b2dfd431ddf7f545f2526e28e16530ca593827",
+          "status": "failed",
+          "test": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.690013854,
+          "output_sha256": "6343812298be44ad57b59765853098a9e7c7a0f1465435dd558661c8630a0b42",
+          "status": "failed",
+          "test": "live::tests::worker_reset_reloads_independent_globals_and_initialisation"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 97.091282982,
+          "output_sha256": "5e03acb6bf67cdd7dc3a678dd112c6fec69ced5faa921868aa670df3e18a6785",
+          "status": "failed",
+          "test": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 96.951598952,
+          "output_sha256": "fb1985a7c51c7d3782db084faac218668e714d99fc2919b9c898ba3f06cfff0b",
+          "status": "failed",
+          "test": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin"
+        },
+        {
+          "binary_id": "tcl-irule-test",
+          "exec_time": 85.717095025,
+          "output_sha256": "51e789c1dd9e661729ce5c10e955250a4b62ea49f0ffa76655a819f8d64f8f11",
+          "status": "failed",
+          "test": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle"
+        }
+      ],
+      "name": "rust-tests-heavy",
+      "notes": "355/355 selected terminal rows; 321 pass, 34 fail, 0 ignored. The 30 live/pure-function tcl-irule-test failures and 2 explain_flow failures are executed test panics/assertions after native compiler preflight refusal (not build failure or cancellation); two f5-cli irule tests are executed stderr assertions. Parent process group empty; no cleanup signals. Full failed identities and per-row encoded output hashes in failures and terminal artifact.",
+      "step_result": "build/setup/listing/upload passed; nextest failed; terminal capture upload passed"
+    },
+    "120710271787": {
+      "capture_summary": {
+        "capture_errors": [
+          "repeated suite start"
+        ],
+        "ignored_unreported": [],
+        "lifecycle": {
+          "cleanup_signals": [],
+          "group_empty_before_parent_reap": true,
+          "group_scan_attempts": 2,
+          "last_live_members": [],
+          "last_scan_complete": true,
+          "owned_pgid": 2743,
+          "parent_pid": 2743,
+          "parent_start_ticks": 22382
+        },
+        "listing_sha256": "0f975cd01c4239ec4d36a2e140d130dffba33dee137260a17e91f63e1d4b5d08",
+        "missing_terminal": [
+          [
+            "tcl-lsp-server::e2e",
+            "semantic_tokens_reference_client::large_file_range_semantic_tokens_converges_via_refresh"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_compiler_explorer_view_maps_every_line"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_compiler_explorer_view_unknown_view_is_empty_not_an_error"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_set_dialect_returns_success"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_shebang_dialect_hides_newer_commands"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "after_integer_ms_is_not_flagged_w001_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "closed_on_disk_file_retains_diagnostics_badge_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "dynamic_but_resolvable_rename_definition_follows_the_move_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "dynamic_oo_define_targets_never_corrupt_the_document_symbol_tree_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "method_param_definition_resolves_to_name_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "method_param_definition_resolves_to_name_for_second_param_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "nested_shadow_of_builtin_does_not_leak_across_files_e2e"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "diagnostics_delivery_smoke::catch_body_diagnostics_are_delivered"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "diagnostics_delivery_smoke::pull_capable_client_still_gets_push_by_default"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "signature_help_smoke::signature_help_smoke"
+          ]
+        ],
+        "never_started": [
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_set_dialect_returns_success"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_shebang_dialect_hides_newer_commands"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "after_integer_ms_is_not_flagged_w001_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "closed_on_disk_file_retains_diagnostics_badge_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "dynamic_but_resolvable_rename_definition_follows_the_move_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "dynamic_oo_define_targets_never_corrupt_the_document_symbol_tree_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "method_param_definition_resolves_to_name_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "method_param_definition_resolves_to_name_for_second_param_e2e"
+          ],
+          [
+            "tcl-lsp-server::preview_tickets_e2e",
+            "nested_shadow_of_builtin_does_not_leak_across_files_e2e"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "diagnostics_delivery_smoke::catch_body_diagnostics_are_delivered"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "diagnostics_delivery_smoke::pull_capable_client_still_gets_push_by_default"
+          ],
+          [
+            "tcl-lsp-server::smoke",
+            "signature_help_smoke::signature_help_smoke"
+          ]
+        ],
+        "nextest_exit": 100,
+        "schema": "nextest-capture-v1",
+        "selected_count": 830,
+        "started_unfinished": [
+          [
+            "tcl-lsp-server::e2e",
+            "semantic_tokens_reference_client::large_file_range_semantic_tokens_converges_via_refresh"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_compiler_explorer_view_maps_every_line"
+          ],
+          [
+            "tcl-lsp-server::e2e",
+            "vscode_parity::test_compiler_explorer_view_unknown_view_is_empty_not_an_error"
+          ]
+        ],
+        "stderr_truncated": false,
+        "terminal_count": 819
+      },
+      "classification": "271 executed test failures, 543 pass, 5 ignored; not build/provider failure. Capture selected_count=830, terminal_count=819, and lists 3 started-unfinished plus 13 never-started (16 missing-terminal identities). Those counts do not reconcile arithmetically with selected-minus-terminal; capture_errors reports repeated suite start, so do not reconcile by subtraction. No process cleanup signals; exact terminal identities/hashes and full capture summary are retained.",
+      "conclusion": "failure",
+      "decoded_log_chars": 769070,
+      "decoded_log_sha256": "6b0d953ef850dde8f3346a497f05e2df4e7011c9836582c0077a1d534f194c7c",
+      "failure_count": 271,
+      "limitations": "Terminal completeness is not established: 16 missing-terminal identities are listed; capture also reports repeated suite start and the selected/terminal counts are not arithmetically reconcilable.",
+      "name": "lsp-e2e-partition (3/3)",
+      "notable_exact_failures": [
+        {
+          "binary_id": "tcl-lsp-server",
+          "exec_time": 1.118836321,
+          "output_sha256": "3e0ff03589044ed00fa47d1c1c5fddf25edee305c07e79610ee685833ded3aad",
+          "test": "original_document_metadata_tests::original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input"
+        },
+        {
+          "binary_id": "tcl-lsp-server",
+          "exec_time": 5.49493541,
+          "output_sha256": "290893c32164020e207aceb81c61a189e1a106db2b3f139e7da638d84160005d",
+          "test": "original_document_metadata_tests::configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints"
+        },
+        {
+          "binary_id": "tcl-lsp-server",
+          "exec_time": 4.78497112,
+          "output_sha256": "dc8c72f41bd0a8f3181fddf538bec233a6673383a704fbe06c9ab99a8d596888",
+          "test": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles"
+        },
+        {
+          "binary_id": "tcl-lsp-server",
+          "exec_time": 14.991113171,
+          "output_sha256": "f9003090c4346754cb0fa42e9ae443ee7c9fc7d7dd05a7c6d0a94f865414b0fb",
+          "test": "original_document_metadata_tests::optimise_document_keeps_workspace_roles_and_refuses_unavailable_input"
+        }
+      ],
+      "result_metadata": {
+        "archive_sha256": "5e2115143aa8b5ad722d70a535072b3aba0033e02a9f3f0b21ebd3fd92e923ea",
+        "archive_verified": true,
+        "filter": "default",
+        "kind": "consumer",
+        "nextest_version": "cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)\nrelease: 0.9.148\ncommit-hash: cd1d6d5467322dbc0d39a80cb671d000ac302798\ncommit-date: 2026-10-07\nhost: x86_64-unknown-linux-gnu",
+        "package": "tcl-lsp-server",
+        "partition": "hash:3/3",
+        "partition_count": 3,
+        "result": "failure",
+        "schema": 1,
+        "selected_listing_sha256": "0f975cd01c4239ec4d36a2e140d130dffba33dee137260a17e91f63e1d4b5d08",
+        "shard_count": 3,
+        "workspace_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+      },
+      "status_counts": {
+        "failed": 271,
+        "ignored": 5,
+        "ok": 543
+      },
+      "steps": "checkout/setup/archive/proof/digest/nextest-version/listing/upload passed; native server e2e command ran; final fail-if-partition failed"
+    },
+    "120712045718": {
+      "classification": "41 actual Mocha test failures among 508 started and 508 completed; no extension-host cancellation or missing terminal test identity. Failures include VSCODE-WAIT-TIMEOUT/diagnostics unavailable, actual optimizeDocument assertion, source action changed-context and source-bound transform assertions. Timeout probes reported they could not confirm starvation and suspected a real server hang or predicate that never holds; cause is not proven.",
+      "completed": 508,
+      "conclusion": "failure",
+      "decoded_log_chars": 293698,
+      "decoded_log_sha256": "17b227019de526c39c7e326a434b2988fbfe89f399d96d6c745b24394d61a3a8",
+      "discovered": 518,
+      "failed": 41,
+      "files_count": 37,
+      "name": "editor partition3",
+      "partition": {
+        "count": 3,
+        "index": 3
+      },
+      "passed": 304,
+      "pending": 165,
+      "started": 508,
+      "steps": "checkout/toolchain/dependencies/partition check/TS lint+compile/server binary download passed; extension-host test command failed; uploader passed"
+    }
+  },
+  "run_id": 40039952540,
+  "schema": "ci-census-v1",
+  "scope": "three closed jobs only; source pinned to this run; no inference for unfinished or unrelated jobs",
+  "source_sha": "a26ab0ffd2b1dc1681710dbf14e518025545ec33"
+}

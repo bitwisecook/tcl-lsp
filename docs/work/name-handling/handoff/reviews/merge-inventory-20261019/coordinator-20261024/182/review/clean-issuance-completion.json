@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-24T01:28:39.786686+00:00",
+  "source": "a8212b1282292fffa44ccf7f13fa8d005ff030cf",
+  "patch_sha256": "65fc250817eaf29330794284d8af04043f3f7b30b90db6724b1c5dccf4e383a9",
+  "six_before_after_and_frozen_copied_bytes_match": true,
+  "integration_helper_issue": "dictionary manifest final_sha256 was not recognized; no source discrepancy or source edit",
+  "runtime_typing_lint_perf": "UNRUN"
+}

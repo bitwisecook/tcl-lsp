@@ -1,0 +1,95 @@
+{
+  "utc": "2026-10-24T01:19:27.528846+00:00",
+  "status": "INDEPENDENT DEEP ISSUANCE / INVALIDATION / CLEAN CARRY STATIC CLEAR",
+  "lanes": {
+    "work": {
+      "patch_sha256": "afce2fd3bb9a7dba4ab277e29487f38050a355b473e115c055c2ac84cd9b0d0c",
+      "manifest_sha256": "4800c750ad9ddb8b30a9a4dab520c2aefe3c7bdf06d1e5808a77e79576864f16",
+      "files": {
+        "rust/tcl-compiler/src/command_binding.rs": {
+          "before_sha256": "adc87e0953554f60fa430375c8d7cd45e490896570cb61d64c8ca2a70f127ad1",
+          "final_sha256": "37e686bcd4322c5796de40fa10647fe3204659a678d47f2fc1f2370187a36604"
+        },
+        "rust/tcl-compiler/src/command_binding/retained_source.rs": {
+          "before_sha256": "8a4b4ff18e51915f4e8fbac69d6992c2b13f8503797664c64db1a8ec07a63ee0",
+          "final_sha256": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2"
+        },
+        "rust/tcl-compiler/src/lowering/mod.rs": {
+          "before_sha256": "98904a449d3a67d615da6b4ff649ea80b06ce638b791066163ea4ff85fe24955",
+          "final_sha256": "1c8da7db37c95c92e2cd52c9761b7797df93041be933e7a0e0a8f8138a619f9d"
+        },
+        "rust/tcl-compiler/src/compilation_unit.rs": {
+          "before_sha256": "6438145153f9d3b5fd296202cac8eeaa3f4ac988f42da3b84b91f12b6131170f",
+          "final_sha256": "906743ea97f53d9d9edad641bb32b30ac4c06df7fb3aaf186b81fbbc5772f069"
+        },
+        "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": {
+          "before_sha256": "563220ccad1beb1cc1d8fe76c123b5d8ee2973e8ecb1118285fe4a3f296eeb6b",
+          "final_sha256": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3"
+        },
+        "docs/design/compiler/value-transfers.md": {
+          "before_sha256": "7eeda8c46263b2cd220e2cf2e23af7597d28dc837cf8e9847402a78a78a39187",
+          "final_sha256": "fbaa560a9c761805f4b2f072bf023cf294667abb3e42b66727d1cd4b8e5eb7c1"
+        },
+        "docs/work/name-handling/validation-tools/spectcl-fold-roster.json": {
+          "before_sha256": "4e2950533d394fefc055f3d9cd5bb808c1b068595efb49dec62e1315de216bcb",
+          "final_sha256": "c743e324039b9a33d01f1c565cf0397645e9797dede245d6cdbba269ddad3683"
+        }
+      },
+      "current_before_base_after_pins": true,
+      "copy_forward_reverse_forward": "PASS0 no output/fuzz/offset",
+      "fmt2024": "PASS all5Rustfiles",
+      "existing_lowering_and_retained_tests": "Entire old testmodules BYTEEXACT after deleting only one new test each",
+      "native_operations": "Entire production suffix from metadata through all operation/store/child/receiver/evaluator/currentSSA methods BYTEEXACT; prior Direct5/negative testfunctions unchanged",
+      "CU_wholefile_independent_transform": "BYTEEXACT one selection block"
+    },
+    "clean": {
+      "patch_sha256": "65fc250817eaf29330794284d8af04043f3f7b30b90db6724b1c5dccf4e383a9",
+      "manifest_sha256": "d613b1f6b646ecc49d2e8c3af20461f284df0bfd2244386b66f6cd923528ab0c",
+      "files": {
+        "rust/tcl-compiler/src/command_binding.rs": {
+          "before_sha256": "ec5ebdae3a1f36ee4f6a68da6af56f40abb09e29603bde9e20aec51254803e9d",
+          "final_sha256": "7b55c6cfc37c953511977f76b800832adf2888a0d08987812585c4c92a4a6cbd"
+        },
+        "rust/tcl-compiler/src/command_binding/retained_source.rs": {
+          "before_sha256": "429a27b957ec8e007533f21be52d50c2ee145984a871d17530add04b1af4ef0b",
+          "final_sha256": "2614b2ea8863c301af9783ee1edadf260fdd8e42f6724405ab35f71c87c0afaf"
+        },
+        "rust/tcl-compiler/src/lowering/mod.rs": {
+          "before_sha256": "b0e35e48ce9c24707fa41dfd03910664d04b86bf68e19da731a01fc0f6116be8",
+          "final_sha256": "1192dc0a336e24ed1d79f9e03636f703befe11480fb83e6c7018caa6bfbc96b0"
+        },
+        "rust/tcl-compiler/src/compilation_unit.rs": {
+          "before_sha256": "0957e79022a05dd5cd236d93a092b862faf743df64331b89951ac9dd02824e5e",
+          "final_sha256": "cad7288e8623c5cf1f106ee76c7d7b7749a3b5e05c5e50463c6a15e728da3ab9"
+        },
+        "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": {
+          "before_sha256": "7a1436436f4b8b028b72af73bfb2bd1db562ce5a467187ff316087f8fcdeb6c0",
+          "final_sha256": "09f91e2dd20bd19006e2d19374bf97ea016435baeb7128dce08a5db028c6942e"
+        },
+        "docs/design/compiler/value-transfers.md": {
+          "before_sha256": "6bfd8b432c9863dd4f7449e6d545f2041a83f6a445a589b16d9dea1283ec6db9",
+          "final_sha256": "df59d90754205ce1b1f0ec78ac6af99cf6efe6da1b51ac11d6192a1893c14162"
+        }
+      },
+      "current_before_base_after_pins": true,
+      "copy_forward_reverse_forward": "PASS0 no output/fuzz/offset",
+      "fmt2024": "PASS all5Rustfiles",
+      "existing_lowering_and_retained_tests": "Entire old testmodules BYTEEXACT after deleting only one new test each",
+      "native_operations": "Entire production suffix from metadata through all operation/store/child/receiver/evaluator/currentSSA methods BYTEEXACT; prior Direct5/negative testfunctions unchanged",
+      "CU_wholefile_independent_transform": "BYTEEXACT one selection block"
+    }
+  },
+  "bound_census_sha256": "0260de738f3dd35c55da7475488a503213247512c637bdfbc30ece1361b13389",
+  "actual_cause_limits": "Actualf39 Spec first gate is factory.other-purpose before store/child. AuthoredSimulation variant follows independently read canonical supplied-source getter\u2192effective options\u2192Lowerer\u2192Module purpose source chain, not a raw printed enum or actual successful private evaluator. Current originalALL10=8P2F/catchPASS/Native1first42FAIL retained.",
+  "issuer": "Crate-private receipt has private fields and no arbitrary-entry constructor. The single mint calls actual SourceAnalysisEntry::for_supplied_source and snapshots its effective grammar/dialect/policy through the SAME options projections used by original setter. Records full ResolvedAnalysisInput, complete effective SourceAnalysisEntry and registry semantic key; value equality validates this genuinely retained issuance rather than reconstructing missing provenance. Two canonical invocation sites only: Authoring supplied-input selection and CU no-explicit-entry/nonStandalone branch. No public Native entry/normal/policy capability minted.",
+  "invalidation": "Every generic explicit source-options setter clears receipt before any validation or normalization, including equal effective replacements and invalid point/options. Explicit CU entry is applied through this revoking setter; Native Standalone never enters supplied factory branch. Existing Driver state does not reissue merely through with_resolved_analysis_input. Other grammar/input/entry/policy/declared surfaces fail full stored-contract equality; no third creator/retention constructor. Source channel/current source/body/root/registry remain independently authenticated.",
+  "attachment": "Both original retention points receive optional issued receipt; absent or mismatch preserves ordinary facade but excludes Fresh transfer. Fresh projection still requires genuine positioned module facade, original_analysis_owner Arc, whole Script kind, full Native input, no Logical/hosted axis, no Native entry/sourcepoint/unknown/vendor/logical input. Existing matches_module/positioned/token/root Arc/currentbody checks remain. Factory maps allowed AuthoredSimulation ONLY into typed FreshSource branch, never ExecutionEntry; all other purposes still refuse.",
+  "operational_guards": "Original strict plus Normal operation pair, metadata/complete token vector/original issuer/root/source input/config/registry, canonical store receiver/current SSA symbol+version/unique point, literal no-read argv/solechild, actual canonical Normal child evaluator and EffectFreeOnly schema remain BYTEUNCHANGED. No source-only native execution grant, physical store, entered frame, policy fallback or fabricated normal fact.",
+  "tests": "V3 HELD for five unnecessary existing context-Arc reconstructions; V4 restores all5 original fixture inputs BYTEEXACT. New real fresh producer/Module AuthoredSimulation purpose, equal-effective explicit CU entry refusal, equal generic setter revocation, Standalone/history/fullinput/config/registry/policy negatives are meaningful authored controls but UNRUN. Existing selected Spec original11/supplementalNative1 bytes/identities/guards unchanged; WORK roster changes only native source pin. Existing newly authored purposeNone assumption becomes exact actual AuthoredSimulation assertion, not assertion weakening.",
+  "ownership_and_cost": "Full entry/input retained and cloned at genuine factory/ordinary facade endpoints. Prior genuine source owner/root/actual token identities remain sole unit authority; receipt does not replace them with names/bytes. Additional entry/input clones and retention memory/refcount cost are explicit; no performance acceptance. Source callbacks, CFG/cache owners, original lowering/drop control and all operational Native method bodies unchanged.",
+  "limits": [
+    "No Cargo/rustc/typing/Clippy/native/guest/hosted product or test execution by reviewer.",
+    "Fresh actual originalSpec/Native1 assertions, complete current compiler controls and performance remain required. No derived42/xy or Native1PASS claim from source review.",
+    "CLEAN preserves existing observer/proof cleanup outside reviewed hunks; no WORK diagnostic resurrection. V1/V2/V3 remain held/ineligible."
+  ]
+}

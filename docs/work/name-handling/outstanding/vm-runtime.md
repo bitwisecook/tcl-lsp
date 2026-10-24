@@ -2,9 +2,41 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-24T00:44:23.900630+00:00
+Last updated: 2026-10-24T01:27:16.329603+00:00
 
 ## Resume
+
+CURRENT SOURCE/PUBLICATION: rootpushed WORK182337d8573648e1e25c1365121d5dca4b7e3a09,
+release daf041e54 includes functional Env/C86scan/C84exactpair. New simplecellretained
+homeobserver3e9bb551, sampledcounterbc190776 and WORKonlyC84proofdoc43b8cfac are
+independentlyreviewedLuna09c8dda5/0b6f6d9d/8f8524eb +rootintegrated. No newruntime
+outcome beyondf39 below; runtime dispatch intentionally waits newprotocol. Savedhome
+actualdiscriminator stillunknown; no guessed simplecell/scheduling/stackbox repair.
+
+Other103 protocol V2 FROZEN /tmp/vm-runtime-other103-work-v2/manifest.json
+SHA7eb6b416f5e7e79ea16a16a8f7c74d3f004d9b36429fca1e08582674fc8bf5a2,
+patch4936520a6e029593224e7f49f12be0284813d5f998a6e47a091ad2977521528e.
+Exact182befores workflowec9d→c6e88a coverage2strings only; driverc0c09→0e36642b;
+new103rostercda2e505 andlosslessfulla26logJSON88dd41ea reconstructs UTF8raw326773bytes
+SHA616b04e54b17eb137bb6f7942d3e07dcc691ee807a6233d0c47419f63a34967c EXACT.
+Actuala26FAIL117 minusunchangedbaseline14 =103, inobservedlogorder; oneactualnumeric
+selector repeatsoriginal3 explicitly asdifferentinventory/execution, nevermergeor
+baselineidentitypromotion. Original15prefix14→stack1/owner88125RunAST/constants/
+180/2400/3600/205reserve/20MiB/2GiB unchanged;103appenddistinctandfreshlistingchecked.
+Missing/ignored/unstarted/cap/deadline casesUNRUN+globalincomplete.20puremetadata/
+mockownercontrols a491c96b +copiedfwdrevfwd0/YAML/bashAST/RuffTyPyrightPASS. NoRust/C/
+native/ELFprocess executed. Independentprotocolpeer and stackhelpercompositionpending.
+V1rawlogtext HELDdiffwhitespace; V2losslessJSONpreservesactualrawbytes, no normalization.
+Compiler owns NEW runtime-stack-frames.py API, readonlysealednm/objdump noELFexecute;
+60s+25cleanup/205case reserve,≤512KiB returningactualretainedbytes tosametotalcap.
+Existingoriginal3 stdout20M capandstderrseparatecap doNOTguaranteeworstcasecombined
+20MiB; oldreviewedpostoriginal3 aggregatecheckrefuses supplementwhenalreadyexhausted.
+Newhelpermustnotclaimretroactivecap/bonus orframescertaintyfromunknownCFI. Runtime
+mode purposelyawaitsrootpeer/composition; no duplicatehosteddispatch/localbuild.
+Exacta26full117failset reauthenticated equalsolderccf117, sourcefamiliesnotcommoncause:
+/tmp/vm-runtime-a26-full-120708509600/baseline-and-families.json SHA648cf038d3d447090965eda3cbfa1cfc4b756115016b23e231836cb88b48082c.
+Other103absencefrombaseline753 doesnotwaiveactualFAIL; no blanketC84causeattribution.
+C84Rustloaded812test is a DIFFERENTcrateELF and remainsUNRUN; not partofruntime103.
 
 LATEST AUTHENTIC ACTUAL f39c2d6cc4d6942b9b57875d078befb597a4a4e5 runtime
 run40043851158/job120720898210 CLOSEDFAIL00:27:24/uploadPASS. Artifact12540573888

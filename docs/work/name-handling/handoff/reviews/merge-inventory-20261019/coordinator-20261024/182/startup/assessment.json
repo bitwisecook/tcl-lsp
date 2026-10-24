@@ -1,0 +1,634 @@
+{
+  "utc": "2026-10-24T01:26:46.536918+00:00",
+  "status": "AUTHENTIC_FRESH0W_COLDTOKENS_PASS_SCAN30_FAIL_CONTEXT_ORIGINAL2_PASS_NO_SNAPSHOT_REFUSAL_OBSERVED",
+  "run": 40048312491,
+  "job": 120734998793,
+  "artifact": 12543040799,
+  "head": "182337d8573648e1e25c1365121d5dca4b7e3a09",
+  "tree": "fd91ce3aca75c214306bf87153b5d9ddfd8c3662",
+  "zip_sha256": "a42abd7391134a005e3d716767b9752ef905c4b5763e788386ebf536e243bac7",
+  "zip_bytes": 11154234,
+  "zip_crc_allmemberhash_safe_paths": true,
+  "large_JSON": "ZIP-only; extracted small members <=1MB",
+  "seals": {
+    "source": {
+      "full_before_after_map_equal": true,
+      "files": 125854,
+      "before_sha256": "5ee575a73e87c3351aa96f3978b3f036c639d2f386953883f023ace43cdbd8b9",
+      "after_sha256": "5ee575a73e87c3351aa96f3978b3f036c639d2f386953883f023ace43cdbd8b9"
+    },
+    "providers": {
+      "full_before_after_map_equal": true,
+      "files": 2256,
+      "before_sha256": "77f1576bff3d4412754821b05200a6d091fcc1b12ba4c636e07271c22c24d213",
+      "after_sha256": "77f1576bff3d4412754821b05200a6d091fcc1b12ba4c636e07271c22c24d213"
+    },
+    "dependencies": {
+      "full_before_after_map_equal": true,
+      "files": 21500,
+      "before_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "after_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698"
+    },
+    "system-providers": {
+      "full_before_after_map_equal": true,
+      "files": 330,
+      "before_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29",
+      "after_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29"
+    },
+    "tools": {
+      "full_before_after_map_equal": true,
+      "files": 7
+    }
+  },
+  "critical_git_source_protocol_pins": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "cc6a9670147d9c5309690bbc54b3c284748824ae167ae837a07b2103a753fa7a",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "bb5a579d72d86588a37222bd0fbf26df6f5c382f27a82d85427c79978d2b4e37",
+    "rust/tcl-lsp-core/src/tcl_install.rs": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+    "rust/tcl-lsp-server/src/lib.rs": "7549bd87018af7013a74e1ef23a44b7158487f4d5eedcb1998e41fd9d16ec5e8",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "6ecfc5a8cabfa0d858c762cd2b770e6702d2fb3f5f0aa2f0c3490ba8593b1492",
+    "rust/tcl-compiler/src/analyser/state.rs": "191f31a1276846d33a1457b9f4fd484b541aa740eba691cd95b4f891d095cf04",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "73ce6738f5a03f3fb1051c1d04cd431e906586f33542cd0489b807f722c7e9e8",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py": "d52e3137f4512611c71af2f472245f91680b15eaf8b989715894e463fecf7d97",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "full_tracked_membership_exact_git": true,
+  "selected_server": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": false
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": true,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "bin"
+        ],
+        "name": "tcl-lsp-server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/main.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+    "profile_scope": "ci, functional diagnosis only; not shipping release",
+    "sha256": "93d767e663bdbec955076fc67f56b20c1203652ad0d5817bfa380aed18de2acc"
+  },
+  "strict_build_zero_warning": true,
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 2.884575479,
+      "complete_owned_empty_group": true,
+      "stop_reason": null,
+      "deadline": 600,
+      "retained_bytes": 14757,
+      "cap_bytes": 20971520
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "seconds": 621.41031091,
+      "complete_owned_empty_group": true,
+      "stop_reason": null,
+      "deadline": 2400,
+      "retained_bytes": 185923,
+      "cap_bytes": 20956763
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/typical/worker.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "93d767e663bdbec955076fc67f56b20c1203652ad0d5817bfa380aed18de2acc",
+        "--protocol-sha256",
+        "3f00045678fc90b5091f0ecaea30b8473317cc73996a105664a1f75fd88df7f6",
+        "--case",
+        "typical",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/typical"
+      ],
+      "exit": 1,
+      "seconds": 34.438748952,
+      "complete_owned_empty_group": true,
+      "stop_reason": null,
+      "deadline": 180,
+      "retained_bytes": 1036,
+      "cap_bytes": 524288
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/context/reproduce.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "93d767e663bdbec955076fc67f56b20c1203652ad0d5817bfa380aed18de2acc",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/context",
+        "--inputs-sha256",
+        "614ded118853d95958cecfac50c739b18441338e455faf1dcee4042f9110270a"
+      ],
+      "exit": 0,
+      "seconds": 4.681675533,
+      "complete_owned_empty_group": true,
+      "stop_reason": null,
+      "deadline": 180,
+      "retained_bytes": 0,
+      "cap_bytes": 524288
+    }
+  ],
+  "system_indexes": {
+    "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl": {
+      "bytes": 735,
+      "path": "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl": {
+      "bytes": 624,
+      "path": "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl",
+      "sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745"
+    },
+    "/usr/share/tcltk/tcl8.6/tclIndex": {
+      "bytes": 7347,
+      "path": "/usr/share/tcltk/tcl8.6/tclIndex",
+      "sha256": "e7620c3c29c497f6c0119b63b27d95df9da4d7d3a478bef138fb45b1a39452a3"
+    },
+    "/usr/share/tcltk/tk8.6/tclIndex": {
+      "bytes": 24190,
+      "path": "/usr/share/tcltk/tk8.6/tclIndex",
+      "sha256": "e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb"
+    }
+  },
+  "system_map_runtime_scope": "Afterbuild/beforeworkers/final; driver compares full snapshot before each worker; does not authenticate historical unsealed runner inputs",
+  "typical": {
+    "fixture_files": 1,
+    "main_bytes": 40,
+    "fixture_pins": {
+      "main.tcl": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b"
+    },
+    "cold_first_tokens_ms": 66.416564,
+    "didOpen_to_tokens_ms": 66.494803,
+    "scan30": "FAIL original barrier; later original assertions UNRUN",
+    "scan_stages": [
+      "[workspace_scan] factory.round.begin sync=0x58cbb25cbd60 round=0 wake=true",
+      "[workspace_scan] factory.round.settled sync=0x58cbb25cbd60 round=0",
+      "[workspace_scan] scan.gate.wait",
+      "[workspace_scan] scan.gate.acquired",
+      "[workspace_scan] scan.roots roots=[\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"]",
+      "[workspace_scan] scan.package.begin open=1",
+      "[workspace_scan] discovery.begin",
+      "[workspace_scan] discovery.end installations=[TclInstallation { version: \"8.6\", tcl_library: \"/usr/share/tcltk/tcl8.6\", auto_path: [\"/usr/share/tcltk\", \"/usr/share/tcltk/tcl8.6\"] }] editor_paths=[]",
+      "[workspace_scan] package.tree.begin root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" dir_cap=4000",
+      "[workspace_scan] package.tree.end root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"",
+      "[workspace_scan] package.auto_path.begin",
+      "[workspace_scan] package.path.begin path=\"/usr/share/tcltk\"",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.4 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=15509 commands=223 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.5 native_commands=Some(75)"
+    ],
+    "analysis_phases": [
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.4 native_commands=Some(75)",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=9",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=734",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=736",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=736",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=352 total_us=70035 seen=16383 stage_us=[306, 1615, 500, 385, 1068, 426, 24, 391, 5223, 25, 721, 364, 1167, 57820]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=435 total_us=98084 seen=16383 stage_us=[192, 4593, 390, 274, 19128, 323, 25, 262, 66712, 28, 704, 261, 905, 4287]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=523 total_us=143818 seen=16383 stage_us=[178, 10486, 3229, 3288, 18938, 3468, 24, 3288, 69338, 188, 6794, 3333, 10169, 11097]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=608 total_us=143440 seen=16383 stage_us=[174, 10403, 3244, 3305, 19181, 3517, 25, 3303, 69099, 194, 6675, 3276, 10030, 11014]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=697 total_us=144160 seen=16383 stage_us=[178, 10344, 3227, 3299, 18864, 3479, 24, 3527, 69478, 185, 6776, 3343, 10316, 11120]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=797 total_us=144912 seen=16383 stage_us=[179, 10518, 3301, 3362, 19264, 3499, 24, 3310, 69721, 209, 6817, 3379, 10187, 11142]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=900 total_us=147200 seen=16383 stage_us=[184, 10761, 3339, 3396, 19518, 3567, 37, 3376, 70646, 189, 6910, 3367, 10535, 11375]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1003 total_us=147397 seen=16383 stage_us=[198, 10675, 3342, 3378, 19385, 3543, 25, 3338, 70872, 191, 7201, 3564, 10444, 11241]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1103 total_us=147431 seen=16383 stage_us=[195, 10620, 3320, 3394, 19414, 3567, 25, 3612, 70648, 188, 6933, 3379, 10338, 11798]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1208 total_us=146698 seen=16383 stage_us=[188, 10621, 3316, 3363, 19437, 3573, 26, 3418, 70533, 190, 6900, 3459, 10382, 11292]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1311 total_us=146911 seen=16383 stage_us=[195, 10675, 3329, 3367, 19365, 3562, 25, 3387, 70590, 187, 6971, 3427, 10483, 11348]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1418 total_us=145315 seen=16383 stage_us=[189, 10672, 3316, 3383, 19439, 3566, 26, 3379, 69762, 180, 6773, 3324, 10226, 11080]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1522 total_us=143191 seen=16383 stage_us=[203, 10481, 3311, 3356, 19033, 3524, 26, 3323, 69017, 176, 6665, 3252, 9958, 10866]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1612 total_us=152534 seen=16383 stage_us=[187, 10430, 3262, 3345, 18909, 3479, 24, 3301, 69166, 179, 6961, 4971, 14260, 14060]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1695 total_us=142988 seen=16383 stage_us=[209, 10332, 3242, 3294, 19138, 3485, 26, 3279, 68972, 173, 6644, 3264, 10050, 10880]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1785 total_us=142195 seen=16383 stage_us=[183, 10166, 3273, 3323, 18713, 3420, 34, 3392, 68513, 174, 6752, 3280, 10068, 10904]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1876 total_us=143132 seen=16383 stage_us=[214, 10284, 3304, 3359, 18879, 3565, 25, 3325, 68959, 169, 6661, 3327, 9988, 11073]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1968 total_us=138072 seen=16383 stage_us=[186, 10108, 3148, 3215, 18338, 3392, 25, 3223, 66366, 162, 6482, 3168, 9690, 10569]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2059 total_us=138157 seen=16383 stage_us=[181, 10306, 3130, 3166, 18242, 3327, 25, 3193, 66628, 158, 6502, 3164, 9694, 10441]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2150 total_us=142678 seen=16383 stage_us=[182, 10161, 3275, 3332, 19057, 3465, 32, 3329, 68699, 162, 6685, 3289, 10050, 10960]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2242 total_us=140685 seen=16383 stage_us=[185, 10484, 3236, 3293, 18756, 3400, 25, 3237, 67604, 157, 6550, 3237, 9909, 10612]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2334 total_us=138034 seen=16383 stage_us=[188, 10041, 3143, 3211, 18197, 3330, 32, 3173, 66554, 154, 6533, 3229, 9776, 10473]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2427 total_us=143118 seen=16383 stage_us=[175, 9806, 3101, 3161, 18458, 3385, 24, 3248, 69849, 156, 6737, 3361, 10344, 11313]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2520 total_us=141350 seen=16383 stage_us=[185, 10226, 3218, 3329, 18954, 3425, 26, 3274, 68236, 153, 6624, 3237, 9865, 10598]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2624 total_us=137586 seen=16383 stage_us=[197, 9827, 3116, 3167, 18081, 3285, 24, 3136, 65903, 145, 6422, 3196, 10023, 11064]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2711 total_us=139383 seen=16383 stage_us=[193, 10000, 3154, 3240, 18646, 3395, 26, 3270, 67433, 145, 6494, 3204, 9740, 10443]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2798 total_us=140821 seen=16383 stage_us=[182, 9984, 3179, 3292, 18689, 3405, 25, 3271, 68271, 145, 6611, 3296, 9931, 10540]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2887 total_us=136249 seen=16383 stage_us=[184, 9796, 3132, 3492, 18069, 3295, 24, 3181, 65370, 137, 6366, 3189, 9666, 10348]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2986 total_us=136768 seen=16383 stage_us=[223, 9863, 3126, 3350, 18017, 3333, 25, 3148, 65743, 138, 6456, 3208, 9729, 10409]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3075 total_us=136135 seen=16383 stage_us=[176, 9803, 3144, 3191, 18065, 3299, 23, 3157, 65348, 132, 6449, 3229, 9786, 10333]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3156 total_us=138981 seen=16383 stage_us=[184, 9761, 3126, 3180, 18232, 3351, 24, 3231, 67624, 136, 6544, 3237, 9901, 10450]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3250 total_us=139916 seen=16383 stage_us=[175, 9931, 3148, 3208, 18477, 3304, 24, 3188, 67371, 134, 6689, 3337, 10128, 10802]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3343 total_us=141073 seen=16383 stage_us=[179, 10081, 3202, 3258, 18602, 3442, 26, 3278, 68126, 131, 6652, 3295, 10050, 10751]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3436 total_us=140957 seen=16383 stage_us=[188, 10038, 3185, 3263, 18640, 3446, 26, 3297, 67879, 130, 6679, 3327, 10145, 10714]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3527 total_us=143096 seen=16383 stage_us=[190, 10235, 3267, 3332, 18886, 3433, 26, 3331, 69123, 128, 6751, 3311, 10211, 10872]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3619 total_us=142475 seen=16383 stage_us=[193, 10291, 3307, 3364, 19111, 3461, 26, 3385, 68732, 123, 6501, 3246, 9977, 10758]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3715 total_us=140704 seen=16383 stage_us=[189, 10162, 3239, 3306, 18750, 3431, 26, 3297, 67656, 122, 6600, 3291, 10025, 10610]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3808 total_us=142135 seen=16383 stage_us=[183, 10123, 3256, 3340, 18801, 3384, 24, 3383, 68703, 122, 6623, 3350, 10168, 10675]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3904 total_us=142621 seen=16383 stage_us=[188, 10197, 3277, 3347, 19158, 3469, 25, 3330, 68386, 122, 6736, 3372, 10237, 10777]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4007 total_us=139882 seen=16383 stage_us=[202, 10348, 3300, 3345, 18717, 3404, 25, 3313, 67187, 116, 6470, 3227, 9837, 10391]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4109 total_us=140318 seen=16383 stage_us=[190, 9949, 3205, 3247, 18330, 3320, 33, 3211, 67887, 123, 6691, 3339, 10125, 10668]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4200 total_us=143848 seen=16383 stage_us=[197, 10455, 3329, 3389, 19212, 3468, 28, 3325, 69304, 116, 6748, 3370, 10190, 10717]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4291 total_us=145792 seen=16383 stage_us=[196, 10247, 3274, 3336, 19321, 3479, 28, 3337, 68018, 113, 7734, 3414, 11145, 12150]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4384 total_us=184670 seen=16383 stage_us=[191, 10032, 3222, 3295, 21133, 3411, 27, 3268, 82776, 409, 9493, 3316, 12767, 31330]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4474 total_us=142175 seen=16383 stage_us=[198, 10152, 3255, 3328, 18833, 3463, 28, 3360, 68624, 107, 6653, 3386, 10163, 10625]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4569 total_us=141562 seen=16383 stage_us=[197, 10342, 3349, 3362, 18958, 3436, 27, 3332, 67775, 104, 6605, 3318, 10147, 10610]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4659 total_us=141266 seen=16383 stage_us=[198, 10004, 3224, 3293, 18693, 3418, 27, 3299, 68397, 103, 6659, 3339, 10081, 10531]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4753 total_us=140945 seen=16383 stage_us=[196, 10129, 3283, 3370, 18808, 3404, 27, 3301, 67649, 98, 6614, 3431, 10055, 10580]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4837 total_us=144036 seen=16383 stage_us=[194, 10202, 3483, 3565, 19855, 3481, 28, 3335, 68984, 103, 6708, 3368, 10166, 10564]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4931 total_us=143527 seen=16383 stage_us=[311, 10125, 3541, 3368, 19018, 3452, 28, 3329, 68964, 99, 6776, 3420, 10390, 10706]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5031 total_us=140647 seen=16383 stage_us=[194, 10150, 3285, 3335, 18807, 3371, 25, 3287, 67496, 92, 6653, 3336, 10158, 10458]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5121 total_us=141588 seen=16383 stage_us=[191, 10005, 3282, 3327, 19038, 3398, 27, 3311, 68231, 91, 6636, 3363, 10173, 10515]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5213 total_us=141717 seen=16383 stage_us=[193, 10109, 3273, 3366, 18931, 3428, 26, 3317, 67903, 93, 6571, 3321, 10449, 10737]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5303 total_us=142295 seen=16383 stage_us=[196, 10305, 3394, 3496, 19339, 3491, 27, 3386, 67990, 84, 6549, 3329, 10194, 10515]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5400 total_us=139101 seen=16383 stage_us=[189, 10103, 3280, 3304, 18712, 3360, 27, 3290, 66872, 81, 6501, 3249, 9927, 10206]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5496 total_us=140069 seen=16383 stage_us=[190, 9840, 3266, 3338, 18983, 3405, 25, 3319, 67495, 82, 6535, 3318, 9982, 10291]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5590 total_us=139859 seen=16383 stage_us=[287, 9969, 3248, 3315, 18701, 3338, 24, 3275, 67360, 76, 6563, 3316, 10038, 10349]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5684 total_us=138560 seen=16383 stage_us=[191, 9915, 3251, 3307, 18599, 3348, 25, 3278, 66846, 72, 6441, 3261, 9882, 10144]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5777 total_us=138443 seen=16383 stage_us=[184, 9814, 3249, 3312, 18542, 3333, 24, 3267, 66548, 77, 6428, 3280, 10044, 10341]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5876 total_us=139301 seen=16383 stage_us=[194, 9977, 3279, 3349, 18754, 3359, 25, 3301, 66934, 67, 6510, 3303, 9983, 10266]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5964 total_us=139499 seen=16383 stage_us=[183, 9913, 3249, 3320, 18677, 3374, 25, 3339, 67472, 66, 6478, 3302, 9934, 10167]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6050 total_us=137753 seen=16383 stage_us=[186, 9870, 3219, 3270, 18365, 3282, 23, 3237, 66685, 62, 6437, 3266, 9809, 10042]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6136 total_us=136103 seen=16383 stage_us=[183, 9650, 3160, 3189, 18008, 3247, 24, 3186, 65459, 61, 6488, 3289, 9979, 10180]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6221 total_us=138827 seen=16383 stage_us=[184, 9880, 3254, 3289, 18651, 3340, 26, 3278, 66990, 59, 6493, 3287, 9951, 10145]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6309 total_us=138762 seen=16383 stage_us=[193, 9832, 3284, 3395, 18647, 3365, 108, 3291, 66198, 56, 6499, 3382, 10201, 10311]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6395 total_us=136793 seen=16383 stage_us=[189, 9912, 3289, 3393, 18575, 3370, 109, 3288, 65533, 52, 6185, 3220, 9803, 9875]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6491 total_us=140116 seen=16383 stage_us=[197, 9925, 3310, 3402, 18563, 3384, 118, 3499, 67236, 51, 6452, 3362, 10312, 10305]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6581 total_us=139911 seen=16383 stage_us=[185, 9768, 3258, 3366, 18486, 3357, 109, 3333, 67145, 48, 6468, 3449, 10441, 10498]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6668 total_us=139679 seen=16383 stage_us=[194, 9723, 3240, 3369, 18522, 3434, 122, 3342, 67478, 46, 6425, 3359, 10188, 10237]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6766 total_us=139619 seen=16383 stage_us=[192, 9801, 3280, 3393, 18669, 3376, 106, 3317, 67020, 42, 6517, 3388, 10215, 10303]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6857 total_us=140114 seen=16383 stage_us=[191, 9967, 3333, 3466, 18836, 3391, 109, 3339, 67224, 39, 6421, 3361, 10200, 10237]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6949 total_us=140324 seen=16383 stage_us=[191, 9862, 3306, 3425, 18807, 3374, 109, 3338, 67135, 57, 6545, 3448, 10314, 10413]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7035 total_us=140018 seen=16383 stage_us=[196, 9888, 3324, 3431, 18668, 3372, 109, 3323, 67122, 34, 6458, 3394, 10398, 10301]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7127 total_us=140505 seen=16383 stage_us=[202, 9841, 3312, 3413, 18588, 3346, 109, 3351, 67224, 32, 6530, 3465, 10426, 10666]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7223 total_us=52620 seen=16383 stage_us=[63, 9295, 3098, 3151, 19, 3095, 31, 3078, 3073, 25, 6043, 3079, 9278, 9292]",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=13055",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=13055",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=initial ms=0",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=invocations ms=2",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=variable-references ms=2",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=command-diagnostics ms=1442",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=variable-usage ms=1442",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=initial us=0",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=object-facts us=657",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=command-binding us=695",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=module-suppression us=738",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=top-level us=468829",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=procedures us=468846",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=fresh-bodies us=468853",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=variable-command us=468859",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=abstract-factory us=469902",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=constant-dispatch-and-template us=469918",
+      "DIAGNOSTIC_CFG_EMISSION_PHASE bytes=7347 procedures=0 methods=0 body_units=0 stage=complete us=469999",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=cfg-ssa ms=2417",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=complete ms=2439",
+      "ANALYSER_PHASE bytes=7347 stage=diagnostics-complete ms=15495",
+      "ANALYSER_PHASE bytes=7347 stage=complete ms=15495",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.5 native_commands=Some(75)",
+      "ANALYSER_PHASE bytes=7347 stage=initial ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-start ms=0",
+      "ANALYSER_PHASE bytes=7347 stage=realm-complete ms=9",
+      "ANALYSER_PHASE bytes=7347 stage=retained-inventory ms=729",
+      "ANALYSER_PHASE bytes=7347 stage=segmented ms=730",
+      "ANALYSER_PHASE bytes=7347 stage=walk-start ms=730",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=352 total_us=88140 seen=16383 stage_us=[326, 1644, 506, 380, 1064, 436, 25, 357, 5228, 26, 739, 349, 1165, 75895]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=435 total_us=96819 seen=16383 stage_us=[193, 4537, 383, 286, 18928, 327, 25, 259, 65857, 27, 711, 249, 910, 4127]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=523 total_us=181099 seen=16383 stage_us=[181, 10139, 3345, 3187, 18229, 3403, 24, 3196, 100999, 675, 13080, 3312, 10181, 11148]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=608 total_us=144115 seen=16383 stage_us=[197, 10444, 3231, 3311, 19132, 3491, 27, 3403, 69135, 188, 6691, 3278, 10403, 11184]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=697 total_us=142799 seen=16383 stage_us=[183, 10260, 3196, 3340, 18830, 3462, 25, 3333, 68846, 189, 6740, 3297, 10093, 11005]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=797 total_us=143778 seen=16383 stage_us=[189, 10345, 3224, 3293, 18839, 3446, 24, 3248, 69596, 193, 6757, 3297, 10176, 11151]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=900 total_us=146415 seen=16383 stage_us=[194, 10710, 3288, 3357, 19254, 3600, 27, 3393, 70556, 189, 6790, 3380, 10180, 11497]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1003 total_us=145066 seen=16383 stage_us=[222, 10657, 3303, 3340, 19121, 3492, 27, 3308, 69756, 194, 6816, 3329, 10245, 11256]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1103 total_us=143677 seen=16383 stage_us=[191, 10489, 3259, 3602, 18949, 3458, 25, 3388, 68953, 192, 6713, 3285, 10134, 11039]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1208 total_us=143471 seen=16383 stage_us=[184, 10308, 3195, 3250, 18670, 3478, 26, 3311, 69312, 185, 6793, 3318, 10162, 11279]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1311 total_us=144790 seen=16383 stage_us=[195, 10684, 3306, 3429, 19297, 3520, 26, 3383, 69391, 191, 6733, 3308, 10190, 11137]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1418 total_us=143714 seen=16383 stage_us=[189, 10491, 3286, 3341, 18943, 3450, 26, 3291, 69327, 180, 6772, 3336, 10100, 10982]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1522 total_us=140545 seen=16383 stage_us=[211, 10469, 3246, 3329, 18850, 3440, 25, 3258, 67497, 175, 6520, 3238, 9705, 10582]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1612 total_us=140332 seen=16383 stage_us=[182, 10298, 3162, 3204, 18187, 3315, 25, 3193, 67527, 197, 6761, 3295, 10042, 10944]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1695 total_us=143592 seen=16383 stage_us=[206, 10264, 3226, 3307, 18877, 3497, 27, 3307, 69478, 177, 6756, 3306, 10123, 11041]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1785 total_us=142995 seen=16383 stage_us=[188, 10312, 3374, 3405, 18951, 3467, 26, 3383, 69090, 170, 6581, 3259, 9975, 10814]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1876 total_us=142851 seen=16383 stage_us=[190, 9989, 3170, 3201, 18488, 3427, 25, 3172, 66814, 164, 6425, 3160, 9896, 14730]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=1968 total_us=144074 seen=16383 stage_us=[184, 10140, 3236, 3331, 18951, 3474, 25, 3348, 69988, 177, 6809, 3355, 10147, 10909]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2059 total_us=140861 seen=16383 stage_us=[188, 10386, 3256, 3288, 18652, 3392, 25, 3228, 67587, 162, 6693, 3272, 10034, 10698]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2150 total_us=142772 seen=16383 stage_us=[186, 10217, 3311, 3411, 19585, 3638, 27, 3457, 68605, 158, 6554, 3229, 9822, 10572]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2242 total_us=137825 seen=16383 stage_us=[180, 9800, 3100, 3167, 18232, 3307, 27, 3137, 65460, 158, 6576, 3293, 10295, 11093]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2334 total_us=142447 seen=16383 stage_us=[190, 10297, 3259, 3329, 19147, 3459, 25, 3293, 68469, 174, 6685, 3299, 10033, 10788]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2427 total_us=140137 seen=16383 stage_us=[188, 10135, 3211, 3259, 18600, 3381, 26, 3298, 67709, 161, 6553, 3219, 9843, 10554]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2520 total_us=135705 seen=16383 stage_us=[183, 9841, 3112, 3181, 18046, 3284, 25, 3131, 65306, 155, 6367, 3146, 9590, 10338]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2624 total_us=138793 seen=16383 stage_us=[207, 9970, 3137, 3208, 18012, 3283, 25, 3157, 67509, 149, 6562, 3245, 9844, 10485]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2711 total_us=138744 seen=16383 stage_us=[184, 9936, 3149, 3202, 18423, 3366, 27, 3207, 67066, 166, 6552, 3230, 9781, 10455]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2798 total_us=140487 seen=16383 stage_us=[187, 10066, 3188, 3261, 18404, 3400, 27, 3241, 67779, 148, 6664, 3330, 10043, 10749]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2887 total_us=142504 seen=16383 stage_us=[192, 10258, 3257, 3355, 19058, 3479, 28, 3327, 68498, 147, 6646, 3282, 10105, 10872]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=2986 total_us=143588 seen=16383 stage_us=[239, 10291, 3267, 3371, 19001, 3477, 27, 3334, 68838, 146, 6981, 3444, 10266, 10906]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3075 total_us=140781 seen=16383 stage_us=[204, 10162, 3245, 3324, 18763, 3416, 26, 3267, 67511, 143, 6626, 3283, 10061, 10750]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3156 total_us=141930 seen=16383 stage_us=[202, 10229, 3258, 3316, 18797, 3485, 28, 3475, 68394, 140, 6636, 3290, 9975, 10705]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3250 total_us=142243 seen=16383 stage_us=[191, 10076, 3184, 3253, 18531, 3397, 28, 3280, 68355, 138, 6775, 3409, 10314, 11312]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3343 total_us=144777 seen=16383 stage_us=[196, 10346, 3336, 3392, 19186, 3484, 26, 3361, 69894, 142, 6850, 3379, 10240, 10945]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3436 total_us=144741 seen=16383 stage_us=[192, 10371, 3292, 3359, 19140, 3455, 26, 3355, 70008, 135, 6797, 3376, 10280, 10955]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3527 total_us=144126 seen=16383 stage_us=[194, 10401, 3309, 3375, 19113, 3498, 27, 3377, 69215, 137, 6854, 3395, 10280, 10951]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3619 total_us=144342 seen=16383 stage_us=[193, 10376, 3311, 3375, 19162, 3493, 26, 3357, 69388, 154, 6901, 3384, 10311, 10911]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3715 total_us=137108 seen=16383 stage_us=[187, 10231, 3249, 3309, 18634, 3372, 24, 3227, 65551, 119, 6296, 3144, 9653, 10112]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3808 total_us=136096 seen=16383 stage_us=[188, 9612, 3091, 3160, 17988, 3273, 24, 3133, 65179, 118, 6554, 3257, 9942, 10577]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=3904 total_us=140665 seen=16383 stage_us=[184, 10204, 3301, 3341, 18689, 3394, 25, 3289, 67799, 118, 6568, 3281, 9927, 10545]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4007 total_us=135982 seen=16383 stage_us=[181, 9886, 3161, 3224, 18206, 3291, 24, 3176, 65260, 136, 6419, 3184, 9681, 10153]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4109 total_us=136007 seen=16383 stage_us=[179, 9812, 3206, 3258, 18368, 3330, 24, 3220, 65280, 108, 6339, 3139, 9610, 10134]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4200 total_us=135600 seen=16383 stage_us=[183, 9626, 3099, 3159, 17864, 3245, 24, 3138, 65583, 108, 6437, 3205, 9702, 10227]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4291 total_us=134694 seen=16383 stage_us=[187, 9752, 3130, 3182, 17952, 3255, 23, 3162, 64765, 105, 6275, 3153, 9663, 10090]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4384 total_us=134363 seen=16383 stage_us=[197, 9634, 3108, 3255, 17922, 3251, 24, 3138, 64614, 102, 6298, 3166, 9591, 10063]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4474 total_us=135162 seen=16383 stage_us=[180, 9682, 3135, 3182, 17921, 3237, 24, 3160, 65120, 102, 6383, 3192, 9691, 10153]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4569 total_us=136405 seen=16383 stage_us=[269, 9743, 3366, 3981, 17826, 3274, 23, 3158, 65479, 98, 6254, 3155, 9683, 10096]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4659 total_us=135264 seen=16383 stage_us=[178, 9562, 3101, 3167, 18168, 3265, 24, 3153, 64950, 98, 6421, 3242, 9753, 10182]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4753 total_us=134082 seen=16383 stage_us=[178, 9562, 3101, 3218, 17842, 3279, 23, 3156, 64407, 92, 6271, 3150, 9567, 10236]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4837 total_us=134515 seen=16383 stage_us=[174, 9523, 3094, 3174, 17906, 3233, 23, 3127, 64517, 93, 6407, 3231, 9804, 10209]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=4931 total_us=138301 seen=16383 stage_us=[205, 9762, 3166, 3213, 18195, 3296, 24, 3210, 67342, 98, 6460, 3237, 9871, 10222]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5031 total_us=136858 seen=16383 stage_us=[176, 9688, 3145, 3195, 17988, 3250, 24, 3152, 65122, 88, 6545, 3369, 10288, 10828]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5121 total_us=139395 seen=16383 stage_us=[191, 10286, 3275, 3348, 18657, 3376, 24, 3301, 67109, 85, 6455, 3240, 9823, 10225]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5213 total_us=135501 seen=16383 stage_us=[180, 9713, 3152, 3211, 17975, 3277, 24, 3168, 65607, 86, 6321, 3198, 9662, 9927]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5303 total_us=134156 seen=16383 stage_us=[178, 9547, 3131, 3193, 17912, 3209, 24, 3151, 64449, 79, 6323, 3195, 9655, 10110]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5400 total_us=140913 seen=16383 stage_us=[193, 10062, 3259, 3338, 19668, 3377, 25, 3458, 67441, 81, 6520, 3312, 9924, 10255]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5496 total_us=138991 seen=16383 stage_us=[191, 9843, 3246, 3278, 18408, 3333, 24, 3257, 67034, 79, 6509, 3292, 9978, 10519]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5590 total_us=138012 seen=16383 stage_us=[262, 9957, 3245, 3307, 18573, 3349, 25, 3257, 66263, 75, 6438, 3242, 9794, 10225]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5684 total_us=139864 seen=16383 stage_us=[180, 9847, 3197, 3266, 18519, 3372, 25, 3326, 67750, 74, 6563, 3321, 10033, 10391]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5777 total_us=140257 seen=16383 stage_us=[196, 10035, 3287, 3332, 18755, 3398, 26, 3324, 67421, 73, 6565, 3326, 10088, 10431]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5876 total_us=140489 seen=16383 stage_us=[227, 10169, 3294, 3378, 18871, 3396, 26, 3324, 67423, 69, 6540, 3334, 10131, 10307]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=5964 total_us=140217 seen=16383 stage_us=[200, 9961, 3271, 3327, 18790, 3361, 25, 3309, 67582, 67, 6617, 3330, 10089, 10288]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6050 total_us=139716 seen=16383 stage_us=[202, 9953, 3269, 3346, 18710, 3353, 26, 3342, 67227, 65, 6533, 3362, 10035, 10293]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6136 total_us=140961 seen=16383 stage_us=[195, 9978, 3286, 3342, 19090, 3417, 27, 3359, 67818, 61, 6550, 3344, 10102, 10392]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6221 total_us=140541 seen=16383 stage_us=[202, 9905, 3276, 3329, 18776, 3371, 25, 3331, 67294, 58, 6548, 3507, 10519, 10400]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6309 total_us=141578 seen=16383 stage_us=[192, 9996, 3323, 3416, 18821, 3399, 117, 3360, 67733, 56, 6838, 3441, 10421, 10465]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6395 total_us=140481 seen=16383 stage_us=[192, 9887, 3298, 3428, 18649, 3398, 111, 3340, 67392, 52, 6475, 3419, 10389, 10451]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6491 total_us=139983 seen=16383 stage_us=[183, 9924, 3294, 3399, 18668, 3380, 108, 3320, 67133, 55, 6487, 3399, 10313, 10320]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6581 total_us=140395 seen=16383 stage_us=[188, 9818, 3300, 3407, 18690, 3381, 111, 3378, 67358, 48, 6553, 3391, 10380, 10392]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6668 total_us=139899 seen=16383 stage_us=[188, 9833, 3285, 3394, 18654, 3382, 109, 3323, 67221, 44, 6475, 3375, 10311, 10305]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6766 total_us=139869 seen=16383 stage_us=[181, 9812, 3291, 3416, 18631, 3372, 108, 3337, 67291, 41, 6457, 3407, 10234, 10291]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6857 total_us=140001 seen=16383 stage_us=[185, 9809, 3289, 3425, 18724, 3376, 114, 3330, 67174, 38, 6473, 3405, 10284, 10375]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=6949 total_us=140036 seen=16383 stage_us=[181, 9802, 3307, 3408, 18736, 3391, 109, 3369, 67345, 37, 6476, 3399, 10249, 10227]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7035 total_us=139696 seen=16383 stage_us=[183, 9874, 3317, 3441, 18736, 3383, 116, 3330, 66989, 34, 6449, 3407, 10231, 10206]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7127 total_us=140253 seen=16383 stage_us=[184, 9837, 3308, 3429, 18873, 3415, 111, 3363, 67225, 33, 6495, 3415, 10288, 10277]",
+      "WORKSPACE_COMMAND_PHASE bytes=7347 site=7223 total_us=53014 seen=16383 stage_us=[55, 9277, 3099, 3129, 20, 3111, 31, 3076, 3127, 25, 6157, 3125, 9395, 9387]",
+      "ANALYSER_PHASE bytes=7347 stage=walk-complete ms=12952",
+      "ANALYSER_PHASE bytes=7347 stage=parameter-definitions ms=12952",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=initial ms=0",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=invocations ms=2",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=variable-references ms=2",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=command-diagnostics ms=1408",
+      "DIAGNOSTIC_PHASE bytes=7347 stage=variable-usage ms=1408"
+    ],
+    "completed_profile_costs": [
+      {
+        "profile": "tcl8.4",
+        "walk_ms": 12319,
+        "diagnostics_ms": 2440,
+        "total_analysis_ms": 15509
+      }
+    ],
+    "next_profile": "tcl8.5 began; no completion before original worker cleanup",
+    "slow_command_rows": 150,
+    "slow_command_receipt_sha256": "54f1114274e443949f067f83e0e88b542b89861d43d246065c15265a6cb0a1d2",
+    "dominant_observed_interval": "nested-diagnostics includes run_nested_command_diagnostics and run_nested_expr_diagnostics; no private childfunction attribution yet",
+    "sampled_peak_rss_kib": 406348,
+    "last_cpu_sample": {
+      "t_s": 30.233,
+      "rss_kib": 402624,
+      "cpu_s": 30.0
+    }
+  },
+  "context": {
+    "original_assertions_complete": true,
+    "complete_results": 2,
+    "pending_events": 15,
+    "factory_cancelled_rounds": 0,
+    "factory_sync_handle": null,
+    "snapshot_wait_events": 0,
+    "factory_settled_round0": 2,
+    "factory_rounds": [],
+    "reasons": [],
+    "sixteen_round_warning": false,
+    "scope": "Scoped native original fixtures only; neither snapshot-wait contention nor Cancelled branch observed this run. New deterministic admission regression remains unexecuted; no global race/completeness/editorhost admission."
+  },
+  "wire_observations": {
+    "typical": {
+      "messages": 19,
+      "raw_sha256": "894f5de2129980d2c49e5c2af601b26bcd15e4ce4dccef449c09a860bc4177b8",
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "[timing] semantic_tokens.full_convergence.settled (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, refresh=false, outcome=cancelled)",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, version=1)",
+        "[timing] deep diagnostics 111ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, diags=0)",
+        "[timing] workspace_state.update 111ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, lines=2, diags=0)",
+        "SpecTcl: 8 pack(s), 1489 command(s), 0 notice(s), 2 shipped-command collision(s), 6 environment(s), 0 extension(s), 0 retired, 0 refused",
+        "[timing] semantic_tokens.refresh.fired (reason=pack-reload)"
+      ],
+      "publish_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl",
+          "diagnostics": [],
+          "version": 1
+        }
+      ],
+      "complete_diagnostic_responses": []
+    },
+    "context": {
+      "messages": 37,
+      "raw_sha256": "2eb0212c874c2aa6f0107ed94944e26aa25bde151a4de4fb55f01e69df18331f",
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, version=2)",
+        "[timing] deep diagnostics 103ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, diags=2)",
+        "[timing] workspace_state.update 103ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, lines=4, diags=2)",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, version=2)",
+        "[timing] deep diagnostics 37ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, diags=0)",
+        "[timing] workspace_state.update 37ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, lines=1, diags=0)"
+      ],
+      "publish_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "1"
+              }
+            },
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "2"
+              }
+            }
+          ],
+          "version": 2
+        },
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "diagnostics": [],
+          "version": 2
+        }
+      ],
+      "complete_diagnostic_responses": [
+        {
+          "jsonrpc": "2.0",
+          "result": {
+            "status": "complete",
+            "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+            "version": 2,
+            "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-1",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 9
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 18
+                  }
+                },
+                "severity": 2,
+                "code": "T101",
+                "source": "tcl-lsp",
+                "message": "Tainted variable $who flows into puts; output may contain injected content",
+                "data": {
+                  "kind": "tcl-source-diagnostic",
+                  "version": 1,
+                  "token": "1"
+                }
+              },
+              {
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 9
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 18
+                  }
+                },
+                "severity": 2,
+                "code": "T101",
+                "source": "tcl-lsp",
+                "message": "Tainted variable $who flows into puts; output may contain injected content",
+                "data": {
+                  "kind": "tcl-source-diagnostic",
+                  "version": 1,
+                  "token": "2"
+                }
+              }
+            ]
+          },
+          "id": 14
+        },
+        {
+          "jsonrpc": "2.0",
+          "result": {
+            "status": "complete",
+            "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+            "version": 2,
+            "source": "folder-a-helper foo bar\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-2",
+            "diagnostics": []
+          },
+          "id": 22
+        }
+      ]
+    }
+  },
+  "limits": [
+    "Complete source membership/tree and nine critical Gitbytes checked, not independently every tracked Gitbyte.",
+    "Whole system provider map now sealed and index bytes retained; no retroactive historical runner equality assertion.",
+    "Dominant repeated nested-diagnostics interval observed; it spans two functions and private hotfunction/cause not yet measured.",
+    "No deadline/assertion/guard changes; no shipping performance, full typing/Clippy/editor-host admission."
+  ]
+}

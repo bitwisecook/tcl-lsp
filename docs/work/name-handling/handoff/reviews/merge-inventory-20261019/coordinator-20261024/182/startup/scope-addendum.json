@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-24T01:27:12.052653+00:00",
+  "assessment_sha256": "0a565f87be4877b222497336004934a3adb6ce50d44fe840f04b28974c1ef4b8",
+  "rows": 150,
+  "median_compound_nested_diagnostics_us": 67503.0,
+  "min_us": 3073,
+  "max_us": 100999,
+  "owner_contract": "Compound interval remains two calls; the pending split observer is not included in source182. No child-private attribution or performance improvement proof. No latency ratio from cross-host timing differences is admitted.",
+  "publication_wait_scope": "Original Context assertions pass; zero snapshot_wait observed means new wait branch was not exercised in this run. Controlled regression is compile-checked by scoped Clippy only if target reached, actual test execution still UNRUN."
+}
