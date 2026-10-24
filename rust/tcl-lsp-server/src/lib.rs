@@ -6934,6 +6934,163 @@ fn files_with_covered_load_targets(
         .collect()
 }
 
+impl DiagInputs {
+    fn delivery_for_job<'a>(
+        &'a self,
+        diagnostic_pass: Option<&'a Arc<DiagnosticPass>>,
+        source: &'a str,
+        uri: &'a Uri,
+        currency: DiagCurrency,
+        version: Option<i32>,
+    ) -> DeliveryCtx<'a> {
+        DeliveryCtx {
+            diagnostic_pass,
+            client: &self.client,
+            diagnostic_publisher: &self.diagnostic_publisher,
+            documents: &self.documents,
+            store: &self.store,
+            diag_slots: &self.diag_slots,
+            pull_diag_cache: &self.pull_diag_cache,
+            closed_diag_gen: &self.closed_diag_gen,
+            source,
+            pack_seq: self.pack_seq,
+            pack_set: Some(&self.pack_set),
+            registry: Some(&self.registry),
+            spec_packs: Some(&self.spec_packs),
+            uri,
+            currency,
+            version,
+            client_supports_pull: self.client_supports_pull,
+        }
+    }
+}
+
+fn deep_provider_completion(
+    uri: &Uri,
+    cross_file_resolution: bool,
+    project: Option<tcl_lsp_db::Project>,
+    compiler_result: &ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>>,
+    project_result: &ControlFlow<bool, Option<Vec<tcl_compiler::analyser::Diagnostic>>>,
+) -> Result<(), DiagnosticUnavailable> {
+    let provider_completion = if cross_file_resolution && project.is_none() {
+        Err(DiagnosticUnavailable::Context)
+    } else {
+        match (compiler_result, project_result) {
+            (ControlFlow::Continue(None), _) => Err(DiagnosticUnavailable::Context),
+            (ControlFlow::Continue(Some(_)), ControlFlow::Continue(_)) => Ok(()),
+            _ => Err(DiagnosticUnavailable::ProviderError),
+        }
+    };
+    if matches!(provider_completion, Err(DiagnosticUnavailable::Context)) {
+        current_diagnostics::trace_diagnostic_context_check(
+            uri,
+            if cross_file_resolution && project.is_none() {
+                "provider.project_absent"
+            } else {
+                "provider.compiler_unavailable"
+            },
+            false,
+        );
+    }
+    provider_completion
+}
+
+type DeepWorkspaceDiagnostics = (
+    bool,
+    SourceInheritance,
+    CrossFileCalls,
+    Arc<WorkspaceDiagnosticSources>,
+);
+
+async fn deep_workspace_diagnostics(
+    uri: &Uri,
+    documents: &Arc<DocumentStore>,
+    analysis: &AnalysisResult,
+    analyser_diags: &[tcl_compiler::analyser::Diagnostic],
+    inputs: &AnalyserPathInputs<'_>,
+) -> ControlFlow<(bool, DiagnosticUnavailable), DeepWorkspaceDiagnostics> {
+    let needs_inheritance = analyser_diags
+        .iter()
+        .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123);
+    let needs_settling = !analysis.unresolved_command_sites.is_empty()
+        || (analyser_diags.iter().any(|d| d.code == DiagCode::W123)
+            && analysis
+                .command_invocations
+                .iter()
+                .any(|invocation| invocation.is_mathfunc_call));
+    let (inheritance, settled_calls, workspace_sources) = if needs_inheritance || needs_settling {
+        let (docs, index) = loop {
+            let docs = documents.lock("workspace_diagnostic_source_query").await;
+            if let Ok(index) = inputs.workspace_index.try_read() {
+                break (docs, index);
+            }
+            drop(docs);
+            drop(inputs.workspace_index.read().await);
+        };
+        let settled_calls = if needs_settling {
+            settle_cross_file_calls(&index, analysis, &inputs.registry, uri.as_str())
+        } else {
+            CrossFileCalls::default()
+        };
+        let published = inputs
+            .provider_capture
+            .source_path_admissions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let workspace_sources = match WorkspaceDiagnosticSources::capture(
+            &settled_calls.source_candidates,
+            &index,
+            &docs,
+            &published,
+            inputs.provider_capture.store.as_ref(),
+        ) {
+            Ok(sources) => sources,
+            Err(reason) => {
+                return ControlFlow::Break((
+                    !matches!(reason, DiagnosticUnavailable::Pending),
+                    reason,
+                ));
+            }
+        };
+        (
+            if needs_inheritance {
+                compute_source_inheritance(
+                    &index,
+                    uri,
+                    analysis,
+                    inputs.entry_points,
+                    inputs.folder_root,
+                    inputs.package_prefer,
+                )
+            } else {
+                SourceInheritance::default()
+            },
+            settled_calls,
+            workspace_sources,
+        )
+    } else {
+        (
+            SourceInheritance::default(),
+            CrossFileCalls::default(),
+            WorkspaceDiagnosticSources::default(),
+        )
+    };
+    let mut workspace_sources = workspace_sources;
+    if let Err(reason) = workspace_sources
+        .read_saved(inputs.provider_capture.store)
+        .await
+    {
+        return ControlFlow::Break((true, reason));
+    }
+    let workspace_sources = Arc::new(workspace_sources);
+    ControlFlow::Continue((
+        needs_inheritance,
+        inheritance,
+        settled_calls,
+        workspace_sources,
+    ))
+}
+
 /// Returns whether this version is **settled** (published, intentionally
 /// skipped as superseded, or a BIG-IP no-op).  `false` means the run was
 /// cancelled mid-flight and the caller should retry the document's latest
@@ -6965,25 +7122,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     // terminators.
     let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
-    let delivery = DeliveryCtx {
-        diagnostic_pass: diagnostic_pass.as_ref(),
-        client: &inputs.client,
-        diagnostic_publisher: &inputs.diagnostic_publisher,
-        documents: &inputs.documents,
-        store: &inputs.store,
-        diag_slots: &inputs.diag_slots,
-        pull_diag_cache: &inputs.pull_diag_cache,
-        closed_diag_gen: &inputs.closed_diag_gen,
-        source: &text,
-        pack_seq: inputs.pack_seq,
-        pack_set: Some(&inputs.pack_set),
-        registry: Some(&inputs.registry),
-        spec_packs: Some(&inputs.spec_packs),
-        uri,
-        currency,
-        version,
-        client_supports_pull: inputs.client_supports_pull,
-    };
+    let delivery = inputs.delivery_for_job(diagnostic_pass.as_ref(), &text, uri, currency, version);
 
     if let Some(pass) = &diagnostic_pass {
         let docs = inputs.documents.lock("begin_diagnostic_pass").await;
@@ -7321,26 +7460,13 @@ async fn compute_deep_diagnostic_report(
         ),
         compute_project_diags(salsa_ctx, project),
     );
-    let provider_completion = if inputs.cross_file_resolution && project.is_none() {
-        Err(DiagnosticUnavailable::Context)
-    } else {
-        match (&compiler_result, &project_result) {
-            (ControlFlow::Continue(None), _) => Err(DiagnosticUnavailable::Context),
-            (ControlFlow::Continue(Some(_)), ControlFlow::Continue(_)) => Ok(()),
-            _ => Err(DiagnosticUnavailable::ProviderError),
-        }
-    };
-    if matches!(provider_completion, Err(DiagnosticUnavailable::Context)) {
-        current_diagnostics::trace_diagnostic_context_check(
-            uri,
-            if inputs.cross_file_resolution && project.is_none() {
-                "provider.project_absent"
-            } else {
-                "provider.compiler_unavailable"
-            },
-            false,
-        );
-    }
+    let provider_completion = deep_provider_completion(
+        uri,
+        inputs.cross_file_resolution,
+        project,
+        &compiler_result,
+        &project_result,
+    );
     let analysis: Arc<AnalysisResult> = match base_result {
         ControlFlow::Continue(a) => a,
         ControlFlow::Break(settled) => {
@@ -7402,80 +7528,11 @@ async fn compute_deep_diagnostic_report(
     // is a W120 or W123 to refine, the settled calls when the analyser
     // recorded any unresolved site at all. A document with neither pays
     // nothing.
-    let needs_inheritance = analyser_diags
-        .iter()
-        .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123);
-    let needs_settling = !analysis.unresolved_command_sites.is_empty()
-        || (analyser_diags.iter().any(|d| d.code == DiagCode::W123)
-            && analysis
-                .command_invocations
-                .iter()
-                .any(|invocation| invocation.is_mathfunc_call));
-    let (inheritance, settled_calls, workspace_sources) = if needs_inheritance || needs_settling {
-        let (docs, index) = loop {
-            let docs = documents.lock("workspace_diagnostic_source_query").await;
-            if let Ok(index) = inputs.workspace_index.try_read() {
-                break (docs, index);
-            }
-            drop(docs);
-            drop(inputs.workspace_index.read().await);
+    let (needs_inheritance, inheritance, settled_calls, workspace_sources) =
+        match deep_workspace_diagnostics(uri, documents, &analysis, &analyser_diags, inputs).await {
+            ControlFlow::Continue(sources) => sources,
+            ControlFlow::Break(reason) => return ControlFlow::Break(reason),
         };
-        let settled_calls = if needs_settling {
-            settle_cross_file_calls(&index, &analysis, &inputs.registry, uri.as_str())
-        } else {
-            CrossFileCalls::default()
-        };
-        let published = inputs
-            .provider_capture
-            .source_path_admissions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let workspace_sources = match WorkspaceDiagnosticSources::capture(
-            &settled_calls.source_candidates,
-            &index,
-            &docs,
-            &published,
-            inputs.provider_capture.store.as_ref(),
-        ) {
-            Ok(sources) => sources,
-            Err(reason) => {
-                return ControlFlow::Break((
-                    !matches!(reason, DiagnosticUnavailable::Pending),
-                    reason,
-                ));
-            }
-        };
-        (
-            if needs_inheritance {
-                compute_source_inheritance(
-                    &index,
-                    uri,
-                    &analysis,
-                    inputs.entry_points,
-                    inputs.folder_root,
-                    inputs.package_prefer,
-                )
-            } else {
-                SourceInheritance::default()
-            },
-            settled_calls,
-            workspace_sources,
-        )
-    } else {
-        (
-            SourceInheritance::default(),
-            CrossFileCalls::default(),
-            WorkspaceDiagnosticSources::default(),
-        )
-    };
-    let mut workspace_sources = workspace_sources;
-    if let Err(reason) = workspace_sources
-        .read_saved(inputs.provider_capture.store)
-        .await
-    {
-        return ControlFlow::Break((true, reason));
-    }
-    let workspace_sources = Arc::new(workspace_sources);
     let command_queries = project_command_queries.join(settled_calls.command_queries);
     let provider_sources = inputs
         .provider_capture
