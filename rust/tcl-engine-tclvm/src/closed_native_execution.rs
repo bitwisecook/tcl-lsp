@@ -57,7 +57,7 @@ pub fn execute_optimised_closed_source(
         .map_err(|_| ClosedSourceRefusal::Execution)?
         .join();
     #[cfg(debug_assertions)]
-    report_closed_observation(&marker, !joined.as_ref().is_ok_and(|result| result.is_ok()));
+    report_closed_observation(marker.as_ref(), !joined.as_ref().is_ok_and(Result::is_ok));
     joined.map_err(|_| ClosedSourceRefusal::Execution)?
 }
 
@@ -69,7 +69,7 @@ fn closed_observation_marker() -> Option<std::sync::Arc<std::sync::atomic::Atomi
 
 #[cfg(debug_assertions)]
 fn report_closed_observation(
-    marker: &Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    marker: Option<&std::sync::Arc<std::sync::atomic::AtomicU64>>,
     failed: bool,
 ) {
     if failed && let Some(marker) = marker {
@@ -497,7 +497,7 @@ mod tests {
             .unwrap()
             .join();
         #[cfg(debug_assertions)]
-        report_closed_observation(&marker, joined.is_err());
+        report_closed_observation(marker.as_ref(), joined.is_err());
         joined.unwrap();
     }
 

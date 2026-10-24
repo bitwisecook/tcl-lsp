@@ -991,7 +991,7 @@ original65_rows = (
     original_rows + supplemental_rows + sh21_rows + readflow_rows + catch_rows
 )
 require(
-    sha(BASE / "compiler-closed-consumer-controls.json") == "1e72d1cf9ddf5068c7deff19438e06489c991725163d642dda9195eb89b8e63a",
+    sha(BASE / "compiler-closed-consumer-controls.json") == "8cc64a7ff171d973700e7864c60ebe1aa291505aec066c64521561f61d330bc5",
     "exact separate closed-consumer control roster",
 )
 closed_controls = json.loads((BASE / "compiler-closed-consumer-controls.json").read_text())
