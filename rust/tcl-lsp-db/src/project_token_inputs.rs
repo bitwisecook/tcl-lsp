@@ -4,10 +4,20 @@
 
 //! Project token facts from checked per-file document inputs.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    AnalyserConfig, ClassHierarchy, FileTokenFacts, Project, SemanticTokens, SourceFile, TclDb,
+    VarNameArgRoles, document_analyser, document_analysis_input, document_compilation_unit_for,
+    file_analysis_incremental, merge_project_classes, merge_project_named_instances,
+    token_facts_from_analysis,
+};
+use std::collections::HashSet;
+use std::sync::Arc;
+
+#[cfg(test)]
+use super::{
+    NonAsciiMode, TclDatabase, project_class_index, semantic_tokens, semantic_tokens_project,
+    set_overlay_epoch,
+};
 
 pub(super) fn configuration_for_file(
     db: &dyn TclDb,

@@ -4,10 +4,22 @@
 
 //! Body-free project source headers and factories from checked document inputs.
 
-// This file is a split-out part of its parent module: it, and the test
-// modules nested under it, share the parent's whole import set.
-#[allow(clippy::wildcard_imports)]
-use super::*;
+use super::{
+    AnalyserConfig, AnalysisResult, ItemSig, ItemTree, OriginalCommandSlot, Project,
+    ProjectSourceInputMode, SourceFile, TclDb, file_analysis_incremental, merge_class_factories,
+    merge_original_command_signatures, original_lookup_command_signatures_using,
+    project_call_inputs, project_callback_diagnostics_with_mode, project_token_inputs,
+    select_original_command_signatures,
+};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+#[cfg(test)]
+use super::{
+    DiagCode, LogicalSourceCommandSlot, NonAsciiMode, TclDatabase, document_analysis_input,
+    file_analysis, item_tree, logical_source_command_arity, project_class_factories,
+    project_diagnostics, project_diagnostics_for_inputs, set_overlay_epoch,
+};
 
 /// Structure-only declaration inventory under this file's complete source input.
 /// The published factory oracle is a source hint, not a reached metaclass.
