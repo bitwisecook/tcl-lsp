@@ -1,0 +1,57 @@
+--- a/nextest-runner/src/reporter/structured/libtest.rs
++++ b/nextest-runner/src/reporter/structured/libtest.rs
+@@ -83,6 +83,8 @@
+     succeeded: usize,
+     /// The number of tests that were ignored
+     ignored: usize,
++    /// The number of ignored tests whose skip events are still pending
++    ignored_remaining: usize,
+     /// The number of tests that were not executed due to filters
+     filtered: usize,
+     /// The number of tests in this suite that are still running
+@@ -354,6 +356,7 @@
+                     failed: 0,
+                     succeeded: 0,
+                     ignored,
++                    ignored_remaining: ignored,
+                     filtered,
+                     stress_index: *stress_index,
+                     meta: suite_info,
+@@ -463,7 +466,7 @@
+                 }
+             }
+             TestEventKind::TestSkipped { .. } => {
+-                test_suite_mut.running -= 1;
++                test_suite_mut.ignored_remaining -= 1;
+
+                 if test_suite_mut.ignore_block.is_none() {
+                     test_suite_mut.ignore_block = Some(bytes::BytesMut::with_capacity(1024));
+@@ -497,7 +500,7 @@
+                 out.clear();
+             }
+
+-            if test_suite_mut.running == 0 {
++            if test_suite_mut.running == 0 && test_suite_mut.ignored_remaining == 0 {
+                 std::mem::drop(test_suite);
+
+                 if let Some(test_suite) = self.test_suites.remove(&suite_info.binary_id) {
+@@ -507,7 +510,7 @@
+         } else {
+             // If this is the last test of the suite, emit the test suite summary
+             // before emitting the entire block
+-            if test_suite_mut.running > 0 {
++            if test_suite_mut.running > 0 || test_suite_mut.ignored_remaining > 0 {
+                 return Ok(());
+             }
+
+@@ -530,6 +533,10 @@
+
+         let out = &mut test_suite.output_block;
+         let suite_info = test_suite.meta;
++
++        if let Some(ib) = test_suite.ignore_block.take() {
++            out.extend_from_slice(&ib);
++        }
+
+         // It's possible that a test failure etc has cancelled the run, in which
+         // case we might still have tests that are "running", even ones that are

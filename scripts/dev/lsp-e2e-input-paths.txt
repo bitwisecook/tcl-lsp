@@ -19,3 +19,4 @@ editors/vscode/testFixture/variableContexts.tcl
 samples/sslictcl/example.sslictcl
 specs
 scripts/dev/nextest-terminal-capture.py
+scripts/dev/nextest-tool

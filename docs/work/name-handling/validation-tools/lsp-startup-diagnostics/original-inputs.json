@@ -1,6 +1,6 @@
 {
   ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
-  ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
+  ".github/workflows/ci.yml": "062cd06dd344b3294b5f1d08a3c0610e90e8e856d1c3c68bede210a17a21c62e",
   "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
   "docs/design/rust/engineering-guide.md": "04d61fc6541c126cf12eca781ca4621894a3277b0b563f94b657e9cc3f773648",
   "docs/design/rust/lsp-performance.md": "5c54e0a0f3a097194e6fdc23339daed698c3c8d0515731fb58d84322987c844c",

@@ -214,7 +214,7 @@ END {
     paths_step = step("jobs.channel", "id", "paths")
     need(paths_step >= 0, "channel must define the paths step")
     paths_run = "jobs.channel.steps." paths_step ".run"
-    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh | scripts/dev/nextest-tool/*)"
     contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
     runner_step = step("jobs.channel", "id", "rust-runner")
@@ -288,6 +288,10 @@ END {
     need(enable > sccache && values[shard_job ".steps." enable ".if"] == active && values[shard_job ".steps." enable ".env.SCCACHE_SETUP_OUTCOME"] == "${{ steps.sccache.outcome }}", "wrapper enablement must follow optional setup")
     contains(shard_job ".steps." enable ".run", "RUSTC_WRAPPER=sccache", "successful setup must enable compiler cache")
     contains(shard_job ".steps." enable ".run", "continuing with uncached compilation", "failed setup must report uncached fallback")
+    validate_nextest = step(shard_job, "name", "Validate patched cargo-nextest on hosted worker")
+    validate_if = values[shard_job ".steps." validate_nextest ".if"]
+    need(validate_nextest > enable && index(validate_if, "github.event_name == '\''pull_request'\''") != 0 && index(validate_if, "runner_policy_changed == '\''true'\''") != 0 && index(validate_if, "github.event_name == '\''workflow_dispatch'\''") != 0 && index(validate_if, "github.ref == '\''refs/heads/work'\''") != 0 && index(validate_if, "github.ref == '\''refs/heads/release/lsp-naming'\''") != 0 && index(validate_if, "inputs.rust_tests_runner == '\''hosted'\''") != 0 && index(validate_if, "inputs.native_release_build_proof == false") != 0 && index(validate_if, "matrix.shard == '\''1/5'\''") != 0 && index(validate_if, "refs/tags") == 0, "patched reporter validation must allow hosted PR policy proof or hosted manual runs only on the authorized branches")
+    contains(shard_job ".steps." validate_nextest ".run", "scripts/dev/nextest-tool/validate.sh", "hosted validation must build and exercise the pinned patched reporter")
     nextest_setup = step(shard_job, "name", "Install cargo-nextest")
     need(nextest_setup > enable && values[shard_job ".steps." nextest_setup ".if"] == active, "cargo-nextest setup must be warm-path-gated")
 

@@ -14,7 +14,7 @@
   "scope": "Original exact25 assertions retained; original Native compiled-definition mode now requires its exact guarded definition ABI instead of the proved-dispatch bypass ABI. Isolated per-selector diagnostic only; shared-process shipping acceptance remains separate. Existing failed-case fresh diagnostic only also reports held header/buffer/root metadata after its same three top calls; original strict bootstrap/assertions and all original25 unchanged.",
   "source_pins": {
     ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
-    ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
+    ".github/workflows/ci.yml": "062cd06dd344b3294b5f1d08a3c0610e90e8e856d1c3c68bede210a17a21c62e",
     "Cargo.lock": "a4f6ceda29b7f8d1dbb6dd40bda959e445fabc4bbd5dd93284455e02e600c602",
     "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
     "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
