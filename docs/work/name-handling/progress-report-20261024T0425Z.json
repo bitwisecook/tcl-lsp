@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T04:25:55.511668+00:00",
+  "scheduled_report_utc": "2026-10-24T04:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T04:55:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product WORK c551a39c8ef9bcaf2934a0d972d600811923cabc, CLEAN 59f25da5c1bad8faa457d458058f08bfd7d3d0ad; fixesfirstWORK/source-onlycarryCLEAN. Freshdepth1fetch/rebasebeforepush. Activeproduct frozen, no localbuild. NoPR/merge/tag/publish.",
+    "Coherent eight-mode wave exactf82 dispatched03:59 after V5 preflightPASS: all oldmaps+startup13+27runnerAST/11wholeJSONhardpins. Prior source/event mismatch and stale roster/input refusals preserved; originalguards/assertions unchanged. V5 frozenb5110b93+negativecontrols48c14296; optionalV6 remainsseparate.",
+    "Compilerf82 fully authenticated139ownedgroups/full126022Gitmembers/provider/deps/tools/ELF/losslesstransport: original58=51PASS7FAIL0UNRUN; Native3=3PASS,SH2=2PASS,ReadFlowPASS. Relative42 threeoriginalFtoP(ILXthirdproc,SHscalarlist,NativeJimnamespaceerrorprefix), sameSHsuppFtoP, zero selectedPtoF. RemainingRBS3,taint,bracedexpr,catchfixturelookup,namespaceimport. Thisisnotcomplete24312baselineacceptance.",
+    "WASMf82 all25executed22PASS3FAIL with286identity/source/provider/process/runtimechecks; fouroldsharedtablepositivesnowPASS. Recursion reachesoriginaldepthmismatch,NativeaddtraceGeneral/InconsistentCompletionReturn+UncoveredStatement,abortloop1111\u21921118\u21921118andzeroactiveframes remain. Sameoriginalassertions, no sharedprocess/shippingclaim.",
+    "Specf82 original11still9PASS2FAIL andNative1FAIL; fresh3strict0W/20closedemptygroups/fullseals. factoryacceptedfreshtrue butnoprestore/source-symbol/trust/missingbody/store-enter markers, so no actualsource-symbolpermission. ExistingN17IRomitsSSAdefs; smallesttest-onlyheldSSAinventoryobserverV3 awaitingpeer, no productivegrant. Heavy3allFAIL fullguards; exacttwoformatinvocations nowjoinrealC9 simpleconcat compilehook branch, registryrecipeauthoring, noTMMfallback.",
+    "Jimf82 5PASS2FAIL/all21controls/strict2freshELF0W. Orderedtracecorrection: Authoredifpasses; remainingnestedfirstfailureisLogical079if, withnoLogicalanalyseringress/bodycapture despitegenuine canonical/factory/purpose. ExistingLogicalsource roleissueralreadyprovesbody1withoutNativehandler; boundedreadonlybodytraversalconsumerfixpeerpending. Method322stillfails; laterprociterationsunreached. EarlierAuthoredmisattributionexplicitlycorrected.",
+    "Runtimef82 preliminary2PASS1TIMEOUT/append931of1035 (prior743),baseline14=8PASS6FAILwithlappendnowPASS,stackABORT,other103=4PASS99FAILinclactualC84positive/twoteardowns. Fulljoinsnotyetclosed. All407ZIPmemberspresentincludingnestedframecaptures; CFIunknown21806/unparsedsymbol6/relevantomissions25667 keepwholeframeprotocolINCOMPLETE. No stackcause/performanceacceptance; JimappendrowsUNREACHED.",
+    "Strictf82 authenticatedsource126022/ZIP/API/fullGit/source-after: DBalltargetallfeaturePASS0W; Core13assert_is_emptyintegrationfindings; Server4E0505CurrentDiagV8. Earlierstaticpeermissedlatepath_inputs.registryborrow. Independently reviewedtinyfixmovesexistingregistryafterlastawait/beforeowner moves, noclone/query/await/droporderchange, integratedbothbranches. Startupf82same4E0505beforebinary/case, coldtokens/scan/ContextALLUNRUN; CIpin/finalizerrepairnowpassed.",
+    "Newlaterproductcohorts: genuineauthoredcfgtestbodyquery, stockJim13publication subset, NamespaceEvalnormal-onlyworldclosurewitherrorsretained, NativeLiteralborrowedcallbackbundle removes2unapprovedarityallows, DB3explicitimports removes3wildcardallows. Eachindependentreview/copyfmt; actualfunctional/typeacceptanceUNRUNonlater source. Root13Coreassertreplacements sameemptiness/nonemptiness expectationsawaitpeer; test7V1heldforactualstaticdefects.",
+    "WholeCLEANroot+standaloneruntimecargo-fmtPASS602e7ad4 source-stable/zerolog; publisherwholeformatUNRUNbecauseintentionallysparsemanifest/dependencyabsence, individualcohortscopiedfmtpass. Release-onlystaleexperimentevidence-link/countcorrectedtomaintainedcontrols. No docs/work orscratchpadcandidatechanges. Finalwholeformatmustrepeatonfinaltip.",
+    "No-new-allowv3census74addedattrs:13baseline+2provedmoved+1userInstructionexception,17ownedserver/Core/hover,2externallyheldBIGIP,3confirmednew,2movedunresolved+34otherprovenanceunknown. Not60confirmedviolations; crossfileprovenancepreserved. Onlygenuineconfigconstructorexceptionapplies; no newblanketallow. Finalcleanupstillopen.",
+    "Productiondependencyclosureaudit31packages confirmscompiler/VM/sharednamingmandatory; historicalVM181means31rust/tcl-vmpathsinsideproductionclosure, notstandaloneruntime. StandaloneRuntimeRustoutsideproductionbutrequiredbycrossengine/WASM/ABIchecks. No safe migrationcomponentexclusionproved; keepallrequiredtests and24312baseline.",
+    "Externalperf03:22reportcomplete/provenrealmforwardedintegrated; finalshippingperformanceunaccepted. BIGIP13:17headerstillstaleover60,usernotifiedwithouttakeover; CLIownershipanswerpending. ReviewtriageexplicitlyCOMPLETE. Diskbelow2GiB,no localbuild/targetoryoungexecutabledeletion. Sixhourtargetmissed; allfinalreleasegatesopen."
+  ],
+  "committed": [
+    "e73194b8295d2910ce07b75df3360154450075cf"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish04:25report/WIPsnapshotandrearm04:55reminder.",
+    "FinishCore13/Logicalbodyroles/N17observerpeers, integrateeligibleexactcohorts, then dispatchfreshstrict/startup/compiler/Jim/Spec asrelevant.",
+    "Fixremainingoriginalcompiler7,Jim2,Spec3,WASM3,Heavy3,runtimebaseline/append/stackafteractualsourceproofs.",
+    "CompletefinalCLEANrequiredCI/whole24312comparison/Tcllatencycancellationmemory/format/generated/docs/no-new-allows beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Freshf82 scoped actual improvements are recorded with exact coverage; later static-reviewed fixes are UNRUN. FullCI/baseline/performance/sectionF remain open and noPR isready.",
+  "disk_free_bytes": 1561559040,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
