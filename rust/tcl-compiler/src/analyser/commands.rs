@@ -701,7 +701,7 @@ impl Analyser {
         if token.kind != TokenType::Var {
             return None;
         }
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         let config = self.file_lexer_config();
         let word = if head {
             self.head_identities
@@ -1072,6 +1072,11 @@ impl Analyser {
         self.record_ensemble_subcommand_invocation(&resolved, args, arg_tokens_in, arg_expand_in);
     }
 
+    /// Share immutable document geometry after the complete byte/channel check.
+    fn command_document_source_image(&self) -> tcl_lexer::SourceImage {
+        original_document_source_image(&self.source, self.head_identities.original_source_image())
+    }
+
     /// Reconstruct original lexical words once, then attach the retained
     /// lookup receipt. Consumers must not recover roles from final imports
     /// or a display head when this actual source site has no applicable shape.
@@ -1105,7 +1110,7 @@ impl Analyser {
         let Some(origin) = bindings.source_origin() else {
             return;
         };
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         let config = self.file_lexer_config();
         if !bindings.matches_original_source_image(&image, config)
             || origin.source_image() != &image
@@ -1290,7 +1295,7 @@ impl Analyser {
         let Some(origin) = bindings.source_origin() else {
             return;
         };
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         let config = self.file_lexer_config();
         if !bindings.matches_original_source_image(&image, config)
             || origin.source_image() != &image
@@ -1688,7 +1693,7 @@ impl Analyser {
         let symbol_advice = (|| {
             let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens)?;
             if self.result.has_original_vendor_source_names() {
-                let image = tcl_lexer::SourceImage::document(&self.source);
+                let image = self.command_document_source_image();
                 let config = self.file_lexer_config();
                 let original = self.result.original_vendor_source_name_in_source(
                     &image,
@@ -2221,7 +2226,7 @@ impl Analyser {
         let Some(input) = self.result.resolved_input.as_ref() else {
             return false;
         };
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         if !self
             .result
             .matches_original_source_image(&image, input.lexer_config())
@@ -3240,7 +3245,7 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         let config = self.file_lexer_config();
         let Some(head) = tokens.words().first().and_then(|word| {
             self.result
@@ -4032,7 +4037,7 @@ impl Analyser {
         let Some(head_word) = tokens.words().first() else {
             return;
         };
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         let config = self.file_lexer_config();
         let vendor = self
             .result
@@ -4125,7 +4130,7 @@ impl Analyser {
                 &tokens,
             )
         } else if self.vendor_source_name_policy().is_some() {
-            let image = tcl_lexer::SourceImage::document(&self.source);
+            let image = self.command_document_source_image();
             tokens
                 .words()
                 .first()
@@ -4534,7 +4539,7 @@ impl Analyser {
         let Some(owner) = self.result.resolved_input.as_ref() else {
             return (None, None);
         };
-        let image = tcl_lexer::SourceImage::document(&self.source);
+        let image = self.command_document_source_image();
         if !self
             .result
             .matches_original_source_image(&image, owner.lexer_config())
@@ -5431,7 +5436,7 @@ impl Analyser {
         if !self.result.allows_lexical_declaration_advice() {
             let generation = self.analysis_context();
             let registry = generation.commands();
-            let image = tcl_lexer::SourceImage::document(&self.source);
+            let image = self.command_document_source_image();
             return self
                 .head_identities
                 .source_bindings_ref()
@@ -6197,7 +6202,7 @@ impl Analyser {
                     .semantic_key()
             || self.file_lexer_config() != input.lexer_config()
             || !self.result.matches_original_source_image(
-                &tcl_lexer::SourceImage::document(&self.source),
+                &self.command_document_source_image(),
                 input.lexer_config(),
             )
         {
