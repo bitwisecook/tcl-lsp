@@ -1,0 +1,42 @@
+{
+  "schema": "compiler-source-read-ancestry3-v1",
+  "expected_selected": 3,
+  "rows": [
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::nested_plain_and_normal_case_bodies_retain_exact_procedure_ancestry",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::original_namespace_and_frame_boundaries_do_not_inherit_read_scope",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::exact_original_parent_read_scope_remains_available",
+      "env": {}
+    }
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "352120aed1fb7822ad865d06a631d25af586e03efdcbaaf67c57fb9e6079bb12"
+  },
+  "approved_product_patch_sha256": "eee5f15a47641a69d674f2f3eb2716be4772819688aeb956a1c3df79a66382eb",
+  "independent_source_peer_sha256": "676a9fba0abdfd67c16f4db4d21cea278c5480b0f90c0e6c00ab2720322fb27f",
+  "scope": "Three actual ancestry unit controls only after all old96 close. Same original fresh compiler-lib ELF/full exact lists, no additional build, all existing shared caps/deadlines/floor/owner/seals/lossless/terminal checks. Initial UNRUN; no source/Native/Normal/performance/full-baseline acceptance."
+}

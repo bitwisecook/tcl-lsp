@@ -140,6 +140,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-closed-consumer-",
             "diagnostic-inlining-readonly10-",
             "diagnostic-original-body-owner3-",
+            "diagnostic-source-read-ancestry3-",
             "list-",
             "select-",
         )
@@ -154,6 +155,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-closed-consumer-",
             "diagnostic-inlining-readonly10-",
             "diagnostic-original-body-owner3-",
+            "diagnostic-source-read-ancestry3-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -169,6 +171,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-closed-consumer-",
             "diagnostic-inlining-readonly10-",
             "diagnostic-original-body-owner3-",
+            "diagnostic-source-read-ancestry3-",
         )
     ):
         require(
@@ -538,6 +541,200 @@ def run_readonly_body_controls() -> None:
         )
 
 
+def run_source_read_ancestry_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in original65_rows + taint_rows + closed_rows + readonly_rows
+        ),
+        "ancestry controls cannot precede original96 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-ancestry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in ancestry_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "ancestry controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(ancestry_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "taint diagnostic current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "taint diagnostic requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "taint diagnostic artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "source-read-ancestry"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "outcomes.json", rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "outcomes.json", rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "outcomes.json", rows)
+            raise
+        save(out / "outcomes.json", rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -570,7 +767,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "2eabe4a5fc97ec1092586d4b4dde0cfe3c478618b0bb15526d3a509ed97160a4",
+    == "9421bc341b3b12d98a413cca77cdc5f5114e3ba82115a6ab3f8aa464f772758f",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -880,7 +1077,50 @@ require(
     ),
     "readonly13 overlaps/duplicates",
 )
-rows = original65_rows + taint_rows + closed_rows + readonly_rows
+require(
+    sha(BASE / "compiler-source-read-ancestry3.json")
+    == "ec6b24fc84a84b4488d3e6bf95427ff3c9b3cf71f9a248aaba32e5a9468ae1e6",
+    "exact separate ancestry3 roster",
+)
+ancestry_validation = json.loads(
+    (BASE / "compiler-source-read-ancestry3.json").read_text()
+)
+require(
+    ancestry_validation["expected_selected"] == len(ancestry_validation["rows"]) == 3,
+    "ancestry3 count",
+)
+ancestry_rows: list[dict[str, Any]] = [
+    dict(row, state="UNRUN") for row in ancestry_validation["rows"]
+]
+require(
+    all(
+        row["group"] == "diagnostic-source-read-ancestry3"
+        and row["package"] == "tcl-compiler"
+        and row["kind"] == ["lib"]
+        and row["target"] == "tcl_compiler"
+        and row["env"] == {}
+        for row in ancestry_rows
+    ),
+    "ancestry3 exact target/environment",
+)
+require(
+    len(
+        {
+            (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+            for row in ancestry_rows
+        }
+    )
+    == 3
+    and not {
+        (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+        for row in ancestry_rows
+    }.intersection(
+        (row["package"], tuple(row["kind"]), row["target"], row["selector"])
+        for row in original65_rows + taint_rows + closed_rows + readonly_rows
+    ),
+    "ancestry3 overlaps/duplicates",
+)
+rows = original65_rows + taint_rows + closed_rows + readonly_rows + ancestry_rows
 require(
     len(
         {
@@ -1127,6 +1367,9 @@ try:
     for pinned_path, pinned_digest in readonly_validation["source_pins"].items():
         require(sha(root / pinned_path) == pinned_digest,
                 "readonly body source pin changed: " + pinned_path)
+    for pinned_path, pinned_digest in ancestry_validation["source_pins"].items():
+        require(sha(root / pinned_path) == pinned_digest,
+                "ancestry source pin changed: " + pinned_path)
     before = source()
     save(out / "source-before.json", before)
     require(
@@ -1201,6 +1444,7 @@ try:
             "original_inputs_and_environment": roster,
             "separate_closed_consumer_controls": closed_controls,
             "separate_readonly_body13": readonly_validation,
+            "separate_source_read_ancestry3": ancestry_validation,
             "separate_supplemental3": supplemental,
             "separate_sh21_diagnostic2": sh21_diagnostic,
             "separate_readflow1": readflow,
@@ -1726,6 +1970,7 @@ try:
             "selected test artifact changed",
         )
     run_readonly_body_controls()
+    run_source_read_ancestry_controls()
     require(
         len(original_rows) == 58
         and len(supplemental_rows) == 3
@@ -1736,7 +1981,8 @@ try:
         and len(taint_rows) == 2
         and len(closed_rows) == 16
         and len(readonly_rows) == 13
-        and len(rows) == 96
+        and len(ancestry_rows) == 3
+        and len(rows) == 99
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -1844,6 +2090,12 @@ finally:
             "readonly_inlining10_outcomes": readonly_rows[:10],
             "readonly_owner3_outcomes": readonly_rows[10:],
             "separate_readonly_body_roster": readonly_validation,
+            "required_separate_ancestry_controls": 3,
+            "ancestry_controls_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in ancestry_rows
+            ),
+            "ancestry3_outcomes": ancestry_rows,
+            "separate_ancestry_roster": ancestry_validation,
             "separate_closed_consumer_roster": closed_controls,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
