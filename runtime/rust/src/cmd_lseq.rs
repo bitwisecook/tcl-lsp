@@ -247,7 +247,7 @@ mod tests {
                     crate::vars::get_at(&interp.frames.borrow(), &interp.namespaces(), b"prior", 0)
                         .unwrap();
                 assert!(!prior.is_null());
-                assert!(obj::has_string_rep(prior));
+                assert!(crate::obj::has_string_rep(prior));
                 // SAFETY: the unchanged root table retains this resident String.
                 assert_eq!(
                     unsafe {
