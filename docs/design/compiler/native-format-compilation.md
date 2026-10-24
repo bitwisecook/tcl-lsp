@@ -19,7 +19,8 @@ existing compiler visitor; this recipe introduces no script or expression
 body visits.
 
 The all-static path invokes `Tcl_Format` while compiling and may emit a syntax
-error. That path remains unmodelled, as do other conversion or count cases.
+error. That path remains unmodelled. Other conversion or count cases remain
+unresolved except for the exact C9.0 generic decline described below.
 The descriptor supplies no handler completion, native execution entry, command
 lookup, currentness, namespace, or backend-provider authority. Those remain
 independent requirements of the original invocation owner.
@@ -39,3 +40,18 @@ retaining the genuine object operation through callbacks and operand retirement.
 This string operation never uses Tcl list-concatenation rules. Unknown source,
 compiler selection, frame, operation or original implementation still refuses
 through the existing admission checks.
+
+## Native C9.0 dynamic hexadecimal compiler decline
+
+For the exact literal `%x` format and one substituted value, the C9.0 format
+compiler's literal probe fails and its conversion scan declines. The ordinary
+compiler then prepares the original head, format and value words in order. The
+registry retains an empty attempted-hook prefix and the enclosing compiler's
+ordered word visits separately. It emits no format opcode and grants no numeric
+result or operand conversion. Runtime command selection and the
+original format handler retain their own guards and errors.
+
+All-static formatting, other conversions, unknown formats, other releases,
+uncertain arity, expansion, opaque words and unavailable compiler contexts remain
+unresolved. The existing `%s`/`%%` concatenation instruction keeps its separate
+literal allocation and retirement contract.

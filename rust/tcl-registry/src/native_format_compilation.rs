@@ -45,6 +45,16 @@ pub(crate) fn select(
     let Some(arguments) = shapes.len().checked_sub(1).filter(|count| *count <= 125) else {
         return Selection::Unknown;
     };
+    // C9's failed literal probe reaches the scan below and rejects %x before
+    // emitting any specialised instruction. The enclosing compiler then visits
+    // the original head, format and value words for an ordinary invocation.
+    if version == TclVersion::V9_0
+        && format == b"%x"
+        && shapes.len() == 2
+        && shapes[1] == Shape::Substituted
+    {
+        return Selection::Generic;
+    }
     // The all-static TclCompileFormatCmd branch calls Tcl_Format and retains
     // separate value/error obligations; that branch remains unmodelled here.
     // The dynamic branch accepts only %s and %%, then compiles the value
@@ -465,6 +475,149 @@ mod tests {
                     assert!(instruction(&words, from, version, context()).is_none());
                 }
             }
+        }
+    }
+    #[test]
+    fn c90_dynamic_hex_decline_retains_all_original_word_preparations() {
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+            NativeOriginalCompilerNameEffects,
+        };
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand;
+        use crate::native_compiler_words::NativeCompilerWords;
+        use crate::native_control_compilation::NativeControlPreparationStep as Step;
+        use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
+        let version = TclVersion::V9_0;
+        let dialect = crate::InvocationDialect::for_version(version);
+        let source = tcl_lexer::SourceImage::native(b"format %x $x".as_slice());
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let parsed = tcl_lexer::native_script_words_in(
+            source.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            tcl_syntax::native_string::NativeStringProtocol::C(version),
+        )
+        .unwrap();
+        let spec = NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::FormatStringConcat,
+            operation: SemanticOperationId::Invoke,
+            body: NativeBodyCompilation::Inherit,
+        };
+        let selection = spec.select_native_words(&words, 1, Some(dialect), context());
+        assert_eq!(selection, NativeCompilationSelection::Generic);
+        let expected = vec![
+            Step::Word(NativeCompilerWordOperand::Original(0)),
+            Step::Word(NativeCompilerWordOperand::Original(1)),
+            Step::Word(NativeCompilerWordOperand::Original(2)),
+        ];
+        assert_eq!(
+            spec.original_argument_name_effects_in_context(&words, 1, Some(dialect), context()),
+            NativeOriginalCompilerNameEffects::Visits(expected),
+        );
+        assert_eq!(
+            native_instruction_plan(spec, selection, &words, 1, dialect, context()).unwrap(),
+            NativeInstructionPlan::GenericPreparation(Vec::new()),
+        );
+        assert!(
+            native_instruction_plan(
+                spec,
+                NativeCompilationSelection::Inline {
+                    operation: SemanticOperationId::Invoke,
+                    guard: NativeCompilationGuard::BeforeArguments,
+                },
+                &words,
+                1,
+                dialect,
+                context(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn dynamic_hex_decline_does_not_cover_other_points_or_unknown_vectors() {
+        let version = TclVersion::V9_0;
+        let mut unknown = context();
+        unknown.frame = NativeCompilationFrame::Unknown;
+        assert_eq!(
+            select(
+                Some(b"%x"),
+                &[
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Substituted
+                ],
+                version,
+                unknown,
+                SemanticOperationId::Invoke
+            ),
+            NativeCompilationSelection::Unknown
+        );
+        assert_eq!(
+            select(
+                None,
+                &[
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Substituted
+                ],
+                version,
+                context(),
+                SemanticOperationId::Invoke
+            ),
+            NativeCompilationSelection::Unknown
+        );
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                select(
+                    Some(b"%x"),
+                    &[
+                        NativeCompilationWordShape::Literal,
+                        NativeCompilationWordShape::Substituted
+                    ],
+                    version,
+                    context(),
+                    SemanticOperationId::Invoke
+                ),
+                NativeCompilationSelection::Unknown,
+            );
+        }
+        for shapes in [
+            vec![
+                NativeCompilationWordShape::Literal,
+                NativeCompilationWordShape::Literal,
+            ],
+            vec![
+                NativeCompilationWordShape::Literal,
+                NativeCompilationWordShape::Expanded,
+            ],
+            vec![
+                NativeCompilationWordShape::Literal,
+                NativeCompilationWordShape::Opaque,
+            ],
+            vec![
+                NativeCompilationWordShape::Literal,
+                NativeCompilationWordShape::Substituted,
+                NativeCompilationWordShape::Substituted,
+            ],
+        ] {
+            assert_eq!(
+                select(
+                    Some(b"%x"),
+                    &shapes,
+                    version,
+                    context(),
+                    SemanticOperationId::Invoke
+                ),
+                NativeCompilationSelection::Unknown
+            );
         }
     }
 }

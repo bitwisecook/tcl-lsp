@@ -778,7 +778,7 @@ pub enum NativeCompilationGrammar {
     /// C8.6+ template compiler requires the final original `SIMPLE_WORD`.
     /// Its accepted-template traversal remains independently unmodelled.
     SubstitutionTemplate,
-    /// C8.6+ format compiler's dynamic %s/%% concatenation branch.
+    /// C8.6+ dynamic `%s`/`%%` concatenation and exact C9.0 `%x` generic decline.
     /// Constant format evaluation and other conversion paths remain unresolved.
     FormatStringConcat,
     /// No hook before this C release; an actual hook with unmodelled grammar thereafter.
@@ -1911,14 +1911,16 @@ impl NativeCompilationSpec {
                 context,
                 self.operation,
             );
-            return if matches!(selection, NativeCompilationSelection::Inline { .. }) {
-                Visits(
+            return match selection {
+                NativeCompilationSelection::Inline { .. } => Visits(
                     ((operand_from + 1)..words.original_words().len())
                         .map(|index| Visit::Word(NativeCompilerWordOperand::Original(index)))
                         .collect(),
-                )
-            } else {
-                Unknown
+                ),
+                NativeCompilationSelection::Generic => {
+                    Visits(Self::original_generic_word_visits(words))
+                }
+                _ => Unknown,
             };
         }
         // These selected leaf emitters prepare source tokens, not variable
