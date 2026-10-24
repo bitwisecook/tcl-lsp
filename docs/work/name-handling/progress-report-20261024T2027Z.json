@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T20:27:02.272200+00:00",
+  "scheduled_report_utc": "2026-10-24T20:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T20:55:37+00:00",
+  "change_since_previous_report": [
+    "20:25 checkpoint: allreleasegatesremainrequired/noPR/noadmissions. Originalsix-hourtargetmissed; workcontinuesonWORKwithpairedreleaseextractiononly.",
+    "ActualCompiler83f245 FULLAUTHaeadc473 recordsoriginal55P3F/all9controlsPASSunchanged; newclosed16=12P4F. All183processes0Rust/fivefullseals. First4enginepositivesandoldfoldfailinitialNativeContextBEFOREassertions/lateradversaries; no genuineconsumerworkingclaim. Nativeforeach switch33 exactscope.catalogue-parent-spanfalse; Logicalarms36/57/puts70 earlierselection.scopesfalse. Distinctcauses, no ancestry/unknownwriterwaiver.",
+    "Runtime+Spec coordinateWORK-onlypost-retirement/join diagnosticstaticstage toidentifyactualNativeContext predicate; no privateIO/callerValue/header/source escape/publicenum/entrycurrency/opcodewhitelist expansion. ConcreteplainnestedNative schedulingcandidateexistsbutfirstcauseunobserved; no functionalbypass.",
+    "ActualJimf245 original45still31P14F+five separatediagnosticFAIL, allsource/provider/processcontrolsPASS. Namedfirstproducerchain/readmap4+declaredpotential1 genericfallbackSome bypassesprivatefacet. PinnedJim13semanticcounterexamplesb435PASS rejectblanketstatics/State/Normal assumptions. Sealedpossible-staticlookup draft onlywithdrawsunjustifiedabsenceatgenuinesource-ownedoccurrence, notdefiniteexists/Nativevalue/bodyworld; pairnotfrozen.",
+    "Readonlyinlining10 fixtureaccess84013 independent169fclear integratedWORK4cae/CLEANf9a andpushedwithin920/380. Allassertions/scripts/classifier/escape/admission/42IRrewrite+3recognition callersuntouched. Additional13selectorprotocolstillprospectiveafter83, samebudgets/guards.",
+    "DiagramArcCU repairb5b independent9b862clear integratedWORK920115/CLEAN380116 andpushed. ExistingpublicArcsetter/oldcallersretained, privateArc/Rc slot+additivelocalRcsetteronly5synchronousdiagramcalls; bothtake/drop/borrowsemantics unchanged. Newstrict920running; noactualtyping/greenclaimyet.",
+    "Actual571cehostcaptures FAILsource-aftersealwithdirtysource, noaftermap/status/diff/dirtypathsretained: PRECHECKONLY indexa7746a6c, no consumed-source/fullhostauthentication. Source-before/Git/pinnedtools/ownedcommands authentic; separateunitFULLPASS1. Preliminarybrowserstandalonecalls0 withseparateconditionalowner; WASIdebt span40..57 isputs emoji string. No guarddrop/defaultNoCallbacksassumption. NestedWASM/WASIlocks bothprovablymissingexistinglocaltcl-platformedge, no versionchanges; pair/companionspreparing, freshsealedrerunneeded.",
+    "RealexistingC84PureListoraclee83d actualdoubleheadervsforcedString outputs differ underprecision12, confirmingHeldUpLevelV2iswrong. WORKonlyheaderobserver54e5 rootwholeinverse/metadataquery/drop/formatreviewed andintegratedfb36/pushed920; newHeavy920running. No property/NativeTMM/globalphysicalpolicygrant.",
+    "CIreporter V6 sourcebuilder/checker fixesownprocess/smoke/allignored defectsbut independentpeerfoundnonplusfinalizationguardgap; V7narrowbothformatcorrection+controlsbeingprepared. Originalofficialinstalls/captureacceptanceunchanged; validation-onlymanualhostedWORK/releaserefwithpublishingdisabled. Needindependentfinalpeer+actualhostedbuild/smoke BEFOREadoption/newfullcomparison. No oldinvalidcapturesreplayed.",
+    "DocsAPIindexes/glossaryqualifiedlinks alreadypairedW0ea/C059; fullfmt70d38passedbeforelaterseparatelyformattedreadonly/Diagramchanges, finalwholefmtstillrequired. Developmentobservers/evidencestayWORKonly; completebaseline/sectionF/Tclperformance/requirednative-editor-host-generated/prep-pr/docscomments/chaffauditsstillopen.",
+    "ExternalBIGIP/perftrackersstale>60minusernotified/no takeover; triagecomplete. Disklow/ZIP-only, no localRustbuild/targetdeletion/youngexecutablecleanup. NoPR/merge/tag/release.",
+    "Pre-publication update: NextestV7frozen c8da5b2f, twoformatcompletionguard/mixed+allignoredcontrols corrected, finalRootdeltareviewpending; officialtoolunchanged. Jimproductive6filepairedpossiblealternative nowfrozen952397fe pendingindependentpeer, noactualgain. Lockpair814631/61faf +dirtypathde34 frozen; originalhostssealfailureunresolveduntilretry. No newgateadmission."
+  ],
+  "committed": [
+    "75ce0374d9b75b451e53dc55b810a8a02e58578c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish20:25checkpoint/report/rearm20:55.",
+    "FixprovenNative/Logicalcompilerfrontiers andgenuineconsumerNativeContext withoutguardbypass.",
+    "FreezepeerJimpossible-staticalternative, nestedlockedgepair/source-dirtydiagnostics andcurrenthostrepair.",
+    "Finalizepeer/hostvalidateNextestV7; completecurrentstrict/Heavy/readonly13 runs.",
+    "Completeallreleasecorrectness/baseline/performance/generated/docs/fmt/prep-pr gates beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global admissions. Authenticated failures remain explicit; source reviews and formatter checks are not compiled semantic/performance gates.",
+  "disk_free_bytes": 133447680,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

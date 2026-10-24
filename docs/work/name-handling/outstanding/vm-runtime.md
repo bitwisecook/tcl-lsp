@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T19:30:45.898047+00:00
+Last updated: 2026-10-24T20:12:49+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -20,6 +20,37 @@ reset/expansion); finer per-command currency094136Z(call41a47ee03fd745b9bf8e6b1f
 preserves original2guards and all real dependency/Namespace/Unknown/Native invalidations;
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
+
+## Current priority: Nextest validation V6 frozen, independent peer pending
+
+Root explicitly assigned successor authorship after independent V5 HOLDs: numeric
+smoke IDs disagreed with fixture source; supervisor direct-wait/EOF did not prove
+PGID closure; four driver hashes were merely recorded, not actually updated.
+Immutable /workspace/naming-proof-storage/nextest-patched-tool-paired-v6:
+receipt7cad6c968aa423416a31987bb0b244e6cffcd64c3aff83a66af56b765d677f80,
+membership9d0f398a762783e4cc0458e527feb63c9245484a67f18784d4b080bc7ca3ebe8.
+WORKpatch8e3223e18645b1407749d0c7aa6f5eab1cae7800324c0076af3475dc74bb412d
+(man5fa6d35154436fc54c379fed2d8e2b9e0933d1aac8183bd28949c41ae37bd43d),
+CLEANfaaef5f130d248eb2600899684865d6725497a5d006b2b1b8e9dde510dd38ef4
+(man9e202aeb4b0f17db3912c1ed4f3540d04cbe01ba8dd59aec3fedc7bd7ff68a43).
+Current preimages WORK920115d4/CLEAN38011685. Pinned source/lock/version/reporter
+patch, all official installers, manual branch/ref/native-proof guards and checker
+contract unchanged from V5. Fix numeric fixture IDs; all-ignored-only no-tests=pass
+matches pinned upstream NoTestsRun exit rule without accepting missing/extra rows.
+Bounded Linux child-subreaper/PGID owner keeps leader WNOWAIT until other members
+and pipes close; TERM5/KILL,20s one cleanup, two full empty scans after direct reap;
+120s default/900s build/180s smoke/1800s total,2GiB before+monitored, report1MiB,
+headtail64KiB/raw20MiB per command. No source/target/executable deletion; owned
+artifacts retained to hosted runner teardown. Six current CI fields +FOUR actual
+whole-roster driver literals updated; latest Heavy producer pin preserved.
+188 source/hash/syntax/copiedF-R-F checks +22 metadata-only ownership/checker
+controls PASS, zero actual children/native/build/fixture execution. Independent
+review +real hosted build/smoke remain UNRUN; no old invalid capture repaired.
+
+New f245 closed-consumer actual from Compiler: closed16 12P4F; first four engine
+controls and old fold refuse initial positive NativeContext, later negatives
+UNREACHED. Spec callback peer owns initial source triage while this role finishes
+Nextest; all full Native-entry/retained-empty guards remain unchanged.
 
 ## Latest guarded66ef COMPLETE: threeC85Error semanticgains, remaining85FAIL
 

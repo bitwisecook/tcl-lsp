@@ -1,0 +1,47 @@
+{
+  "checks": 80,
+  "checks_sha256": "d556b3884f5aa3c2eaac1734596046dfec2d193bf0b5c601596929d25ae21e53",
+  "limits": [
+    "No Cargo/rustc/native/test/Clippy/driver execution; all10 changed tests and proposed13-selector validation remain UNRUN.",
+    "This is source-only test fixture retrieval, not callable/publication/Native/SSA/admission or actual IR rewrite permission.",
+    "Root must independently authorize any validation companion/protocol/dispatch; none created or run here."
+  ],
+  "owner_function_comparisons": 7,
+  "owner_functions_sha256": "c4323ce5a9c2e795a558674eb5c1db04c8a921a6ee3868019ab161852615d7c1",
+  "packet": "/workspace/naming-proof-storage/compiler-inlining-readonly-body-query-v1",
+  "parts": {
+    "clean": {
+      "current_head": "05982f6e6b75a487243123ac67154f59ab2aa674",
+      "manifest_sha256": "1388c315738c7524457e028adf531a80fcd830b3df6d9f6c49b6425558b517c8",
+      "patch_sha256": "84013f9ae40eda38ebd17dce57e8b223af4ed7c8feba4793d4fe8060f75029e5"
+    },
+    "work": {
+      "current_head": "0ea8232b259042e86ee1dd89ebc248535c452522",
+      "manifest_sha256": "3808d6ea918224fd50137611b49287bc16d5d018635901868c4a8a7fd60793e6",
+      "patch_sha256": "84013f9ae40eda38ebd17dce57e8b223af4ed7c8feba4793d4fe8060f75029e5"
+    }
+  },
+  "read_only_selectors": [
+    "classify_large_pure_leaf_one_caller_is_if_single_call",
+    "classify_large_pure_leaf_two_callers_is_never",
+    "classify_missing_summary_is_never",
+    "classify_non_pure_leaf_is_never",
+    "classify_small_pure_leaf_is_always",
+    "classify_threshold_boundary_is_always",
+    "statement_count_empty_body_is_zero",
+    "statement_count_flat_body_counts_top_level",
+    "statement_count_nested_if_counts_inner",
+    "static_call_count_drives_large_proc_decision"
+  ],
+  "review": [
+    "Full actual Module.original_procedure_report_label and body_lowerings/retained_source/card producers read. Report label requires Module-issued ID, retained positioned exact source/registry, unique original store body and matching original summary; authored card checks complete header/body/formals/config/namespace/source scope/bodykind and absence of publication/Native entry. Report labels grant no callable/Native/frame/source binding.",
+    "Helper checks all primary display candidates for uniqueness. Present primary failing actual report ownership returnsNone terminal, never fallback; otherwise only actual body_lowerings entries with genuine sameModule report label qualify, and second candidate asserts ambiguity. No ID inferred from strings, no card/store mutation/new Module/body allocation, only borrowedProcedure plus copied issued ID from live owningModule. Installed/lambda-only entries without original body proof cannot pass reportlabel.",
+    "Exactly10 changed functions count body statements or call existing classify_proc with original literal static-call-count/threshold/missing-summary inputs. Summary producer analyse_var_escape already traverses procedures plus all body_lowerings keyed actual BodyFrameId::Body(id), so using returned body_id selects same actual body summary. No fake safe/pure/definedness or escaped-frame inference.",
+    "Full original inlining.rs independently restored after reverting actual ten retrieval expressions and body_id summary argument substitutions, then real edition2024 rustfmt. All source snippets/assertion predicates/expected decisions/static counts/missing summary unchanged. All42 rewrite and3recognition bodies and all other functions byteexact; no production API edits, allows or assertion weakening.",
+    "Original classifier still requires native admission and safe_to_inline guard. A read-only body may remain Never/missing/unsafe; existing assertions can legitimately fail after retrieval. Lookup does not promise classifier success or transform eligibility.",
+    "Private new integration helper correctly borrowsModule lifetime; actual ProcedureId exports, report-label signatures, body stores and summary keys inspected; seven critical owner/function bodies byte-identical across both current lanes. Existing primary fixture helper remains for unrelated rewrite/recognition callers.",
+    "Both patches/manifests/current preimages/newabsence, copiedF/R/F0zerooffset/fuzz, fmt4 and complete oldfunction inverse pass. Existing all active validation JSON map census has zero changed-path intersections; no blind source-pin companion."
+  ],
+  "utc": "2026-10-24T19:54:11.084462+00:00",
+  "verdict": "STATIC_SOURCE_PURPOSE_TYPE_OWNER_CLEAR"
+}

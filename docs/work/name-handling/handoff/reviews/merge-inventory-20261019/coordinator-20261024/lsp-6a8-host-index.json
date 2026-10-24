@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-24T19:28:57.017415+00:00",
+  "source": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887",
+  "run": 40123667183,
+  "source_members": 126160,
+  "source_tree": "771c87637cd66ae52663638fa403b4887b22b200",
+  "source_nul_membership_sha256": "bced6c7279b1b0656c06edf3f9422e392632da995c12d38cbd665ffd463ab6ba",
+  "author_assessments": {
+    "browser": {
+      "path": "/workspace/naming-proof-storage/lsp-host-browser40123667183-actual-v1/assessment-v1.json",
+      "sha256": "ee39aa08600ca049fc2593ce8ba4b1aaaa139283a17a81006b8af54b2cf819ee",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    "wasi": {
+      "path": "/workspace/naming-proof-storage/lsp-host-wasi40123667183-actual-v1/assessment-v1.json",
+      "sha256": "5cdfb0a0c7a469e0d53baaa5138089b2f56060c14ae04bba29366c2d1654038d",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL"
+    },
+    "unit": {
+      "path": "/workspace/naming-proof-storage/lsp-hosted-unit-40123667183-actual-v1/assessment-v1.json",
+      "sha256": "4e932e0d2878378236311e1f4e0b1dbf7f3410e28273de1f9b878f98b0749244",
+      "status": "AUTHENTIC_SEPARATE_UNIT_PASS"
+    }
+  },
+  "outcomes": {
+    "browser": "Releasebuild0RustE/W;23priorchecksPASS/4softFAIL. Both main.tcl Coreprepare refusals now explicitly prepare.matching-call. Host-naming definition/references ordinary.continue; rename UnknownWorld explicitly current main.tcl ordinal2/count3.",
+    "wasi": "Releasebuild0RustE/W;9priorchecksPASS/2softFAIL. app scopecompletefalse/owners3. Exact77byte ordinaryhost-naming owner8 Coreprepare refuses prepare.call-uncertainty; definition[] assertionFAIL; references aggregate projection unavailable; renameUNREACHED.",
+    "unit": "Separate exact public pending-index navigation control PASS1. FreshCIserverlibtest0W, all4 fullbudget ownedprocesses and fullsource/provider2256/deps21503/tools7 seals pass."
+  },
+  "actual_trace": {
+    "browser": [
+      "HOST_NAV_STAGE uri=file:///ws/main.tcl stage=core.prepare owner=OriginalSourceViewId(4) analysis=0x11fab6c8 interpreted=false region=false bytes=98; owner=OriginalSourceViewId(6) analysis=0x6dcd570 interpreted=true region=true bytes=98 core_prepare_refusal=prepare.matching-call",
+      "HOST_NAV_STAGE uri=file:///ws/main.tcl stage=core.prepare owner=OriginalSourceViewId(4) analysis=0x11fab6c8 interpreted=false region=false bytes=98; owner=OriginalSourceViewId(6) analysis=0x6dcd570 interpreted=true region=true bytes=98 core_prepare_refusal=prepare.matching-call",
+      "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=ordinary.continue owner=OriginalSourceViewId(7) analysis=0xf2f17c8 interpreted=false region=false bytes=77",
+      "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=ordinary.continue owner=OriginalSourceViewId(7) analysis=0xf2f17c8 interpreted=false region=false bytes=77",
+      "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=rename.refused rename.missing-world ordinal=2 count=3 uri=file:///ws/main.tcl analysis_owner=0xf3cf2b8 source_bytes=98 resolved_input=true unavailable=false body_config=Some(LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto })"
+    ],
+    "wasi": [
+      "HOST_NAV_STAGE uri=file:///w/app.tcl stage=projection.unavailable root=file:///w/app.tcl complete=false conditional=false selected_required=true owners=3; root=file:///w/broken.tcl complete=true conditional=false selected_required=false owners=1",
+      "HOST_NAV_STAGE uri=file:///w/host-naming.tcl stage=core.prepare owner=OriginalSourceViewId(8) analysis=0xc64e7e8 interpreted=false region=false bytes=77 core_prepare_refusal=prepare.call-uncertainty",
+      "HOST_NAV_STAGE uri=file:///w/host-naming.tcl stage=projection.unavailable root=file:///w/app.tcl complete=false conditional=false selected_required=false owners=3; root=file:///w/broken.tcl complete=true conditional=false selected_required=false owners=1; root=file:///w/host-naming.tcl complete=true conditional=false selected_required=true owners=1"
+    ]
+  },
+  "first_declined_predicates": {
+    "browser_main": "Matching iterator returned no call after successful current-owner/declaration/call-inventory Option checks. This combines absent/other-offset head and region owns_command filtering; does not prove empty call inventory or missing capture. No actual uncertainty/operand/target predicate reached for this request.",
+    "wasi_host_naming": "A matching unique retained call exists; uncertain_operations is nonempty. Its exact vectors/producers are not retained in this first-predicate observer. Own-lookup-operand and target predicates are UNREACHED."
+  },
+  "source_status": {
+    "associated_helper_lint": "Root integrated minimal associatedhelper before tested6a8. Actual originalbuilds+unit compile pass; strict separate root-owned.",
+    "core_prepare_observer": "ce7221a6 independent9fd9823e integrated exact6a8, now actual primitive tags observed. This is diagnostic information, not product/host closure.",
+    "conditional_world": "Larger draft PAUSED/UNFROZEN. No fresh root, Native/context waiver, dropped document, unknown-operation acceptance or aggregate coverage relaxation."
+  },
+  "protocol_companion_sha256": "9e364b421fcb28a6456811f14f880b0ef305676d556f0a286cea01cec88590c9",
+  "independent_actual_status": "Author fullauth only; no independent actual peer yet.",
+  "limits": [
+    "Exact126160 source membership remeasured via NUL Git tree. Full actual source before/after maps equal and current critical Git bytes checked; not every Git blob independently rehashed.",
+    "Original host make owner/source+fixedtool seals hold. Provider/dependency bootstrap not fully pre-build sealed; failed commands retain no successful moduleafterhash/payload or independently hashed running module identity.",
+    "Unit no retained ELF payload; exact fresh Cargo event/path/owner hash and producer ELF-magic proof only. Unit environment-values object absent; see companion.",
+    "Diagnostic log awaits/TLS/retained observation state change scheduling/storage; no performance/shipping/uninstrumented timing admission.",
+    "Unit PASS1 is separate and does not close original hosts, new Core controls, collision/edit coverage, app aggregate refs, global Context/sectionF/performance.",
+    "Jimobserver89d3 and any later source are outside exact tested6a8. No their typing/results inferred.",
+    "Need actual held call-head span/count/selected owner for browser, and held uncertainty vector metadata for WASI before a product fix. Existing first-predicate trace does not retain those values."
+  ]
+}

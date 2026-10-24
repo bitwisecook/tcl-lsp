@@ -1,0 +1,1179 @@
+{
+  "utc": "2026-10-24T19:53:41.015006+00:00",
+  "status": "AUTHENTICATED_ORIGINAL45_31PASS14FAIL_PLUS5DIAGNOSTICFAIL_FIRST_PRODUCERS_OBSERVED",
+  "source": "f245bd6e63423d502c4f0a956822cbab98aa5a6d",
+  "run": 40125916736,
+  "job": 120967156933,
+  "artifact_id": 12573612533,
+  "zip_sha256": "1e01fe29b1ddc22cb178ffaef3b18c40ce16937368286ed82d643a06a1bcc22c",
+  "zip_bytes": 11000143,
+  "verification_sha256": "4c26e46ee8566da17115b3ab3860d64963d1a6694c479cc3cdeb19113954cad2",
+  "all_controls_pass": true,
+  "all55_owned_processes_closed": true,
+  "two_fresh0W_debug_assertion_builds": {
+    "jim_document": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true,
+      "compiler_library_debug_assertions": true
+    },
+    "jim_own_surface": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true,
+      "compiler_library_debug_assertions": true
+    }
+  },
+  "cohort_counts": {
+    "original7:PASS": 7,
+    "supplemental38:FAIL": 14,
+    "supplemental38:PASS": 24,
+    "diagnostic5:FAIL": 5
+  },
+  "group_counts": {
+    "original26:PASS": 12,
+    "added8:PASS": 8,
+    "own11:PASS": 11,
+    "original26:FAIL": 14
+  },
+  "original45_delta_from767d": [],
+  "observer_and_current_Cargo_lock_Git_full_relative_path_source_before_after": {
+    "source-before.json": {
+      "Cargo.lock": "a4f6ceda29b7f8d1dbb6dd40bda959e445fabc4bbd5dd93284455e02e600c602",
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "3029c1643f74a2681775dad628686069e800d2fabff4e4a1bb4dc7179f5625d2",
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "579b95e64ce3caf3e56c55547222d3e82159810858f2cc79bdc749839767e643",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "8f605b87b339aae6654b26307ef23b4a9719cbee13dcb4f0114a318b92c9f3a5",
+      "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "056ca785bfc6fd84d8e3b49f588934d4c4d38b6f4e8ef4fb6a216b7fe97746bf",
+      "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945"
+    },
+    "source-after.json": {
+      "Cargo.lock": "a4f6ceda29b7f8d1dbb6dd40bda959e445fabc4bbd5dd93284455e02e600c602",
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "3029c1643f74a2681775dad628686069e800d2fabff4e4a1bb4dc7179f5625d2",
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "579b95e64ce3caf3e56c55547222d3e82159810858f2cc79bdc749839767e643",
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "8f605b87b339aae6654b26307ef23b4a9719cbee13dcb4f0114a318b92c9f3a5",
+      "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "056ca785bfc6fd84d8e3b49f588934d4c4d38b6f4e8ef4fb6a216b7fe97746bf",
+      "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945"
+    }
+  },
+  "source_anchors": {
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": {
+      "fn declared_read_flow_for_procedure": [
+        1719
+      ],
+      "fn conditional_read_spans_for_purpose": [
+        2153
+      ],
+      "fn original_declared_source_potential_reads": [
+        2183
+      ],
+      "fn collect_chain_read_before_set_spans": [
+        1908
+      ],
+      "fn emit_declaration_potential_reads": [
+        2057
+      ],
+      "fn suppress_declared_read_warnings": [
+        4576
+      ],
+      "rbs_trace_read(\"chain_candidate\"": [
+        2742
+      ],
+      "rbs_trace_read(\"emit_read_map\"": [
+        2417
+      ]
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": {
+      "pub(crate) struct OriginalDeclaredProcedureReadOccurrences": [
+        253
+      ],
+      "pub(crate) fn original_declared_procedure_read_occurrences": [
+        506
+      ],
+      "pub(crate) fn declared_absence_warning_occurrences": [
+        343
+      ]
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": {
+      "pub(super) fn static_source_uncertainty": [
+        308
+      ]
+    },
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs": {
+      "scope.catalogue-or-advice": [
+        116
+      ],
+      "selection.scope": []
+    },
+    "rust/tcl-registry/src/resolved_invocation.rs": {}
+  },
+  "static5_ordered_first_producer_evidence": [
+    {
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "stderr_sha256": "70e1d25b843c1f6263d5d0e7b4eb6ec910734ef36ae83f502b6479ebdf0e7581",
+      "first_final_producer": {
+        "line": 27,
+        "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+      },
+      "ordered_held_facts": [
+        {
+          "line": 1,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 8,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 9,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 21,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 22,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 23,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 24,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 25,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 26,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 27,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 28,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 29,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 30,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 31,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 32,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 33,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 34,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 35,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 36,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 48,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 49,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 50,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 51,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 52,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 53,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 54,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        }
+      ],
+      "fact_counts": {
+        "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None": 2,
+        "RBS_READ_OWNER stage=physical_missing count=0": 4,
+        "RBS_READ_OWNER stage=map_dynamic count=0": 2,
+        "RBS_READ_OWNER stage=map_provably_unset count=0": 2,
+        "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)": 2,
+        "RBS_READ_OWNER stage=function_flow present=false": 2,
+        "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=fallback_read_flow present=true": 2,
+        "RBS_READ_OWNER stage=read_recipe present=true": 2,
+        "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }": 2,
+        "RBS_READ_OWNER stage=required_flow present=true": 2,
+        "RBS_READ_OWNER stage=potential_reads present=true": 2,
+        "RBS_READ_OWNER stage=map_chain count=1": 2,
+        "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }": 2
+      }
+    },
+    {
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "stderr_sha256": "6204adbed5c50a506662d8e950cddbf2932e87053d014543b415a498d945bd1e",
+      "first_final_producer": {
+        "line": 74,
+        "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+      },
+      "ordered_held_facts": [
+        {
+          "line": 1,
+          "raw": "RBS_GRAPH stage=selection offset=123 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 2,
+          "raw": "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 3,
+          "raw": "RBS_GRAPH stage=selection offset=30 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 4,
+          "raw": "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 5,
+          "raw": "RBS_GRAPH stage=report nodes=15 warnings=0 strict_reads=0 unavailable=true unknown_reads=true"
+        },
+        {
+          "line": 47,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 48,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 49,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 50,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 51,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 52,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 53,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 54,
+          "raw": "RBS_GRAPH stage=selection offset=79 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 55,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 67,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 68,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 69,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 70,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 71,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 72,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 73,
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 74,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 75,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 76,
+          "raw": "RBS_GRAPH stage=selection offset=123 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 77,
+          "raw": "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 78,
+          "raw": "RBS_GRAPH stage=selection offset=30 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 79,
+          "raw": "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 80,
+          "raw": "RBS_GRAPH stage=report nodes=15 warnings=0 strict_reads=0 unavailable=true unknown_reads=true"
+        },
+        {
+          "line": 122,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 123,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 124,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 125,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 126,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 127,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 128,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 129,
+          "raw": "RBS_GRAPH stage=selection offset=79 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 130,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 142,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 143,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 144,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 145,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 146,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 147,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 148,
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 149,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 150,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        }
+      ],
+      "fact_counts": {
+        "RBS_GRAPH stage=selection offset=123 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=30 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=15 warnings=0 strict_reads=0 unavailable=true unknown_reads=true": 2,
+        "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None": 2,
+        "RBS_READ_OWNER stage=physical_missing count=0": 4,
+        "RBS_READ_OWNER stage=map_dynamic count=0": 2,
+        "RBS_READ_OWNER stage=map_provably_unset count=0": 2,
+        "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)": 2,
+        "RBS_READ_OWNER stage=function_flow present=false": 2,
+        "RBS_GRAPH stage=selection offset=79 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=fallback_read_flow present=true": 2,
+        "RBS_READ_OWNER stage=read_recipe present=true": 2,
+        "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }": 2,
+        "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }": 2,
+        "RBS_READ_OWNER stage=required_flow present=true": 2,
+        "RBS_READ_OWNER stage=potential_reads present=true": 2,
+        "RBS_READ_OWNER stage=map_chain count=2": 2,
+        "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }": 2,
+        "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }": 2
+      }
+    },
+    {
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "stderr_sha256": "2e7923d43631f39c05762e484e3413a397e873eeb57b94d01b49e4ed7bf50464",
+      "first_final_producer": {
+        "line": 130,
+        "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+      },
+      "ordered_held_facts": [
+        {
+          "line": 1,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 8,
+          "raw": "RBS_GRAPH stage=selection offset=34 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 9,
+          "raw": "RBS_GRAPH stage=report nodes=5 warnings=0 strict_reads=0 unavailable=false unknown_reads=false"
+        },
+        {
+          "line": 19,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 20,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 21,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 22,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 23,
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 24,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 25,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 26,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 27,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 28,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 29,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 30,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 31,
+          "raw": "RBS_GRAPH stage=selection offset=34 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 32,
+          "raw": "RBS_GRAPH stage=report nodes=5 warnings=0 strict_reads=0 unavailable=false unknown_reads=false"
+        },
+        {
+          "line": 42,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 43,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 44,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 45,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 46,
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 47,
+          "raw": "RBS_GRAPH stage=selection offset=63 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 48,
+          "raw": "RBS_GRAPH stage=selection offset=55 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 49,
+          "raw": "RBS_GRAPH stage=selection offset=27 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 50,
+          "raw": "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 51,
+          "raw": "RBS_GRAPH stage=report nodes=17 warnings=0 strict_reads=0 unavailable=true unknown_reads=true"
+        },
+        {
+          "line": 101,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 102,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 103,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 104,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 105,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 106,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 107,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 108,
+          "raw": "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 109,
+          "raw": "RBS_GRAPH stage=report nodes=7 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 123,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 124,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 125,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 126,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 127,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 128,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 129,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 130,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 131,
+          "raw": "RBS_GRAPH stage=selection offset=63 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 132,
+          "raw": "RBS_GRAPH stage=selection offset=55 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 133,
+          "raw": "RBS_GRAPH stage=selection offset=27 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 134,
+          "raw": "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0"
+        },
+        {
+          "line": 135,
+          "raw": "RBS_GRAPH stage=report nodes=17 warnings=0 strict_reads=0 unavailable=true unknown_reads=true"
+        },
+        {
+          "line": 185,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 186,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 187,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 188,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 189,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 190,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 191,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 192,
+          "raw": "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 193,
+          "raw": "RBS_GRAPH stage=report nodes=7 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 207,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 208,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 209,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 210,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 211,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 212,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 213,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 214,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        }
+      ],
+      "fact_counts": {
+        "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None": 4,
+        "RBS_READ_OWNER stage=physical_missing count=0": 8,
+        "RBS_READ_OWNER stage=map_dynamic count=0": 4,
+        "RBS_READ_OWNER stage=map_provably_unset count=0": 4,
+        "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)": 4,
+        "RBS_READ_OWNER stage=function_flow present=false": 4,
+        "RBS_GRAPH stage=selection offset=34 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=5 warnings=0 strict_reads=0 unavailable=false unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=fallback_read_flow present=true": 4,
+        "RBS_READ_OWNER stage=read_recipe present=true": 4,
+        "RBS_READ_OWNER stage=required_flow present=true": 4,
+        "RBS_READ_OWNER stage=potential_reads present=true": 4,
+        "RBS_READ_OWNER stage=map_chain count=0": 2,
+        "RBS_GRAPH stage=selection offset=63 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=55 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=27 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=17 warnings=0 strict_reads=0 unavailable=true unknown_reads=true": 2,
+        "RBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=7 warnings=1 strict_reads=0 unavailable=true unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }": 2,
+        "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }": 2,
+        "RBS_READ_OWNER stage=map_chain count=1": 2,
+        "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }": 2
+      }
+    },
+    {
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "stderr_sha256": "3747817d746b5f7131dda8d155d1751ddc91c2f386ef820290017459fd6bc101",
+      "first_final_producer": {
+        "line": 31,
+        "raw": "RBS_READ_OWNER stage=emit_declared_potential name=n span=Span { start: 68, end: 70 }"
+      },
+      "ordered_held_facts": [
+        {
+          "line": 1,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 8,
+          "raw": "RBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false"
+        },
+        {
+          "line": 9,
+          "raw": "RBS_SOURCE_READ offset=45 stage=selection.scope passed=false"
+        },
+        {
+          "line": 10,
+          "raw": "RBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false"
+        },
+        {
+          "line": 11,
+          "raw": "RBS_SOURCE_READ offset=45 stage=selection.scope passed=false"
+        },
+        {
+          "line": 12,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=false"
+        },
+        {
+          "line": 13,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 25,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 26,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 27,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 28,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 29,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 30,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 31,
+          "raw": "RBS_READ_OWNER stage=emit_declared_potential name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 32,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 33,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 34,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 35,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 36,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 37,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 38,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 39,
+          "raw": "RBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false"
+        },
+        {
+          "line": 40,
+          "raw": "RBS_SOURCE_READ offset=45 stage=selection.scope passed=false"
+        },
+        {
+          "line": 41,
+          "raw": "RBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false"
+        },
+        {
+          "line": 42,
+          "raw": "RBS_SOURCE_READ offset=45 stage=selection.scope passed=false"
+        },
+        {
+          "line": 43,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=false"
+        },
+        {
+          "line": 44,
+          "raw": "RBS_GRAPH stage=report nodes=6 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 56,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 57,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 58,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 59,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 60,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 61,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 62,
+          "raw": "RBS_READ_OWNER stage=emit_declared_potential name=n span=Span { start: 68, end: 70 }"
+        }
+      ],
+      "fact_counts": {
+        "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None": 2,
+        "RBS_READ_OWNER stage=physical_missing count=0": 4,
+        "RBS_READ_OWNER stage=map_dynamic count=0": 4,
+        "RBS_READ_OWNER stage=map_provably_unset count=0": 2,
+        "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)": 2,
+        "RBS_READ_OWNER stage=function_flow present=false": 2,
+        "RBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false": 4,
+        "RBS_SOURCE_READ offset=45 stage=selection.scope passed=false": 4,
+        "RBS_GRAPH stage=selection offset=45 selected=false": 2,
+        "RBS_GRAPH stage=report nodes=6 warnings=1 strict_reads=0 unavailable=true unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=fallback_read_flow present=true": 2,
+        "RBS_READ_OWNER stage=read_recipe present=true": 2,
+        "RBS_READ_OWNER stage=required_flow present=true": 2,
+        "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }": 2,
+        "RBS_READ_OWNER stage=potential_reads present=true": 2,
+        "RBS_READ_OWNER stage=emit_declared_potential name=n span=Span { start: 68, end: 70 }": 2
+      }
+    },
+    {
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "stderr_sha256": "fe16354f292df3e6e53c116820661fb9c3a122c9e99405ca3c671171c279998f",
+      "first_final_producer": {
+        "line": 38,
+        "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+      },
+      "ordered_held_facts": [
+        {
+          "line": 1,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 8,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 9,
+          "raw": "RBS_GRAPH stage=report nodes=11 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 31,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 32,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 33,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 34,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 35,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 36,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 37,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 38,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 39,
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 40,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 41,
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 42,
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 43,
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 44,
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 45,
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 46,
+          "raw": "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0"
+        },
+        {
+          "line": 47,
+          "raw": "RBS_GRAPH stage=report nodes=11 warnings=1 strict_reads=0 unavailable=true unknown_reads=false"
+        },
+        {
+          "line": 69,
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 70,
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 71,
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 72,
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 73,
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 74,
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 75,
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 76,
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        }
+      ],
+      "fact_counts": {
+        "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None": 2,
+        "RBS_READ_OWNER stage=physical_missing count=0": 4,
+        "RBS_READ_OWNER stage=map_dynamic count=0": 2,
+        "RBS_READ_OWNER stage=map_provably_unset count=0": 2,
+        "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)": 2,
+        "RBS_READ_OWNER stage=function_flow present=false": 2,
+        "RBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0": 2,
+        "RBS_GRAPH stage=report nodes=11 warnings=1 strict_reads=0 unavailable=true unknown_reads=false": 2,
+        "RBS_READ_OWNER stage=fallback_read_flow present=true": 2,
+        "RBS_READ_OWNER stage=read_recipe present=true": 2,
+        "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }": 2,
+        "RBS_READ_OWNER stage=required_flow present=true": 2,
+        "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }": 2,
+        "RBS_READ_OWNER stage=potential_reads present=true": 2,
+        "RBS_READ_OWNER stage=map_chain count=1": 2,
+        "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }": 2
+      }
+    }
+  ],
+  "findings": [
+    "Four static failure selectors emit chain_candidate then emit_read_map; names n and, in every_static_spelling, seed. No physical missing-read or return-phi emission for these failures.",
+    "Unknown-command static body emits declared_absence_candidate then emit_declared_potential n; its map_dynamic is empty.",
+    "All five have function_flow absent but fallback_read_flow and required_flow present. The private source occurrence filtering only applies when generic report is absent, so none of these warnings exercises that filtering.",
+    "Unknown-command body offset45 refuses scope.catalogue-or-advice and selection.scope. Other four static failures do not log a source-scope refusal.",
+    "Presence of the fallback report and its current source membership does not strengthen its generic CFG/definedness authority. No suppression or producer change has been made."
+  ],
+  "limits": [
+    "Original45 assertions and separate diagnostic5 exact selectors only. New Rust6x2 static controls are not selected.",
+    "No private Kernel/source acceptance, generic Eq/cache/owner relaxation, Native default facts, C1-C2/full shared/baseline/server/browser/WASI/startup/performance acceptance.",
+    "Current WORK571ce later metadata observer is absent from exact captured f245 and receives no runtime attribution."
+  ]
+}

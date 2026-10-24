@@ -1,0 +1,48 @@
+{
+  "census": [
+    [
+      "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "rust/tcl-lsp-core/src/original_source_views.rs",
+      "192a7d4f3d1e9f3fe4a3bbe724706bee22baba6608fbec878d22057592c8c1d2"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "a40cc175aa0dfb162f695a467bd76c380ef92de1a8c90198da87b46eab8fe476"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "rust/tcl-lsp-core/src/original_source_views.rs",
+      "192a7d4f3d1e9f3fe4a3bbe724706bee22baba6608fbec878d22057592c8c1d2"
+    ],
+    [
+      "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "a40cc175aa0dfb162f695a467bd76c380ef92de1a8c90198da87b46eab8fe476"
+    ]
+  ],
+  "checks": 95,
+  "checks_sha256": "c37957a7b498cf4dadd20025d76fb667dccb46e255caa38d93365f384e98487c",
+  "current_head": "f245bd6e63423d502c4f0a956822cbab98aa5a6d",
+  "limits": [
+    "No Cargo/rustc/native/test/driver execution or actual hostcausalclosure/Clippy pass claimed.",
+    "WORK-only diagnostic observer; no CLEAN carry/guard/provider loosening.",
+    "Bounded metadata only, cannot issue Native/frame/edit/Normal/currentness authority."
+  ],
+  "manifest_sha256": "64a8df8e5c5f1374a6b0f9f8a091d9f9b3a1e67bdf43d6b1f1268a28b60ef73e",
+  "patch_sha256": "06ffc2d43a42f7f924bb9d17994339637d29d81c0a23cfbecce008267e45562f",
+  "review": [
+    "Full old core and server files restore byteexact after erasing only inspected observer additions/return-string adaptation; no assertion, publication/currentness/ownership/uncertainty predicate changed.",
+    "Actual call original_words borrowed once; Span getter const Copy, owns_command queried once before identical shortcircuit offset checks. Missing-head branch still false and matching next/all remain lazy with same stopping order. uncertainty getter is borrowed once and same !is_empty guard remains authoritative.",
+    "Inventory detail reads existing analysis reference pointer, region Option/count; per-head detail uses only held span/owned/matches. Debt loop borrows original Arc NativeWords and prints only lengths/spans/source image byte count, never contents, Native objects or another semantic query.",
+    "String formatting has imported std::fmt::Write; pointer/Option<Span>/bool/usize all actual supported standard formatters. No source-image/NativeWord Debug/Display or unavailable formatter invoked. ConstTLS String+RefCell+Default memtake sourcevalid. All public take getter consumers inventoried: prepare reset and one server caller adapted by reference.",
+    "Heads16+fixedtruncation and debt16+fixedtruncation bound output; visited-head count remains tied to old lazy traversal. Each prepare clears prior trace using existing take call, server drains synchronously with no await between prepare/take. String/TLS owners drop on same thread, no Native retain/header/getter/callback introduced.",
+    "Only4existing source pins in2current rosters and2solewholehash literals change. All full after-map pins independently checked including new atomic Cargo.lock; whole old JSON and complete driver byte/AST meaning preserved. Full current/frozen/copyF-R-F0zero/fmt2024x2/Ruff pass."
+  ],
+  "source_api_pins": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "96ccebe5276aa2326d6bd378e288036b2efcf53d0456d05015a1d41e61412502",
+    "rust/tcl-lexer/src/native_word.rs": "88fb9426bc348252dd6d920fd9bb2b4c2956b9f89c450c411301059e4eca7cc3"
+  },
+  "utc": "2026-10-24T19:40:34.334384+00:00",
+  "verdict": "STATIC_SOURCE_TYPE_OWNER_QUERY_ORDER_PROTOCOL_CLEAR"
+}

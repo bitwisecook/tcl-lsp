@@ -1,0 +1,352 @@
+{
+  "utc": "2026-10-24T19:48:28.410900+00:00",
+  "schema": "author-strict6a8-fullauth-v1",
+  "status": "AUTHENTIC_ORIGINAL_STRICT_COMMAND_FAIL_TWO_REACHED_PRIMARY_LINTS",
+  "source_commit": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887",
+  "source_tree": "771c87637cd66ae52663638fa403b4887b22b200",
+  "run_id": 40123651878,
+  "job_id": 120960368771,
+  "artifact_id": 12571419762,
+  "artifact_sha256": "da8876348a94f07b96becd8b47b1f7501fce0d04e094fdcdd5b5b7d8a8345767",
+  "artifact_size_bytes": 4011438,
+  "api_job": {
+    "id": 120960368771,
+    "name": "release-rust-check-diagnostics",
+    "status": "completed",
+    "conclusion": "failure",
+    "run_id": 40123651878,
+    "logs_url": null,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Record diagnostic deadline",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Set up Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Validate revision and record source and tools",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Fetch pinned Tcl 9.0.4 TomMath sources",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Capture the original global strict command",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 7
+      },
+      {
+        "name": "Verify source and tools after capture",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8
+      },
+      {
+        "name": "Upload bounded diagnostic evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9
+      },
+      {
+        "name": "Post Set up Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 17
+      },
+      {
+        "name": "Post Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 18
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 19
+      }
+    ]
+  },
+  "api_artifact": {
+    "id": 12571419762,
+    "name": "release-rust-check-diagnostics-6a8f1e11d9167b084f26eb1da2e15939cb8dd887-1",
+    "size_in_bytes": 4011438,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12571419762",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12571419762/zip",
+    "expired": false,
+    "created_at": "2026-10-24T19:11:04Z",
+    "expires_at": "2026-11-23T19:11:04Z",
+    "updated_at": "2026-10-24T19:11:04Z",
+    "digest": "sha256:da8876348a94f07b96becd8b47b1f7501fce0d04e094fdcdd5b5b7d8a8345767",
+    "workflow_run": {
+      "id": 40123651878,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "work",
+      "head_sha": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887"
+    }
+  },
+  "zip_crc_paths_unique_safe": true,
+  "members": {
+    "capture-exit.txt": {
+      "bytes": 2,
+      "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3"
+    },
+    "cargo-version.txt": {
+      "bytes": 36,
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    "clippy-version.txt": {
+      "bytes": 38,
+      "sha256": "514f4171a1bed07e7d27a872fc29ebb3e32360eb297e28acf00ab796f80e1038"
+    },
+    "coverage.txt": {
+      "bytes": 233,
+      "sha256": "f8d5622d0903bc52289b155cb5e030755a4e8e431a0672459a87e1fd5fd3fca3"
+    },
+    "git-after.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "git-before.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "job.txt": {
+      "bytes": 24,
+      "sha256": "3d3b7a95451bcc15b60addf41dd28de03950287291d36721d689f8b035868285"
+    },
+    "make-rust-check.process.json": {
+      "bytes": 1956,
+      "sha256": "116b1f3ebade4ce49b6492baad49d6afc6c5c051ebc82905ad3b7205cb32422f"
+    },
+    "make-rust-check.stderr": {
+      "bytes": 13323,
+      "sha256": "f84c8d1c630d1db41cb1a6d9bda033f209b6a7d26dfdc1957f46f46b61828d25"
+    },
+    "make-rust-check.stdout": {
+      "bytes": 899,
+      "sha256": "8cfd05025f609f811fad9750df3750f54ef69e5a8710f9e07281cb1a19cf3862"
+    },
+    "make-version.txt": {
+      "bytes": 300,
+      "sha256": "cb84250d994234272d0a465014ce2931be76e9e0cb114b9bffa078c3c211e8eb"
+    },
+    "original-exit.json": {
+      "bytes": 17,
+      "sha256": "0c0f888bbcfbebb60db029d9de74401c5105787fce727f52bdff37bcbcbdf33e"
+    },
+    "rustc-version.txt": {
+      "bytes": 196,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    "rustfmt-version.txt": {
+      "bytes": 46,
+      "sha256": "5599925a145edaa750ffdd40d2dc1adb031362d0932dd5935e20440a5f51d2be"
+    },
+    "seals-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "source-after.json": {
+      "bytes": 543,
+      "sha256": "170c87b4d41945f20dcb27fdfdd2a0b5ab7d690c81a668b46dbd323dd83f2a51"
+    },
+    "source-tree.txt": {
+      "bytes": 41,
+      "sha256": "26593f4c289c1245b288658c09375df37fe711a56788a17e397eb40f6e18c307"
+    },
+    "source-commit.txt": {
+      "bytes": 41,
+      "sha256": "ca3c54a6a2299eb40a3af0a8ef955c15afd43f0adb6d0a0dde704b6329fe2f6c"
+    },
+    "tools-after.txt": {
+      "bytes": 431,
+      "sha256": "c6f238d9a939c09b52284649e1e79182a5ca9a1c27824d8bcafd3cdc617c340e"
+    },
+    "tools.sha256": {
+      "bytes": 989,
+      "sha256": "24701916880477b753f8e4c9116ddc1f2edf5a22eba42f14b052322438babeb8"
+    },
+    "tracked-source-before.json": {
+      "bytes": 26509730,
+      "sha256": "d6a927f0d8372b570beb851f2aa82f198d3f79ed207e290e153c0b59c8a915c8"
+    }
+  },
+  "source_manifest_sha256": "d6a927f0d8372b570beb851f2aa82f198d3f79ed207e290e153c0b59c8a915c8",
+  "source_members": 126160,
+  "nul_git_membership_exact": true,
+  "nul_git_membership_sha256": "bced6c7279b1b0656c06edf3f9422e392632da995c12d38cbd665ffd463ab6ba",
+  "source_after_verifier": {
+    "status": "PASS",
+    "manifest_sha256": "d6a927f0d8372b570beb851f2aa82f198d3f79ed207e290e153c0b59c8a915c8",
+    "source_commit": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887",
+    "expected_source_commit": "6a8f1e11d9167b084f26eb1da2e15939cb8dd887",
+    "expected_file_count": 126160,
+    "current_tracked_file_count": 126160,
+    "checked_file_count": 126160,
+    "matched_file_count": 126160,
+    "stable_membership_during_verification": true,
+    "missing_tracked_paths": [],
+    "extra_tracked_paths": [],
+    "checksum_mismatches": [],
+    "read_errors": []
+  },
+  "critical_git_blob_sha256": {
+    ".github/workflows/perf.yml": "d5dea96af0225c134e043cf623b8cdeb2e0fd967c494d5f57cfc00c343e97ee6",
+    ".github/workflows/ci.yml": "9596f72115e9da84e496eef5ee7cb89c708297e883a50b5595724ac71defe938",
+    "Makefile": "b1436acc2f05c29ccca44f2f375d408a6208c3942706d04b002b6362450f2210",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Cargo.lock": "2618d38400bdc6b833d979980e9c97b31b12aabd10137cc84e4b24ef6c7333e6",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+    "scripts/dev/tracked-source-snapshot.py": "e6613bbd7cef5f002fceafa950a516905ece370e9242139ad3ad3eae3d8ed300",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+    "rust/tcl-diagram/Cargo.toml": "1664cfc0189bd2653b024fc1cca5979e8ceb209996f19971c20b6c865da6beb4",
+    "rust/tcl-diagram/src/attach.rs": "f2933be7e4c04650dfeb652f0a90f9ebfcec078bb855f0da30f0820550213c44",
+    "rust/tcl-diagram/src/data.rs": "799da2ffec9ca22e6a19c1353656f28705131f317c97ea7061c6ae2c5eafaf4d",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "96ccebe5276aa2326d6bd378e288036b2efcf53d0456d05015a1d41e61412502",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "81825bc2bc47a0d21e6d4727348d1cb493b27ec267950cb3584f99cb8875d1f5",
+    "rust/tcl-lsp-core/src/original_source_views.rs": "192a7d4f3d1e9f3fe4a3bbe724706bee22baba6608fbec878d22057592c8c1d2",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "a40cc175aa0dfb162f695a467bd76c380ef92de1a8c90198da87b46eab8fe476"
+  },
+  "tools_before_hashes": {
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver": "89b6cc8d0d988b00a3f65bc90c76fedbaedb6bcb442b34563aefe3621f26544b",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598",
+    "/usr/bin/make": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "/usr/bin/git": "161ea2317033b937bca59ec228b80d60df8ebcf5abc260b52201eb3cf909fa4b",
+    "/usr/bin/python3": "be9a2a5eada8c89c1c399fdfb8397179e877c20d8db0739c802f726d4d0e69fd",
+    "/usr/bin/bash": "450c68376d14e5040d36cce58605c35b2211d244f3079297440dc9d602ee4994",
+    "/home/runner/.cargo/bin/rustup": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71"
+  },
+  "tools_after_all9_OK": true,
+  "versions": {
+    "cargo-version.txt": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "clippy-version.txt": "clippy 0.1.99 (58cf8f9c35 2026-10-13)\n",
+    "make-version.txt": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+    "rustc-version.txt": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "rustfmt-version.txt": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)\n"
+  },
+  "process": {
+    "argv": [
+      "/usr/bin/make",
+      "rust-check"
+    ],
+    "artifact": "/usr/bin/make",
+    "artifact_sha256_after": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_sha256_before": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 3090.815388441086,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp",
+      "/usr/bin/make",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output",
+      "/home/runner/work/_temp/release-rust-check-output"
+    ],
+    "elapsed_seconds": 146.957402178,
+    "ended_utc": "2026-10-24T19:10:28.142647+00:00",
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 74620821504,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 374784546476,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 2789,
+      "si_status": 2
+    },
+    "pid": 2789,
+    "pid_start_ticks": 22808,
+    "process_group": 2789,
+    "retained_bytes": 14222,
+    "spawn_return_monotonic_ns": 228089907741,
+    "spawn_return_utc": "2026-10-24T19:08:01.186060+00:00",
+    "stderr": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stderr",
+    "stderr_bytes": 13323,
+    "stdout": "/home/runner/work/_temp/release-rust-check-output/make-rust-check.stdout",
+    "stdout_bytes": 899,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 228089109477,
+    "timer_armed_utc": "2026-10-24T19:08:01.185263+00:00"
+  },
+  "primary_lints": [
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "path": "rust/tcl-diagram/src/attach.rs",
+      "line": 355,
+      "column": 30,
+      "lint": "clippy::arc_with_non_send_sync"
+    },
+    {
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "path": "rust/tcl-diagram/src/data.rs",
+      "line": 908,
+      "column": 30,
+      "lint": "clippy::arc_with_non_send_sync"
+    }
+  ],
+  "warnings_classification": {
+    "ordinary_compiler_warnings": [],
+    "cargo_failure_summaries": [
+      "warning: build failed, waiting for other jobs to finish..."
+    ],
+    "strict_0W_gate": "FAIL: denied lints are fatal errors, never reported as green0W",
+    "source_pinned_clippy_flags": "-D warnings -A clippy::assert_is_empty (existing unchanged Makefile exception)"
+  },
+  "reached_scope": {
+    "top_workspace_fmt": "PASS inferred from same shell advancing past cargo fmt --all --check",
+    "top_workspace_clippy": "FAIL two reached arc_with_non_send_sync primaries; compiler unused_self no longer reported",
+    "later_offline_x509_runtime_xtask_prerequisites": "UNRUN after original serial check-rust-pr failure; no later success inferred"
+  },
+  "coverage": "DIAGNOSTIC ONLY: exact CI rust-check command/setup on this WORK source, including its original check-rust-pr and xtask-check prerequisites. No CLEAN CI result, other test roster, editor, performance or release acceptance is implied.",
+  "limitations": [
+    "Only exact6a8 WORK source. No f245/new closed-consumer, CLEAN, host, editor, whole-suite, Eq or performance acceptance.",
+    "No retained independent full environment-values object; pinned workflow hygiene/setup and original Makefile exact -D warnings -A clippy::assert_is_empty flags plus actual -D warnings fatal notes.",
+    "No Cargo JSON fresh/profile/executable payload proof and no full pre-build consumed-provider/dependency seal. Tool hashes are producer before/after attestations; tool binary payloads are absent.",
+    "Exact NUL Git membership/tree, full producer source-after verification,17 critical Git payloads independently checked; not every Git blob independently rehashed.",
+    "First reached primary cause only; later lint/check sites and unrun stages remain unknown. No local builds/canonical edits or workflow dispatch by author."
+  ]
+}

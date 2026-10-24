@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-24T20:02:40.879615+00:00",
+  "patch_sha256": "54e5d90037ee06895667b93514b7b1064c9bdf339ac62dea3636a258ca1d6506",
+  "before_and_integrated_after": [
+    "rust/tcl-vm/src/command.rs",
+    "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+    "docs/work/name-handling/validation-tools/irules-preflight-diagnostics.py"
+  ],
+  "whole_old_Rust_inverse": true,
+  "file_fmt_skip_children": true,
+  "initial_fmt_limitation": "Unexpanded frozen copy omits child modules; initial default rustfmt refused resolution, not a formatting diff",
+  "review": "Existing snapshot/dispatch exactly once same order/drop before cached-list call; held primitive metadata only under existingdebug flag; no source get/cache parse/element/ref/authority changes",
+  "type_or_runtime": "UNRUN"
+}

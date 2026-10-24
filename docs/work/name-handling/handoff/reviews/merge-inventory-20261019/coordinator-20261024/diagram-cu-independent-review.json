@@ -1,0 +1,42 @@
+{
+  "utc": "2026-10-24T20:05:31.566836+00:00",
+  "verdict": "INDEPENDENT_SOURCE_TYPE_API_OWNER_DROP_SCOPE_STATIC_CLEAR",
+  "packet": "/workspace/naming-proof-storage/lsp-diagram-local-cu-v1",
+  "paired_patch_sha256": "b5b81c6ca2bd723efe6aeca56de9f60b96dc64346d96ff32e579e8ad839cf782",
+  "manifests": {
+    "work": "906e4d1e365cd413c4cc63445385e39f3bbde34083b385715e6b5cd99e4d8f88",
+    "clean": "e2d65efa718d255370ef649bf8d09c33b2f91a7c546559b669b300812a9dbee5"
+  },
+  "reviewed_current_heads": {
+    "work": "fb36a1751264a99aa5ccb6578e2050d4b694baa0",
+    "clean": "f9a0f587b8fd6dbe856fa33d5536da8e0ac52887"
+  },
+  "mechanical_checks": {
+    "file": "mechanical-checks.json",
+    "sha256": "bf0c93c56a51c89664af18ba7484552bdabe74628f571f2a1825f38c6b594f18",
+    "count": 104,
+    "all_pass": true
+  },
+  "owner_api_pins": {
+    "file": "owner-pins.json",
+    "sha256": "f55036c3075b1a7bbca527fa72ed9b300f612565f58bf6bb5ef77734392314f1",
+    "count": 23,
+    "all_current": true
+  },
+  "semantic_findings": [
+    "CompilationUnitOverride is a private two-variant owner of exactly the old Arc<CompilationUnit> or a local Rc<CompilationUnit>. as_unit returns an elided reference bound to its borrowed self; deref coercions reach the same concrete CU and introduce no clone, query, conversion, guard, permission or cache key.",
+    "Both consumers retain the original Option::take point, borrow the exact held CU for the unchanged emitter, and return at the old point. The local enum owner remains alive across the call and drops its sole inner owner on the same return/unwind scope as the old Arc local. Initial None, reset-to-None, source-region/point is_some refusal guards and replacement of the latest single override slot are unchanged. No separate second pending slot exists.",
+    "Existing public set_cu_override(&mut self, Arc<CompilationUnit>) parameter type and visibility are preserved, including all existing non-diagram callsites. The additive Rc setter documents the same complete-source equivalence and consume-once contract and writes that same slot. The public emitter still accepts &CompilationUnit.",
+    "The exact two production diagram callsites construct the same actual CU and Analyser on the calling stack, set the override, call analyse synchronously without await/spawn, and return owned Vec<String> or serde_json::Value. Three existing test fixture callsites do likewise. Existing CU clone expressions in data.rs are identical; no extra payload clone is added. Rc is neither returned nor embedded in the returned report. Other Arc owners, registry/input clones, memoised source contexts and worker interfaces are untouched.",
+    "Adding an Rc variant supplies no cross-thread transport. The triggering authenticated strict arc_with_non_send_sync diagnostic concerns the existing non-Send/non-Sync CU; the previous Arc<CU> already did not provide a positive Analyser Send/Sync contract. No unsafe or Send/Sync implementation, worker signature or CU definition is edited. This review does not assert unchanged every auto trait or binary layout.",
+    "CompilationUnit already derives Debug and Analyser already derives Debug; both Arc and Rc support the required Debug implementation. The enum/method visibility permits the sibling diagnostics module through their common analyser parent. The two match arms exhaust both variants and borrow coercions have the exact existing emitter parameter type. Arc imports in data.rs remain used by existing independent context/tests.",
+    "Every complete old Rust file was independently reconstructed from the actual afterimages by removing the enum/additive setter, restoring the old field/shared setter and two consumer expressions, and reversing only the five diagram callsites. Rustfmt2024 yields all eight original files byte-exact. Thus existing source payloads, all assertion predicates/messages, classifier/source/currentness conditions, query/lazy order and remaining production bodies are unchanged.",
+    "Independent active consumer census reads all current tracked JSON under validation-tools/.github/scripts/dev (661 WORK JSONs), plus the active tool/workflow files. Neither any source_pins map nor an old source SHA literal references the four changed paths. CLEAN contains no corresponding active-map references. No pin companion is needed. Historical evidence JSON outside active scopes is not a validation consumer claim."
+  ],
+  "scope_limits": [
+    "Private Debug output now contains a Shared/Local wrapper and private layout may change; no ABI, size, refcount cost or performance measurement is claimed.",
+    "No local build, Cargo, rustc, native execution, driver or tests ran. Actual Rust typing, Clippy and existing controls remain UNRUN.",
+    "No host navigation, rename, unknown-world, Native execution, release gate or section-F closure inferred."
+  ],
+  "blocking_findings": []
+}
