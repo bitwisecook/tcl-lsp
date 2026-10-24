@@ -1311,6 +1311,8 @@ mod tests {
             .is_some());
         let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert!(interp.namespaces.borrow_mut().delete(GLOBAL, b"p"));
+        // Complete the extracted owner cleanup outside the command-table borrow.
+        interp.retire_pending_native_ensemble_roles().unwrap();
         assert!(worker.upgrade().is_none());
         assert_eq!(
             obj::native_command_name_cache(original.as_ptr()),
