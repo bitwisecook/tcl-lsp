@@ -1200,21 +1200,46 @@ impl NativeDirectSourceOperands {
         selected: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
         purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
-        if !selected.permits_direct_source_operands(purpose, protocol)
-            || !asm.plain_command_dispatch
-            || asm.literals.entries().iter().any(|literal| {
-                matches!(
-                    literal.allocation(),
-                    NativeLiteralAllocation::PrivateConstantList { .. }
-                        | NativeLiteralAllocation::PrivateInteger(_)
-                )
-            })
-            || !asm.literals.discarded_native_passes().is_empty()
-            || asm
-                .literals
-                .native_actions()
-                .iter()
-                .any(|action| !matches!(action, NativeLiteralAction::Register(_)))
+        let refused = |value: bool, facet: &str| {
+            #[cfg(debug_assertions)]
+            if value
+                && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
+                    == Ok("first-decline-v1")
+            {
+                eprintln!(
+                    "TCL_NATIVE_DIRECT_SOURCE_REFUSAL facet={facet} selected={selected:?} purpose={purpose:?} strings={protocol:?} plain={}",
+                    asm.plain_command_dispatch,
+                );
+            }
+            #[cfg(not(debug_assertions))]
+            let _ = facet;
+            value
+        };
+        if refused(
+            !selected.permits_direct_source_operands(purpose, protocol),
+            "protocol-purpose",
+        ) || refused(!asm.plain_command_dispatch, "plain-dispatch")
+            || refused(
+                asm.literals.entries().iter().any(|literal| {
+                    matches!(
+                        literal.allocation(),
+                        NativeLiteralAllocation::PrivateConstantList { .. }
+                            | NativeLiteralAllocation::PrivateInteger(_)
+                    )
+                }),
+                "private-allocation",
+            )
+            || refused(
+                !asm.literals.discarded_native_passes().is_empty(),
+                "discarded-pass",
+            )
+            || refused(
+                asm.literals
+                    .native_actions()
+                    .iter()
+                    .any(|action| !matches!(action, NativeLiteralAction::Register(_))),
+                "literal-action",
+            )
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native DIRECT source operand plan",
