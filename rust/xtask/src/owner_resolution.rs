@@ -181,7 +181,6 @@ fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
-#[allow(clippy::too_many_lines)]
 fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &str) -> Vec<String> {
     let (source_routes, mut problems) = source_internal::validate(root, contract);
     let rows = match parse_manifest(contract) {
@@ -227,6 +226,28 @@ fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &s
         }
     }
 
+    validate_manifest_rows(
+        root,
+        makefile,
+        xtask_main,
+        rows,
+        &source_routes,
+        &mut parsed_sources,
+        &mut problems,
+    );
+    problems.extend(validate_internal_manifest(root, contract));
+    problems
+}
+
+fn validate_manifest_rows(
+    root: &Path,
+    makefile: &str,
+    xtask_main: &str,
+    rows: Vec<OwnerRow>,
+    source_routes: &BTreeSet<(String, String, String)>,
+    parsed_sources: &mut std::collections::HashMap<String, Option<syn::File>>,
+    problems: &mut Vec<String>,
+) {
     for row in rows {
         if row.surface.is_empty() {
             problems.push("owner row has an empty surface name".to_owned());
@@ -305,8 +326,6 @@ fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &s
             }
         }
     }
-    problems.extend(validate_internal_manifest(root, contract));
-    problems
 }
 
 /// Native variable inventories preserve entry and declared-slot order; ABI
