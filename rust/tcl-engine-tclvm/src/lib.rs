@@ -1020,7 +1020,7 @@ impl HostCommandShim {
                 check_projection(registrar.vm, original)?;
                 return Err(first);
             }
-            let reached = match outcome {
+            match outcome {
                 Ok(result) => {
                     let reached = {
                         let actual = ActualScalarImport {
@@ -1039,8 +1039,7 @@ impl HostCommandShim {
                     reached
                 }
                 Err(error) => Ok(host_error_completion(registrar.vm, error)),
-            };
-            reached
+            }
         })();
         if let Err(error) = &reached {
             retain_engine_failure(vm, original, error);
@@ -1338,19 +1337,7 @@ fn recover_original_result_in(
                 }
                 Work::Visit(_) => unreachable!("original leaf already recovered"),
                 Work::List(count, canonical) => {
-                    let start = values
-                        .len()
-                        .checked_sub(count)
-                        .expect("visited callback List children");
-                    let items = values.split_off(start);
-                    let protocol = dialect.native_string_protocol().ok_or_else(|| {
-                        EngineError::ExecutionRefusal(
-                            "callback List updater issuer unavailable".into(),
-                        )
-                    })?;
-                    values.push(tcl_vm::Value::list_with_native_canonical_in(
-                        items, canonical, protocol,
-                    ));
+                    recover_original_list_children(&mut values, count, canonical, dialect)?;
                 }
                 Work::Dictionary(count, buckets) => {
                     let protocol = dialect.native_string_protocol().ok_or_else(|| {
@@ -1362,17 +1349,7 @@ fn recover_original_result_in(
                     values.push(value);
                 }
                 Work::Resident(string, storage) => {
-                    let value = values
-                        .pop()
-                        .expect("visited resident callback representation");
-                    values.push(
-                        value
-                            .with_resident_string_bytes_and_storage(
-                                Rc::clone(string),
-                                import_storage(storage),
-                            )
-                            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
-                    );
+                    recover_original_resident_child(&mut values, string, storage)?;
                 }
                 Work::Shared(identity) => {
                     memo.insert(
@@ -1389,6 +1366,42 @@ fn recover_original_result_in(
         actual.check()?;
     }
     reached
+}
+
+fn recover_original_list_children(
+    values: &mut Vec<tcl_vm::Value>,
+    count: usize,
+    canonical: bool,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), EngineError> {
+    let start = values
+        .len()
+        .checked_sub(count)
+        .expect("visited callback List children");
+    let items = values.split_off(start);
+    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+        EngineError::ExecutionRefusal("callback List updater issuer unavailable".into())
+    })?;
+    values.push(tcl_vm::Value::list_with_native_canonical_in(
+        items, canonical, protocol,
+    ));
+    Ok(())
+}
+
+fn recover_original_resident_child(
+    values: &mut Vec<tcl_vm::Value>,
+    string: &Rc<[u8]>,
+    storage: tcl_engine_api::NativeStringStorageIdentity,
+) -> Result<(), EngineError> {
+    let value = values
+        .pop()
+        .expect("visited resident callback representation");
+    values.push(
+        value
+            .with_resident_string_bytes_and_storage(Rc::clone(string), import_storage(storage))
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+    );
+    Ok(())
 }
 
 fn checked_list_backing_receipt(
