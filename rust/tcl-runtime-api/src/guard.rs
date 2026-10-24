@@ -39,38 +39,34 @@ pub const REGISTRY_DEFINITION_IDENTITY_NAMESPACE: u32 = 2;
 
 /// Mutable interpreter domain whose stability can protect a fast path.
 ///
-/// `CommandEnvironment`, `Namespace` and `UnknownHandling` describe how a name
-/// reaches a command, not what a command is bound to. Each runtime moves them
-/// together, never one alone, and on no command definition, rename, alias,
-/// import, hide or expose: a guard reads its own command's attestation at
-/// validation, so mutating that command invalidates that command's guards and
-/// no other's.
+/// `CommandEnvironment`, `Namespace` and `UnknownHandling` describe lookup
+/// dependencies independently of a command's semantic identity. Runtimes track
+/// the mutation epochs and actual selected-publication dependencies required by
+/// each operation. Validation still checks its own command's attestation;
+/// changing an unrelated binding need not invalidate that command's guard.
 /// A domain mask grants neither a current command inventory nor an entered
 /// activation. Operations also require their actual world and frame proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum GuardDomain {
-    /// The command lookup environment as a whole. The WASM runtime moves it
-    /// on `namespace path`, `namespace export`, `namespace unknown`,
-    /// `namespace delete`, a `namespace forget` that removes an imported
-    /// command, the creation of a `TclOO` class or object, `oo::copy`'s copy
-    /// of an object's namespace, `interp invokehidden` with `-namespace` or
-    /// `-global` (whether or not the namespace it names exists yet), and the
-    /// creation and deletion of a child interpreter; not on `namespace
-    /// import`, nor on a
-    /// `namespace eval` that creates a namespace. The VM moves it on
-    /// `namespace path`, on making an interpreter safe, on `interp
-    /// marktrusted` and on deleting a child interpreter, and on nothing else
-    /// (issue #2292).
+    /// Lookup policy required by the selected command. WASM named guards also
+    /// validate the actual publication, namespace lifetime and lookup path.
+    /// Path, export, unknown-handler and imported-command withdrawal changes
+    /// invalidate this domain, as do explicit object, hidden-invocation and
+    /// interpreter policy barriers. Unrelated namespace birth or teardown can
+    /// preserve it while invalidating the structural domains below.
+    /// The VM moves it on `namespace path`, on making an interpreter safe,
+    /// on `interp marktrusted` and on deleting a child interpreter.
     CommandEnvironment = 0,
-    /// Namespace lookup paths and structure. Moves with
-    /// [`Self::CommandEnvironment`], on the events listed there.
+    /// Namespace lookup paths and structure, including namespace birth and
+    /// teardown. This domain can change independently of
+    /// [`Self::CommandEnvironment`].
     Namespace = 1,
-    /// Namespace and interpreter unknown-command handling. Moves with
-    /// [`Self::CommandEnvironment`], on the events listed there:
-    /// `namespace unknown` reaches it in the WASM runtime and not in the VM,
-    /// and binding, renaming or deleting the `unknown` command moves it in
-    /// neither.
+    /// Namespace and interpreter unknown-command handling. WASM namespace
+    /// structure and lookup-policy changes invalidate this domain;
+    /// `namespace unknown` also reaches it in WASM, but not in the VM.
+    /// Binding, renaming or deleting the `unknown` command alone changes
+    /// neither runtime's epoch for this domain.
     UnknownHandling = 2,
     /// Variable trace registration. Variable-store intrinsics request this
     /// domain: a guard over it is issued only while no variable trace exists
