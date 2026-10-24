@@ -115,7 +115,7 @@ fn fix_all_safe_issues_reports_the_safety_class_it_applied() {
     lsp.open_ready(&uri, "set n [expr abs(-2)]\n");
     let result = lsp.execute_command("tcl-lsp.fixAllSafeIssues", json!([uri]));
     let applied = result.get("applied").and_then(Value::as_array).unwrap();
-    assert!(!applied.is_empty());
+    assert_ne!(applied.as_slice(), &[] as &[serde_json::Value]);
     for entry in applied {
         assert_eq!(
             entry.get("safety").and_then(Value::as_str),

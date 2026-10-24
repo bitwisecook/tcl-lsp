@@ -159,7 +159,7 @@ fn test_w216_quick_fixes() {
         .iter()
         .filter(|d| code_str(d).as_deref() == Some("W216") && message(d).contains("scalar"))
         .collect();
-    assert!(!w216.is_empty());
+    assert_ne!(w216, [] as [&serde_json::Value; 0]);
     let rng = w216[0]["range"].clone();
     let start = (
         u32::try_from(rng["start"]["line"].as_u64().unwrap()).unwrap(),
@@ -462,7 +462,10 @@ fn test_applicable_optimisation_diagnostic_carries_apply_payload() {
 fn test_diagnostics_master_switch_clears_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    assert!(!lsp.open_ready(&uri, "catch {error e}\n").is_empty()); // non-empty by default
+    assert_ne!(
+        lsp.open_ready(&uri, "catch {error e}\n"),
+        [] as [serde_json::Value; 0]
+    ); // non-empty by default
     // A version-tagged `await_diagnostics_version` races here: the
     // just-opened document's own analysis can still have a later publish
     // for version 1 in flight (e.g. a converged correction), and a config

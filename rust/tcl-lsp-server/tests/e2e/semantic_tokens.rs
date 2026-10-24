@@ -209,7 +209,10 @@ fn test_tokens_strictly_non_overlapping_dense_line() {
     let source = "set a 1;set b 2;puts \"$a [expr {$a+$b}] $b\";# tail\n";
     let uri = open_doc(&mut lsp, source);
     let raw = lsp.semantic_tokens(&uri);
-    assert!(semantic_token_violations(&raw, source, &types_ref, &mods_ref).is_empty());
+    assert_eq!(
+        semantic_token_violations(&raw, source, &types_ref, &mods_ref),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]

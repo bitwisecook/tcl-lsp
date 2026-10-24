@@ -339,7 +339,7 @@ fn test_w302_no_fix_when_result_present() {
         json!([d]),
         &["quickfix"],
     );
-    assert!(new_texts(&actions).is_empty());
+    assert_eq!(new_texts(&actions), [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -514,7 +514,7 @@ fn test_extract_proc_snippets() {
         &["refactor.extract"],
     );
     let extract = kinds(&actions, "refactor.extract");
-    assert!(!extract.is_empty());
+    assert_ne!(extract, [] as [serde_json::Value; 0]);
     let snippets = new_texts(&json!(extract));
     assert!(
         snippets
@@ -696,7 +696,7 @@ fn test_inline_proc_available() {
         &["refactor.inline"],
     );
     let inline = kinds(&actions, "refactor.inline");
-    assert!(!inline.is_empty());
+    assert_ne!(inline, [] as [serde_json::Value; 0]);
     assert!(
         new_texts(&json!(inline))
             .iter()
@@ -977,7 +977,7 @@ fn test_non_ip_word_no_action() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "set name hello\n");
     let actions = lsp.code_actions(&uri, range((0, 10), (0, 10)), json!([]));
-    assert!(kinds(&actions, "refactor").is_empty());
+    assert_eq!(kinds(&actions, "refactor"), [] as [serde_json::Value; 0]);
 }
 
 #[test]
@@ -1114,7 +1114,7 @@ fn test_eval_string_to_list_action() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "eval \"process $x\"\n");
     let w101 = with_code(&diags, "W101");
-    assert!(!w101.is_empty());
+    assert_ne!(w101, [] as [serde_json::Value; 0]);
     let actions = lsp.code_actions(&uri, range((0, 0), (0, 17)), json!(w101));
     assert!(
         new_texts(&actions)

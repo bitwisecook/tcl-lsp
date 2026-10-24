@@ -53,7 +53,7 @@ fn prepare_returns_proc_item() {
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc helper {} { return 1 }\nhelper\n");
     let its = items(&lsp.prepare_call_hierarchy(&uri, 0, 6));
-    assert!(!its.is_empty());
+    assert_ne!(its, [] as [serde_json::Value; 0]);
     assert_eq!(name_of(&its[0]), "helper");
     assert_eq!(its[0].get("kind").and_then(Value::as_i64), Some(12)); // Function
 }

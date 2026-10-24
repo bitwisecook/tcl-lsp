@@ -562,7 +562,7 @@ fn all_symbols_have_non_empty_names() {
     lsp.open_ready(&uri, src);
     let flat = flatten_symbols(&lsp.document_symbols(&uri));
     let names: Vec<String> = flat.iter().map(|s| name(s).to_owned()).collect();
-    assert!(!names.is_empty());
+    assert_ne!(names, [] as [std::string::String; 0]);
     assert!(names.iter().all(|n| !n.is_empty()), "{names:?}");
 }
 

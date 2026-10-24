@@ -410,7 +410,7 @@ mod path_advice_controls {
                     !result.status.success(),
                     "missing incoming variable must fail"
                 );
-                assert!(result.stdout.is_empty());
+                assert_eq!(result.stdout, [] as [u8; 0]);
                 assert!(String::from_utf8_lossy(&result.stderr).contains("sourceDir"));
             }
         }

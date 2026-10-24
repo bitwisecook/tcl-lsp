@@ -283,7 +283,7 @@ fn a_second_open_in_the_same_session_sends_nothing_more() {
     lsp.close_document(&first);
     open_vivado(&mut lsp);
     assert_eq!(asks(&lsp).len(), 1);
-    assert!(plain_messages(&lsp).is_empty());
+    assert_eq!(plain_messages(&lsp), [] as [serde_json::Value; 0]);
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn the_editor_setting_switches_the_notice_off_and_back_on_live() {
         lsp.try_await_server_request(ASK, QUIET, 0).is_none(),
         "the setting is off"
     );
-    assert!(plain_messages(&lsp).is_empty());
+    assert_eq!(plain_messages(&lsp), [] as [serde_json::Value; 0]);
 
     // Turning it on applies to the next document, with no restart, and the
     // session's one showing was not spent while it was off.
@@ -343,8 +343,8 @@ fn a_document_opened_before_the_first_pull_lands_still_honours_the_setting() {
         "the notice went out before the setting was applied"
     );
     lsp.settle_config(&off);
-    assert!(asks(&lsp).is_empty());
-    assert!(plain_messages(&lsp).is_empty());
+    assert_eq!(asks(&lsp), [] as [serde_json::Value; 0]);
+    assert_eq!(plain_messages(&lsp), [] as [serde_json::Value; 0]);
 }
 
 #[test]
@@ -376,7 +376,7 @@ fn the_config_file_switches_the_notice_off_for_an_editor_that_sends_nothing() {
         lsp.try_await_server_request(ASK, QUIET, 0).is_none(),
         "config.ini turned it off"
     );
-    assert!(plain_messages(&lsp).is_empty());
+    assert_eq!(plain_messages(&lsp), [] as [serde_json::Value; 0]);
 }
 
 #[test]

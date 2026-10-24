@@ -145,7 +145,7 @@ fn ordinary_diagnostics_carry_no_tags_field_at_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "if $a {puts x}\ncatch {error e}\n");
-    assert!(!diags.is_empty());
+    assert_ne!(diags, [] as [serde_json::Value; 0]);
     for d in &diags {
         assert_eq!(
             d.get("tags"),
