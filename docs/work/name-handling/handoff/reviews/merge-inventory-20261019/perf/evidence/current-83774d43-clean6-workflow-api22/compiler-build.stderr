@@ -13,3 +13,9 @@
    Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-irules)
    Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-api)
    Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-pkg-model)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 24m 13s

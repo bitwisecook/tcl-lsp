@@ -1,0 +1,15 @@
+{
+  "spectcl/eval_loader/new": {
+    "status": "running",
+    "log": "tests-spectcl-eval_loader-new.out"
+  },
+  "spectcl/eval_loader/old": {
+    "status": "pending"
+  },
+  "spectcl/golden_packs/new": {
+    "status": "pending"
+  },
+  "spectcl/golden_packs/old": {
+    "status": "pending"
+  }
+}

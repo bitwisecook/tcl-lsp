@@ -1,0 +1,2 @@
+REPORT label="samples/proc_arg_traits_examples.tcl" old1_ms=9183 new_ms=12185 old2_ms=9639 old_old=Equal old_new=Equal new_old=Equal strict_old_old=false strict_old_new=false strict_new_old=false pass=true
+REPORT_SUMMARY inputs=1 failed=0

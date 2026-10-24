@@ -1,0 +1,4 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-lexer)
+    Finished `test` profile [unoptimized] target(s) in 11.41s

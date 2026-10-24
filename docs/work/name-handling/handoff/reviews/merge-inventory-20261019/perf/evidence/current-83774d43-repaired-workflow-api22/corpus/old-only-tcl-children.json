@@ -1,0 +1,372 @@
+[
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/27-if-to-switch-before.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.872234046997619,
+    "log": "old-only-tcl-000.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/20-folding.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.1606840129970806,
+    "log": "old-only-tcl-001.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/32-document-links.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.515382805999252,
+    "log": "old-only-tcl-002.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/07-formatting-side-by-side.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 8.254220292001264,
+    "log": "old-only-tcl-003.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/27-if-to-switch-after.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.089634459989611,
+    "log": "old-only-tcl-004.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/16-references-long.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.607382879999932,
+    "log": "old-only-tcl-005.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/22-optimiser-before.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 10.165278802000103,
+    "log": "old-only-tcl-006.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/for_screenshots/15-definition-long.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.818498722001095,
+    "log": "old-only-tcl-007.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/proc_arg_traits_examples.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 31.13083907100372,
+    "log": "old-only-tcl-008.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/tclpkg/tclpkg.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.5704269029956777,
+    "log": "old-only-tcl-009.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/42_arrays.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 7.587532666992047,
+    "log": "old-only-tcl-010.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/43_namespaces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.492744364004466,
+    "log": "old-only-tcl-011.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t4-scopes/40_global_variable.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.087136185000418,
+    "log": "old-only-tcl-012.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.166104710995569,
+    "log": "old-only-tcl-013.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/63_objects_in_data.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.18185796099715,
+    "log": "old-only-tcl-014.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/61_inheritance_next.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 36.33354576298734,
+    "log": "old-only-tcl-015.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t6-tcloo/60_class_basic.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 11.976197821990354,
+    "log": "old-only-tcl-016.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/70_var_traces.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 95.69139773899224,
+    "log": "old-only-tcl-017.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/72_uplevel_eval.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.264466881999397,
+    "log": "old-only-tcl-018.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t7-dynamic/71_exec_traces_rename.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.595135476993164,
+    "log": "old-only-tcl-019.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/51_try_finally.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 11.28026435400534,
+    "log": "old-only-tcl-020.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/52_loop_completion.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 8.016179749000003,
+    "log": "old-only-tcl-021.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t5-completion/50_catch_error.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 56.24991882000177,
+    "log": "old-only-tcl-022.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/15_switch.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.1104945480037713,
+    "log": "old-only-tcl-023.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/13_expr_ops.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 13.1803504290001,
+    "log": "old-only-tcl-024.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t1-expr-control/16_conditional_arms.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.42053165899415,
+    "log": "old-only-tcl-025.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/23_dicts.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 16.810880810007802,
+    "log": "old-only-tcl-026.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/21_foreach.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 4.3440566360077355,
+    "log": "old-only-tcl-027.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/20_lists.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 5.093059777005692,
+    "log": "old-only-tcl-028.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t2-values/22_strings.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 21.217186028996366,
+    "log": "old-only-tcl-029.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 52.14582119398983,
+    "log": "old-only-tcl-030.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/37_return_state.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 6.352045926993014,
+    "log": "old-only-tcl-031.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/31_recursion.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 9.499111811004695,
+    "log": "old-only-tcl-032.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/36_proc_error_info.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.977929397005937,
+    "log": "old-only-tcl-033.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/33_string_builder.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 2.694436756995856,
+    "log": "old-only-tcl-034.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/wasm/t3-procs/32_defaults_and_args.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 3.031708701993921,
+    "log": "old-only-tcl-035.out"
+  },
+  {
+    "arguments": [
+      "files",
+      "samples/dialect_stubs_inline_example.tcl"
+    ],
+    "exit": 0,
+    "valid": true,
+    "wall_s": 1.014354490005644,
+    "log": "old-only-tcl-036.out"
+  }
+]

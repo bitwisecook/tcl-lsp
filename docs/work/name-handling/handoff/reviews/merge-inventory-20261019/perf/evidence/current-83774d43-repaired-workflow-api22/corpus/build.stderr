@@ -104,3 +104,25 @@
    Compiling parking_lot_core v0.9.12
    Compiling crossbeam-deque v0.8.8
    Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-irules)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-engine-api)
+   Compiling borrow-or-share v0.2.4
+   Compiling scopeguard v1.2.0
+   Compiling ipnet v2.12.2
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-bigip)
+   Compiling lock_api v0.4.14
+   Compiling fluent-uri v0.4.1
+   Compiling rayon-core v1.13.0
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-engine-tclvm)
+   Compiling parking_lot v0.12.5
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-lsp-core)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-pkg-model)
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-userdirs)
+   Compiling either v1.19.0
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-spectcl)
+   Compiling rayon v1.12.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-test-support)
+    Finished `dev` profile [optimized] target(s) in 29m 02s

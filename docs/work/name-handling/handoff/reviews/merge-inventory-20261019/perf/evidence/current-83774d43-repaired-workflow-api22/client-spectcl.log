@@ -1,0 +1,2 @@
+BUILD spectcl
+RUN spectcl/eval_loader/new

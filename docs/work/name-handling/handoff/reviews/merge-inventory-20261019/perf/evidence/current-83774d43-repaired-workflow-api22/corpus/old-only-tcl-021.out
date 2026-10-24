@@ -1,0 +1,2 @@
+REPORT label="samples/wasm/t5-completion/52_loop_completion.tcl" old1_ms=3829 new_ms=2048 old2_ms=2045 old_old=Equal old_new=Equal new_old=Equal strict_old_old=true strict_old_new=true strict_new_old=true pass=true
+REPORT_SUMMARY inputs=1 failed=0

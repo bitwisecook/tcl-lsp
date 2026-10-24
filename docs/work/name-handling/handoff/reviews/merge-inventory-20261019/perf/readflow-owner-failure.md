@@ -1,6 +1,8 @@
 # ReadFlow foreign-card conformance failure — compiler owner
 
-Status: Blocked/routed to compiler; no perf production change proposed.
+Status: owner repair delivered as0f4b8e19; not yet exercised by this perf
+proof tree. The frozen837 failure remains evidence, not a current-branch
+acceptance claim. No further perf production change is proposed.
 Source base83774d43, full9 switched perf source. The existing test
 `command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot`
 fails BOTH new and forced-old at generated_procedures.rs645:
@@ -30,3 +32,10 @@ in the two genuine builds and fix the appropriate existing boundary. Keep
 all positive and negative assertions and strict runtime/global/cache equality.
 Do not substitute displayed names, equal bytes or a synthetic reporting owner
 for actual retained current correspondence.
+
+The compiler owner delivered0f4b8e19 after this failure was routed. It retains
+the issuing OriginalSourceAnalysisOwner in the ReadFlow card and requires
+actual pointer correspondence with the invocation binding before all existing
+checks. It preserves the original test and strengthens its production gate.
+Active837 corpus/compiler/client proofs remain frozen; the final rebase must
+retain this repair and record any later validation separately.

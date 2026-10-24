@@ -1,0 +1,28 @@
+{
+  "lexer/lib/new": {
+    "returncode": 0,
+    "seconds": 3.194,
+    "passed": 586,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 586,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-lexer-lib-new.out",
+    "pass_to_fail": [],
+    "comparison_complete": true
+  },
+  "lexer/lib/old": {
+    "returncode": 0,
+    "seconds": 2.353,
+    "passed": 586,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 586,
+    "missing_tests": [],
+    "inventory_complete": true,
+    "log": "tests-lexer-lib-old.out"
+  }
+}

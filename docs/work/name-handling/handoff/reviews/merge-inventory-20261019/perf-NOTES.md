@@ -1,43 +1,42 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 23:49 UTC
+Last updated: 2026-10-24 00:14 UTC
 
-**API report blocker repaired; current full perf acceptance remains pending.**
-ce6facfb admits genuine current empty ALLOCATED declaration bodies through the
-complete actual card; all source/registry/role/purpose/geometry guards and old
-assertions stay intact. Candidate19 controls PASS BOTH with0warnings; exact
-original Native35 and compact reproduction have all3 Equal pairs BOTH. Strict
-runtime/global/cache equality is unchanged and separately false.
+**Current837 complete proof is running; six-file perf code remains unlanded.**
+All22 authenticated report/realm controls pass BOTH with0Rust warnings and an
+unchanged complete source seal. Full normal1 corpus/probe build finished
+0warnings in29m02s. The original102 Tcl+15iRules+7 synthetics old-only/mixed
+and complete ordered PackSet run is active; no complete acceptance yet.
+Fresh switched lexer586/586 BOTH passes0warnings; clean6 lexer586/586 BOTH
+passes0warnings. Clean6 compiler0 unit build finished0warnings, preserved ELF
+hash verified, original filter/deep runtime queued after full cleanup. Fresh
+SpecTcl integration build finished0warnings in7m31s; eval_loader NEW is active.
+Final server quiet repeat and all-target compiler Clippy remain queued.
 
-Latest-source build then failed an upstream SegmentedCommand.words typo before
-any tests,0warnings. The one-line WordExpr source-span typing correction is
-published separately in this update; corrected cargo check passes0warnings.
-The failed first accessor draft remains uncommitted evidence. Fresh837 strict22 API controls PASS BOTH0warnings/source unchanged. The
-normal1 complete-corpus library build and clean6 compiler0 build are active;
-clean6 lexer586/586 PASS BOTH0warnings. First837 server proof is complete
-zeroP2F, same role assertion and180s timeouts BOTH; quiet final repeat remains
-queued. See outstanding/perf.md for current exact jobs and limits.
+Source is FROZEN83774d43 plus9 full switched/six owned files, separate targets.
+Published report-only empty ALLOCATED repair ce6facfb and one-line WordExpr
+source-span typing correction83774d43 retain all old guards/assertions and
+strict runtime/global/cache equality. Extra ReadFlow foreign-card conformance
+failure is retained BOTH; compiler owner delivered0f4b8e19 with issuing-analysis
+pointer validation, outside this frozen proof and to be retained at final
+rebase. No test assertion is changed or ignored; all22 report controls stay
+mandatory. See outstanding/perf.md for precise current jobs/source scopes.
 
-Frozen b6 interim: lexer586/586 BOTH switched and clean6; completed compiler
-outcomes match but original1000-depth test OOMs BOTH even alone. Named server
-startup fails same first role assertion BOTH; workspace symbol times out180
-BOTH, zeroP2F but failed gates. SpecTcl NEW eval_loader28/28 PASS263.054s;
-OLD eval_loader28/28 PASS301.019s; goldens3/3 PASS BOTH227.942/430.240s.
-Both executables deleted, source unchanged and0warnings. Fresh837 control
-build now passes0warnings; all22 report/realm controls PASS BOTH in the first23-case run. The added
-ordinary ReadFlow foreign rejection test FAILS BOTH; unchanged assertion and
-unreached later negative are routed to compiler. A fresh strict22-API-only
-run and full corpus are queued at identical frozen source/hash; failed23-case
-run remains retained. No full current corpus/client acceptance yet. Do not substitute these frozen
-results for the queued corrected latest-source run.
+First current837 server comparison is complete0warnings/zeroP2F but fails the
+same startup role-count assertion and180s workspace timeout BOTH. Later
+factory assertions are unreached. The quiet final repeat preserves budgets
+and cannot erase these outcomes. Frozen b6 SpecTcl28+3 BOTH passes, all source
+and cleanup verified; those results remain interim, not current substitutes.
 
-b6 contended opt1 wall: calls80 old26815/new2721/old15968ms; upvar30
-old73450/new15071/old46401ms; ordinary load_embedded old14514/new2964/
-old16003ms with complete ordered PackSet equality (484936lines). Origin same
-load API4665ms is a separate observation. Full exact-source/profile limits are
-in perf/evidence/timings.md. Six-file perf commit and compiler patch readiness
-remain withheld; shared residual drafts are Blocked/routed and unproven.
-Historical evidence below keeps its original source/profile scope.
+Origin same-input audit verifies all117 actual fixture paths/hashes, all8
+.tclspec sources and all7 actual emitted synthetic Tcl inputs. Raw origin
+placeholders do not prove equivalence. Origin analyse excludes report capture;
+current report timings include it. Historical b6 contended opt1 calls80
+old26815/new2721/old15968ms, upvar30 old73450/new15071/old46401ms, ordinary
+load_embedded old14514/new2964/old16003ms with complete ordered PackSet equal.
+Origin same load API4665ms is a separate observation. Final current timings
+remain required. Shared residual drafts are Blocked/routed and unproven.
+Historical evidence below retains its exact original source/profile scope.
 
 ## Current0322 progress
 

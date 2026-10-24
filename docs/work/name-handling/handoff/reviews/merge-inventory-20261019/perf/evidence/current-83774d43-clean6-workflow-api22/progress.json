@@ -7,6 +7,13 @@
     {
       "stage": "lexer",
       "exit": 0
+    },
+    {
+      "stage": "compiler-build",
+      "exit": 0,
+      "warnings": 0,
+      "wall_s": 1454.0553453389875
     }
-  ]
+  ],
+  "unit_sha256": "eeaadccf8ca99cab1e24877b186068e776630d7740e4539999786c2ea1210c23"
 }
