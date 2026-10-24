@@ -303,6 +303,13 @@ mod tests {
         fn env(&self) -> &dyn tcl_platform::Env {
             &self.env
         }
+
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            static ENVIRONMENT: tcl_host_c_abi::NativeNumericEnvironment =
+                tcl_host_c_abi::NativeNumericEnvironment;
+            tcl_host_c_abi::NativeNumericEnvironment::supported()
+                .then_some(&ENVIRONMENT as &dyn tcl_platform::NumericEnvironment)
+        }
     }
 
     /// Run `body` against an interpreter over a fresh [`MapHost`] holding
