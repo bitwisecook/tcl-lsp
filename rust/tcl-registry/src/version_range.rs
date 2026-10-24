@@ -25,30 +25,25 @@
 //! keyword (`string cat` arrived in 8.6.2 and shortened what `string c…`
 //! could mean).
 //!
-//! `SpecSurface` is already the project's range type — a set of core-Tcl
-//! version bits — so this module is the small bridge from a range to the
-//! **registry packs** it spans, plus the one rule that turns a single target
-//! dialect into its forward-compatibility range.
+//! Ranges are slices of release or dialect names. This module selects the
+//! core-Tcl names in release order, maps them to registry packs, and derives a
+//! forward-compatibility range from a single core release.
 //!
-//! Consumers ask here rather than loading packs by dialect name themselves:
-//! the minifier's ad-hoc "every later core-Tcl registry" walk and the
-//! formatter's version-blind resolution were two copies of the same list, and
-//! a new core release had to be remembered in both.
+//! Consumers share this ordering when selecting the keyword tables that a
+//! rewrite must support.
 
 use crate::CommandRegistry;
 
 /// Every core-Tcl release the registry ships a pack for, oldest first.
 ///
-/// The single source of truth for release *order*. `SpecSurface`'s bit order
-/// agrees with it by construction (see [`dialect_names_for_rows`]); this
-/// list is what maps those bits back to loadable pack names.
+/// Forward ranges are suffixes of this order; [`core_releases_in`] and
+/// [`registries_over_range`] preserve it.
 pub const CORE_TCL_RELEASES: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
 
 /// The core-Tcl release names a target `range` spans, oldest first.
 ///
-/// Non-core bits (`IRULES`, `TK`, `EXPECT`, …) contribute nothing: they are
-/// vendor gates, not releases on the core version axis, and the keyword
-/// tables that change between releases are the core ones.
+/// Names outside [`CORE_TCL_RELEASES`] contribute nothing: vendor dialects
+/// and extensions do not add a release on the core version axis.
 #[must_use]
 pub fn core_releases_in(range: &[&'static str]) -> Vec<&'static str> {
     CORE_TCL_RELEASES
@@ -81,10 +76,9 @@ pub fn registries_over_range(range: &[&'static str]) -> Vec<&'static CommandRegi
 /// release and **every later** core-Tcl release.
 ///
 /// This is the range a rewrite must be safe across, because a script written
-/// for 8.6 may well be run under 9.0. A vendor dialect with no core version
-/// A name that is not a core release (`f5-irules` names its own runtime)
-/// yields the empty range — nothing to widen over, so a consumer keeps the
-/// single table it holds, which is the pre-existing conservative behaviour.
+/// for 8.6 may well be run under 9.0. Names outside [`CORE_TCL_RELEASES`],
+/// including `f5-irules`, yield an empty range. A consumer then keeps the
+/// single registry it already holds.
 #[must_use]
 pub fn forward_range(dialect: &str) -> &'static [&'static str] {
     CORE_TCL_RELEASES
