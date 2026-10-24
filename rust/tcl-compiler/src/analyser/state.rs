@@ -325,6 +325,22 @@ fn shift_span(span: Span, delta: u32) -> Span {
     Span::new(span.start() + delta, span.end() + delta)
 }
 
+/// Ownership of the pre-built unit consumed by one diagnostic tail.
+#[derive(Debug)]
+pub(super) enum CompilationUnitOverride {
+    Shared(std::sync::Arc<crate::compilation_unit::CompilationUnit>),
+    Local(std::rc::Rc<crate::compilation_unit::CompilationUnit>),
+}
+
+impl CompilationUnitOverride {
+    pub(super) fn as_unit(&self) -> &crate::compilation_unit::CompilationUnit {
+        match self {
+            Self::Shared(unit) => unit,
+            Self::Local(unit) => unit,
+        }
+    }
+}
+
 /// Tcl analysis state and the retained inputs for successive document walks.
 // False positive: independent pass flags, not mutually exclusive states.
 #[allow(clippy::struct_excessive_bools)]
@@ -1126,7 +1142,7 @@ pub struct Analyser {
     /// path uses to supply a unit whose per-function lattices were memoised.
     /// `None` for the whole-file `analyse` path (byte-identical: it builds
     /// the unit itself, exactly as before).
-    pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
+    pub(super) cu_override: Option<CompilationUnitOverride>,
     /// Driver-supplied execution entry shared by realm, lowering and diagnostics.
     pub(super) source_analysis_entry:
         Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
@@ -2192,7 +2208,16 @@ impl Analyser {
         &mut self,
         cu: std::sync::Arc<crate::compilation_unit::CompilationUnit>,
     ) {
-        self.cu_override = Some(cu);
+        self.cu_override = Some(CompilationUnitOverride::Shared(cu));
+    }
+
+    /// Supply a unit shared only within this thread. The same source-equivalence
+    /// and consume-once contract as [`Self::set_cu_override`] applies.
+    pub fn set_local_cu_override(
+        &mut self,
+        cu: std::rc::Rc<crate::compilation_unit::CompilationUnit>,
+    ) {
+        self.cu_override = Some(CompilationUnitOverride::Local(cu));
     }
 
     /// Analyse exactly one issued conditional suffix, reusing its kernel world.
