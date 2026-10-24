@@ -67,6 +67,9 @@ fn original_list_backing_receipts_reject_equal_copies_mutation_and_shimmer() {
     .unwrap();
     let member = obj::Owned::fresh(obj::new_wide_int_obj(42));
     let original = obj::Owned::fresh(interpreter.new_list_object(&[member.as_ptr()]));
+    interpreter
+        .associate_native_jim_arguments(&[original.as_ptr()])
+        .unwrap();
     let backing = crate::list::native_list_backing(original.as_ptr()).unwrap();
     backing.check_original_header(original.as_ptr()).unwrap();
     let copy = obj::Owned::fresh(obj::duplicate(original.as_ptr()));
