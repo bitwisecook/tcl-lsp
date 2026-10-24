@@ -330,6 +330,7 @@ out.mkdir(parents=True)
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 remaining = CAP
 before = providers_before = dependencies_before = artifact = tool_pins = None
+dependency_roots: list[Path] = []
 system_providers_before = None
 processes = []
 cases = []

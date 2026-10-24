@@ -1,7 +1,7 @@
 {
   "current_input_pins": {
     ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
-    ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+    ".github/workflows/ci.yml": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
     "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
     "docs/design/rust/engineering-guide.md": "04d61fc6541c126cf12eca781ca4621894a3277b0b563f94b657e9cc3f773648",
     "docs/design/rust/lsp-performance.md": "5c54e0a0f3a097194e6fdc23339daed698c3c8d0515731fb58d84322987c844c",
@@ -38,5 +38,16 @@
       "original_body_unchanged_except_documented_ROOT": true,
       "original_sha256": "a9405a7bf04bb92c0b2329eb10ed2fa8ff4ffad821b16da2afc80fd32ae090eb"
     }
-  }
+  },
+  "input_pin_updates": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "previous_sha256": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+      "current_sha256": "0ded29e9e0b5d84edd19c4f603ecfea32705614130a67d7d8cd2e2edc564ca25",
+      "baseline_commit": "42c09a92614a345408ca87522f3a1cde600b6cfb",
+      "authenticated_source_commit": "516ef7b4801fcd7ee2fae446ec50e3e0e71630bd",
+      "additive_step_sha256": "571f53bf30a2f1c0cffa50aed02c219bc9f0b6767fbd5a8a0651afefb2f0ecf6",
+      "reason": "CI adds only the Tcl 8.4 integer-cache runtime provider bootstrap step. Removing that complete added step reproduces the previous CI file byte-for-byte. All existing CI bytes and original startup/Context workers, clients, assertions, fixtures and budgets remain unchanged."
+    }
+  ]
 }
