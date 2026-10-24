@@ -499,6 +499,16 @@ impl OriginalPublicationRevision {
     }
 }
 
+/// Lookup metadata bound to an actually selected command generation.
+pub(crate) struct CommandGuardLookup {
+    world: std::rc::Weak<()>,
+    current: NsId,
+    holder: NsId,
+    generation: u64,
+    path: Vec<NsId>,
+    policy: u64,
+}
+
 pub struct Namespaces {
     arena: Vec<Namespace>,
     native_namespace_names: std::cell::RefCell<
@@ -514,6 +524,7 @@ pub struct Namespaces {
     native_compiler_epoch: Option<u64>,
     /// Software lookup-policy mutations, separate from native compiler epochs.
     guard_lookup_environment_revision: Option<u64>,
+    guard_command_lookup_policy_revision: Option<u64>,
     jim_previous_commands: BTreeMap<u64, CommandBinding>,
     jim_previous_locations: BTreeMap<u64, (NsId, Vec<u8>)>,
     jim_upcalls: BTreeMap<u64, usize>,
@@ -1069,7 +1080,7 @@ impl Namespaces {
 
     pub(crate) fn invalidate_native_command_lookup(&mut self, ns: NsId) {
         if !self.arena[ns].exports.is_empty() {
-            self.note_guard_lookup_environment_mutation();
+            self.note_guard_command_lookup_policy_mutation();
             self.advance_ensemble_export_epoch(ns);
         }
 
@@ -1296,7 +1307,7 @@ impl Namespaces {
         self.invalidate_single_original_unlink(generation);
         let binding = self.arena[namespace].commands.remove_binding(&simple)?;
         if matches!(&binding.command, Command::Imported { .. }) {
-            self.note_guard_lookup_environment_mutation();
+            self.note_guard_command_lookup_policy_mutation();
         }
         self.native_command_nodes.get_mut(&generation)?.placement = None;
         Some(binding)
@@ -1825,6 +1836,7 @@ impl Namespaces {
             native_command_version: Some(tcl_dialect::TclVersion::V9_0),
             native_compiler_epoch: Some(0),
             guard_lookup_environment_revision: Some(0),
+            guard_command_lookup_policy_revision: Some(0),
             jim_previous_commands: BTreeMap::new(),
             jim_previous_locations: BTreeMap::new(),
             jim_upcalls: BTreeMap::new(),
@@ -3033,6 +3045,89 @@ impl Namespaces {
         self.note_guard_lookup_environment_mutation();
     }
 
+    pub(crate) fn guard_command_lookup_policy_revision(&self) -> Option<u64> {
+        self.guard_command_lookup_policy_revision
+    }
+
+    fn note_guard_command_lookup_policy_mutation(&mut self) {
+        self.note_guard_lookup_environment_mutation();
+        self.guard_command_lookup_policy_revision = self
+            .guard_command_lookup_policy_revision
+            .and_then(|revision| revision.checked_add(1));
+    }
+
+    /// Record the actual live publication after the caller's single lookup.
+    pub(crate) fn command_guard_lookup(
+        &self,
+        current: NsId,
+        generation: u64,
+    ) -> Option<CommandGuardLookup> {
+        self.guard_lookup_environment_revision?;
+        let policy = self.guard_command_lookup_policy_revision?;
+        let reference = self.arena.get(current)?;
+        let node = self.native_command_nodes.get(&generation)?;
+        let (holder, key) = node.placement.as_ref()?;
+        if !self.namespace_is_live(current)
+            || self.arena.get(*holder).is_none()
+            || !self.namespace_is_live(*holder)
+            || !self.original_publication_is_current(*holder, key, generation)
+            || reference
+                .path
+                .iter()
+                .any(|entry| self.arena.get(*entry).is_none() || !self.namespace_is_live(*entry))
+        {
+            return None;
+        }
+        Some(CommandGuardLookup {
+            world: std::rc::Rc::downgrade(&self.original_publication_world),
+            current,
+            holder: *holder,
+            generation,
+            path: reference.path.clone(),
+            policy,
+        })
+    }
+
+    /// Compare only metadata; do not repeat name conversion or resolution.
+    pub(crate) fn command_guard_lookup_is_current(
+        &self,
+        original: &CommandGuardLookup,
+        current: NsId,
+        generation: u64,
+    ) -> bool {
+        if original.current != current
+            || original.generation != generation
+            || original.world.strong_count() == 0
+            || !original
+                .world
+                .ptr_eq(&std::rc::Rc::downgrade(&self.original_publication_world))
+            || self.guard_lookup_environment_revision.is_none()
+            || self.guard_command_lookup_policy_revision != Some(original.policy)
+            || !self.namespace_is_live(current)
+            || !self.namespace_is_live(original.holder)
+        {
+            return false;
+        }
+        let Some(reference) = self.arena.get(current) else {
+            return false;
+        };
+        let Some((holder, key)) = self
+            .native_command_nodes
+            .get(&generation)
+            .and_then(|node| node.placement.as_ref())
+        else {
+            return false;
+        };
+        *holder == original.holder
+            && self.arena.get(*holder).is_some()
+            && self.original_publication_is_current(*holder, key, generation)
+            && reference.path == original.path
+            && reference
+                .path
+                .iter()
+                .all(|entry| self.arena.get(*entry).is_some() && self.namespace_is_live(*entry))
+    }
+
     fn note_guard_lookup_environment_mutation(&mut self) {
         self.guard_lookup_environment_revision = self
             .guard_lookup_environment_revision
@@ -3041,7 +3136,7 @@ impl Namespaces {
 
     /// Set namespace `ns`'s `namespace path` to the given namespaces.
     pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>) {
-        self.note_guard_lookup_environment_mutation();
+        self.note_guard_command_lookup_policy_mutation();
         self.arena[ns].path = path;
         if self
             .native_command_version
@@ -3492,7 +3587,7 @@ impl Namespaces {
     /// caller's job via [`clear_exports`](Self::clear_exports).
     pub fn export(&mut self, ns: NsId, pattern: &[u8]) {
         if !self.arena[ns].exports.iter().any(|p| p == pattern) {
-            self.note_guard_lookup_environment_mutation();
+            self.note_guard_command_lookup_policy_mutation();
             self.arena[ns].exports.push(pattern.to_vec());
             self.advance_ensemble_export_epoch(ns);
         }
@@ -3501,7 +3596,7 @@ impl Namespaces {
     /// Drop all of `ns`'s export patterns (`namespace export -clear`).
     pub fn clear_exports(&mut self, ns: NsId) {
         if !self.arena[ns].exports.is_empty() {
-            self.note_guard_lookup_environment_mutation();
+            self.note_guard_command_lookup_policy_mutation();
             self.advance_ensemble_export_epoch(ns);
         }
         self.arena[ns].exports.clear();
@@ -3726,7 +3821,7 @@ impl Namespaces {
         ns: NsId,
         handler: Option<crate::obj::Owned>,
     ) -> Option<crate::obj::Owned> {
-        self.note_guard_lookup_environment_mutation();
+        self.note_guard_command_lookup_policy_mutation();
         std::mem::replace(&mut self.arena[ns].unknown, handler)
     }
 
@@ -4089,7 +4184,12 @@ impl Namespaces {
 
     /// Unpublish this token and its resolution paths after its commands retire.
     pub(crate) fn finish_native_namespace_command_path(&mut self, ns: NsId) {
-        self.note_guard_lookup_environment_mutation();
+        if !self.arena[ns].path.is_empty() || self.arena.iter().any(|node| node.path.contains(&ns))
+        {
+            self.note_guard_command_lookup_policy_mutation();
+        } else {
+            self.note_guard_lookup_environment_mutation();
+        }
         self.dying_children.retain(|_, child| *child != ns);
         if self.arena[ns].parent.is_some() {
             let fqn = self.qualified_name(ns);
@@ -4237,7 +4337,7 @@ impl Namespaces {
     pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool {
         self.remove_native_binding(ns, name).is_some_and(|binding| {
             if matches!(&binding.command, Command::Imported { .. }) {
-                self.note_guard_lookup_environment_mutation();
+                self.note_guard_command_lookup_policy_mutation();
             }
             Self::mark_command_deleted(&binding.command, &self.retired_ensemble_roles);
             true
@@ -4338,6 +4438,59 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn command_lookup_currency_keeps_unrelated_topology_but_rejects_foreign_worlds() {
+        let mut world = Namespaces::new();
+        world.bind(GLOBAL, b"kept", cmd());
+        let generation = world.command_generation(GLOBAL, b"kept").unwrap();
+        let lookup = world.command_guard_lookup(GLOBAL, generation).unwrap();
+        let unrelated = world.ensure_namespace(GLOBAL, b"other");
+        assert!(world.command_guard_lookup_is_current(&lookup, GLOBAL, generation));
+        world.delete_namespace_by_id(unrelated);
+        assert!(world.command_guard_lookup_is_current(&lookup, GLOBAL, generation));
+        let mut foreign = Namespaces::new();
+        foreign.bind(GLOBAL, b"kept", cmd());
+        let other = foreign.command_generation(GLOBAL, b"kept").unwrap();
+        assert_eq!(generation, other);
+        assert!(!foreign.command_guard_lookup_is_current(&lookup, GLOBAL, other));
+        drop(world);
+        assert!(!foreign.command_guard_lookup_is_current(&lookup, GLOBAL, other));
+        assert!(foreign.command_guard_lookup(GLOBAL, other).is_some());
+        let actual = foreign.command_guard_lookup(GLOBAL, other).unwrap();
+        foreign.bind(GLOBAL, b"kept", cmd());
+        let replacement = foreign.command_generation(GLOBAL, b"kept").unwrap();
+        assert_ne!(other, replacement);
+        assert!(!foreign.command_guard_lookup_is_current(&actual, GLOBAL, replacement));
+        assert!(!foreign.command_guard_lookup_is_current(&actual, GLOBAL, other));
+    }
+
+    #[test]
+    fn command_lookup_currency_checks_actual_path_holder_lifetime_and_policy_exhaustion() {
+        let mut world = Namespaces::new();
+        let holder = world.ensure_namespace(GLOBAL, b"holder");
+        let caller = world.ensure_namespace(GLOBAL, b"caller");
+        world.bind(holder, b"kept", cmd());
+        let generation = world.command_generation(holder, b"kept").unwrap();
+        world.set_path(caller, vec![holder]);
+        let lookup = world.command_guard_lookup(caller, generation).unwrap();
+        assert!(world.command_guard_lookup_is_current(&lookup, caller, generation));
+        assert!(!world.command_guard_lookup_is_current(&lookup, GLOBAL, generation));
+        world.set_path(caller, vec![GLOBAL]);
+        assert!(!world.command_guard_lookup_is_current(&lookup, caller, generation));
+        world.set_path(caller, vec![holder]);
+        assert!(!world.command_guard_lookup_is_current(&lookup, caller, generation));
+        let current = world.command_guard_lookup(caller, generation).unwrap();
+        world.begin_namespace_variable_teardown(holder);
+        assert!(!world.command_guard_lookup_is_current(&current, caller, generation));
+        assert!(world.command_guard_lookup(caller, generation).is_none());
+        world.bind(GLOBAL, b"root", cmd());
+        let root = world.command_generation(GLOBAL, b"root").unwrap();
+        world.guard_command_lookup_policy_revision = Some(u64::MAX);
+        world.set_path(GLOBAL, Vec::new());
+        assert!(world.guard_command_lookup_policy_revision().is_none());
+        assert!(world.command_guard_lookup(GLOBAL, root).is_none());
     }
 
     #[test]
