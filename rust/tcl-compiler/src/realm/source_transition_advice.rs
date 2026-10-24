@@ -582,9 +582,19 @@ impl super::CommandBindingRealm {
             "authored.tape_receipt",
             tape.authored_jim_class(original.first()?.span().start()),
         )?;
-        (receipt.matches_source_context(image, config, &context)
-            && receipt.factory().original_words() == original)
-            .then(|| Arc::clone(receipt))
+        (crate::registry_invocation::source_structure::trace_jim_source_option(
+            "authored.canonical_context",
+            receipt
+                .matches_source_context(image, config, &context)
+                .then_some(()),
+        )
+        .is_some()
+            && crate::registry_invocation::source_structure::trace_jim_source_option(
+                "authored.canonical_words",
+                (receipt.factory().original_words() == original).then_some(()),
+            )
+            .is_some())
+        .then(|| Arc::clone(receipt))
     }
 
     /// Exact source class factory selected independently of class report maps.

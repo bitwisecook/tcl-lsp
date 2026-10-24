@@ -187,10 +187,23 @@ impl OriginalAuthoredJimClass {
         {
             return None;
         }
-        let retained = analysis
-            .retained_command_realm()?
-            .original_authored_jim_class(input, self.factory.original_words())?;
-        (retained.factory == self.factory && retained.purpose == self.purpose).then_some(())?;
+        let retained = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.base.canonical",
+            analysis
+                .retained_command_realm()?
+                .original_authored_jim_class(input, self.factory.original_words()),
+        )?;
+        (crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.base.factory",
+            (retained.factory == self.factory).then_some(()),
+        )
+        .is_some()
+            && crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.base.purpose",
+                (retained.purpose == self.purpose).then_some(()),
+            )
+            .is_some())
+        .then_some(())?;
         let name_span = self
             .factory
             .arguments()
@@ -212,8 +225,22 @@ impl OriginalAuthoredJimClass {
                 && class.name_span == name_span
                 && class.body_span == body_span
         });
-        let class = matches.next()?;
-        matches.next().is_none().then_some(class)
+        let class = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.base.metadata",
+            matches.next(),
+        )?;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.base.metadata_fields offset={} variables={}",
+                self.factory.site().offset,
+                class.variables.len(),
+            );
+        }
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.base.unique",
+            matches.next().is_none().then_some(class),
+        )
     }
 
     fn statically_complete(&self) -> bool {
