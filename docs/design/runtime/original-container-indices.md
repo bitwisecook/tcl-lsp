@@ -133,12 +133,12 @@ is structured: native index error codes, option-item propagation, CString
 message extents and the independently selected String result producer travel
 in `CmdError` without message reparsing.
 
-The original command/child-cache observations and their bounds are recorded in
-list-original-option-index-path-preparation-and-results.md.
-Software controls compare exact success/error result bytes and original child
-cache types from all 192 measured C/Jim cases. They compare child residency only
-on successful commands, because native EvalObjv error propagation can separately
-format argv. Provider temporary reference counts, private caches, error-stack
+The [native option-index controls](../../../rust/tcl-vm/src/cmd_list/native_original_option_index_controls.rs)
+compare exact success/error result bytes and original child cache types against
+the checked-in [native fixtures](../../../runtime/rust/tests/data/native_original_option_index636/).
+They compare child residency only on successful commands, because native
+EvalObjv error propagation can separately format argv. Provider temporary
+reference counts, private caches, error-stack
 frames and callback chronology are not inferred from those public predicates.
 The extension callback control independently checks actual software backing
 withdrawal, preservation of the first cause and absence of a protective hold.
