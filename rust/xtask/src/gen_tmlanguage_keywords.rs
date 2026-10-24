@@ -451,7 +451,60 @@ fn splice_source_rule(
     )
 }
 
-#[allow(clippy::too_many_lines)]
+fn rich_source_definitions(
+    text: &mut String,
+    display: &tcl_registry::source_navigation::StaticTclSourceDisplay,
+    named_match: &str,
+    prefix: &str,
+    name: &str,
+    words: &impl Fn(&[&str]) -> String,
+) -> Result<()> {
+    *text = splice_source_rule(
+        text,
+        "definitions",
+        0,
+        "begin",
+        &format!(r"{named_match}\s*(\{{)"),
+    )?;
+    *text = splice_source_rule(
+        text,
+        "definitions",
+        1,
+        "begin",
+        &format!(r"{prefix}({})\s*(\{{)", words(&display.constructors)),
+    )?;
+    let classes = display
+        .classes
+        .iter()
+        .map(|(command, subcommand)| {
+            subcommand.map_or_else(
+                || regex::escape(command),
+                |sub| format!(r"{}\s+{}", regex::escape(command), regex::escape(sub)),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    *text = splice_source_rule(
+        text,
+        "definitions",
+        2,
+        "match",
+        &format!(r"{prefix}({classes})\s+({name})"),
+    )?;
+    *text = splice_source_rule(
+        text,
+        "definitions",
+        3,
+        "match",
+        &format!(r"{prefix}({})\s+({name})", words(&display.class_references)),
+    )?;
+    *text = splice_source_rule(text, "definitions", 4, "match", named_match)?;
+    let parameters = tcl_syntax::formal_params::static_formal_parameter_display();
+    *text = splice_source_rule(text, "parameter-list", 0, "match", parameters.defaulted)?;
+    *text = splice_source_rule(text, "parameter-list", 1, "match", parameters.plain)?;
+    Ok(())
+}
+
 fn static_source_roles(original: &str, b: &Buckets) -> Result<String> {
     use source_json::PathPart::{Index, Key};
     let display = b
@@ -473,49 +526,7 @@ fn static_source_roles(original: &str, b: &Buckets) -> Result<String> {
     let rich_definitions = json["repository"].get("parameter-list").is_some();
     let mut text = original.to_owned();
     if rich_definitions {
-        text = splice_source_rule(
-            &text,
-            "definitions",
-            0,
-            "begin",
-            &format!(r"{named_match}\s*(\{{)"),
-        )?;
-        text = splice_source_rule(
-            &text,
-            "definitions",
-            1,
-            "begin",
-            &format!(r"{prefix}({})\s*(\{{)", words(&display.constructors)),
-        )?;
-        let classes = display
-            .classes
-            .iter()
-            .map(|(command, subcommand)| {
-                subcommand.map_or_else(
-                    || regex::escape(command),
-                    |sub| format!(r"{}\s+{}", regex::escape(command), regex::escape(sub)),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("|");
-        text = splice_source_rule(
-            &text,
-            "definitions",
-            2,
-            "match",
-            &format!(r"{prefix}({classes})\s+({name})"),
-        )?;
-        text = splice_source_rule(
-            &text,
-            "definitions",
-            3,
-            "match",
-            &format!(r"{prefix}({})\s+({name})", words(&display.class_references)),
-        )?;
-        text = splice_source_rule(&text, "definitions", 4, "match", &named_match)?;
-        let parameters = tcl_syntax::formal_params::static_formal_parameter_display();
-        text = splice_source_rule(&text, "parameter-list", 0, "match", parameters.defaulted)?;
-        text = splice_source_rule(&text, "parameter-list", 1, "match", parameters.plain)?;
+        rich_source_definitions(&mut text, display, &named_match, prefix, name, &words)?;
     } else {
         text = splice_source_rule(&text, "definitions", 0, "match", &named_match)?;
     }
