@@ -4711,6 +4711,23 @@ fn initial_source_interpretation_state(
     state
 }
 
+fn source_entry_namespace_key(
+    options: &SourceAnalysisOptions<'_>,
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    namespace: &str,
+) -> SourceNamespaceKey {
+    options
+        .source_point_entry
+        .map(|entry| entry.namespace().clone())
+        .or_else(|| frame.namespace_identity().cloned())
+        .or_else(|| {
+            options
+                .native_entry
+                .and_then(|entry| SourceNamespaceKey::from_native_entry(entry).ok())
+        })
+        .unwrap_or_else(|| SourceNamespaceKey::authored(namespace))
+}
+
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
     use crate::var_resolve::VariableExecutionFrame;
     match frame.layout() {
@@ -7198,6 +7215,22 @@ impl SourceCommandBindings {
         ))
     }
 
+    fn initial_source_analysis_bindings(
+        options: &SourceAnalysisOptions<'_>,
+        logical_conditional_source_control: bool,
+        config: tcl_lexer::LexerConfig,
+    ) -> Self {
+        Self {
+            analyser_source_settings: options
+                .source_point_entry
+                .map(OriginalSourcePointEntry::analyser_source_settings),
+            logical_conditional_source_control,
+            compilation_scope: options.compilation_scope,
+            lexer_config: Some(config),
+            ..Self::default()
+        }
+    }
+
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
@@ -7234,15 +7267,11 @@ impl SourceCommandBindings {
             return bindings;
         }
         let namespace = source_frame_namespace(frame);
-        let mut bindings = Self {
-            analyser_source_settings: options
-                .source_point_entry
-                .map(OriginalSourcePointEntry::analyser_source_settings),
+        let mut bindings = Self::initial_source_analysis_bindings(
+            &options,
             logical_conditional_source_control,
-            compilation_scope: options.compilation_scope,
-            lexer_config: Some(config),
-            ..Self::default()
-        };
+            config,
+        );
         let mut state = initial_source_interpretation_state(image, config, registry, options);
         bindings
             .root_origin
@@ -7254,16 +7283,7 @@ impl SourceCommandBindings {
                 config,
             })
         });
-        let namespace_key = options
-            .source_point_entry
-            .map(|entry| entry.namespace().clone())
-            .or_else(|| frame.namespace_identity().cloned())
-            .or_else(|| {
-                options
-                    .native_entry
-                    .and_then(|entry| SourceNamespaceKey::from_native_entry(entry).ok())
-            })
-            .unwrap_or_else(|| SourceNamespaceKey::authored(namespace));
+        let namespace_key = source_entry_namespace_key(&options, frame, namespace);
         let frame = frame.clone().with_namespace_identity(namespace_key.clone());
         // This API's supplied frame is the entry activation. It is not a
         // nested call whose final state should restore the initial model frame.
