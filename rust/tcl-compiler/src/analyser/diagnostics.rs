@@ -524,6 +524,14 @@ impl Analyser {
         }
     }
 
+    fn file_is_package_index(&self) -> bool {
+        self.file_path.as_deref().is_some_and(|p| {
+            std::path::Path::new(p)
+                .file_name()
+                .is_some_and(|n| n == "pkgIndex.tcl")
+        })
+    }
+
     /// Emit the CFG/SSA-derived diagnostics from an already-built
     /// [`crate::compilation_unit::CompilationUnit`].
     ///
@@ -606,16 +614,11 @@ impl Analyser {
         // top-level.  Match the *basename* exactly (not a suffix):
         // ``ends_with("pkgIndex.tcl")`` would also swallow a file
         // literally named ``notpkgIndex.tcl``.
-        let pkgindex_implicit_vars: HashSet<String> =
-            if self.file_path.as_deref().is_some_and(|p| {
-                std::path::Path::new(p)
-                    .file_name()
-                    .is_some_and(|n| n == "pkgIndex.tcl")
-            }) {
-                HashSet::from(["dir".to_string()])
-            } else {
-                HashSet::new()
-            };
+        let pkgindex_implicit_vars: HashSet<String> = if self.file_is_package_index() {
+            HashSet::from(["dir".to_string()])
+        } else {
+            HashSet::new()
+        };
         let mut top_level_cross_event_vars: HashSet<String> = pkgindex_implicit_vars.clone();
         top_level_cross_event_vars.extend(
             crate::interprocedural::collect_positioned_call_by_name_reads(

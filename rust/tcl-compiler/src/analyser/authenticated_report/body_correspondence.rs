@@ -320,6 +320,42 @@ impl ReportBodyInventory {
         Some(())
     }
 
+    fn report_declaration_purposes(
+        module: &crate::ir::Module,
+        id: ProcedureId,
+    ) -> [(ReportDeclarationPurpose, bool); 5] {
+        [
+            (
+                ReportDeclarationPurpose::Allocated,
+                module.original_declaration_body_units.contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::Native,
+                module
+                    .original_native_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::Logical,
+                module
+                    .original_logical_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::Authored,
+                module
+                    .original_authored_declaration_body_units
+                    .contains_key(&id),
+            ),
+            (
+                ReportDeclarationPurpose::Hosted,
+                module
+                    .original_hosted_declaration_body_units
+                    .contains_key(&id),
+            ),
+        ]
+    }
+
     fn procedure(
         module: &crate::ir::Module,
         id: ProcedureId,
@@ -360,36 +396,7 @@ impl ReportBodyInventory {
         {
             return None;
         }
-        let purposes = [
-            (
-                ReportDeclarationPurpose::Allocated,
-                module.original_declaration_body_units.contains_key(&id),
-            ),
-            (
-                ReportDeclarationPurpose::Native,
-                module
-                    .original_native_declaration_body_units
-                    .contains_key(&id),
-            ),
-            (
-                ReportDeclarationPurpose::Logical,
-                module
-                    .original_logical_declaration_body_units
-                    .contains_key(&id),
-            ),
-            (
-                ReportDeclarationPurpose::Authored,
-                module
-                    .original_authored_declaration_body_units
-                    .contains_key(&id),
-            ),
-            (
-                ReportDeclarationPurpose::Hosted,
-                module
-                    .original_hosted_declaration_body_units
-                    .contains_key(&id),
-            ),
-        ];
+        let purposes = Self::report_declaration_purposes(module, id);
         let mut present = purposes
             .into_iter()
             .filter_map(|(purpose, present)| present.then_some(purpose));

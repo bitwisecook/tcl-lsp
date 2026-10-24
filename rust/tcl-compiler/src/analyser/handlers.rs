@@ -7435,13 +7435,120 @@ impl Analyser {
         Some(proof)
     }
 
+    fn logical_segment_invocation_completion(
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        tokens: &crate::ir::CommandTokens,
+        #[cfg(test)] trace: &impl Fn(&str, bool),
+    ) -> Option<(
+        crate::registry_invocation::ResolvedStatementInvocation,
+        tcl_registry::registry::InvocationCompletion,
+    )> {
+        let invocation =
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            );
+        #[cfg(test)]
+        trace("operation.selected", invocation.is_some());
+        let Some(invocation) = invocation else {
+            return None;
+        };
+        let realm = tokens.source_binding.as_ref().and_then(|binding| {
+            binding.original_source_realm_for_input(
+                tokens,
+                metadata.source_analysis_input()?,
+                registry,
+            )
+        });
+        #[cfg(test)]
+        trace("realm.original", realm.is_some());
+        let Some(realm) = realm else {
+            return None;
+        };
+        let completion = invocation.with_metadata_schema(registry, metadata, realm, |selected| {
+            Some(selected.authored_source_invocation_completion())
+        });
+        #[cfg(test)]
+        trace("completion.schema", completion.is_some());
+        #[cfg(test)]
+        trace(
+            "completion.known",
+            completion.is_some_and(|completion| {
+                completion != tcl_registry::registry::InvocationCompletion::Unknown
+            }),
+        );
+        let Some(completion) = completion else {
+            return None;
+        };
+        Some((invocation, completion))
+    }
+
+    fn written_segment_completion(
+        effective: &crate::registry_invocation::EffectiveCommandWords,
+        completion: tcl_registry::registry::InvocationCompletion,
+    ) -> tcl_registry::registry::InvocationCompletion {
+        use crate::registry_invocation::InvocationWordOrigin;
+        use tcl_registry::registry::InvocationCompletion;
+        match completion {
+            InvocationCompletion::ReturnsResult(Some(index)) => {
+                match index
+                    .checked_add(1)
+                    .and_then(|index| effective.origins.get(index))
+                {
+                    Some(InvocationWordOrigin::Written(index)) => index
+                        .checked_sub(1)
+                        .map_or(InvocationCompletion::Unknown, |index| {
+                            InvocationCompletion::ReturnsResult(Some(index))
+                        }),
+                    _ => InvocationCompletion::Unknown,
+                }
+            }
+            completion => completion,
+        }
+    }
+
+    #[cfg(test)]
+    fn trace_segment_source_guards(
+        &self,
+        logical_source: bool,
+        retained: Option<&crate::analyser::ResolvedAnalysisInput>,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        trace: &impl Fn(&str, bool),
+    ) {
+        trace("source.logical", logical_source);
+        trace("source.retained", retained.is_some());
+        trace("metadata.request", metadata.is_some());
+        trace("tokens.binding", tokens.source_binding.is_some());
+        let binding = tokens.source_binding.as_ref();
+        trace(
+            "tokens.config",
+            binding.and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
+                == Some(self.file_lexer_config()),
+        );
+        trace(
+            "metadata.original",
+            binding.zip(retained).is_some_and(|(binding, input)| {
+                binding
+                    .original_invocation_metadata_for_input(tokens, input, registry)
+                    .is_some()
+            }),
+        );
+        let advice = binding.and_then(|binding| binding.declaration_operand_layout_advice(tokens));
+        trace("declaration.layout", advice.is_some());
+        trace(
+            "declaration.closed",
+            advice.is_some_and(|advice| advice.closed_logical_source_lookup()),
+        );
+    }
+
     /// Completion follows the actual selected implementation and frozen argv.
     /// A captured alias operand has no original segment index to return.
     fn segment_invocation_completion(
         &self,
         seg: &SegmentedCommand,
     ) -> tcl_registry::registry::InvocationCompletion {
-        use crate::registry_invocation::InvocationWordOrigin;
         use tcl_registry::registry::InvocationCompletion;
         let context = self.analysis_context();
         let registry = context.commands();
@@ -7487,71 +7594,29 @@ impl Analyser {
             purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         #[cfg(test)]
         if trace_enabled {
-            trace("source.logical", logical_source);
-            trace("source.retained", retained.is_some());
-            trace("metadata.request", metadata.is_some());
-            trace("tokens.binding", tokens.source_binding.is_some());
-            let binding = tokens.source_binding.as_ref();
-            trace(
-                "tokens.config",
-                binding.and_then(|binding| binding.original_lexer_config_for_tokens(&tokens))
-                    == Some(self.file_lexer_config()),
-            );
-            trace(
-                "metadata.original",
-                binding.zip(retained).is_some_and(|(binding, input)| {
-                    binding
-                        .original_invocation_metadata_for_input(&tokens, input, registry)
-                        .is_some()
-                }),
-            );
-            let advice =
-                binding.and_then(|binding| binding.declaration_operand_layout_advice(&tokens));
-            trace("declaration.layout", advice.is_some());
-            trace(
-                "declaration.closed",
-                advice.is_some_and(|advice| advice.closed_logical_source_lookup()),
+            self.trace_segment_source_guards(
+                logical_source,
+                retained,
+                metadata,
+                &tokens,
+                registry,
+                &trace,
             );
         }
         let selected = if logical_source {
             let Some(metadata) = metadata else {
                 return InvocationCompletion::Unknown;
             };
-            let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-                registry, metadata, &tokens,
-            );
-            #[cfg(test)]
-            trace("operation.selected", invocation.is_some());
-            let Some(invocation) = invocation else {
+            let Some(selected) = Self::logical_segment_invocation_completion(
+                registry,
+                metadata,
+                &tokens,
+                #[cfg(test)]
+                &trace,
+            ) else {
                 return InvocationCompletion::Unknown;
             };
-            let realm = tokens.source_binding.as_ref().and_then(|binding| {
-                binding.original_source_realm_for_input(
-                    &tokens,
-                    metadata.source_analysis_input()?,
-                    registry,
-                )
-            });
-            #[cfg(test)]
-            trace("realm.original", realm.is_some());
-            let Some(realm) = realm else {
-                return InvocationCompletion::Unknown;
-            };
-            let completion =
-                invocation.with_metadata_schema(registry, metadata, realm, |selected| {
-                    Some(selected.authored_source_invocation_completion())
-                });
-            #[cfg(test)]
-            trace("completion.schema", completion.is_some());
-            #[cfg(test)]
-            trace(
-                "completion.known",
-                completion.is_some_and(|completion| completion != InvocationCompletion::Unknown),
-            );
-            let Some(completion) = completion else {
-                return InvocationCompletion::Unknown;
-            };
-            (invocation, completion)
+            selected
         } else {
             // Native completion retains its independently proved handler path.
             let Some(invocation) =
@@ -7573,22 +7638,7 @@ impl Analyser {
             (invocation, completion)
         };
         let (invocation, completion) = selected;
-        match completion {
-            InvocationCompletion::ReturnsResult(Some(index)) => {
-                match index
-                    .checked_add(1)
-                    .and_then(|index| invocation.effective.origins.get(index))
-                {
-                    Some(InvocationWordOrigin::Written(index)) => index
-                        .checked_sub(1)
-                        .map_or(InvocationCompletion::Unknown, |index| {
-                            InvocationCompletion::ReturnsResult(Some(index))
-                        }),
-                    _ => InvocationCompletion::Unknown,
-                }
-            }
-            completion => completion,
-        }
+        Self::written_segment_completion(&invocation.effective, completion)
     }
 
     fn possible_if_body_spans(

@@ -1698,6 +1698,49 @@ is renamed or deleted in this file."
             .original_namespace_scope_at(site.cmd_span.start())
     }
 
+    fn declared_read_flow_for_procedure(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        procedure: &crate::ir::Procedure,
+        original_image: &tcl_lexer::SourceImage,
+    ) -> Option<std::sync::Arc<crate::command_binding::DeclarationFlowReport>> {
+        rbs_read_option(
+            "function_flow",
+            function_declaration_flow(fu, procedure, original_image, &self.profile_registry()),
+        )
+        .or_else(|| {
+            rbs_read_option(
+                "fallback_read_flow",
+                self.head_identities
+                    .source_bindings()
+                    .original_procedure_read_flow(
+                        procedure,
+                        original_image,
+                        &self.profile_registry(),
+                        self.result.resolved_input.as_ref()?,
+                    ),
+            )
+        })
+    }
+
+    fn authored_read_advice_for_procedure(
+        &self,
+        procedure: &crate::ir::Procedure,
+    ) -> Option<crate::script_binds::AuthoredProcedureReadAdvice> {
+        rbs_read_option(
+            "read_recipe",
+            crate::script_binds::authored_procedure_read_advice(
+                &procedure.body.executed_source.as_ref().map_or_else(
+                    || tcl_lexer::SourceImage::document(&self.source),
+                    |source| source.origin.source_image().clone(),
+                ),
+                procedure,
+                &self.result,
+                &self.analysis_context(),
+            ),
+        )
+    }
+
     /// W210 + W213 — read-before-set / unset on possibly-undefined.
     ///
     /// Walks every
@@ -1755,23 +1798,7 @@ is renamed or deleted in this file."
         }
         let original_image = tcl_lexer::SourceImage::document(&self.source);
         let declared_flow = ir_proc.and_then(|procedure| {
-            rbs_read_option(
-                "function_flow",
-                function_declaration_flow(fu, procedure, &original_image, &self.profile_registry()),
-            )
-            .or_else(|| {
-                rbs_read_option(
-                    "fallback_read_flow",
-                    self.head_identities
-                        .source_bindings()
-                        .original_procedure_read_flow(
-                            procedure,
-                            &original_image,
-                            &self.profile_registry(),
-                            self.result.resolved_input.as_ref()?,
-                        ),
-                )
-            })
+            self.declared_read_flow_for_procedure(fu, procedure, &original_image)
         });
 
         // Unknown writers retire physical absence proofs. Declaration advice
@@ -1812,20 +1839,8 @@ is renamed or deleted in this file."
 
         // An authored declaration can delimit a diagnostic read without
         // overriding unknown writes, accepted operand layouts or SSA origins.
-        let declaration_advice = ir_proc.and_then(|procedure| {
-            rbs_read_option(
-                "read_recipe",
-                crate::script_binds::authored_procedure_read_advice(
-                    &procedure.body.executed_source.as_ref().map_or_else(
-                        || tcl_lexer::SourceImage::document(&self.source),
-                        |source| source.origin.source_image().clone(),
-                    ),
-                    procedure,
-                    &self.result,
-                    &self.analysis_context(),
-                ),
-            )
-        });
+        let declaration_advice =
+            ir_proc.and_then(|procedure| self.authored_read_advice_for_procedure(procedure));
 
         // Physical namespace write advice retains exact keys. Authored
         // host-name advice remains separate in extra_known_defined.
@@ -2109,6 +2124,48 @@ is renamed or deleted in this file."
         Some(reads)
     }
 
+    fn original_read_startup_readable(
+        &self,
+        access: &crate::command_binding::SourceVariableAccess,
+        read_cell: Option<&crate::var_resolve::VariableCellKey>,
+        read_reference: Option<crate::ssa::SsaReadReference>,
+        killed: bool,
+        ctx: &ReadBeforeSetCtx<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        let incoming = access.context_alternatives().iter().all(|context| {
+            let place = access.place_in_context(context, registry);
+            context.contents_origin(&place) == crate::var_resolve::ContentsOrigin::Incoming
+        });
+        read_cell.is_some_and(|cell| {
+            let version = read_reference.and_then(|read| read.version).unwrap_or(0);
+            let facts = startup_read_facts(
+                cell,
+                version,
+                killed,
+                ctx.initial_global,
+                ctx.global_aliases,
+                Some(self.analysis_context().context().authoring_query()),
+                &self.profile_registry(),
+            );
+            facts.lazy_read || incoming && facts.readable
+        })
+    }
+
+    fn original_read_reference_was_killed(
+        fu: &crate::compilation_unit::FunctionUnit,
+        ctx: &ReadBeforeSetCtx<'_>,
+        read_reference: Option<crate::ssa::SsaReadReference>,
+    ) -> bool {
+        read_reference.is_some_and(|read| {
+            read.version.is_some_and(|version| {
+                fu.ssa
+                    .cell_key(read.symbol)
+                    .is_some_and(|cell| ctx.supp.killed.contains(&(cell.clone(), version)))
+            })
+        })
+    }
+
     /// Potential missing contents require closed original read alternatives,
     /// independently of SSA versions. Unknown worlds and existing array roots
     /// cannot donate an undef finding.
@@ -2170,13 +2227,7 @@ is renamed or deleted in this file."
                     let read_cell = super::helpers::original_read_cell(access, &registry);
                     let read_reference =
                         view.read_reference(&access.source, &access.original_spelling);
-                    let killed = read_reference.is_some_and(|read| {
-                        read.version.is_some_and(|version| {
-                            fu.ssa.cell_key(read.symbol).is_some_and(|cell| {
-                                ctx.supp.killed.contains(&(cell.clone(), version))
-                            })
-                        })
-                    });
+                    let killed = Self::original_read_reference_was_killed(fu, ctx, read_reference);
                     let name = tcl_syntax::naming::var_reference_for_style(
                         &access.original_spelling,
                         grammar,
@@ -2192,24 +2243,14 @@ is renamed or deleted in this file."
                     {
                         continue;
                     }
-                    let incoming = access.context_alternatives().iter().all(|context| {
-                        let place = access.place_in_context(context, &registry);
-                        context.contents_origin(&place)
-                            == crate::var_resolve::ContentsOrigin::Incoming
-                    });
-                    let startup_readable = read_cell.as_ref().is_some_and(|cell| {
-                        let version = read_reference.and_then(|read| read.version).unwrap_or(0);
-                        let facts = startup_read_facts(
-                            cell,
-                            version,
-                            killed,
-                            ctx.initial_global,
-                            ctx.global_aliases,
-                            Some(self.analysis_context().context().authoring_query()),
-                            &self.profile_registry(),
-                        );
-                        facts.lazy_read || incoming && facts.readable
-                    });
+                    let startup_readable = self.original_read_startup_readable(
+                        access,
+                        read_cell.as_ref(),
+                        read_reference,
+                        killed,
+                        ctx,
+                        &registry,
+                    );
                     if startup_readable
                         || read_cell
                             .as_ref()

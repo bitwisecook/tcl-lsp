@@ -1776,6 +1776,93 @@ impl Analyser {
         )
     }
 
+    fn abstract_source_instantiation_diagnostic(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &crate::ir::CommandTokens,
+        span: tcl_lexer::Span,
+        #[cfg(test)] trace_state: (bool, &impl Fn(&str, Option<u32>, bool)),
+    ) -> Option<crate::analyser::types::Diagnostic> {
+        #[cfg(test)]
+        let (trace_enabled, trace) = trace_state;
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "w250.source_binding",
+                Some(span.start()),
+                tokens.source_binding.is_some(),
+            );
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        let owned =
+            binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry);
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "w250.original_module_metadata",
+                Some(span.start()),
+                owned.is_some(),
+            );
+        }
+        owned?;
+        let image = &cu.ir_module.source;
+        let original = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            binding.invocation_site()?.offset,
+            cu.ir_module.lexer_config,
+        );
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "w250.original_words",
+                Some(span.start()),
+                original.is_some(),
+            );
+        }
+        let original = original?;
+        let realm = self.result.retained_command_realm();
+        #[cfg(test)]
+        if trace_enabled {
+            trace("w250.analysis_realm", Some(span.start()), realm.is_some());
+        }
+        let realm = realm?;
+        let call = realm.original_source_constructor_call(input, &original);
+        #[cfg(test)]
+        if trace_enabled {
+            trace(
+                "w250.source_constructor",
+                Some(span.start()),
+                call.is_some(),
+            );
+        }
+        let call = call?;
+        let attempt = call.source_factory_attempt(&self.result);
+        #[cfg(test)]
+        if trace_enabled {
+            trace("w250.source_attempt", Some(span.start()), attempt.is_some());
+        }
+        let attempt = attempt?;
+        if !attempt
+            .factory_traits()
+            .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
+        {
+            return None;
+        }
+        let class_name = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(
+            attempt.class_declaration().source_slot(),
+        ))
+        .ok()?;
+        Some(crate::analyser::types::Diagnostic::new(
+            DiagCode::W250,
+            span,
+            format!("Instantiating abstract class '{class_name}' — use a concrete subclass"),
+            super::types::Severity::Warning,
+        ))
+    }
+
     /// W250 — instantiating an `oo::abstract` class.
     ///
     /// `TclOO`'s `oo::abstract` removes `new` / `create` from the class, so
@@ -1839,80 +1926,15 @@ impl Analyser {
             return;
         }
         let diagnostic = |tokens: &crate::ir::CommandTokens, span: tcl_lexer::Span| {
-            #[cfg(test)]
-            if trace_enabled {
-                trace(
-                    "w250.source_binding",
-                    Some(span.start()),
-                    tokens.source_binding.is_some(),
-                );
-            }
-            let binding = tokens.source_binding.as_ref()?;
-            let owned =
-                binding.original_invocation_metadata_for_module(tokens, &cu.ir_module, registry);
-            #[cfg(test)]
-            if trace_enabled {
-                trace(
-                    "w250.original_module_metadata",
-                    Some(span.start()),
-                    owned.is_some(),
-                );
-            }
-            owned?;
-            let image = &cu.ir_module.source;
-            let original = crate::registry_invocation::original_native_compiler_words(
-                image,
-                tokens.words(),
-                binding.invocation_site()?.offset,
-                cu.ir_module.lexer_config,
-            );
-            #[cfg(test)]
-            if trace_enabled {
-                trace(
-                    "w250.original_words",
-                    Some(span.start()),
-                    original.is_some(),
-                );
-            }
-            let original = original?;
-            let realm = self.result.retained_command_realm();
-            #[cfg(test)]
-            if trace_enabled {
-                trace("w250.analysis_realm", Some(span.start()), realm.is_some());
-            }
-            let realm = realm?;
-            let call = realm.original_source_constructor_call(input, &original);
-            #[cfg(test)]
-            if trace_enabled {
-                trace(
-                    "w250.source_constructor",
-                    Some(span.start()),
-                    call.is_some(),
-                );
-            }
-            let call = call?;
-            let attempt = call.source_factory_attempt(&self.result);
-            #[cfg(test)]
-            if trace_enabled {
-                trace("w250.source_attempt", Some(span.start()), attempt.is_some());
-            }
-            let attempt = attempt?;
-            if !attempt
-                .factory_traits()
-                .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
-            {
-                return None;
-            }
-            let class_name = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(
-                attempt.class_declaration().source_slot(),
-            ))
-            .ok()?;
-            Some(crate::analyser::types::Diagnostic::new(
-                DiagCode::W250,
+            self.abstract_source_instantiation_diagnostic(
+                cu,
+                registry,
+                input,
+                tokens,
                 span,
-                format!("Instantiating abstract class '{class_name}' — use a concrete subclass"),
-                super::types::Severity::Warning,
-            ))
+                #[cfg(test)]
+                (trace_enabled, &trace),
+            )
         };
         let mut diags = Vec::new();
         for fu in cu.analysable_body_function_units() {
