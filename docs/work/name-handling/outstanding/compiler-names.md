@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-24T11:00:15.844390+00:00
+Last updated: 2026-10-24T11:34:45.928820+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -440,6 +440,8 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+Current 2026-10-24T11:34:45.928820+00:00: CompilerV8 independent HOLD4acaaec9 complete (exact5files/type/owner/copy/fmt/oldtests), stale Root Source clean value after unsupported writes unresolved. Compiler designing raw Root SSA taint allUnknown plus separate exact owned same-block literal-read advisory; no advanceclear. Names genuine fresh-method draft now /tmp/names-jim-fresh-method-entry-draft-v1: full authored original root definition-only prefix matched against sealed class/method publications, permits reviewed single empty-base inheritance (class Point3 Point), refuses SourceOriginKind InheritedPoint/loaded/derived and any ref/other/nested/partial prefix. Typed fresh-root observation+initial empty reference model, private conditional prelude view and broad generated-reference footprint withdrawal being wired; DRAFT/no peer/no freeze/no322 claim. Generic/public future remains opaque, old debts and actualdispatch priority kept. Final metadata V3 f74a34d4/59bf2181 remains pending/held source stage, no originalassert correction. LatestJim1794 actual6P1F, 1058 modes excludeJim. No localbuild/canonical mutation.
 
 Current 2026-10-24T11:00:15.844390+00:00: final NamesV3 f74a34d4/59bf2181 remains non-closing source producer pending peer, no further metadata revisions. Original7 unchanged; actual1794 still6P1F excluding later inherited/scope. CompilerV8 substantive peer active; owned Authored terminality fixed by source-only reorder and profileless adverse test, rest under review. Next genuine Jim implementation is fresh-root plus fully original reference-free prefix -> normal-only stock New/defaultconstructor/Vars entry with symbolic caller-name footprint and preserved errors; no Native/frame/purpose/Eq weakening, no assertion correction. No local builds; root-only canonical/Git/dispatch.
 
