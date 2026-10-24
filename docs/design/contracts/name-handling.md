@@ -2333,8 +2333,8 @@ surrogate-interior positions; LSP line geometry includes lone CR. Whole static
 Unicode values are presentation/query data only. A computed tail after a
 substitution closer is not recovered by scanning delimiters or stripping `::`.
 No value supplies declaration identity, Native dispatch, absence or edit
-permission. The public standalone delimiter helper and its other legacy callers
-remain compatibility paths pending their separate migrations.
+permission. The public standalone delimiter helper and its other callers retain their
+compatibility interfaces.
 
 The hover static-word label remains optional before the independent original
 Registry branch. Actual selected expansion/list-child operand owners may supply
@@ -2714,8 +2714,8 @@ contains embedded Markdown fences.
 Unsupported provider optimisation capabilities, invalid UTF16/byte coordinates,
 unpaired surrogates, stale selections, and unavailable source constructors
 withhold the affected publication. The generic compile path remains available.
-No multi-file filesystem transaction, runtime dispatch guarantee, or complete
-Studio migration follows from these bounded owners.
+Export operations publish individual files. Their source receipts do not
+establish runtime dispatch.
 
 ### Bounded generated Lua source containers
 
