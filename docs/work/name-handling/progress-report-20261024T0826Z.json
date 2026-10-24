@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-24T08:26:44.651269+00:00",
+  "scheduled_report_utc": "2026-10-24T08:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T08:55:37+00:00",
+  "change_since_previous_report": [
+    "Reviewed product fixes are pushed on work at deaa6b9d4ef2a03822496d11e7d8fdf4ab0ae167; the release cleanup branch is a2f2a9cc2820de9a3fd1d54ac8d6f137e3fec26e. Both normal pushes followed a fresh shallow work fetch and rebase. No PR, merge, tag or release. The six-hour target was missed; all release requirements remain in force.",
+    "The fresh 79495f701 scoped lint capture is authenticated across the full 126059-file Git tree and stable source/tool records: database strict all-target/all-feature Clippy passes; core reports one BIGIP assertion lint and server reports four length lints. There are zero located Rust compiler errors. The repaired rename helpers are in the correct implementation. Inventory 0c03bbe4 and source/process seals f8fce4c1 are under /workspace/naming-proof-storage/lsp-clippy40076485002. Failed scopes remain incomplete; older unobserved diagnostics are not treated as resolved.",
+    "All three final reviewed server refactors are now integrated: workspace scan, disk publication and scan merge. Independent semantic/type/owner reviews and current-source reconstruction preserve guards, lock lifetimes, cancellation, batch ownership, helper containers, assertions and release-only cleanup. Root carry records are root-peer-scan-v6.json, root-peer-disk-v5.json and root-peer-merge-v5.json. The additional hover length finding and generic core assertion lints still need fixes and fresh strict execution.",
+    "Eight command/scalar fixture lint fixes are integrated using combined V4 only. Review found and corrected an extra reference in the numeric helper before integration; V2 remains held. Independent b1a0c938 binds the corrected whole-source patch, all original assertions and conversion ordering, complete-pair remainder semantics, Copy values and unchanged test registration. This is static review, not a Clippy or semantic test pass. Four registry length fixes are drafted for independent review.",
+    "All seven affected standalone product lockfiles now use crypto-bigint 0.7.6 and ctutils 0.4.5, following precise Cargo resolution and independent 64309d11 graph/raw-byte review. Historical evidence locks are untouched. Main workspace lock was already fixed. A new cargo-deny result is still required.",
+    "Fresh authenticated 79495f701 results: Jim remains 6/7 PASS; SpecTcl remains 9/11 PASS plus the Native supplement FAIL; preflight remains 0/3 PASS; real WASM remains 22/25 PASS. The preflight string-map operation now closes its previous 61-byte-body frontier and reaches a new unsupported operation. SpecTcl held diagnostics identify the retained module deferred-write-any flag as the actual folding barrier; its producer is being traced without weakening fail-closed behavior. Compiler67 remains in progress.",
+    "Fresh runtime preliminary evidence again has all three original tests PASS, append taking 170.901 seconds. Supplement counts remain 8P6F, stack abort, 4P99F, 6P1F and targeted3P. Full source/process joins are still running. The Env observer identifies scalar numeric input refusal during frame selection; the Native test host lacks its numeric environment provider. A narrow genuine-provider fixture correction is being prepared; no host default, assertion or errno policy is relaxed.",
+    "Both full release formatting checks pass on a16937bb3: root workspace and standalone runtime Cargo fmt, stable source, empty output and closed process groups. This predates the final merge refactor and is not final-tip format acceptance. Pure preflight V8 passes on work66cf2078 with startup13, 27 runners and 13 whole-input guards.",
+    "Paired shipping-build performance run 40077894896 is active on exact clean candidate a16937bb37d27622237b608f79b122dc542bf6cf against origin/rust fcb7927f02b5395753247b322fdd7be87ae5c731. Six jobs cover small, medium and full Tcl corpora on Linux and macOS using the four verified harness pins. These scopes exclude dedicated iRules performance. No result or final-candidate performance admission is claimed.",
+    "Old clean full CI 40039952540 and ordinary clean CI 40068590762 are completed and red. Work CI 40071600890 is still red with three shards active at the last poll. Required green shipping CI, complete zero baseline pass-to-fail, integrated section F scenarios, source transformations, cancellation/memory and final generated/documentation checks remain open.",
+    "Disk recovery removed 1844719243 bytes of obsolete build output after the owning role and all primary roles confirmed it unused. All 1971 files were at least 13 hours old; process checks found only defunct Z entries and no executing Cargo/rustc before and during deletion. Exact path/mode/size/mtime inventory is root-ccg-old-target-reclamation-20261024T0819Z.json. Source, providers, receipts and young executables were preserved. Free workspace disk is approximately 1.9 GB, so local builds remain stopped below the 2 GiB floor.",
+    "All primary-role trackers are current. External BIGIP and perf trackers remain more than 60 minutes stale; the user is notified and their work is not taken over. Review triage is complete. Next scheduled checkpoint is 08:55 UTC."
+  ],
+  "committed": [
+    "a107530de548eb6c02f53b600ff088c6db778ee5"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish the 08:25 snapshot/report and rearm the 08:55 reminder.",
+    "Complete hover, registry lint review, Env provider fixture and semantic compiler/Jim/Spec fixes.",
+    "Authenticate all fresh actuals and paired Tcl performance; rerun affected gates on fixed source.",
+    "Require complete zero baseline regressions, green shipping CI, section F and final release cleanup before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global gate or audit-unit admissions. Exact scoped database lint and historical-tip formatting passes are recorded with bounded provenance; baseline and shipping performance remain unaccepted.",
+  "disk_free_bytes": 1878339584,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

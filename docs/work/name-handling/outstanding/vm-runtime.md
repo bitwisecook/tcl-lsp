@@ -1,7 +1,7 @@
 # Outstanding work: vm-runtime agent
 
 Area: standalone runtime, shared VM, guarded runtime protocols and assigned peers.
-Last updated: 2026-10-24T07:51:28Z
+Last updated: 2026-10-24T08:08:14Z
 
 ## Resume and rules
 
@@ -18,6 +18,16 @@ strict/baseline/semantic/performance gates remain binding. No duplicate dispatch
 Earlier complete snapshots: vm-runtime-tracker-20261024T0255Z.md.gz,0431Z.md.gz and
 NEW vm-runtime-tracker-20261024T0625Z.md.gz under naming-proof-storage (lossless).
 All receipts/proposals named below use that storage root unless absolute /tmp.
+
+## Active fresh79495f runtime: original outcomes PENDING
+
+Rootwave runtime40076490175/job120820821931 discoveredactivecapture08:08:14Z on
+79495f701e107271e04ac7ba52eb043a785305da. Source includes EnvFailureSnapshot and
+FIRST_UPVAR_FAILURE; no actualcompile/phase/refusalcase resultknownyet. Same131planned
+invocations/rosters/budgets/guards; no duplicate dispatch orlocalbuild. Evidence next
+vm-runtime-actual-40076490175; ZIP-only large maps. Earlierdd9 outcomes below remain
+independentactual; freshobserver notretroactive cause proof. WASM40076494620 separate
+CCGowner, runtimeactualinterrupts further cosmetic/source peers.
 
 ## Latest actual dd9: original3 PASS, supplement negative, CFI incomplete
 
@@ -185,11 +195,29 @@ Copyheld failure snapshot onlypostnonOk beforeSAME oldresultgetter. Existingflag
 prints postfailure; staticrefusalkind/Copyaccess/admission/busy/hostpresence/nullable
 resultnumericheader metadata. No Nativeerrorclone/query/getter/retain/reset/counters/
 assertion/budget changes. Originalallguards/testbodies/callcounts exact; fullreplay/
-F-R-F0/fmt4PASS; independenttype/ownerpeer PENDING(rootrouting). NotCLEANcarried.
+F-R-F0/fmt4PASS; CCG independentSOURCE/API/lifetime/protocol STATIC CLEAR
+ccg-peer-env-upvar-observer-v1/receipt.json
+SHAe38ea49b9cc102ae263f79b76ec207d20350089c9f2c3882cd81029facd59bb2
+verified/rootnotified. Readyrootintegration; noCLEANcarry/freshactualyet.
 Firstupvar failure canbeearliercaught error; snapshotbeforeexistingresultgetter shows
 heldstateatactualevalreturn, not a new sourceoperation. Rawaddresses metadataonly.
 
 ## Source peers handed off (fresh strict/runtime still mandatory)
+
+Disk1 V4 WORKf44ae0e7/fa62ad0b CLEAN2afb9c2f/ad0cc625 fullindependent
+SOURCE/TYPE/OWNER/LOCK/DROP/CANCEL +CURRENTINTERVAL CLEAR
+vm-peer-lsp-disk1-v4/review.json
+SHA91d1e064003b80ce4855bb5e59737bc97c3a5ae8670703508d1e7b397573c4ea.
+Onlypublish_admitted_disk_results_while_rehoming_locked +4sync helpers/newborrowed
+selectionpacket. Same9publicationguards, snapshotcensus→docs attempt; explicitfailed
+lockdrop beforeoriginalrestartawait. Docsdrop samepoint beforeconfigguards; classifier
+retainsinputrefs only, notdocs/removal_policy; same3Vec order/owners/drop endpoints.
+No extraasync/query/lock/clone/allow. Helpers explicitlyinherentBackend (priorNames
+traitplacementmiss not inherited). BothcommonGitbefore/fulloutsideinverse/copy0/fmt2/
+oldtests/assertallow/Arc exact. Currentwholeoldparentonce WORK79495f/CLEANb718 with
+boundlibhashes; helpers+packet absent. LSP versionedparent/helperunionONLY, notwhole
+sourceoverwrite. Noactualtype/Clippy/liveness/runtime/perfclaim. Root/LSPnotified.
+
 
 API3 callback/descriptor cleanup WORK2e96d7d4/man583507aa CLEANdc26a288/manb8cc47cf
 independent STATICTYPE/OWNER CLEAR vm-peer-runtime-api3-v1/review.json
