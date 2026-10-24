@@ -94,6 +94,14 @@ impl CompilerTraversal<'_> {
                 tcl_registry::native_instruction_plan::NativeConcatInstruction::Operands(operands),
             ) => self.original_operands(words, operands.iter().cloned(), context),
             NativeInstructionPlan::Concat(_) => None,
+            NativeInstructionPlan::FormatStringConcat(recipe) => self.original_operands(
+                words,
+                recipe.pieces.iter().filter_map(|piece| match piece {
+                    tcl_registry::native_instruction_plan::NativeFormatStringPiece::Value(word) => Some(NativeCompilerWordOperand::Original(*word)),
+                    tcl_registry::native_instruction_plan::NativeFormatStringPiece::Literal(_) => None,
+                }),
+                context,
+            ),
             NativeInstructionPlan::NamespaceBindings(recipe) => {
                 self.original_namespace_preparations(words, recipe, context)
             }

@@ -189,6 +189,10 @@ enum Operation {
     ),
     Invoke,
     List(NativeCompiledListRecipe, Option<usize>),
+    FormatStringConcat {
+        operands: Vec<NamespaceOperand>,
+        prepared_words: HashMap<usize, WordInstruction>,
+    },
     Concat {
         literal: Option<usize>,
         operands: Vec<NamespaceOperand>,
@@ -1195,6 +1199,9 @@ impl Builder<'_> {
                 };
                 Operation::List(recipe, index)
             }
+            NativeInstructionPlan::FormatStringConcat(recipe) => {
+                self.format_string_operation(&captured, recipe, depth)?
+            }
             NativeInstructionPlan::Concat(recipe) => {
                 use tcl_registry::native_instruction_plan::{
                     NativeConcatInstruction, NativeConcatLiteralAllocation,
@@ -1285,6 +1292,32 @@ impl Builder<'_> {
             original: original.clone(),
             literal,
             arena,
+        })
+    }
+
+    fn format_string_operation(
+        &mut self,
+        captured: &NativeCompilerWords<'_>,
+        recipe: tcl_registry::native_instruction_plan::NativeFormatStringInstruction,
+        depth: u32,
+    ) -> Result<Operation, tcl_cmd_core::CmdError> {
+        use tcl_registry::native_instruction_plan::{
+            NativeFormatLiteralAllocation as Allocation, NativeFormatStringPiece as Piece,
+        };
+        let mut prepared_words = HashMap::new();
+        let mut operands = Vec::new();
+        for piece in recipe.pieces {
+            operands.push(match piece {
+                Piece::Literal(bytes) => NamespaceOperand::Literal(match recipe.literal_allocation {
+                    Allocation::Registered => self.literals.intern_bytes(&bytes),
+                    Allocation::PrivateString => self.literals.register_private_concat_string(&bytes),
+                }),
+                Piece::Value(word) => self.namespace_operand(captured, &tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(word), &mut prepared_words, depth)?,
+            });
+        }
+        Ok(Operation::FormatStringConcat {
+            operands,
+            prepared_words,
         })
     }
 
@@ -1485,7 +1518,9 @@ impl Builder<'_> {
                         continue;
                     }
                 }
-                if let Operation::Concat { prepared_words, .. } = &mut operation {
+                if let Operation::Concat { prepared_words, .. }
+                | Operation::FormatStringConcat { prepared_words, .. } = &mut operation
+                {
                     if let Some(word) = prepared_words.remove(&index) {
                         words.push(word);
                         continue;
@@ -1642,7 +1677,7 @@ impl Builder<'_> {
                                 ))
                     }
                     Operation::List(NativeCompiledListRecipe::DynamicElements, _) => index > 0,
-                    Operation::Concat { operands, .. } => operands.iter().any(|operand| matches!(operand, NamespaceOperand::Original(word) if index == *word)),
+                    Operation::Concat { operands, .. } | Operation::FormatStringConcat { operands, .. } => operands.iter().any(|operand| matches!(operand, NamespaceOperand::Original(word) if index == *word)),
                     Operation::Switch(switch) => matches!(
                         switch.recipe.subject,
                         tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(word)
@@ -2255,6 +2290,29 @@ impl Interp {
             ));
         }
         self.body_arena(artifact, &word.arena, execution)
+    }
+
+    fn body_format_string_concat(
+        &mut self,
+        artifact: &NativeBodyArtifact,
+        command: &CommandInstruction,
+        operands: &[NamespaceOperand],
+        execution: &mut BodyExecution,
+    ) -> Result<obj::Owned, Code> {
+        let original = native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let reached = (|| {
+            let values = operands
+                .iter()
+                .map(|operand| self.body_namespace_operand(artifact, command, operand, execution))
+                .collect::<Result<Vec<_>, _>>()?;
+            self.concatenate_body_values_using(values, Some(&original))
+                .map_err(|error| self.report_cmd_error(error))
+        })();
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
 
     fn body_namespace_operand(
@@ -3679,6 +3737,12 @@ impl Interp {
                 self.set_result(value.as_ptr());
                 Ok(Code::Ok)
             }
+            Operation::FormatStringConcat { operands, .. } => {
+                let value =
+                    self.body_format_string_concat(artifact, command, operands, execution)?;
+                self.set_result(value.as_ptr());
+                Ok(Code::Ok)
+            }
             Operation::Concat {
                 literal, operands, ..
             } => {
@@ -3823,6 +3887,9 @@ impl NativeBodyArtifact {
 
 #[cfg(test)]
 mod control_expression_tests;
+#[cfg(test)]
+#[path = "native_body_artifact/format_tests.rs"]
+mod format_tests;
 #[cfg(test)]
 #[path = "native_body_artifact/namespace_tests.rs"]
 mod namespace_tests;

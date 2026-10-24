@@ -72,6 +72,7 @@ mod native_upvar;
 /// compilation unit without recursive emitter calls or depth-limited views.
 enum NativeEmissionTask {
     NativePreparationLiteral(Vec<u8>),
+    NativePrivateFormatLiteral(Vec<u8>),
     NativeDictionaryUpdateOperation(Op, Vec<u8>, Vec<Vec<u8>>),
     NativeArrayEachStart(
         tcl_dialect::TclVersion,
@@ -1912,6 +1913,7 @@ impl CodegenCtx<'_> {
                 | Task::NativeListRange(..)
                 | Task::NativeListInsertion(..)
                 | Task::Literal(..)
+                | Task::NativePrivateFormatLiteral(..)
                 | Task::PrivateReturnOptions(..)
                 | Task::PoolLiteral(..)
                 | Task::Label(..)) => self.emit_native_literal_task(selected),
@@ -2027,6 +2029,10 @@ impl CodegenCtx<'_> {
                 let instruction =
                     self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(index.encoded())]);
                 self.instructions[instruction].native_list_index = Some(index);
+            }
+            Task::NativePrivateFormatLiteral(bytes) => {
+                let index = self.literals.register_private_concat_string(&bytes);
+                self.push_native_pool_literal(index);
             }
             Task::Literal(bytes) => {
                 self.push_lit_bytes_exact(&bytes);
@@ -2889,6 +2895,7 @@ impl CodegenCtx<'_> {
         match instruction {
             selected @ (NativeInstructionPlan::Unset(_)
             | NativeInstructionPlan::Concat(_)
+            | NativeInstructionPlan::FormatStringConcat(_)
             | NativeInstructionPlan::DictionaryScope(_)
             | NativeInstructionPlan::GenericPreparation(_)
             | NativeInstructionPlan::Error(_)
@@ -2997,6 +3004,9 @@ impl CodegenCtx<'_> {
         match instruction {
             NativeInstructionPlan::Unset(recipe) => self.native_unset_tasks(command, recipe),
             NativeInstructionPlan::Concat(recipe) => self.native_concat_tasks(command, recipe),
+            NativeInstructionPlan::FormatStringConcat(recipe) => {
+                Self::native_format_tasks(command, recipe)
+            }
             NativeInstructionPlan::DictionaryScope(recipe) => {
                 self.native_dictionary_scope_tasks(command, recipe)
             }
@@ -3682,6 +3692,35 @@ impl CodegenCtx<'_> {
             end: end.clone(),
         });
         end
+    }
+
+    fn native_format_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_instruction_plan::NativeFormatStringInstruction,
+    ) -> Option<Vec<NativeEmissionTask>> {
+        use tcl_registry::native_instruction_plan::{
+            NativeFormatLiteralAllocation as Allocation, NativeFormatStringPiece as Piece,
+        };
+        let count = recipe.pieces.len();
+        let mut tasks = Vec::new();
+        for piece in recipe.pieces {
+            tasks.push(match piece {
+                Piece::Literal(bytes) => match recipe.literal_allocation {
+                    Allocation::Registered => NativeEmissionTask::Literal(bytes),
+                    Allocation::PrivateString => {
+                        NativeEmissionTask::NativePrivateFormatLiteral(bytes)
+                    }
+                },
+                Piece::Value(word) => NativeEmissionTask::Word(command.words.get(word)?.clone()),
+            });
+        }
+        if count > 1 {
+            tasks.push(NativeEmissionTask::Operation(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(super::bytecode_imm(count))],
+            ));
+        }
+        Some(tasks)
     }
 
     fn native_concat_tasks(
@@ -5129,3 +5168,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "native_format_tests.rs"]
+mod native_format_tests;
