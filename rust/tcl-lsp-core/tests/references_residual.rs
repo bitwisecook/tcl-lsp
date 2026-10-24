@@ -16,20 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage tests for `tcl-lsp-core/src/references.rs` — the
+//! Regression tests for `tcl-lsp-core/src/references.rs` — the
 //! find-all-references (`references`) and document-highlight
 //! (`document_highlights`) providers.
 //!
-//! The sibling `references_rename.rs` already covers the proc / variable /
-//! namespace paths of `references`. This file targets the branches that suite
-//! leaves cold (verified with `cargo llvm-cov --show-missing-lines`):
+//! These tests cover:
 //!
 //!   * **class references** — cursor on a class name surfaces the declaration,
 //!     every `<Class> new` instantiation, and every `superclass` / `mixin`
-//!     usage in other class bodies (`references` lines 154-179; the mirror
-//!     class block in `document_highlights` lines 704-720).
-//!   * **`document_highlights`** as a whole — no integration test exercised it
-//!     before; here it is driven over variables, classes, and class members.
+//!     usage in other class bodies.
+//!   * **`document_highlights`** over variables, classes, and class members.
 //!   * **class-member references** — methods / classmethods / properties, the
 //!     destructor-body scan, empty-body siblings, and external `$obj method`
 //!     call sites threaded through proc bodies and `[...]` substitutions.
@@ -61,7 +57,7 @@
 //!     object — `C build` is the real call form).
 //!   * `oo::class create P {variable color; constructor {} {set color red};
 //!     method show {} {return $color}}; puts [[P new] show]`  -> red.
-//!   * BUG witness: a *bare* `greet` at command-head position inside a sibling
+//!   * A *bare* `greet` at command-head position inside a sibling
 //!     method body is NOT a valid `TclOO` call —
 //!     `oo::class create C {method greet {} {return hi};
 //!      method twice {} {return "[greet][greet]"}}; puts [[C new] twice]`

@@ -16,21 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Depth coverage of the `tcl-lsp-core` code-actions provider
-//! (`src/code_actions.rs`), the lowest-covered file in the crate.
-//!
-//! The sibling `lsp_lens_links_symbols.rs` already exercises eight
-//! code-action paths (W302 catch capture, extract-proc, IPv4→IPv6, De Morgan,
-//! generate-docstring, W213 unset, W120 / fuzzy `package require`, IRULE5002).
-//! This file deliberately AVOIDS those and drives the UNCOVERED branches:
+//! Code-action regression tests for Tcl refactors, compiler quick fixes,
+//! context diagnostics and edit ranges:
 //!
 //!   * `continuation_comment_actions` — W115 "Convert to per-line comments"
 //!     (direct backslash-continued-comment shape detection).
 //!   * `invert_comparison` — the second `expr_rewrite_actions` branch.
 //!   * `demorgan_transform` reverse direction (`!X || !Y` → `!(X && Y)`).
 //!   * IPv6-mapped → IPv4 reverse conversion.
-//!   * `inline_proc_action` — "Inline proc 'X'" (incl. a SAFETY-DECLINE
-//!     negative control, and a known BUG repro left commented out).
+//!   * `inline_proc_action` — "Inline proc 'X'", including refusal controls
+//!     and preservation of closing braces in expressions.
 //!   * `switch_to_dict` via the code-actions surface.
 //!   * IRULE5004 (`DNS::return` without `return`) check-fix lift.
 //!   * `context_diagnostic_actions` — T106 redundant-encoder removal,
@@ -56,7 +51,7 @@
 //!     are equivalent representations).
 //!   * a braced-list `switch -exact` and the matching `dict get` agree.
 //!   * `info complete` distinguishes a complete `expr {…}` from a brace-
-//!     truncated one — the lever that exposes the inline-proc BUG below.
+//!     truncated one, as required by the inline-proc regression below.
 //!
 //! Facts verified identically on tclsh8.6 AND tclsh9.0 unless noted.
 
@@ -691,7 +686,7 @@ fn ip_conversion_absent_on_non_ip_word() {
     );
 }
 
-// inline_proc_action — "Inline proc 'X'" (+ decline + a known BUG repro)
+// inline_proc_action — "Inline proc 'X'" and refusal controls.
 
 #[test]
 fn inline_single_command_proc_substitutes_args() {
@@ -1301,7 +1296,7 @@ fn every_emitted_action_is_structurally_sound() {
 // range shapes above are LSP wire contract — asserted STRUCTURALLY. The
 // Tcl-semantic premises each fix encodes (boolean-rewrite equivalence, the
 // IPv6-mapped embedding, switch/dict agreement, the html_encode escape, and the
-// inline-proc brace-completeness that exposed the BUG) are pinned to real
+// inline-proc brace-completeness) are pinned to real
 // tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh` and cited at each
 // `// tclsh:` line.
 
