@@ -50,6 +50,23 @@ pub(super) struct DeclaredProcedureBody {
     authored_original_body_word: Option<tcl_lexer::NativeWord>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct OriginalLogicalProcedureStaticFacet {
+    input: crate::analyser::ResolvedAnalysisInput,
+    source: Arc<super::SourceOriginId>,
+    frame: crate::var_resolve::VariableExecutionFrame,
+    namespace: super::SourceNamespaceKey,
+    variables: Arc<crate::var_resolve::ResolveContext>,
+    config: tcl_lexer::LexerConfig,
+    original: Vec<tcl_lexer::NativeWord>,
+    effective: crate::registry_invocation::EffectiveCommandWords,
+    values: Vec<String>,
+    statics: Option<(
+        usize,
+        Vec<tcl_registry::native_procedure::StaticVariableDeclaration>,
+    )>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OriginalAuthoredDeclarationSourceObligation {
     PrefixEffects,
@@ -288,6 +305,48 @@ impl OriginalProcedureReadFlowEntry {
 }
 
 impl DeclaredProcedureBody {
+    pub(super) fn static_source_uncertainty(
+        &self,
+        layouts: &super::declaration_layout::DeclarationLayouts,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<std::collections::BTreeSet<String>> {
+        let mut agreed = None;
+        for row in original_declaration_layouts(layouts.get(&self.declaration)?)? {
+            if row.config != input.lexer_config() {
+                return None;
+            }
+            let tokens = declaration_tokens(&self.declaration, row)?;
+            let advice = super::original_site_operand_layout_advice(
+                &self.declaration,
+                &tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            let facet = logical_procedure_static_facet(
+                &self.declaration,
+                &tokens,
+                row,
+                registry,
+                input,
+                &advice,
+                self,
+            )?;
+            if agreed.as_ref().is_some_and(|previous| previous != &facet) {
+                return None;
+            }
+            agreed = Some(facet);
+        }
+        Some(
+            agreed?
+                .statics
+                .into_iter()
+                .flat_map(|(_, variables)| variables.into_iter().map(|variable| variable.name))
+                .collect(),
+        )
+    }
+
     pub(super) fn matches_original_procedure_source(
         &self,
         procedure: &crate::ir::Procedure,
@@ -2706,6 +2765,89 @@ fn logical_procedure_body_recipe(
             return None;
         }
         agreed = Some(body);
+    }
+    agreed
+}
+
+fn logical_procedure_static_facet(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    advice: &super::OriginalCompilationLookupAdvice,
+    body: &DeclaredProcedureBody,
+) -> Option<OriginalLogicalProcedureStaticFacet> {
+    (observation
+        .snapshot
+        .state
+        .logical_source_name_advice_input()?
+        == input)
+        .then_some(())?;
+    let original_body =
+        logical_procedure_body_recipe(site, tokens, observation, registry, input, advice)?;
+    (original_body == *body).then_some(())?;
+    let original =
+        capture_logical_procedure_words(site, tokens, observation, registry, input, advice)?;
+    let actual_context = input.context_registry();
+    let mut agreed = None;
+    for target in advice.targets() {
+        let effective = effective_words_for_target(tokens, target)?;
+        let values =
+            logical_procedure_values(target, &effective, &original, input, site, observation)?;
+        let words = values
+            .iter()
+            .map(|value| tcl_registry::InvocationWord::Literal(value))
+            .collect::<Vec<_>>();
+        let (&head, arguments) = words.split_first()?;
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                Some(actual_context.context()),
+                tcl_registry::InvocationWords::structured(head, arguments)
+                    .with_dialect(advice.dialect()),
+                advice.realm(),
+            );
+        let statics = match resolution
+            .resolved()?
+            .authored_source_procedure_static_list()?
+        {
+            tcl_registry::resolved_invocation::AuthoredSourceProcedureStaticList::Absent => None,
+            tcl_registry::resolved_invocation::AuthoredSourceProcedureStaticList::Argument(at) => {
+                let ordinal = at.checked_add(1)?;
+                let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+                    effective.origins.get(ordinal)?
+                else {
+                    return None;
+                };
+                let word = original.get(*written)?.word();
+                if word.image() != site.source.source_image() || word.config() != observation.config
+                {
+                    return None;
+                }
+                let variables = tcl_registry::native_procedure::parse_static_variables(
+                    words.get(ordinal)?.literal()?,
+                )
+                .ok()?;
+                Some((at, variables))
+            }
+        };
+        let facet = OriginalLogicalProcedureStaticFacet {
+            input: input.clone(),
+            source: Arc::clone(&site.source),
+            frame: observation.snapshot.state.variable_frame.clone(),
+            namespace: observation.namespace.clone(),
+            variables: Arc::clone(&observation.snapshot.state.source_variables),
+            config: observation.config,
+            original: original.iter().map(|value| value.word().clone()).collect(),
+            effective,
+            values,
+            statics,
+        };
+        if agreed.as_ref().is_some_and(|previous| previous != &facet) {
+            return None;
+        }
+        agreed = Some(facet);
     }
     agreed
 }

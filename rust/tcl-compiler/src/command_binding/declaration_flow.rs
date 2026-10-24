@@ -251,14 +251,14 @@ pub(crate) struct DeclarationFlowReport {
 /// definedness, alias suppression, store, CFG, entered-frame or execution facts.
 pub(crate) struct OriginalDeclaredProcedureReadOccurrences {
     report: Arc<DeclarationFlowReport>,
+    uncertain_statics: BTreeSet<String>,
 }
 
 impl OriginalDeclaredProcedureReadOccurrences {
     pub(crate) fn occurrences(&self) -> impl Iterator<Item = (&String, &tcl_lexer::Span)> {
-        self.report
-            .warning_reads
-            .iter()
-            .filter(|(name, _)| !self.report.aliases.contains(*name))
+        self.report.warning_reads.iter().filter(|(name, _)| {
+            !self.report.aliases.contains(*name) && !self.uncertain_statics.contains(*name)
+        })
     }
 }
 
@@ -522,7 +522,13 @@ impl SourceInvocationBinding {
         entry
             .matches_original_procedure_source(procedure, image)
             .then_some(())?;
-        Some(OriginalDeclaredProcedureReadOccurrences { report })
+        let inventory = self.declaration_flow_inventory.as_ref()?;
+        let uncertain_statics =
+            entry.static_source_uncertainty(&inventory.layouts, input, registry)?;
+        Some(OriginalDeclaredProcedureReadOccurrences {
+            report,
+            uncertain_statics,
+        })
     }
 
     pub(crate) fn declaration_flow_report(

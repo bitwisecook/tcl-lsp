@@ -1442,6 +1442,15 @@ pub struct AuthoredSourceProcedureArguments {
     pub body: usize,
 }
 
+/// Static-list source geometry, without native parsing or an entered frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredSourceProcedureStaticList {
+    /// The complete selected declaration roles contain no static-list operand.
+    Absent,
+    /// Effective post-head ordinal of the one selected static-list operand.
+    Argument(usize),
+}
+
 /// Registry descriptors already selected for readonly source assistance.
 /// These references retain their selected availability and argv context;
 /// they cannot establish installed handlers, execution or rewrite permission.
@@ -3827,6 +3836,31 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .then_some(())?;
         }
         Some(positions)
+    }
+
+    /// Independently selected source static-list geometry. Unavailable or
+    /// conflicting roles cannot be treated as an absent static operand.
+    #[must_use]
+    pub fn authored_source_procedure_static_list(
+        &self,
+    ) -> Option<AuthoredSourceProcedureStaticList> {
+        let shape = self.authored_source_procedure_arguments()?;
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        complete.then_some(())?;
+        let mut statics = roles.iter().filter_map(|&(position, role)| {
+            (role == ArgRole::StaticVarList)
+                .then_some(self.semantics.argument_offset + usize::from(position))
+        });
+        match (statics.next(), statics.next()) {
+            (None, None) => Some(AuthoredSourceProcedureStaticList::Absent),
+            (Some(at), None)
+                if at < count && ![shape.name, shape.parameters, shape.body].contains(&at) =>
+            {
+                Some(AuthoredSourceProcedureStaticList::Argument(at))
+            }
+            _ => None,
+        }
     }
 
     /// Readonly roles in an independently retained Logical source model.
@@ -7928,6 +7962,72 @@ mod tests {
         assert!(selected.words.arguments().exact_argv_len().is_none());
         assert!(selected.authored_source_procedure_arguments().is_none());
         assert!(!selected.facts().arg_roles_complete);
+    }
+
+    #[test]
+    fn authored_source_static_list_position_rejects_duplicate_or_overlapping_roles() {
+        for (roles, arguments, expected) in [
+            (
+                &[
+                    (0, ArgRole::Name),
+                    (1, ArgRole::ParamList),
+                    (2, ArgRole::StaticVarList),
+                    (3, ArgRole::Body),
+                ][..],
+                &["p", "arg", "{n 0}", "BODY"][..],
+                Some(Some(2)),
+            ),
+            (
+                &[
+                    (0, ArgRole::Name),
+                    (1, ArgRole::ParamList),
+                    (2, ArgRole::StaticVarList),
+                    (3, ArgRole::StaticVarList),
+                    (4, ArgRole::Body),
+                ][..],
+                &["p", "arg", "{n 0}", "{m 0}", "BODY"][..],
+                None,
+            ),
+            (
+                &[
+                    (0, ArgRole::Name),
+                    (1, ArgRole::ParamList),
+                    (1, ArgRole::StaticVarList),
+                    (2, ArgRole::Body),
+                ][..],
+                &["p", "arg", "BODY"][..],
+                None,
+            ),
+        ] {
+            let mut registry = CommandRegistry::build_default();
+            registry.insert(CommandSpec {
+                name: "source-static-definer",
+                arity: Arity::exact(u16::try_from(arguments.len()).unwrap()),
+                arg_roles: roles,
+                traits: Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY,
+                procedure_definition: Some(
+                    crate::native_procedure::NativeProcedureDefinitionSpec::Core,
+                ),
+                ..CommandSpec::DEFAULT
+            });
+            let selected = registry
+                .resolve_invocation("source-static-definer", arguments, None)
+                .unwrap();
+            assert_eq!(
+                selected
+                    .authored_source_procedure_static_list()
+                    .map(|shape| match shape {
+                        AuthoredSourceProcedureStaticList::Absent => None,
+                        AuthoredSourceProcedureStaticList::Argument(at) => Some(at),
+                    }),
+                expected
+            );
+            assert!(selected.authored_source_procedure_arguments().is_some());
+            assert!(!matches!(
+                selected.facts().procedure_definition,
+                Some(crate::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+            ));
+        }
     }
 
     const PROC_SOURCE_ROLES: &[(u8, ArgRole)] = &[

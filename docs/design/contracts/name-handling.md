@@ -3805,3 +3805,15 @@ Native identity, selected command, package loading or execution guarantee.
 ### Structural LSP class factory ownership
 
 The structural document-analysis path retains the same readonly Logical class factory, Name word, source coordinate and relation owners as full analysis. Those facets reborrow the current actual source/input/Realm and uniquely corresponding class/factory records; they do not depend on emitting diagnostics or building a compilation unit. Class-body syntax remains separate: only the existing actual Module producer can populate `body_word`. The project procedure-role provider therefore receives its original class blocker coordinate during structure-only DB analysis without reconstructing a report name, making a fresh analysis/module, admitting a Native class or weakening unavailable-provider withdrawal.
+
+### Logical procedure static read uncertainty
+
+The source-only missing-read occurrence projection independently checks the
+original declaration observations against the held procedure body and complete
+input, registry, source, configuration and effective argument vector. Its private
+static-list facet requires one original written operand and unanimous roles,
+values and provenance. Missing or disagreeing evidence withdraws this additional
+occurrence receipt; it never means an absent static operand. Positively selected
+static names withhold absence candidates for their persistent contents. Generic
+procedure equality, report/cache identity, flow facts and physical warning paths
+remain independent; no Native or incoming/definedness fact is issued.
