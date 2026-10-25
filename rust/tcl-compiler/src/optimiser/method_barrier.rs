@@ -713,7 +713,7 @@ mod tests {
     }
     fn nested_helper_dispatch_anywhere(
         module: &crate::ir::Module,
-        registry: &CommandRegistry,
+        registry: &tcl_registry::CommandRegistry,
         components: &std::collections::HashMap<String, usize>,
     ) -> bool {
         super::proc_dispatch_facts(module, registry, components)
