@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T20:25:02Z
+Last updated: 2026-10-25T21:04:13Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -1060,3 +1060,13 @@ QuietSpec run40227226329/job121271057185 exact5da34e9bd880e00163635523675480b581
 Root assigned all currentVM20+Studio1 lints. Three disjoint off-tree packets cover13files: vm-namespace-test-lengths-v1 manifest542ff433/proof4e85584c (Compilerpeer pending); vm-strict-current-small17-v1 manifest9bf3b269/proofb9bd9b29 (SourceProc deepCLEAR3358c1a0); vm-info-window-test-length-v1 manifest2bf9ecc6/proof9f287eb5 (Compilerpeer pending). All retain Native owners/refcounts/drop boundaries, counters/assertions and all original scopes; current paired bytes/F-R-F0/rustfmt/whole source inverse pass. No Rust/Clippy/tests run. Full23JSON census finds only2existing refs (Irule native_each andSpec namespace tests); final minimalmetadata carry pending peer/current source. NativeIndex3 function bodies unchanged.
 
 Allocation test scope option V2 peer STATIC DESIGN/COVERAGE CLEAR18a709c3; explicit user integration choice remains pending. WholeownedInterp final conservation is NOT equivalent to old live-call neutrality and can hide repeated live retention, as receipt states. No canonical change, user answer or actual final conservation pass inferred.
+
+## Resume — all strict21 source reviewed; string first-gate replay prepared
+
+Namespace3 static deepCLEAR05466fad and InfoLongV2 static deepCLEAR6cc8ef74 complete allVM20+Studio1 source cohorts; small17 peer3358c1a0 already integrated. All13approved afterfiles now actualcurrentWORK. Current076f57e already has BOTHexisting livepins (Irule native_each72574..., Specnamespaceeef0...), so no duplicate/blind old-before metadata carry was created.
+
+Bounded actual-string replay source is Codegen ccg-string-pack-actual-corpus-first-gates-work-v1 manifest60a34dce: actualsamepack/loader/forcedoverride/CountingEngine/Shared consumer and3alreadyselected corpus files, no inventedliteral probes. Protocol vm-string-first-gates-protocol-work-v1 master7d6d5381 has independent SourceProc STATIC DEEP CLEAR1fdd193f. Separate1test (3cases) runs after unchanged16+unchangedquietfull600, samefreshELF/list180/test180/strict385+205reserve/shared20MiB/floor/absoluteowner; onlynewchild retains existingN17flag and removes other2noisyflags. ActualfullcorpusFAIL cannot be laundered intoPASS. Finalprototype base2b18 already preserves correctedVMpins; source+protocol integration/actual next run remain root-owned.
+
+Freshc440 iRules run40230563296/job121281169526 FULLAUTH60b56b49888053f95ec1c6fbad726fb2f391a7f685969c9f08f1d42f914dcfc3: bootstrapFAIL, trace2PASS. Actualbytefactory stage=entry x5 precedes unchanged dependency/prefight refusal; no narrower header/policy predicate inferred. Allmember streamSHA/currentcriticalGitbytes/largeZIPmaps/ownedclosure/freshELFs/order/sharedCAP verified. Codegen owns actualproducer investigation.
+
+NativeAPI successorV5 b104ce92 corrects canonical f5-irules+selectedprofile-name negative assertions only; independent SourceProc deltaCLEAR62851af6, allotherV4source exact. User decision/integration still PENDING; no answer/decision file or actualtyping implied. Depthcaller observer peer d2db051d staticclear; no actualcallee/causal grant.

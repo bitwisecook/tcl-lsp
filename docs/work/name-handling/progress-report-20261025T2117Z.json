@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T21:17:40.871085+00:00",
+  "scheduled_report_utc": "2026-10-25T21:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T21:45:00+00:00",
+  "change_since_previous_report": [
+    "Pushed WORK74de50ddb9c393a98251ba8bdf63f67fddbf4230 and CLEANd55b5aa2fada5b88aafa69255ee34c0229a38950. Genuine declaration-body frame transport peer d2dfc116 is integrated945b/d55 with sourcepin74de; original header path and later ownership/effect/role guards remain. Preflight74de PASS13/30/20. Immediate original Jim cohort dispatched; no runtime gain claimed; seven additional controls remain explicitlyUNRUN.",
+    "Compiler c440 result is now fully authenticated: all58 original cases PASS, whole102=97PASS5FAIL0UNRUN/223ownedprocesses/0builddiagnostics. Receipts ef7f0782/17cf85ee and exact previous-candidate delta e1347b0d: sole gain RBS15, zero previousPASS regressions withinsame102domain. Passed9h records copied scoped receipts. This does not establish origin/rust globalzero regression or audit admission.",
+    "New076 strict FULLAUTH a0b64454 actual175Clippy/0RustE: Compiler167, Server4, xtask3, Core1. VM20+Studio1 gone; all11boxed-loop regressions gone. Core43 fixes42; file_uri items-after-statements remains. Newserver/xtask findings newlyreachable, not green. Owners routed; no assertion weakening/newallows. BothreleaseRustworkspaces wholeformatPASS onD87; laterbodyframe files independentlyformatted, finaltreewholecheck remains.",
+    "Current076 exactDefaultintegration run40232937347 Core2+new2job121288342214 stillrunning; directstartup121288342308failed, ownercapturepending. Strict run40232937663/job121288343483fullyauthenticatedabove. Latestc440 startup actualdiagnostics/definition/refsrespond beforeprepareRename null; browser advancesProc0\u2192Set40butstillfails. Genuinequietstore actualdispatch-point transportdraft underreview; no snapshot-only Normal/callback assumptions.",
+    "Logical implementation direction is private source-only body-entry issued by actualselected modeldefinition/install, exact installed target+allocation/source/schema/body/formals/completed-root world and own declaredframe. Actualafterload compilerwalk required; lexicallayouts alone nevercountreached. SourceProc design6dc97ff4 supports boundedimplementation, no productclearance; Compiler9filedraft/types/controls inprogress, no Native/Normal/rootcompletion donation.",
+    "Specstring3 exactactualpack/sampleprobe andboundedrunner received independent2079dc2e/1fdd193f clear; source/protocol notyetintegrated. Existingfull600failure andold16unchanged; pendingprobe cannotlaunderfullfailure. Additionalreadonly/factoryleaf/depthcaller WORK-only witnesses peer-cleared butheldaftercoherentbatch. FullC1C2/Jim/UPF/reload/hosts/baseline/performance remainopen.",
+    "Two newlyaskeduserdecisions remainPENDING with NOdecisionfiles/answersinvented: compatiblecheckedNativecharacter API plusoriginalpositivecontextadaptation (offtreeV5control62851af6), andsame3calls2\u21923livecount/ownedteardowncoverage option2722bdf9. CurrentTclperformanceunaccepted, latestmatchingCIquietscan20sFAIL; duplicatepurepredicatefactoringtimingunmeasured. ExternalBIGIP/perfstale notified/no takeover; diskabout2.1GiB, no localRustbuild. Next21:45; noPR/merge/tag/release."
+  ],
+  "committed": [
+    "2621d50bdd0008e64b9628a7487e71260739e9d6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish21:15snapshot/rearm21:45; measuregenuineJimbodyframe, collectDefault2andstartupfailure.",
+    "Finishsource-onlyLogical/Jim/quietstoreproducerfixes, remaining175strictdiagnostics andboundedSpecstringprobe.",
+    "Keep2userdecisionspending; completefullcurrentCI/zerooriginPASS-to-FAIL/shippingTclperformance/docs/comments/generated/fixtures/prep-pr beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Scopedfullyauthenticatedpassesandqualifiedpendingresults only. No global/auditadmissions; two userchoicesunanswered.",
+  "disk_free_bytes": 2238656512,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
