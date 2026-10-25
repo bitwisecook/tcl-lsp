@@ -1115,7 +1115,11 @@ mod tests {
             ("proc catch args {}; catch {proc selected {} {}}", false),
             ("rename catch {}; catch {proc selected {} {}}", false),
         ] {
-            let (config, bindings) = selected_inventory(source, registry, Default::default());
+            let (config, bindings) = selected_inventory(
+                source,
+                registry,
+                crate::registry_invocation::InvocationMetadataInput::default(),
+            );
             let selected = super::super::extract_signatures_with_original_bindings(
                 source, config, registry, &bindings,
             );
@@ -1174,7 +1178,11 @@ mod tests {
 
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let source = "interp alias {} branch {} if 1; branch {proc withheld {} {}}";
-        let (config, bindings) = selected_inventory(source, registry, Default::default());
+        let (config, bindings) = selected_inventory(
+            source,
+            registry,
+            crate::registry_invocation::InvocationMetadataInput::default(),
+        );
         let result = super::super::extract_signatures_with_original_bindings(
             source, config, registry, &bindings,
         );

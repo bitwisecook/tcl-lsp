@@ -2308,7 +2308,7 @@ mod tests {
                 .with_resolved_analysis_input(input),
             src,
         );
-        let bindings = ModuleCommandBindings::analyse(&module, &registry);
+        let bindings = ModuleCommandBindings::analyse(&module, registry);
         let procedure = module
             .procedures
             .get(&crate::interprocedural::test_body_identity::fixture_id(
@@ -2324,7 +2324,7 @@ mod tests {
         collect_upvar_targets_with_bindings(
             &procedure.body,
             &procedure.params,
-            &registry,
+            registry,
             &bindings,
             namespace,
             &module,

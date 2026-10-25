@@ -873,7 +873,7 @@ mod tests {
             &relabelled,
             Some(tokens),
             &mut state,
-            &registry
+            registry
         ));
         assert!(state.dynamic_barrier());
         assert!(state.tags.contains_key("protected"));

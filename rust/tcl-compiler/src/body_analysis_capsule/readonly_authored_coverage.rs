@@ -586,6 +586,6 @@ mod tests {
             );
         }
         pairs.carry(&mut separate);
-        assert!(separate == unit);
+        assert_eq!(separate, unit);
     }
 }
