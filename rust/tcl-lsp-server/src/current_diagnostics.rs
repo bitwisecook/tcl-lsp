@@ -2706,7 +2706,7 @@ impl Backend {
             ControlFlow::Continue(produced) => produced,
             ControlFlow::Break((_, reason)) => {
                 return Err(
-                    if reason == DiagnosticUnavailable::Cancelled
+                    if matches!(reason, DiagnosticUnavailable::Cancelled)
                         && cancellations.pending_write_only()
                     {
                         DirectDiagnosticProductionFailure::PendingWrite
