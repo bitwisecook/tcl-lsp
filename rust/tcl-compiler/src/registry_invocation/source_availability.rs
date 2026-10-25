@@ -5,9 +5,7 @@
 //! Original excluded command syntax retains its independently selected domain.
 
 use crate::analyser::{AnalysisResult, ResolvedAnalysisInput};
-use crate::command_binding::{
-    OriginalCatalogueSourceObligation, OriginalCommandLookup, SourceInvocationBinding,
-};
+use crate::command_binding::{OriginalCatalogueSourceObligation, OriginalCommandLookup};
 use crate::signature_scan::vendor_name::{VendorSourceNameInput, VendorSourceNameOccurrence};
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage};
@@ -48,7 +46,7 @@ pub struct OriginalSourceCommandAvailability {
     original: Arc<[NativeWord]>,
     input: ResolvedAnalysisInput,
     origin: AvailabilityOrigin,
-    invocation: Arc<SourceInvocationBinding>,
+    invocation: Arc<crate::ir::CommandTokens>,
     realm: tcl_dialect::model::InvocationRealm,
 }
 impl OriginalSourceCommandAvailability {
@@ -153,8 +151,16 @@ impl OriginalSourceCommandAvailability {
                     input.lexer_config(),
                 )
                 && analysis.retained_command_realm().is_some_and(|realm| {
-                    realm.invocation_at_source("", self.original_head().span().start())
-                        == *self.invocation
+                    realm
+                        .retained_original_tokens(
+                            self.original_head().image(),
+                            self.input.lexer_config(),
+                            self.original_head().span().start(),
+                            &self.invocation.argv,
+                        )
+                        .is_some_and(|tokens| {
+                            tokens.source_binding == self.invocation.source_binding
+                        })
                 })
         })
     }
@@ -183,7 +189,8 @@ pub fn original_source_command_availability(
     }
     let binding = tokens.source_binding.as_ref()?;
     let offset = tokens.argv.first()?.start();
-    if realm.invocation_at_source("", offset) != *binding {
+    let expected = realm.retained_original_tokens(&image, config, offset, &tokens.argv)?;
+    if expected.source_binding.as_ref() != Some(binding) {
         return None;
     }
     let original = super::original_native_compiler_words(&image, tokens.words(), offset, config)?;
@@ -237,14 +244,14 @@ pub fn original_source_command_availability(
         original: Arc::from(original),
         input: input.clone(),
         origin,
-        invocation: Arc::new(binding.clone()),
+        invocation: Arc::new(tokens.clone()),
         realm: invocation_realm,
     })
 }
 
 fn hosted_unavailability(
     analysis: &AnalysisResult,
-    binding: &SourceInvocationBinding,
+    binding: &crate::command_binding::SourceInvocationBinding,
     tokens: &crate::ir::CommandTokens,
     original: &[NativeWord],
     input: &ResolvedAnalysisInput,
@@ -456,6 +463,27 @@ mod tests {
         assert!(receipt.hosted_input().is_none());
         assert_eq!(receipt.input(), &input);
         assert!(receipt.matches_analysis(&analysis));
+        let config = input.lexer_config();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .pop()
+            .unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segment,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert_ne!(&realm.invocation_at_source("", 0), binding);
+        assert!(original_source_command_availability(source, &analysis, &tokens).is_some());
+        let foreign = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        assert!(original_source_command_availability(source, &foreign, &tokens).is_none());
+        assert!(!receipt.matches_analysis(&foreign));
+        tokens.source_binding = Some(realm.invocation_at_source("", 0));
+        assert!(original_source_command_availability(source, &analysis, &tokens).is_none());
         let unknown = Analyser::new().analyse(source, "unknown-unavailability-domain");
         assert!(last_receipt(source, &unknown).is_none());
     }
