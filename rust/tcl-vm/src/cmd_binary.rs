@@ -1419,10 +1419,12 @@ mod original_format_scan_tests {
             &mut vm,
             &[foreign, Value::string("a1"), Value::string("unreached")],
         );
-        let first = vm
-            .finish_host_execution(completion)
-            .err()
-            .expect("original Host refusal");
+        let first =
+            vm.finish_host_execution(completion)
+                .map_or_else(core::convert::identity, |value| {
+                    drop(value);
+                    panic!("original Host refusal")
+                });
         assert!(vm.get_var_bytes(b"unreached").is_none());
         assert_eq!(
             first,
@@ -1538,8 +1540,10 @@ mod original_format_scan_tests {
         let first = vm.execution_refusal.clone().unwrap();
         assert_eq!(
             vm.finish_host_execution(completion)
-                .err()
-                .expect("original Host refusal"),
+                .map_or_else(core::convert::identity, |value| {
+                    drop(value);
+                    panic!("original Host refusal")
+                }),
             first
         );
         assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);

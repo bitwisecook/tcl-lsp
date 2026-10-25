@@ -429,7 +429,8 @@ fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_co
                     &[Value::empty(), incoming.clone()],
                 )
             } else {
-                super::super::def_destructor(&mut vm, true, class, &[incoming.clone()])
+                let argument = incoming.clone();
+                super::super::def_destructor(&mut vm, true, class, std::slice::from_ref(&argument))
             };
             assert_eq!(reached.code, if exhausted { Code::Error } else { Code::Ok });
             assert!(record.upgrade().is_none());

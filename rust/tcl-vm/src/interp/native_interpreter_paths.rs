@@ -222,7 +222,13 @@ mod tests {
                 assert!(vm.resolve_interp_path_original(&path).is_err());
             }
             let original = Value::new_native_string_bytes(b"{with space}".as_slice());
-            assert_eq!(call(&mut vm, b"create", &[original.clone()]).code, Code::Ok);
+            {
+                let argument = original.clone();
+                assert_eq!(
+                    call(&mut vm, b"create", std::slice::from_ref(&argument)).code,
+                    Code::Ok
+                );
+            }
             assert!(vm.resolve_interp_path_original(&original).is_err());
             let quoted = Value::new_native_string_bytes(b"{{with space}}".as_slice());
             assert!(vm.resolve_interp_path_original(&quoted).is_ok());

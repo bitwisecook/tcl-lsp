@@ -44,7 +44,8 @@ impl Formatter {
             drop(retired);
         }
         if stage == "format" {
-            if let Some(world) = self.retire_name_world.borrow_mut().take() {
+            let mut original_world_slot = self.retire_name_world.borrow_mut();
+            if let Some(world) = original_world_slot.take() {
                 world.borrow_mut().retire();
             }
         }
@@ -684,9 +685,12 @@ fn original_scalar_and_expression_compound_strings_keep_the_actual_formatter_onc
             _ => ops.expression_integer84(held.value()).unwrap().unwrap(),
         };
         match scalar {
-            Scalar::Double(actual) => assert_eq!(actual.to_bits(), (i64::MIN as f64).to_bits()),
+            Scalar::Double(actual) => assert_eq!(
+                actual.to_bits(),
+                (-9_223_372_036_854_775_808.0_f64).to_bits()
+            ),
             Scalar::Wide(actual) => assert_eq!(actual, i64::MIN),
-            other => panic!("selected original scalar {other:?}"),
+            other @ Scalar::Boolean(_) => panic!("selected original scalar {other:?}"),
         }
         drop(ops);
         assert_eq!(queries.get(), 1);
