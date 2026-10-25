@@ -1208,7 +1208,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "cfc6249159044ac76000d6daa004cff13dd532838523acc8db535eba29ca1a32",
+    == "20e84626ec809c164a9361e4807929362d685a46858212fbd6bfe4b2d83159c9",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(

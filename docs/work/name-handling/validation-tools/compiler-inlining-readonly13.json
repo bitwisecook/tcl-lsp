@@ -236,7 +236,7 @@
     "rust/tcl-compiler/src/compile_service/native_procedure_source.rs": "cd4903269a528ae70414e3974c3ec53682f77794d8d8ca42e87c4b1de8bc0978",
     "rust/tcl-compiler/src/compile_service.rs": "221194631fa99a002813f1c277a12f650eb8ce8a65a9cf20b0e03064688b1fc6",
     "rust/tcl-compiler/src/lowering/mod.rs": "549bfc3469aae0c6a4420c99d7e83a0b6562792e86214573b39f1a5acead4b69",
-    "rust/tcl-compiler/tests/support/native_compiled_fixture.rs": "1e8019eab586c6bc1893cf63a664a2f3430df99db35286e075087836e09d796f"
+    "rust/tcl-compiler/tests/support/native_compiled_fixture.rs": "ca53ad1c6f8ef0fe2d0efca3ba07d45406ef5a343a7d787df9b953d70558c0bc"
   },
   "scope": "Prospective additive readonly10 plus original-owner3, only after all old83 close. Source-owner/card-qualified body metadata retrieval; classifier and all transform/erasure/Native guards unchanged. Fresh inlining artifact and complete75list required, all shared budgets retained. Initial UNRUN; no baseline/full-process/performance acceptance."
 }
