@@ -1,0 +1,853 @@
+{
+  "utc": "2026-10-25T22:51:10.348536+00:00",
+  "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL",
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "run": 40239267977,
+  "job": 121307371901,
+  "artifact": 12616457603,
+  "zip_sha256": "d7626e05bb2b59bcc230412323a00d2e559b633e4527b2ddae23ab0c87365f59",
+  "zip_bytes": 56420349,
+  "zip_all_members_crc_safe_unique": {
+    "build.process.json": {
+      "bytes": 2288,
+      "sha256": "1d1191808632cb2e559b9a2729cb6599564977a18bd1f02250d66518e1708628"
+    },
+    "build.stderr": {
+      "bytes": 7557,
+      "sha256": "56ea9b06c36b26ec0d24a31658105ce3f40cdd5cb4f1291671565061b42925d9"
+    },
+    "build.stdout": {
+      "bytes": 178366,
+      "sha256": "af41ca0ee9bb66a61fbf56c4cc6ed20c21b43e4617de273703a0c42fffd7f360"
+    },
+    "cases.json": {
+      "bytes": 241,
+      "sha256": "1ecaedcc5bf0586faddbcdc79d8432d1577d5a9a26a66e02fd822c4ab312ac39"
+    },
+    "context/result.json": {
+      "bytes": 3991,
+      "sha256": "e04bab83eeaa56064d60b3a1e1d7c353ccef73b65b70325eaa185a59c336d3a3"
+    },
+    "context/server.stderr": {
+      "bytes": 57699,
+      "sha256": "86ad4c81af4f6848277c36b0a0a79415c23d74a584e348f40c1008c38c5b4431"
+    },
+    "context/server.stdout.frames": {
+      "bytes": 16311,
+      "sha256": "12b2cf0889e321b38d11ce262798648900a056b4c90e907b1980691fabf5154d"
+    },
+    "context.process.json": {
+      "bytes": 2371,
+      "sha256": "7a205e9240bf1926a666c1b1c37fa492384d10aba544c94e61fd99ce490124bc"
+    },
+    "context.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "context.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "dependencies-after-build.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "dependencies-after.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "dependencies-before-build.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "fetch.process.json": {
+      "bytes": 2164,
+      "sha256": "7515fa781837a8c02768fdf4c6305f98130b92e839926f9a5bc03bbf775bd96a"
+    },
+    "fetch.stderr": {
+      "bytes": 14757,
+      "sha256": "292b35d255e5c9465340830e8b0ffabaf0e1d64a9da1c2aee66eeda7d483f326"
+    },
+    "fetch.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final.json": {
+      "bytes": 11123,
+      "sha256": "06d75f6d35d52b367b4c471799591efa8840f9085386fe8c02b5b87b5c7dec1c"
+    },
+    "job.json": {
+      "bytes": 3782,
+      "sha256": "684eb2d6133094525362a988e764b6eff22142ffdff39e41177f3c05b2730375"
+    },
+    "providers-after.json": {
+      "bytes": 426864,
+      "sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66"
+    },
+    "materialised-worker-inputs.json": {
+      "bytes": 1457,
+      "sha256": "abe54a2449a07c53239b7c9f25ffdeaa0c77bde6eea0e6c93885ed8b0c5bdfa7"
+    },
+    "providers-before.json": {
+      "bytes": 426864,
+      "sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66"
+    },
+    "server-artifact.json": {
+      "bytes": 1224,
+      "sha256": "06acfa3cbc73980459422cf2946818fc5dde3046096ad6deadf6be63ee778341"
+    },
+    "server-payload": {
+      "bytes": 147403768,
+      "sha256": "e3e379d695fb5da2320d40d9bf63a2cdeedcb5869aa9a5552563e3373c43abf5"
+    },
+    "source-after.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "source-before.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "system-indexes-before.json": {
+      "bytes": 44754,
+      "sha256": "a3935edb119d27ba44e25de6f4a72bc955196e5ac7743f08b6b02efed404f8c1"
+    },
+    "system-providers-after.json": {
+      "bytes": 457237,
+      "sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29"
+    },
+    "system-providers-before.json": {
+      "bytes": 457237,
+      "sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29"
+    },
+    "tools-after.json": {
+      "bytes": 1167,
+      "sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11"
+    },
+    "typical/measurement.json": {
+      "bytes": 11161,
+      "sha256": "84798fc4cbed2e579c4221b91b0bbdb17979b4495ffc697271794807654c699c"
+    },
+    "typical/server.stderr": {
+      "bytes": 151650,
+      "sha256": "216b910f85fe1b690cf294cbe13ec7f2093f180934cc6f36fecae10f73dce560"
+    },
+    "typical/server.stdout.frames": {
+      "bytes": 7128,
+      "sha256": "b99295ae5790d79c69724f69248653812a4ddabff35c25f8ae1764be0bb7c19e"
+    },
+    "typical.process.json": {
+      "bytes": 2406,
+      "sha256": "c0a2b25eef5a470b4122970a2eb9032a9ba573fed87b8f272a9eec6f8bd114f6"
+    },
+    "typical.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typical.stderr": {
+      "bytes": 1036,
+      "sha256": "8cbea30033116fcff81fd81a1c479b6d533ea35a21092fa22ab8fe1dad4cdf56"
+    }
+  },
+  "source_tree": "45ce7251c7f607e1d95caace476103038c804561",
+  "complete_tracked_git_membership": 126414,
+  "critical_git_bytes": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "5238fe75fc3cbfbbc050f2ec56688872f6db1e4e492817e691d699572bc851fd",
+    "rust/tcl-lsp-server/src/lib.rs": "717aa395916cd343ea4f9e3ec15cdf815c62c5f7eb4f28d52aaf447c36c28b55",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f",
+    "rust/tcl-lsp-core/src/tcl_install.rs": "8203309c5bbe63cca7e15048004b5edda717ec921621202b4329a0787813f3e3",
+    "rust/tcl-compiler/src/analyser/state.rs": "fe155f26f85314e730a2e2c5601737db42c509a93c8eca24b1c9b9a38cf88898",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "f403d3b99725650fc35d96b63fb613f75100112ca2023597a992797c37221f62",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py": "4e6ff66988853d3863524445db0388d7749588c5eadbe389a4fd37292751b25a",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "b835560a6fe4d291c6e22654811e17739ecafcb2b149e3f9c77c24fea3590b30",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs": "11cb236f8a009d8c0f7a1153d82baa7a45baf1a633d020bfbb800fe554e85104",
+    "rust/tcl-registry/src/native_compilation.rs": "aa152ab69569fb68c4fbb390b715819a1c584af7b30b3515f65c3d7a231ecdc4",
+    "rust/tcl-compiler/src/command_binding/original_source_projection.rs": "1018afcbae535ea5f9b007d10edb270a5114305b3208e2b4567fa3bef92646af",
+    "rust/tcl-lsp-core/src/source_structure.rs": "60eeee41802557f2b3d9096a29580715872196e7b912dc7e8362636f60b5d344",
+    "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "706f5b9af1009855e7527667c71b8309ebd1a10618db577a08c8a92b8486b09e",
+    "rust/tcl-compiler/src/realm.rs": "95ff1fc2db0b842fd90ea7b834485a51bf5bb8a8c9f06327641ea1cfa76db083",
+    "docs/work/name-handling/validation-tools/autoload-core2-diagnostics.py": "8c7aecee32afa8530d5b23ea5d56fe6061e263e33873d5ecca504855b9f7df5d",
+    "docs/work/name-handling/validation-tools/autoload-core2-inputs.json": "52e4d650fb733db6b75e772d7bcec1739f9a3faf2bc70d292242df57532e05f9",
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e",
+    "rust/tcl-compiler/src/command_binding/conditional_source/region.rs": "9305349c4e3e25a3881df715e34874106d43462fba2c5edac84a259934facd55",
+    "rust/tcl-lsp-core/src/original_source_views.rs": "fef876c2faf2288a7e6c804b16c400b59cecfe5211f0a357d4fff2527020dab0",
+    "rust/tcl-compiler/src/registry_invocation/source_availability.rs": "e598bcb334e0a38f25d69b1842b50436b87375a86064480bf6948e89893f3992",
+    "rust/tcl-compiler/src/command_binding/source_unavailability_advice.rs": "95aa817fc19ab2f472b6903fef46ff0b557c4e7fb09bc6583cea8b14048988e1",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "7666f239dd9b596cdd69826ee43a9b3cf9cc6fd328f7475ac7063f8edffddf66",
+    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
+    "rust/tcl-compiler/src/registry_invocation.rs": "f6ac32b0c69d5b12f04bfa2f2bb729efa252ab1765bae206ae77c82bd906d55d",
+    "rust/tcl-lsp-core/src/refactor/mod.rs": "26057b1d3c5280f07bb3d6b075709e84e402a4465767b2fdce087bb7268fe8b6",
+    "rust/tcl-lsp-core/src/minify/original.rs": "ab052dccc95d70df74616e927c55e80701675d2928487838ccc5eb6a67c6deaa",
+    "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "01763714629a6a99863d9ae89f6b1630e386ac7be09e4b52dc5bf618d168111b"
+  },
+  "all13_original_input_pins_match_git_and_actual": true,
+  "materialised8worker_input_records_exact_git": true,
+  "maps": {
+    "source": {
+      "before_member": "source-before.json",
+      "after_member": "source-after.json",
+      "before_sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007",
+      "after_sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007",
+      "complete_equal": true,
+      "entries": 126414
+    },
+    "providers": {
+      "before_member": "providers-before.json",
+      "after_member": "providers-after.json",
+      "before_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "after_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "complete_equal": true,
+      "entries": 2256
+    },
+    "dependencies": {
+      "before_member": "dependencies-before-build.json",
+      "after_member": "dependencies-after.json",
+      "before_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "after_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "complete_equal": true,
+      "entries": 21504
+    },
+    "system-providers": {
+      "before_member": "system-providers-before.json",
+      "after_member": "system-providers-after.json",
+      "before_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29",
+      "after_sha256": "11a03480cc222cef98be36bec7fd129fad23fa89a96a38ecfd27fa4b1cb8da29",
+      "complete_equal": true,
+      "entries": 330
+    },
+    "tools": {
+      "complete_equal": true,
+      "entries": 7
+    }
+  },
+  "selected_fresh_ci_server": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": false
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": true,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "bin"
+        ],
+        "name": "tcl-lsp-server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/main.rs",
+        "test": true
+      }
+    },
+    "elf_magic": "7f454c46",
+    "path": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+    "profile_scope": "ci, functional diagnosis only; not shipping release",
+    "retained_payload": "server-payload",
+    "sha256": "e3e379d695fb5da2320d40d9bf63a2cdeedcb5869aa9a5552563e3373c43abf5"
+  },
+  "strict_build_zero_warnings": true,
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.11158335,
+      "deadline_seconds": 600,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 20971520,
+      "retained_bytes": 14757,
+      "minimum_free_bytes": 75652030464,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1021.003449981,
+      "deadline_seconds": 2400,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 20956763,
+      "retained_bytes": 185923,
+      "minimum_free_bytes": 74300219392,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/typical/worker.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "e3e379d695fb5da2320d40d9bf63a2cdeedcb5869aa9a5552563e3373c43abf5",
+        "--protocol-sha256",
+        "7b943c8ab463055e9f83ab39c109d8e3feb2b2b39df0d890097164f058626dcc",
+        "--case",
+        "typical",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/typical"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 34.851863877,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 524288,
+      "retained_bytes": 1036,
+      "minimum_free_bytes": 74185289728,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/context/reproduce.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "e3e379d695fb5da2320d40d9bf63a2cdeedcb5869aa9a5552563e3373c43abf5",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/context",
+        "--inputs-sha256",
+        "9ff1729c44eb2daab7ee23d58ff3effaf3cea193a44bb74edbedf8e96c8833ca"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.052644929,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cap_bytes": 524288,
+      "retained_bytes": 0,
+      "minimum_free_bytes": 74185150464,
+      "stop_reason": null
+    }
+  ],
+  "remaining_log_bytes": 20537016,
+  "seals": {
+    "artifact": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "system-providers": true,
+    "tools": true
+  },
+  "system_index_retention": {
+    "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl": {
+      "bytes": 735,
+      "path": "/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl",
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl": {
+      "bytes": 624,
+      "path": "/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl",
+      "sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745"
+    },
+    "/usr/share/tcltk/tcl8.6/tclIndex": {
+      "bytes": 7347,
+      "path": "/usr/share/tcltk/tcl8.6/tclIndex",
+      "sha256": "e7620c3c29c497f6c0119b63b27d95df9da4d7d3a478bef138fb45b1a39452a3"
+    },
+    "/usr/share/tcltk/tk8.6/tclIndex": {
+      "bytes": 24190,
+      "path": "/usr/share/tcltk/tk8.6/tclIndex",
+      "sha256": "e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb"
+    }
+  },
+  "cases": [
+    {
+      "case": "typical",
+      "exit_code": 1,
+      "original_assertions_complete": false,
+      "wire_bytes": 158778
+    },
+    {
+      "case": "context",
+      "exit_code": 0,
+      "original_assertions_complete": true,
+      "wire_bytes": 74010
+    }
+  ],
+  "typical": {
+    "status": "INCOMPLETE",
+    "error": "Timed out after 30s waiting for the server's workspace scan to complete \u2014 no '[timing] workspace_folders_scan' window/logMessage was seen. Cross-file navigation/diagnostics results read here would be racy. The scan covers the whole workspace root, so scoping --server-dir to the directory holding the files under test is usually faster than raising --scan-timeout; otherwise check that the server actually reached `scan_workspace_folders` (see rust/tcl-lsp-server/src/lib.rs) \u2014 e.g. it never got past `initialized` because a server-to-client request went unanswered.",
+    "events": [
+      {
+        "event": "cold-first-tokens",
+        "elapsed_ms": 117.463465,
+        "outcome": "response",
+        "response_sha256": "e571109f044d8f8fd6dd4e77f3f1405f644f6bee977594be8290f921542622fb"
+      }
+    ],
+    "cold_response_ms": 117.463465,
+    "didOpen_to_tokens_ms": 117.537813,
+    "scan30_original_pass": false,
+    "wire_scan_messages": [],
+    "peak_rss_kib": 474672,
+    "scan_records": [
+      "[workspace_scan] factory.round.begin sync=0x5e117475bfe0 round=0 wake=true",
+      "[workspace_scan] factory.round.settled sync=0x5e117475bfe0 round=0",
+      "[workspace_scan] scan.gate.wait",
+      "[workspace_scan] scan.gate.acquired",
+      "[workspace_scan] scan.roots roots=[\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"]",
+      "[workspace_scan] scan.package.begin open=1",
+      "[workspace_scan] discovery.begin",
+      "[workspace_scan] discovery.end installations=[TclInstallation { version: \"8.6\", tcl_library: \"/usr/share/tcltk/tcl8.6\", auto_path: [\"/usr/share/tcltk\", \"/usr/share/tcltk/tcl8.6\"] }] editor_paths=[]",
+      "[workspace_scan] package.tree.begin root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" dir_cap=4000",
+      "[workspace_scan] package.tree.end root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\"",
+      "[workspace_scan] package.auto_path.begin",
+      "[workspace_scan] package.path.begin path=\"/usr/share/tcltk\"",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.4 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=911 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.5 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=946 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl8.6 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=909 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl9.0 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=909 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6 bytes=7347 profile=tcl9.1 native_commands=Some(75)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6 elapsed_ms=922 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.4 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4542 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.5 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4656 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl8.6 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4707 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl9.0 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4678 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tk8.6 bytes=24190 profile=tcl9.1 native_commands=Some(245)",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tk8.6 elapsed_ms=4727 commands=0 procedures=0 classes=0",
+      "[workspace_scan] package.path.end path=\"/usr/share/tcltk\"",
+      "[workspace_scan] package.path.begin path=\"/usr/share/tcltk/tcl8.6\"",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.4 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=215 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.5 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=109 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl8.6 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=128 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl9.0 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=132 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl bytes=735 profile=tcl9.1 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/http1.0/pkgIndex.tcl elapsed_ms=140 commands=2 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.4 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=181 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.5 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=216 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl8.6 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=245 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl9.0 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=249 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.analysis.begin path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl bytes=624 profile=tcl9.1 native_commands=None",
+      "[workspace_scan] package.analysis.end path=/usr/share/tcltk/tcl8.6/opt0.4/pkgIndex.tcl elapsed_ms=251 commands=7 procedures=0 classes=0",
+      "[workspace_scan] package.path.end path=\"/usr/share/tcltk/tcl8.6\"",
+      "[workspace_scan] candidates.begin root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" max_files=2000",
+      "[workspace_scan] candidates.end root=\"/home/runner/work/_temp/lsp-startup-output/typical/workspace\" complete=true count=1",
+      "[workspace_scan] scan.package.end elapsed_ms=30893 complete=true files=[\"/home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl\"]",
+      "[workspace_scan] scan.merge.begin elapsed_ms=30893",
+      "[workspace_scan] scan.merge.end elapsed_ms=30893 files=0 inputs_current=true coverage_complete=true",
+      "[workspace_scan] scan.resolver.published elapsed_ms=30893 published=true files=0 inputs_current=true coverage_complete=true",
+      "[workspace_scan] scan.rehome.begin elapsed_ms=30893",
+      "[workspace_scan] scan.rehome.end elapsed_ms=31258",
+      "[workspace_scan] scan.factory.begin elapsed_ms=31258",
+      "[workspace_scan] factory.round.begin sync=0x5e1173660ec8 round=0 wake=false",
+      "[workspace_scan] factory.round.settled sync=0x5e1173660ec8 round=0",
+      "[workspace_scan] scan.factory.end elapsed_ms=31281 moved=0 affected=0",
+      "[workspace_scan] scan.factory_reindex.begin elapsed_ms=31281",
+      "[workspace_scan] scan.factory_reindex.end elapsed_ms=31281",
+      "[workspace_scan] scan.subclass.begin elapsed_ms=31281",
+      "[workspace_scan] scan.subclass.end elapsed_ms=31281",
+      "[workspace_scan] scan.inventory.begin elapsed_ms=31281",
+      "[workspace_scan] scan.inventory.end elapsed_ms=31281",
+      "[workspace_scan] scan.ready elapsed_ms=31281"
+    ],
+    "raw_measurement_sha256": "84798fc4cbed2e579c4221b91b0bbdb17979b4495ffc697271794807654c699c"
+  },
+  "context": {
+    "status": "COMPLETE_ORIGINAL_ASSERTIONS",
+    "error": null,
+    "publication_validation_frontier": [
+      {
+        "report_id": 18,
+        "issued": {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "version": 2,
+          "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-1"
+        },
+        "publication_diagnostics_match": true,
+        "validations": [
+          {
+            "id": 19,
+            "status": "current"
+          }
+        ]
+      },
+      {
+        "report_id": 27,
+        "issued": {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "version": 2,
+          "source": "folder-a-helper foo bar\n",
+          "dialectId": "tcl8.4",
+          "revision": "1",
+          "inputsEpoch": "2",
+          "resultId": "pd-2"
+        },
+        "publication_diagnostics_match": true,
+        "validations": [
+          {
+            "id": 28,
+            "status": "current"
+          }
+        ]
+      }
+    ],
+    "observer_checks": [
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "capture.input_present",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.suppression",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.uri",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.version",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.source",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.dialect",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.revision",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.inputs-epoch",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+        "publication.result-id",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "capture.input_present",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.source_current",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.resolved_input",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "completed.registry",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.suppression",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.uri",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.version",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.source",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.dialect",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.revision",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.inputs-epoch",
+        "true"
+      ],
+      [
+        "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+        "publication.result-id",
+        "true"
+      ]
+    ],
+    "factory_cancelled": [],
+    "sixteen_round_warning": false,
+    "raw_result_sha256": "e04bab83eeaa56064d60b3a1e1d7c353ccef73b65b70325eaa185a59c336d3a3"
+  },
+  "wire": {
+    "typical": {
+      "raw_sha256": "b99295ae5790d79c69724f69248653812a4ddabff35c25f8ae1764be0bb7c19e",
+      "messages": 19,
+      "published_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl",
+          "diagnostics": [],
+          "version": 1
+        }
+      ],
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "[timing] semantic_tokens.full_convergence.settled (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, refresh=false, outcome=cancelled)",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, version=1)",
+        "[timing] deep diagnostics 230ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, diags=0)",
+        "[timing] workspace_state.update 230ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, lines=2, diags=0)",
+        "SpecTcl: 8 pack(s), 1489 command(s), 0 notice(s), 2 shipped-command collision(s), 6 environment(s), 0 extension(s), 0 retired, 0 refused",
+        "[timing] semantic_tokens.refresh.fired (reason=pack-reload)"
+      ]
+    },
+    "context": {
+      "raw_sha256": "12b2cf0889e321b38d11ce262798648900a056b4c90e907b1980691fabf5154d",
+      "messages": 42,
+      "published_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "1"
+              }
+            },
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 9
+                },
+                "end": {
+                  "line": 1,
+                  "character": 18
+                }
+              },
+              "severity": 2,
+              "code": "T101",
+              "source": "tcl-lsp",
+              "message": "Tainted variable $who flows into puts; output may contain injected content",
+              "data": {
+                "kind": "tcl-source-diagnostic",
+                "version": 1,
+                "token": "2"
+              }
+            }
+          ],
+          "version": 2
+        },
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "diagnostics": [],
+          "version": 2
+        }
+      ],
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, version=2)",
+        "[timing] deep diagnostics 172ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, diags=2)",
+        "[timing] workspace_state.update 172ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, lines=4, diags=2)",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, version=2)",
+        "[timing] deep diagnostics 53ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, diags=0)",
+        "[timing] workspace_state.update 53ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, lines=1, diags=0)"
+      ]
+    }
+  },
+  "limits": [
+    "Original functional CI binary profile only; no shipping performance/editor/global race/whole-suite acceptance.",
+    "All complete source/provider/dependency/system/tool endpoint maps match; critical Git and complete source membership checked, not every Git blob.",
+    "Selected native ELF payload is retained in this ZIP and independently compared to fresh Cargo selected event SHA/magic; local compatibility/execution remain separate bounded receipts.",
+    "Original scan30s, Context30/15/6 and worker180/fetch600/build2400 bounds retained. Coarse observers alter timing; inclusive phases are not isolated CPU."
+  ],
+  "received_first_guard_rows": {
+    "typical": {
+      "transaction": [],
+      "currency": [],
+      "total_transaction_rows": 0,
+      "total_currency_rows": 0,
+      "retained_row_limit_each": 2048,
+      "raw_stderr_sha256": "216b910f85fe1b690cf294cbe13ec7f2093f180934cc6f36fecae10f73dce560"
+    },
+    "context": {
+      "transaction": [],
+      "currency": [],
+      "total_transaction_rows": 0,
+      "total_currency_rows": 0,
+      "retained_row_limit_each": 2048,
+      "raw_stderr_sha256": "86ad4c81af4f6848277c36b0a0a79415c23d74a584e348f40c1008c38c5b4431"
+    }
+  }
+}

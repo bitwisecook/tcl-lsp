@@ -1,0 +1,48 @@
+{
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "run": 40239273898,
+  "job": 121307389336,
+  "base_fullauth_sha256": "f029fb3fe0974eb471269e76ac6c5f0b680fd12e0716cc49d7771a3a5a3271a2",
+  "all_member_stream_SHA_inventory": "2090bbe72d390802693ddbf8fd52f3798e56db3c09507480ccc9bb707f345030",
+  "members": 106,
+  "critical_actualGit_bytes": {
+    "rust/tcl-vm/src/interp/logical_uplevel_source.rs": "0a0fa747564f7cdef1224e2d06d775a645135132761067530bc078e4c15aeb73",
+    "rust/tcl-vm/src/value/native_property_name.rs": "753679179d52099a992616224ec82bb3933e3a5b24235eee6b4778b2bb688ac6",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "631b609009a6f6d5a8a5530da97da5d4b0fb7f6bc8b4bd95087636ba55a83636",
+    "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",
+    "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
+    "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
+    "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
+    "docs/design/spec-dsl-examples/string.tclspec": "a485ff5cf7bdde708e009ae3f8c47d7b437c19c87783990de3ef48865aca5d97",
+    "docs/design/spec-dsl-examples/return.tclspec": "108eab99edb3b9efcf45314370da5d600dcc887966555eb6625b48e34ae23fd6",
+    "docs/design/spec-dsl-examples/switch.tclspec": "e73891f16ca0cb937b547cca6b4e6405d045eb80ca26356d143b29149cac4f9c",
+    "specs/upf.tclspec": "5be5e52274df9023ac509b3af7167230236d31510451b05cffc6b798ebf3deb8",
+    "samples/wasm/t0-straight-line/01_string_interp.tcl": "27b384c56b23d56e2039f9934839f95e0cd4888503f19b455337e03148af7b8a",
+    "samples/diagnostics/W102_subst_injection/example.tcl": "4f88d2bf5f94ad8656366223e1b34292a51631d47beac15806779ea145e3855c",
+    "samples/for_screenshots/07-formatting-side-by-side.tcl": "4efec3442af3803acbb2da3ea71ea68b19094d3fc83d05d063cda1021028af37"
+  },
+  "old16": "ALL PASS, each owned terminal closed; exact original protocol retained",
+  "full_corpus": "INCOMPLETE selector_timeout600/-2; internal watchdog budget panic; no pack table/outcome coverage inferred",
+  "string_actual_three_case_probe": "UNRUN after fullcorpus lifecycle stop; no first-gate evidence",
+  "same_fresh_spec_corpus_ELF_exact_listing180_test600": true,
+  "same_owned_group_cleanup_caps_order_no_reset": true,
+  "aggregate_retained_bytes": 10591271,
+  "remaining_log_bytes": 10380249,
+  "full_corpus_elapsed_seconds": 600.489172748,
+  "full_corpus_retained_bytes": 572,
+  "full_corpus_environment": {
+    "SPECTCL_CORPUS_BLESS": null,
+    "SPECTCL_CORPUS_DIFF": null,
+    "SPECTCL_CORPUS_PACK_THREADS": null,
+    "SPECTCL_CORPUS_TMP": null,
+    "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": null,
+    "TCL_LSP_TRACE_DEFERRED_WRITES_ANY": null,
+    "TCL_LSP_TRACE_N17_FOLD": null
+  },
+  "limits": [
+    "No C1/C2, corpus, first-gate, wholeCI, baseline or performance acceptance.",
+    "Historical5da fullcorpus completed with17873successful hooks/string3zero attempts remains source-qualified evidence, not current completion.",
+    "Internal600budget verdict is not proof of a hung hook.",
+    "Old16PASS cannot override incomplete fullcorpus or UNRUN appended probe."
+  ]
+}
