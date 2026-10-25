@@ -487,6 +487,7 @@ except (
     AssertionError,
     KeyboardInterrupt,
 ) as failure:
+    status = 2
     error = repr(failure)
     print("AUTOLOAD CORE2 STOP " + error, file=sys.stderr, flush=True)
 finally:
