@@ -1857,12 +1857,42 @@ impl Backend {
         {
             return Ok(reports.remove(0));
         }
-        let produced = self
-            .produce_direct_diagnostic_report(uri)
-            .await
-            .map_err(|reason| {
-                Self::diagnostic_report_unavailable(diag_reason("direct.produce", reason))
-            })?;
+        for attempt in 0..2 {
+            // A scheduler admission can supersede the captured slot while the
+            // provider runs. Recompute once with a fresh receipt; never relabel
+            // the stale result or restart the caller's deadline/cancellation.
+            if attempt > 0
+                && let Ok(mut reports) = self
+                    .current_cached_diagnostic_reports(std::slice::from_ref(uri))
+                    .await?
+            {
+                return Ok(reports.remove(0));
+            }
+            let produced = self
+                .produce_direct_diagnostic_report(uri)
+                .await
+                .map_err(|reason| {
+                    Self::diagnostic_report_unavailable(diag_reason("direct.produce", reason))
+                })?;
+            match self.publish_direct_diagnostic_report(uri, produced).await? {
+                Ok(report) => return Ok(report),
+                Err(DiagnosticUnavailable::Stale) if attempt == 0 => {}
+                Err(reason) => {
+                    return Err(Self::diagnostic_report_unavailable(diag_reason(
+                        "direct.publish",
+                        reason,
+                    )));
+                }
+            }
+        }
+        unreachable!("the final attempt returns its actual publication result")
+    }
+
+    async fn publish_direct_diagnostic_report(
+        &self,
+        uri: &Uri,
+        produced: ProducedDirectDiagnosticReport,
+    ) -> jsonrpc::Result<Result<PublishedDiagnosticReport, DiagnosticUnavailable>> {
         let source = &produced.receipt.source;
         let expected = DiagnosticReportExpectation {
             uri: uri.clone(),
@@ -1882,11 +1912,8 @@ impl Backend {
             )
             .await?
         {
-            Ok(mut reports) => Ok(reports.remove(0)),
-            Err(reason) => Err(Self::diagnostic_report_unavailable(diag_reason(
-                "direct.publish",
-                reason,
-            ))),
+            Ok(mut reports) => Ok(Ok(reports.remove(0))),
+            Err(reason) => Ok(Err(reason)),
         }
     }
     /// Reborrow acknowledged publisher reports for their actual current sources.
@@ -2655,6 +2682,108 @@ impl Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_direct_report_is_recomputed_after_initial_scheduler_admission() {
+        let backend = crate::tests::test_backend();
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_str("file:///direct-initial-admission.tcl").unwrap(),
+            version: 1,
+            source: "set value 7\n".into(),
+        };
+        open_source(&backend, &expected).await;
+        let initial = backend
+            .produce_direct_diagnostic_report(&expected.uri)
+            .await
+            .unwrap();
+        assert_eq!(initial.receipt.source.slot_generation, None);
+        let mut slot = DiagSlot::default();
+        slot.mark_dirty();
+        backend
+            .diag_slots
+            .lock()
+            .await
+            .insert(expected.uri.clone(), slot);
+        assert!(matches!(
+            backend
+                .publish_direct_diagnostic_report(&expected.uri, initial)
+                .await
+                .unwrap(),
+            Err(DiagnosticUnavailable::Stale)
+        ));
+        // The scheduler has admitted generation 1 but has not drained its
+        // dirty flag yet. A new receipt still cannot publish while pending.
+        let pending = backend
+            .produce_direct_diagnostic_report(&expected.uri)
+            .await
+            .unwrap();
+        assert!(matches!(
+            backend
+                .publish_direct_diagnostic_report(&expected.uri, pending)
+                .await
+                .unwrap(),
+            Err(DiagnosticUnavailable::Pending)
+        ));
+        // Model the real worker's drain boundary without changing generation.
+        backend
+            .diag_slots
+            .lock()
+            .await
+            .get_mut(&expected.uri)
+            .unwrap()
+            .dirty = false;
+        let report = backend
+            .ensure_current_diagnostic_report(&expected.uri)
+            .await
+            .unwrap();
+        assert_eq!(report.uri, expected.uri);
+        let current = backend.pull_diag_cache.lock().await;
+        let receipt = current
+            .get(&expected.uri)
+            .unwrap()
+            .currency
+            .as_ref()
+            .unwrap();
+        assert_eq!(receipt.source.slot_generation, Some(1));
+    }
+
+    #[tokio::test]
+    async fn successive_scheduler_changes_refuse_each_actual_direct_receipt() {
+        let backend = crate::tests::test_backend();
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_str("file:///direct-repeated-admission.tcl").unwrap(),
+            version: 1,
+            source: "set value 7\n".into(),
+        };
+        open_source(&backend, &expected).await;
+        for _ in 0..2 {
+            let produced = backend
+                .produce_direct_diagnostic_report(&expected.uri)
+                .await
+                .unwrap();
+            backend
+                .diag_slots
+                .lock()
+                .await
+                .entry(expected.uri.clone())
+                .or_default()
+                .mark_dirty();
+            assert!(matches!(
+                backend
+                    .publish_direct_diagnostic_report(&expected.uri, produced)
+                    .await
+                    .unwrap(),
+                Err(DiagnosticUnavailable::Stale)
+            ));
+        }
+        assert!(
+            !backend
+                .pull_diag_cache
+                .lock()
+                .await
+                .contains_key(&expected.uri)
+        );
+    }
 
     #[tokio::test]
     async fn actual_direct_and_push_rewrites_retain_their_captured_document_source() {
