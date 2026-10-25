@@ -535,7 +535,7 @@ mod tests {
                         tcl_registry::model::ingress::resolve_environment("tcl8.6")
                             .default_context_registry(),
                         supplied.lexer_config(),
-                    ))
+                    ));
                 }
             }
             missing.emit_w102_subst_injection(Some(&original));
@@ -614,7 +614,7 @@ mod tests {
                 1 => {
                     stale.ir_module.source = tcl_lexer::SourceImage::document(
                         "proc f {x} {set opt -novariables; subst $opt $y}",
-                    )
+                    );
                 }
                 _ => {
                     stale
@@ -622,7 +622,7 @@ mod tests {
                         .values_mut()
                         .next()
                         .unwrap()
-                        .source_metadata_input = None
+                        .source_metadata_input = None;
                 }
             }
             let mut analyser = analyse(source, &input);
