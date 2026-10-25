@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T11:38:36.034922+00:00
+Last updated: 2026-10-25T12:48:57.291839+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -927,3 +927,62 @@ Currented baseline40187433105/runtimejob121151323687 nowSUCCESS both noTom/fullT
 overall workflow failure is separate. Exactsourceed694de47cbbeff0bb9f5cd5888cc336e1e8a463,
 fullTom753unit tests; decodedlog258844chars retained vm-runtime-baseline-40187433105.
 Exact ledger/source joins in progress; oldfcb998observed identities separately retained.
+
+
+## Full CLEAN658 completion, proved baselinePF and retained SpecTcl priority
+
+Actual CLEAN658de2eed4ce83044b7a20fbb3182659c60aba27 fullCI40188263258 runtime
+job121155784419 completed ALL2371units:2278PASS93FAIL, no stackabort; original
+unboundedproc PASS in sharedsuite. Receipt91d4ec05f960ac456d3d5a61d243c9e796121881108669fd0d42478a44bd9d3e.
+Exactnewed/fcbbaseline998 join746observed=745P+1provedPF (Info intrinsic attestation),
+252unknown=7missingunit+245integrationunrun afterunitfailure. Old128statuses allsame
+isolatedbe5. Prior statement84nonpasses absentbaseline remains scoped selected131;
+newfullsuite exposes9additionalFAIL includingthisactualPF.
+
+Info owned-stockensemble attestation source fix vm-stock-ensemble-attestation-v1
+masterf020e873764adc8daffa763749d71a8bddd9d0c0ef06a5bcbf7af2f136627fd8, metadata
+c78aa8df107a647a0949c78de7d789b0d7a36bd6198bc636548c2d404a1093e4. ExistingBuiltin
+fastpath; exactprivateStockEnsembles token+registryidentity+fullimplementationcurrency
+onlyadditionalbranch.2new realworker/config/publicimitation controls, originalbaseline
+assertionunchanged. Independent Codegen source daf11c4bb24a06706fcde5fe86dae3e7ad8f7ef8018b4cd582581c46abcae597,
+metadata44858c71bf37e2875202d0a9bd84169d7b223118de35eb6aabc87cb0633cf25c STATICCLEAR.
+Rootrequested appended3 afteroriginal132 samefreshELF/sharedbudgets packet
+vm-attestation3-protocol-work-v1 master63aa20c4635fc3b465353be7a023c1733bc83daf3810a93def3259d84d59c9a0;
+14mockedguards38e2e7e9da6db29063aa969b40c4b55bfeb0679379848b7854c0163ffe549608 PASS,
+Codegenpeer9291f37b5a55dfcd1767d102fa9737185ac5941472157471a746493510cff605 CLEAR.
+No actual attestation135 result yet. Sevenbaselinecounterpart mapb93a42a7531aa58c12d0f3bf0cf9ad89e7cb1947c33e92365742e22c3b508659:
+allcurrentcounterpartsPASS, but6semanticchanges require explicit review; foreach300
+executablebody/assertions identical aftername/comment removal, formalreceipt pending.
+No automatic baselineidentity/PASS transfer.
+
+Productiongraph: LSP/SpecTcl→spec-hooks→engine-tclvm→tcl-vm; standalone runtime/rust
+is spec-hooks DEV-dependency secondengine only. xtask production command_backing::Reports
+actually constructs standalone C9.0/C9.1 interpreters and reads backing_report, so this
+coupling MUSTbe preserved or genuinely extracted before wholepackage exclusion. Shared
+runtime/rust/include/tcl.h also feeds Cshim wrappers; compiledWASM/fuzz/ABI development
+closure remainsdistinct. No source removal or test-only exclusion proposed. Rootparks
+standalone93 parity; exact extraction/retain graph remains read-only and unfinished.
+
+NEW requiredSpecTcl failures full658 job121155784377: hostile budgethooks2 neverreach
+budgetcrash (1recordvs3), corpus return/switch native compiledindex Unicodebacking refusal,
+string3boundhookslots0attempts. VMconsumer predicate is native_compiled::compiled_index
+requiring priorUnicode; generic registered StringIndex and NamespaceQualifiers emitted
+sameSTR_INDEX+version, but only namespace priorSTR_RFIND reachesUnicode. Codegen typed
+purpose split inprogress; I own genuine INST_STR_INDEX consumer andVM/header tests.
+Pinned C84/85/86/90/91 tclExecute confirmscount/index/rawbyte/binary/nativeUTFchronology;
+public commandhelper differs, no Nativeguardremoval/UTF8fallback/profilegrant accepted.
+Hostile earlyrefusal vsbudgettransport cause remainsunproven; originalassertions/limits
+unchanged. First-refusal WORKobserver peer c57dab50d2976bbb900250d1e4a0e8ffb75c1067c4c552e76a14e8e611f95ca8 CLEAR;
+rootintegrated before newSpecpriority, no actualguardclassification yet.
+
+
+Current12:49 working priority: genuine STR_INDEX RegisteredInstruction versus
+ReachedNamespaceUnicode purpose split for production SpecTcl return/switch hooks.
+Codegen producerV2 master07031638e7587278bef2a668bf9594bd66e4d3b6ad84110936959f57dfc24de7;
+VM consumer inprogress, must preserve C84/85 captured binary pointer chronology and
+C86+ count→index→binary/rawbyte/nativeUTF branches, specializedcacheguard unchanged.
+No localRustbuild/source policy fallback.135 Info actual fresh8cfa40193567906 completed
+failure; I own sole ZIP/auth (not downloaded at thisupdate). Extraction graph remains
+read-only: SpecTcl production usesmainVM, standaloneRuntime still coupled to xtask
+actualbackingproducer+Cshimheaders+secondaryenginedevtests/compiledWASM/fuzz. No
+wholepackage deletion/testonly exclusion/guardwaiver reviewed or applied.

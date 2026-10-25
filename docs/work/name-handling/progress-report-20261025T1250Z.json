@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T12:50:44.516159+00:00",
+  "scheduled_report_utc": "2026-10-25T12:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T13:15:00+00:00",
+  "change_since_previous_report": [
+    "Currentreviewed source/codegen fixture lint corrections and strictkeepgoing improvement pushedWORKfirst thenCLEAN. Keepsallfeatures/targets/-Dwarnings andfailureexit; eachfailingClippy invocation nowfinishes independentunits toreportmoreerrors percapture. AllthreeWORK-onlyCoreobserver fixes preservequeries/guards andstayoutsideCLEAN.",
+    "Latestc142 fivehost captures nowgetpastownedworld typefix: nativeunit/Core2reportPASS (fullqualificationpending), releasebrowser/WASI0compileerrors. Browsermain98 rename stillUnknownWorld, matchingmeasuredindependentDB-vs-Fresh producerownership; genuine transientprefixownerreuse preparing, no Arc equalityorWorldguardweakening.",
+    "WASIquietdefinitionstillPASS\u2192refs[] fromunrelatedapp incompleteprojection. ExistingV3end-only observerforwardingcannotproveabsencewhenassertion exitsparent; missingrowsunknown, no inventedNative/effectproof. V4boundedreceived-rowstreaming plannedwithout changingtestassertions/exitcontract/budgets.",
+    "Lateststartup actualselected147703736-byteELFretained inexistingZIP; scan30PASS25.822s/cold155ms thenSTALE. Existingfirstguardtrace identifiespass.source-currency\u2192direct.publish, no producerfailure. Fullauth/compatibilitythenboundednativeReplayrequired; no staleguardrelaxation.",
+    "Fullbaselineactual24624namedPASS rows retained withzero observedduplicatekeys. Heavy355listing vs312PASS isnot reconciled:44selectednonignoredlackoutcomes,onePASSabsentlisting, producinglistingcommand/worktreeunproven. HeavycoverageHOLD, no manufacturedpasses/currentzeroPFadmission. Candidate658fiveRustshards0namedoutcomesbecauseknowncompileerrors, nowpairedcorrected.",
+    "Actualc142strictfullauth41a2324 threeCoreobserverClippies; actual8cfafullauthd5b73 singleVMfixturemethodclosure. Allminimalfixesindependentlyreviewedandapplied, no assertionorNativepermissionchange. Newcurrentstrictneeded. WholebothRustworkspacefmtPASSd5source withemptylogs/groups; laterRustchangesperfilefmtchecked.",
+    "ProductionSpecfullCLEAN658fails hostilepackcrashaccounting andreturn/switch nativeUnicodepolicy. Exactproducer/consumer collisionidentified: genericStringIndex andNamespaceQualifier shareSTR_INDEX+versionmarkerbutonlylatterhasreachedUnicode. Typedpurposeproducer/privateVMconsumerunderjointreview preservingalloriginalingress/header/provider/specializedguards; no forcedUnicode/profileorcommandhelperfallback.",
+    "ExactInfointrinsicbaselinePFfix+negativecontrols alreadyintegrated; samefreshELF135boundedcapturecompleted40193567906, artifactqualificationpending. Allold132blocks/budgets/rosters unchanged. Standalone runtime extraction consumerclosure remainsread-only; LSP/SpecTclsharedVM/API retained, no test-onlydeletion or scopewaiver.",
+    "Currentc142compiler/Jimsource-awarecapturingstillactive; no acceptednewgains beyondprior94/102and31/45. Correctedgenuinefixturedelegation+Logicalscopepreference/privateattestationallrequireactualrechecks. AllsectionF/fullcurrentzeroPF/requiredgreenCI/Spec/runtime/hosts/editor/generated/packaging/prep-pr/finaldocscommentsfmt/Tclperfgatesremainopen.",
+    "12:45checkpointusesactualtimestamps, no backdating. No PR/mergetorust/tag/release. Diskabout2.8GiB, no livebuildtarget oryoungtestexe deletion. ExternalBIGIP/perfstaleover60min usernotifiedwithouttakeover. Next13:15."
+  ],
+  "committed": [
+    "fe6533c86b6bc76a58b62552c60690af57d96e2c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish12:45 WIP/report and arm13:15 reminder.",
+    "Authenticate actualcurrenthost/nativepayload/135runtime/compiler/Jim captures andfixreachedproducererrors.",
+    "Integrate reviewedtypedStringIndexpurpose+genuineconsumer, publishedrootownerreuse, thenrunoriginaloraclesandnewnegativecontrols.",
+    "Completeallcurrentbaselinecoverage/zeroPF, validTclpairedperformance, finalgreenCI/format/docs/generated/packaging beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new global gate or audit admission. Reviewed source fixes and unrun controls are explicit; scoped actual results retain their original source and receipts.",
+  "disk_free_bytes": 2791436288,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
