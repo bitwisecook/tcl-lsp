@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "353082c43443b65ef36ab4b93776a6090fdbd6ac0a85f41504ae0fa0ea010455"
+ROSTER_SHA = "9f9be4e4b4762bdf7d47f7063fd0b5979995729ac72f6de2e5cd7eed3c2d5a40"
 BASE = Path(__file__).resolve().parent
 
 
