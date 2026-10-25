@@ -15,13 +15,14 @@ callback/phase contracts. No alternate Tcl interpreter is implemented here.
 To reproduce one release from the repository root:
 
 ```sh
+repo_root="$(git rev-parse --show-toplevel)"
 cc -Itmp/tcl8.6.18/generic scripts/dev/tcltest-provider/lookup-parser.c \
   tmp/tcl8.6.18/unix/libtcl8.6.a -lm -ldl -lpthread -lz \
   -o /tmp/tcltest-lookup-parser
-(cd /tmp && /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh \
-  /workspace/tcl-lsp/scripts/dev/tcltest-provider/lookup-source.tcl \
+(cd /tmp && "$repo_root/tmp/tcl8.6.18/unix/tclsh" \
+  "$repo_root/scripts/dev/tcltest-provider/lookup-source.tcl" \
   /tmp/tcltest-bodies /tmp/tcltest-core \
-  /workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl)
+  "$repo_root/tmp/tcl8.6.18/library/tcltest/tcltest.tcl")
 /tmp/tcltest-lookup-parser /tmp/tcltest-bodies
 ```
 
