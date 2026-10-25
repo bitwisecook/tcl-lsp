@@ -174,7 +174,7 @@ fn collision_world(
     conditional: &[OriginalConditionalCommandWorld<'_>],
 ) -> Option<tcl_compiler::command_binding::OriginalCompletedCommandWorld> {
     if let Some(world) = document.analysis.original_completed_command_world() {
-        return Some(world);
+        return Some(world.clone());
     }
     let mut selected = conditional.iter().filter(|entry| entry.uri == document.uri);
     let entry = selected.next()?;
