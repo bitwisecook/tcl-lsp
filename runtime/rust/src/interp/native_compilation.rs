@@ -110,6 +110,15 @@ struct ActiveInvocation {
     arguments: Vec<*mut TclObj>,
 }
 
+#[cfg(debug_assertions)]
+fn trace_retained_native_refusal(slot: &str, cause: &impl std::fmt::Debug) {
+    if std::env::var_os("TCL_LSP_RUNTIME_BASELINE_DIAGNOSTIC").as_deref()
+        == Some(std::ffi::OsStr::new("1"))
+    {
+        eprintln!("RUNTIME_RETAINED_NATIVE_REFUSAL slot={slot} cause={cause:?}");
+    }
+}
+
 impl Interp {
     /// Retained host admission error, distinct from a native Tcl completion.
     /// A failed preflight prevents script effects even if Tcl catches its result.
@@ -304,6 +313,11 @@ impl Interp {
             namespace_token: Some(namespace_token as u64),
         };
         self.native_compilation.borrow_mut().host_command_refusal = Some(Box::new(failure));
+        #[cfg(debug_assertions)]
+        trace_retained_native_refusal(
+            "host_command_refusal",
+            &self.native_compilation.borrow().host_command_refusal,
+        );
         Code::Error
     }
 
@@ -325,6 +339,11 @@ impl Interp {
             .borrow_mut()
             .native_access_refusal
             .get_or_insert(error);
+        #[cfg(debug_assertions)]
+        trace_retained_native_refusal(
+            "native_access_refusal",
+            &self.native_compilation.borrow().native_access_refusal,
+        );
         crate::interp::Code::Error
     }
 
@@ -336,6 +355,11 @@ impl Interp {
     ) -> Code {
         if !self.host_refusal_pending() {
             self.native_compilation.borrow_mut().execution_refusal = Some(error);
+            #[cfg(debug_assertions)]
+            trace_retained_native_refusal(
+                "execution_refusal",
+                &self.native_compilation.borrow().execution_refusal,
+            );
         }
         Code::Error
     }
@@ -1725,6 +1749,11 @@ impl Interp {
         let NativeCompilerAdmissionFailure::Presented(failure) = failure else {
             self.native_compilation.borrow_mut().admission_error =
                 Some(NativeCompilationAdmissionError::NativePreflightRequired);
+            #[cfg(debug_assertions)]
+            trace_retained_native_refusal(
+                "admission_error",
+                &self.native_compilation.borrow().admission_error,
+            );
             return self.error(b"native compiler preflight provider required");
         };
         let procedure = procedure.and_then(|name| std::str::from_utf8(name).ok());
