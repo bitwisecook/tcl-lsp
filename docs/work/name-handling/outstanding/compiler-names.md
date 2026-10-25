@@ -2,11 +2,17 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-24T22:45:25.313866+00:00
+Last updated: 2026-10-25T08:38:26.605539+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T08:38:26.605539+00:00: Root assigned actual Jim51 run40177225909/source dc52b8a0a9aa31e2221994ef8e84d2d196cf1f56/job121120438156. Metadata shows checkout active, Rust/providers/tests pending; no outcome/ZIP exists yet. Existing verifier driver563081a0 remains exact current source. Own single ZIP/full authentication after completion; no duplicate download/expanded maps/local build. Independent LSP fixture V1 receipt e459a99118ebfaadb31698faaef9527e56dc8a706bdb9356f2ef3ff90c366234 preserves all original meaningful assertions and exact77 negative but HELDS positive complete-world support because second set command substitution does not meet cited full-static quiet-write rule. Deferred-body successor under LSP authorship; no broad navigation policy change.
+
+Read-only current1d65 inventory audit persisted: `/workspace/naming-proof-storage/names-static-read-inventory-audit-v1/report.json` SHA712abaf8124a87478a464e2e2e89777fd0e6a5b2931073f0665bafc46b1f9fa3. Exact source pins and guards retained. Candidate lazily retains only pure full original-body lexical plan/fatal outcome within private static-alternatives receipt, never admission; every use still authenticates SSA/owner/input/current binding/metadata/residual/flow/argv/alias/frame/span. No patch or measured cost/gain; authoring waits for actual51.
+
+Resume 2026-10-25T08:30:27.324270+00:00: Resumed compiler-names against canonical WORK /workspace/naming-migration-publish/tcl-lsp1d65c0190 and CLEAN /workspace/naming-lsp-release/tcl-lsp028aec57a; active product stays frozen, tracker-only role writes. Jim51 full authentication verifier/preparation remain ready; root owns upcoming actual dispatch/run assignment. Read-only audit now traces whole-body-per-eligible-read cost and a possible retained once-per-body lexical inventory preserving exact owner/input/frame/alias/residual guards. No optimization before actual51, no execution/gain/closure claim, no local Cargo/rustc or duplicate artifact downloads.
 
 Resume 2026-10-24T22:45:25.313866+00:00: Read-only canonical check confirms Jim51 reviewed driver563081a0 now present at WORKa05d78e23f6ce8892c733802f859ea0688d5ba00, matching frozen after bytes; no role source/Git change. Independent harness receipt e927b6b7 remains bound to e7fb0024/patcha0ed5742/man44841933 and22JSON correction71bee8e3. Persistent actual-auth preparation /workspace/naming-proof-storage/names-jim51-authentication-preparation-v1/preparation.json SHA0fb35f07, verifierf6766339; syntax/source adaptation only, no actual ZIP or claim. It preserves genuine original7+38+5 authentication and adds separate new1/3fresh0WELFs/58groups/NULfullsource+pins/all5seals/order/aggregate caps/cleanup margin. A latest-workflow-dispatch metadata read found latest5593 runs22:05, no Jim51 source yet; parent owns launch/run assignment. Remaining active goal actual next Jim51 authentication + first productive static admissions/producers; no semantic/performance changes or new probes while waiting. Lastactualf245 remains31P14F+diag5FAIL880031b5.
 

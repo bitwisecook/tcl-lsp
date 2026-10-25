@@ -1,0 +1,85 @@
+{
+  "utc": "2026-10-25T08:41:11.728880+00:00",
+  "guard_before": [
+    {
+      "pid": 31743,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 45394,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 356533,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 502653,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 526771,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 23116,
+      "state": "Z",
+      "comm": "cargo"
+    },
+    {
+      "pid": 45151,
+      "state": "Z",
+      "comm": "cargo"
+    }
+  ],
+  "guard_after": [
+    {
+      "pid": 31743,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 45394,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 356533,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 502653,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 526771,
+      "state": "Z",
+      "comm": "rustc"
+    },
+    {
+      "pid": 23116,
+      "state": "Z",
+      "comm": "cargo"
+    },
+    {
+      "pid": 45151,
+      "state": "Z",
+      "comm": "cargo"
+    }
+  ],
+  "zombies_are_terminated_no_live_rustc_or_cargo": true,
+  "files_deleted": 484,
+  "logical_bytes": 5191534068,
+  "free_before": 30117888,
+  "free_after": 3946762240,
+  "test_executables_deleted": 0,
+  "source_or_evidence_deleted": 0,
+  "plan": "/tmp/naming-superseded-rlib-prune-20261025-plan.json"
+}

@@ -1,0 +1,151 @@
+{
+  "utc": "2026-10-25T08:37:29.151818+00:00",
+  "verdict": "STATIC DEEP SOURCE/OWNER/OPERAND/HEADER/PROLOGUE CLEAR; ACTUAL UNBUILT/UNRUN",
+  "checks": {
+    "work": {
+      "manifest_sha256": "066daa24f1d341d6b4fa64886ee454dcf7cbffe1e527850682a5704b9d536fdc",
+      "patch_sha256": "bbfefce034aa9f1550a74fcb4cef5f811430fe58606552cc6e279895b05b9332",
+      "rows": [
+        {
+          "path": "rust/tcl-vm/src/interp/closed_native_execution.rs",
+          "current_before_exact": true,
+          "before_sha256": "a4102af51c77f5065bcaab57ee756b7e02c8df48f02b1a23fa9a70ce77de6b7c",
+          "after_sha256": "c0bd9482eed2b2324cbfad45e1ca2abdff710ca93a6970deeaaf4c153537a64f"
+        },
+        {
+          "path": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+          "current_before_exact": true,
+          "before_sha256": "94a2572d98b5bbd0474528786a625acd03845c97a7b09dde0f40c471c1bb9276",
+          "after_sha256": "21376983c0b5f8700ec7a0a60d92586bc8e5cb8e2b2ab6288fc3b29d8596644f"
+        }
+      ],
+      "copied_forward_reverse_forward": [
+        0,
+        0,
+        0
+      ],
+      "entire_vm_byte_inverse_removing_only_three_opcodes": true
+    },
+    "clean": {
+      "manifest_sha256": "77f20cf0d2502e87b7a96509e7406246f3aa8fc2bf95c5a1407291f223f21b02",
+      "patch_sha256": "ae12e269d2e2f6172658ba2c91e43c49dcb91f148de22f5f6210183d736891ed",
+      "rows": [
+        {
+          "path": "rust/tcl-vm/src/interp/closed_native_execution.rs",
+          "current_before_exact": true,
+          "before_sha256": "f3e165012b23c30037784bc0f4e6aa97b9978321da84088ed9574ca931b56e8a",
+          "after_sha256": "ad00f0ae7619899032b0eaa4b99e6f07bf78eb7b5d28ec94057b64160bf2e570"
+        },
+        {
+          "path": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+          "current_before_exact": true,
+          "before_sha256": "1df3587162519c3025fdb8879d15a6999b7fd3077c1675ad144d09e41e9f5c44",
+          "after_sha256": "c0f23a2ce1fb50ac9b6e89a1ab96c85e6b0bc644614428ad678f1868e91fb17e"
+        }
+      ],
+      "copied_forward_reverse_forward": [
+        0,
+        0,
+        0
+      ],
+      "entire_vm_byte_inverse_removing_only_three_opcodes": true
+    }
+  },
+  "source_proof_sha256": "fd3f9443bcd5276e63f4588f491fae620f1f08a585655ec12746b608be56003c",
+  "independently_verified_common_pins": [
+    {
+      "path": "rust/tcl-runtime-api/src/lib.rs",
+      "exact_current": true,
+      "sha256": "96efefa87019b63a29f9f3f30d4bcaf171a58f114eff468a3433dc9d42db23a0"
+    },
+    {
+      "path": "rust/tcl-runtime-api/src/closed_native_consumer.rs",
+      "exact_current": true,
+      "sha256": "8c9b7e9e5e3debcfdae721fde3769d3dfed6c5973936adc81c562928690ad1b4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "exact_current": true,
+      "sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66"
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_byte_compilation.rs",
+      "exact_current": true,
+      "sha256": "7ea11432d8ba0bfecf7258cea34f6d1549120ed38d5145d25ae22adc3d4cd130"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/statements.rs",
+      "exact_current": true,
+      "sha256": "a20a319f3a343307387a4b7bae6baf0f9f162557625aa08b007ca750d20222df"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/values.rs",
+      "exact_current": true,
+      "sha256": "a9aa017c22544154f98863bdb28eee2fffb80b4c8e5c5bed38eb0f5ed72abec4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/native_control.rs",
+      "exact_current": true,
+      "sha256": "13e5b3e6a9e940cfe2f52f9e44a35110d0b7880176c2208d134fe007326a1e3f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+      "exact_current": true,
+      "sha256": "be8a043c4290aa3e2904855831058f04275ecab56c22ccbbd296abecb3a8887f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/closed_consumer.rs",
+      "exact_current": true,
+      "sha256": "f9571d7e7369b91d2597ba395931d2a93e349c3074254f74d12204179d0b2ca3"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "exact_current": true,
+      "sha256": "d7a7a8099a463b33f58b2a874f8c130b4e3ecb9aeb4ffc057ac1b7d166be98f6"
+    },
+    {
+      "path": "rust/tcl-vm/src/expr.rs",
+      "exact_current": true,
+      "sha256": "6cee38a92df5f66c74cd1ee45d258530f7439b4ca0a99c35fbb41036fffe1816"
+    },
+    {
+      "path": "rust/tcl-vm/src/expr/original_numeric_context.rs",
+      "exact_current": true,
+      "sha256": "eb448d59de94641d43f71a94f811e9c30eb179e05dc6ce8d8f71ccb8fbbaa80c"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+      "exact_current": true,
+      "sha256": "105c4f3342875e614d90b2fc154f2822a9d09626f965a79f8188256070ad75f9"
+    },
+    {
+      "path": "rust/tcl-vm/src/value.rs",
+      "exact_current": true,
+      "sha256": "33ca268b69c446e3b6508a8371cc958ed8bb10042055a0f4f4b59311974c753d"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/closed_native_execution.rs",
+      "exact_current": true,
+      "sha256": "a4102af51c77f5065bcaab57ee756b7e02c8df48f02b1a23fa9a70ce77de6b7c"
+    },
+    {
+      "path": "rust/tcl-engine-tclvm/src/closed_native_execution.rs",
+      "exact_current": true,
+      "sha256": "94a2572d98b5bbd0474528786a625acd03845c97a7b09dde0f40c471c1bb9276"
+    }
+  ],
+  "review": [
+    "Only product change adds ADD/SUB/MULT to existing VM opcode inventory. Entire VM file restores byte-exact after erasing three added alternatives; every existing original entry/currentness/profile/source/namespace/plain/procedure/instruction-budget/other-op refusal and common Native preparation remains.",
+    "Existing shared compiler Native nested preparation/task/literal/header recipe and run_current_module_at prologue are unchanged; no validate-and-discard shortcut, fallback or fake entry.",
+    "exec::bin pops right then left as original Values; with_original_numeric_context retains actual NativeOperationScope, checks actual Native arithmetic/scalar-getter/string protocol equality and actual provider OriginalArithmeticStages before/after. OriginalNumericOps retains Vm scope/Host and checks actual original header currency around getter/cache/conversion. No authored simulation in closed capture.",
+    "Checked original operands may acquire native numeric caches/header effects; they are never assumed pure or absent. Original result allocations and retired operand Values remain within owned private Vm and original operation checks. Host failure/currency refusal persists through shared outer tick checks.",
+    "ClosedSourcePlan is sole source-domain boundary: exact source/registry/profile, ordinary absent scalar roots, only literal/scalar/Add/Sub/Mul, each recursively checked integer intermediate within +/-1000000, source256B/commands32/nodes64/depth8/output256B. Exact original or reviewed rewrite candidate only. No float/overflow/function/custom provider/external cell admitted by this private source domain.",
+    "PrivateBackend owns concrete compiler, authenticated restricted commands, fresh Native Vm and bounded MemoryHost. Kernel/source scope is private; PreparedClosedNativeSource opaque public helper is actual execution preparation and grants no closed erasure or value authority. Therefore no extra public bounded-plan witness is required for this inventory relaxation: outside Vm users gain no fold scope and still execute actual checked module.",
+    "Private execute_owned rechecks exact plan/currency, prepares candidate through original actual compiler, executes actual module, drops original/observation/Vm before exact transcript check and joined bytes escape. Arithmetic erasure exists only within already approved closed observation domain.",
+    "All existing engine assertions retained; added ORIGINAL selections (not rewritten source) exercise subtraction,multiplication,composed Add/Sub/Mul with x assigned before expression and exact complete output. New cancellation negative has bounded final result but intermediate x+1 out of domain, matching recursive bound. No original fold assertions edited."
+  ],
+  "limits": [
+    "Static only: no Cargo/rustc/native/Tcl/actual arithmetic execution or successful original fold claim.",
+    "No broad general plain compiler repair or admission beyond ADD/SUB/MULT. All actual positive/negative controls remain UNRUN."
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "utc": "2026-10-25T08:32:41.811687+00:00",
+  "status": "INDEPENDENT_TEST_POLICY_SOURCE_CLEAR_ACTUAL_PRODUCT_UNRUN",
+  "patch_sha256": "a8edf498d21584bb4fdffcfe80f7c6c9bf8b9dedb76ced627e0cc9d30f4e2389",
+  "checks": [
+    {
+      "lane": "WORK",
+      "check": "unchanged",
+      "exit": 0,
+      "expected_success": true
+    },
+    {
+      "lane": "WORK",
+      "check": "capture omitted",
+      "exit": 1,
+      "expected_success": false
+    },
+    {
+      "lane": "WORK",
+      "check": "required reference missing",
+      "exit": 1,
+      "expected_success": false
+    },
+    {
+      "lane": "WORK",
+      "check": "archive install wrong result",
+      "exit": 1,
+      "expected_success": false
+    },
+    {
+      "lane": "CLEAN",
+      "check": "unchanged",
+      "exit": 0,
+      "expected_success": true
+    },
+    {
+      "lane": "CLEAN",
+      "check": "capture omitted",
+      "exit": 1,
+      "expected_success": false
+    },
+    {
+      "lane": "CLEAN",
+      "check": "required reference missing",
+      "exit": 1,
+      "expected_success": false
+    },
+    {
+      "lane": "CLEAN",
+      "check": "archive install wrong result",
+      "exit": 1,
+      "expected_success": false
+    }
+  ],
+  "scope": "Current exact Git preimages, shell syntax, genuine full AWK on current CI and three independent malformed CI negatives per branch; source/test fixture correction only. No native or full shell runner execution."
+}

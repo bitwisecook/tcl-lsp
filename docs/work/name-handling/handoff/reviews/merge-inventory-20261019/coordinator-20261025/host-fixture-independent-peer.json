@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-25T08:39:47.650072+00:00",
+  "status": "LIMITED FIXTURE/SOURCE STATIC CLEAR; no hosted final-world or execution acceptance",
+  "manifest_sha256": "3ee74e6b912519635edee9638511cb951ada1f8020403241398c865ad559b276",
+  "companion_manifest_sha256": "4819bcd3981ae0ce2854992eea23caa9f68cf14e722d241ccf29fa263debbfc7",
+  "patch_sha256": "883ccf6f1e31f08746e5391311883f311dab408d427c8367d241051da1e7fbbf",
+  "checks": [
+    "Actual paired current Git script preimages match manifest",
+    "Paired after files identical",
+    "Erasing only new negative function+call/export and replacing positive literal reconstructs whole original module byte-for-byte",
+    "Exact original77 source retained as explicit negative",
+    "Node syntax and supplied original-positive11request + five corrupt-result rejection mocks independently rerun PASS (harness only)",
+    "Entire companion JSON inverse changes only exact script pin; entire driver inverse changes only derived roster digest; Python AST and current Git preimages verified"
+  ],
+  "source_judgment": "V1 substitution concern removed. Root now contains genuine proc declarations and fully literal fresh scalar quiet write; selected nested call moved into a positively represented declared-body scope. Existing original_source_views prepare requires actual current publication/owned retained call, no uncertain operations, no lookup operand effects and unique target owner. Existing declared-body source scope retains exact input/original words/namespace. Existing definition regression uses the same deferred return [procedure ...] command shape. No source rule or guard changes.",
+  "coverage": "All original meaningful exact declaration/call counts, two UTF16 edit validation, full WorkspaceEdit and first-new-revision targets remain byte-identical. Astral Unicode still precedes nested command. Selected call now lives in deferred procedure body, explicitly documented scope relocation; original root-call form remains separate refusal coverage.",
+  "negative": "Version3 exact original77 tests empty def/refs from call and typed UnknownWorld refusal from known declaration, forbids edit result. Native C86 callback oracle supplies narrow possibility evidence, not hosted channel facts or blanket policy.",
+  "limits": [
+    "Actual browser/WASI assertions remain UNRUN for this fixture. No promise root quiet write or deferred call is admitted in host context.",
+    "Rename requires independently completed world in every workspace document; prior browser ordinal2/count3 UnknownWorld may remain separate.",
+    "No new Native/frame/Normal/nav authority, equality relaxation or ILX opaque-stop policy change.",
+    "No current provider-map reseal inferred from author fixture-only C86 control."
+  ]
+}

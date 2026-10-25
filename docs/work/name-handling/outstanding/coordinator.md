@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-24T23:03:27.236650+00:00
+Last updated: 2026-10-25T08:47:18.514514+00:00
 
 ## Resume
 
@@ -13,14 +13,16 @@ Last updated: 2026-10-24T23:03:27.236650+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (22:55 UTC)
+### Current cycle and routing (08:45 UTC)
 
-- User requested all current work be pushed to GitHub. Reviewed functional commits through WORK2cc17f8516c20b5043786faba27285259171d9de and release cleanup through CLEAN028aec57a7f6fdd34bdec11c65f4592734e93596 are included. Normal depth1 origin/work fetch/rebase precedes push. Pending in-repository tracking and review receipts are checkpointed; no PR, merge, tag or release.
-- Fresh559 LSP full authentication closes native unit1PASS with genuine Send bounds compiled. Browser and WASI build warning-free but fail actual navigation. Unified evidence index9ad455f3 retains source/tool/process seals and failure causes. The later cursor owner repair is source-reviewed and integrated, actual retry UNRUN.
-- Compiler d62 authenticated original56/58 and old9PASS, closed12/16, readonly6/10, owner2/3, Native ancestry3/3. Fresh559 closed first4 positives now refuse ADD stage22/detail21/ordinal10 after NOP repair. No fold assertion or failed gate is weakened.
-- Logical declared read scopes now retain genuine Logical source ownership when catalogue layouts are absent. Present invalid rows remain terminal; full declared-body/input/config/namespace/source joins remain mandatory. New3 controls are unrun and the separately reviewed102 metadata companion is not yet integrated.
-- Jim V8 source and Jim51 protocol are integrated, but no actual improvement beyond historical31/45 is claimed. The new test has16 internal cases within one separately labelled test. Repeated source parsing remains an explicit performance concern.
-- Nextest V5 private source installation and post-PATH custody checks are integrated on both branches. Existing default validate-only mode and old workflow gates are preserved. Actual new install/verify execution remains unrun. Existing policy-fixture drift and new shell quoting repairs are pending, not waived.
-- WORK-only observer lint repairs and runtime foreach setup/body phase split are integrated with independent source/drop review. Strict and stack retries remain unrun. The original128 evaluation limit and original tests are unchanged.
-- All sectionF, complete current baseline zero-pass-to-fail, full green CI, accepted Tcl corpus performance, generated/editor/packaging checks and final documentation/comments/chaff/format/prep-pr gates remain open. Dedicated iRules timing alone is waived. The six-hour target was missed.
-- Disk remains below2GiB on both filesystems. No local Rust build, target deletion or young executable deletion. External BIGIP and perf tracker timestamps exceed60minutes; notification without takeover remains the rule. Review-triage reports complete.
+- Resumed paused roles from their saved handoffs. Functional changes stay WORK; reviewed cleanuprelease counterpart stays release/lsp-naming. Current reviewed product tips WORK1c2944510ff9a7105a95151111942cf8fcb2b64a and CLEANf5936700dd83411eb2a09bdbcf2847871261210b. No PR, merge, tag or release.
+- Fresh Jim51 run40177225909 and runtimefocused40177229024 on exactdc52 launched08:35 with guarded inputs; actual tests/capture active and fullZIPauthentication pending. FullWORKCI40177232371 on dc52 active; cargo-deny API job121120456681PASS now, prior nestedlock failure absent in this job. No fullCI/baseline acceptance.
+- Logical missing-layout3 controls appended after unchanged old99 with exact approved sourcepins, same fresh compilerlib/sharedbudgets/seals and no newbuild. MandatoryV12 adds newJSON wholehash coverage and passes13startupmaps/30runners/20wholeguards after fixturepin correction.
+- Genuine private closed Native path now admits only ADD/SUB/MULT in its opcode inventory. Deep independent607230 confirms common source/provider/header/operand/result/observer/currency machinery and private bounded source domain remain. Original foldassertions unchanged; original selected sub/mult/composed execution cases and intermediate-overbound refusal added inside existingcontrols. Actual repairedfold/controls UNRUN until nextcompiler102.
+- Allocation-specific inventory test now uses authentic captured Native VM plus original retired global procedure; all original allocation/issuer/body corruption assertions preserved. Exact original Logical missingnamespace source retained as separate noallocation/noNative control. PinnedC86 actualoraclePASS and independent25cc/fmtPASS. No production authority grant.
+- RootV12 caught two stale ir.rs sourcepins missed by author sparseon-disk census: taint2 AND readonly13. Incompleteclaim withdrawn; exact approvedsourcepins+correspondingdriverwholehashes corrected with wholefile/ASTinverse. No dispatch occurred with failingpreflight; productWIP push remains authorized.
+- Hostpositive fixture now uses literal quiet scalar setup and a genuine deferred-body nested call; all original positive nav/ref/twoUTF16edit/newrevision assertions retained. Exact original77 opaqueputs source remains separately asserted emptydefinition/references and typedUnknownWorldrename refusal. Independent09eeb, Nodecontrols and boundedactualC86fixture semantics pass; everydocumentworld/currenthost assertions remain unrun.
+- Nextest policy fixture alignment reviewed and integrated on both branches; genuine currentCI AWKpositive and threeindependentnegative controls perbranch pass. Actual V5installer/custody newmode requires current fullCI; oldvalidate-only success is not this newmode proof.
+- Safe diskprune restored free30,117,888 to3,946,762,240B:484supersededrlibs older60min removed, newest eachcrate retained. Exactpgrep cargo/rustc entries repeatedly allZ terminated, no livebuild; zero testexecutables/source/evidence deleted. /tmpstill~28MiB; artifacts workspaceZIPonly.
+- ExternalBIGIP/perf trackers stale >60min; user notified without takeover. Two small externallyowned sourceblocker notes fetched by exactGitblob, OIDs verified, routed compiler/VM/LSP dependencies. Triage COMPLETE. No newpolicy decision or olddecision reopened.
+- AllsectionF/complete current zeroPF baseline/fullrequirednativeeditorhostruntimegeneratedpackaging/prep-pr and accepted shippingTclcorpusperformance gates remain open. DedicatediRules timing onlywaived. Sixhourdeadline missed; no false completion claim.

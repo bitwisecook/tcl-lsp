@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T08:47:18.655272+00:00",
+  "scheduled_report_utc": "2026-10-25T08:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T09:15:00+00:00",
+  "change_since_previous_report": [
+    "Resumed paused roles from their saved handoffs. Functional changes stay WORK; reviewed cleanuprelease counterpart stays release/lsp-naming. Current reviewed product tips WORK1c2944510ff9a7105a95151111942cf8fcb2b64a and CLEANf5936700dd83411eb2a09bdbcf2847871261210b. No PR, merge, tag or release.",
+    "Fresh Jim51 run40177225909 and runtimefocused40177229024 on exactdc52 launched08:35 with guarded inputs; actual tests/capture active and fullZIPauthentication pending. FullWORKCI40177232371 on dc52 active; cargo-deny API job121120456681PASS now, prior nestedlock failure absent in this job. No fullCI/baseline acceptance.",
+    "Logical missing-layout3 controls appended after unchanged old99 with exact approved sourcepins, same fresh compilerlib/sharedbudgets/seals and no newbuild. MandatoryV12 adds newJSON wholehash coverage and passes13startupmaps/30runners/20wholeguards after fixturepin correction.",
+    "Genuine private closed Native path now admits only ADD/SUB/MULT in its opcode inventory. Deep independent607230 confirms common source/provider/header/operand/result/observer/currency machinery and private bounded source domain remain. Original foldassertions unchanged; original selected sub/mult/composed execution cases and intermediate-overbound refusal added inside existingcontrols. Actual repairedfold/controls UNRUN until nextcompiler102.",
+    "Allocation-specific inventory test now uses authentic captured Native VM plus original retired global procedure; all original allocation/issuer/body corruption assertions preserved. Exact original Logical missingnamespace source retained as separate noallocation/noNative control. PinnedC86 actualoraclePASS and independent25cc/fmtPASS. No production authority grant.",
+    "RootV12 caught two stale ir.rs sourcepins missed by author sparseon-disk census: taint2 AND readonly13. Incompleteclaim withdrawn; exact approvedsourcepins+correspondingdriverwholehashes corrected with wholefile/ASTinverse. No dispatch occurred with failingpreflight; productWIP push remains authorized.",
+    "Hostpositive fixture now uses literal quiet scalar setup and a genuine deferred-body nested call; all original positive nav/ref/twoUTF16edit/newrevision assertions retained. Exact original77 opaqueputs source remains separately asserted emptydefinition/references and typedUnknownWorldrename refusal. Independent09eeb, Nodecontrols and boundedactualC86fixture semantics pass; everydocumentworld/currenthost assertions remain unrun.",
+    "Nextest policy fixture alignment reviewed and integrated on both branches; genuine currentCI AWKpositive and threeindependentnegative controls perbranch pass. Actual V5installer/custody newmode requires current fullCI; oldvalidate-only success is not this newmode proof.",
+    "Safe diskprune restored free30,117,888 to3,946,762,240B:484supersededrlibs older60min removed, newest eachcrate retained. Exactpgrep cargo/rustc entries repeatedly allZ terminated, no livebuild; zero testexecutables/source/evidence deleted. /tmpstill~28MiB; artifacts workspaceZIPonly.",
+    "ExternalBIGIP/perf trackers stale >60min; user notified without takeover. Two small externallyowned sourceblocker notes fetched by exactGitblob, OIDs verified, routed compiler/VM/LSP dependencies. Triage COMPLETE. No newpolicy decision or olddecision reopened.",
+    "AllsectionF/complete current zeroPF baseline/fullrequirednativeeditorhostruntimegeneratedpackaging/prep-pr and accepted shippingTclcorpusperformance gates remain open. DedicatediRules timing onlywaived. Sixhourdeadline missed; no false completion claim."
+  ],
+  "committed": [
+    "8881861cd08529cce8d75f1a46b7deafe01711b7"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish currentWIP checkpoint/report and re-arm09:15UTC reminder.",
+    "Authenticate currentJim51/runtimefocused; launch currentcompiler102, hosts, strictandstartup after finalV12PASS and remotetip verification.",
+    "Finish genuinecompiledbodycustody/readonly4, NativeWASMdepth/ownership and measured startup/performance failures.",
+    "Complete fullgreenCI/currentnamedbaseline comparison/Tclcorpusperformance plus finaldocs/comments/generated/fmt/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No auditunit/globalreleasegate admissions. Actual scoped prior outcomes, static source reviews and pending hosted runs are distinguished.",
+  "disk_free_bytes": 3943669760,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

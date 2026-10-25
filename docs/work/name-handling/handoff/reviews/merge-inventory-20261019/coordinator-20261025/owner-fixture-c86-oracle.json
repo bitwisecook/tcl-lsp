@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-25T08:35:14.515757+00:00",
+  "interpreter": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+  "interpreter_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "script_sha256": "62ca2641702bc73e4227129947b240d36b0b29935e0e3512073f51512d5d2514",
+  "stdout": "missing_namespace 1 0\nallocated 1 {global x; set x VALUE}\nretired 0\n",
+  "exit": 0,
+  "scope": "Pinned C Tcl missing namespace fails, real global procedure allocates and retirement removes command. Source oracle only."
+}

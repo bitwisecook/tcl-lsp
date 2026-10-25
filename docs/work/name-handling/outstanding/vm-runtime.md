@@ -573,3 +573,81 @@ APIcompatibility/oldbaselinefixes/generalparity, no wholeStandalone rollback jus
 No extraction/restoration/omission authorised/performed. Actual66ef14oldmatchedP still
 14P;984otheroldrowsUNKNOWN, notzerofullP2F. Closedconsumer doesnotwaiveexistingRuntime
 85FAIL/stackABORT/prune1/heldC85With or anyfullsharedprocess/performancegate.
+
+
+## 25 October 08:37 UTC resumed closed-owner arithmetic frontier
+
+Canonical WORK 1d65c0190 / CLEAN 028aec57a are root-owned; ACTIVE product remains frozen.
+Fresh559/compiler99 shared ZIP is authenticated in place under
+`/workspace/naming-proof-storage/compiler-original99-40137082566/`; independent full member
+CRC/SHA, Git tree/blob membership and repeated 99-case protocol authentication are running,
+without extracting maps or another ZIP. Existing actual closed16 remains12P4F, all four
+first decline stage22/detail21/ordinal10=ADD; original fold internal first cause is unknown.
+Draft paired packet `vm-closed-native-arithmetic-v1` adds only ADD/SUB/MULT to the private
+preparation inventory, plus genuine subtract/multiply/composed-arithmetic transcript cases
+inside the existing positive control. Original fold assertions and existing positive
+assertions are unchanged. Private bounded-plan/constant/intermediate ownership, original
+numeric ABI/provider/header path, full Native preparation and retirement proof is being
+frozen for independent Codegen peer and root review. No compiler-expression task is dropped;
+general plain producer repair remains HELD. New code UNBUILT/UNRUN. Current disk33MB free;
+no local build, target/executable removal, canonical edit or dispatch by role.
+
+
+### 08:39 UTC frozen arithmetic packet and scoped559 authentication
+
+`compiler-original99-40137082566/vm-independent-full-authentication-v1.json`
+SHAa03c6fa15b7a45e02024d643d11fd5df54010f31c84b8db2cc3e3a7e712020a6:
+all770 members CRC+SHA, all126239 NUL Git membership = before/after source domain,
+16 keyGitblobs/2061082B, providers10202/deps21503/tools unchanged. Recomputed all99
+rosters/environments/childseals/217 closed processes and lossless stderr protocol receipt
+`assessment-vm-recomputed-v1.json` SHA4d5f38df80f11eb8428ae6bd1483d872f01506f1889d2f99f2402e401c7b1cb3.
+Same original56P2F; separate closed12P4F; no warning/error. Scope explicitly excludes
+all-Git-content validation: known missingpromisor blob6d4e4a9c1001906d817efb82c746b4a308657ee2
+is historical `merge-inventory-20261019/bigip-lsp-NOTES.md`; all other unselected blob
+content remains unread. No maps extracted or duplicateZIP. Initial fullcontent attempt
+hit unavailable lazyfetch; no further network/fetch attempted.
+
+Paired `vm-closed-native-arithmetic-v1` frozen: proof
+fd3f9443bcd5276e63f4588f491fae620f1f08a585655ec12746b608be56003c,
+WORKmanifest066daa24f1d341d6b4fa64886ee454dcf7cbffe1e527850682a5704b9d536fdc,
+CLEANmanifest77f20cf0d2502e87b7a96509e7406246f3aa8fc2bf95c5a1407291f223f21b02.
+Only3 VM inventory lines plus existingengine controls: original-owner selected source
+executes actual SUB/MULT/composedADD-SUB-MULT rather than optimised constant output;
+new cancellationnegative has bounded final value but forbidden intermediate. Original
+fold assertions/positive assertions unchanged.4fmtPASS/bothF-R-F0 actualapplyPASS;
+applyreceipt a257d1ff1ceef26b3bb4be0ab4844ab2f8182c43274118da5dddbb54a7f71f4a.
+All shared actual Native preparation/prologue, compiler tasks, original numericHost ABI,
+operand/header currentness, numericresult and operandretirement are unchanged and
+source-pinned; private boundedplan+exactcandidate/transcript/workerretirement stays sole
+erasure authority. Public opaque preparation alone grants no erasure. Codegen independent
+peer and root review pending; all new actual outcomes UNBUILT/UNRUN. Root owns current
+runtimefocused retry including genericforeach phase split; no outcome inferred.
+
+
+### 08:40 UTC independent arithmetic peer clear; actual runtimefocused pending
+
+Codegen independent deep STATIC CLEAR `ccg-peer-native-arithmetic-v1/receipt.json`
+SHA607230098e0138cf7b9f98b3ea2c0181e1f137b1dcf4f7e1e79e48c44bacfd0f:
+exact currentGit/bothpatches/inverses/common16pins and actual operand/header/provider/
+sharedprologue/retirement chain reviewed. Root review/integration pending, UNBUILT/UNRUN.
+Root runtimefocused40177229024 exactdc52/job121120446714 is healthy inprogress;
+nextestinstallPASS, source validation step6 active, no artifact yet. This role owns actual
+metadata/artifact authentication once available; no cancellation/dispatch/duplicateZIP.
+Root fullCI40177232371 remains independently rootowned; no outcome inferred from either.
+
+
+### Arithmetic integrated; exact metadata successor08:43 UTC
+
+Root independently reviewed607230 peer and integrated arithmetic into WORKc10dfeb53;
+rootnormalised productpatches bbfefce034aa9f1550a74fcb4cef5f811430fe58606552cc6e279895b05b9332 /
+ae12e269d2e2f6172658ba2c91e43c49dcb91f148de22f5f6210183d736891ed.
+Original runtime/engine bytechanges remain reviewed; earlier manifests remain historical.
+Exact WORK-only metadata companion `vm-closed-native-arithmetic-metadata-v1` manifest
+ffe6822de20563e76555456ef26c3917dad3e138e1cfeb4ffaa1648bf7a0d7a6,
+patch7fc71f016dec87e79112f853660395fda93bd195837928e13511d0f3a2fd18f8:
+only2 approved sourcepins a410/94a257→c0bd/213769, descriptor8cc64→604f45,
+main102driver6e444a→57355b44c7545667b36780d67078f0e10add9c5f39c78b33899d6af10e274a29.
+All rosters/env/targets/counts unchanged, closed16/total102; addedcases inside twoexisting
+selectors. PythonASTPASS; Codegen metadata peer/rootV12purepreflight pending.
+No actualpost-arithmetic outcome yet. Currentruntimefocused pre-arithmetic exactdc52
+run40177229024 remains independent; no retrospectivearithmetic claim from it.
