@@ -2018,6 +2018,20 @@ mod tests {
         ));
     }
 
+    fn assert_nested_owner_refusals(
+        binding: &super::super::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        parser: &tcl_syntax::expr::parser::ExprParseContext,
+    ) {
+        let mut wrong_frame = binding.clone();
+        wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+        assert!(!wrong_frame.nested_expression_normalisation(registry, tokens, parser, None));
+        let mut foreign = tokens.clone();
+        foreign.word_exprs.clear();
+        assert!(!binding.nested_expression_normalisation(registry, &foreign, parser, None));
+    }
+
     #[test]
     fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
         let expression = "expr {[expr {$x * 2}]}";
@@ -2087,17 +2101,7 @@ mod tests {
                     "{profile_name}: {source}"
                 );
                 if allowed {
-                    let mut wrong_frame = binding.clone();
-                    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
-                    assert!(
-                        !wrong_frame
-                            .nested_expression_normalisation(registry, &tokens, &parser, None)
-                    );
-                    let mut foreign = tokens.clone();
-                    foreign.word_exprs.clear();
-                    assert!(
-                        !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
-                    );
+                    assert_nested_owner_refusals(binding, &tokens, registry, &parser);
                 }
             }
         }
@@ -2178,17 +2182,7 @@ mod tests {
                         projection,
                         Some(("$x * 2".to_owned(), "[expr {$x * 2}]".to_owned()))
                     );
-                    let mut wrong_frame = binding.clone();
-                    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
-                    assert!(
-                        !wrong_frame
-                            .nested_expression_normalisation(registry, &tokens, &parser, None)
-                    );
-                    let mut foreign = tokens.clone();
-                    foreign.word_exprs.clear();
-                    assert!(
-                        !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
-                    );
+                    assert_nested_owner_refusals(binding, &tokens, registry, &parser);
                 } else {
                     assert!(projection.is_none());
                 }
