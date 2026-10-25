@@ -5370,7 +5370,7 @@ fn source_body_context_boxed<'a>(
     frame: &'a crate::var_resolve::VariableExecutionFrame,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
-        control: (*context)
+        control: context
             .control
             .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
         namespace,
@@ -5443,7 +5443,7 @@ fn source_loop_context_boxed<'a>(
     context: &SourceExecutionContext<'a>,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
-        control: (*context).control.with_compilation(
+        control: context.control.with_compilation(
             tcl_registry::native_compilation::NativeCompilationContext {
                 loop_depth: context.compilation().loop_depth.saturating_add(1),
                 ..context.compilation()
