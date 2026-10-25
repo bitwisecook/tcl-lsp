@@ -491,6 +491,7 @@ struct PhiUndefIndex<'a> {
 /// emitters from acquiring separate, subtly divergent entry-scope contracts.
 pub(super) struct ReadBeforeSetCtx<'a> {
     pub initial_global: bool,
+    pub original_unit: Option<&'a crate::compilation_unit::CompilationUnit>,
     pub global_aliases: &'a HashSet<String>,
     pub defined_vars: &'a HashSet<String>,
     pub scope_aliases: &'a HashSet<String>,
@@ -1761,21 +1762,24 @@ is renamed or deleted in this file."
         &self,
         fu: &'a crate::compilation_unit::FunctionUnit,
         procedure: &crate::ir::Procedure,
+        unit: Option<&crate::compilation_unit::CompilationUnit>,
     ) -> Option<StaticReadUseScope<'a>> {
         let registry = self.profile_registry();
         let input = fu.source_metadata_input()?;
         fu.invocation_metadata_context(&registry)?;
         let source = rbs_read_option(
             "static_lookup_alternatives",
-            self.head_identities
-                .source_bindings()
-                .original_procedure_static_read_alternatives(
-                    procedure,
-                    &tcl_lexer::SourceImage::document(&self.source),
-                    &registry,
-                    input,
-                ),
+            unit.and_then(|unit| {
+                unit.original_native_declaration_static_read_alternatives(fu, &registry)
+            }),
         )?;
+        source
+            .matches_original_procedure(
+                procedure,
+                &tcl_lexer::SourceImage::document(&self.source),
+                input,
+            )
+            .then_some(())?;
         Some(StaticReadUseScope {
             ssa: &fu.ssa,
             source,
@@ -1980,8 +1984,8 @@ is renamed or deleted in this file."
         };
         let params = &params_owned;
 
-        let alternatives =
-            ir_proc.and_then(|procedure| self.static_read_alternatives(fu, procedure));
+        let alternatives = ir_proc
+            .and_then(|procedure| self.static_read_alternatives(fu, procedure, ctx.original_unit));
         self.collect_chain_read_before_set_spans(
             fu,
             ctx,
@@ -2186,7 +2190,7 @@ is renamed or deleted in this file."
         {
             return None;
         }
-        let alternatives = self.static_read_alternatives(fu, procedure);
+        let alternatives = self.static_read_alternatives(fu, procedure, ctx.original_unit);
         let mut reads = std::collections::HashMap::new();
         for (name, &span) in report.declared_absence_warning_occurrences() {
             #[cfg(debug_assertions)]

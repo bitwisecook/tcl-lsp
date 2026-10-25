@@ -359,6 +359,39 @@ impl OriginalProcedureStaticReadAlternatives {
         }
     }
 
+    pub(crate) fn matches_original_procedure(
+        &self,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        &self.input == input && self.declaration.owns_original_procedure(procedure, image)
+    }
+
+    pub(crate) fn owns_declared_callable_static(
+        &self,
+        key: &crate::var_resolve::VariableCellKey,
+        name: &str,
+    ) -> bool {
+        let crate::var_resolve::VariableCellKey::RetainedSlot(slot) = key else {
+            return false;
+        };
+        let crate::raw_binding::RawBindingSlotId::Callable {
+            allocation,
+            name: held,
+        } = slot.as_ref()
+        else {
+            return false;
+        };
+        let declaration = &self.declaration.header.declaration;
+        self.names.contains(name)
+            && allocation.incarnation == super::AllocationIncarnation::First
+            && allocation.site.offset == declaration.offset
+            && Arc::ptr_eq(&allocation.site.source, &declaration.source)
+            && allocation.implementation_generation == declaration.offset
+            && held.as_bytes() == name.as_bytes()
+    }
+
     pub(crate) fn may_select_static(&self, name: &str, span: tcl_lexer::Span) -> bool {
         self.names.contains(name) && self.declaration.read.owns_original_read(span)
     }
@@ -384,10 +417,9 @@ impl OriginalProcedureStaticReadAlternatives {
         span: tcl_lexer::Span,
     ) -> Option<()> {
         self.may_select_static(name, span).then_some(())?;
-        matches!(
-            view.function().cell_key(symbol),
-            Some(crate::var_resolve::VariableCellKey::Authored(_))
-        )
+        let key = view.function().cell_key(symbol)?;
+        (matches!(key, crate::var_resolve::VariableCellKey::Authored(_))
+            || self.owns_declared_callable_static(key, name))
         .then_some(())?;
         (view.source_names()?.get(name) == Some(&symbol)).then_some(())?;
         let tokens = view.source_tokens()?;

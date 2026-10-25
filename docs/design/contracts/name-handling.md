@@ -3866,10 +3866,29 @@ physical cell, SSA state or general report ownership. Independent physical
 missing-read proofs and all unrelated diagnostics retain their authority.
 Generic declaration identity, equality, reports, caches and State are unchanged.
 
+The readonly Native diagnostic route obtains this receipt from the same current
+`CompilationUnit` and its retained positioned source interpretation. The exact
+function, Native declaration card, prepared CFG, complete input and Registry
+must join before a receipt is issued. An independent equal-source analyser realm
+cannot substitute for that producer. Inherited, unknown, entered Native and
+hosted execution entries supply no receipt through this route.
+
+A direct lexical argument may also retain a bare callable-static key issued by
+that same original declaration. It must have the first allocation incarnation,
+the identical issued source Arc, declaration offset and implementation generation,
+and the exact counted static name. Element/lifetime wrappers, foreign allocations
+and equal-text independent source owners refuse. Every existing positioned
+symbol, current binding owner/input, closed advice, alias, frame-effect and lexical
+occurrence guard remains independent. This source correspondence only withdraws
+the synthetic-local absence claim; it issues no physical allocation, contents,
+entered frame or Normal outcome. `SourceOriginId` equality and all generic equality
+and cache criteria remain unchanged.
+
 The same possible-static purpose can use an independently checked direct source
 argument frame when the readonly physical entry is unknown. A private use scope
 pins the receipt to the exact current SSA function. The positioned source-symbol
-map must identify an Authored synthetic symbol, and the complete unchanged token
+map must identify the same symbol, whose key is either Authored or the same
+issued bare callable static described above, and the complete unchanged token
 vector must be a direct top-level command in the sealed original body. Existing
 typed declaration-flow metadata must exclude frame reach, unknown reads/writes,
 aliases, named handler reads and nested script flow. Braced/expanded words, nested
