@@ -21211,7 +21211,7 @@ mod tests {
     struct PublicationRetirement {
         interpreter: std::rc::Weak<InterpState>,
         calls: Rc<std::cell::Cell<usize>>,
-        absent: Rc<std::cell::Cell<bool>>,
+        visible: Rc<std::cell::Cell<Option<u64>>>,
         active_calls: Rc<std::cell::Cell<usize>>,
         mode: u8,
     }
@@ -21232,8 +21232,8 @@ mod tests {
         state.calls.set(state.calls.get() + 1);
         let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
         state
-            .absent
-            .set(interpreter.resolve_cmd_token(b"retiring").is_none());
+            .visible
+            .set(interpreter.resolve_cmd_token(b"retiring"));
         match state.mode {
             1 => {
                 interpreter.refuse_native_access(
@@ -21277,7 +21277,7 @@ mod tests {
         Box::new(PublicationRetirement {
             interpreter: Rc::downgrade(&interpreter.0),
             calls: Rc::new(std::cell::Cell::new(0)),
-            absent: Rc::new(std::cell::Cell::new(false)),
+            visible: Rc::new(std::cell::Cell::new(None)),
             active_calls: Rc::new(std::cell::Cell::new(usize::MAX)),
             mode,
         })
@@ -21286,6 +21286,7 @@ mod tests {
     struct PublicationNamespaceRetirement {
         interpreter: std::rc::Weak<InterpState>,
         namespace: NsId,
+        visible: Rc<std::cell::Cell<Option<u64>>>,
         recreated: Rc<std::cell::Cell<Option<NsId>>>,
         calls: Rc<std::cell::Cell<usize>>,
         currency_current: Rc<std::cell::Cell<bool>>,
@@ -21299,10 +21300,11 @@ mod tests {
         state.calls.set(state.calls.get() + 1);
         let currency =
             native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
-        assert!(interpreter
-            .namespaces()
-            .command_in(state.namespace, b"retiring")
-            .is_none());
+        state.visible.set(
+            interpreter
+                .namespaces()
+                .command_generation(state.namespace, b"retiring"),
+        );
         interpreter.delete_namespace_by_id(state.namespace);
         state
             .recreated
@@ -21328,14 +21330,16 @@ mod tests {
             let calls = Rc::new(std::cell::Cell::new(0));
             let recreated = Rc::new(std::cell::Cell::new(None));
             let currency_current = Rc::new(std::cell::Cell::new(false));
+            let visible = Rc::new(std::cell::Cell::new(None));
             let state = Box::new(PublicationNamespaceRetirement {
                 interpreter: Rc::downgrade(&interpreter.0),
                 namespace,
+                visible: visible.clone(),
                 recreated: recreated.clone(),
                 calls: calls.clone(),
                 currency_current: currency_current.clone(),
             });
-            interpreter
+            let original = interpreter
                 .create_obj_command(
                     b"::retirement::retiring",
                     ObjCommand::new(
@@ -21356,6 +21360,7 @@ mod tests {
             );
             assert!(replacement.is_none());
             assert_eq!(calls.get(), 1);
+            assert_eq!(visible.get(), Some(original));
             assert!(
                 currency_current.get(),
                 "namespace retirement did not change interpreter currency"
@@ -21489,7 +21494,7 @@ mod tests {
                 interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
                 let state = retirement_state(interpreter, mode);
                 let calls = state.calls.clone();
-                let absent = state.absent.clone();
+                let visible = state.visible.clone();
                 let original = interpreter
                     .create_obj_command(
                         b"retiring",
@@ -21507,9 +21512,10 @@ mod tests {
                     ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
                 );
                 assert_eq!(calls.get(), 1);
-                assert!(
-                    absent.get(),
-                    "the exact original slot was unlinked before deleteProc"
+                assert_eq!(
+                    visible.get(),
+                    Some(original),
+                    "the exact original slot remains visible through deleteProc"
                 );
                 assert_eq!(interpreter.get_obj_result(), result);
                 match mode {
