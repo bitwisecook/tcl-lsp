@@ -3989,7 +3989,7 @@ mod conditional_declared_read_point_tests {
         assert!(fixture.select(&genuine).is_some());
         let frame = match &fixture.frame {
             DeclarationFlowFrame::Existing(entry) => entry.frame(),
-            _ => unreachable!(),
+            DeclarationFlowFrame::Read(_) => unreachable!(),
         };
         let mut points = fixture.inventory.points.as_ref().clone();
         let mut origin_points = fixture.inventory.origin_points.as_ref().clone();

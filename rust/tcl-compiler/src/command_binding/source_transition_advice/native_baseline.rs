@@ -88,7 +88,7 @@ mod tests {
         source: &str,
     ) -> crate::environment_ingress::RetainedNativeFixture<crate::analyser::AnalysisResult> {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
         let analysis = Analyser::new()
             .with_source_analysis_entry(std::sync::Arc::new(
                 crate::command_binding::SourceAnalysisEntry {
@@ -99,7 +99,7 @@ mod tests {
                 },
             ))
             .analyse(source, profile.name);
-        crate::environment_ingress::RetainedNativeFixture::new(analysis, _owner)
+        crate::environment_ingress::RetainedNativeFixture::new(analysis, owner)
     }
 
     #[test]

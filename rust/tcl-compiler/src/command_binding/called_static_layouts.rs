@@ -68,7 +68,6 @@ mod tests {
     use super::super::declaration_layout::{
         DeclarationLayoutIssuer, OriginalDiagnosticFrameEntry, original_declaration_layouts,
     };
-    use super::*;
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
 
     fn input() -> crate::analyser::ResolvedAnalysisInput {
