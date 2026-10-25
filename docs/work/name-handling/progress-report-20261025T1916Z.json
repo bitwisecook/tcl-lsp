@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T19:16:23.237306+00:00",
+  "scheduled_report_utc": "2026-10-25T19:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T19:45:00+00:00",
+  "change_since_previous_report": [
+    "WORK570cc1d9992db94bd4f185a2a752b1d713e74db5 and CLEAN40bd4fd890a4c6d599971e5e2ded5d87b83a4f46 are pushed. The 18:45 report was written19:01 and pushed19:13; the delay is explicit. The next reminder is19:45.",
+    "Jim child-read V4 and advice-map COW product fixes are paired integrated. Strong peers b24d5479 and7f9706d7 verified exact role/source/frame gates, mutation isolation and unchanged equality/currentness. All new controls and performance effects are unrun.",
+    "Reviewed WORK-only browser, escape-first-site, RBS/Logical, WASM allocation/depthV2 and first-dependency witnesses are integrated. They preserve original assertions, guards, calls and limits. Depth transport includes an explicit existing-flag WASI environment addition and bounded separate reporter; no causal outcome is assumed.",
+    "Final metadata union21e85498 covers all23JSON/17maps/205live records/165sourcefiles, eleven existing updates plus four approved new helper dependencies. Histories, old selectors/budgets, Spec600 dependencies and approved observer-env checks are preserved. Preflightfd9 passes13/30/20; recheck docs-onlycurrentHEAD before dispatch.",
+    "Last fully authenticated outcomes remain compiler96/102, Jim34/45+2/5+extraFAIL, Spec16/16 and iRules1FAIL/2PASS. Current new source does not inherit those passes. Compiler first measured failure is DYNAMIC_BARRIER escape summary; source-literal and API proposals stay held pending actual cause and review.",
+    "All395 Cargo test targets now have exactly one of five shard assignments; actual metadata verifier and existing shell verifier tests pass. Full current CLEAN CI, zero pass-to-fail, shipping performance, SpecC1C2/6D, docs/comments/generated/packaging/prep-pr remain open.",
+    "Disk recovery removed only three old non-executable regenerable library/metadata cache files after every matching Cargo/Rustc PID was verified defunctZ and no live build existed. Source, evidence, archives and test executables were untouched. Current free space is checked separately; no local Rust build starts below2GiB.",
+    "External BIGIP/perf trackers remain over60minutes old; user notified without takeover. No PR, merge, tag, release or invented user decision. Next19:45 checkpoint."
+  ],
+  "committed": [
+    "3b1fa922dcc8958bcd93377b037e70cb18694795"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish19:15report and recheck current source pins; dispatch actual compiler/Jim/Spec600/iRules/hosts/WASM/strict diagnostics.",
+    "Measure integrated COW on a fresh matching optimized artifact; repair genuine Salsa cancellation, source-owner, escape and point producers without guard waivers.",
+    "Finish all final shipping gates and ask only concrete genuinely new design choices after causal review."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "New product/source-only diagnostics are unrun; no previous scoped outcome transfers to their source. No global release gate is admitted.",
+  "disk_free_bytes": 2304720896,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

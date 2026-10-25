@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T19:01:22.264758+00:00
+Last updated: 2026-10-25T19:16:23.085622+00:00
 
 ## Resume
 
@@ -13,13 +13,13 @@ Last updated: 2026-10-25T19:01:22.264758+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (18:45 UTC)
+### Current cycle and routing (19:15 UTC)
 
-- The 18:45 checkpoint is late. Actual report and push times are recorded; the next reminder is armed for 19:15. No PR or release action is taken.
-- Compiler46d fully authenticates 96 PASS / 6 FAIL / 0 UNRUN. Readonly4 stop at escape-summary DYNAMIC_BARRIER, not compiler admission; RBS1 and Logical1 remain. The reviewed bounded first-transition and point-facet observers await the next diagnostic run.
-- Jim46d fully authenticates all51 executions: 34/45 originals and 2/5 diagnostics pass; the additional case fails. Child-read V4 source b24d5479 and metadata707c84ca are independently cleared after exact operand-role/write-scope corrections; integration is underway, tests remain unrun.
-- Spec46d all16 PASS is fully authenticated (af77c43f / 6e762d7a). iRules is1FAIL/2PASS; the first remaining refusal is compiler dependency admission. Full corpus600 protocol is reviewed and committed only on WORK; it has not yet executed.
-- Eight missing test binaries are now assigned on WORK and the release branch. Actual Cargo metadata covers395 targets across5 shards; the existing verifier shell tests pass. This is coverage metadata, not test execution.
-- The CI-profile4f453 scan still misses20s. An owned24-IP profile identifies AdviceCell HashMap clone and SipHash samples; Names is preparing a small existing-container COW change with strict equality/currentness guards and snapshot-isolation controls. No speedup is claimed.
-- Disk recovery removed only3 old non-executable regenerable build-cache files (262696960B), after confirming all matching Cargo/Rustc PIDs were defunctZ and no live build existed. Source, evidence, ZIPs and test executables were untouched. Lossless old-log/JSON archival retains exact bytes and restore receipts.
-- All sectionF, zero-pass-to-fail, full current CLEAN CI, shipping Tcl performance, SpecC1C2/6D, docs/comments/generated/packaging/prep-pr gates remain open. BIGIP/perf external trackers are stale; the user is notified without takeover.
+- WORK570cc1d9992db94bd4f185a2a752b1d713e74db5 and CLEAN40bd4fd890a4c6d599971e5e2ded5d87b83a4f46 are pushed. The 18:45 report was written19:01 and pushed19:13; the delay is explicit. The next reminder is19:45.
+- Jim child-read V4 and advice-map COW product fixes are paired integrated. Strong peers b24d5479 and7f9706d7 verified exact role/source/frame gates, mutation isolation and unchanged equality/currentness. All new controls and performance effects are unrun.
+- Reviewed WORK-only browser, escape-first-site, RBS/Logical, WASM allocation/depthV2 and first-dependency witnesses are integrated. They preserve original assertions, guards, calls and limits. Depth transport includes an explicit existing-flag WASI environment addition and bounded separate reporter; no causal outcome is assumed.
+- Final metadata union21e85498 covers all23JSON/17maps/205live records/165sourcefiles, eleven existing updates plus four approved new helper dependencies. Histories, old selectors/budgets, Spec600 dependencies and approved observer-env checks are preserved. Preflightfd9 passes13/30/20; recheck docs-onlycurrentHEAD before dispatch.
+- Last fully authenticated outcomes remain compiler96/102, Jim34/45+2/5+extraFAIL, Spec16/16 and iRules1FAIL/2PASS. Current new source does not inherit those passes. Compiler first measured failure is DYNAMIC_BARRIER escape summary; source-literal and API proposals stay held pending actual cause and review.
+- All395 Cargo test targets now have exactly one of five shard assignments; actual metadata verifier and existing shell verifier tests pass. Full current CLEAN CI, zero pass-to-fail, shipping performance, SpecC1C2/6D, docs/comments/generated/packaging/prep-pr remain open.
+- Disk recovery removed only three old non-executable regenerable library/metadata cache files after every matching Cargo/Rustc PID was verified defunctZ and no live build existed. Source, evidence, archives and test executables were untouched. Current free space is checked separately; no local Rust build starts below2GiB.
+- External BIGIP/perf trackers remain over60minutes old; user notified without takeover. No PR, merge, tag, release or invented user decision. Next19:45 checkpoint.
