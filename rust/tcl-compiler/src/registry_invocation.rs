@@ -25,6 +25,10 @@
 //! an explicitly supplied [`SemanticContext`] — the resolved environment the
 //! document is assisted under (redesign §11.2 D1).
 
+pub(crate) mod host_structure_observer;
+#[doc(hidden)]
+pub use host_structure_observer::{HostStructureTraceGuard, begin_host_structure_trace};
+
 mod original_procedure_call;
 pub(crate) use original_procedure_call::{
     OriginalProcedureMayDependencies, original_authored_body_procedure_calls_for_module,
@@ -544,8 +548,9 @@ pub(crate) fn logical_structured_invocation(
     logical_structured_invocation_with_metadata_context(registry, context.into(), tokens, bindings)
 }
 
-#[cfg(any(test, debug_assertions))]
-fn trace_original_structure(stage: &str, tokens: &CommandTokens, passed: bool) {
+fn trace_original_structure(stage: &'static str, tokens: &CommandTokens, passed: bool) {
+    host_structure_observer::flag(stage, passed);
+    let _ = tokens;
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = tokens
@@ -574,26 +579,22 @@ fn original_structured_source_selection(
 ) -> Option<ResolvedStatementInvocation> {
     let selected =
         resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
-    #[cfg(any(test, debug_assertions))]
     trace_original_structure("resolved_handler", tokens, selected.is_some());
     let selected = selected.or_else(|| {
         let selected = bindings.and_then(|bindings| {
             owned_body_layout_invocation(registry, context, tokens, bindings)
                 .map(|owned| owned.invocation)
         });
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("owned_body_layout", tokens, selected.is_some());
         selected
     });
     let selected = selected.or_else(|| {
         let selected = original_declared_structured_invocation(registry, context, tokens);
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("original_declaration", tokens, selected.is_some());
         selected
     });
     let selected = selected.or_else(|| {
         let selected = original_inline_control_structured_invocation(registry, context, tokens);
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("original_inline_control", tokens, selected.is_some());
         selected
     })?;
@@ -746,6 +747,7 @@ fn original_structured_operands_are_supported_untraced(
     if source_roles.is_some_and(StructuredSourceRoles::selection_unknown) {
         #[cfg(test)]
         trace_original_structure("source_roles", tokens, false);
+        host_structure_observer::flag("operands.source_roles", false);
         return None;
     }
     // Source-shape lowering requires each operand to retain its original slot.
@@ -791,6 +793,7 @@ fn original_structured_operands_are_supported_untraced(
                     .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index)),
             );
         }
+        host_structure_observer::flag("operands.shape", false);
         return None;
     }
     if selected.facts.successful_handler
@@ -803,6 +806,7 @@ fn original_structured_operands_are_supported_untraced(
     {
         #[cfg(test)]
         trace_original_structure("expression_lookup", tokens, false);
+        host_structure_observer::flag("operands.expression_lookup", false);
         return None;
     }
     #[cfg(test)]
@@ -817,11 +821,23 @@ fn traced_original_source_purpose(
 ) -> Option<crate::command_binding::OriginalInvocationSourcePurpose> {
     source_structure::trace_jim_source_option(
         "jim.body.purpose",
-        tokens
-            .source_binding
-            .as_ref()?
-            .original_source_advice_purpose(tokens, context, registry),
+        host_structure_observer::option(
+            "source.purpose",
+            host_structure_observer::option("source.binding", tokens.source_binding.as_ref())?
+                .original_source_advice_purpose(tokens, context, registry),
+        ),
     )
+    .inspect(|purpose| {
+        use crate::command_binding::OriginalInvocationSourcePurpose as Purpose;
+        for (stage, expected) in [
+            ("purpose.execution", Purpose::Execution),
+            ("purpose.logical", Purpose::Logical),
+            ("purpose.standalone", Purpose::Standalone),
+            ("purpose.authored_simulation", Purpose::AuthoredSimulation),
+        ] {
+            host_structure_observer::flag(stage, *purpose == expected);
+        }
+    })
 }
 
 /// Select source structure using the caller's complete immutable context.
@@ -836,7 +852,6 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     let logical_source =
         source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("registry", tokens, false);
         return None;
     }
@@ -848,7 +863,10 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
                 .as_ref()?
                 .original_invocation_metadata_for_input(
                     tokens,
-                    context.source_analysis_input()?,
+                    host_structure_observer::option(
+                        "metadata.input",
+                        context.source_analysis_input(),
+                    )?,
                     registry,
                 ),
         )?
@@ -857,7 +875,6 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     };
     if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
     {
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("argument_entry", tokens, false);
         return None;
     }
@@ -866,7 +883,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         let binding = tokens.source_binding.as_ref()?;
         let realm = binding.original_source_realm_for_input(
             tokens,
-            context.source_analysis_input()?,
+            host_structure_observer::option("metadata.input", context.source_analysis_input())?,
             registry,
         )?;
         selected
@@ -973,31 +990,30 @@ fn original_declared_structured_invocation<'a>(
     let logical_source =
         source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_registry", tokens, false);
         return None;
     }
     let Some(binding) = tokens.source_binding.as_ref() else {
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_binding", tokens, false);
         return None;
     };
     let context = if logical_source {
         binding.original_invocation_metadata_for_input(
             tokens,
-            context.source_analysis_input()?,
+            host_structure_observer::option("metadata.input", context.source_analysis_input())?,
             registry,
         )?
     } else {
         context
     };
     if let Some(input) = context.source_analysis_input()
-        && binding
-            .original_lexer_config_for_tokens(tokens)?
-            .normalized()
+        && host_structure_observer::option(
+            "declaration.lexer_config",
+            binding.original_lexer_config_for_tokens(tokens),
+        )?
+        .normalized()
             != input.lexer_config().normalized()
     {
-        #[cfg(any(test, debug_assertions))]
         trace_original_structure("declaration_config", tokens, false);
         return None;
     }
@@ -1018,7 +1034,6 @@ fn original_declared_structured_invocation<'a>(
                     .filter(|advice| !advice.has_unclosed_source_coverage())
             })
     };
-    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_advice", tokens, advice.is_some());
     let advice = advice?;
     // This is conditional source structure. A positively retained Logical
@@ -1033,13 +1048,11 @@ fn original_declared_structured_invocation<'a>(
     } else {
         advice.closed_lookup()
     };
-    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_closed", tokens, closed);
     if !closed {
         return None;
     }
     let selected = resolve_original_declared_layout(registry, context, tokens, &advice);
-    #[cfg(any(test, debug_assertions))]
     trace_original_structure("declaration_facts", tokens, selected.is_some());
     selected
 }
@@ -1063,7 +1076,7 @@ fn original_inline_control_structured_invocation(
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_inline_control_metadata_for_input(
         tokens,
-        context.source_analysis_input()?,
+        host_structure_observer::option("metadata.input", context.source_analysis_input())?,
         registry,
     )?;
     let preparation = binding.original_inline_control_compilation(tokens)?;

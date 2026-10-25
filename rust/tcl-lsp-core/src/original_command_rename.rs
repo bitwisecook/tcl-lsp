@@ -344,6 +344,31 @@ fn trace_coverage_document(document: &OriginalDeclarationDocument<'_>) {
     }
 }
 
+pub(crate) fn structure_coverage_trace_enabled() -> bool {
+    matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"))
+        && MISSING_RENAME_WORLD.with(|trace| {
+            trace
+                .borrow()
+                .as_deref()
+                .is_some_and(|value| value.starts_with("rename.coverage-document "))
+        })
+}
+
+pub(crate) fn trace_structure_coverage(offset: u32, metadata: bool, rows: &[(&'static str, bool)]) {
+    if !structure_coverage_trace_enabled() {
+        return;
+    }
+    MISSING_RENAME_WORLD.with(|trace| {
+        let mut trace = trace.borrow_mut();
+        let Some(value) = trace.as_mut() else { return; };
+        let context = value.split(" structure_offset=").next().unwrap_or(value)
+            .split(" offset=").next().unwrap_or(value).to_owned();
+        let stages = rows.iter().map(|(stage, passed)| format!("{stage}:{passed}"))
+            .collect::<Vec<_>>().join(",");
+        *value = format!("{context} structure_offset={offset} structure_metadata={metadata} structure_steps={stages}");
+    });
+}
+
 fn coverage_trace(offset: u32, stage: &'static str) {
     if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
         MISSING_RENAME_WORLD.with(|trace| {
@@ -457,7 +482,7 @@ fn document_requests(
                     requests.push((input.clone(), NameBytes::from(wanted)));
                 }
             }
-            if let Some(selected) = walk.structure(document.source, &command) {
+            if let Some(selected) = walk.structure_for_rename_coverage(document.source, &command) {
                 reject_selected_command_link_coverage(&selected, command_offset)?;
                 for (a, b) in walk
                     .same_frame_regions(document.source, &command)

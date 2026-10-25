@@ -367,6 +367,37 @@ impl<'a> FrameWalk<'a> {
         )
     }
 
+    // WORK-only observation belongs to the explicit rename coverage call,
+    // never another FrameWalk user that shares a retained diagnostic channel.
+    pub(crate) fn structure_for_rename_coverage(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+        let observe = crate::original_command_rename::structure_coverage_trace_enabled();
+        let trace = observe.then(tcl_compiler::registry_invocation::begin_host_structure_trace);
+        let context = self.metadata_context();
+        let metadata = context.is_some();
+        let selected = context.and_then(|context| {
+            tcl_compiler::registry_invocation::original_structured_invocation_with_metadata_context(
+                self.nesting,
+                context,
+                &self.tokens(source, command),
+            )
+        });
+        if let Some(trace) = trace {
+            let rows = trace.finish();
+            if selected.is_none() {
+                crate::original_command_rename::trace_structure_coverage(
+                    command.argv.first().map_or(0, |word| word.span.start()),
+                    metadata,
+                    &rows,
+                );
+            }
+        }
+        selected
+    }
+
     /// Borrow complete metadata from this actual document owner. Missing,
     /// foreign or changed source policy cannot reopen standalone assistance.
     pub(crate) fn metadata_context(

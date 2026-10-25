@@ -1968,17 +1968,25 @@ impl OriginalCompilationLookupAdvice {
 
     /// Original candidate lookup is complete in its independently known namespace.
     pub(crate) fn closed_lookup(&self) -> bool {
-        !self.unknown
-            && !self.may_be_absent
-            && crate::var_resolve::ResolveContext::default()
-                .in_frame(&self.snapshot.state.variable_frame)
-                .namespace_known
-            && self
-                .snapshot
-                .state
-                .variable_frame
-                .namespace_identity()
-                .is_none_or(|namespace| namespace == &self.namespace)
+        crate::registry_invocation::host_structure_observer::flag("native.known", !self.unknown)
+            && crate::registry_invocation::host_structure_observer::flag(
+                "native.present",
+                !self.may_be_absent,
+            )
+            && crate::registry_invocation::host_structure_observer::flag(
+                "native.frame_namespace",
+                crate::var_resolve::ResolveContext::default()
+                    .in_frame(&self.snapshot.state.variable_frame)
+                    .namespace_known,
+            )
+            && crate::registry_invocation::host_structure_observer::flag(
+                "native.namespace_match",
+                self.snapshot
+                    .state
+                    .variable_frame
+                    .namespace_identity()
+                    .is_none_or(|namespace| namespace == &self.namespace),
+            )
     }
 
     /// Closed command layout in the positively retained Logical source world.
