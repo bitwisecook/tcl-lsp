@@ -33,6 +33,8 @@ use crate::registry_invocation::{
     effective_words_for_target, resolve_registry_words_in_realm,
 };
 
+mod static_read_child;
+
 /// A positioned conditional declaration recipe, never an implementation allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclaredProcedureBody {
@@ -391,38 +393,41 @@ impl OriginalProcedureStaticReadAlternatives {
             at,
             config,
         )?;
-        let plan = self.original_body_plan()?;
-        if plan.fatal_tail.is_some()
-            || !plan
-                .commands
-                .iter()
-                .any(|command| command.words == original)
-        {
-            return None;
-        }
-        let mut found = false;
-        for word in &original {
-            if word.group().expand || word.group().kind == tcl_lexer::WordKind::Braced {
+        (|| {
+            let plan = self.original_body_plan()?;
+            if plan.fatal_tail.is_some()
+                || !plan
+                    .commands
+                    .iter()
+                    .any(|command| command.words == original)
+            {
                 return None;
             }
-            let arena = word.executable_parts();
-            for part in arena.all_parts() {
-                match &part.part {
-                    tcl_lexer::ExecutablePart::Text(_) => {}
-                    tcl_lexer::ExecutablePart::Variable { name: root, index }
-                        if index.is_none() =>
-                    {
-                        if arena.source_span(part) == Some(span)
-                            && arena.bytes(*root)? == name.as_bytes()
+            let mut found = false;
+            for word in &original {
+                if word.group().expand || word.group().kind == tcl_lexer::WordKind::Braced {
+                    return None;
+                }
+                let arena = word.executable_parts();
+                for part in arena.all_parts() {
+                    match &part.part {
+                        tcl_lexer::ExecutablePart::Text(_) => {}
+                        tcl_lexer::ExecutablePart::Variable { name: root, index }
+                            if index.is_none() =>
                         {
-                            found = true;
+                            if arena.source_span(part) == Some(span)
+                                && arena.bytes(*root)? == name.as_bytes()
+                            {
+                                found = true;
+                            }
                         }
+                        _ => return None,
                     }
-                    _ => return None,
                 }
             }
-        }
-        found.then_some(())
+            found.then_some(())
+        })()
+        .or_else(|| self.original_child_source_read(tokens, &original, metadata, name, span))
     }
 
     /// One immutable lexical plan for this exact declaration/input owner.

@@ -3853,3 +3853,22 @@ counted words and retains no native literal pool, compiled cache or local layout
 Its complete provider and invocation policy is checked again at consumption.
 This entry cannot supply native DIRECT authority, another evaluation purpose, a
 native object cache, an instruction receipt or a TMM execution policy.
+
+
+Original nested named-read alternatives retain the child invocation's own
+source binding, current analysis input, original scalar operand receipt and
+conditional variable world. The child and its conditional lookup must both
+belong to the declaration's exact nominal frame and namespace under the same
+issued source origin. All nested calls must have closed source coverage,
+known local read/write effects, stable lookup and no alias, caller-frame or
+script-body effects. The original direct-read geometry remains independent.
+This receipt withdraws only the synthetic local-absence diagnostic; it grants
+no Native dispatch, successful read, entered frame, completion or value.
+Parent read inventories aggregate descendants and cannot issue this receipt.
+The selected read and write roles must map through the effective invocation's
+exact Written operand origin to that same original scalar operand receipt.
+Equal spellings in unrelated value operands, bound alias prefixes and expanded
+list elements cannot supply this correspondence. This bounded path refuses
+other variable destinations, removals, loop bindings and name queries.
+Every candidate must retain the same ordered Written-index/read/write role
+vector; a shared boolean or equal operand name cannot establish unanimity.

@@ -1900,6 +1900,12 @@ pub(crate) struct DeclarationSourceVariableOperandAdvice {
 }
 
 impl DeclarationSourceVariableOperandAdvice {
+    /// Reuse the current original scalar operand receipt without converting
+    /// its source spelling into a Native value, cell or invocation fact.
+    pub(super) fn matches_original_scalar_read(&self, name: &str) -> bool {
+        self.name == name && self.source_operations.is_empty()
+    }
+
     #[cfg(test)]
     pub(crate) fn name(&self) -> &str {
         &self.name
