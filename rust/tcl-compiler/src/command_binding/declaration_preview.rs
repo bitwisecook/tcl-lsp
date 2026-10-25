@@ -33,6 +33,8 @@ use crate::registry_invocation::{
     effective_words_for_target, resolve_registry_words_in_realm,
 };
 
+mod static_read_child;
+
 /// A positioned conditional declaration recipe, never an implementation allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclaredProcedureBody {
@@ -530,6 +532,7 @@ impl OriginalProcedureStaticReadAlternatives {
             )
         );
         self.direct_source_read_geometry(&original, name, span)
+            .or_else(|| self.original_child_source_read(tokens, &original, metadata, name, span))
     }
 
     /// One immutable lexical plan for this exact declaration/input owner.
