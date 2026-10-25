@@ -50,23 +50,36 @@ The six-hour target passed at14:56UTC with required gates still red. Work and
 the reduced release branch remain separate; no PR is open. Current detailed
 outcomes and owner routing live in `current-state.md` and `outstanding/`.
 
-The latest executed startup on2d8 passes cold tokens in124.536ms but fails
-the unchanged30-second workspace barrier. Analysis of one system tclIndex
-alone takes21.011seconds for Tcl8.4; Tcl8.5 starts without completing before
-shutdown. Context's two original assertions pass, but16Cancelled rounds and a
-nonsettlement warning remain. The old capture did not seal those actual system
-inputs; the fresh driver seals and retains them and identifies the internal
-analysis phase and cancellation reason. This needs a producer fix and a fresh
-successful protocol run, not a larger budget or skipped Tcl release.
+Current source identities, scoped results and immutable receipts are maintained in
+`current-state.md`; this plan does not duplicate a stale run ledger. By25October,
+the original expression-fold assertions and all16 closed-consumer controls pass
+in the authenticated compiler cohort. Native source-body custody, retained
+query ownership and corrected callback fixtures are integrated. Original
+compiler/Logical, Jim applicability, runtime recursion and browser/WASI
+completed-world failures remain; narrow successes do not close sectionF.
 
-Latest authenticated focused results on24October remain compiler55/58 plus all9 existing controls; closed-consumer16 is12 pass/4 fail; focused Spec11/11 and Native4/4 pass; Jim is31/45. Runtime's selected baseline14 pass, but984 original baseline identities remain unselected. Fresh compiler99 and browser/WASI source-sealed runs on d62 are underway. Earlier571ce host traces remain preliminary because source-after failed. None of these bounded results closes section F.
+Current `origin/rust` advanced to`ed694de47cbbeff0bb9f5cd5888cc336e1e8a463`.
+It is merged into both development and release branches, retaining naming
+changes and current dependency locks. The prior24312-name baseline is historical;
+a fresh full baseline CI run is required because the new tip's push CI reused
+previous green-tree results without executing named tests. Full candidate CI
+must also produce complete current inventories. Unknown or cancelled outcomes
+cannot establish zero pass-to-fail.
+
+Six paired Tcl performance jobs now compare Linux/macOS small, medium and full
+corpora against the current rust baseline. Three interleaved pairs and all15
+checks preserve their identity/count guards. These measurements remain pending;
+shipping acceptance requires complete valid results on the final source.
+Dedicated iRules timing alone is waived.
 
 The active documentation checkout retains frozen older product bytes and must
-not be built or reported as the shipping source. Functional fixes land in the
-publisher's `work` first, then reviewed counterparts carry to release. Current
-source identities and immutable capture receipts live in `current-state.md`.
-
-The user-selected genuine closed-consumer capability is integrated and has actual initial NativeContext refusals. Both original expression-fold assertions stay intact; new passive first-stage observations will guide a producer repair. The native ancestry and readonly-body fixes are integrated, pending fresh actual results. Strict checks have three reached closed-consumer lint errors and two later ancestry method-reference errors. Full CI additionally exposes the Diagram local-Rc variant making the analysis driver non-Send; this must be corrected without unsafe traits or weakening the worker boundary. Two remaining nested engine lockfile edges also need repair. Complete current baseline, hosted correctness and shipping Tcl corpus performance remain required.
+not be built or reported as the shipping source. Fixes land in the publisher's
+`work` first; reviewed counterparts then carry to the release branch. Work-only
+diagnostic observers and manual validation jobs stay out of the release.
+The release chaff audit removes the unreferenced optimisation experiment while
+retaining functional fixtures/generated data. Whole root/runtime formatting
+passes on the recorded candidate; later changes require appropriate rechecks.
+Actual Kotlin validation is scheduled through a bounded read-only WORK job.
 
 1. Authenticate each current focused run and clean CI without canceling
    healthy runs. Preserve failures, resource stops and unreached tests. Required

@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T11:12:03.155408+00:00
+Last updated: 2026-10-25T11:38:36.034922+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -883,3 +883,47 @@ only copies existing views, no receipt/admission grant. Explicit rawconst retain
 same actualfieldpointer/ptrEq/shortcircuit/query/drop semantics. Paired currentpins/
 wholeinverse/F-R-F0/fmt2 and BOTH readonly13+irules sourcepins+deriveddriverwholehashes,
 23trackedJSON/17pinmaps census PASS. Actual post-fix Clippy UNRUN at reviewtime.
+
+
+Fresh corrective runtime dispatch: exact WORKbe5cd10dea24161d4a36af359400a71d1d768ca7,
+run40187961883/job121152678755 created2026-10-25T11:13:31Z, queued at firstAPI
+observation. Root integrated Boxfix32cb279d7+metadatae0c19 and independent VMlint
+sourcea00+metadata73d; CLEAN658de2eed includes corrections. SingleZIP ownership
+here, path vm-runtime-actual-40187961883/artifact.zip reserved. No actual artifact or
+post-fix build/test/CFI result at this update. Strict40187955918 is a separate run.
+
+
+## Corrected actual be5 procedure control PASS; remaining84 triage active
+
+Exact be5cd10dea24161d4a36af359400a71d1d768ca7 runtime40187961883/job121152678755
+completed. Single ZIP29,036,606B c7a4326311ed928347b9c7028c2389f6402d8ac8067d7cc6fd95c28569f7e681.
+Receipt2c7da3bc7a30d8e2529949373298bf2afbae90efda4702d1e40458e0c6b8fa39:
+all448 CRC/SHA;126312 before/after source counts/checksums and exactNULmembership,
+39 actualGitblobpins including four retained-owner factories; C84 sixcomponent
+pre/post/bootstrap andTomMathpre/post PASS. Build0, original3PASS, baseline14PASS,
+foreach300PASS, other10320P83F, prune6P1F,targeted3PASS. Allold131executionclosed;
+exact priorf7 comparison has ZERO status changes receipt
+a6fc9033628475436658dafc6610f49f2d291eaf6e062d9696c5cbfe42a1024a.
+
+Separate unchanged original unboundedproc132nd observation PASS, exit0/exact1P,
+no stderr, original assertion hash unchanged; owned1.420687274s/terminal1.10s.
+Proc+CFI addendum411f1a64d5fd7a0c342697206e47321bf81d8152d6c010bc746b82e0a128b28a
+verifies sameELF/afterold131/remaining shared cap monotone478339bytes/no reset.
+Lifecycleaddendum3056aa7a33f3a5e48737263083e7313ad2357457d4d49650ec1d547cd21eddf3
+checks132distinct owned parent births (bootstrap/CFI/one nextestparent included,
+not132distinct testidentities), actualtimer-before-spawn/closedgroups/caps/floors.
+Retained CFI lowerbounds run_proc456B, nonrecursiveprepare4424B, executor1000B,
+finish1912B, selectedbody712B, originalbody680B,nativebody1208B,outerdispatch504B.
+Catalogue remainsINCOMPLETE25860omitted/21898unknown; no peak/depth/cause/performance
+or fullsharedCLEANsuite closure. ActualnewCLEAN40188263258/source658de2eed pending.
+No more CFI expansion unless actual fullCI proc abort.
+
+Root next mandate: classify83other+1prune firstfailures against fcb/currented
+baseline and genuine Native producer; preserveallassertions/no parity expansion.
+Firstobservations retained failure-first-observations.json. Exact sharedJim +26
+reference deltas occur foreach result30vs4/lsearch31vs5/regex30vs4; sourcecause not
+proven, no count/expectation changes. Other producer clusters remain unresolved.
+Currented baseline40187433105/runtimejob121151323687 nowSUCCESS both noTom/fullTom;
+overall workflow failure is separate. Exactsourceed694de47cbbeff0bb9f5cd5888cc336e1e8a463,
+fullTom753unit tests; decodedlog258844chars retained vm-runtime-baseline-40187433105.
+Exact ledger/source joins in progress; oldfcb998observed identities separately retained.
