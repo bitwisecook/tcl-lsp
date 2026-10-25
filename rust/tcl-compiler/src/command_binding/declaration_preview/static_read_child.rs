@@ -60,16 +60,20 @@ impl OriginalProcedureStaticReadAlternatives {
         let header = &self.declaration.header;
         if advice.has_unclosed_source_coverage()
             || !Arc::ptr_eq(&advice.site.source, &header.declaration.source)
-            || state.variable_frame != header.frame
-            || binding.variable_frame != header.frame
+        {
+            return None;
+        }
+        let frame = self.original_static_child_frame(binding, &advice)?;
+        if state.variable_frame != *frame
+            || binding.variable_frame != *frame
             || !super::super::SourceCommandBindings::context_owns_frame(
                 &binding.variable_context,
-                &header.frame,
+                frame,
                 Some(&header.namespace),
             )
             || !super::super::SourceCommandBindings::context_owns_frame(
                 &state.source_variables,
-                &header.frame,
+                frame,
                 Some(&header.namespace),
             )
         {
@@ -114,6 +118,60 @@ impl OriginalProcedureStaticReadAlternatives {
         }
         Some(found)
     }
+    /// The declaration-header frame and installed-body recipe have separate
+    /// issuers. Only an original body allocation can join their source purpose;
+    /// this does not identify either recipe with an entered activation.
+    fn original_static_child_frame<'a>(
+        &'a self,
+        binding: &'a super::super::SourceInvocationBinding,
+        advice: &super::super::OriginalCompilationLookupAdvice,
+    ) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
+        let header = &self.declaration.header;
+        if advice.snapshot.state.variable_frame == header.frame {
+            return Some(&header.frame);
+        }
+        let rows = super::super::declaration_layout::original_declaration_layouts(
+            binding.declaration_layout_observations.as_deref()?,
+        )?;
+        let row = rows
+            .clone()
+            .find(|row| Arc::ptr_eq(&row.snapshot, &advice.snapshot))?;
+        let super::super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) =
+            row.entry.as_ref()
+        else {
+            return None;
+        };
+        let allocation = body.allocation();
+        let source = body.source();
+        let span = self.declaration.read.original_body_span()?;
+        let super::super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+            return None;
+        };
+        if allocation.incarnation != super::super::AllocationIncarnation::First
+            || allocation.site.offset != header.declaration.offset
+            || !Arc::ptr_eq(&allocation.site.source, &header.declaration.source)
+            || allocation.namespace != header.namespace
+            || !Arc::ptr_eq(&source.origin, &header.declaration.source)
+            || base != span.start()
+            || source.text.bytes() != self.declaration.read.original_body_text()?.as_bytes()
+            || !body.owns_source(&advice.site.source, advice.site.offset)
+            || body.namespace_context() != Some(&header.namespace)
+            || body.parameters() != header.parameters.as_slice()
+            || body.original_formal_topology().is_none()
+            || body.original_formal_topology() != header.original_parameters.as_ref()
+            || row.config != self.input.lexer_config()
+            || row.namespace != header.namespace
+            || row.words.as_ref() != advice.words.as_ref()
+            || row.snapshot.state.variable_frame != *body.frame()
+            || !row
+                .entry
+                .owns_original_context(&row.snapshot.state.source_variables)
+        {
+            return None;
+        }
+        Some(body.frame())
+    }
+
     /// Match each selected variable role to its own original written operand.
     /// Bound prefixes and unrelated equal words cannot provide that receipt.
     fn original_child_named_read(
@@ -355,5 +413,123 @@ mod tests {
             .unwrap()
             .variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
         assert_eq!(receipt.original_child_read(call, metadata, "n", span), None);
+    }
+    fn body_frame_evidence(
+        current: &CompilationUnit,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> (
+        super::OriginalProcedureStaticReadAlternatives,
+        crate::ir::CommandTokens,
+        crate::command_binding::OriginalCompilationLookupAdvice,
+    ) {
+        let registry = input.borrowed_context_registry().commands();
+        let function = current
+            .ir_module
+            .original_native_declaration_body_units
+            .keys()
+            .filter_map(|id| current.body_units.get(id))
+            .find(|function| child_view(function).is_some())
+            .unwrap();
+        let receipt = current
+            .original_native_declaration_static_read_alternatives(function, registry)
+            .unwrap();
+        let (view, _, _) = child_view(function).unwrap();
+        let tokens = view.source_tokens().unwrap();
+        let metadata = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_invocation_metadata_for_input(tokens, input, registry)
+            .unwrap();
+        let child = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens,
+            input.lexer_config(),
+            registry,
+            metadata,
+        )
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap()
+        .tokens
+        .unwrap();
+        let advice = child
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .original_conditional_operand_layout_advice(&child, registry)
+            .unwrap();
+        (receipt, child, advice)
+    }
+
+    #[test]
+    fn original_child_body_keeps_its_issued_frame_distinct_from_header_layout() {
+        let input = input();
+        let current = unit(SOURCE, &input);
+        let (receipt, child, advice) = body_frame_evidence(&current, &input);
+        let frame = receipt
+            .original_static_child_frame(child.source_binding.as_ref().unwrap(), &advice)
+            .unwrap();
+        assert_ne!(frame, &receipt.declaration.header.frame);
+        assert_eq!(frame, &advice.snapshot.state.variable_frame);
+        assert!(accepts(&current, &input));
+    }
+
+    #[test]
+    fn original_child_body_frame_refuses_missing_reissued_and_foreign_rows() {
+        let input = input();
+        let current = unit(SOURCE, &input);
+        let (receipt, child, advice) = body_frame_evidence(&current, &input);
+        for replaced_snapshot in [false, true] {
+            let mut changed = child.clone();
+            let binding = changed.source_binding.as_mut().unwrap();
+            let mut rows = binding
+                .declaration_layout_observations
+                .as_deref()
+                .unwrap()
+                .to_vec();
+            for row in &mut rows {
+                if replaced_snapshot {
+                    row.snapshot = std::sync::Arc::new((*row.snapshot).clone());
+                } else {
+                    row.issuer = crate::command_binding::declaration_layout::DeclarationLayoutIssuer::EnteredActivation;
+                }
+            }
+            binding.declaration_layout_observations = Some(rows.into());
+            assert!(
+                receipt
+                    .original_static_child_frame(binding, &advice)
+                    .is_none()
+            );
+        }
+        let foreign = unit(SOURCE, &input);
+        let (_, foreign_child, foreign_advice) = body_frame_evidence(&foreign, &input);
+        assert!(
+            receipt
+                .original_static_child_frame(
+                    foreign_child.source_binding.as_ref().unwrap(),
+                    &foreign_advice
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_child_body_frame_refuses_different_allocation_and_missing_formals() {
+        let input = input();
+        let current = unit(SOURCE, &input);
+        for change in [false, true] {
+            let (mut receipt, child, advice) = body_frame_evidence(&current, &input);
+            if change {
+                receipt.declaration.header.declaration.offset += 1;
+            } else {
+                receipt.declaration.header.original_parameters = None;
+            }
+            assert!(
+                receipt
+                    .original_static_child_frame(child.source_binding.as_ref().unwrap(), &advice)
+                    .is_none()
+            );
+        }
     }
 }

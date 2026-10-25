@@ -3916,3 +3916,13 @@ requires that same `runtime_surface_admits` predicate. The distinct context
 operator/package filters and inherited roster checks still run in their old
 order. Ordinary `spec_available_under` callers retain full surface admission.
 No cache key, ranking, fallback, source owner, Native or Normal fact changes.
+
+
+Original static child reads keep the declaration-header layout frame distinct
+from the independently issued installed-body recipe. A child can borrow the
+latter only from its exact original declaration row/snapshot, joining a First
+allocation at the same source-origin Arc/site, full contiguous body mapping,
+namespace and original formal topology to the retained static header. Every
+frame/context comparison then uses that same body issuer. Entered rows,
+foreign/equal-text sources, different allocations, remapped bodies and missing
+formals refuse; neither frame is retagged or made equal to another purpose.
