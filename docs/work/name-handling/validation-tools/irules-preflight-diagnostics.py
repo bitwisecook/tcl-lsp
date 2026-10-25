@@ -137,11 +137,13 @@ def execute(
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
-    if prefix.startswith(("tcl_irule_test-", "irule-", "list-")):
+    if prefix.startswith(("tcl_irule_test-", "irule-", "list-", "initialization-scope-")):
         require(
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
+    if prefix.startswith("initialization-scope-"):
+        require(available >= seconds + 25, "scope-control cleanup reserve unavailable")
     seconds = min(seconds, available)
     return owner.run(
         argv,
@@ -156,6 +158,51 @@ def execute(
         disk_floor_bytes=FLOOR,
         disk_paths=(root, out, target, Path(os.environ["RUNNER_TEMP"])),
     )
+
+
+def initialization_scope_append(artifacts, environment, budget, processes, outcome):
+    global remaining
+    require(budget == remaining, "same remaining aggregate scope-control budget")
+    selector = "live::tests::native_framework_initialization_restores_f5_policy_after_success_and_error"
+    require(roster["initialization_scope_controls"] == [selector], "exact native initialization control")
+    selected = [artifact for artifact in artifacts if artifact["target"] == "tcl_irule_test"]
+    require(len(selected) == 1, "one same fresh harness executable")
+    artifact = selected[0]
+    event = artifact["cargo_event"]
+    require(event["fresh"] is False and event["profile"]["test"] is True
+            and event["target"]["name"] == "tcl_irule_test"
+            and event["target"]["kind"] == ["lib"] and artifact["strict_Rust_0w"] is True,
+            "same actual current harness unit ELF")
+    executable = Path(artifact["path"])
+    require(sha(executable) == artifact["sha256"], "scope-control ELF changed before execution")
+    listing = json.loads((out / "roster-tcl_irule_test.json").read_text())
+    require(listing["executable_sha256"] == artifact["sha256"]
+            and listing["listing_sha256"] == sha(out / "list-tcl_irule_test.stdout")
+            and selector in listing["selected"], "scope control absent from actual sealed full listing")
+    require(budget > 512 * 1024, "shared capture unavailable before scope control")
+    require(deadline - time.time() >= 205, "full 180+25 scope-control reservation unavailable")
+    outcome["state"] = "RUNNING"
+    save(out / "initialization-scope-outcomes.json", [outcome])
+    prefix = "initialization-scope-00"
+    receipt = execute([str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+                      prefix, executable, 180, environment, budget,
+                      working_directory=root / "rust" / "tcl-irule-test")
+    processes.append(receipt)
+    budget -= receipt["retained_bytes"]
+    remaining = budget
+    outcome.update(exit_code=receipt["exit_code"], receipt=prefix + ".process.json",
+                   stdout=prefix + ".stdout", stderr=prefix + ".stderr")
+    require(lifecycle(receipt), "scope-control lifecycle/capture stop")
+    stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+    try:
+        outcome["state"] = original_result(stdout, receipt["exit_code"])
+    except RuntimeError:
+        outcome["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+        save(out / "initialization-scope-outcomes.json", [outcome])
+        raise
+    require(sha(executable) == artifact["sha256"], "scope-control ELF changed after execution")
+    save(out / "initialization-scope-outcomes.json", [outcome])
+    return budget
 
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -186,7 +233,7 @@ resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 roster_path = BASE / "irules-preflight-roster.json"
 require(
     sha(roster_path)
-    == "073917363aed978e93451d9402b6a53f11ce4bfde2ebb809467d9e88f50e879e",
+    == "6daf00f412adf1b6ba522271cd6506313c8c69191426ca30f617f84cc8e1db60",
     "approved original preflight3 roster changed",
 )
 roster = json.loads(roster_path.read_text())
@@ -213,6 +260,11 @@ rows = [
 ] + [
     {"target": "irule", "selector": name, "state": "UNRUN"} for name in roster["trace"]
 ]
+initialization_scope_rows = [{
+    "group": "separate_initialization_scope", "target": "tcl_irule_test",
+    "selector": "live::tests::native_framework_initialization_restores_f5_policy_after_success_and_error",
+    "state": "UNRUN",
+}]
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -547,11 +599,13 @@ try:
                     not line or re.fullmatch(r"\d+ tests?, \d+ benchmarks?", line),
                     "unexpected listing data: " + line[:256],
                 )
+        supplemental = roster["initialization_scope_controls"] if target_name == "tcl_irule_test" else []
+        expected_current = roster["full_rosters"][target_name] + supplemental
         require(
-            len(listed) == len(set(listed)) == len(roster["full_rosters"][target_name])
-            and set(listed) == set(roster["full_rosters"][target_name])
+            len(listed) == len(set(listed)) == len(expected_current)
+            and set(listed) == set(expected_current)
             and set(selectors) <= set(listed),
-            "original actual roster mismatch: " + target_name,
+            "original plus separately declared current roster mismatch: " + target_name,
         )
         save(
             out / ("roster-" + target_name + ".json"),
@@ -625,7 +679,9 @@ try:
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original bootstrap1/trace2 inventory incomplete",
     )
-    status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    status = 2
+    remaining = initialization_scope_append(artifacts, env, remaining, processes, initialization_scope_rows[0])
+    status = 0 if all(row["state"] == "PASS" for row in rows + initialization_scope_rows) else 1
 except (
     RuntimeError,
     OSError,
@@ -640,6 +696,11 @@ except (
     error = repr(failure)
     print("IRULE PREFLIGHT DIAGNOSTIC STOP " + error, file=sys.stderr, flush=True)
 finally:
+    if initialization_scope_rows[0]["state"] == "RUNNING":
+        initialization_scope_rows[0]["state"] = "INCOMPLETE"
+    if initialization_scope_rows[0]["state"] in ["UNRUN", "INCOMPLETE"]:
+        initialization_scope_rows[0]["unrun_reason"] = error
+    save(out / "initialization-scope-outcomes.json", initialization_scope_rows)
     seals = {}
     for name, capture, original in [
         ("source", source, before),
@@ -690,6 +751,8 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in rows
             ),
             "original_outcomes": rows,
+            "required_separate_initialization_scope_tests": 1,
+            "separate_initialization_scope_outcomes": initialization_scope_rows,
             "full_heavy355_gate_admission": False,
             "authored_simulation_or_TMM_policy_change": False,
             "diagnostic_only": True,
