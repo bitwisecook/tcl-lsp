@@ -77,9 +77,16 @@ impl CodegenCtx<'_> {
             };
             operations.push(task);
         }
+        if recipe.operation == Operation::Index {
+            operations.push(NativeEmissionTask::NativeStringIndex(
+                version,
+                tcl_bytecode::NativeStringIndexPurpose::RegisteredInstruction,
+            ));
+            return true;
+        }
         let op = match recipe.operation {
             Operation::Compare => Op::STR_CMP,
-            Operation::Index => Op::STR_INDEX,
+            Operation::Index => unreachable!("registered string index task emitted above"),
             Operation::First => Op::STR_FIND,
             Operation::Last => Op::STR_RFIND,
             Operation::ToUpper => Op::STR_UPPER,

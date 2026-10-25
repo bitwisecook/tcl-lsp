@@ -1357,6 +1357,16 @@ impl From<bool> for SourceCommandBoundary {
     }
 }
 
+/// Original producer purpose for a Native string-index instruction.
+/// This tag distinguishes instruction recipes; it grants no Native authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeStringIndexPurpose {
+    /// The original registered String index compiler emits `INST_STR_INDEX`.
+    RegisteredInstruction,
+    /// Namespace qualifiers already reached Unicode through its preceding search.
+    ReachedNamespaceUnicode,
+}
+
 /// A single bytecode instruction (labels unresolved until layout).
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::struct_excessive_bools)] // independent per-instruction flags, not a state machine
@@ -1378,6 +1388,8 @@ pub struct Instruction {
     pub native_switch_integers: Option<HashMap<i64, String>>,
     /// Physical opcode recipe for original switch comparison/materialization.
     pub native_switch_version: Option<tcl_dialect::TclVersion>,
+    /// Exact original string-index producer purpose, without an entry grant.
+    pub native_string_index_purpose: Option<NativeStringIndexPurpose>,
     /// Exact pre-TIP-232 function registration consumed by `CALL_FUNC1`.
     /// Its complete owning table is retained on [`FunctionAsm`]; this is
     /// independent of any same-spelled Tcl command or namespace binding.
@@ -1588,6 +1600,7 @@ impl Instruction {
             native_switch_bytes: None,
             native_switch_integers: None,
             native_switch_version: None,
+            native_string_index_purpose: None,
             native_fixed_math_call: None,
             no_fold: false,
             source_line: 0,
