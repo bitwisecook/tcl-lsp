@@ -29,7 +29,16 @@ fn replacement(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     record(vm, args, 654)
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    bytes
+        .iter()
+        .flat_map(|&byte| {
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            [
+                char::from(HEX[usize::from(byte >> 4)]),
+                char::from(HEX[usize::from(byte & 15)]),
+            ]
+        })
+        .collect()
 }
 
 #[test]

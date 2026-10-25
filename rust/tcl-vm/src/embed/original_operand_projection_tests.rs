@@ -45,10 +45,13 @@ fn original_raw_operand_projection_observes_none_without_native_or_unicode_grant
             error_len: Some(1),
         }),
     );
-    let error = vm
-        .original_operand_unicode(&original, &value)
-        .err()
-        .expect("strict UTF-8 must refuse native modified-NUL bytes");
+    let error = vm.original_operand_unicode(&original, &value).map_or_else(
+        core::convert::identity,
+        |value| {
+            drop(value);
+            panic!("strict UTF-8 must refuse native modified-NUL bytes")
+        },
+    );
     assert!(
         matches!(error, TclError::Host(crate::TclHostFailure::Execution(ref actual)) if actual == &expected)
     );
@@ -94,8 +97,10 @@ fn original_operand_projection_refuses_real_header_retirement_before_legacy_cach
     assert!(borrowed.value().resident_string_bytes().is_none());
     let error = vm
         .original_operand_raw_bytes(&original, borrowed.value())
-        .err()
-        .expect("retired actual header");
+        .map_or_else(core::convert::identity, |value| {
+            drop(value);
+            panic!("retired actual header")
+        });
     assert!(
         matches!(error, TclError::Host(crate::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(ref actual))) if actual == &expected)
     );

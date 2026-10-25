@@ -94,7 +94,7 @@ struct Word {
     /// How many bodies deep the statement is.
     depth: usize,
     /// Genuine source-word topology and its independently decoded value facets.
-    tokens: Arc<CommandTokens>,
+    tokens: Rc<CommandTokens>,
     values: Rc<Vec<EffectiveInvocationWord>>,
     config: LexerConfig,
 }
@@ -161,7 +161,7 @@ fn walk(
     for segment in segments {
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
-        let tokens = Arc::new(CommandTokens::from_segmented(&source_map, config, &segment));
+        let tokens = Rc::new(CommandTokens::from_segmented(&source_map, config, &segment));
         let values = Rc::new(
             tokens
                 .words()
@@ -197,7 +197,7 @@ fn walk(
                 head: head.clone(),
                 args: args.clone(),
                 depth,
-                tokens: Arc::clone(&tokens),
+                tokens: Rc::clone(&tokens),
                 values: Rc::clone(&values),
                 config,
             });

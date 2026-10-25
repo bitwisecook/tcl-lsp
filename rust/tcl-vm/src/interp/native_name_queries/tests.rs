@@ -192,7 +192,10 @@ fn shared_proc_body_consumer_preserves_outer_refusal_instead_of_reporting_missin
     let (mut vm, formatter) = provided();
     let body = numeric(&vm, i64::MIN);
     let unread = numeric(&vm, i64::MIN + 1);
-    let original = arm(&mut vm, &formatter, &body, &[unread.clone()]);
+    let original = {
+        let argument = unread.clone();
+        arm(&mut vm, &formatter, &body, std::slice::from_ref(&argument))
+    };
     formatter.mode.set(1);
     let name = Value::new_native_string_bytes(b"p".as_slice());
     let error = tcl_cmd_core::info::body(&mut vm, &name).unwrap_err();

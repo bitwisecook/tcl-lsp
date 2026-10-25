@@ -728,8 +728,9 @@ mod tests {
             }
             let refusal = scope
                 .check(&mut vm)
-                .err()
-                .expect("actual input ABA retires original receipt");
+                .map_or_else(core::convert::identity, |()| {
+                    panic!("actual input ABA retires original receipt")
+                });
             let first = vm.execution_refusal.clone().unwrap();
             assert_eq!(refusal.native_execution_refusal(), Some(&first));
             assert!(NativeOperationScope::enter(&mut vm).is_err());

@@ -485,13 +485,13 @@ fn original_procedure_bytecode_reconciles_script_and_procedure_contexts() {
         b"ONE"
     );
     let first_cache = source.value().native_bytecode_cache().unwrap();
-    assert!(first_cache.context == NativeBytecodeContext::Procedure);
+    assert_eq!(first_cache.context, NativeBytecodeContext::Procedure);
     let script = vm
         .try_invoke_command("eval", &[source.value().clone()])
         .unwrap();
     assert_eq!(script.code, Code::Error);
     let script_cache = source.value().native_bytecode_cache().unwrap();
-    assert!(script_cache.context == NativeBytecodeContext::Script);
+    assert_eq!(script_cache.context, NativeBytecodeContext::Script);
     assert!(!Rc::ptr_eq(&first_cache.unit.asm, &script_cache.unit.asm));
     let second = vm.try_invoke_command("p", &[Value::string("TWO")]).unwrap();
     assert_eq!(second.code, Code::Ok);
@@ -500,6 +500,6 @@ fn original_procedure_bytecode_reconciles_script_and_procedure_contexts() {
         b"TWO"
     );
     let second_cache = source.value().native_bytecode_cache().unwrap();
-    assert!(second_cache.context == NativeBytecodeContext::Procedure);
+    assert_eq!(second_cache.context, NativeBytecodeContext::Procedure);
     assert!(!Rc::ptr_eq(&first_cache.unit.asm, &second_cache.unit.asm));
 }

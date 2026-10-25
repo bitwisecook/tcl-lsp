@@ -124,7 +124,10 @@ fn original_event_input_transition_keeps_callback_aba_and_prior_host_terminal_af
                 ))
             },
         );
-        let error = reached.err().expect("callback ABA remains terminal");
+        let error = reached.map_or_else(core::convert::identity, |value| {
+            drop(value);
+            panic!("callback ABA remains terminal")
+        });
         let first = vm.execution_refusal.clone().unwrap();
         assert_eq!(error.native_execution_refusal(), Some(&first));
         if prior_host {
