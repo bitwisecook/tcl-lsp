@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T19:16:23.085622+00:00
+Last updated: 2026-10-25T19:45:13.274836+00:00
 
 ## Resume
 
@@ -13,13 +13,12 @@ Last updated: 2026-10-25T19:16:23.085622+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (19:15 UTC)
+### Current cycle and routing (19:45 UTC)
 
-- WORK570cc1d9992db94bd4f185a2a752b1d713e74db5 and CLEAN40bd4fd890a4c6d599971e5e2ded5d87b83a4f46 are pushed. The 18:45 report was written19:01 and pushed19:13; the delay is explicit. The next reminder is19:45.
-- Jim child-read V4 and advice-map COW product fixes are paired integrated. Strong peers b24d5479 and7f9706d7 verified exact role/source/frame gates, mutation isolation and unchanged equality/currentness. All new controls and performance effects are unrun.
-- Reviewed WORK-only browser, escape-first-site, RBS/Logical, WASM allocation/depthV2 and first-dependency witnesses are integrated. They preserve original assertions, guards, calls and limits. Depth transport includes an explicit existing-flag WASI environment addition and bounded separate reporter; no causal outcome is assumed.
-- Final metadata union21e85498 covers all23JSON/17maps/205live records/165sourcefiles, eleven existing updates plus four approved new helper dependencies. Histories, old selectors/budgets, Spec600 dependencies and approved observer-env checks are preserved. Preflightfd9 passes13/30/20; recheck docs-onlycurrentHEAD before dispatch.
-- Last fully authenticated outcomes remain compiler96/102, Jim34/45+2/5+extraFAIL, Spec16/16 and iRules1FAIL/2PASS. Current new source does not inherit those passes. Compiler first measured failure is DYNAMIC_BARRIER escape summary; source-literal and API proposals stay held pending actual cause and review.
-- All395 Cargo test targets now have exactly one of five shard assignments; actual metadata verifier and existing shell verifier tests pass. Full current CLEAN CI, zero pass-to-fail, shipping performance, SpecC1C2/6D, docs/comments/generated/packaging/prep-pr remain open.
-- Disk recovery removed only three old non-executable regenerable library/metadata cache files after every matching Cargo/Rustc PID was verified defunctZ and no live build existed. Source, evidence, archives and test executables were untouched. Current free space is checked separately; no local Rust build starts below2GiB.
-- External BIGIP/perf trackers remain over60minutes old; user notified without takeover. No PR, merge, tag, release or invented user decision. Next19:45 checkpoint.
+- Current reviewed local tips WORKad59acfcaa49b6c6c61484b8fa215bd43b67a0fc and CLEAN85105f50cf512bb47547def806d88ff298f4c643; latest pushed WORK5da34e9bd and CLEANff56ce86a. TypedPendingWriteV8 and contracts now paired integrated, preserving terminal dominance/max3productions/max2publications/outerfuture. Historical13 compiler test lint repairs paired integrated after root source review; required currentpin companions pending. No runtime/global admission.
+- Actual570compiler102 allUNRUN on unused childtest import. Actual570WASM24failbeforeexecution plus1hostPASS on deprecated diagnostic atomic method. Both actual blockers and five strict primaries repaired after independent review; current compiler/WASM/strict reruns dispatched. Latest executed compiler semantics remain46d96PASS6FAIL.
+- Actual570browser firstguard establishes authored-simulation purpose rather than Native/Logical/deferred-procedure source authority. Actual570iRules bootstrap remainsFAIL/trace2PASS and identifies emitter statements2658 native byte-command plan refusal. Owners repair genuine producer proofs; no guard waiver.
+- Fully authenticated570Spec focused16PASS; appended fullcorpus stopped on sharedlogcap due inheritedtraceflood, not600timeout. Reviewed quiet corpus-only child environment is pushed5da and rerun dispatched with unchanged600s/shared20MB cap, old16environment/selectors untouched. FullC1C2 remains open.
+- Typed Salsa PendingWrite-only V8 passed substantive independent review8ff382b6 and is paired integrated; actual runtime/startup verification pending. Native Unicode prospective capability needs actual caller migration to close original baseline, remains off-tree with no invented decision.
+- Both release Rust workspaces pass whole cargo fmt onff56. Full current CLEAN CI is dispatched;395target shardmapping and bounded docs/fixture audits remain scoped proofs. Exact zero pass-to-fail, shipping Tclperformance, generated/owner/docs/comments/packaging/prep-pr and allsectionF remain open.
+- External BIGIP/perf trackers remain over60minutes stale; user notified without takeover. Root reclaimed459673385B from8superseded>24h nonexe.rmeta only after allmatching Cargo/Rustc PIDs verified defunctZ/no livebuild beforeeachunlink, newest variants retained; source/evidence/archives/executables untouched. Freeabout2.4GiB. No PR/merge/tag/release. Next20:15.

@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T19:45:13.357890+00:00",
+  "scheduled_report_utc": "2026-10-25T19:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T20:15:00+00:00",
+  "change_since_previous_report": [
+    "Current reviewed local tips WORKad59acfcaa49b6c6c61484b8fa215bd43b67a0fc and CLEAN85105f50cf512bb47547def806d88ff298f4c643; latest pushed WORK5da34e9bd and CLEANff56ce86a. TypedPendingWriteV8 and contracts now paired integrated, preserving terminal dominance/max3productions/max2publications/outerfuture. Historical13 compiler test lint repairs paired integrated after root source review; required currentpin companions pending. No runtime/global admission.",
+    "Actual570compiler102 allUNRUN on unused childtest import. Actual570WASM24failbeforeexecution plus1hostPASS on deprecated diagnostic atomic method. Both actual blockers and five strict primaries repaired after independent review; current compiler/WASM/strict reruns dispatched. Latest executed compiler semantics remain46d96PASS6FAIL.",
+    "Actual570browser firstguard establishes authored-simulation purpose rather than Native/Logical/deferred-procedure source authority. Actual570iRules bootstrap remainsFAIL/trace2PASS and identifies emitter statements2658 native byte-command plan refusal. Owners repair genuine producer proofs; no guard waiver.",
+    "Fully authenticated570Spec focused16PASS; appended fullcorpus stopped on sharedlogcap due inheritedtraceflood, not600timeout. Reviewed quiet corpus-only child environment is pushed5da and rerun dispatched with unchanged600s/shared20MB cap, old16environment/selectors untouched. FullC1C2 remains open.",
+    "Typed Salsa PendingWrite-only V8 passed substantive independent review8ff382b6 and is paired integrated; actual runtime/startup verification pending. Native Unicode prospective capability needs actual caller migration to close original baseline, remains off-tree with no invented decision.",
+    "Both release Rust workspaces pass whole cargo fmt onff56. Full current CLEAN CI is dispatched;395target shardmapping and bounded docs/fixture audits remain scoped proofs. Exact zero pass-to-fail, shipping Tclperformance, generated/owner/docs/comments/packaging/prep-pr and allsectionF remain open.",
+    "External BIGIP/perf trackers remain over60minutes stale; user notified without takeover. Root reclaimed459673385B from8superseded>24h nonexe.rmeta only after allmatching Cargo/Rustc PIDs verified defunctZ/no livebuild beforeeachunlink, newest variants retained; source/evidence/archives/executables untouched. Freeabout2.4GiB. No PR/merge/tag/release. Next20:15."
+  ],
+  "committed": [
+    "0487bd875b015ab50afa93cc3f87561dee87029b"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Collect current compiler/WASM/strict and fullCLEANCI outcomes, prioritizing actual first causes.",
+    "Complete genuine deferred-procedure source structure, typedPendingWrite recovery, Jim expression child-read and six actual compiler failures.",
+    "Rerun quiet full Spec corpus and C1C2 requiredsurfaces; prove shipping Tclperformance and complete release cleanup/gates."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Source or formatting proofs do not admit semantic/strict/performance gates. All unknown/unrun coverage remains explicit.",
+  "disk_free_bytes": 2483625984,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
