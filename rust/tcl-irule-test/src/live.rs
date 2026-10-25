@@ -384,12 +384,35 @@ impl LiveSession {
         };
         session.bootstrap(lib_dir)?;
         session.eval_host_initialization("::tmm::_static_enroll")?;
+        #[cfg(debug_assertions)]
+        Self::observe_native_framework_phase("before-first-init");
         session.eval_host_initialization("::orch::init")?;
+        #[cfg(debug_assertions)]
+        Self::observe_native_framework_phase("after-first-init");
         // The pure functions run their shared cores, registered before
         // `register_all` looks for each command's mock.
         crate::pure_functions::register(&mut session.vm);
+        #[cfg(debug_assertions)]
+        Self::observe_native_framework_phase("before-final-init");
         session.eval_final_host_initialization("::orch::init")?;
+        #[cfg(debug_assertions)]
+        Self::observe_native_framework_phase("after-final-init");
         Ok(session)
+    }
+
+    #[cfg(debug_assertions)]
+    fn observe_native_framework_phase(phase: &str) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static ROWS: AtomicU64 = AtomicU64::new(0);
+        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+            && ROWS
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                    (n < 32).then_some(n + 1)
+                })
+                .is_ok()
+        {
+            eprintln!("TCL_NATIVE_FRAMEWORK_PHASE {phase}");
+        }
     }
 
     /// Select an independently measured event naming issuer. Only the exact

@@ -593,7 +593,42 @@ pub(crate) fn original_script_list(
     } {
         return Ok(None);
     }
-    Ok(script.cached_list_representation().map(|(words, _)| words))
+    let words = script.cached_list_representation().map(|(words, _)| words);
+    #[cfg(debug_assertions)]
+    if matches!(
+        purpose,
+        tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel
+    ) {
+        observe_original_uplevel_caller(vm, words.as_ref());
+    }
+    Ok(words)
+}
+
+#[cfg(debug_assertions)]
+fn observe_original_uplevel_caller(vm: &Vm, words: Option<&crate::NativeListItems>) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static CALLS: AtomicU64 = AtomicU64::new(0);
+    if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1") {
+        return;
+    }
+    let Ok(previous) = CALLS.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+    else {
+        return;
+    };
+    let ordinal = previous + 1;
+    if ordinal > 32 && !ordinal.is_power_of_two() {
+        return;
+    }
+    let head = words
+        .and_then(|words| words.first())
+        .and_then(Value::resident_string_bytes);
+    let head_bytes = head.as_deref().map(|bytes| &bytes[..bytes.len().min(32)]);
+    let caller_bytes = vm.native_diagnostic_proc_name_prefix();
+    eprintln!(
+        "TCL_NATIVE_UPLEVEL_CALLER ordinal={ordinal} level={} caller_key_prefix={caller_bytes:?} head={head_bytes:?} head_len={:?}",
+        vm.current_level(),
+        head.as_ref().map(|bytes| bytes.len())
+    );
 }
 
 /// `eval arg ?arg ...?` — concatenate the arguments with spaces and evaluate the

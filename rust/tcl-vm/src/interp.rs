@@ -23532,6 +23532,15 @@ impl Vm {
         self.update_native_error_info();
     }
 
+    #[cfg(debug_assertions)]
+    pub(crate) fn native_diagnostic_proc_name_prefix(&self) -> Option<&[u8]> {
+        self.frames
+            .last()?
+            .proc_name
+            .as_deref()
+            .map(|name| &name.as_bytes()[..name.len().min(16)])
+    }
+
     /// The current call frame's proc name (unqualified), or `None` at the global
     /// frame / a non-proc activation.
     pub(crate) fn current_proc_name(&self) -> Option<String> {
