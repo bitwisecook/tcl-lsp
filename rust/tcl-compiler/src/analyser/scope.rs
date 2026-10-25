@@ -4234,15 +4234,17 @@ mod tests {
 
     #[test]
     fn logical_cross_namespace_candidates_use_actual_namespace_owners() {
-        let source =
-            "namespace eval N {set {a{b}c} ONE; namespace eval Nested {set value TWO}}\nputs $";
-        let mut analysis = Analyser::new().analyse(source, "tcl");
         fn erase_labels(scope: &mut Scope) {
             scope.name = "unrelated report".to_owned();
             for child in &mut scope.children {
                 erase_labels(child);
             }
         }
+
+        let source =
+            "namespace eval N {set {a{b}c} ONE; namespace eval Nested {set value TWO}}\nputs $";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+
         erase_labels(&mut analysis.global_scope);
         let image = tcl_lexer::SourceImage::document(source);
         let config = analysis.body_lexer_config.unwrap();

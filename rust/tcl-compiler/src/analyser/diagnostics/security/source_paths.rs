@@ -580,7 +580,7 @@ mod tests {
                 0 => stale.ir_module.source_metadata_input = None,
                 1 => {
                     stale.ir_module.source =
-                        tcl_lexer::SourceImage::document("proc f {} {set p literal.txt; open $q}")
+                        tcl_lexer::SourceImage::document("proc f {} {set p literal.txt; open $q}");
                 }
                 2 => {
                     stale
@@ -588,12 +588,12 @@ mod tests {
                         .values_mut()
                         .next()
                         .unwrap()
-                        .source_metadata_input = None
+                        .source_metadata_input = None;
                 }
                 3 => stale.ir_module.source_metadata_input = Some(current_input("tcl9.0")),
                 4 => {
                     stale.ir_module.lexer_config.strict_quoting =
-                        !stale.ir_module.lexer_config.strict_quoting
+                        !stale.ir_module.lexer_config.strict_quoting;
                 }
                 _ => stale.ir_module.retained_source_bindings = None,
             }

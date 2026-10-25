@@ -4958,7 +4958,7 @@ mod tests {
             .analyse_and_retain_result_for_test(direct_source, "tcl")
             .clone();
         let mut class = analysis.all_classes["::C"].clone();
-        class.original_members = Default::default();
+        class.original_members = crate::analyser::types::OriginalSourceMemberLedger::default();
         let current = &analysis.all_classes["::C"];
         let actual_input = analysis.resolved_input.as_ref().unwrap();
         let actual_image = analysis
@@ -5020,7 +5020,7 @@ mod tests {
                 )
                 .is_some()
         );
-        class.original_members = Default::default();
+        class.original_members = crate::analyser::types::OriginalSourceMemberLedger::default();
         command.argv[2] = command.argv[1];
         assert!(analyser.member_declaration_is_opaque(
             &tcl_registry::definer::TCLOO_GRAMMAR,
@@ -6159,10 +6159,10 @@ snit::type {C\uD800} {}";
         let options =
             crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap();
         let context = input.context_registry();
-        let mut lowerer =
+        let mut body_builder =
             crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config());
-        lowerer.set_source_analysis_options(options);
-        let lowered = lowerer.lower(body);
+        body_builder.set_source_analysis_options(options);
+        let lowered = body_builder.lower(body);
         let statement = lowered.top_level.statements.first().unwrap();
         let binding = lowered
             .top_level
@@ -6568,7 +6568,7 @@ snit::type {C\uD800} {}";
             .is_none()
         );
         let mut missing = script.clone();
-        missing.command_binding_sites = Default::default();
+        missing.command_binding_sites = crate::ir::CommandBindingSites::default();
         assert!(
             original_native_source_case_for_statement(
                 &missing,
