@@ -2275,21 +2275,8 @@ mod original_boolean_transport_tests {
         NativeBooleanExpressionResultProduction as Production, NativeBooleanTruthPurpose as Purpose,
     };
 
-    #[test]
-    fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
-        // naming.numeric.original-primitive-boolean-vs-expression-truth
-        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
-        // Typed software transport only. The original provider rows attest
-        // reached getter/result effects separately from emitted instructions.
-        let mut wasm = WasmModule::new();
-        let mut declared = Vec::new();
-        let imports = add_native_imports(&mut wasm, &mut |_, id| {
-            let index = u32::try_from(declared.len()).unwrap();
-            declared.push(id);
-            index
-        });
-        let completion = CompletionId::new(ExecutableFunctionId::new(0), 0);
-        let function = NativeFunction {
+    fn boolean_transport_function(completion: CompletionId) -> NativeFunction {
+        NativeFunction {
             native_compilation_admission: None,
             values: vec![
                 NativeValue {
@@ -2351,7 +2338,64 @@ mod original_boolean_transport_tests {
             completion_count: 1,
             max_argc: 0,
             protocol: EntryProtocol::Script,
-        };
+        }
+    }
+
+    fn assert_combined_boolean_transport(
+        emitted: &WasmFunction,
+        imports: &NativeImports,
+        declared: &[CodegenAbiImportId],
+    ) {
+        let combined: Vec<_> = emitted
+            .body
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                instruction.op == WasmOp::Call
+                    && instruction.operands == leb128_unsigned(u64::from(imports.expr_bool_eval))
+            })
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(combined.len(), 1);
+        let index = combined[0];
+        let after = &emitted.body[index + 1..index + 9];
+        assert_eq!(after[0].op, WasmOp::Call);
+        assert_eq!(
+            after[0].operands,
+            leb128_unsigned(u64::from(imports.host_refusal_pending))
+        );
+        assert_eq!(after[1].op, WasmOp::If);
+        assert_eq!(after[2].op, WasmOp::Br);
+        assert_eq!(after[3].op, WasmOp::End);
+        assert_eq!(after[4].op, WasmOp::Drop);
+        assert_eq!(after[5].op, WasmOp::LocalGet);
+        assert_eq!(
+            after[6].op,
+            WasmOp::I32Load,
+            "the original Guest completion is inspected only after first Host"
+        );
+        assert_eq!(after[7].op, WasmOp::If);
+        assert_eq!(
+            declared[imports.expr_bool_eval as usize],
+            CodegenAbiImportId::ExprBoolEval
+        );
+    }
+
+    #[test]
+    fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        // Typed software transport only. The original provider rows attest
+        // reached getter/result effects separately from emitted instructions.
+        let mut wasm = WasmModule::new();
+        let mut declared = Vec::new();
+        let imports = add_native_imports(&mut wasm, &mut |_, id| {
+            let index = u32::try_from(declared.len()).unwrap();
+            declared.push(id);
+            index
+        });
+        let completion = CompletionId::new(ExecutableFunctionId::new(0), 0);
+        let function = boolean_transport_function(completion);
         let slots = BTreeMap::new();
         let mut data = Vec::new();
         let mut offset = 0;
@@ -2417,38 +2461,6 @@ mod original_boolean_transport_tests {
                     .any(|instruction| instruction.op == WasmOp::I32Load)
             );
         }
-        let combined: Vec<_> = emitted
-            .body
-            .iter()
-            .enumerate()
-            .filter(|(_, instruction)| {
-                instruction.op == WasmOp::Call
-                    && instruction.operands == leb128_unsigned(u64::from(imports.expr_bool_eval))
-            })
-            .map(|(index, _)| index)
-            .collect();
-        assert_eq!(combined.len(), 1);
-        let index = combined[0];
-        let after = &emitted.body[index + 1..index + 9];
-        assert_eq!(after[0].op, WasmOp::Call);
-        assert_eq!(
-            after[0].operands,
-            leb128_unsigned(u64::from(imports.host_refusal_pending))
-        );
-        assert_eq!(after[1].op, WasmOp::If);
-        assert_eq!(after[2].op, WasmOp::Br);
-        assert_eq!(after[3].op, WasmOp::End);
-        assert_eq!(after[4].op, WasmOp::Drop);
-        assert_eq!(after[5].op, WasmOp::LocalGet);
-        assert_eq!(
-            after[6].op,
-            WasmOp::I32Load,
-            "the original Guest completion is inspected only after first Host"
-        );
-        assert_eq!(after[7].op, WasmOp::If);
-        assert_eq!(
-            declared[imports.expr_bool_eval as usize],
-            CodegenAbiImportId::ExprBoolEval
-        );
+        assert_combined_boolean_transport(&emitted, &imports, &declared);
     }
 }

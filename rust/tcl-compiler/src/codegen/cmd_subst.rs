@@ -4868,33 +4868,84 @@ mod tests {
     // Registry drift: inline codegen hook stamping.
 
     /// Registry inline hooks match the supported emitter set and dispatch purpose.
+    const EXPECTED_INLINE_HOOKS: &[(&str, tcl_registry::hooks::InlineCodegenHookId)] = &[
+        ("expr", tcl_registry::hooks::InlineCodegenHookId::Expr),
+        ("incr", tcl_registry::hooks::InlineCodegenHookId::Incr),
+        ("set", tcl_registry::hooks::InlineCodegenHookId::Set),
+        ("string", tcl_registry::hooks::InlineCodegenHookId::String),
+        ("lindex", tcl_registry::hooks::InlineCodegenHookId::Lindex),
+        ("lrange", tcl_registry::hooks::InlineCodegenHookId::Lrange),
+        (
+            "lreplace",
+            tcl_registry::hooks::InlineCodegenHookId::Lreplace,
+        ),
+        ("linsert", tcl_registry::hooks::InlineCodegenHookId::Linsert),
+        ("regexp", tcl_registry::hooks::InlineCodegenHookId::Regexp),
+        ("list", tcl_registry::hooks::InlineCodegenHookId::List),
+        ("array", tcl_registry::hooks::InlineCodegenHookId::Array),
+        ("catch", tcl_registry::hooks::InlineCodegenHookId::Catch),
+        ("return", tcl_registry::hooks::InlineCodegenHookId::Return),
+        ("error", tcl_registry::hooks::InlineCodegenHookId::Error),
+        ("break", tcl_registry::hooks::InlineCodegenHookId::Break),
+        (
+            "continue",
+            tcl_registry::hooks::InlineCodegenHookId::Continue,
+        ),
+        ("try", tcl_registry::hooks::InlineCodegenHookId::Try),
+        ("yield", tcl_registry::hooks::InlineCodegenHookId::Yield),
+        ("yieldto", tcl_registry::hooks::InlineCodegenHookId::YieldTo),
+    ];
+
+    const EXPECTED_INLINE_SUBCOMMANDS: [(&str, &str, tcl_registry::hooks::InlineCodegenHookId); 8] = [
+        (
+            "info",
+            "exists",
+            tcl_registry::hooks::InlineCodegenHookId::InfoExists,
+        ),
+        (
+            "info",
+            "commands",
+            tcl_registry::hooks::InlineCodegenHookId::InfoCommandsResolve,
+        ),
+        (
+            "info",
+            "level",
+            tcl_registry::hooks::InlineCodegenHookId::InfoLevel,
+        ),
+        (
+            "namespace",
+            "current",
+            tcl_registry::hooks::InlineCodegenHookId::NamespaceCurrent,
+        ),
+        (
+            "namespace",
+            "origin",
+            tcl_registry::hooks::InlineCodegenHookId::NamespaceOrigin,
+        ),
+        (
+            "namespace",
+            "code",
+            tcl_registry::hooks::InlineCodegenHookId::NamespaceCode,
+        ),
+        (
+            "dict",
+            "get",
+            tcl_registry::hooks::InlineCodegenHookId::DictGet,
+        ),
+        (
+            "string",
+            "match",
+            tcl_registry::hooks::InlineCodegenHookId::StringMatch,
+        ),
+    ];
+
     #[test]
     fn registry_inline_hook_stamping_matches_previous_hardcoded_dispatch() {
         use tcl_registry::hooks::InlineCodegenHookId as H;
         let registry = CommandRegistry::build_default().project_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
         );
-        let expected: &[(&str, H)] = &[
-            ("expr", H::Expr),
-            ("incr", H::Incr),
-            ("set", H::Set),
-            ("string", H::String),
-            ("lindex", H::Lindex),
-            ("lrange", H::Lrange),
-            ("lreplace", H::Lreplace),
-            ("linsert", H::Linsert),
-            ("regexp", H::Regexp),
-            ("list", H::List),
-            ("array", H::Array),
-            ("catch", H::Catch),
-            ("return", H::Return),
-            ("error", H::Error),
-            ("break", H::Break),
-            ("continue", H::Continue),
-            ("try", H::Try),
-            ("yield", H::Yield),
-            ("yieldto", H::YieldTo),
-        ];
+        let expected = EXPECTED_INLINE_HOOKS;
         for (name, hook) in expected {
             assert_eq!(
                 registry.get(name).and_then(|s| s.inline_codegen_hook),
@@ -4944,16 +4995,7 @@ mod tests {
                 "string {sub}"
             );
         }
-        let expected_subcommands = [
-            ("info", "exists", H::InfoExists),
-            ("info", "commands", H::InfoCommandsResolve),
-            ("info", "level", H::InfoLevel),
-            ("namespace", "current", H::NamespaceCurrent),
-            ("namespace", "origin", H::NamespaceOrigin),
-            ("namespace", "code", H::NamespaceCode),
-            ("dict", "get", H::DictGet),
-            ("string", "match", H::StringMatch),
-        ];
+        let expected_subcommands = EXPECTED_INLINE_SUBCOMMANDS;
         for (command, member, hook) in expected_subcommands {
             assert_eq!(
                 registry

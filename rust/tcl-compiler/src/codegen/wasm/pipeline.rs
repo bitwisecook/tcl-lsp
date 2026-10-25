@@ -1132,6 +1132,31 @@ mod tests {
     const SEALED_NATIVE_ADD: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 
+    fn trace_incoming_arguments(unit: &CompilationUnit, common: &CommonAotProofPlan) {
+        if std::env::var_os("TCL_LSP_TRACE_NATIVE_INCOMING_ARGUMENTS").is_some() {
+            eprintln!(
+                "NATIVE_INCOMING_CALLER function=::add evidence={:?}",
+                unit.caller_scope.call_sites.get("::add")
+            );
+            for (id, decision) in common.direct_calls() {
+                let DirectProcDecision::Selected(site) = decision else {
+                    continue;
+                };
+                if site.callee.qualified_name == "::add" {
+                    let values: Vec<_> = (0..2)
+                        .map(|argument| {
+                            crate::common_aot_plan::direct_call_argument_value(unit, id, argument)
+                        })
+                        .collect();
+                    eprintln!(
+                        "NATIVE_INCOMING_SITE id={id:?} callee={} frozen_arguments={values:?}",
+                        site.callee.qualified_name
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
         // naming.variable.aot-original-slot-purpose
@@ -1188,30 +1213,7 @@ mod tests {
             panic!("actual original body has arithmetic proof context");
         };
         let [NativeAddDecision::Proven(evidence)] = decisions.as_slice() else {
-            if std::env::var_os("TCL_LSP_TRACE_NATIVE_INCOMING_ARGUMENTS").is_some() {
-                eprintln!(
-                    "NATIVE_INCOMING_CALLER function=::add evidence={:?}",
-                    unit.caller_scope.call_sites.get("::add")
-                );
-                for (id, decision) in common.direct_calls() {
-                    let DirectProcDecision::Selected(site) = decision else {
-                        continue;
-                    };
-                    if site.callee.qualified_name == "::add" {
-                        let values: Vec<_> = (0..2)
-                            .map(|argument| {
-                                crate::common_aot_plan::direct_call_argument_value(
-                                    &unit, id, argument,
-                                )
-                            })
-                            .collect();
-                        eprintln!(
-                            "NATIVE_INCOMING_SITE id={id:?} callee={} frozen_arguments={values:?}",
-                            site.callee.qualified_name
-                        );
-                    }
-                }
-            }
+            trace_incoming_arguments(&unit, &common);
             panic!("{decisions:#?}");
         };
         for operand in [&evidence.left.identity, &evidence.right.identity] {
