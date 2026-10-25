@@ -22742,9 +22742,10 @@ impl Backend {
         let ControlFlow::Break(Some(identity)) = selected else {
             return Ok(ControlFlow::Break(Ok(None)));
         };
-        let source_worlds =
-            Box::pin(self.capture_original_command_source_worlds_if_needed(member, &owners))
-                .await?;
+        drop(owners);
+        let (documents, source_worlds) =
+            Box::pin(self.command_source_documents(member, documents, identity.uri())).await?;
+        let owners = implementation_inventory(&documents);
         let conditional_worlds = source_worlds
             .as_ref()
             .map(|capture| capture.worlds())
@@ -22846,16 +22847,7 @@ impl Backend {
         {
             return Ok(ControlFlow::Break(None));
         }
-        let owners = documents
-            .iter()
-            .map(|(uri, source, analysis)| {
-                tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
-                    uri,
-                    source,
-                    analysis,
-                }
-            })
-            .collect::<Vec<_>>();
+        let owners = implementation_inventory(&documents);
         let Some(offset) = line_col_to_byte_offset(&doc.text, pos.line, pos.character)
             .and_then(|offset| u32::try_from(offset).ok())
         else {
@@ -22874,9 +22866,10 @@ impl Backend {
         let ControlFlow::Break(Some(identity)) = selected else {
             return Ok(ControlFlow::Break(None));
         };
-        let source_worlds =
-            Box::pin(self.capture_original_command_source_worlds_if_needed(member, &owners))
-                .await?;
+        drop(owners);
+        let (documents, source_worlds) =
+            Box::pin(self.command_source_documents(member, documents, identity.uri())).await?;
+        let owners = implementation_inventory(&documents);
         let conditional_worlds = source_worlds
             .as_ref()
             .map(|capture| capture.worlds())
