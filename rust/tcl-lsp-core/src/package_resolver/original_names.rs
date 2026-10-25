@@ -1124,6 +1124,61 @@ mod tests {
         );
     }
 
+    fn original_requirement_key(
+        entries: &[OriginalPackageInfo],
+        name: &str,
+    ) -> PackageRequirementAdviceKey {
+        PackageRequirementAdviceKey::Original(
+            entries
+                .iter()
+                .find(|entry| entry.name().matches_ascii(name))
+                .expect("authentic original registration")
+                .name()
+                .clone(),
+        )
+    }
+
+    fn original_requirement_advice(
+        entries: &[OriginalPackageInfo],
+        name: &str,
+        alternatives: &[&str],
+        exact: bool,
+        prefer: super::super::PackagePrefer,
+    ) -> PackageRequirementAdvice {
+        PackageRequirementAdvice::new(
+            original_requirement_key(entries, name),
+            alternatives
+                .iter()
+                .map(|version| (*version).to_owned())
+                .collect(),
+            exact,
+            prefer,
+        )
+    }
+
+    fn assert_package_selection(
+        resolver: &PackageResolver,
+        version: tcl_dialect::TclVersion,
+        [exact, stable, latest, alternatives]: [&PackageRequirementAdvice; 4],
+    ) {
+        assert_eq!(
+            resolver.resolve_requirement_advice(exact, Some(version)),
+            vec![PathBuf::from("/library/stable.tcl")]
+        );
+        assert_eq!(
+            resolver.resolve_requirement_advice(stable, Some(version)),
+            vec![PathBuf::from("/library/stable.tcl")]
+        );
+        assert_eq!(
+            resolver.resolve_requirement_advice(latest, Some(version)),
+            vec![PathBuf::from("/library/beta.tcl")]
+        );
+        assert_eq!(
+            resolver.resolve_requirement_advice(alternatives, Some(version)),
+            vec![PathBuf::from("/library/major.tcl")]
+        );
+    }
+
     #[test]
     fn original_package_requirement_closure_keeps_versions_and_preference() {
         // The shared candidate owner also serves exact_require_selects_that_release_or_nothing
@@ -1151,26 +1206,8 @@ mod tests {
                 &|_| Vec::new(),
                 version,
             );
-            let key = |name: &str| {
-                PackageRequirementAdviceKey::Original(
-                    entries
-                        .iter()
-                        .find(|entry| entry.name().matches_ascii(name))
-                        .expect("authentic original registration")
-                        .name()
-                        .clone(),
-                )
-            };
             let require = |name: &str, alternatives: &[&str], exact, prefer| {
-                PackageRequirementAdvice::new(
-                    key(name),
-                    alternatives
-                        .iter()
-                        .map(|version| (*version).to_owned())
-                        .collect(),
-                    exact,
-                    prefer,
-                )
+                original_requirement_advice(&entries, name, alternatives, exact, prefer)
             };
             let exact = require("w", &["1.2"], true, super::super::PackagePrefer::Latest);
             let stable = require("w", &["1.0"], false, super::super::PackagePrefer::Stable);
@@ -1181,21 +1218,10 @@ mod tests {
                 false,
                 super::super::PackagePrefer::Stable,
             );
-            assert_eq!(
-                resolver.resolve_requirement_advice(&exact, Some(version)),
-                vec![PathBuf::from("/library/stable.tcl")]
-            );
-            assert_eq!(
-                resolver.resolve_requirement_advice(&stable, Some(version)),
-                vec![PathBuf::from("/library/stable.tcl")]
-            );
-            assert_eq!(
-                resolver.resolve_requirement_advice(&latest, Some(version)),
-                vec![PathBuf::from("/library/beta.tcl")]
-            );
-            assert_eq!(
-                resolver.resolve_requirement_advice(&alternatives, Some(version)),
-                vec![PathBuf::from("/library/major.tcl")]
+            assert_package_selection(
+                &resolver,
+                version,
+                [&exact, &stable, &latest, &alternatives],
             );
             let dependency = require("dep", &["1.0"], true, super::super::PackagePrefer::Stable);
             let available = resolver.transitive_requirement_advice(

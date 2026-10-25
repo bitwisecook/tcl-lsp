@@ -1564,8 +1564,8 @@ mod tests {
             .find(|warning| warning["code"] == "W313")
             .expect("actual graph reports the retained conditional destructive path");
         assert_eq!(warning["variable"], "a{b");
-        let start = warning["source_span"][0].as_u64().unwrap() as usize;
-        let end = warning["source_span"][1].as_u64().unwrap() as usize;
+        let start = usize::try_from(warning["source_span"][0].as_u64().unwrap()).unwrap();
+        let end = usize::try_from(warning["source_span"][1].as_u64().unwrap()).unwrap();
         assert_eq!(&source[start..end], "${a{b}c}");
         let unavailable =
             dataflow_graph_with_source_input(source, &registry, Some(&older)).unwrap();

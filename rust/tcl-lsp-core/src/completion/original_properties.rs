@@ -177,6 +177,80 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
+    fn original_property_option_bytes(
+        item: &CompletionItem,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Vec<u8> {
+        let image = SourceImage::document(&item.insert_text);
+        let plan = tcl_lexer::native_script_words_in(
+            image.clone(),
+            Span::new(0, u32::try_from(image.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        SignatureSourceNameKey::from_original_native_word(
+            &plan.commands[0].words[0],
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )
+        .unwrap()
+        .bytes()
+        .to_vec()
+    }
+
+    fn assert_original_property_option_spellings<'a>(
+        items: impl Iterator<Item = &'a CompletionItem>,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) {
+        for item in items {
+            let rendered = SourceImage::document(&item.insert_text);
+            let plan = tcl_lexer::native_script_words_in(
+                rendered.clone(),
+                Span::new(0, u32::try_from(rendered.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let key = SignatureSourceNameKey::from_original_native_word(
+                &plan.commands[0].words[0],
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap();
+            assert!(
+                [b"-p\xed\xa0\x80".as_slice(), b"-p\xed\xa0\x81", b"-shared"]
+                    .contains(&key.bytes()),
+                "{:?}",
+                key.bytes()
+            );
+        }
+    }
+
+    fn assert_original_property_option_refusals(
+        source: &str,
+        analysis: &AnalysisResult,
+        root: &SourceDeclarationMetadata<ClassDef>,
+        selector: &SignatureSourceNameInput,
+    ) {
+        assert!(
+            candidate_items(source, analysis, root, selector, (0, 0), (1, 2), (None, "")).is_none()
+        );
+        assert!(
+            candidate_items(
+                &format!("#{source}"),
+                analysis,
+                root,
+                selector,
+                (0, 0),
+                (0, 1),
+                (None, "")
+            )
+            .unwrap()
+            .is_empty()
+        );
+    }
+
     #[test]
     fn original_property_options_keep_opaque_names_and_selected_read_write_roles() {
         let source = r"oo::configurable create C {property p\uD800 -kind readable p\uD801 -kind writable shared}";
@@ -252,75 +326,16 @@ mod tests {
         .unwrap();
         assert_eq!(read.len(), 2, "{read:?}");
         assert_eq!(write.len(), 2, "{write:?}");
-        let option_bytes = |item: &CompletionItem| {
-            let image = SourceImage::document(&item.insert_text);
-            let plan = tcl_lexer::native_script_words_in(
-                image.clone(),
-                Span::new(0, u32::try_from(image.len()).unwrap()),
-                config,
-            )
-            .unwrap();
-            SignatureSourceNameKey::from_original_native_word(
-                &plan.commands[0].words[0],
-                tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                policy,
-            )
-            .unwrap()
-            .bytes()
-            .to_vec()
-        };
+        let option_bytes =
+            |item: &CompletionItem| original_property_option_bytes(item, config, policy);
         let read_bytes: Vec<_> = read.iter().map(option_bytes).collect();
         let write_bytes: Vec<_> = write.iter().map(option_bytes).collect();
         assert!(read_bytes.contains(&b"-p\xed\xa0\x80".to_vec()));
         assert!(!read_bytes.contains(&b"-p\xed\xa0\x81".to_vec()));
         assert!(write_bytes.contains(&b"-p\xed\xa0\x81".to_vec()));
         assert!(!write_bytes.contains(&b"-p\xed\xa0\x80".to_vec()));
-        assert!(
-            candidate_items(
-                source,
-                &analysis,
-                root,
-                &selector,
-                (0, 0),
-                (1, 2),
-                (None, "")
-            )
-            .is_none()
-        );
-        assert!(
-            candidate_items(
-                &format!("#{source}"),
-                &analysis,
-                root,
-                &selector,
-                (0, 0),
-                (0, 1),
-                (None, "")
-            )
-            .unwrap()
-            .is_empty()
-        );
-        for item in read.iter().chain(&write) {
-            let rendered = SourceImage::document(&item.insert_text);
-            let plan = tcl_lexer::native_script_words_in(
-                rendered.clone(),
-                Span::new(0, u32::try_from(rendered.len()).unwrap()),
-                config,
-            )
-            .unwrap();
-            let key = SignatureSourceNameKey::from_original_native_word(
-                &plan.commands[0].words[0],
-                tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                policy,
-            )
-            .unwrap();
-            assert!(
-                [b"-p\xed\xa0\x80".as_slice(), b"-p\xed\xa0\x81", b"-shared"]
-                    .contains(&key.bytes()),
-                "{:?}",
-                key.bytes()
-            );
-        }
+        assert_original_property_option_refusals(source, &analysis, root, &selector);
+        assert_original_property_option_spellings(read.iter().chain(&write), config, policy);
     }
 
     #[test]

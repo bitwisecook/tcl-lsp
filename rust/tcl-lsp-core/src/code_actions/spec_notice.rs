@@ -356,6 +356,57 @@ mod tests {
         ContextDiagnostic, ContextDiagnosticData, SPEC_PACK_DIAGNOSTIC_CODE,
     };
     use tcl_compiler::analyser::Analyser;
+    fn assert_original_spec_notice_vocabulary(
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        data: &ContextDiagnosticData,
+        diagnostic: &ContextDiagnostic,
+        subject: &SpecPackNoticeSubject,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        let registry = analysis.resolved_registry().unwrap();
+        let document = registry
+            .document_grammar()
+            .expect("actual selected pack source vocabulary");
+        let pack = registry
+            .authored_document_member_grammar(document, "speclib")
+            .expect("actual admitted document member source vocabulary");
+        assert!(
+            registry
+                .authored_document_member_grammar(pack, "command")
+                .is_some()
+        );
+        assert!(
+            data.notice()
+                .unwrap()
+                .matches(source, analysis, registry, diagnostic),
+            "the independently issued subject must retain current source/configuration/Registry"
+        );
+        assert_eq!(
+            crate::code_actions::statement_head_at(source, subject.span().start(), config)
+                .as_deref(),
+            Some("arty"),
+            "the exact subject must select its own statement rather than an enclosing declaration"
+        );
+        let grammar = crate::oo_body::definition_grammar_at(
+            source,
+            subject.span().start(),
+            registry,
+            config,
+            analysis
+                .resolved_profile()
+                .map(tcl_dialect::DialectProfile::surface_query),
+        )
+        .expect("the actual selected SpecTcl declaration context must retain its grammar");
+        assert!(
+            grammar
+                .members
+                .iter()
+                .any(|member| member.keyword == "arity"),
+            "the selected command-body vocabulary must contain the actual replacement"
+        );
+    }
+
     #[test]
     fn original_spec_notice_actions_use_typed_subjects_and_current_owners_instead_of_prose() {
         // Implementation contract: naming.consumer.typed-spec-pack-notice-actions
@@ -384,46 +435,13 @@ mod tests {
                 end_character: 7,
             },
         };
-        let registry = analysis.resolved_registry().unwrap();
-        let document = registry
-            .document_grammar()
-            .expect("actual selected pack source vocabulary");
-        let pack = registry
-            .authored_document_member_grammar(document, "speclib")
-            .expect("actual admitted document member source vocabulary");
-        assert!(
-            registry
-                .authored_document_member_grammar(pack, "command")
-                .is_some()
-        );
-        assert!(
-            data.notice()
-                .unwrap()
-                .matches(source, &analysis, registry, &diagnostic),
-            "the independently issued subject must retain current source/configuration/Registry"
-        );
-        assert_eq!(
-            crate::code_actions::statement_head_at(source, subject.span().start(), config)
-                .as_deref(),
-            Some("arty"),
-            "the exact subject must select its own statement rather than an enclosing declaration"
-        );
-        let grammar = crate::oo_body::definition_grammar_at(
+        assert_original_spec_notice_vocabulary(
             source,
-            subject.span().start(),
-            registry,
+            &analysis,
+            &data,
+            &diagnostic,
+            &subject,
             config,
-            analysis
-                .resolved_profile()
-                .map(tcl_dialect::DialectProfile::surface_query),
-        )
-        .expect("the actual selected SpecTcl declaration context must retain its grammar");
-        assert!(
-            grammar
-                .members
-                .iter()
-                .any(|member| member.keyword == "arity"),
-            "the selected command-body vocabulary must contain the actual replacement"
         );
         let actions = crate::code_actions::spec_pack_quick_fixes(
             source,

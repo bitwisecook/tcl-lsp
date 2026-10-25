@@ -1160,10 +1160,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose() {
-        // naming.editor.logical-written-component-geometry
-
+    fn assert_written_variable_and_entity_separators() {
         for written in [
             "::app:::old::v",
             "::app::::old::v",
@@ -1190,6 +1187,13 @@ mod tests {
             };
             assert_eq!(written.get(selected.as_range()), Some("old"), "{written}");
         }
+    }
+
+    #[test]
+    fn logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose() {
+        // naming.editor.logical-written-component-geometry
+
+        assert_written_variable_and_entity_separators();
         for (written, resolved, purpose) in [
             (
                 "::::app:::old::::",

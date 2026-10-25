@@ -517,6 +517,7 @@ mod inverse_tests {
     #[test]
     fn unsupported_document_uri_data_is_a_typed_refusal() {
         use FileUriPathUnavailable as Unavailable;
+
         for (raw, expected) in [
             ("untitled:buffer", Unavailable::NotFile),
             ("https://srv/share/a.tcl", Unavailable::NotFile),

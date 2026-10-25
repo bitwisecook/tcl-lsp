@@ -5101,7 +5101,7 @@ mod tests {
                     .shared_registry(),
             ),
         );
-        for unavailable in [
+        for unavailable in vec![
             {
                 let mut next = baseline.clone();
                 next.resolved_input = None;
@@ -5141,7 +5141,9 @@ mod tests {
                 ));
                 next
             },
-        ] {
+        ]
+        .into_boxed_slice()
+        {
             assert!(
                 unavailable
                     .original_object_configurations()
@@ -5228,6 +5230,52 @@ mod tests {
         }
     }
 
+    fn assert_original_class_publications() {
+        let source = r"oo::class create c\uD800 {}
+oo::class create c\uD801 {}
+c\uD800";
+        let call = u32::try_from(source.rfind(r"c\uD800").unwrap()).unwrap();
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analysis = Analyser::new().analyse(source, dialect);
+            let span = analysis
+                .original_class_declarations()
+                .next()
+                .unwrap()
+                .metadata()
+                .name_span;
+            let mut counterfeit = analysis.all_classes.values().next().unwrap().clone();
+            counterfeit.name_span = tcl_lexer::Span::new(0, 1);
+            analysis.all_classes.clear();
+            analysis
+                .all_classes
+                .insert("::counterfactual".to_owned(), counterfeit);
+            assert_eq!(
+                resolve_class_target_at(
+                    &analysis,
+                    source,
+                    CallResolution::document_only(),
+                    call,
+                    "counterfactual",
+                )
+                .unwrap()
+                .1
+                .name_span,
+                span,
+                "{dialect}"
+            );
+            assert!(
+                resolve_class_target_at(
+                    &analysis,
+                    &format!("{source}\n# changed"),
+                    CallResolution::document_only(),
+                    call,
+                    "counterfactual",
+                )
+                .is_none()
+            );
+        }
+    }
+
     #[test]
     fn original_proc_and_class_selection_uses_current_typed_publications() {
         // Implementation contract: naming.editor.original-declaration-wire-identity
@@ -5301,49 +5349,7 @@ p\uD800";
                 .is_none()
             );
         }
-        let source = r"oo::class create c\uD800 {}
-oo::class create c\uD801 {}
-c\uD800";
-        let call = u32::try_from(source.rfind(r"c\uD800").unwrap()).unwrap();
-        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            let mut analysis = Analyser::new().analyse(source, dialect);
-            let span = analysis
-                .original_class_declarations()
-                .next()
-                .unwrap()
-                .metadata()
-                .name_span;
-            let mut counterfeit = analysis.all_classes.values().next().unwrap().clone();
-            counterfeit.name_span = tcl_lexer::Span::new(0, 1);
-            analysis.all_classes.clear();
-            analysis
-                .all_classes
-                .insert("::counterfactual".to_owned(), counterfeit);
-            assert_eq!(
-                resolve_class_target_at(
-                    &analysis,
-                    source,
-                    CallResolution::document_only(),
-                    call,
-                    "counterfactual",
-                )
-                .unwrap()
-                .1
-                .name_span,
-                span,
-                "{dialect}"
-            );
-            assert!(
-                resolve_class_target_at(
-                    &analysis,
-                    &format!("{source}\n# changed"),
-                    CallResolution::document_only(),
-                    call,
-                    "counterfactual",
-                )
-                .is_none()
-            );
-        }
+        assert_original_class_publications();
     }
 
     #[test]

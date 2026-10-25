@@ -2533,7 +2533,7 @@ mod source_catalogue_word_tests {
         let image = tcl_lexer::SourceImage::document(&item.insert_text);
         let plan = tcl_lexer::native_script_words_in(
             image,
-            tcl_lexer::Span::new(0, item.insert_text.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap()),
             config,
         )
         .unwrap();
@@ -2546,7 +2546,7 @@ mod source_catalogue_word_tests {
         };
         assert_eq!(
             word.span(),
-            tcl_lexer::Span::new(0, item.insert_text.len() as u32)
+            tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap())
         );
         tcl_syntax::word_rules::original_static_word_unicode_value(word).unwrap()
     }
@@ -2630,7 +2630,7 @@ mod source_catalogue_word_tests {
             let items = completions(
                 source,
                 0,
-                source.len() as u32,
+                u32::try_from(source.len()).unwrap(),
                 &analysis,
                 None,
                 None,
@@ -2649,7 +2649,7 @@ mod source_catalogue_word_tests {
                 completions(
                     source,
                     0,
-                    source.len() as u32,
+                    u32::try_from(source.len()).unwrap(),
                     &missing,
                     None,
                     None,
@@ -2716,7 +2716,7 @@ mod original_command_cursor_tests {
                 let source = marked.replacen("<|>", "", 1);
                 let analysis = Analyser::new().analyse(&source, dialect);
                 let index = tcl_lexer::LineIndex::new(&source);
-                let position = index.position_at_utf16(cursor as u32, &source);
+                let position = index.position_at_utf16(u32::try_from(cursor).unwrap(), &source);
                 let items = completions(
                     &source,
                     position.line,
@@ -2731,11 +2731,12 @@ mod original_command_cursor_tests {
                     .find(|item| item.label == "two words")
                     .expect("the actual source declaration remains a candidate");
                 let edit = item.text_edit.as_ref().expect("original container edit");
-                let start = HEADER.encode_utf16().count() as u32;
+                let start = u32::try_from(HEADER.encode_utf16().count()).unwrap();
                 let end = if extends_to_eof {
-                    source.encode_utf16().count() as u32
+                    u32::try_from(source.encode_utf16().count()).unwrap()
                 } else {
-                    start + written.replace("<|>", "").encode_utf16().count() as u32
+                    start
+                        + u32::try_from(written.replace("<|>", "").encode_utf16().count()).unwrap()
                 };
                 assert_eq!((edit.start_char, edit.end_char), (start, end));
                 assert_eq!(edit.new_text, item.insert_text);
@@ -2767,7 +2768,8 @@ mod original_command_cursor_tests {
         let cursor = marked.find("<|>").unwrap();
         let source = marked.replacen("<|>", "", 1);
         let analysis = Analyser::new().analyse(&source, "tcl8.6");
-        let position = tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+        let position = tcl_lexer::LineIndex::new(&source)
+            .position_at_utf16(u32::try_from(cursor).unwrap(), &source);
         let items = completions(
             &source,
             0,
@@ -2785,7 +2787,7 @@ mod original_command_cursor_tests {
             .as_ref()
             .unwrap();
         assert_eq!(edit.start_char, 8);
-        assert_eq!(edit.end_char, source.len() as u32);
+        assert_eq!(edit.end_char, u32::try_from(source.len()).unwrap());
         assert_eq!(edit.new_text, "-nocase");
     }
 
@@ -2796,8 +2798,8 @@ mod original_command_cursor_tests {
             let cursor = marked.find("<|>").unwrap();
             let source = marked.replacen("<|>", "", 1);
             let analysis = Analyser::new().analyse(&source, "tcl");
-            let position =
-                tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+            let position = tcl_lexer::LineIndex::new(&source)
+                .position_at_utf16(u32::try_from(cursor).unwrap(), &source);
             assert!(
                 !completions(
                     &source,
@@ -2814,7 +2816,8 @@ mod original_command_cursor_tests {
         }
         let source = "proc 😀name {} {}; 😀";
         let analysis = Analyser::new().analyse(source, "tcl");
-        let end = tcl_lexer::LineIndex::new(source).position_at_utf16(source.len() as u32, source);
+        let end = tcl_lexer::LineIndex::new(source)
+            .position_at_utf16(u32::try_from(source.len()).unwrap(), source);
         assert!(
             completions(
                 source,
@@ -3963,7 +3966,7 @@ mod tests {
     /// A bareword that merely shares a name with an unrelated tracked
     /// variable must not offer method completion — only a name genuinely
     /// bound by a create call qualifies (mirrors
-    /// `logical_receiver_candidates_keep_instance_and_class_buckets_together in
+    /// `logical_receiver_candidates_keep_instance_and_class_buckets_together` in
     /// definition.rs).
     #[test]
     fn bareword_completion_does_not_leak_unrelated_variable_class() {
@@ -7629,7 +7632,7 @@ mod configured_receiver_completion_tests {
                     config,
                 ))
                 .analyse(&source, "display only");
-            let cursor = 7 + partial.encode_utf16().count() as u32;
+            let cursor = 7 + u32::try_from(partial.encode_utf16().count()).unwrap();
             let items = variable_trigger_completions(&source, 1, cursor, &analysis).unwrap();
             let spelling = format!("${{{name}}}");
             let item = items
@@ -7638,7 +7641,10 @@ mod configured_receiver_completion_tests {
                 .expect("original declared braced-name candidate");
             let edit = item.text_edit.as_ref().unwrap();
             assert_eq!(edit.start_char, 5);
-            assert_eq!(edit.end_char, 8 + name.encode_utf16().count() as u32);
+            assert_eq!(
+                edit.end_char,
+                8 + u32::try_from(name.encode_utf16().count()).unwrap()
+            );
             assert_eq!(edit.new_text, spelling);
             let mut missing = analysis.clone();
             missing.resolved_input = None;
@@ -7730,13 +7736,7 @@ mod selected_catalogue_provider_tests {
         "source metadata",
     );
 
-    #[test]
-    fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
-        // naming.consumer.selected-catalogue-completion-provider
-
-        let profile = crate::profile_for_dialect("tcl8.6");
-        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-        let source = "package require http 2.0\n";
+    fn selected_builtin_filter_registry() -> CommandRegistry {
         let mut registry = CommandRegistry::build_default();
         for (name, selected_traits, foreign_traits, foreign_package) in [
             (
@@ -7801,6 +7801,17 @@ mod selected_catalogue_provider_tests {
                 ..CommandSpec::DEFAULT
             });
         }
+        registry
+    }
+
+    #[test]
+    fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
+        // naming.consumer.selected-catalogue-completion-provider
+
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let source = "package require http 2.0\n";
+        let registry = selected_builtin_filter_registry();
         let analysis =
             crate::source_structure::analyse_document(source, profile, &registry, config);
         let context = crate::document_floor::DocumentFloor::new(&analysis, profile)

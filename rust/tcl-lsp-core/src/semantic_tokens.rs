@@ -5745,7 +5745,7 @@ mod tests {
                 .profile()
                 .expect("explicit release fixture");
             let tokens = decode_full(source, profile, context.commands());
-            let list = source.find("list").unwrap() as u32;
+            let list = u32::try_from(source.find("list").unwrap()).unwrap();
             assert!(
                 tokens
                     .iter()
@@ -5758,7 +5758,7 @@ mod tests {
                     }),
                 "{label}: {tokens:?}"
             );
-            let value = source.find("$value").unwrap() as u32;
+            let value = u32::try_from(source.find("$value").unwrap()).unwrap();
             assert!(
                 tokens.iter().any(|&(line, column, length, kind, _)| {
                     line == 0
@@ -5775,7 +5775,7 @@ mod tests {
     fn case_list_patterns_keep_literal_braces_from_selected_elements() {
         let source = "switch x {\"{default\" {puts a} {default} {puts b}}\n";
         let tokens = decode_full(source, tcl(), &reg());
-        let literal = source.find("{default").unwrap() as u32;
+        let literal = u32::try_from(source.find("{default").unwrap()).unwrap();
         assert!(
             !tokens.iter().any(|&(line, column, length, kind, _)| {
                 line == 0
@@ -5785,7 +5785,7 @@ mod tests {
             }),
             "{tokens:?}"
         );
-        let keyword = source.rfind("{default").unwrap() as u32;
+        let keyword = u32::try_from(source.rfind("{default").unwrap()).unwrap();
         assert!(
             tokens.iter().any(|&(line, column, length, kind, _)| {
                 line == 0

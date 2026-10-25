@@ -79,12 +79,16 @@ fn find_tclsh() -> Option<tcl_test_support::Tclsh> {
 
 /// Run `script` through the shared validated-interpreter owner, retaining its
 /// exit status and byte channels until the strict text assertion boundary.
-fn run_tclsh(sh: &tcl_test_support::Tclsh, script: &str) -> Option<String> {
+fn run_tclsh(
+    sh: &tcl_test_support::Tclsh,
+    script: &str,
+) -> (tcl_test_support::ScriptOutcome, String) {
     let outcome = tcl_test_support::run_script(&sh.path, script.as_bytes())
         .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
-    Some(outcome.strict_text().unwrap_or_else(|error| {
+    let text = outcome.strict_text().unwrap_or_else(|error| {
         panic!("Tcl oracle failed ({error}); full process outcome: {outcome:?}")
-    }))
+    });
+    (outcome, text)
 }
 
 /// Admit an actual temporary host path and construct its Tcl source word
@@ -154,9 +158,7 @@ fn auto_qualify_differential_against_tclsh() {
     ];
     for (cmd, ns) in cases {
         let script = format!("puts [auto_qualify {{{cmd}}} {{{ns}}}]");
-        let Some(reference) = run_tclsh(&sh, &script) else {
-            panic!("tclsh failed for auto_qualify {cmd} {ns}");
-        };
+        let (_, reference) = run_tclsh(&sh, &script);
         let ours = auto_qualify(cmd, ns).join(" ");
         assert_eq!(
             ours,
@@ -288,7 +290,7 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
     let pkg_dir_word = reference_tcl_path_word(&sh, &pkg_dir)
         .expect("pkg_mkIndex fixture path must be representable in the selected Tcl source");
     let script = format!("pkg_mkIndex {pkg_dir_word} *.tcl");
-    assert!(run_tclsh(&sh, &script).is_some(), "pkg_mkIndex failed");
+    assert!(run_tclsh(&sh, &script).0.success(), "pkg_mkIndex failed");
     let index_path = pkg_dir.join("pkgIndex.tcl");
     let content = std::fs::read_to_string(&index_path).expect("read generated pkgIndex.tcl");
 
@@ -347,7 +349,7 @@ fn parse_tcl_index_differential_against_auto_mkindex() {
     let dir_word = reference_tcl_path_word(&sh, dir)
         .expect("auto_mkindex fixture path must be representable in the selected Tcl source");
     let script = format!("auto_mkindex {dir_word} *.tcl");
-    assert!(run_tclsh(&sh, &script).is_some(), "auto_mkindex failed");
+    assert!(run_tclsh(&sh, &script).0.success(), "auto_mkindex failed");
     let content = std::fs::read_to_string(dir.join("tclIndex")).expect("read tclIndex");
 
     let entries = parse_tcl_index(&content, dir, &|p| p.is_file());
