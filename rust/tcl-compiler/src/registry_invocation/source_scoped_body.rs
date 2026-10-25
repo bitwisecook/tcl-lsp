@@ -441,11 +441,26 @@ pub(super) fn normal_source_case_bodies_for(
         return None;
     }
     let config = words.head_source()?.word()?.config();
+    let logical_scope = match words.source() {
+        super::source_structure::OriginalRegistrySource::SourceTransitions(advice) => advice
+            .logical_source_input()
+            .zip(advice.logical_source_scope())
+            .is_some_and(|(input, scope)| {
+                input.has_logical_source_name_context()
+                    && scope.matches_input(input)
+                    && scope.owns_words(advice.original_words())
+                    && input.borrowed_context_registry() == context
+            }),
+        _ => false,
+    };
     let normal = words.with_source_schema(context, |schema| {
-        tcl_registry::normal_source_case::case_layout_on_normal_source_continuation(
-            schema,
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-        )
+        let values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+        tcl_registry::normal_source_case::case_layout_on_normal_source_continuation(schema, values)
+            .or_else(|| {
+                logical_scope.then(|| {
+                    tcl_registry::normal_source_case::case_layout_on_logical_source_continuation(schema, values)
+                }).flatten()
+            })
     })??;
     let possible = conditional_source_case_bodies_for(words, context)?;
     if normal.possible_bodies() != &possible.projection

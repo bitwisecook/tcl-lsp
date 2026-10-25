@@ -48,7 +48,37 @@ pub fn case_layout_on_normal_source_continuation(
             dialect.tcl_version?,
             TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
         )
-        || schema.semantics.argument_offset != 0
+    {
+        return None;
+    }
+    case_layout_on_source_continuation(schema, values)
+}
+
+/// Unversioned Tcl layout for an explicitly Logical declaring scope. This
+/// retains every option/operand residual and supplies no Native handler entry.
+#[must_use]
+pub fn case_layout_on_logical_source_continuation(
+    schema: &ResolvedInvocation<'_, '_>,
+    values: tcl_syntax::word_rules::WordValueRules,
+) -> Option<NormalSourceCaseLayout> {
+    let dialect = schema.words.arguments().dialect()?;
+    if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+        || dialect.tcl_version.is_some()
+        || dialect.core_point.is_some()
+        || dialect.authored_name_policy()?.authority()
+            != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+    {
+        return None;
+    }
+    case_layout_on_source_continuation(schema, values)
+}
+
+fn case_layout_on_source_continuation(
+    schema: &ResolvedInvocation<'_, '_>,
+    values: tcl_syntax::word_rules::WordValueRules,
+) -> Option<NormalSourceCaseLayout> {
+    let arguments = schema.words.arguments();
+    if schema.semantics.argument_offset != 0
         || schema.facts().lowering_hook != Some(crate::hooks::LoweringHookId::Switch)
         || schema.semantics.body_kind != BodyKind::Plain
         || schema.semantics.body_interpreter != BodyInterpreter::Current
@@ -178,6 +208,58 @@ mod tests {
                 ),
                 NativeCompilationSelection::Generic,
             );
+        }
+    }
+
+    #[test]
+    fn logical_case_layout_requires_unversioned_source_and_the_same_bounded_shape() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = crate::CommandRegistry::build_default();
+        let dialect =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let config =
+            tcl_lexer::LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
+        let values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+        let arguments = [
+            Literal("-glob"),
+            Dynamic,
+            Literal("a* {return 1} default {set z 9}"),
+        ];
+        let words =
+            crate::InvocationWords::structured(Literal("switch"), &arguments).with_dialect(dialect);
+        let selected = registry
+            .resolve_structured_invocation(words, dialect.authoring_query())
+            .resolved()
+            .unwrap();
+        assert!(case_layout_on_normal_source_continuation(&selected, values).is_none());
+        let logical = case_layout_on_logical_source_continuation(&selected, values).unwrap();
+        assert_eq!(logical.possible_bodies().bodies.len(), 2);
+        assert!(logical.possible_bodies().selection_unknown);
+        assert!(!selected.facts().arg_roles_complete);
+        for arguments in [
+            vec![Dynamic, Dynamic, Literal("a* {break}")],
+            vec![Literal("-glob"), Dynamic, Dynamic],
+            vec![Literal("-glob"), Dynamic, Literal("a*"), Literal("break")],
+        ] {
+            let words = crate::InvocationWords::structured(Literal("switch"), &arguments)
+                .with_dialect(dialect);
+            if let Some(selected) = registry
+                .resolve_structured_invocation(words, dialect.authoring_query())
+                .resolved()
+            {
+                assert!(case_layout_on_logical_source_continuation(&selected, values).is_none());
+            }
+        }
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let words = crate::InvocationWords::structured(Literal("switch"), &arguments)
+                .with_dialect(dialect);
+            if let Some(selected) = registry
+                .resolve_structured_invocation(words, dialect.authoring_query())
+                .resolved()
+            {
+                assert!(case_layout_on_logical_source_continuation(&selected, values).is_none());
+            }
         }
     }
 

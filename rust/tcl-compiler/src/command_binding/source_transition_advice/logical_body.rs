@@ -649,7 +649,15 @@ impl LogicalBodyWalk<'_, '_> {
         ) {
             words.source_script_bodies_for_mutation_coverage(self.context.context)?
         } else {
-            words.source_script_bodies(self.context.context)
+            let bodies = words.source_script_bodies(self.context.context);
+            if bodies.is_empty() {
+                words
+                    .normal_source_case_bodies(self.context.context)
+                    .and_then(|cases| cases.bodies().map(<[_]>::to_vec))
+                    .unwrap_or_default()
+            } else {
+                bodies
+            }
         };
         if bodies.iter().any(|body| {
             let container = body.original_container();
