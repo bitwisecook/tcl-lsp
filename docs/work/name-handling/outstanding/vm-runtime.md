@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T19:03:52Z
+Last updated: 2026-10-25T19:33:23Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -1032,3 +1032,15 @@ failure; I own sole ZIP/auth (not downloaded at thisupdate). Extraction graph re
 read-only: SpecTcl production usesmainVM, standaloneRuntime still coupled to xtask
 actualbackingproducer+Cshimheaders+secondaryenginedevtests/compiledWASM/fuzz. No
 wholepackage deletion/testonly exclusion/guardwaiver reviewed or applied.
+
+## Resume 2026-10-25T19:35:57Z — fresh570 actual evidence
+
+Fresh exact `570cc1d9992db94bd4f185a2a752b1d713e74db5` iRules run40225572853/job121266089046 is fully authenticated: bootstrap FAIL, both trace controls PASS. Sole ZIP `naming-proof-storage/vm-irules-actual-40225572853/artifact.zip`; final receipt `outcome-boundary-authentication.json` SHA `f790a2f79306a9d98d2837548b08b60b49a83c09e6558202f90c5b9d6614b65f`. New actual emitter diagnostic identifies `codegen/statements.rs:2658:22`, source64/span9..63, four times before unchanged ProviderRequired preflight; Codegen owns the concrete compiler producer investigation. Earlier DIRECT-purpose refusal stays absent. No guard relaxed.
+
+Spec run40225571811/job121266087034 remains active; sole capture owner is this role. New600s full-corpus phase is separately labelled after unchanged16 and must be authenticated independently; no result inferred.
+
+Option B remains HOLD: SourceProc `f2e66799` finds no existing genuine general NativeCore Unicode getter issuer. Private backend-specific provider design ONLY is recorded at `naming-proof-storage/vm-native-unicode-getter-capability-design-v1/proposal.json` SHA `ce8d423ad6771cd9edc8968a89582a0976f0656474752d85cb2dbef1f6dc470a`. Actual selected-native successful constructor/backend entry would issue purpose-specific authority; profile/currency/cache do not grant it. Public trait compatibility, original caller mapping and negative controls remain explicit review obligations. No production source or user decision was created.
+
+Fresh570 Spec run40225571811/job121266087034 is now fully authenticated: old16 ALL PASS; separately appended fullcorpus INCOMPLETE due aggregate_log_cap_exceeded after6.6085s (10,383,342B remaining consumed), not600s timeout or semantic assertion failure. Exact same freshELF/list180/test600, groupempty afterSIGINT, seals/sourceGitbytes/fullmemberstreamSHA/ordered shared20MiB(noreset) verified. Receipt `vm-spectcl-actual-40225571811/outcome-boundary-authentication.json` SHA `8a492c586e91ed2aa7eb6af689fbcfc7ba9a5dc6ce7140d9873306992809b4a7`. C1/C2 remains open. NewLogical3 still compile-only/not selected.
+
+Root-authorized narrow QUIET child successor is OFFTREE `vm-spectcl-full-corpus-quiet-work-v1/manifest.json` SHA `057aefd5eda0a92e87957f4748a5ee69eb854d2e434e51b7b646a7a54d0055d4`; Names protocol peer pending. Only fullcorpus600 child copies env and removes3existing diagnosticvars; old16/listing/caller env, selectors/assertions,600/sharedCAP/deadline/floor unchanged. Actual-helper nochild mock verifies isolation; no new actual execution or cap waiver.

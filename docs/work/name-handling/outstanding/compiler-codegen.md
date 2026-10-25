@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T18:46:55+00:00 (ACTIVE; WASM allocation+depthV2 source/transport peer485eb ready; dependencycaller observer peer9c5b ready; actualcauses pending; no new strict dispatched; new ABI/AOT designs HOLD)
+Last updated: 2026-10-25T19:18:07+00:00 (ACTIVE; current205pinunion clear21e854/appliedfd9e; allreviewedWASM/dependencyobservers integrated; actualnewwave pending; ABI/AOTdesignHOLD; no localRust)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Final current source-pin union: root froze WORK36809c72aeb4d131dd89fb3b93d7f1e5852f67dd/CLEAN40bd4fd890a4c6d599971e5e2ded5d87b83a4f46 after NamesV4+COW and all reviewed diagnostic sources. `ccg-36809-current-live-pin-union-work-v1` manifest2d5f8579/patch398ee551 independently DEEP CLEAR21e85498dc9f7c4b86349bf5aa8c377c2f9c16abeb9501ab66bdac6d55dfe547; root appliedfd9e11e27. Nine files=6JSON+3drivers,11existingpin refreshes+EXACT4approvedcriticalnewkeys (Nameschild→Logical3;browserleaf→Taint2/hostnav/Spec). All23/17maps/205records/165distinctactualGitfiles verified; countincludesexistingSpec6003deps (earlier202arithmeticestimate omittedthese3, allpreservedbyteexact). WholeJSON/driverbyteinverse/AST/F-R/F0, historicalmaps/env3f38/13positive43negativeguards/alloldrows/budgets preserved. Separate prospective-source-qualification.json covers ALL19changedRustfiles since73bb and8unpinhelpers/COW/state/refactormod requiringfuturefulltrackedsource endpointseals+individualGitblobauth; nofutureexecutionclaim. Old1ddraft2b400c6b isHELD missingapproved4additions andpreCOWhead; neverapplied.
+
+All allocation/depthV2/dependency source observers nowrootintegrated, actualcausependingnewwave. OriginalC9physicalsource-only corroboration `ccg-wasm-error-global-owner-witness-work-v1/original-c9-reset-source-proof.json` SHAc1dbf2f59d459b606515082687af22cd30b35b2cf0f15e7d318bed8abe0fb25a records ResetResult copies SAMEprivateerrorCode/errorInfo pointers toglobals underERR_LEGACY_COPY then dropsprivateowners, and runtime's two-worddefaultcode +pureList+Info exact4obj/3buf footprint. Actualpointerjoin stillrequired; no warmup/eagerpublish/countfilter/fixturewaiver authorized.
 
 Latest (2026-10-25T18:25:06+00:00): Root reports fresh46d Spec original11+Native1+hostile1+Index3 ALL16 actualPASS; Jim original45=34PASS11FAIL, diagnostics5=2PASS3FAIL, extraFAIL; compiler102 actual pending. Current iRules first real frontier has moved from LogicalUpLevel policy-purpose to emitted preflight ProviderRequired with dependency_refusal=true, cfgFailure=false/prerequisites0/instructions3/source_len64. I own source compilerdependency trace, Runtime owns sole actual ZIP/excerpt; no source64 bytes or NativeCodegen callsite logs available yet. No generic provider/grant/flag suppression inferred.
 

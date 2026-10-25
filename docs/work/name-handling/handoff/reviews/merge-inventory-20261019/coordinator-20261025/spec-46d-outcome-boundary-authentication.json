@@ -1,0 +1,34 @@
+{
+  "source": "46d460d63aeddc102e323ad4c23aa68bb5d89257",
+  "base_fullauth_sha256": "af77c43f2101e1c2b6ffb78f179d9c2faed9360ac8e14f615201bc99ed422ecb",
+  "all_members_streamSHA_inventory_sha256": "dcccbb7bfe1e51ce718a2422561615e0e4780c93f5beba98208a79e5b186165f",
+  "member_count": 97,
+  "actualGit_boundary_source_pins": {
+    "rust/tcl-vm/src/interp/logical_uplevel_source.rs": "0a0fa747564f7cdef1224e2d06d775a645135132761067530bc078e4c15aeb73",
+    "rust/tcl-vm/src/exec.rs": "272e07ae53f33e698ceb2135f94eabea91695ee69fd3312eac792c9336d312bc",
+    "rust/tcl-vm/src/literal_pool.rs": "92ef873b4aeae1dc7035cc6a9df2666bd104c901f0abe11f2a0398b8054532cd",
+    "rust/tcl-vm/src/compiled.rs": "00515e01e6d15d52030dbc31f1bd1aaf3bf789dc38f621910228569e88edf9ec",
+    "rust/tcl-vm/src/interp.rs": "b2ec54cd5576388d9a06878d19562b33f8c55285274113d19bcf381d160f5fe8",
+    "rust/tcl-vm/src/interp/native_error_variables.rs": "a375d48b1106f3e071e024e8a2417b6f7dbdee86a00a1c03cfdf269cf8837176",
+    "rust/tcl-vm/src/value/native_property_name.rs": "753679179d52099a992616224ec82bb3933e3a5b24235eee6b4778b2bb688ac6",
+    "rust/tcl-registry/src/native_eval_object.rs": "d26098d5114d622a1eef2db49c02161b05872b4d9d7636f266b8b1564e01b378",
+    "rust/tcl-registry/src/invocation_words.rs": "6b4ae2b4fa0886f83583d90150fe2c30f4b16fd9e9ab23c17e949f18f9628d9a",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+  },
+  "all_owned_processes_absolute_ordered_shared_CAP_no_reset": true,
+  "aggregate_retained_log_bytes": 10587171,
+  "observations": {
+    "old12_allPASS": true,
+    "unchanged_original_hostile_assertion_and_fixture_sourcehashes": {
+      "rust/tcl-spectcl/tests/spec_corpus.rs": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d"
+    },
+    "hostile_actual": "PASS with2WallClockBudget+1Panic;0answers/3attempts and3quarantined; no generichost-error",
+    "native_index3": "ALL3 actualPASS onfresh listed unitELF; newLogical3 compiled/typechecked via samefreshlibtest build but UNRUN outsideoldselectors",
+    "fullcorpus": "UNRUN in isolated scope"
+  },
+  "limits": [
+    "No whole-suite/performance/C1C2corpus acceptance inferred; exactselected16 andtrace2 scopeonly.",
+    "Source presence/pins and diagnosticfacets cannot mint Native/provider capabilities."
+  ]
+}
