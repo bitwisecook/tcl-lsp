@@ -72,6 +72,16 @@ that query can still report pending until its own acknowledged pass completes.
 Configured report completion grants no runtime execution, normal completion,
 edit equivalence or absence of unknown effects.
 
+A direct request may recover once from an actual Salsa PendingWrite read
+cancellation, using a fresh provider capture after first reborrowing any
+completed current report. Its joined reads retain the typed cause before the
+legacy cancellation projection; Local, propagated panic, worker failure,
+unknown cancellation and independently unavailable required providers are
+terminal. This recovery shares the original request future and cancellation
+budget and the existing two-publication limit, with at most three provider
+productions. It supplies no stale fallback and changes neither push nor
+proposal recovery.
+
 Text-document diagnostic metadata and its pass snapshot retain the command
 store of the same checked document input and folder configuration. Capture
 rechecks its database revision, SourceFile, publication admission and dialect;
