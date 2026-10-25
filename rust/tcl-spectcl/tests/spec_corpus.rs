@@ -1565,6 +1565,80 @@ fn corpus_watchdog_scales_with_work_requested() {
 
 // The tests
 
+/// Replay only three actual samples selected by the shipped string pack.
+/// Existing N17 first-gate diagnostics explain a refusal; the unchanged live
+/// hook requirement still fails if these real consumer inputs invoke no hook.
+#[test]
+fn shipped_string_pack_replays_actual_corpus_first_gates() {
+    let (report, failures) = with_watchdog(
+        "spectcl-string-first-gates",
+        Duration::from_secs(120),
+        "the three existing string corpus samples exceeded their diagnostic budget",
+        || {
+            let root = repo_root();
+            let packs = tcl_spectcl::golden::shipped_pack_inventory(&root);
+            let pack = packs
+                .iter()
+                .find(|pack| {
+                    pack.path
+                        .ends_with("docs/design/spec-dsl-examples/string.tclspec")
+                })
+                .expect("actual shipped string pack");
+            assert_eq!(pack.dialect, "tcl9.1");
+            let (corpus_files, _) = corpus(&root);
+            let mut text = String::new();
+            let mut failures = Vec::new();
+            for (hook, path, spelling) in [
+                (
+                    "length",
+                    "samples/wasm/t0-straight-line/01_string_interp.tcl",
+                    "[string length $greeting]",
+                ),
+                (
+                    "map",
+                    "samples/diagnostics/W102_subst_injection/example.tcl",
+                    "[string map [list {$name} $name] {Hello, $name}]",
+                ),
+                (
+                    "range",
+                    "samples/for_screenshots/07-formatting-side-by-side.tcl",
+                    "[string range $full 0 39]",
+                ),
+            ] {
+                let sample = corpus_files
+                    .iter()
+                    .find(|file| file.path == root.join(path))
+                    .expect("actual samples corpus member");
+                assert_eq!(sample.family, "tcl");
+                assert!(sample.text.contains(spelling));
+                eprintln!("SPECTCL_STRING_FIRST_GATE_BEGIN hook={hook} source={path}");
+                let report = run_pack(pack, &root, std::slice::from_ref(sample));
+                assert_eq!(report.installed, 1);
+                assert_eq!(report.gated_out, 0);
+                assert_eq!(report.hook_bodies, 3);
+                assert_eq!(report.hook_slots, 3);
+                assert_eq!(report.corpus_paths, vec![path.to_owned()]);
+                assert_eq!(report.synthesised_calls, 0);
+                assert!(report.analysis_fallbacks.is_empty());
+                assert!(report.crashes.is_empty());
+                assert_eq!(report.quarantined, 0);
+                eprintln!(
+                    "SPECTCL_STRING_FIRST_GATE_END hook={hook} successes={} attempts={} optimisations={}",
+                    report.hook_successes, report.hook_attempts, report.optimisations,
+                );
+                writeln!(text, "hook={hook} {}", report.row()).unwrap();
+                require_live_hook_execution(&report, &mut failures);
+            }
+            (text, failures)
+        },
+    );
+    assert!(
+        failures.is_empty(),
+        "{report}\nString pack real-corpus first-gate replay failed:\n{}",
+        failures.join("\n"),
+    );
+}
+
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
 /// its hooks run through the sandboxed host — and the per-pack report.
 ///
