@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "2c305808a9a4423333b51df0517f38b12ab18d36987b222f0091527785a30fca"
+ROSTER_SHA = "dcaf5414fe13267082e43ab8418f861a5b4eb8998c6c4be9d360ace20c008729"
 BASE = Path(__file__).resolve().parent
 
 
@@ -159,6 +159,8 @@ providers = []
 dependency_roots = []
 tools = {}
 artifact = None
+integration_artifact = None
+integration_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -171,7 +173,9 @@ try:
     require(
         roster["executor_sha256"] == EXECUTOR_SHA
         and len(roster["selectors"]) == 2
-        and len(set(roster["selectors"])) == 2,
+        and len(set(roster["selectors"])) == 2
+        and roster["integration_target"] == "lsp_edit_workspace"
+        and roster["integration_selectors"] == ["minify_strips_comments_and_collapses_whitespace_factorial", "minify_preserves_string_and_expr_results"],
         "Core2 roster mismatch",
     )
     require(
@@ -288,6 +292,8 @@ try:
             "-p",
             "tcl-lsp-core",
             "--lib",
+            "--test",
+            roster["integration_target"],
             "--no-run",
             "--message-format=json-render-diagnostics",
             "-j",
@@ -348,6 +354,24 @@ try:
         "cargo_event": selected[0],
     }
     save(out / "core-artifact.json", artifact)
+    integration_selected = [r for r in rows
+        if r.get("reason") == "compiler-artifact"
+        and r.get("target", {}).get("name") == roster["integration_target"]
+        and r.get("target", {}).get("kind") == ["test"]
+        and r.get("manifest_path") == str(root / "rust/tcl-lsp-core/Cargo.toml")
+        and r.get("profile", {}).get("test") is True and r.get("executable")]
+    require(len(integration_selected) == 1
+        and integration_selected[0].get("fresh") is False
+        and str(integration_selected[0].get("profile", {}).get("opt_level")) == "3",
+        "fresh CI exact Default integration event absent/ambiguous")
+    integration_executable = Path(integration_selected[0]["executable"]).resolve()
+    require(integration_executable.is_relative_to(target) and integration_executable.is_file()
+        and integration_executable != executable, "distinct fresh integration executable required")
+    with integration_executable.open("rb") as stream:
+        require(stream.read(4) == b"\x7fELF", "native integration ELF required")
+    integration_artifact = {"path": str(integration_executable), "sha256": sha(integration_executable),
+        "cargo_event": integration_selected[0]}
+    save(out / "default-minify-integration-artifact.json", integration_artifact)
     require(
         source() == originals["source"]
         and files(providers) == originals["providers"]
@@ -384,6 +408,36 @@ try:
         )
         save(out / "cases.json", cases)
     status = 0 if len(cases) == 2 and all(c["result"] == "PASS" for c in cases) else 1
+    for index, selector in enumerate(roster["integration_selectors"]):
+        require(sha(integration_executable) == integration_artifact["sha256"], "selected executable changed")
+        prefix = "default-minify-integration-" + str(index + 1)
+        listed = execute(
+            [str(integration_executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list",
+            integration_executable,
+            180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+            == [selector + ": test"],
+            "exact selected test missing/ambiguous",
+        )
+        receipt = execute(
+            [str(integration_executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix,
+            integration_executable,
+            180,
+        )
+        result = original_result(
+            (out / (prefix + ".stdout")).read_text(), receipt["exit_code"]
+        )
+        integration_cases.append(
+            {"selector": selector, "result": result, "exit_code": receipt["exit_code"]}
+        )
+        save(out / "default-minify-integration-cases.json", integration_cases)
+    status = 0 if status == 0 and len(integration_cases) == 2 and all(c["result"] == "PASS" for c in integration_cases) else 1
+
 except (
     RuntimeError,
     OSError,
@@ -423,6 +477,9 @@ finally:
         and Path(artifact["path"]).is_file()
         and sha(artifact["path"]) == artifact["sha256"]
     )
+    seals["integration_artifact"] = (
+        integration_artifact is not None and Path(integration_artifact["path"]).is_file()
+        and sha(integration_artifact["path"]) == integration_artifact["sha256"])
     if not all(seals.values()):
         status = 2
     save(
@@ -434,6 +491,9 @@ finally:
             "seals": seals,
             "cases": cases,
             "separate_supplemental_total": len(cases),
+            "exact_default_minify_integration_cases": integration_cases,
+            "exact_default_minify_integration_total": len(integration_cases),
+            "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,
             "remaining_log_bytes": remaining,
             "startup_acceptance": False,
