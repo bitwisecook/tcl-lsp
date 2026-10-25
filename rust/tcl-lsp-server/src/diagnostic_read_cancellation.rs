@@ -58,7 +58,7 @@ pub(super) fn terminal(scope: Option<&DiagnosticReadCancellations>) {
 
 pub(super) fn terminal_if_context(
     scope: Option<&DiagnosticReadCancellations>,
-    completion: &Result<(), super::DiagnosticUnavailable>,
+    completion: Result<(), super::DiagnosticUnavailable>,
 ) {
     if matches!(completion, Err(super::DiagnosticUnavailable::Context)) {
         terminal(scope);
@@ -129,7 +129,7 @@ mod tests {
                 completion,
                 Err(super::super::DiagnosticUnavailable::Context)
             ));
-            terminal_if_context(Some(&scope), &completion);
+            terminal_if_context(Some(&scope), completion);
             assert!(!scope.pending_write_only());
         }
     }
