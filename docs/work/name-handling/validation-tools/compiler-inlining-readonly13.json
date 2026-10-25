@@ -219,7 +219,7 @@
   "source_pins": {
     "rust/tcl-compiler/tests/inlining.rs": "b75a59b79b29f9db284ced26d7bf6b16c99c14d0e7aeca4e2ab6c69b1989b612",
     "rust/tcl-compiler/tests/support/analysis_body_identity.rs": "2f7baea078affa320ee2b78ed12801e4c6687e58e063717c42d37b9c07d7fe3f",
-    "rust/tcl-compiler/src/ir.rs": "ab9cb9dccf0dd71daf95a96925023d9e7ca44bbd76fd4110f12205b93c5692be",
+    "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
     "rust/tcl-compiler/src/compilation_unit.rs": "202123edb5b7c911865fc5e128163636c37f82438e843881c23375113a0634c1",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
     "rust/tcl-compiler/src/var_escape/api.rs": "c7789fca948fdbcb3e39a7bd4af83a414a223dadc68bd0c232409f3348ff1d5c",
