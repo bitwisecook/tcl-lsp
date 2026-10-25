@@ -377,6 +377,29 @@ impl<'a> CallMeta<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum PreparedProcedureBody {
+    Enter(Option<NativeProcEntry>),
+    Complete(Code),
+}
+
+struct PreparedProcedureCall<'a> {
+    outcome: PreparedProcedureBody,
+    issuer_dispatch: u32,
+    saved_ns: NsId,
+    jim_body: Option<*mut TclObj>,
+    jim_level: u32,
+    // Field order preserves the original owners' retirement order.
+    info_frame:
+        Result<Option<Rc<native_jim_namespace_info::OriginalNamespaceInfoFrame>>, ValueError>,
+    import_traversal: Result<Option<Rc<native_jim_import::OriginalJimImportTraversal>>, ValueError>,
+    proc_frame: Option<Box<CmdFrame>>,
+    _method_execution: Option<native_procedure_resources::NativeCallableMethodExecution>,
+    _native_admission: native_compilation::NativeProcedureAdmission,
+    original_artifact: Option<Rc<native_body_artifact::NativeBodyArtifact>>,
+    meta: CallMeta<'a>,
+}
+
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
 /// state `info frame` reports. One is pushed per script-evaluation level Tcl
 /// tracks: the top-level script, a proc call, an `eval`/`uplevel` body, and a
@@ -18623,8 +18646,24 @@ impl Interp {
         ns: NsId,
         call_args: &[*mut TclObj],
         usage_called: &[u8],
-        mut meta: CallMeta,
+        meta: CallMeta,
     ) -> Code {
+        match self.prepare_procedure_call(params, body, ns, call_args, usage_called, meta) {
+            Ok(prepared) => self.execute_prepared_procedure_call(body, call_args, prepared),
+            Err(code) => code,
+        }
+    }
+
+    #[inline(never)]
+    fn prepare_procedure_call<'a, O: obj::ObjectPointer>(
+        &mut self,
+        params: &[Param<O>],
+        body: &[u8],
+        ns: NsId,
+        call_args: &[*mut TclObj],
+        usage_called: &[u8],
+        mut meta: CallMeta<'a>,
+    ) -> Result<Box<PreparedProcedureCall<'a>>, Code> {
         let requires_source = match meta
             .c_procedure
             .map(|procedure| {
@@ -18633,7 +18672,7 @@ impl Interp {
             .transpose()
         {
             Ok(required) => required.unwrap_or(false),
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         let original_import = match meta
             .c_procedure
@@ -18641,15 +18680,15 @@ impl Interp {
             .transpose()
         {
             Ok(origin) => origin.flatten().is_some(),
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         if original_import && !requires_source {
-            return self.report_cmd_error(
+            return Err(self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original Import selected Source execution",
                 )
                 .into(),
-            );
+            ));
         }
         let issuer_dispatch = self.native_dispatch_depth.get();
         let original_artifact =
@@ -18659,27 +18698,27 @@ impl Interp {
                     .and_then(|()| procedure.body.checked_ptr())
                 {
                     Ok(original) => original,
-                    Err(error) => return self.report_cmd_error(error.into()),
+                    Err(error) => return Err(self.report_cmd_error(error.into())),
                 };
                 match self.prepare_original_c_body(original, ns, Some(procedure)) {
                     Ok(artifact) => artifact,
-                    Err(code) => return code,
+                    Err(code) => return Err(code),
                 }
             } else {
                 None
             };
         if requires_source && original_artifact.is_some() {
-            return self.report_cmd_error(
+            return Err(self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original namespace helper Source execution transport",
                 )
                 .into(),
-            );
+            ));
         }
         let mut native_admission = match self.prepare_native_procedure(body, ns) {
             Ok(admission) => admission,
             Err(failure) => {
-                return self.admit_native_compilation_error(&failure, Some(usage_called));
+                return Err(self.admit_native_compilation_error(&failure, Some(usage_called)));
             }
         };
         // InvokeProcedureMethod retains its ProcedureMethod after compiling the
@@ -18691,7 +18730,7 @@ impl Interp {
             .transpose()
         {
             Ok(execution) => execution,
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         // A release that compiles a body whole as its procedure is called
         // refuses it before binding a word or running a command
@@ -18701,29 +18740,31 @@ impl Interp {
                 let frame = compiling_body_frame(name, failure.line);
                 let code = self.raise_compile_failure(&failure, &frame);
                 self.clear_error_logged();
-                return code;
+                return Err(code);
             }
         }
         let usage = meta.usage_prefix.as_deref().unwrap_or(usage_called);
         let supplied = call_args.len();
         let Some(grammar) = self.native_invocation_dialect().parameter_grammar() else {
-            return self.error(b"formal parameter dialect is not selected");
+            return Err(self.error(b"formal parameter dialect is not selected"));
         };
         let Ok(bindings) = native_compilation::native_parameter_plan(params, supplied, grammar)
         else {
-            return match self.proc_wrong_args(usage, params, supplied, meta.quote_name) {
-                Ok(message) => self.wrong_arguments_message(&message),
-                Err(error) => self.report_cmd_error(error.into()),
-            };
+            return Err(
+                match self.proc_wrong_args(usage, params, supplied, meta.quote_name) {
+                    Ok(message) => self.wrong_arguments_message(&message),
+                    Err(error) => self.report_cmd_error(error.into()),
+                },
+            );
         };
         if grammar.skips_empty_body_activation() && body.is_empty() {
             self.set_result_bytes(b"");
-            return Code::Ok;
+            return Err(Code::Ok);
         }
         let jim_body = meta.jim_body;
         let info_receiver = match self.original_namespace_info_receiver(meta.original_argv) {
             Ok(receiver) => receiver,
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         let (saved_ns, proc_frame) = match self.enter_native_procedure_frame(
             params,
@@ -18736,7 +18777,7 @@ impl Interp {
                 .and_then(|artifact| artifact.compiled_local_layout()),
         ) {
             Ok(frame) => frame,
-            Err(code) => return code,
+            Err(code) => return Err(code),
         };
         if tcl_registry::release_compilation::compile_procedures_modelled(self.runtime_version()) {
             let unit = crate::compiled_locals::ProcUnit::new(
@@ -18836,39 +18877,85 @@ impl Interp {
         // ([`InterpState::proc_body`]); the source path's script loop takes the
         // flag, and it is cleared after for a body that never reached one.
         self.next_proc_body.set(true);
-        let code = match execution {
-            Err(error) => self.report_cmd_error(error.into()),
-            Ok(()) => match native {
-                Some(entry) => match self.run_native_body(entry, call_args, *proc_frame) {
+        let outcome = match execution {
+            Err(error) => PreparedProcedureBody::Complete(self.report_cmd_error(error.into())),
+            Ok(()) => PreparedProcedureBody::Enter(native),
+        };
+        Ok(Box::new(PreparedProcedureCall {
+            outcome,
+            issuer_dispatch,
+            saved_ns,
+            jim_body,
+            jim_level,
+            info_frame,
+            import_traversal,
+            proc_frame: Some(proc_frame),
+            _method_execution,
+            _native_admission: native_admission,
+            original_artifact,
+            meta,
+        }))
+    }
+
+    fn execute_prepared_procedure_call(
+        &mut self,
+        body: &[u8],
+        call_args: &[*mut TclObj],
+        mut prepared: Box<PreparedProcedureCall<'_>>,
+    ) -> Code {
+        let code = match prepared.outcome {
+            PreparedProcedureBody::Complete(code) => code,
+            PreparedProcedureBody::Enter(native) => match native {
+                Some(entry) => match self.run_native_body(
+                    entry,
+                    call_args,
+                    *prepared
+                        .proc_frame
+                        .take()
+                        .expect("prepared procedure frame"),
+                ) {
                     Ok(code) => code,
                     Err(frame) => self.run_selected_procedure_body(
                         body,
-                        original_artifact.as_ref(),
-                        jim_body,
+                        prepared.original_artifact.as_ref(),
+                        prepared.jim_body,
                         *frame,
                     ),
                 },
                 None => self.run_selected_procedure_body(
                     body,
-                    original_artifact.as_ref(),
-                    jim_body,
-                    *proc_frame,
+                    prepared.original_artifact.as_ref(),
+                    prepared.jim_body,
+                    *prepared
+                        .proc_frame
+                        .take()
+                        .expect("prepared procedure frame"),
                 ),
             },
         };
+        self.finish_prepared_procedure_call(prepared, code)
+    }
+
+    fn finish_prepared_procedure_call(
+        &mut self,
+        prepared: Box<PreparedProcedureCall<'_>>,
+        code: Code,
+    ) -> Code {
         self.next_proc_body.set(false);
-        let import_completion = import_traversal
+        let import_completion = prepared
+            .import_traversal
             .as_ref()
             .ok()
             .and_then(Option::as_ref)
             .map(|traversal| traversal.normal_completion(self));
-        let info_completion = info_frame
+        let info_completion = prepared
+            .info_frame
             .as_ref()
             .ok()
             .and_then(Option::as_ref)
             .map(|frame| frame.completion(self));
         self.release_native_procedure_execution();
-        self.jim_procedure_level.set(jim_level);
+        self.jim_procedure_level.set(prepared.jim_level);
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();
         // Capture `[info level 0]` (the invocation words) before the frame is
@@ -18887,7 +18974,7 @@ impl Interp {
         if self.has_variable_traces() {
             self.clear_frame_var_traces(proc_level);
         }
-        self.current_ns.set(saved_ns);
+        self.current_ns.set(prepared.saved_ns);
         self.fire_unset_callbacks(teardown);
         self.leave_namespace_activation(popped);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
@@ -18918,16 +19005,16 @@ impl Interp {
             }
             self.deferred_tailcalls
                 .borrow_mut()
-                .push((issuer_dispatch, tailcall));
+                .push((prepared.issuer_dispatch, tailcall));
             self.set_result_bytes(b"");
             return Code::Ok;
         }
         let from_return = code == Code::Return;
         let settled = match self.settle_return(code) {
-            Code::Break if !meta.keep_loop_codes && !from_return => {
+            Code::Break if !prepared.meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"break\" outside of a loop")
             }
-            Code::Continue if !meta.keep_loop_codes && !from_return => {
+            Code::Continue if !prepared.meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"continue\" outside of a loop")
             }
             other => other,
@@ -18960,7 +19047,7 @@ impl Interp {
         // body, not when `return` synthesises it (error-6.7, result-6.2).
         if settled == Code::Error {
             if code != Code::Return {
-                self.make_proc_error(meta.err);
+                self.make_proc_error(prepared.meta.err);
             } else {
                 // `return -code error`: no procedure frame, but the *caller* still
                 // logs its own `invoked from within "<call>"` frame, so release
