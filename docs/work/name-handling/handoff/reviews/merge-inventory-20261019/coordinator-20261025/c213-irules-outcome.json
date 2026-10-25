@@ -1,0 +1,45 @@
+{
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "run": 40239330987,
+  "job": 121307554824,
+  "base_authentication_sha256": "2d31c1e7b605f04bb99a27ed44ada96f4616782d4b1ffae2cf029dc3aadce491",
+  "all_member_stream_SHA_inventory": "8b2103daccc9634e0389c4a25d5831db7668e44208d2eea5361eac08f184eddf",
+  "members": 25,
+  "critical_actualGit_bytes": {
+    "rust/tcl-irule-test/src/live.rs": "70f695ae50fa005baa67189f7e485746f9f6cc4088cd1f305eff4768a689c854",
+    "rust/tcl-vm/src/command.rs": "a93fd842b5df36e86fa95c7f55aa18427664362861c694160aed0b4d13a73f04",
+    "rust/tcl-vm/src/interp/logical_uplevel_source.rs": "0a0fa747564f7cdef1224e2d06d775a645135132761067530bc078e4c15aeb73",
+    "rust/tcl-irule-test/tcl/expr_ops.tcl": "9ea491d82db26f576ef853c43e28f1013833d8443bd3d2a8d47a1605a56e9f06",
+    "rust/tcl-irule-test/tcl/tmm_shim.tcl": "e5093cb326daefbf996e40f54e5badf4a9b15f2d56a5dcf796b3405cd21dd115",
+    "rust/tcl-irule-test/tcl/orchestrator.tcl": "b6c1d8681a40d8c7a03fd1b676d08ec3a14a129df9ba6871e08a5ea14aa2cdae"
+  },
+  "original_bootstrap": "INCOMPLETE original180 selector_timeout; raw artifact state RUNNING is not terminal outcome",
+  "original_trace2": "UNRUN",
+  "new_scope1": "compiled and unit60 listed, execution UNRUN",
+  "CLI14_listing": "UNRUN after bootstrap lifecycle stop; fresh CLI test ELF build authenticated only",
+  "source_provider_dependency_tool_seals": {
+    "artifacts": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "all_owned_groups_closed_unique_births_monotone_shared20MiB": true,
+  "aggregate_retained_bytes": 1280390,
+  "remaining_log_bytes": 19691130,
+  "bootstrap_elapsed_seconds": 180.454181327,
+  "bootstrap_log_bytes": 895097,
+  "stderr_tag_counts": {
+    "ZZ_NATIVE_PREFLIGHT_ASSESSMENT": 331,
+    "ZZ_NATIVE_EMITTER_ADMISSION": 715,
+    "": 331,
+    "ZZ_NATIVE_ADMISSION_INPUT": 331,
+    "TCL_NATIVE_UPLEVEL_ORIGINAL_HEADER": 3991
+  },
+  "no_refusal_decline_or_panic_marker_in_retained_bootstrap_log": true,
+  "limits": [
+    "Incomplete bootstrap cannot establish correctness or old3/new1 success.",
+    "Repeated header rows do not identify actual caller or prove infinite loop; no budget/guard/roster relaxation.",
+    "Current final host init source route typechecked in fresh unit ELF; its new restoration control did not execute."
+  ]
+}

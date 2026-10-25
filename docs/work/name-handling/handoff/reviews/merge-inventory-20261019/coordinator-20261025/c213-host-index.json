@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-25T22:42:23.549913+00:00",
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "host_run": 40239265191,
+  "startup_run": 40239267977,
+  "scope_status": [
+    {
+      "scope": "browser",
+      "status": "FULLAUTH_FUNCTIONAL_FAIL",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-host-browser40239265191-actual-v1/assessment-v1.json",
+      "sha256": "4b71b09ea328df13c81a96927f55f5cc6ff861348416f6cf0aeb5cb6fe84d272",
+      "qualification": "Release built; 24 prior passes; quiet getter passes, Set40 registry-name-link-or-effect coverage refuses. Original77 negative unreached."
+    },
+    {
+      "scope": "wasi",
+      "status": "FULLAUTH_FUNCTIONAL_FAIL",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-host-wasi40239265191-actual-v1/assessment-v1.json",
+      "sha256": "baa92792e27f5c3e9cbed1193f19533b4618ba3f94d923dce98a7eacf4537a8c",
+      "qualification": "Release built; 9 prior passes; host-naming refs blocked by incomplete app root projection."
+    },
+    {
+      "scope": "unit",
+      "status": "FULLAUTH_SELECTED_PASS",
+      "assessment_path": "/workspace/naming-proof-storage/lsp-hosted-unit-40239265191-actual-v1/assessment-v1.json",
+      "sha256": "21a405f3fbf1d3d853bf00086793ddf7ae3eff7395520f00d289bf2696c24c42",
+      "qualification": "Only selected public pending-index control runtime PASS; whole serverlib and existing Send bounds compiled. New quiet control NOT selected."
+    }
+  ],
+  "pending": [
+    "startup job121307371901",
+    "Core2+exactDefault2 job121307372102"
+  ],
+  "quiet_control_append": "Not included C213; still runtime UNRUN.",
+  "limits": [
+    "Partial wave only; no all-five closure claim.",
+    "No shipping/native-local/editor/performance acceptance.",
+    "Each sole artifact ZIP retained; provider/source/dependency maps remain inside ZIP."
+  ]
+}

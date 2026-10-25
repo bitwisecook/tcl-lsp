@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T22:45:01.026371+00:00",
+  "scheduled_report_utc": "2026-10-25T22:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T23:15:00+00:00",
+  "change_since_previous_report": [
+    "Reviewed22:45functional/protocol/docscheckpoint PUSHEDeachnormalbranch WORK8bfcff980b5cc94ce52144f826579d6333d20db7/CLEANa8aef5fcc6f62ca08bb87ada27e04e2bbe15fb52 at22:44 afterfreshdepth1fetchwork; shallowpreserved. CurrentinputpreflightV12PASS219records/23JSON/17maps/13startup/30runners/20wholetags. Contextcompactsource, Jim/bodyproof andtypedquietlinkproof stillinprogress; no allgreen/PRclaim.",
+    "C213strict run40239270604/job121307380440 FULLAUTH7536ec0f366compilerprimaries0RustE. SourceExecutionContext264B crossed256 threshold\u2192364largebyvalue, plus1Jimobserver/1Entryobserver warning. Row5updatedwithactualreceipt/inventory; old175frontiermasked, notclaimedcleared. Compilerprivate losslesscontextcodec underway; bothobserverrepairsintegratedWORK026e/ad0afterpeersd3c921/247810.",
+    "C213pairedshippingTclperf run40239263157 firstLinuxsmalljob121307357483 baselineed694releasebuildPASS, CLEAN8b474releasebuildFAIL3E0425 inoriginal_command_rename;0measurementruns. Root24checkAPI/ZIP/process/logassessment8f7f91df, preservesallfirstfailuredata. Remainingdeterministicallybrokensamecandidatepairs cancelledHTTP202at22:33, reruncorrectedcandidate required; noacceptedperf.",
+    "ActualCLEANcompileerror iscleanupcarrymiss: WORKalreadyretainsrealreject_link_obligations adapter+actualcommand_offset; CLEANcallsomitteddefinitions. Strongpeer32f9reviewedexactcleanupcarry; rootappliedCLEANa8aef5fcc6f62ca08bb87ada27e04e2bbe15fb52, WORKwholefileunchanged. Allguardsretained,nofakecapability orfunctionalCLEANdevelopment. Rebuildpending.",
+    "C213Jim FULLAUTH7ab5a279 singleZIP all51REACHED same34P11F/45+2P3F/5+extraFAIL; newexactenumchild.binding_frame.Procedure.lookup isKNOWNframewithexistinglookupsnapshot. Namesnowproductiveoriginalbody-framecorrespondencefix; noUnknownacceptance/headerbodyequivalence. Exactreceipt copiedWORK; broadintegrationgate remainsopen.",
+    "C213LSP FULLAUTH4b71/baa9/21a4 browserQuietSetgetter nowpassesatSet40, existingrealregistry-name-link-or-effect coverage nextrefuses; no renamePASS. WASI unrelatedappownerprojectionremains; unitPASS1fullyauth. Rows15/17 updatedwithactualfailure receipts. ExistingfirstguardNative/startup/Defaultminifydataauthinprogress. No allhostclosure.",
+    "C213iRulesbootstrapreachesexecutionbuttimesoutunchanged180s (180.454s,SIGINT/-2,groupempty), repeatedC9NativeUpLevelheaderrows, noearlierEntryrefusal inboundedscan. Trace2/newscope1unreached; FULLAUTH203bb9c5 authenticatesINCOMPLETE, neverterminalPASS; CLI14listingalsoUNRUN. Specold16/full600/newstring3 pending. iRulestimingwaiverdoesnotwaivecorrectness.",
+    "Logical5separatecontrolappendV2dbadandQuietSet1appendV25d0708 integrated, sameold102/Core2+Default2 loops/realbudgets/CAP/transport/freshELFs preserved. Peer-caughtprefix/falsegreenpaths fixed; Core2existingexceptnowstatus2after9b1c4clear. ActualnewcontrolsUNRUN; finalcurrentmanifestcarry neededbeforefollowon.",
+    "Pairedtest-onlyNameslong1V2/layoutlongV3 andshippingRELEASE_NOTESUnreleasedprefixintegratedWORKfirst/pairedCLEAN after079a/1942/4d0epeers. Notesdescribecurrentnaming/uncertainty/ILXstop/SpecTclscope/deferredgeneralVM, no green/perfclaim. Addedlinesaudit25470sincepriorcensus has0targetedprocesspath/agentlabel/temporaryflaghits, boundednotwholeeditorialacceptance.",
+    "AOTproductivearchitecture nowconcretelyjoinsinertretainedbody/formalrecipe guardedpublication toactualfreshProcDef, actualpreparedbodyartifactowninggenuineNativeReturn/Expressioninstruction andrealframe/currentopaftercallbacks; privateruntimeexecutionfallback beforeeffects. No rawoperationtagsemanticgrant/exportedambienthelper/frameelision/ABIomit; implementation+strongpeerpending. UserNativeAPI/allocationfixturechoicesremainunanswered; no decisionJSON/dependentintegration.",
+    "Seven newlyauthenticated semantic/host/perf-build receipts copiedtoWORKcoordinator-20261025, allfullSHAverifiedbeforecopy; row5strict androws15/17host failuresupdated. Narrowpartialindex1df59b2d explicitlyleavesstartup/Core2pending. Tinycurrent026e inputunionab7d90eb refreshesonlyTaintlayout+derivedwholetag; peerinprogressbeforecycle, no otherprotocolchanges."
+  ],
+  "committed": [
+    "40a48ff83041fa133a916ca1ebd5b6522f0489e6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishcontextcompactrepresentation/CLEANcarryrebuild/currentpinunion, pushreviewedWIPanddispatchnewLogical5/Quiet1pluscurrentstrict; retainnamedC213captures.",
+    "RepairgenuineJimbody-frame andLSPselectedlink/effectcoveragefromactualfirstguards; completeVM/AOTretainedpublicationandrealenteredsemantics withoutpolicyshortcuts.",
+    "ReruncorrectedshippingTclpairs, completecurrentorigin/rustzeroPASS-to-FAIL/fullCI/SpecUPFJimreload/docs/comments/generated/fixture/package/prep-pr beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Currentstrictfailurefullyauthenticated; allpreliminarynewsemanticresultsremainlabelledpendingfullauth. No globalbaseline/audit/releasegateadmission.",
+  "disk_free_bytes": 2318479360,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

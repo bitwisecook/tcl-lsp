@@ -1,0 +1,325 @@
+{
+  "utc": "2026-10-25T22:36:56.154317+00:00",
+  "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL",
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "tree": "45ce7251c7f607e1d95caace476103038c804561",
+  "source_members": 126414,
+  "all_tracked_membership_exact": true,
+  "critical_git_bytes": {
+    ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+    ".github/workflows/ci.yml": "9d333b7584493e31c9aa4a58cea420318ae4dd48958edd31a4c935b08f830273",
+    "Cargo.lock": "8f32332e549cbee4df91041a9242b00bfb254c12dcfc2e165ab275724b4d3f9e",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Makefile": "765c0058bf12741924fad89480c1acfcde55c70912474a20c5c7801e7ab46991",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "7666f239dd9b596cdd69826ee43a9b3cf9cc6fd328f7475ac7063f8edffddf66",
+    "rust/tcl-lsp-core/src/original_source_views.rs": "fef876c2faf2288a7e6c804b16c400b59cecfe5211f0a357d4fff2527020dab0",
+    "rust/tcl-lsp-server-wasi/Cargo.lock": "243bf01217c0cfc94b4537d66c9de60071832c2ebde62d9968676a184d1f1300",
+    "rust/tcl-lsp-server-wasi/Cargo.toml": "0f3faa985dbb85b94acca7a5d220f4814f07d5969b721c7e3e1d36b8b413bdec",
+    "rust/tcl-lsp-server-wasi/build-wasi.sh": "a03e4a2dca9a0bf2061ba92770cc643b21cf6503c05ca7eaf9b0e8ecaa4d3235",
+    "rust/tcl-lsp-server-wasi/test/e2e.mjs": "5e4508381001f72e8bd04779c532a7d77dbbe8c58c889e7820bcfdf6be34d314",
+    "rust/tcl-lsp-server-wasm/Cargo.lock": "41900fba79d6d12c40574dc1e5c94ed96593a554eced5219224cfc3621257736",
+    "rust/tcl-lsp-server-wasm/Cargo.toml": "21a540aa63ee4c29841d96e2e2411e15cd31dfe6e820894e230e55e464f62cc5",
+    "rust/tcl-lsp-server-wasm/build-wasm.sh": "de4eea75a94680cc2fd50a6f6c098dcbfad3b1a717fdad7c3321ede6f52cb4c6",
+    "rust/tcl-lsp-server-wasm/test/e2e.mjs": "66a6de736f4eaf6fd5c434dcf56652aafa2eda12e7d004cb7b2d93f747d33170",
+    "rust/tcl-lsp-server-wasm/worker.js": "fbff4236144aad622f61c42f3455c1ec517fa9e59d1aa698c4e8c20d30e0417e",
+    "rust/tcl-lsp-server/src/lib.rs": "717aa395916cd343ea4f9e3ec15cdf815c62c5f7eb4f28d52aaf447c36c28b55",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f",
+    "scripts/dev/lsp-naming-host-proof.mjs": "a82a55ba4d76a703f0afff1f92b2e5387f1d7b06023efcb3cc6ca37a712eacf8",
+    "scripts/dev/wasm-cc-env.sh": "6d541058ef79aa09981eb7345540b7bcc61174423250c08128ee8b6cbb400b89",
+    "scripts/verify-wasm-externref.mjs": "19410bf5475824d6d59c85b319fc129e826deebf32140fe06180a3e1df747366",
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
+    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py": "b444ba6ce267e5000e6b0f0c9832444cbb21763be8504bcf84773f974c94ffc7",
+    "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json": "861293578a8252f33aa6b9347ca32bce38fefe5acec956777fa54be3a13c8718",
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48"
+  },
+  "api_artifact": {
+    "id": 12616127503,
+    "name": "lsp-browser-navigation-diagnostics-c213778c4ab580f2add949a0fd8b6e1de95243fc-1",
+    "size_in_bytes": 8091883,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12616127503",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12616127503/zip",
+    "expired": false,
+    "created_at": "2026-10-25T22:32:15Z",
+    "expires_at": "2026-11-24T22:32:12Z",
+    "updated_at": "2026-10-25T22:32:15Z",
+    "digest": "sha256:857765ddd4eebd88f4b3e0b4b8ec435e6e45ff287fb894d8ba48f8acc3d4e065",
+    "workflow_run": {
+      "id": 40239265191,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "work",
+      "head_sha": "c213778c4ab580f2add949a0fd8b6e1de95243fc"
+    }
+  },
+  "api_job": {
+    "id": 121307365044,
+    "name": "lsp-browser-navigation-diagnostics",
+    "status": "completed",
+    "conclusion": "failure",
+    "run_id": 40239265191,
+    "logs_url": null,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Reserve bounded diagnostic and upload time",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Set up uncached original host Rust target",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Install original wasm-bindgen CLI",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Set up original Node.js host",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Run exact original browser make command with bounded capture",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 7
+      },
+      {
+        "name": "Upload bounded original browser evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8
+      },
+      {
+        "name": "Post Set up original Node.js host",
+        "status": "completed",
+        "conclusion": "skipped",
+        "number": 14
+      },
+      {
+        "name": "Post Set up uncached original host Rust target",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 15
+      },
+      {
+        "name": "Post Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 16
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 17
+      }
+    ]
+  },
+  "zip_sha256": "857765ddd4eebd88f4b3e0b4b8ec435e6e45ff287fb894d8ba48f8acc3d4e065",
+  "zip_bytes": 8091883,
+  "zip_all_members_crc_safe_unique": {
+    "final.json": {
+      "bytes": 3177,
+      "sha256": "cc537286d84c6642db833ee1163a6ea7851d488bd5c8e2d1770a714902a813de"
+    },
+    "original-make.process.json": {
+      "bytes": 2048,
+      "sha256": "297284d8a518435e8e1f06acc1e3428e7b098710d712604c4c35b25dbc5ac61b"
+    },
+    "job.json": {
+      "bytes": 6627,
+      "sha256": "018f35cb87aec58a343e6d89dd9abe213d84b9ec37a56db388bd770790e77f28"
+    },
+    "original-make.stderr": {
+      "bytes": 19586,
+      "sha256": "7128a1111fe25e221b35271f89903adba24b581159a985aa8d487793afea5568"
+    },
+    "original-make.stdout": {
+      "bytes": 3825,
+      "sha256": "9425d5f9e7fbefe82ca5d09ba61a400ca40b158ec7a1db5dcd733323d21a249e"
+    },
+    "source-after.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "source-before.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "tools-after.json": {
+      "bytes": 1866,
+      "sha256": "af5e6e4a3e232ed62ccca577a82796534bc52056daae18a197798d770f386dec"
+    },
+    "tools-before.json": {
+      "bytes": 1866,
+      "sha256": "af5e6e4a3e232ed62ccca577a82796534bc52056daae18a197798d770f386dec"
+    }
+  },
+  "full_source_endpoints_equal": true,
+  "fixed_tool_endpoints_equal": true,
+  "source_seal_error": null,
+  "bounded_dirty_paths": null,
+  "tool_entries": 12,
+  "versions": {
+    "bash": "GNU bash, version 5.3.9(1)-release (x86_64-pc-linux-gnu)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "git": "git version 2.55.0\n",
+    "make": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n",
+    "node": "v26.12.1\n",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\n",
+    "rustup": "rustup 1.29.1 (d95a37b6a 2026-08-13)\n",
+    "wasm-bindgen": "wasm-bindgen 0.2.129\n"
+  },
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_RELEASE_LTO": null,
+    "PATH": "/opt/hostedtoolcache/node/26.12.1/x64/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "RUSTFLAGS": "-Dwarnings",
+    "TCL_LSP_TRACE_COARSE_SOURCE": "1"
+  },
+  "process": {
+    "argv": [
+      "/usr/bin/make",
+      "lsp-server-wasm-test"
+    ],
+    "artifact": "/usr/bin/make",
+    "artifact_sha256_after": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_sha256_before": "59588d6a017dc48b12d525ddfd14dea52f214d81e89645de3d782eb3c684b698",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 3600,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/lsp-browser-navigation-output",
+      "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/target",
+      "/home/runner/work/_temp",
+      "/usr/bin/make",
+      "/home/runner/work/_temp/lsp-browser-navigation-output",
+      "/home/runner/work/_temp/lsp-browser-navigation-output",
+      "/home/runner/work/_temp/lsp-browser-navigation-output"
+    ],
+    "elapsed_seconds": 811.570624546,
+    "ended_utc": "2026-10-25T22:31:18.385126+00:00",
+    "exit_code": 2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 73977569280,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 1103190703872,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 3033,
+      "si_status": 2
+    },
+    "pid": 3033,
+    "pid_start_ticks": 29170,
+    "process_group": 3033,
+    "retained_bytes": 23411,
+    "spawn_return_monotonic_ns": 291708631274,
+    "spawn_return_utc": "2026-10-25T22:17:46.816147+00:00",
+    "stderr": "/home/runner/work/_temp/lsp-browser-navigation-output/original-make.stderr",
+    "stderr_bytes": 19586,
+    "stdout": "/home/runner/work/_temp/lsp-browser-navigation-output/original-make.stdout",
+    "stdout_bytes": 3825,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 291707814532,
+    "timer_armed_utc": "2026-10-25T22:17:46.815332+00:00"
+  },
+  "seals": {
+    "source": true,
+    "tools": true
+  },
+  "release_build_completed_no_rust_error_observed": true,
+  "rust_errors": [],
+  "host_stage_logs": [
+    "HOST_NAV_STAGE uri=file:///ws/main.tcl stage=core.complete owner=OriginalSourceViewId(4) analysis=0x930c6a0 interpreted=false region=false bytes=98; owner=OriginalSourceViewId(6) analysis=0x7744320 interpreted=true region=true bytes=98",
+    "HOST_NAV_STAGE uri=file:///ws/main.tcl stage=core.prepare owner=OriginalSourceViewId(6) analysis=0x7744320 interpreted=true region=true bytes=98; owner=OriginalSourceViewId(4) analysis=0x930c6a0 interpreted=false region=false bytes=98 core_prepare_refusal=prepare.matching-call offset=82 calls=0 selected_analysis=0x930c6a0 selected_region=false",
+    "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=ordinary.continue owner=OriginalSourceViewId(7) analysis=0x96c9bc0 interpreted=false region=false bytes=112",
+    "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=ordinary.continue owner=OriginalSourceViewId(7) analysis=0x96c9bc0 interpreted=false region=false bytes=112",
+    "HOST_NAV_STAGE uri=file:///ws/host-naming.tcl stage=rename.refused rename.coverage-document source_bytes=112 analysis_owner=0xdf1d3f8 offset=40 stage=registry-name-link-or-effect-coverage"
+  ],
+  "raw_stdout_sha256": "9425d5f9e7fbefe82ca5d09ba61a400ca40b158ec7a1db5dcd733323d21a249e",
+  "raw_stderr_sha256": "7128a1111fe25e221b35271f89903adba24b581159a985aa8d487793afea5568",
+  "soft_failures_before_terminal": [
+    "FAIL hover on a pack property returns contents \u2014 \"\"",
+    "FAIL workspace/symbol finds a scanned closed file's proc \u2014 0 symbols",
+    "FAIL go-to-definition resolves a tclIndex auto-loaded command \u2014 []"
+  ],
+  "passed_checks_before_terminal": [
+    "ok   initialize returns capabilities",
+    "ok   semanticTokensProvider advertised \u2014 hoverProvider=true completionProvider=true",
+    "ok   typeHierarchyProvider shim applied \u2014 the initialize-response shim from tcl_lsp_server::service",
+    "ok   semanticTokens/full returns tokens (.tclspec) \u2014 15 tokens",
+    "ok   completion returns items (.tclspec) \u2014 111 items",
+    "ok   formatting answers with an edit list \u2014 1 edits",
+    "ok   publishDiagnostics arrived for the clean document \u2014 0 diagnostics",
+    "ok   textDocument/diagnostic answers (pull is unadvertised by design) \u2014 result",
+    "ok   a broken document produces at least one diagnostic \u2014 2: E203 missing close-brace",
+    "ok   hover on `endpoint` returns the SslicTcl pack's own text (.sslictcl) \u2014 \"**`endpoint`** \u2014 built-in command\\n\\nDeclare a TLS endpoint and the surf\"",
+    "ok   the SslicTcl loader's notice is published (.sslictcl) \u2014 SSLIC1101",
+    "ok   semanticTokens/full returns tokens (.tcl) \u2014 14 tokens",
+    "ok   hover on `puts` returns contents (.tcl) \u2014 \"**`puts`** \u2014 built-in command\\n\\nWrite a string to a channel (stdout by \"",
+    "ok   publishDiagnostics arrived for the .tcl document \u2014 2 diagnostics",
+    "ok   vfs_upsert stores a closed file",
+    "ok   vfs_delete forgets it",
+    "ok   shutdown answers",
+    "ok   vfs_upsert_spec_pack accepts a name inside the mount",
+    "ok   vfs_upsert_spec_pack refuses a name that escapes the mount",
+    "ok   vfs_is_safe_spec_pack_name agrees with pack upsert path admission",
+    "ok   the store holds the workspace before initialize",
+    "ok   the workspace scan indexed the store's files \u2014 [timing] workspace_folders_scan 1427ms (roots=1, files=2)",
+    "ok   the host's .tclspec pack loaded as the bundled tier \u2014 SpecTcl: 9 pack(s), 1490 command(s), 0 notice(s), 2 shipped-command collision(s), 6 environment(s), 0 extension(s), 0 retired, 0 refused",
+    "ok   go-to-definition reaches a `source`d sibling from the store \u2014 [\"file:///ws/lib/helpers.tcl\"]"
+  ],
+  "first_fatal": "e2e harness failed: AssertionError [ERR_ASSERTION]: textDocument/rename failed: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32602,\"message\":\"the complete source contains an executable region or command selection without original coverage\",\"data\":{\"code\":\"incomplete-original-command-coverage\",\"reason\":\"the complete source contains an executable region or command selection without original coverage\"}},\"id\":10}\n    at request (file:///home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/lsp-naming-host-proof.mjs:104:13)\n    at async runNamingHostProof (file:///home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/lsp-naming-host-proof.mjs:148:18)\n    at async workspaceSession (file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs:437:5)\n    at async main (file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs:708:27) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\nmake: *** [Makefile:2176: lsp-server-wasm-test] Error 1\n",
+  "host_outputs_after_only": {},
+  "limits": [
+    "Exact original make command/CI tool versions, assertions and deadlines, with compile-time-gated WORK diagnostic logging only. No CLEAN required-CI, native, shipping or performance admission.",
+    "Cold product target enforced; original make builds bootstrap/download dependencies as CI normally does. Full pre-build consumed-provider/dependency sealing is NOT established by this runner.",
+    "Selected module hashes are after-command outputs; module payload is not retained or independently hashed at runtime. Process owner artifact is make, not the wasm module.",
+    "Failed original make may stop before host assertions; read raw logs before attributing any product cause.",
+    "Exact consumed source endpoint requires source_full. If sourceafter failed, only source-before/protocol/tool/process provenance is authenticated, no exact-source typing/product claim.",
+    "WORK compile-time observer has extra log awaits/retained observation state. No performance or uninstrumented timing acceptance; no full pre-build consumed-provider/dependency seal. Original make can bootstrap dependencies.",
+    "This author validated exact tracked membership and current roster and driver/workflow critical Git payloads, not every Git blob. Owner artifact is make, module payload absent; no running-module independent identity proof.",
+    "Separate original browser/WASI commands and supplemental unit. Each remains independent; no host/collision closure follows from the unit."
+  ],
+  "received_procedure_effect_rows": {
+    "rows": [],
+    "total_received_rows": 0,
+    "retained_row_limit": 4096,
+    "qualification": "Received bounded forwarded rows only; missing or unread child tail remains unknown. Each Session separately caps1408; no host Normal/completion inference from row presence alone."
+  }
+}

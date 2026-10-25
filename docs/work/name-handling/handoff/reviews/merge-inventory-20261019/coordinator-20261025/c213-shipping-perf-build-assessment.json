@@ -1,0 +1,118 @@
+{
+  "utc": "2026-10-25T22:34:35.216327+00:00",
+  "run": 40239263157,
+  "job": 121307357483,
+  "checks": [
+    {
+      "check": "run-source-and-branch artifact digest",
+      "ok": true
+    },
+    {
+      "check": "exact baseline",
+      "ok": true
+    },
+    {
+      "check": "exact candidate",
+      "ok": true
+    },
+    {
+      "check": "exact harness",
+      "ok": true
+    },
+    {
+      "check": "measurement not reached",
+      "ok": true
+    },
+    {
+      "check": "baseline status",
+      "ok": true
+    },
+    {
+      "check": "baseline clean lifecycle",
+      "ok": true
+    },
+    {
+      "check": "baseline uncapped",
+      "ok": true
+    },
+    {
+      "check": "baseline exact release argv",
+      "ok": true
+    },
+    {
+      "check": "baseline stdout complete bytes",
+      "ok": true
+    },
+    {
+      "check": "baseline stdout digest",
+      "ok": true
+    },
+    {
+      "check": "baseline stderr complete bytes",
+      "ok": true
+    },
+    {
+      "check": "baseline stderr digest",
+      "ok": true
+    },
+    {
+      "check": "candidate status",
+      "ok": true
+    },
+    {
+      "check": "candidate clean lifecycle",
+      "ok": true
+    },
+    {
+      "check": "candidate uncapped",
+      "ok": true
+    },
+    {
+      "check": "candidate exact release argv",
+      "ok": true
+    },
+    {
+      "check": "candidate stdout complete bytes",
+      "ok": true
+    },
+    {
+      "check": "candidate stdout digest",
+      "ok": true
+    },
+    {
+      "check": "candidate stderr complete bytes",
+      "ok": true
+    },
+    {
+      "check": "candidate stderr digest",
+      "ok": true
+    },
+    {
+      "check": "exact reported three unresolved names",
+      "ok": true
+    },
+    {
+      "check": "authenticated API artifact/run/job exact IDs, source, branch and event",
+      "ok": true
+    },
+    {
+      "check": "authenticated API first job conclusion failure",
+      "ok": true
+    }
+  ],
+  "result": "FAILED BUILD; NO PERFORMANCE MEASUREMENT",
+  "scope": "API artifact digest +ZIP CRC/member hashes +owned process argv/status/log closure. No whole-corpus performance or global source endpoint acceptance.",
+  "baseline": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "candidate": "8b474910632b4112f98fbd0a9d6d3ac74643f2ad",
+  "harness": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "errors": [
+    "Core original_command_rename.rs398 missing command_offset",
+    "Core original_command_rename.rs304/326 missing reject_selected_command_link_coverage"
+  ],
+  "remaining_same_source_scopes": "cancelled after first deterministic build failure; rerun corrected candidate",
+  "api_metadata_files": [
+    "artifact-api.json",
+    "run-api.json",
+    "job-api.json"
+  ]
+}

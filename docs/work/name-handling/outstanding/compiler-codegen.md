@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T22:11:12.515030+00:00
+Last updated: 2026-10-25T22:42:43.339942+00:00
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
@@ -703,3 +703,5 @@ Full exact earlier tracking bytes (including all original protocol/plan/evidence
 Current checkpoint 2026-10-25T22:11:12.515030+00:00: final frozen WORK5bc7 sourcepin union prepared (14 files; all23 JSON,17live maps,215records/173distinct exact Git sources), independent Compiler peer pending. Includes explicit Logical/Core2 helper dependencies and approved Core2 observation transport. Latest authenticated strict076:175 Clippy primaries, zero Rust errors; no newer execution acceptance claimed. Names long1V2 static review clear079a7097, held for next source snapshot. Allocation coverage user answer and Native API choices remain pending; original WASM assertions unchanged.
 
 Final5bc7 union independently STATIC DEEP CLEAR cfb4eb3af4b9e94e517ff03dfd2e4bab0131b3dfeb07cf60ec186f260ee40518: all23JSON/17maps/215records/173actual Git sources,14existing refreshes+4explicit new dependencies, exact approved Core2 observation transport. Root canonical apply/preflight/dispatch pending; no fresh execution result inferred.
+
+2026-10-25T22:42:43.339942+00:00 actual C213 strict authenticated366Clippy/zeroRustE:364 SourceExecutionContext264byte size warnings routedCompiler, Namesobserverrename1, Entryobserverlazy1 sourcepeer247810 integrated. WASM C213 stillqueued at lastAPI. Next026e tinyTaintlayout+guard union2files prepared peerpending; all currentCore2protocolguards alreadycoherent. Retained Native i64 implementation interface V2 uses inert guardedpublication candidate +private actual prepared/artifact/frame checkedbody, noambient helper/guestcapability; Runtime owns actualVM draft, Codegen compilerABI/backend draft. No Native execution/coverage acceptance inferred; pending userchoices unchanged.

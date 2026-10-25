@@ -1,0 +1,283 @@
+{
+  "utc": "2026-10-25T22:37:11.197256+00:00",
+  "status": "AUTHENTIC_SEPARATE_UNIT_PASS",
+  "source": "c213778c4ab580f2add949a0fd8b6e1de95243fc",
+  "run": 40239265191,
+  "job": 121307365066,
+  "artifact": 12616337215,
+  "zip_bytes": 10170239,
+  "zip_sha256": "b19807b6c197a211d0518850b4a1d98151b9f79095279aa62ee6beb7e7ef7445",
+  "member_hashes": {
+    "build.process.json": {
+      "bytes": 2335,
+      "sha256": "d930b2b8e33a8a08d622869872312b7d84df88e00279c141a583b228c8ef6603"
+    },
+    "build.stderr": {
+      "bytes": 7681,
+      "sha256": "2764ee4044ea5cb89005a61fb71be03d2bb76ff00bbeb2799332fdf82e03beff"
+    },
+    "build.stdout": {
+      "bytes": 182611,
+      "sha256": "d1fc06aec8eb2638f27e3535eaeb38ab7b21cc67184ed1f36228b47aa287feba"
+    },
+    "cases.json": {
+      "bytes": 145,
+      "sha256": "cfaacd5f2600b2d4a8eb37ba50e3e1c8197b75e2f5adad1a2ae519ac57eabbd7"
+    },
+    "dependencies-after.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "dependencies-before.json": {
+      "bytes": 4812591,
+      "sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4"
+    },
+    "fetch.process.json": {
+      "bytes": 2221,
+      "sha256": "dae3532c72888a8056aa96d9548f0d3239d37a16fb60419fa3298ab09b29b631"
+    },
+    "fetch.stderr": {
+      "bytes": 14757,
+      "sha256": "1559ecccbfb9485b39479c963aa79652b7e604716ff1eb0402cee3b0e85f0e59"
+    },
+    "fetch.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final.json": {
+      "bytes": 10854,
+      "sha256": "57905e0213df585d22c26464ef49184d129a130425ac936e9f8068fba9f5a814"
+    },
+    "job.json": {
+      "bytes": 2206,
+      "sha256": "984a125e47d6b4f9a71e88679a1401570bf3d580dbd64df33b3b99bd0b550646"
+    },
+    "navigation-unit-1-list.process.json": {
+      "bytes": 2365,
+      "sha256": "f3f26d39d159fc66c77a4935ff1f4757756270e69da3dac263bb77d56a521e7b"
+    },
+    "navigation-unit-1-list.stdout": {
+      "bytes": 79,
+      "sha256": "c953a6d8e5f426efa8010b605d89438085dc0da23477f56b8de8fe4662d72726"
+    },
+    "navigation-unit-1-list.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "navigation-unit-1.process.json": {
+      "bytes": 2357,
+      "sha256": "6d4e0e5207a84f6462a1c751abbac1a9d78290908b2a2f027e465f584f8ab687"
+    },
+    "navigation-unit-1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "navigation-unit-1.stdout": {
+      "bytes": 199,
+      "sha256": "a66210102d09675a4810c93d4b1c012c916af5a2bd06a90544bc04023598ec80"
+    },
+    "providers-after.json": {
+      "bytes": 426864,
+      "sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66"
+    },
+    "providers-before.json": {
+      "bytes": 426864,
+      "sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66"
+    },
+    "server-artifact.json": {
+      "bytes": 1170,
+      "sha256": "bc8ce1ed009de57b07ccbef581ba7ea57fc45450d518f1d35367b9686c5db56b"
+    },
+    "source-after.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "source-before.json": {
+      "bytes": 32000957,
+      "sha256": "bec90ee5ddf3b4db5cbdc029c302cc011b6871b39ed8ca44e156d52b0fa1b007"
+    },
+    "tools-after.json": {
+      "bytes": 1167,
+      "sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11"
+    },
+    "tools-before.json": {
+      "bytes": 1167,
+      "sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11"
+    }
+  },
+  "source_tree": "45ce7251c7f607e1d95caace476103038c804561",
+  "tracked_membership_exact": 126414,
+  "critical_git_bytes": {
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "Cargo.lock": "8f32332e549cbee4df91041a9242b00bfb254c12dcfc2e165ab275724b4d3f9e",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    ".cargo/config.toml": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+    "rust/tcl-lsp-server/Cargo.toml": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913",
+    "rust/tcl-lsp-core/Cargo.toml": "a76134b6d6db7a7555c730116ef0e9f6bb34906a24c8aed80b6219738ff5a73c",
+    "rust/tcl-lsp-db/Cargo.toml": "cd163ceb826888384b0b2bf696d3d86c6d2f64aada4684deddedb16e026e96b5",
+    ".github/workflows/perf.yml": "7c5bcff1cc92156f4a43810e64c6f09f0206437f621df83a9add3ccc5fb32e48",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json": "fcbd05318b8b9868c83ce49fb0e6b8d5f0f650f86491f566c048b8e8428a7fb8",
+    "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py": "9832b22e09f4f5057a1030a4ddac0d9715beae7c38c297fa7c9e7cb3853f9326"
+  },
+  "source_before_after_full_equal": true,
+  "roster_and_driver_exact_git": true,
+  "strict_fresh_ci_test_artifact": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-aaceabbc9bd26875",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-aaceabbc9bd26875"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "lib"
+        ],
+        "doc": true,
+        "doctest": true,
+        "edition": "2024",
+        "kind": [
+          "lib"
+        ],
+        "name": "tcl_lsp_server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/lib.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-aaceabbc9bd26875",
+    "sha256": "62acb2afe9e1e2bf28b7246a2e02ab3d0f93100bd0e759582b7d07c994fb56aa"
+  },
+  "maps": {
+    "providers": {
+      "entries": 2256,
+      "before_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "after_sha256": "72a1ae961567fd7c4da55a66d1c33d736c823d92d64e4d084cfa6d3c6272cd66",
+      "complete_equal": true
+    },
+    "dependencies": {
+      "entries": 21504,
+      "before_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "after_sha256": "fc166fa1da473d20d512519b778a9d88796328d2421f53aa7d1fe104a078f5e4",
+      "complete_equal": true
+    },
+    "tools": {
+      "entries": 7,
+      "before_sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11",
+      "after_sha256": "99dbaae17e3f9aaaf35cce4ce139e40fa324c166da6759a8d2b12c2e8bd64e11",
+      "complete_equal": true
+    }
+  },
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.155766774,
+      "deadline_seconds": 600,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20971520,
+      "retained_bytes": 14757,
+      "minimum_free_bytes": 75651190784,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "--profile",
+        "ci",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 772.663062811,
+      "deadline_seconds": 2400,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20956763,
+      "retained_bytes": 190292,
+      "minimum_free_bytes": 74360741888,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-aaceabbc9bd26875",
+        "tests::public_navigation_waits_for_live_index_before_source_view_routing",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.361774231,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20766471,
+      "retained_bytes": 79,
+      "minimum_free_bytes": 74360729600,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/lsp-navigation-unit-target/ci/deps/tcl_lsp_server-aaceabbc9bd26875",
+        "tests::public_navigation_waits_for_live_index_before_source_view_routing",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.745416371,
+      "deadline_seconds": 180,
+      "complete": true,
+      "group_empty_before_parent_reap": true,
+      "cap_bytes": 20766392,
+      "retained_bytes": 199,
+      "minimum_free_bytes": 74360721408,
+      "stop_reason": null
+    }
+  ],
+  "cases": [
+    {
+      "exit_code": 0,
+      "result": "PASS",
+      "selector": "tests::public_navigation_waits_for_live_index_before_source_view_routing"
+    }
+  ],
+  "all_final_seals": {
+    "artifact": true,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "remaining_log_bytes": 20766193,
+  "limits": [
+    "Only the exact separately selected tests; no original startup/scan/host/editor/whole-suite or shipping performance admission.",
+    "No selected ELF payload in ZIP; exact Cargo event/path/hash and owner before-after hashes, producer ELF-magic check only.",
+    "Exact current tracked membership/tree and10critical+roster payloads, not every Git blob independently rehashed.",
+    "Actual exact46d source only. Diagnostic host logs are separate, and no performance acceptance follows from any diagnostic run."
+  ]
+}
