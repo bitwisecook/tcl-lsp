@@ -119,7 +119,11 @@ impl EscapeState {
     }
 
     /// Mark the whole proc as needing a dynamic-barrier fallback.
+    #[track_caller]
     pub fn mark_pessimistic(&mut self) {
+        if !self.flags.contains(EscapeFlags::DYNAMIC_BARRIER) {
+            trace_first_pessimism(std::panic::Location::caller());
+        }
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
@@ -280,6 +284,21 @@ impl EscapeState {
         )
         .map(str::to_owned)
     }
+}
+
+// WORK-only attribution of an existing conservative transition; no source facts queried.
+fn trace_first_pessimism(site: &'static std::panic::Location<'static>) {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
+        || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 128
+    {
+        return;
+    }
+    eprintln!(
+        "NATIVE_ESCAPE_PESSIMISM file={} line={}",
+        site.file(),
+        site.line()
+    );
 }
 
 #[cfg(test)]
