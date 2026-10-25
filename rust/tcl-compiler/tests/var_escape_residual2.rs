@@ -137,7 +137,7 @@ impl EscapeSummaries {
                 EscapeSource::Unit(unit) => unit
                     .original_procedure_for_body(**id)
                     .is_some_and(|original| std::ptr::eq(original, *body)),
-                EscapeSource::Ir(_) => module.procedures.contains_key(*id),
+                EscapeSource::Ir(_) => module.procedures.contains_key(id),
             })
             .filter(|(_, body)| body.qualified_name == label);
         let (id, body) = bodies.next().expect("original authored fixture body");

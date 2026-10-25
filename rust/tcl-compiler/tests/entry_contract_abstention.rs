@@ -59,7 +59,7 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
         unit.body_units
             .keys()
             .filter(|id| {
-                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                unit.ir_module.body_units.get(id).is_some_and(|body| {
                     body.body_kind == tcl_compiler::ir::ProcedureBodyKind::Lambda
                 })
             })
@@ -71,7 +71,7 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
         unit.body_units
             .keys()
             .filter(|id| {
-                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                unit.ir_module.body_units.get(id).is_some_and(|body| {
                     body.body_kind == tcl_compiler::ir::ProcedureBodyKind::NamespaceScript
                 })
             })
@@ -204,7 +204,7 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
         unit.body_units
             .keys()
             .filter(|id| {
-                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                unit.ir_module.body_units.get(id).is_some_and(|body| {
                     body.body_kind == tcl_compiler::ir::ProcedureBodyKind::Lambda
                 })
             })
@@ -216,7 +216,7 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
         unit.body_units
             .keys()
             .filter(|id| {
-                unit.ir_module.body_units.get(*id).is_some_and(|body| {
+                unit.ir_module.body_units.get(id).is_some_and(|body| {
                     body.body_kind == tcl_compiler::ir::ProcedureBodyKind::NamespaceScript
                 })
             })
