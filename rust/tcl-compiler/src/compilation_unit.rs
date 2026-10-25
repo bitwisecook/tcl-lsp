@@ -6775,7 +6775,7 @@ mod tests {
         let mut different_grammar = selected.clone();
         different_grammar.source_config.strict_quoting =
             !different_grammar.source_config.strict_quoting;
-        for negative in vec![foreign, missing, different_grammar] {
+        for negative in vec![foreign, missing, different_grammar].into_boxed_slice() {
             let refused = negative.with_retained_semantic_analysis(
                 registry,
                 Some(&unit.ir_module.top_level),
@@ -6861,7 +6861,7 @@ mod tests {
         let mut stale = unit.clone();
         stale.top_level.source_config.strict_quoting =
             !stale.top_level.source_config.strict_quoting;
-        for negative in vec![missing, foreign, stale] {
+        for negative in vec![missing, foreign, stale].into_boxed_slice() {
             let refused = negative.with_retained_deep_semantic_analysis(registry);
             assert!(matches!(
                 refused.top_level.semantic_facts.executable(),
@@ -6898,7 +6898,7 @@ mod tests {
                 .with_retained_deep_semantic_analysis(registry)
                 .top_level
         ));
-        for refused in vec![missing, stale, different_owner] {
+        for refused in vec![missing, stale, different_owner].into_boxed_slice() {
             let refused = refused.with_retained_deep_semantic_analysis(registry);
             assert!(matches!(
                 refused.top_level.semantic_facts.executable(),
@@ -7014,7 +7014,9 @@ mod tests {
             different_owner,
             foreign,
             different_profile,
-        ] {
+        ]
+        .into_boxed_slice()
+        {
             assert!(
                 refused
                     .top_level
@@ -8393,7 +8395,9 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
             for cu in vec![
                 CompilationUnit::build_for(&exported, &reg, false),
                 build_closed_world(&exported, &reg),
-            ] {
+            ]
+            .into_boxed_slice()
+            {
                 let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
                     .and_then(|id| cu.procedures.get(&id))
                     .expect("helper analysed");
@@ -8436,7 +8440,9 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
             for cu in vec![
                 CompilationUnit::build_for(src, &reg, false),
                 build_closed_world(src, &reg),
-            ] {
+            ]
+            .into_boxed_slice()
+            {
                 let f = fixture_id_if_present(&cu.procedures, "::helper")
                     .and_then(|id| cu.procedures.get(&id))
                     .expect("helper analysed");

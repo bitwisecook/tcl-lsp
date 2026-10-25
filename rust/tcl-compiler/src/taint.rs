@@ -10682,7 +10682,7 @@ mod tests {
         changed.ir_module.source = tcl_lexer::SourceImage::document("regexp -- fixed haystack");
         let mut missing_snapshot = unit.clone();
         missing_snapshot.ir_module.registry_snapshot = None;
-        for refused in vec![missing, changed, missing_snapshot] {
+        for refused in vec![missing, changed, missing_snapshot].into_boxed_slice() {
             assert!(find_taint_warnings_for_cu_base(&refused, registry, None).is_empty());
         }
         assert_eq!(
@@ -13727,7 +13727,7 @@ mod tests {
         let mut changed = unit.clone();
         changed.ir_module.source =
             tcl_lexer::SourceImage::document("entry .entry -validatecommand {};");
-        for refused in vec![missing, changed] {
+        for refused in vec![missing, changed].into_boxed_slice() {
             reset_callback_replay_build_count();
             reset_callback_replay_name_search_count();
             assert!(find_callback_substitution_warnings(&refused, &registry, None, &[]).is_empty());
