@@ -146,6 +146,12 @@ class Session {
         this.child.stderr.on("data", (chunk) => {
             this.stderr += chunk.toString("utf8");
         });
+        this.child.stderr.on("end", () => {
+            for (const line of this.stderr.split("\n").filter((line) =>
+                line.startsWith("HOST_PROC_EFFECTS ")).slice(0, 1408)) {
+                console.log(line);
+            }
+        });
         this.child.on("exit", (code) => {
             this.exitCode = code;
             this.resolveExit(code);

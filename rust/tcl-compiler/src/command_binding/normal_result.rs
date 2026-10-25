@@ -336,6 +336,7 @@ impl SourceCommandBindings {
             return;
         };
         let outcome = NormalOutcome::of(outcomes);
+        self.trace_source_procedure_outcome(&basis, outcomes, &outcome);
         let observations = self.invocation_normal_results.entry(site).or_default();
         if let Some(retained) = observations
             .iter_mut()
@@ -347,6 +348,109 @@ impl SourceCommandBindings {
                 basis: *basis,
                 outcome,
             });
+        }
+    }
+
+    fn trace_source_procedure_outcome(
+        &self,
+        basis: &InvocationResultBasis,
+        outcomes: &SourceOutcomes,
+        outcome: &NormalOutcome,
+    ) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static RECORDS: AtomicUsize = AtomicUsize::new(0);
+        if !matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"))
+            || RECORDS.fetch_add(1, Ordering::Relaxed) >= 256
+        {
+            return;
+        }
+        let binding = &basis.binding;
+        let Some(site) = binding.dispatch_site.as_ref() else {
+            return;
+        };
+        let bounded = |value: &str| value.chars().take(160).collect::<String>();
+        let arguments = binding
+            .evaluated_argument_values
+            .iter()
+            .take(8)
+            .map(|value| value.as_deref().map(bounded))
+            .collect::<Vec<_>>();
+        eprintln!(
+            "HOST_PROC_EFFECTS invocation source={:p} bytes={} offset={} head={:?} words={} args_total={} args={arguments:?} targets={} unknown={} absent={} reach={:?} frame={:?} frame_owner={:p} normal={} complete={} abrupt={} routes={:?} deferred={} observers={} normal_opaque={:?} normal_unclosed={:?} residual={:?} native_selection={} compiler_admission={} lookup_opaque={:?} lookup_source_matches={:?} arguments_complete={:?} owner={:?}",
+            Arc::as_ptr(&site.source),
+            site.source.source_image().bytes().len(),
+            site.offset,
+            binding.lookup_word.as_deref().map(bounded),
+            basis.words.len(),
+            binding.evaluated_argument_values.len(),
+            binding.targets.len(),
+            binding.unknown,
+            binding.may_be_absent,
+            binding.runtime_reachability,
+            std::mem::discriminant(&binding.variable_frame),
+            Arc::as_ptr(&binding.variable_context),
+            outcome.normal_possible,
+            outcome.complete_normally,
+            outcomes.abrupt.len(),
+            outcomes
+                .abrupt
+                .iter()
+                .take(4)
+                .map(|(route, _)| route)
+                .collect::<Vec<_>>(),
+            self.deferred.len(),
+            binding.entered_execution_observer.observed(),
+            outcomes
+                .normal
+                .as_ref()
+                .map(|state| state.has_opaque_domain()),
+            outcomes
+                .normal
+                .as_ref()
+                .map(|state| state.unclosed_command_world),
+            binding.compiled_execution_residual,
+            binding.native_compilation_admission.is_some(),
+            binding.native_compiler_admission.is_some(),
+            binding
+                .lookup_state
+                .as_ref()
+                .map(|lookup| lookup.state.has_opaque_domain()),
+            binding.lookup_state.as_ref().map(|lookup| lookup
+                .state
+                .current_source_origin
+                .as_ref()
+                .is_some_and(|origin| Arc::ptr_eq(origin, &site.source))),
+            binding.original_argument_completion,
+            binding.original_analysis_owner.as_ref().map(Arc::as_ptr),
+        );
+        self.trace_source_procedure_targets(binding, site);
+    }
+
+    fn trace_source_procedure_targets(
+        &self,
+        binding: &SourceInvocationBinding,
+        site: &CommandAllocationSite,
+    ) {
+        for target in binding.targets.iter().take(4) {
+            let body = self.deferred.get(&target.implementation_id());
+            eprintln!(
+                "HOST_PROC_EFFECTS target source={:p} offset={} command={:?} registry={} kind={:?} generation={} runtime_generation={:?} allocation={} body={} body_source={:?} body_offset={:?} body_bytes={:?} formals={:?} original_formals={:?} prefix={}",
+                Arc::as_ptr(&site.source),
+                site.offset,
+                target.command.chars().take(160).collect::<String>(),
+                target.registry_backed,
+                target.kind,
+                target.implementation_generation,
+                target.runtime_implementation_generation,
+                target.implementation_allocation.is_some(),
+                body.is_some(),
+                body.and_then(|body| body.source_origin.as_ref().map(Arc::as_ptr)),
+                body.map(|body| body.offset),
+                body.map(|body| body.source.len()),
+                body.map(|body| body.parameters.len()),
+                body.map(|body| body.original_parameters.is_some()),
+                target.prepended.len(),
+            );
         }
     }
 

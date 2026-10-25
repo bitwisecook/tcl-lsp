@@ -514,6 +514,42 @@ fn region_walk(region: Arc<RegionPayload>) -> RegionWalk {
     }
 }
 
+fn trace_source_procedure_region(
+    origin: &Arc<SourceOriginId>,
+    entry: &SourceConditionalRegionEntry,
+    frame: &SourceConditionalScriptFrame,
+    outcomes: &SourceOutcomes,
+    bindings: &SourceCommandBindings,
+) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static RECORDS: AtomicUsize = AtomicUsize::new(0);
+        if RECORDS.fetch_add(1, Ordering::Relaxed) < 64 {
+            eprintln!(
+                "HOST_PROC_EFFECTS region source={:p} bytes={} frame_index={} next={} commands={} normal={} complete={} abrupt={} deferred={} observations={} opaque={:?} unclosed={:?}",
+                Arc::as_ptr(origin),
+                origin.source_image().bytes().len(),
+                entry.0.frame_index,
+                frame.next,
+                frame.commands.len(),
+                outcomes.normal.is_some(),
+                outcomes.normal_completion.is_some(),
+                outcomes.abrupt.len(),
+                bindings.deferred.len(),
+                bindings.invocation_normal_results.len(),
+                outcomes
+                    .normal
+                    .as_ref()
+                    .map(|state| state.has_opaque_domain()),
+                outcomes
+                    .normal
+                    .as_ref()
+                    .map(|state| state.unclosed_command_world),
+            );
+        }
+    }
+}
+
 fn walk_region_uncached(
     entry: SourceConditionalRegionEntry,
     context: &ContextRegistry,
@@ -578,6 +614,7 @@ fn walk_region_uncached(
         &frame.context.borrowed(context.commands()),
         None,
     );
+    trace_source_procedure_region(&origin, &entry, &frame, &outcomes, &bindings);
     bindings.conditional_source.root_outcomes = Some(Arc::new(outcomes.clone()));
     bindings.original_completed_root_state = None;
     if let Some(normal) = &outcomes.normal {

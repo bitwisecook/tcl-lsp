@@ -432,6 +432,22 @@ impl AdviceInvocationContext<'_> {
             return;
         };
         query.sealed.set(true);
+        if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static RECORDS: AtomicUsize = AtomicUsize::new(0);
+            if RECORDS.fetch_add(1, Ordering::Relaxed) < 64 {
+                eprintln!(
+                    "HOST_PROC_EFFECTS graph source={:p} bytes={} pending={} refused={} native={} uncertain={} arity_debts={}",
+                    Arc::as_ptr(self.origin),
+                    self.origin.source_image().bytes().len(),
+                    query.pending.get(),
+                    query.refused.get(),
+                    graph.native_baseline,
+                    graph.uncertain_operations.len(),
+                    graph.arity_debts.len(),
+                );
+            }
+        }
         #[cfg(test)]
         if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
             eprintln!(
