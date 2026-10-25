@@ -48,6 +48,31 @@ impl OriginalSourceTransitionAdviceCache {
         purpose: crate::command_binding::OriginalSourceCataloguePurpose,
         prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
     ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        self.get_or_prepare_shared_for(context, purpose, || Arc::new(prepare()))
+    }
+
+    fn get_or_prepare_with_shared_fallback(
+        &self,
+        context: &ContextRegistry,
+        prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
+        fallback: impl FnOnce() -> Arc<Option<OriginalSourceTransitionAdviceTape>>,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        self.get_or_prepare_shared_for(
+            context,
+            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram,
+            || match prepare() {
+                Some(tape) => Arc::new(Some(tape)),
+                None => fallback(),
+            },
+        )
+    }
+
+    fn get_or_prepare_shared_for(
+        &self,
+        context: &ContextRegistry,
+        purpose: crate::command_binding::OriginalSourceCataloguePurpose,
+        prepare: impl FnOnce() -> Arc<Option<OriginalSourceTransitionAdviceTape>>,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
         let registry = context.commands().snapshot().semantic_key();
         let find = |entries: &[SourceAdviceCacheEntry]| {
             entries
@@ -67,7 +92,7 @@ impl OriginalSourceTransitionAdviceCache {
         ) {
             return value;
         }
-        let prepared = Arc::new(prepare());
+        let prepared = prepare();
         let mut entries = self
             .entries
             .lock()
@@ -793,6 +818,27 @@ impl super::CommandBindingRealm {
         self.bindings.original_native_procedure_body_commands(input)
     }
 
+    fn prepared_source_procedure_advice(
+        &self,
+        context: &ContextRegistry,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        // The separate call cache still prefers its genuine Normal query.
+        // Only the identical ordinary fallback shares this realm's tape.
+        self.source_call_advice.get_or_prepare_with_shared_fallback(
+            context,
+            || {
+                self.bindings
+                    .original_normal_source_procedure_advice_tape(context)
+            },
+            || {
+                self.source_advice.get_or_prepare(context, || {
+                    self.bindings
+                        .original_source_transition_advice_tape(context)
+                })
+            },
+        )
+    }
+
     pub(crate) fn original_source_procedure_calls(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -804,14 +850,7 @@ impl super::CommandBindingRealm {
         self.matches_original_source_image(image, input.lexer_config())
             .then_some(())?;
         let context = input.context_registry();
-        let prepared = self.source_call_advice.get_or_prepare(&context, || {
-            self.bindings
-                .original_normal_source_procedure_advice_tape(&context)
-                .or_else(|| {
-                    self.bindings
-                        .original_source_transition_advice_tape(&context)
-                })
-        });
+        let prepared = self.prepared_source_procedure_advice(&context);
         Some(
             prepared
                 .as_ref()
@@ -841,14 +880,7 @@ impl super::CommandBindingRealm {
         self.matches_original_source_image(image, input.lexer_config())
             .then_some(())?;
         let context = input.context_registry();
-        let prepared = self.source_call_advice.get_or_prepare(&context, || {
-            self.bindings
-                .original_normal_source_procedure_advice_tape(&context)
-                .or_else(|| {
-                    self.bindings
-                        .original_source_transition_advice_tape(&context)
-                })
-        });
+        let prepared = self.prepared_source_procedure_advice(&context);
         let call = prepared
             .as_ref()
             .as_ref()?
@@ -1891,5 +1923,85 @@ impl super::CommandBindingRealm {
         });
         let inventory = prepared.as_ref().as_ref()?.class_display_publications()?;
         inventory.with_retained_input(image, input)
+    }
+}
+
+#[cfg(test)]
+mod shared_fallback_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn shared_fallback_retains_the_same_unavailable_value_without_repreparing() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let ordinary = OriginalSourceTransitionAdviceCache::default();
+        let calls = OriginalSourceTransitionAdviceCache::default();
+        let prepared = ordinary.get_or_prepare(context, || None);
+        let attempts = Cell::new(0);
+        let selected = calls.get_or_prepare_with_shared_fallback(
+            context,
+            || {
+                attempts.set(attempts.get() + 1);
+                None
+            },
+            || ordinary.get_or_prepare(context, || panic!("ordinary value already retained")),
+        );
+        assert!(Arc::ptr_eq(&prepared, &selected));
+        assert!(selected.is_none());
+        let repeated = calls.get_or_prepare_with_shared_fallback(
+            context,
+            || panic!("call cache already retained"),
+            || panic!("call cache already retained"),
+        );
+        assert!(Arc::ptr_eq(&selected, &repeated));
+        assert_eq!(attempts.get(), 1);
+    }
+
+    #[test]
+    fn preferred_preparation_never_consults_the_shared_fallback() {
+        // Cache mechanics only: the empty test tape asserts no source outcome.
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let calls = OriginalSourceTransitionAdviceCache::default();
+        let prepared = calls.get_or_prepare_with_shared_fallback(
+            context,
+            || Some(OriginalSourceTransitionAdviceTape::default()),
+            || panic!("a present preferred tape must not consult the fallback"),
+        );
+        assert!(prepared.is_some());
+        let repeated = calls.get_or_prepare_with_shared_fallback(
+            context,
+            || panic!("preferred tape already retained"),
+            || panic!("preferred tape already retained"),
+        );
+        assert!(Arc::ptr_eq(&prepared, &repeated));
+    }
+
+    #[test]
+    fn non_normal_source_reuses_its_actual_ordinary_tape() {
+        let analysis =
+            crate::analyser::Analyser::new().analyse("error source_tape_cache_control", "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let realm = analysis.retained_command_realm().unwrap();
+        assert!(
+            realm
+                .bindings
+                .original_normal_source_procedure_advice_tape(&context)
+                .is_none()
+        );
+        let ordinary = realm.source_advice.get_or_prepare(&context, || {
+            realm
+                .bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        assert!(ordinary.is_some());
+        let selected = realm.prepared_source_procedure_advice(&context);
+        assert!(Arc::ptr_eq(&ordinary, &selected));
+        assert!(
+            realm
+                .bindings
+                .original_normal_source_procedure_advice_tape(&context)
+                .is_none()
+        );
     }
 }
