@@ -671,7 +671,11 @@ mod tests {
         let a = Analyser::new().analyse("set counter VALUE", "tcl8.6");
         let b = Analyser::new().analyse("set counter VALUE", "tcl8.6");
         assert!(a.object_handle_facts.logical_source_candidates.is_some());
-        assert!(a == b);
+        crate::analyser::types::assert_analysis_results_eq(
+            &a,
+            &b,
+            "logical source candidate report equality",
+        );
         let mut names = b.clone();
         let owner = Arc::make_mut(
             names
@@ -686,8 +690,15 @@ mod tests {
             .entry(ObjectFactOwner::Frame(frame))
             .or_default()
             .insert("$literal".to_owned());
-        assert!(names != a);
-        assert!(names == names.clone());
+        assert!(
+            !std::cmp::PartialEq::eq(&names, &a),
+            "expected distinct analysis results"
+        );
+        crate::analyser::types::assert_analysis_results_eq(
+            &names,
+            &names.clone(),
+            "logical source candidate self equality",
+        );
         let mut frames = b.clone();
         let owner = Arc::make_mut(
             frames
@@ -697,7 +708,14 @@ mod tests {
                 .unwrap(),
         );
         owner.frames.clear();
-        assert!(frames != a);
-        assert!(frames == frames.clone());
+        assert!(
+            !std::cmp::PartialEq::eq(&frames, &a),
+            "expected distinct analysis results"
+        );
+        crate::analyser::types::assert_analysis_results_eq(
+            &frames,
+            &frames.clone(),
+            "logical source candidate self equality",
+        );
     }
 }
