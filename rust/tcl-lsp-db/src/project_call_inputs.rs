@@ -25,14 +25,25 @@ pub(super) struct FileSourceStructure {
     declared: Arc<DeclaredSurface>,
 }
 
-/// One structure-only producer supplies cards, source sites and declared roles.
+/// Projections captured together from one actual checked source interpretation.
+/// The full analysis is dropped after capture; each consumer keeps its existing
+/// projection query and its own equality/backdating boundary.
+#[derive(PartialEq)]
+pub(super) struct FileProjectSourceFacts {
+    structure: Arc<FileSourceStructure>,
+    pub tokens: Arc<super::FileTokenFacts>,
+    pub roles: Option<
+        Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles>,
+    >,
+}
+
 /// A missing actual input remains distinct from a successfully empty inventory.
 #[salsa::tracked(returns(clone))]
-pub(super) fn file_source_structure(
+pub(super) fn file_project_source_facts(
     db: &dyn TclDb,
     file: SourceFile,
     config: AnalyserConfig,
-) -> Option<Arc<FileSourceStructure>> {
+) -> Option<Arc<FileProjectSourceFacts>> {
     let input = document_analysis_input(db, file, config).ok()?;
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let mut analyser = document_analyser(db, file, config)
@@ -47,7 +58,7 @@ pub(super) fn file_source_structure(
     {
         return None;
     }
-    Some(Arc::new(FileSourceStructure {
+    let structure = Arc::new(FileSourceStructure {
         items: Arc::new(ItemTree::from_analysis(
             &result,
             &analyser.ensemble_namespaces,
@@ -66,7 +77,30 @@ pub(super) fn file_source_structure(
         declared: Arc::new(tcl_compiler::analyser::types::build_declared_surface(
             &result.stub_commands,
         )),
+    });
+    let roles =
+        tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles::capture(
+            &result,
+        )
+        .map(Arc::new);
+    let tokens = super::token_facts_from_analysis(result);
+    Some(Arc::new(FileProjectSourceFacts {
+        structure,
+        tokens,
+        roles,
     }))
+}
+
+/// Source topology retains its own projection equality firewall.
+#[salsa::tracked(returns(clone))]
+pub(super) fn file_source_structure(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<FileSourceStructure>> {
+    Some(Arc::clone(
+        &file_project_source_facts(db, file, config)?.structure,
+    ))
 }
 
 fn checked_file(
