@@ -129,7 +129,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
     if prefix.startswith(
-        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "list-")
+        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "list-")
     ):
         require(
             available >= seconds,
@@ -208,7 +208,9 @@ supplemental_rows = [
         "state": "UNRUN",
     }
 ]
-rows = original_rows + supplemental_rows
+hostile_rows = [{"group": "separate_hostile_containment", "target": "spec_corpus", "selector": roster["hostile_containment"][0], "state": "UNRUN"}]
+require(roster["hostile_containment"] == ["a_hostile_pack_degrades_to_abstention_and_never_hangs"], "unchanged original hostile containment1")
+rows = original_rows + supplemental_rows + hostile_rows
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -399,11 +401,12 @@ try:
         ("tcl-spectcl", "pack_source_e2e", order),
         ("tcl-vm", "cmd_control_e2e", roster["catch"]),
         ("tcl-spectcl", "native_normal_store", roster["native_parent_store"]),
+        ("tcl-spectcl", "spec_corpus", roster["hostile_containment"]),
     ]
     for package, target_name, selectors in targets:
         require(remaining > 512 * 1024, "insufficient log budget before selected build")
         target_group = (
-            "supplemental" if target_name == "native_normal_store" else "original"
+            "separate_hostile" if target_name == "spec_corpus" else ("supplemental" if target_name == "native_normal_store" else "original")
         )
         print("BUILD " + target_group + " target " + target_name, flush=True)
         argv = [
@@ -490,7 +493,7 @@ try:
             "pre-runtime source/provider/tool/dependency drift",
         )
         list_argv = [str(executable), "--list", "--format", "terse"]
-        if target_name == "cmd_control_e2e":
+        if target_name in ["cmd_control_e2e", "spec_corpus"]:
             list_argv += ["--exact", selectors[0]]
         listing = execute(
             list_argv, "list-" + target_name, executable, 180, env, remaining
@@ -580,6 +583,7 @@ try:
     require(
         len(original_rows) == 11
         and len(supplemental_rows) == 1
+        and len(hostile_rows) == 1
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original or separate supplemental test inventory incomplete",
     )
@@ -653,6 +657,8 @@ finally:
                 row["state"] in ["PASS", "FAIL"] for row in supplemental_rows
             ),
             "supplemental_outcomes": supplemental_rows,
+            "required_separate_hostile_tests": 1,
+            "separate_hostile_outcomes": hostile_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
