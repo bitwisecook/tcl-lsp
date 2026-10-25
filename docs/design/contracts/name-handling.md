@@ -3948,3 +3948,14 @@ complete input and diagnostic source context, unambiguous complete root scope,
 and current producer and dependency leases. The selected declaration keeps its
 original owner. No analysis fields are rewritten and no owner is reissued; a
 missing join keeps the ordinary unknown-world refusal.
+
+### Authored uplevel source words
+
+An explicitly installed Logical uplevel dispatcher uses its own source-word entry.
+The evaluation-object and source-word providers must both match the current
+invocation and lexical grammar, while the physical carrier retains its selected
+native core. This plain control plan has separate provenance, creates fresh
+counted words and retains no native literal pool, compiled cache or local layout.
+Its complete provider and invocation policy is checked again at consumption.
+This entry cannot supply native DIRECT authority, another evaluation purpose, a
+native object cache, an instruction receipt or a TMM execution policy.

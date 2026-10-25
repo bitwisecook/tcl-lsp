@@ -192,7 +192,7 @@ pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
     fixed_math_calls: Option<Rc<HashMap<usize, crate::interp::NativeFixedMathCall>>>,
     literal_pool: crate::literal_pool::NativeLiteralPoolReceipt,
-    direct_source_operands: Option<crate::literal_pool::NativeDirectSourceOperands>,
+    direct_source_operands: Option<crate::literal_pool::PlainSourceOperands>,
     jim_evaluation: crate::interp::OriginalJimEvaluationFrame,
     source_location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     /// Canonical unrooted namespace whose command bindings this bytecode was
