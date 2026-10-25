@@ -13191,6 +13191,14 @@ mod tests {
         );
     }
 
+    fn assert_no_static_proc_completion(analyser: &mut Analyser) {
+        assert!(
+            analyser
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+    }
+
     #[test]
     fn original_logical_static_completion_keeps_alias_ordinals_and_source_owners() {
         // naming.compiler.original-analysis-metadata-context
@@ -13259,20 +13267,12 @@ mod tests {
             Some("VALUE")
         );
         let mut unavailable = analyse(selected_source, input(older));
-        assert!(
-            unavailable
-                .static_proc_result("::p", &[], &mut Vec::new(), 0)
-                .is_none()
-        );
+        assert_no_static_proc_completion(&mut unavailable);
         let source = "proc p {} {return VALUE}";
         let mut missing = analyse(source, input(std::sync::Arc::clone(&context)));
         missing.resolved_input = None;
         missing.result.resolved_input = None;
-        assert!(
-            missing
-                .static_proc_result("::p", &[], &mut Vec::new(), 0)
-                .is_none()
-        );
+        assert_no_static_proc_completion(&mut missing);
         let mut changed = analyse(source, input(std::sync::Arc::clone(&context)));
         let mut altered = config;
         altered.strict_quoting = !altered.strict_quoting;
@@ -13284,11 +13284,7 @@ mod tests {
         );
         changed.resolved_input = Some(changed_input.clone());
         changed.result.resolved_input = Some(changed_input);
-        assert!(
-            changed
-                .static_proc_result("::p", &[], &mut Vec::new(), 0)
-                .is_none()
-        );
+        assert_no_static_proc_completion(&mut changed);
         let mut store = tcl_registry::CommandRegistry::build_default();
         store.insert(tcl_registry::CommandSpec {
             name: "foreign_completion_axis",
@@ -13299,11 +13295,7 @@ mod tests {
         let foreign_input = input(foreign);
         changed.resolved_input = Some(foreign_input.clone());
         changed.result.resolved_input = Some(foreign_input);
-        assert!(
-            changed
-                .static_proc_result("::p", &[], &mut Vec::new(), 0)
-                .is_none()
-        );
+        assert_no_static_proc_completion(&mut changed);
     }
 
     fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
