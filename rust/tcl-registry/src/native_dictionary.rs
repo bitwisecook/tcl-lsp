@@ -831,12 +831,12 @@ mod compiler_tests {
             if fields[0] == "jim" {
                 let ordinal = jim.dictionary_variable_value_ordinal(root, key);
                 if fields[2] == "0" {
+                    use std::fmt::Write;
                     let elements = tcl_syntax::list::split_native_list_bytes(
                         root,
                         NativeStringProtocol::Jim084,
                     )
                     .unwrap();
-                    use std::fmt::Write;
                     let mut hex = String::new();
                     for byte in elements[ordinal.expect("native successful member")].iter() {
                         write!(hex, "{byte:02x}").expect("writing to a string succeeds");

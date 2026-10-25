@@ -1687,6 +1687,7 @@ mod trusted_core_attachment_controls {
 
     #[test]
     fn trusted_core_attachment_preserves_non_core_and_explicit_rows() {
+        static JIM: &[SpecSurface] = &[SpecSurface::core(Family::Jim)];
         let ordinary = Box::leak(Box::new(CommandSpec {
             name: "proc",
             analyser_hook: Some(AnalyserHookId::Proc),
@@ -1697,7 +1698,6 @@ mod trusted_core_attachment_controls {
             attach_builtin_core_definition(ordinary),
             ordinary
         ));
-        static JIM: &[SpecSurface] = &[SpecSurface::core(Family::Jim)];
         let explicit = Box::leak(Box::new(CommandSpec {
             name: "proc",
             surface: Some(JIM),
