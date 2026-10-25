@@ -332,7 +332,31 @@ pub(crate) fn reject_link_obligations(
     Ok(())
 }
 
+fn trace_coverage_document(document: &OriginalDeclarationDocument<'_>) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        MISSING_RENAME_WORLD.with(|trace| {
+            *trace.borrow_mut() = Some(format!(
+                "rename.coverage-document source_bytes={} analysis_owner={:p}",
+                document.source.len(),
+                document.analysis,
+            ));
+        });
+    }
+}
+
 fn coverage_trace(offset: u32, stage: &'static str) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
+        MISSING_RENAME_WORLD.with(|trace| {
+            let mut trace = trace.borrow_mut();
+            let context = trace
+                .as_deref()
+                .filter(|value| value.starts_with("rename.coverage-document "))
+                .map_or("rename.coverage", |value| {
+                    value.split(" offset=").next().unwrap_or(value)
+                });
+            *trace = Some(format!("{context} offset={offset} stage={stage}"));
+        });
+    }
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_RENAME").is_some() {
         eprintln!("ORIGINAL_COMMAND_RENAME offset={offset} stage={stage}");
@@ -360,6 +384,7 @@ fn document_requests(
     destination: &ByteCommandSlot,
     tail: &[u8],
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
+    trace_coverage_document(&document);
     let walk = crate::refactor::FrameWalk::new(document.source, document.analysis)
         .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
     let mut requests = Vec::new();
