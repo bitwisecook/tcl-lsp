@@ -34,7 +34,7 @@ fn provider_pack() -> tcl_spectcl::pack::PackSet {
 command provider360::define {
 arity 3
 arg 0 -role Name
-arg 1 -role Params
+arg 1 -role ParamList
 arg 2 -role Body
 analyser_hook -native Proc
 command_table_effect DefinesProcedure
