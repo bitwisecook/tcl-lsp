@@ -10,7 +10,9 @@
       ],
       "target": "inlining",
       "selector": "classify_large_pure_leaf_one_caller_is_if_single_call",
-      "env": {}
+      "env": {
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+      }
     },
     {
       "group": "diagnostic-inlining-readonly10",
@@ -50,7 +52,9 @@
       ],
       "target": "inlining",
       "selector": "classify_small_pure_leaf_is_always",
-      "env": {}
+      "env": {
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+      }
     },
     {
       "group": "diagnostic-inlining-readonly10",
@@ -60,7 +64,9 @@
       ],
       "target": "inlining",
       "selector": "classify_threshold_boundary_is_always",
-      "env": {}
+      "env": {
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+      }
     },
     {
       "group": "diagnostic-inlining-readonly10",
@@ -100,7 +106,9 @@
       ],
       "target": "inlining",
       "selector": "static_call_count_drives_large_proc_decision",
-      "env": {}
+      "env": {
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+      }
     },
     {
       "group": "diagnostic-original-body-owner3",
@@ -226,7 +234,7 @@
     "rust/tcl-compiler/src/compilation_unit.rs": "d6674f0730a46146d8416250f220b2bce08725a3e80109cc6472ff152593cd9b",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
     "rust/tcl-compiler/src/var_escape/api.rs": "c7789fca948fdbcb3e39a7bd4af83a414a223dadc68bd0c232409f3348ff1d5c",
-    "rust/tcl-compiler/src/inlining/mod.rs": "9798d1137462203ac5585b65e24870144549985ee8a970199c196c4adc6ed9ef",
+    "rust/tcl-compiler/src/inlining/mod.rs": "7c9038af006f50c3a52b0599427d67f2596700e1f985ce41fa8a5e7fcf0fee0f",
     "rust/tcl-runtime-api/src/lib.rs": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
     "rust/tcl-runtime-api/src/native_compiler_pass.rs": "bea79bd4c38b3d7b4fef315f71f60b86685dff737f53b3a2525fbf3ad4444bfc",
     "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "0c16ce8734f57b556a70fb6e709e81b5f518e1fa40335736a96e20349c0e96ea",
