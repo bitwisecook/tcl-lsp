@@ -310,6 +310,16 @@ mod tests {
         dialect: Option<&'static tcl_dialect::DialectProfile>,
         ip: InterproceduralAnalysis,
     ) -> Vec<Optimisation> {
+        let result = run_pass_borrowed(source, dialect, &ip);
+        drop(ip);
+        result
+    }
+
+    fn run_pass_borrowed(
+        source: &str,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+        ip: &InterproceduralAnalysis,
+    ) -> Vec<Optimisation> {
         // `when` (and any other dialect-gated structured command)
         // is registry-resolved, so the test registry must carry the
         // dialect's command set before lowering iRule code. The shared
@@ -326,7 +336,7 @@ mod tests {
         for (id, summary) in &ip.procedures {
             let body_id = fixture_id(&cu.ir_module.procedures, &summary.qualified_name);
             let mut bound = summary.clone();
-            bound.calls = edge_labels(&ip, &ip.procedures[id].calls)
+            bound.calls = edge_labels(ip, &ip.procedures[id].calls)
                 .iter()
                 .map(|label| fixture_id(&cu.ir_module.procedures, label))
                 .collect();
