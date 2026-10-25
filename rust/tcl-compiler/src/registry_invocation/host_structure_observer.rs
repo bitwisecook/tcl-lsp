@@ -15,6 +15,7 @@ pub struct HostStructureTraceGuard {
 
 /// Begin one explicitly observed, synchronous source-structure selection.
 #[doc(hidden)]
+#[must_use]
 pub fn begin_host_structure_trace() -> HostStructureTraceGuard {
     let active = matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"));
     let previous = if active {
