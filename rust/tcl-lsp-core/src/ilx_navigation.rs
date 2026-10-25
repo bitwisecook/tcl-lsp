@@ -2034,7 +2034,7 @@ mod tests {
                 .analyse(source, profile.name)
         };
         let skipping = analyse(tcl_lexer::LeadingBom::Skip);
-        let content = analyse(tcl_lexer::LeadingBom::Content);
+        let content_analysis = analyse(tcl_lexer::LeadingBom::Content);
         let store = workspace_store();
         let document = IlxDocument {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
@@ -2079,7 +2079,8 @@ mod tests {
             vectors.events().is_empty() && vectors.commands().is_empty(),
             "source-only input issues no entered-event closure"
         );
-        let different_config = IlxContext::new(context.commands(), &store).with_analysis(&content);
+        let different_config =
+            IlxContext::new(context.commands(), &store).with_analysis(&content_analysis);
         assert!(super::current_method_calls(document, different_config).is_empty());
         assert!(super::source_candidates(document, different_config, &call).is_empty());
         let changed = format!("{source}# changed");

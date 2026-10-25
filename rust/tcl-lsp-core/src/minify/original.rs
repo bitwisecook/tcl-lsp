@@ -1795,8 +1795,12 @@ mod tests {
         assert_eq!(selected.1.clause_list_index, Some(2));
         arguments[1] = tcl_registry::InvocationWord::Expanded;
         assert!(
-            super::super::lexical_source_schema(env, "switch", &arguments, |schema| schema
-                .authored_source_case_invocation(),)
+            super::super::lexical_source_schema(
+                env,
+                "switch",
+                &arguments,
+                tcl_registry::ResolvedInvocation::authored_source_case_invocation,
+            )
             .flatten()
             .is_none()
         );
@@ -2195,9 +2199,9 @@ mod tests {
         let source = "list {puts   before; puts \"unterminated}";
         with_lexical_metadata(source, |env| {
             let original = super::super::lexical_script_words(source, env.config).unwrap();
-            let content = original.commands[0].words[1].content_span().unwrap();
-            let body = &source[content.as_range()];
-            assert_eq!(env.original_region(body), Some(content));
+            let body_span = original.commands[0].words[1].content_span().unwrap();
+            let body = &source[body_span.as_range()];
+            assert_eq!(env.original_region(body), Some(body_span));
             assert_eq!(
                 super::super::minify_body(
                     body,
