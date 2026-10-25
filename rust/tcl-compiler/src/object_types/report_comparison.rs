@@ -491,22 +491,37 @@ mod tests {
         assert!(a.object_handle_facts.report_source.is_some());
         assert!(b.object_handle_facts.report_source.is_some());
         assert_ne!(a.object_handle_facts, b.object_handle_facts);
-        assert!(a == b);
+        crate::analyser::types::assert_analysis_results_eq(&a, &b, "report equality");
         let incremental =
             Analyser::new().analyse_per_item(source, tcl_dialect::DialectProfile::plain_tcl().name);
-        assert!(incremental == a);
+        crate::analyser::types::assert_analysis_results_eq(
+            &incremental,
+            &a,
+            "incremental report equality",
+        );
 
         let changed = Analyser::new().analyse(
             "oo::class create C {variable {$literal}; method m {} {return DIFFERENT}; method n {} {return OTHER}}", tcl_dialect::DialectProfile::plain_tcl().name);
-        assert!(changed != a);
+        assert!(
+            !std::cmp::PartialEq::eq(&changed, &a),
+            "expected distinct analysis results"
+        );
         let mut donated = b.clone();
         donated.object_handle_facts = a.object_handle_facts.clone();
-        assert!(donated == b);
-        assert!(donated == a);
-        assert!(donated == donated.clone());
-        assert!(a == a.clone());
-        assert!(b == a && a == b);
-        assert!(a == b && b == donated && a == donated);
+        crate::analyser::types::assert_analysis_results_eq(&donated, &b, "donated report equality");
+        crate::analyser::types::assert_analysis_results_eq(&donated, &a, "donated report equality");
+        crate::analyser::types::assert_analysis_results_eq(
+            &donated,
+            &donated.clone(),
+            "donated report self equality",
+        );
+        crate::analyser::types::assert_analysis_results_eq(&a, &a.clone(), "report self equality");
+        assert!(std::cmp::PartialEq::eq(&b, &a) && std::cmp::PartialEq::eq(&a, &b));
+        assert!(
+            std::cmp::PartialEq::eq(&a, &b)
+                && std::cmp::PartialEq::eq(&b, &donated)
+                && std::cmp::PartialEq::eq(&a, &donated)
+        );
     }
 
     #[test]
@@ -514,18 +529,24 @@ mod tests {
         let source = "oo::class create C {method m {} {return VALUE}; method n {} {return OTHER}}";
         let a = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
         let b = Analyser::new().analyse(source, tcl_dialect::DialectProfile::plain_tcl().name);
-        assert!(a == b);
+        crate::analyser::types::assert_analysis_results_eq(&a, &b, "report equality");
         let mut missing = b.clone();
         let owner =
             std::sync::Arc::make_mut(missing.object_handle_facts.report_source.as_mut().unwrap());
         let id = *owner.bodies.keys().next().unwrap();
         owner.bodies.remove(&id);
-        assert!(missing != a);
+        assert!(
+            !std::cmp::PartialEq::eq(&missing, &a),
+            "expected distinct analysis results"
+        );
         let mut changed = b.clone();
         let owner =
             std::sync::Arc::make_mut(changed.object_handle_facts.report_source.as_mut().unwrap());
         owner.bodies.get_mut(&id).unwrap().original.push(b' ');
-        assert!(changed != a);
+        assert!(
+            !std::cmp::PartialEq::eq(&changed, &a),
+            "expected distinct analysis results"
+        );
         let mut duplicate = b.clone();
         let owner = std::sync::Arc::make_mut(
             duplicate
@@ -537,14 +558,27 @@ mod tests {
         let value = owner.bodies.get(&id).unwrap().clone();
         let other_id = *owner.bodies.keys().find(|other| **other != id).unwrap();
         owner.bodies.insert(other_id, value);
-        assert!(duplicate != a);
+        assert!(
+            !std::cmp::PartialEq::eq(&duplicate, &a),
+            "expected distinct analysis results"
+        );
         let mut changed_facts = b.clone();
         changed_facts.object_handle_facts.owner_spans[0]
             .unit
             .push_str("changed");
-        assert!(changed_facts != a);
-        assert!(changed_facts == changed_facts.clone());
-        assert!(a != changed_facts);
+        assert!(
+            !std::cmp::PartialEq::eq(&changed_facts, &a),
+            "expected distinct analysis results"
+        );
+        crate::analyser::types::assert_analysis_results_eq(
+            &changed_facts,
+            &changed_facts.clone(),
+            "changed report self equality",
+        );
+        assert!(
+            !std::cmp::PartialEq::eq(&a, &changed_facts),
+            "expected distinct analysis results"
+        );
     }
 
     #[test]
@@ -563,11 +597,16 @@ mod tests {
         assert!(a.object_handle_facts.report_source.is_some());
         assert!(b.object_handle_facts.report_source.is_some());
         assert_ne!(a.object_handle_facts, b.object_handle_facts);
-        assert!(a == b);
-        assert!(b == a);
+        crate::analyser::types::assert_analysis_results_eq(&a, &b, "report equality");
+        crate::analyser::types::assert_analysis_results_eq(&b, &a, "report equality");
         let mut copied = b.clone();
         copied.object_handle_facts = a.object_handle_facts.clone();
-        assert!(copied == a && copied == b);
-        assert!(a == a.clone() && copied == copied.clone());
+        assert!(std::cmp::PartialEq::eq(&copied, &a) && std::cmp::PartialEq::eq(&copied, &b));
+        crate::analyser::types::assert_analysis_results_eq(&a, &a.clone(), "report self equality");
+        crate::analyser::types::assert_analysis_results_eq(
+            &copied,
+            &copied.clone(),
+            "copied report self equality",
+        );
     }
 }
