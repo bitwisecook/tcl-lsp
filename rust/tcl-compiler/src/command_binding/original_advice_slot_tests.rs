@@ -377,7 +377,7 @@ fn advice_index_warmth_preserves_full_baseline_equality_and_bounded_fallback() {
     let mut fallback = original.clone();
     let baseline = Arc::make_mut(&mut fallback.baseline);
     Arc::make_mut(&mut baseline.catalogue_commands).extend(
-        (0..MAX_BASELINE_METADATA_NAMES + 1)
+        (0..=MAX_BASELINE_METADATA_NAMES)
             .map(|n| (format!("::memo_capacity_{n}"), format!("memo_capacity_{n}"))),
     );
     assert!(

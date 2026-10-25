@@ -2469,11 +2469,11 @@ mod tests {
             .unwrap();
         let entry = roster.entries.values().next().unwrap();
         let input = entry.original_name_input();
-        let word = input.original_word_key().unwrap().original_word();
+        let authored_word = input.original_word_key().unwrap().original_word();
         let value = SignatureSourceNameInput::OriginalValue(
             crate::signature_scan::name_value::SignatureSourceNameValue::from_original_static_word(
-                word,
-                tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+                authored_word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&authored_word.config()),
                 policy,
             )
             .unwrap(),

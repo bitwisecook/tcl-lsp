@@ -7895,7 +7895,7 @@ fn native_existence_result(
     dialect: &str,
 ) -> crate::environment_ingress::RetainedNativeFixture<crate::analyser::AnalysisResult> {
     let profile = tcl_dialect::DialectProfile::find(dialect).expect("native fixture profile");
-    let (_owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    let (owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(captured)),
         invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
@@ -7908,7 +7908,7 @@ fn native_existence_result(
     let analysis = Analyser::new()
         .with_source_analysis_entry(std::sync::Arc::new(entry))
         .analyse(src, dialect);
-    crate::environment_ingress::RetainedNativeFixture::new(analysis, _owner)
+    crate::environment_ingress::RetainedNativeFixture::new(analysis, owner)
 }
 
 fn native_existence_codes(src: &str) -> Vec<String> {
