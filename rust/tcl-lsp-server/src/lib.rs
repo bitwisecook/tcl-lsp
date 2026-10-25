@@ -27528,15 +27528,8 @@ impl Backend {
             let published = self.spec_packs.lock().await;
             (published.seq, Arc::clone(&published.packs))
         };
-        let registry = if pack_set.is_empty() {
-            Arc::clone(
-                tcl_lsp_core::environment_for_dialect(dialect.name)
-                    .default_context_registry()
-                    .commands(),
-            )
-        } else {
-            tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, &pack_set)
-        };
+        let (registry, registry_is_current) =
+            self.diagnostic_registry(uri, dialect, &pack_set).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
         let extra_commands = self
@@ -27604,7 +27597,7 @@ impl Backend {
             let current = self.spec_packs.lock().await;
             current.seq == pack_generation && Arc::ptr_eq(&current.packs, &pack_set)
         };
-        if self.diag_inputs_epoch() == epoch && publication_is_current {
+        if self.diag_inputs_epoch() == epoch && publication_is_current && registry_is_current {
             inputs.inputs_epoch = Some(epoch);
         }
         inputs
@@ -28370,7 +28363,12 @@ impl Backend {
             let need_inputs = {
                 let mut slots = self.diag_slots.lock().await;
                 let slot = slots.entry(uri.clone()).or_default();
-                force_refresh || slot.latest_inputs.is_none() || slot.inputs_epoch != epoch
+                force_refresh
+                    || slot
+                        .latest_inputs
+                        .as_ref()
+                        .is_none_or(|inputs| inputs.inputs_epoch != Some(epoch))
+                    || slot.inputs_epoch != epoch
             };
             if !need_inputs {
                 break;
@@ -28385,7 +28383,7 @@ impl Backend {
             // together, atomically, so the worker never observes one without the
             // other.
             let inputs = self.diag_inputs(&uri, profile).await;
-            if self.diag_inputs_epoch() == epoch {
+            if self.diag_inputs_epoch() == epoch && inputs.inputs_epoch == Some(epoch) {
                 resolved = Some((inputs, epoch));
                 break;
             }
