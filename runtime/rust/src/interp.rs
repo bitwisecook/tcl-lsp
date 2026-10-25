@@ -395,7 +395,7 @@ struct PreparedProcedureCall<'a> {
     import_traversal: Result<Option<Rc<native_jim_import::OriginalJimImportTraversal>>, ValueError>,
     proc_frame: Option<Box<CmdFrame>>,
     _method_execution: Option<native_procedure_resources::NativeCallableMethodExecution>,
-    _native_admission: native_compilation::NativeProcedureAdmission,
+    _native_admission: Box<native_compilation::NativeProcedureAdmission>,
     original_artifact: Option<Rc<native_body_artifact::NativeBodyArtifact>>,
     meta: CallMeta<'a>,
 }
