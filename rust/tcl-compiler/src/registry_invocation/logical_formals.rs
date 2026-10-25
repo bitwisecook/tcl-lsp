@@ -585,7 +585,7 @@ mod tests {
         for source in [
             r#"proc p "\u00e9" {return ${é}}"#,
             r#"proc p "\uD800" {return ${�}}"#,
-            r#"proc p {é é} {return ${é}}"#,
+            r"proc p {é é} {return ${é}}",
             "proc p {é\0} {return ${é}}",
         ] {
             let analysis = analyse(source);

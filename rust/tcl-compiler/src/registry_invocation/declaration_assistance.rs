@@ -1429,7 +1429,7 @@ mod original_alias_source_schema_tests {
         assert_eq!(
             path.as_segments()
                 .iter()
-                .map(|part| part.as_bytes())
+                .map(tcl_core_types::NameBytes::as_bytes)
                 .collect::<Vec<_>>(),
             vec![b"outer".as_slice(), b"child".as_slice()]
         );

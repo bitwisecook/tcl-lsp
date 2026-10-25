@@ -1051,20 +1051,18 @@ impl BodyWalk<'_, '_> {
     #[cfg(test)]
     fn trace_expression_parts(
         expression_span: Span,
-        substitutions: &Option<tcl_syntax::expr::LiveExpressionSubstitutions>,
+        substitutions: Option<&tcl_syntax::expr::LiveExpressionSubstitutions>,
     ) {
         trace_body_inventory(
             "expressions.checked",
             Some(expression_span.start()),
             substitutions.is_some(),
-            substitutions
-                .as_ref()
-                .map_or(0, |parts| parts.commands.len()),
+            substitutions.map_or(0, |parts| parts.commands.len()),
         );
     }
 
     #[cfg(test)]
-    fn trace_expression_child(start: u32, end: u32, walked: &Option<()>) {
+    fn trace_expression_child(start: u32, end: u32, walked: Option<()>) {
         trace_body_inventory(
             "expressions.child",
             Some(start),
@@ -1132,7 +1130,7 @@ impl BodyWalk<'_, '_> {
             let context = self.body_expression_context();
             let substitutions = self.checked_body_expression_substitutions(graph, source, &context);
             #[cfg(test)]
-            Self::trace_expression_parts(expression_span, &substitutions);
+            Self::trace_expression_parts(expression_span, substitutions.as_ref());
             let substitutions = substitutions?;
             // A condition of a selected first-match chain runs once, before any
             // clause body, so its command children are ordered by threading each
@@ -1193,7 +1191,7 @@ impl BodyWalk<'_, '_> {
                 let walked = self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?);
                 self.catalogue_body = parent_catalogue;
                 #[cfg(test)]
-                Self::trace_expression_child(start, end, &walked);
+                Self::trace_expression_child(start, end, walked);
                 walked?;
                 Self::retain_possible_effects(graph, base, branch, advice.original_words());
             }
@@ -2056,7 +2054,7 @@ mod logical_body_inventory_tests {
         assert_eq!(
             words
                 .arguments()
-                .get(0)
+                .first()
                 .and_then(|word| word.literal_bytes()),
             Some(b"set".as_slice())
         );
