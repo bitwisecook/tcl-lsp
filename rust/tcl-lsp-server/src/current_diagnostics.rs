@@ -1751,6 +1751,9 @@ impl Backend {
         {
             return Ok(reports.remove(0));
         }
+        // One typed PendingWrite-only recovery across both publication
+        // attempts: at most three productions, no new deadline or sleep.
+        let mut pending_write_retry_available = true;
         for attempt in 0..2 {
             // A scheduler admission can supersede the captured slot while the
             // provider runs. Recompute once with a fresh receipt; never relabel
@@ -1762,10 +1765,24 @@ impl Backend {
             {
                 return Ok(reports.remove(0));
             }
-            let produced = self
-                .produce_direct_diagnostic_report(uri)
-                .await
-                .map_err(Self::diagnostic_report_unavailable)?;
+            let produced = self.produce_direct_diagnostic_report(uri).await;
+            let produced = if matches!(
+                &produced,
+                Err(DirectDiagnosticProductionFailure::PendingWrite)
+            ) && pending_write_retry_available
+            {
+                pending_write_retry_available = false;
+                if let Ok(mut reports) = self
+                    .current_cached_diagnostic_reports(std::slice::from_ref(uri))
+                    .await?
+                {
+                    return Ok(reports.remove(0));
+                }
+                self.produce_direct_diagnostic_report(uri).await
+            } else {
+                produced
+            }
+            .map_err(|failure| Self::diagnostic_report_unavailable(failure.reason()))?;
             match self.publish_direct_diagnostic_report(uri, produced).await? {
                 Ok(report) => return Ok(report),
                 Err(DiagnosticUnavailable::Stale) if attempt == 0 => {}
@@ -2238,6 +2255,27 @@ impl DiagnosticCacheReceipt {
     }
 }
 
+#[derive(Debug)]
+enum DirectDiagnosticProductionFailure {
+    PendingWrite,
+    Unavailable(DiagnosticUnavailable),
+}
+
+impl From<DiagnosticUnavailable> for DirectDiagnosticProductionFailure {
+    fn from(reason: DiagnosticUnavailable) -> Self {
+        Self::Unavailable(reason)
+    }
+}
+
+impl DirectDiagnosticProductionFailure {
+    fn reason(self) -> DiagnosticUnavailable {
+        match self {
+            Self::PendingWrite => DiagnosticUnavailable::Cancelled,
+            Self::Unavailable(reason) => reason,
+        }
+    }
+}
+
 struct ProducedDirectDiagnosticReport {
     receipt: DiagnosticCacheReceipt,
     diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -2355,7 +2393,7 @@ impl Backend {
     async fn produce_direct_diagnostic_report(
         &self,
         uri: &Uri,
-    ) -> Result<ProducedDirectDiagnosticReport, DiagnosticUnavailable> {
+    ) -> Result<ProducedDirectDiagnosticReport, DirectDiagnosticProductionFailure> {
         self.edits_settled().await;
         let is_open = self
             .documents
@@ -2451,7 +2489,8 @@ impl Backend {
         job: &DiagJob,
         source: &Arc<DiagnosticPass>,
         workspace_sources: &mut Option<Arc<WorkspaceDiagnosticSources>>,
-    ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DiagnosticUnavailable> {
+    ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, DirectDiagnosticProductionFailure>
+    {
         let analysis_text = tcl_lexer::normalise_lone_cr(&job.text);
         let profile = tcl_lsp_core::profile_for_dialect(&job.dialect);
         let salsa_ctx = SalsaAnalysisCtx {
@@ -2483,47 +2522,62 @@ impl Backend {
             provider_capture: &path.provider_capture,
             prefer: path.package_prefer,
         };
-        let base = Box::pin(compute_base_analysis(
+        let cancellations =
+            super::diagnostic_read_cancellation::DiagnosticReadCancellations::default();
+        let base = Box::pin(super::compute_base_analysis_with_read_cancellations(
             &inputs.client,
             &salsa_ctx,
             &inputs.disabled,
             &inputs.extra_commands,
             inputs.non_ascii_mode,
             &recovery,
+            Some(&cancellations),
         ));
         let project = if path.cross_file_resolution {
             *path.db_project.lock().await
         } else {
             None
         };
-        let produced = match Box::pin(compute_deep_diagnostic_report(
-            uri,
-            &self.documents,
-            &salsa_ctx,
-            &lift,
-            &path,
-            project,
-            base,
-        ))
+        let produced = match Box::pin(
+            super::compute_deep_diagnostic_report_with_read_cancellations(
+                uri,
+                &self.documents,
+                &salsa_ctx,
+                &lift,
+                &path,
+                project,
+                (base, Some(&cancellations)),
+            ),
+        )
         .await
         {
             ControlFlow::Continue(produced) => produced,
-            ControlFlow::Break((_, reason)) => return Err(reason),
+            ControlFlow::Break((_, reason)) => {
+                return Err(
+                    if reason == DiagnosticUnavailable::Cancelled
+                        && cancellations.pending_write_only()
+                    {
+                        DirectDiagnosticProductionFailure::PendingWrite
+                    } else {
+                        reason.into()
+                    },
+                );
+            }
         };
         produced.provider_completion?;
         if !produced
             .provider_sources
             .is_current(&*inputs.package_resolver.read().await)
         {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(DiagnosticUnavailable::Stale.into());
         }
         if !source.matches_completed_analysis(&produced.analysis) {
-            return Err(DiagnosticUnavailable::Context);
+            return Err(DiagnosticUnavailable::Context.into());
         }
         *workspace_sources = Some(Arc::clone(&produced.workspace_sources));
-        produced
-            .result
-            .map_err(|_| DiagnosticUnavailable::ProviderError)
+        produced.result.map_err(|_| {
+            DirectDiagnosticProductionFailure::Unavailable(DiagnosticUnavailable::ProviderError)
+        })
     }
 }
 
