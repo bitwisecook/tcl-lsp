@@ -3861,8 +3861,9 @@ mod conditional_declared_read_point_tests {
 
     #[test]
     fn logical_missing_layout_does_not_override_corrupt_reached_point_metadata() {
+        // Literal argv retains an evaluated dispatch point to corrupt.
         let fixture = Fixture::new(
-            "proc p {} {set anchor 1; puts $missing}",
+            "proc p {} {set anchor 1; puts literal}",
             "set anchor",
             "puts",
         );
