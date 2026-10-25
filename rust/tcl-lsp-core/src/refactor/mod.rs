@@ -367,6 +367,19 @@ impl<'a> FrameWalk<'a> {
         )
     }
 
+    /// Actual quiet-store evidence remains distinct from syntax-only roles.
+    pub(crate) fn quiet_store_for_rename_coverage(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+        tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
+            source,
+            self.analysis,
+            &self.tokens(source, command),
+        )
+    }
+
     /// Deferred declaration geometry under its own original source lookup.
     /// The returned body is surveyed separately; no caller frame is inherited.
     pub(crate) fn procedure_declaration_for_rename_coverage(

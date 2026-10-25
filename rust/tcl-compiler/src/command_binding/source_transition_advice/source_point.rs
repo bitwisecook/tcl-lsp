@@ -292,6 +292,54 @@ fn normal_source_variable_point_is_closed(
     true
 }
 
+impl crate::command_binding::SourceCommandBindings {
+    /// Source coverage borrows the original quiet-store kernel at every actual
+    /// retained point. This creates neither a Normal query nor a new outcome.
+    pub(crate) fn original_quiet_scalar_store_for_source_coverage(
+        &self,
+        native: &[NativeWord],
+        facts: &tcl_registry::InvocationFacts,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        if !normal_source_variable_effects_bounded(facts)
+            || !native.iter().all(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some()
+            })
+        {
+            return false;
+        }
+        let (Some(origin), Some(first)) = (self.source_origin(), native.first()) else {
+            return false;
+        };
+        let site = CommandAllocationSite {
+            source: Arc::clone(origin),
+            offset: first.span().start(),
+        };
+        let Some(operands) = self
+            .original_variable_invocations
+            .get(&site)
+            .and_then(Option::as_deref)
+        else {
+            return false;
+        };
+        let mut seen = false;
+        for point in self.dispatch_points_at(site.offset) {
+            seen = true;
+            if !normal_source_variable_point_is_closed(
+                point,
+                native,
+                origin,
+                operands,
+                registry,
+                &facts.canonical_command,
+            ) {
+                return false;
+            }
+        }
+        seen
+    }
+}
+
 impl AdviceInvocationContext<'_> {
     /// Refine an otherwise unknown identity transition only for this genuine
     /// normal-outcome query. The existing quiet-write owner closes callbacks;
