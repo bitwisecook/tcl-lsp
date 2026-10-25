@@ -507,7 +507,7 @@ fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_
                     let members = original.cached_list_representation().unwrap().0;
                     let member = members.elements().unwrap()[0].native_lifetime_lease();
                     let references = member.value().native_object_reference_count();
-                    let queried = vm.invoke_host_original_object_vector(
+                    let host_result = vm.invoke_host_original_object_vector(
                         &Value::string("namespace"),
                         &[
                             Value::string("ensemble"),
@@ -516,8 +516,8 @@ fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_
                             Value::string(option),
                         ],
                     );
-                    assert_eq!(queried.code, crate::Code::Ok);
-                    assert!(queried.result.is_same_object(&original));
+                    assert_eq!(host_result.code, crate::Code::Ok);
+                    assert!(host_result.result.is_same_object(&original));
                     let after = original.cached_list_representation().unwrap().0;
                     assert!(after.elements().unwrap()[0].is_same_object(member.value()));
                     assert_eq!(member.value().native_object_reference_count(), references);
@@ -573,7 +573,7 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
                 assert!(vm.execution_refusal.is_some());
             } else {
                 assert_eq!(configured.code, crate::Code::Ok);
-                let queried = vm.invoke_host_original_object_vector(
+                let host_result = vm.invoke_host_original_object_vector(
                     &Value::string("namespace"),
                     &[
                         Value::string("ensemble"),
@@ -582,8 +582,8 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
                         Value::string("-map"),
                     ],
                 );
-                assert_eq!(queried.code, crate::Code::Ok);
-                assert!(queried.result.is_same_object(&original));
+                assert_eq!(host_result.code, crate::Code::Ok);
+                assert!(host_result.result.is_same_object(&original));
                 let def = token.config();
                 assert_eq!(def.map[0].0.as_bytes(), b"42");
                 assert_eq!(

@@ -60,11 +60,10 @@ fn entry(vm: &mut Vm) -> NativeCompilationEntry {
     let retained = Rc::new(RefCell::new(None));
     vm.set_compiler(Box::new(Capture(Rc::clone(&retained))));
     assert!(vm.try_compile_function("set bootstrap_probe 1").is_err());
-    let actual = retained
+    retained
         .borrow_mut()
         .take()
-        .expect("actual compilation ingress");
-    actual
+        .expect("actual compilation ingress")
 }
 fn original(vm: &Vm) -> Option<OoId> {
     vm.oo

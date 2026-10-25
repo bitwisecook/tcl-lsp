@@ -130,7 +130,7 @@ fn original_callback_host_cause_stops_later_rows_and_restores_the_real_result() 
         assert!(vm.active_traces.is_empty());
         assert!(!vm.has_entered_native_operation());
         vm.with_native_interp_result(|result| {
-            assert_eq!(result.native_object_identity(), identity)
+            assert_eq!(result.native_object_identity(), identity);
         })
         .unwrap();
         assert_eq!(Traces::fire(&mut vm, "x", "read").unwrap_err(), first());
@@ -178,7 +178,7 @@ fn original_callback_host_aba_keeps_reached_effects_without_a_later_observer() {
         assert_eq!(*reached.borrow(), [2]);
         assert_eq!(vm.execution_refusal, Some(refusal));
         vm.with_native_interp_result(|result| {
-            assert_eq!(result.native_object_identity(), identity)
+            assert_eq!(result.native_object_identity(), identity);
         })
         .unwrap();
         assert!(vm.active_traces.is_empty());
@@ -369,7 +369,7 @@ fn original_saved_trace_currency_is_descriptive_until_same_target_mandatory_clea
             let child_identity = before_child.result.native_object_identity();
             vm.restore_native_interp_trace_result(saved).unwrap();
             vm.with_native_interp_result(|result| {
-                assert_eq!(result.native_object_identity(), child_identity)
+                assert_eq!(result.native_object_identity(), child_identity);
             })
             .unwrap();
             let original = vm.st_of(parent).unwrap();
@@ -385,7 +385,7 @@ fn original_saved_trace_currency_is_descriptive_until_same_target_mandatory_clea
             assert!(!vm.has_entered_native_operation());
         });
         vm.with_native_interp_result(|result| {
-            assert_eq!(result.native_object_identity(), identity)
+            assert_eq!(result.native_object_identity(), identity);
         })
         .unwrap();
         assert!(vm.execution_refusal.is_none());
@@ -414,7 +414,7 @@ fn original_saved_trace_cleanup_keeps_changed_currency_and_refuses_foreign_targe
             assert!(other.restore_native_interp_trace_result(saved).is_err());
             other
                 .with_native_interp_result(|result| {
-                    assert!(result.is_same_object(&untouched.result))
+                    assert!(result.is_same_object(&untouched.result));
                 })
                 .unwrap();
             assert!(vm.execution_refusal.is_none());

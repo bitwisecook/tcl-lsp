@@ -67,7 +67,7 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
             assert!(
                 vm.native_invocation_dialect()
                     .native_name_protocol()
-                    .is_some_and(|protocol| protocol.is_jim084()),
+                    .is_some_and(tcl_syntax::naming::NativeNameProtocol::is_jim084),
                 "{context}: actual selected Jim recipe"
             );
         }

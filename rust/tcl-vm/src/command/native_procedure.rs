@@ -528,7 +528,7 @@ mod tests {
             |procedure| {
                 procedure.statics = Some(
                     crate::vars::VarArena::default().retain_statics(crate::vars::VarTable::new()),
-                )
+                );
             },
             |procedure| procedure.call_identity = Some(vec![Value::string("method")]),
             |procedure| procedure.usage_name = Some(vec![Value::string("object method")]),

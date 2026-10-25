@@ -135,9 +135,8 @@ fn original_property_report_sort_uses_canonical_string_and_actual_member_roles()
             "metadata and actual report member, no Native reference from the lease"
         );
         if fail {
-            let error = match reached {
-                Ok(_) => panic!("formatter refusal must stop report publication"),
-                Err(error) => error,
+            let Err(error) = reached else {
+                panic!("formatter refusal must stop report publication");
             };
             let first = vm.execution_refusal.clone().unwrap();
             assert_eq!(error.native_execution_refusal(), Some(&first));
@@ -445,7 +444,7 @@ fn original_property_temporary_table_does_not_reread_its_frozen_member_strings()
             .unwrap()
             .words
             .iter()
-            .map(|word| word.as_ref())
+            .map(std::convert::AsRef::as_ref)
             .collect::<Vec<_>>(),
         vec![b"-a".as_slice(), b"-z".as_slice()]
     );

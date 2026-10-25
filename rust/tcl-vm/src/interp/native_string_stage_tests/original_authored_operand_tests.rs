@@ -202,7 +202,7 @@ fn original_authored_operand_successful_formatter_frame_change_stops_cache_adopt
             crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
                 &mut vm.borrow_mut(),
                 &error.clone().into(),
-            )
+            );
         },
     );
     assert!(reached.is_err());

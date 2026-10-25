@@ -1133,7 +1133,7 @@ mod tests {
             .resolve_interp_path_original(&Value::string("Child539"))
             .unwrap();
         vm.in_interp(selected, |child| {
-            child.note_library_loaded("CHILD539", "Child539")
+            child.note_library_loaded("CHILD539", "Child539");
         });
         assert_eq!(
             vm.loaded_libraries_in(vm.cur_interp()).unwrap(),
