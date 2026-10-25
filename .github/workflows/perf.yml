@@ -1147,6 +1147,7 @@ jobs:
           name: lsp-startup-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/lsp-startup-output/*.json
+            ${{ runner.temp }}/lsp-startup-output/server-payload
             ${{ runner.temp }}/lsp-startup-output/*.stdout
             ${{ runner.temp }}/lsp-startup-output/*.stderr
             ${{ runner.temp }}/lsp-startup-output/typical/measurement.json
