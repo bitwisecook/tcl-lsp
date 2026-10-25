@@ -560,6 +560,35 @@ mod tests {
         assert_eq!(output.transcript.stderr.as_slice(), b"");
         assert!(output.rewritten_source.contains("puts 2"));
         assert!(output.rewritten_source.contains("puts 1"));
+        owned_test_worker(|| {
+            let (_, registry) = test_plan();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+            for (source, stdout) in [
+                (
+                    "set x 7; puts [expr {$x - 3}]; puts $x",
+                    b"4\n7\n".as_slice(),
+                ),
+                (
+                    "set x 7; puts [expr {$x * 3}]; puts $x",
+                    b"21\n7\n".as_slice(),
+                ),
+                (
+                    "set x 7; puts [expr {($x - 3) * ($x + 2)}]; puts $x",
+                    b"36\n7\n".as_slice(),
+                ),
+            ] {
+                let plan = prepare_closed_source(source, &registry, profile).unwrap();
+                let owner = ClosedNativeConsumerOwner::new(
+                    PrivateBackend::new(&plan, &registry, profile).unwrap(),
+                )
+                .unwrap();
+                let selection = owner.scope().unwrap().select(source.into()).unwrap();
+                let output = owner.execute(selection).unwrap();
+                assert_eq!(output.transcript.stdout, stdout);
+                assert!(output.transcript.stderr.is_empty());
+            }
+        });
     }
 
     #[test]
@@ -584,7 +613,11 @@ mod tests {
 
     #[test]
     fn arithmetic_and_output_bounds_refuse_before_publication() {
-        for source in ["puts [expr {1000000 * 1000000}]", "puts [expr {1.0 + 1}]"] {
+        for source in [
+            "puts [expr {1000000 * 1000000}]",
+            "puts [expr {1.0 + 1}]",
+            "set x 1000000; puts [expr {($x + 1) - 1}]",
+        ] {
             assert!(
                 execute_optimised_closed_source(source.into(), tcl_dialect::TclVersion::V8_6)
                     .is_err()

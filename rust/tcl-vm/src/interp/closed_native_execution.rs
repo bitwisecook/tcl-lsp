@@ -265,6 +265,9 @@ fn check_function(function: &FunctionAsm, body: bool) -> Result<(), ClosedSource
                 | Op::PUSH4
                 | Op::POP
                 | Op::DUP
+                | Op::ADD
+                | Op::SUB
+                | Op::MULT
                 | Op::LOAD_STK
                 | Op::LOAD_SCALAR_STK
                 | Op::INVOKE_STK1
