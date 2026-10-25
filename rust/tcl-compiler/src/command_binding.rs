@@ -4218,6 +4218,8 @@ enum SourceBodyEntryPurpose {
 
 #[derive(Clone, Copy)]
 struct SourceExecutionContext<'a> {
+    original_logical_body:
+        Option<&'a declaration_preview::logical_body_entry::OriginalLogicalBodyEntry>,
     source_purpose: tcl_lexer::SourceSegmentationPurpose,
     body_entry: SourceBodyEntryPurpose,
     realm: tcl_dialect::model::InvocationRealm,
@@ -4826,6 +4828,7 @@ fn root_source_execution_context<'a>(
     source_purpose: tcl_lexer::SourceSegmentationPurpose,
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
+        original_logical_body: None,
         body_entry: if options.source_point_entry.is_some() {
             SourceBodyEntryPurpose::Conditional
         } else {
@@ -7366,6 +7369,7 @@ impl SourceCommandBindings {
         self.analyse_called_declaration_results(incoming, config, registry);
         self.retain_called_receiver_source_catalogues(incoming, config, registry);
         self.retain_uninstalled_declaration_body_layouts(registry);
+        self.analyse_logical_declared_body_entries(incoming, config, registry);
         self.retain_called_static_declaration_layouts(incoming, config, registry);
     }
 
@@ -7542,6 +7546,7 @@ impl SourceCommandBindings {
             root.offset,
             &mut branch,
             &SourceExecutionContext {
+                original_logical_body: None,
                 body_entry: if after_load {
                     SourceBodyEntryPurpose::Selected
                 } else {
@@ -8480,6 +8485,7 @@ impl SourceCommandBindings {
             source_base,
             &mut state,
             &SourceExecutionContext {
+                original_logical_body: None,
                 body_entry: SourceBodyEntryPurpose::Selected,
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm,
@@ -17252,6 +17258,7 @@ fn interpret_binding_source(
         offset,
         &mut post,
         &SourceExecutionContext {
+            original_logical_body: None,
             body_entry: SourceBodyEntryPurpose::Conditional,
             source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: bindings.baseline.invocation_realm,

@@ -2206,6 +2206,7 @@ mod tests {
             let frame = actual.variable_frame.clone();
             let namespace = frame.namespace_identity().cloned();
             let context = SourceExecutionContext {
+                original_logical_body: None,
                 body_entry: crate::command_binding::SourceBodyEntryPurpose::Selected,
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: tcl_dialect::model::InvocationRealm::default(),
