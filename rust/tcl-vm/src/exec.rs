@@ -6521,15 +6521,31 @@ impl Vm {
             // `index < 0 || index >= slength` test yields the empty string. The
             // old `resolve_index(...).and_then(...)` chain collapsed both into
             // the empty string, so a garbage index looked like a miss.
-            Op::STR_INDEX if instr.native_switch_version.is_some() => {
+            Op::STR_INDEX
+                if instr.native_switch_version.is_some()
+                    || instr.native_string_index_purpose.is_some() =>
+            {
                 let index = pop(f);
                 let subject = pop(f);
-                let result = try_core!(tcl_cmd_core::string::compiled_index(
-                    self,
-                    &subject,
-                    &index,
-                    instr.native_switch_version.unwrap(),
-                ));
+                let result = try_core!(match (
+                    instr.native_switch_version,
+                    instr.native_string_index_purpose,
+                ) {
+                    (
+                        Some(version),
+                        Some(tcl_bytecode::NativeStringIndexPurpose::RegisteredInstruction),
+                    ) => tcl_cmd_core::string::registered_index_instruction(
+                        self, &subject, &index, version
+                    ),
+                    (
+                        Some(version),
+                        Some(tcl_bytecode::NativeStringIndexPurpose::ReachedNamespaceUnicode),
+                    ) => tcl_cmd_core::string::compiled_index(self, &subject, &index, version),
+                    _ => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native String index instruction purpose",
+                    )
+                    .into()),
+                });
                 f.stack.push(result);
             }
             Op::STR_INDEX => {

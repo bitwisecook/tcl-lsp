@@ -136,6 +136,110 @@ pub fn compiled_tail<O: NativeIndexOps>(
     })
 }
 
+/// Execute original `INST_STR_INDEX` from its own checked operand ingress.
+/// The namespace instruction retains its independent reached-Unicode consumer.
+/// This execution helper grants no compiler registration or erasure authority.
+///
+/// # Errors
+/// Refuses a foreign producer or unavailable original storage, getter or result.
+pub fn registered_index_instruction<O: NativeIndexOps>(
+    ops: &mut O,
+    subject: &O::Value,
+    operand: &O::Value,
+    version: TclVersion,
+) -> Result<O::Value, CmdError> {
+    index::run_created_index_result(ops, |ops| {
+        if ops.index_c_version() != Some(version)
+            || ops
+                .name_policy_protocol()
+                .is_none_or(|policy| policy.string_protocol() != NativeStringProtocol::C(version))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "registered String index instruction protocol",
+            )
+            .into());
+        }
+        // C84/85 save the original binary pointer before the index getter.
+        let captured = if version <= TclVersion::V8_5 {
+            ops.index_c_instruction_binary(subject, version)?
+        } else {
+            None
+        };
+        let length = match &captured {
+            Some((_, bytes)) => bytes.len(),
+            None => ops.index_character_count(subject)?,
+        };
+        let index = index::resolve_value(ops, operand, length)?;
+        let Ok(index) = usize::try_from(index) else {
+            return Ok(ops.empty());
+        };
+        if index >= length {
+            return Ok(ops.empty());
+        }
+        if let Some((_, current)) = ops.index_c_select_binary(subject, version)? {
+            let bytes = if version <= TclVersion::V8_5 {
+                let Some((receipt, original)) = &captured else {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "compiled index original captured binary storage",
+                    )
+                    .into());
+                };
+                ops.index_c_check_binary_storage(subject, receipt)?;
+                original
+            } else {
+                &current
+            };
+            let byte = bytes
+                .get(index)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "compiled index selected binary extent",
+                ))?;
+            return ops.index_c_binary_result(std::rc::Rc::from([*byte]));
+        }
+        // The VM's one-byte branch reads the current resident extent without
+        // forcing a new String primary after the index getter has shimmered it.
+        if let Some(bytes) = ops.native_object_snapshot(subject)?.resident
+            && bytes.len() == length
+        {
+            return Ok(ops.new_bytes(&bytes[index..index + 1]));
+        }
+        let units = ops.index_c_unicode_units(subject)?;
+        let Some(&unit) = units.get(index) else {
+            return Ok(ops.empty());
+        };
+        let selected = if version == TclVersion::V8_6 {
+            // TclGetUCS4 suppresses the trailing half and selects both units
+            // of a reached pair; TclUCS4ToUtf writes their native C8 encoding.
+            if (0xdc00..=0xdfff).contains(&unit)
+                && index > 0
+                && (0xd800..=0xdbff).contains(&units[index - 1])
+            {
+                return Ok(ops.empty());
+            }
+            if (0xd800..=0xdbff).contains(&unit)
+                && units
+                    .get(index + 1)
+                    .is_some_and(|next| (0xdc00..=0xdfff).contains(next))
+            {
+                &units[index..index + 2]
+            } else {
+                &units[index..index + 1]
+            }
+        } else {
+            if version >= TclVersion::V9_0 && unit == u32::MAX {
+                return Ok(ops.empty());
+            }
+            &units[index..index + 1]
+        };
+        let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+            .encode_units(selected)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "compiled index native unit width",
+            ))?;
+        Ok(ops.new_bytes(&bytes))
+    })
+}
+
 /// Execute the reached original character-index branch. Counted one-byte
 /// resident units retain their original byte; other units use the same native
 /// UTF encoder and a fresh byte-backed result.
