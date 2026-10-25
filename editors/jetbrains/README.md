@@ -12,11 +12,6 @@ matching your machine. No Python, runtime, or interpreter is needed.
 
 See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
-> The platform's LSP API reaches the free editions in 2025.3. The plugin still
-> declares `com.intellij.modules.ultimate`, so dropping that dependency — and
-> with it the paid-IDE requirement — is a separate change from raising the
-> build floor to 2025.3.
-
 ## Features
 
 Everything the IDE's LSP client asks for is supported:
@@ -153,6 +148,16 @@ The plugin source lives in `editors/jetbrains/`. It uses:
 - **TextMate** grammar (shared with VS Code), contributed through
   `com.intellij.textmate.bundleProvider`
 - **JCEF** browser for the Compiler Explorer webview
+
+The plugin compiles against IntelliJ IDEA Ultimate 2025.3 and uses the running
+IDE's LSP capabilities. The `LspServer*` APIs remain necessary at that support
+floor; their `LspClient*` replacements are unavailable in 2025.3. Diagnostic
+messages are read through the platform customiser so the same binary works
+with the supported LSP4J versions.
+
+Kotlin uses `JvmDefaultMode.NO_COMPATIBILITY` to inherit platform interface
+defaults directly. The compatibility tests check that tool-window factories
+and the status widget do not generate forwarding calls to deprecated defaults.
 
 ```bash
 # Build independently with Gradle

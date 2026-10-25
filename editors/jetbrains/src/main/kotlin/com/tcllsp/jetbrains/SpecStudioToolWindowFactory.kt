@@ -108,9 +108,8 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
     private val webviewLoaded = AtomicBoolean(false)
 
     /**
-     * Pins wait for the lazily-started server on independent pooled tasks.
-     * Claim a generation before dispatch and recheck under the send lock to
-     * drop waiting requests superseded by a newer dialect selection.
+     * Generation of the current sample-dialect selection. Pooled tasks check
+     * this before sending so only the newest selection reaches the server.
      */
     private val dialectPinGeneration = AtomicLong()
 
