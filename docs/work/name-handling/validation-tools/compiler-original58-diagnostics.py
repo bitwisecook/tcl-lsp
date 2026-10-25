@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "354758c92f4a3184a4f16f9b2d949928f0e79da5f55b695a7fe88bcca2c5dc19",
+    == "64366e6551945579dc371486d5708ae333b91f83b1de7cb9d4031a2e8b77cb74",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -1276,7 +1276,7 @@ require(
 )
 require(
     sha(BASE / "compiler-source-read-ancestry3.json")
-    == "6850e925765149bc22707d6dc2f666b8f4315f62bb04cba9f679567d1a40d91a",
+    == "91e5729816649039b257c434716c493be3fd42c2d505b78559c6ed37033a4f7f",
     "exact separate ancestry3 roster",
 )
 ancestry_validation = json.loads(
