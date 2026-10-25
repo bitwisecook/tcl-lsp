@@ -179,10 +179,10 @@
   "scope": "Prospective separate closed-consumer16 controls after all unchanged original65+taint2 executions; all initial UNRUN. Does not replace any baseline/gate/performance evidence. Three extra native unit artifacts freshly built/listed in original target pipeline; tests reuse the existing owned executor and shared aggregate/time/floor/provider/source guards.",
   "source_pins": {
     "rust/tcl-compiler/src/optimiser/closed_consumer.rs": "f9571d7e7369b91d2597ba395931d2a93e349c3074254f74d12204179d0b2ca3",
-    "rust/tcl-engine-tclvm/src/closed_native_execution.rs": "94a2572d98b5bbd0474528786a625acd03845c97a7b09dde0f40c471c1bb9276",
+    "rust/tcl-engine-tclvm/src/closed_native_execution.rs": "21376983c0b5f8700ec7a0a60d92586bc8e5cb8e2b2ab6288fc3b29d8596644f",
     "rust/tcl-registry/src/pack_hooks.rs": "f0702d3a33eb3441d37eaaddbe3a13436a8ea2ab8aefbf3bd0693247709efd3a",
     "rust/tcl-runtime-api/src/diagnostic_output.rs": "eb0b6ba4c58717983f3dc6c982cd9ae1511c63db0bba520212dcfbc5354c3548",
     "rust/tcl-runtime-api/src/native_literal.rs": "4d81bce032a151aa6c0fbb8caa7d6a3c290c4dab1959fcc9e88c4b7899e5610b",
-    "rust/tcl-vm/src/interp/closed_native_execution.rs": "a4102af51c77f5065bcaab57ee756b7e02c8df48f02b1a23fa9a70ce77de6b7c"
+    "rust/tcl-vm/src/interp/closed_native_execution.rs": "c0bd9482eed2b2324cbfad45e1ca2abdff710ca93a6970deeaaf4c153537a64f"
   }
 }
