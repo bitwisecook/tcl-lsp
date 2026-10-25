@@ -858,8 +858,13 @@ impl ResolvedContext {
     /// authoring query.
     fn spec_available_under(&self, spec: &CommandSpec, query: SurfaceQuery<'_>) -> bool {
         crate::irules_policy::runtime_surface_admits(spec, query)
-            && (self.operator_heads_are_commands()
-                || !spec.traits.contains(Traits::OPERATOR_COMMAND))
+            && self.spec_available_after_surface(spec)
+    }
+
+    /// The remaining context filters after this exact spec and query have
+    /// passed `CommandRegistry::get_for_surface`'s surface admission.
+    fn spec_available_after_surface(&self, spec: &CommandSpec) -> bool {
+        (self.operator_heads_are_commands() || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && self.required_package_available(spec.required_package)
     }
 
@@ -912,7 +917,7 @@ impl ResolvedContext {
     ) -> Option<&'static CommandSpec> {
         let query = self.authoring_query().with_realm(realm);
         registry.get_for_surface(name, Some(query)).filter(|spec| {
-            self.spec_available_under(spec, query) && self.roster_admits(spec, &query)
+            self.spec_available_after_surface(spec) && self.roster_admits(spec, &query)
         })
     }
 
@@ -1875,6 +1880,81 @@ mod tests {
             ..CommandSpec::DEFAULT
         })
         .into_vec()
+    }
+
+    #[test]
+    fn selected_surface_reuses_the_same_admission_without_changing_resolution() {
+        use tcl_dialect::model::InvocationRealm;
+        let registry = crate::model::assembly::universe();
+        let mut checks = 0usize;
+        for profile in tcl_dialect::DialectProfile::all() {
+            let ctx = context(profile.name);
+            for realm in [
+                InvocationRealm::RuleLoader,
+                InvocationRealm::InterpreterRuntime,
+            ] {
+                let query = ctx.authoring_query().with_realm(realm);
+                for name in registry
+                    .command_names()
+                    .chain(std::iter::once("not_a_surface_command"))
+                {
+                    for spelling in [name.to_owned(), format!("::{name}")] {
+                        let selected = registry.get_for_surface(&spelling, Some(query));
+                        if let Some(spec) = selected {
+                            assert!(crate::irules_policy::runtime_surface_admits(spec, query));
+                        }
+                        let full = selected.filter(|spec| {
+                            ctx.spec_available_under(spec, query) && ctx.roster_admits(spec, &query)
+                        });
+                        let actual = ctx.resolve_spec_in_realm(registry, &spelling, realm);
+                        assert!(
+                            match (full, actual) {
+                                (Some(left), Some(right)) => std::ptr::eq(left, right),
+                                (None, None) => true,
+                                _ => false,
+                            },
+                            "profile={} realm={realm:?} name={spelling}",
+                            profile.name
+                        );
+                        checks += 1;
+                    }
+                }
+            }
+        }
+        assert!(checks > 1000);
+    }
+
+    #[test]
+    fn selected_surface_still_refuses_missing_package_without_wider_fallback() {
+        let mut registry = CommandRegistry::build_default();
+        for (surface, required_package) in [(None, None), (Some(SpecSurface::TCL86), Some("Tk"))] {
+            registry.insert(CommandSpec {
+                name: "post-surface-package-control",
+                surface,
+                required_package,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let older = context("tcl8.6");
+        let newer = context("tcl9.0");
+        for name in [
+            "post-surface-package-control",
+            "::post-surface-package-control",
+        ] {
+            let winner = registry
+                .get_for_surface(name, Some(older.authoring_query()))
+                .unwrap();
+            assert_eq!(winner.required_package, Some("Tk"));
+            assert!(!older.spec_available(winner));
+            assert!(older.resolve_spec(&registry, name).is_none());
+            assert_eq!(
+                newer
+                    .resolve_spec(&registry, name)
+                    .unwrap()
+                    .required_package,
+                None
+            );
+        }
     }
 
     #[test]
