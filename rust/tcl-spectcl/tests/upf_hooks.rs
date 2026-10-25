@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Every executable hook body the shipped UPF pack declares, run on the
-//! production host (`tclvm_host`, the TclVM engine) through the production
+//! production host (`tclvm_host`, the `TclVM` engine) through the production
 //! plan (`hooks::plan_for` over the bundled `specs/` set), each with the
 //! answers its body is written to give.
 //!

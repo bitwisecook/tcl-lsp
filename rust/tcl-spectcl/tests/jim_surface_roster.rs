@@ -220,7 +220,7 @@ fn an_exact_rooted_descriptor_keeps_its_own_inherited_roster_key() {
         registry
             .get_for_surface("::if", Some(context.authoring_query()))
             .unwrap(),
-        &ROOTED_IF,
+        &raw const ROOTED_IF,
     ));
     assert!(
         context

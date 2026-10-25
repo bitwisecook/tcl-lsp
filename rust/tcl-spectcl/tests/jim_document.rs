@@ -556,7 +556,7 @@ fn authored_jim_dictionary_and_odd_shape_use_the_original_list_fields() {
                 .variable_fields()
                 .unwrap()
                 .iter()
-                .map(|field| field.value())
+                .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
                 .collect::<Vec<_>>(),
             ["x", "0", "y", "0"]
         );
@@ -593,7 +593,7 @@ fn authored_jim_bases_join_the_source_provider_at_the_original_parent() {
                 .base_fields()
                 .unwrap()
                 .iter()
-                .map(|field| field.value())
+                .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
                 .collect::<Vec<_>>(),
             ["Point"]
         );

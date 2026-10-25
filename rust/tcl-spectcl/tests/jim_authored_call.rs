@@ -30,7 +30,7 @@ fn an_authored_call_retains_its_original_class_without_native_identity() {
                 .variable_fields()
                 .unwrap()
                 .iter()
-                .map(|field| field.value())
+                .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
                 .collect::<Vec<_>>(),
             ["x", "0", "y", "0"]
         );

@@ -28,11 +28,15 @@ use std::cell::RefCell;
 
 use tcl_vm::{Value, Vm};
 
+fn empty_thread_exit_holder() -> RefCell<Option<Vm>> {
+    RefCell::new(None)
+}
+
 thread_local! {
     // Not `const`-initialised: its destructor registers on first access, so
     // touching it before the VM exists makes it outlive (drop after) every
     // thread-local the VM registers later.
-    static HOLDER: RefCell<Option<Vm>> = RefCell::new(None);
+    static HOLDER: RefCell<Option<Vm>> = empty_thread_exit_holder();
 }
 
 /// Native values inside a VM, nested deep enough that retiring them goes
