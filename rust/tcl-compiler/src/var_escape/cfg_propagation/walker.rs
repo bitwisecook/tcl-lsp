@@ -906,7 +906,7 @@ mod tests {
             Some(tokens),
             &mut state,
             &HashMap::new(),
-            &registry
+            registry
         ));
         assert!(state.dynamic_barrier());
         assert!(state.ssa_tags.contains_key(&("protected".to_owned(), 0)));

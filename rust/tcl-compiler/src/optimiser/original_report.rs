@@ -716,7 +716,7 @@ mod tests {
             assert!(old_taint.matches_current(&first, registry, dialect));
             install_host(std::rc::Rc::new(AbstainHost));
             let (unit, current) = build();
-            assert!(first == current);
+            assert_eq!(first, current);
             let fresh_body = current.original_body_optimiser_report(registry, dialect);
             let fresh_taint = current.original_interproc_taint_report(registry, dialect);
             assert!(fresh_body.issued);

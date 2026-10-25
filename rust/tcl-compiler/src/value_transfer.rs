@@ -10837,7 +10837,7 @@ mod original_child_script_purpose_tests {
             let ran = driver
                 .run_script(
                     script,
-                    (&uses, &values, &ssa),
+                    (&uses, &values, ssa),
                     (Vec::new(), NestedPolicy::EffectFreeOnly),
                     Some(original),
                 )
@@ -10848,7 +10848,7 @@ mod original_child_script_purpose_tests {
                 driver
                     .run_script(
                         "list VALUE",
-                        (&uses, &values, &ssa),
+                        (&uses, &values, ssa),
                         (Vec::new(), NestedPolicy::EffectFreeOnly),
                         Some(original)
                     )
@@ -10859,13 +10859,13 @@ mod original_child_script_purpose_tests {
             driver
                 .run_script(
                     script,
-                    (&uses, &values, &ssa),
+                    (&uses, &values, ssa),
                     (Vec::new(), NestedPolicy::EffectFreeOnly),
                     None
                 )
                 .is_none()
         );
-        let inputs = driver.expression_inputs((&uses, &values, &ssa));
+        let inputs = driver.expression_inputs((&uses, &values, ssa));
         *inputs.nested_source.borrow_mut() = Some(body.clone());
         let mut state = EvaluationState::new(NestedPolicy::Protected);
         assert!(matches!(
