@@ -41,7 +41,7 @@
     "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",
     "rust/tcl-spectcl/tests/native_normal_store.rs": "2fa0e2318392a2f286d0ecdc7e6b6b2899a2907fd1affa7292b5ae8791de145b",
     "rust/tcl-spectcl/tests/pack_source_e2e.rs": "1a8d3e0b82f840bf01793c20e6b078a4a3e8652fbbfbcb319991cf1dd1fc20f5",
-    "rust/tcl-spectcl/tests/spec_corpus.rs": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "631b609009a6f6d5a8a5530da97da5d4b0fb7f6bc8b4bd95087636ba55a83636",
     "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "6bccd65eebd581b94f19517331eec6b793ce1db463a669b4091cd2f4cd138f25",
     "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
     "rust/tcl-vm/Cargo.toml": "f19deb2d6ef6290c11824326a05c37b2e5e0ea79b166a9c24183e9219d6fc732",
@@ -53,7 +53,10 @@
     "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
     "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
     "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
-    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4"
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
+    "samples/wasm/t0-straight-line/01_string_interp.tcl": "27b384c56b23d56e2039f9934839f95e0cd4888503f19b455337e03148af7b8a",
+    "samples/diagnostics/W102_subst_injection/example.tcl": "4f88d2bf5f94ad8656366223e1b34292a51631d47beac15806779ea145e3855c",
+    "samples/for_screenshots/07-formatting-side-by-side.tcl": "4efec3442af3803acbb2da3ea71ea68b19094d3fc83d05d063cda1021028af37"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -73,6 +76,14 @@
   "full_corpus_budget": {
     "listing_seconds": 180,
     "test_seconds": 600,
+    "cleanup_seconds": 25
+  },
+  "string_first_gates": [
+    "shipped_string_pack_replays_actual_corpus_first_gates"
+  ],
+  "string_first_gates_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 180,
     "cleanup_seconds": 25
   }
 }
