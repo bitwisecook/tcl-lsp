@@ -1366,4 +1366,5 @@ fn actual_compiled_procedure_rejects_foreign_modified_and_retired_custody() {
 #[test]
 fn declaration_only_and_refused_body_compilation_issue_no_compiled_fixture() {
     native_compiled_fixture::assert_declaration_and_refusal_boundaries();
+    native_compiled_fixture::assert_dispatched_binding_boundaries();
 }
