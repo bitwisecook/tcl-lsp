@@ -138,7 +138,9 @@ fn top_abi(output: &tcl_compiler::codegen::wasm::WasmCompilation) -> TopAbi {
     let expected = match &output.plan {
         WasmCodegenPlan::General { .. } => TopAbi::Void,
         WasmCodegenPlan::GenericInvoke { .. } => TopAbi::Completion,
-        other => panic!("unexpected hosted entry plan: {other:?}"),
+        other @ WasmCodegenPlan::NativeI64Add { .. } => {
+            panic!("unexpected hosted entry plan: {other:?}")
+        }
     };
     let tops = output
         .module
@@ -1741,13 +1743,13 @@ fn root_colon_publication_runs_its_own_compiled_table_entry() {
 #[test]
 fn original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint() {
     use tcl_runtime_api::ManifestField;
-    let Some(runtime) = real_link_runtime() else {
-        return;
-    };
     // This is the source-derived fingerprint of the inspected pre-additive
     // descriptor/layout table, retained with its source hash in abi-layout.json.
     // It is not a claim of executing an old Runtime binary or old module.
     const PRIOR_TABLE_FINGERPRINT: u32 = 0x034b_ab19;
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
     assert_ne!(
         tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION,
         PRIOR_TABLE_FINGERPRINT,

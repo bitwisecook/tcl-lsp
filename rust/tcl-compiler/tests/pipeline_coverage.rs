@@ -768,7 +768,7 @@ mod compilation_unit_build {
             "methods: {:?}",
             cu.methods.keys().collect::<Vec<_>>()
         );
-        assert!(!fixture_id_if_present(&cu.procedures, "::C::m").is_some());
+        assert!(fixture_id_if_present(&cu.procedures, "::C::m").is_none());
     }
 
     #[test]

@@ -604,7 +604,7 @@ fn integration_info_invocation(
             .expect("fixture context retains its selected Tcl profile"),
     );
     tcl_compiler::registry_invocation::resolved_statement_invocation_in_context(
-        &context,
+        context,
         unit.ir_module.top_level.statements.first()?,
     )
 }

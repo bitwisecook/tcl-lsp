@@ -163,10 +163,10 @@ fn assign_pairs(stmts: &[Statement]) -> Vec<(String, String)> {
 }
 
 /// The escape summary for one proc (for `classify_proc`).
-fn summary_for<'a>(
-    summaries: &'a std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+fn summary_for(
+    summaries: &std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
     id: tcl_compiler::ir::ProcedureId,
-) -> Option<&'a ProcEscapeSummary> {
+) -> Option<&ProcEscapeSummary> {
     summaries.get(&tcl_core_types::BodyFrameId::Body(id))
 }
 
