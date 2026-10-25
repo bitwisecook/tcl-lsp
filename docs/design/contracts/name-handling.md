@@ -4021,3 +4021,12 @@ checks the unchanged pure retention predicate and does not detach when no cell
 would be removed. Source identity, ownership, cell equality/hash, uncertainty,
 lookup guards and all other graph fields retain their existing semantics.
 This storage change grants no source, Native, frame or completion authority.
+
+
+Resolved catalogue selection reuses surface admission only for the exact
+spec and copied query returned by `CommandRegistry::get_for_surface`:
+`best_visible` already rejected each candidate failing `spec_visible`, which
+requires that same `runtime_surface_admits` predicate. The distinct context
+operator/package filters and inherited roster checks still run in their old
+order. Ordinary `spec_available_under` callers retain full surface admission.
+No cache key, ranking, fallback, source owner, Native or Normal fact changes.
