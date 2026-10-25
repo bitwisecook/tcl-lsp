@@ -41,6 +41,7 @@ pub use native_c::NativeCStringStorage;
 mod native_compiled;
 pub use native_compiled::{
     compiled_find, compiled_index, compiled_qualifiers, compiled_range, compiled_tail,
+    registered_index_instruction,
 };
 mod native_range;
 pub use native_range::{NativeCompiledRangeResult, compiled_immediate_range};

@@ -508,6 +508,30 @@ impl NativeIndexOps for Vm {
             bytes,
         )))
     }
+    fn index_c_instruction_binary(
+        &mut self,
+        original: &Value,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Option<(Option<crate::value::NativeBinaryStorageReceipt>, Rc<[u8]>)>, CmdError>
+    {
+        let operation = NativeOperationScope::enter(self)?;
+        operation.check(self)?;
+        if version > tcl_dialect::TclVersion::V8_5 {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "unselected compiled index captured binary version",
+            )
+            .into());
+        }
+        let selected = self.index_c_select_binary(original, version)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        numeric.current_for_value(original)?;
+        let Some((_, bytes)) = selected else {
+            return Ok(None);
+        };
+        let receipt = original.capture_native_binary_storage()?;
+        numeric.current_for_value(original)?;
+        Ok(Some((Some(receipt), bytes)))
+    }
     fn index_c_check_binary_storage(
         &mut self,
         original: &Value,

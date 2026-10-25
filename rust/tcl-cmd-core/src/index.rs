@@ -117,6 +117,22 @@ pub trait NativeIndexOps: ValueOps {
         Ok(None)
     }
 
+    /// Original C84/85 instruction pointer captured before its index getter.
+    /// Absence of this provider is a refusal, not a non-binary observation.
+    ///
+    /// # Errors
+    /// The actual captured-pointer producer is unavailable or its input refuses.
+    fn index_c_instruction_binary(
+        &mut self,
+        _original: &Self::Value,
+        _version: TclVersion,
+    ) -> IndexBinarySelection<Self::IndexBinaryReceipt> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "original compiled index binary selection provider",
+        )
+        .into())
+    }
+
     /// Check C84's original captured storage immediately before pointer use.
     fn index_c_check_binary_storage(
         &mut self,

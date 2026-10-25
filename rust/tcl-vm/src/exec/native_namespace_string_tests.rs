@@ -556,3 +556,109 @@ fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
     }
     assert_eq!(windows, 30);
 }
+
+#[test]
+fn registered_string_index_reaches_original_storage_without_namespace_search() {
+    use tcl_cmd_core::index::NativeIndexOps;
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
+        let version = profile.vm_runtime_version;
+        let mut vm = crate::native_fixture::core(profile);
+        for (input, expected) in [
+            (b"abc".as_slice(), b"a".as_slice()),
+            (b"\xff", b"\xff"),
+            (b"\0", b"\0"),
+            (b"\xc3\xa9", b"\xc3\xa9"),
+        ] {
+            let subject = Value::new_native_string_bytes(input);
+            let index = Value::new_native_string_bytes(b"0".as_slice());
+            let result = tcl_cmd_core::string::registered_index_instruction(
+                &mut vm, &subject, &index, version,
+            )
+            .unwrap();
+            assert!(!result.is_same_object(&subject));
+            assert_eq!(result.native_object_type_name(), "none");
+            assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), expected);
+        }
+        let binary = Value::from_native_byte_array(
+            std::rc::Rc::from(&b"\xff\0"[..]),
+            tcl_registry::InvocationDialect::of_profile(profile),
+        )
+        .unwrap();
+        let index = Value::new_native_string_bytes(b"0".as_slice());
+        let result =
+            tcl_cmd_core::string::registered_index_instruction(&mut vm, &binary, &index, version)
+                .unwrap();
+        assert_eq!(result.native_object_type_name(), "bytearray");
+        assert_eq!(vm.index_c_binary_bytes(&result).unwrap().as_ref(), b"\xff");
+        let subject = Value::new_native_string_bytes(b"abc".as_slice());
+        let out = Value::new_native_string_bytes(b"99".as_slice());
+        let result =
+            tcl_cmd_core::string::registered_index_instruction(&mut vm, &subject, &out, version)
+                .unwrap();
+        assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), b"");
+        let bad = Value::new_native_string_bytes(b"bad-index".as_slice());
+        assert!(
+            tcl_cmd_core::string::registered_index_instruction(&mut vm, &subject, &bad, version)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn registered_string_index_keeps_aliased_getter_primary_and_foreign_release_refusal() {
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
+        let version = profile.vm_runtime_version;
+        let mut vm = crate::native_fixture::core(profile);
+        let subject = Value::from_native_byte_array(
+            std::rc::Rc::from(&b"0"[..]),
+            tcl_registry::InvocationDialect::of_profile(profile),
+        )
+        .unwrap();
+        let index = subject.clone();
+        assert!(index.is_same_object(&subject));
+        let result =
+            tcl_cmd_core::string::registered_index_instruction(&mut vm, &subject, &index, version)
+                .unwrap();
+        assert_eq!(result.native_object_type_name(), "none");
+        assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), b"0");
+        assert!(
+            subject.native_scalar_cache().is_some(),
+            "the index getter's primary survives"
+        );
+    }
+    let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+    let subject = Value::new_native_string_bytes(b"abc".as_slice());
+    let original = subject.native_object_snapshot();
+    let index = Value::new_native_string_bytes(b"0".as_slice());
+    assert!(
+        tcl_cmd_core::string::registered_index_instruction(
+            &mut vm,
+            &subject,
+            &index,
+            tcl_dialect::TclVersion::V9_0
+        )
+        .is_err()
+    );
+    assert_eq!(subject.native_object_snapshot(), original);
+}
+
+#[test]
+fn registered_string_index_keeps_c86_reached_surrogate_pair_instruction_behavior() {
+    let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+    let source = b"\xed\xa0\xbd\xed\xb8\x80";
+    let subject = Value::new_native_string_bytes(source.as_slice());
+    for (index, expected) in [(b"0".as_slice(), source.as_slice()), (b"1", b"".as_slice())] {
+        let index = Value::new_native_string_bytes(index);
+        let result = tcl_cmd_core::string::registered_index_instruction(
+            &mut vm,
+            &subject,
+            &index,
+            tcl_dialect::TclVersion::V8_6,
+        )
+        .unwrap();
+        assert_eq!(result.native_object_type_name(), "none");
+        assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), expected);
+    }
+}
