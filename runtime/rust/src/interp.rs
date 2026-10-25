@@ -3446,8 +3446,14 @@ impl Interp {
         let namespaces = self.namespaces.borrow();
         let generation = namespaces.resolve_generation(GLOBAL, name)?;
         let fqn = namespaces.resolve_fqn(GLOBAL, name)?;
-        (self.0.registry_builtin_names.borrow().get(&generation) == Some(&fqn))
-            .then_some(generation)
+        drop(namespaces);
+        if self.0.registry_builtin_names.borrow().get(&generation) == Some(&fqn) {
+            return Some(generation);
+        }
+        self.stock_ensemble_registry_identity(generation)
+            .filter(|identity| identity == name)
+            .filter(|_| self.stock_ensemble_implementation_is_current(generation))
+            .map(|_| generation)
     }
 
     /// What this interpreter's handler table backs, by command name: the
@@ -23559,6 +23565,70 @@ mod tests {
     /// Every builtin this runtime registers at the name of a spec that
     /// declares an intrinsic or definition contract is attested for every
     /// corresponding identity, and no other command is attested.
+    #[test]
+    fn engine_owned_ensemble_attestation_requires_original_workers_and_configuration() {
+        for change_configuration in [false, true] {
+            leak_free(|interpreter| {
+                let generation = interpreter
+                    .shipped_builtin_generation(b"info")
+                    .expect("actual engine-installed Info ensemble");
+                let Some(Command::Ensemble(ensemble)) =
+                    interpreter.raw_command_by_generation(generation)
+                else {
+                    panic!("original Info ensemble token");
+                };
+                assert!(interpreter.stock_ensemble_implementation_is_current(generation));
+                assert!(interpreter.attested_identities(b"info").is_some());
+                let mut configuration = ensemble.config();
+                if change_configuration {
+                    configuration.prefixes = !configuration.prefixes;
+                    ensemble.configure(configuration);
+                } else {
+                    let worker = configuration
+                        .map
+                        .as_ref()
+                        .expect("actual Info worker map")
+                        .iter()
+                        .find(|(member, _)| member == b"exists")
+                        .expect("actual Info Exists worker")
+                        .1[0]
+                        .clone();
+                    interpreter.register_builtin(&worker, guarded_builtin);
+                }
+                assert!(interpreter
+                    .stock_ensemble_registry_identity(generation)
+                    .is_some());
+                assert!(!interpreter.stock_ensemble_implementation_is_current(generation));
+                assert!(interpreter.shipped_builtin_generation(b"info").is_none());
+                interpreter.attach_identities();
+                assert!(interpreter.attested_identities(b"info").is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn a_public_ensemble_copy_cannot_acquire_engine_intrinsic_attestation() {
+        leak_free(|interpreter| {
+            let original = interpreter
+                .shipped_builtin_generation(b"info")
+                .expect("actual engine-installed Info ensemble");
+            let Some(Command::Ensemble(ensemble)) = interpreter.raw_command_by_generation(original)
+            else {
+                panic!("original Info ensemble token");
+            };
+            let replacement = interpreter
+                .create_ensemble(b"info", ensemble.config())
+                .expect("actual public replacement ensemble");
+            assert_ne!(replacement, original);
+            assert!(interpreter
+                .stock_ensemble_registry_identity(replacement)
+                .is_none());
+            assert!(interpreter.shipped_builtin_generation(b"info").is_none());
+            interpreter.attach_identities();
+            assert!(interpreter.attested_identities(b"info").is_none());
+        });
+    }
+
     #[test]
     fn every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them() {
         leak_free(|i| {
