@@ -807,15 +807,37 @@ pub fn original_structured_invocation_with_metadata_context(
         .map(|selected| selected.invocation)
 }
 
+/// Same-owner quiet scalar-store source coverage, not registry transition facts.
+/// Only the original full-input/point/operand and quiet-write kernel below can
+/// issue this receipt. It grants no Native, physical frame or Normal capability.
+pub struct OriginalQuietScalarStoreSourceCoverage<'a> {
+    selected: ResolvedStatementInvocation,
+    analysis: &'a crate::analyser::AnalysisResult,
+}
+
+impl OriginalQuietScalarStoreSourceCoverage<'_> {
+    /// The exact invocation whose source obligations the issuer checked.
+    #[must_use]
+    pub const fn invocation(&self) -> &ResolvedStatementInvocation {
+        &self.selected
+    }
+
+    /// A receipt cannot discharge obligations for another analysis owner.
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
+        std::ptr::eq(self.analysis, analysis)
+    }
+}
+
 /// Coverage of one actual completed quiet scalar store in authored source.
 /// Original point, operands, receiver and handler completion stay independent;
 /// no compiler visit or descriptor callback absence supplies their evidence.
 #[must_use]
-pub fn original_authored_quiet_store_for_source_coverage(
+pub fn original_authored_quiet_store_for_source_coverage<'a>(
     source: &str,
-    analysis: &crate::analyser::AnalysisResult,
+    analysis: &'a crate::analyser::AnalysisResult,
     tokens: &CommandTokens,
-) -> Option<ResolvedStatementInvocation> {
+) -> Option<OriginalQuietScalarStoreSourceCoverage<'a>> {
     let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
     let image = tcl_lexer::SourceImage::document(source);
@@ -857,7 +879,7 @@ pub fn original_authored_quiet_store_for_source_coverage(
     realm
         .source_bindings_ref()
         .original_quiet_scalar_store_for_source_coverage(&native, &selected.facts, registry)
-        .then_some(selected)
+        .then_some(OriginalQuietScalarStoreSourceCoverage { selected, analysis })
 }
 
 /// Original deferred procedure declaration grammar for source coverage only.

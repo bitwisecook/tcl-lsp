@@ -232,10 +232,36 @@ fn destination_matches(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum CommandLinkCoverage<'borrow, 'analysis> {
+    Registry(&'borrow tcl_compiler::registry_invocation::ResolvedStatementInvocation),
+    QuietScalarStore {
+        receipt: &'borrow tcl_compiler::registry_invocation::OriginalQuietScalarStoreSourceCoverage<
+            'analysis,
+        >,
+        analysis: &'borrow tcl_compiler::analyser::AnalysisResult,
+    },
+}
+
 pub(crate) fn reject_link_obligations(
     selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
 ) -> Result<(), OriginalCommandRenameRefusal> {
+    reject_command_link_coverage(CommandLinkCoverage::Registry(selected))
+}
+
+fn reject_command_link_coverage(
+    coverage: CommandLinkCoverage<'_, '_>,
+) -> Result<(), OriginalCommandRenameRefusal> {
     use tcl_registry::{CommandBindingTransition, NamespaceTransition, StateTransition};
+    let selected = match coverage {
+        CommandLinkCoverage::Registry(selected) => selected,
+        CommandLinkCoverage::QuietScalarStore { receipt, analysis } => {
+            if !receipt.is_for_analysis(analysis) {
+                return Err(OriginalCommandRenameRefusal::StaleSource);
+            }
+            receipt.invocation()
+        }
+    };
     if selected.facts.traits.intersects(
         tcl_registry::Traits::REFLECTS_COMMAND_NAMES
             | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
@@ -246,12 +272,19 @@ pub(crate) fn reject_link_obligations(
     if !selected.facts.arg_roles_complete {
         return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
     }
-    let transitions = selected
-        .facts
-        .state_transitions
-        .declared()
-        .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
-    for fact in transitions.facts() {
+    let transition_facts = match selected.facts.state_transitions.declared() {
+        Some(transitions) => transitions.facts(),
+        None => match coverage {
+            CommandLinkCoverage::Registry(_) => {
+                return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+            }
+            // The exact original quiet-write proof closes only this wildcard
+            // identity-transition obligation. Registry facts remain unknown;
+            // any declared transitions above retain every original check.
+            CommandLinkCoverage::QuietScalarStore { .. } => &[],
+        },
+    };
+    for fact in transition_facts {
         match &fact.transition {
             StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
             | StateTransition::Namespace(NamespaceTransition::Ensure { .. })
@@ -303,12 +336,16 @@ fn quiet_store_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    offset: u32,
+    _offset: u32,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
-    let Some(selected) = walk.quiet_store_for_rename_coverage(document.source, command) else {
+    let Some(receipt) = walk.quiet_store_for_rename_coverage(document.source, command) else {
         return Ok(false);
     };
-    reject_selected_command_link_coverage(&selected, offset)?;
+    let result = reject_command_link_coverage(CommandLinkCoverage::QuietScalarStore {
+        receipt: &receipt,
+        analysis: document.analysis,
+    });
+    result?;
     Ok(true)
 }
 
@@ -1003,9 +1040,17 @@ mod tests {
             .quiet_store_for_rename_coverage(source, &command)
             .expect("actual same-owner quiet store and complete handler");
         assert_eq!(
-            selected.written_argument_roles(),
+            selected.invocation().written_argument_roles(),
             vec![(0, tcl_registry::ArgRole::VarWrite)]
         );
+        assert!(matches!(
+            selected.invocation().facts.state_transitions,
+            tcl_registry::StateTransitionKnowledge::UnknownInvocation
+        ));
+        assert!(matches!(
+            reject_link_obligations(selected.invocation()),
+            Err(OriginalCommandRenameRefusal::IncompleteCoverage)
+        ));
         let document = OriginalDeclarationDocument {
             uri: "file:///quiet.tcl",
             source,
@@ -1013,6 +1058,13 @@ mod tests {
         };
         assert!(quiet_store_coverage(&walk, document, &command, 40).unwrap());
         let foreign = Analyser::new().analyse(source, "tcl8.6");
+        assert!(matches!(
+            reject_command_link_coverage(CommandLinkCoverage::QuietScalarStore {
+                receipt: &selected,
+                analysis: &foreign,
+            }),
+            Err(OriginalCommandRenameRefusal::StaleSource)
+        ));
         assert!(
             tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
                 source, &foreign, &tokens
