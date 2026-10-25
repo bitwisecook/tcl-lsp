@@ -10406,7 +10406,7 @@ mod selected_class_roster_tests {
             &input,
         );
         let mut cfg = unit.top_level.cfg.clone();
-        cfg.command_binding_sites = crate::ir::CommandBindingSites::default();
+        cfg.command_binding_sites = Vec::new();
         cfg.namespace_context = None;
         cfg.name = "::invented::procedure".to_owned();
         let entry = function_source_entry(&cfg, None);
