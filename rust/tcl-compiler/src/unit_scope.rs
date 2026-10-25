@@ -6099,10 +6099,10 @@ mod tests {
                 .all(|data| data.statements.iter().all(|statement| {
                     statement.tokens().is_none_or(|tokens| {
                         tokens.synthetic != Some(crate::ir::SyntheticMarker::EvaluatedArguments)
-                            || !tokens
+                            || tokens
                                 .argv_texts
                                 .first()
-                                .is_some_and(|head| head == "return")
+                                .is_none_or(|head| head != "return")
                     })
                 }))
         );

@@ -67,10 +67,10 @@ fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purp
                 .all(|call| call.original_name_input.is_none())
         );
         let ctx = context(source, config, registry, None);
-        let span = ctx.original_words[2].tokens()[0].span;
-        assert!(ctx.original_name_key(span).is_none());
+        let word_location = ctx.original_words[2].tokens()[0].span;
+        assert!(ctx.original_name_key(word_location).is_none());
         assert_eq!(
-            ctx.namespace_context("::", "display donor", span),
+            ctx.namespace_context("::", "display donor", word_location),
             Some(SignatureNamespaceScope::Symbolic("::nλ".to_owned()))
         );
         let bom = "\u{feff}proc visible {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc nested {} {}}";
@@ -87,8 +87,8 @@ fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purp
             r"namespace eval n\u0000tail {}",
         ] {
             let ctx = context(source, config, registry, None);
-            let span = ctx.original_words[2].tokens()[0].span;
-            assert!(ctx.namespace_context("::", "ns", span).is_none());
+            let word_location = ctx.original_words[2].tokens()[0].span;
+            assert!(ctx.namespace_context("::", "ns", word_location).is_none());
         }
     }
 }

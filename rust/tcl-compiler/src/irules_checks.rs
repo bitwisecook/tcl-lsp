@@ -5130,10 +5130,10 @@ mod original_collection_source_tests {
                     for function in stale.procedures.values_mut() {
                         for block in function.cfg.blocks.values_mut() {
                             for statement in &mut block.statements {
-                                if let Some(tokens) = statement.tokens_mut() {
-                                    if tokens.synthetic.is_none() {
-                                        tokens.source_binding = None;
-                                    }
+                                if let Some(tokens) = statement.tokens_mut()
+                                    && tokens.synthetic.is_none()
+                                {
+                                    tokens.source_binding = None;
                                 }
                             }
                         }

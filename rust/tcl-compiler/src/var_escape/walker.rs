@@ -905,9 +905,10 @@ mod tests {
             );
             let procedure = module.procedures.values().next().unwrap();
             for statement in &procedure.body.statements {
-                let expected = match statement {
-                    Statement::AssignConst { name, .. } | Statement::Incr { name, .. } => name,
-                    _ => panic!("actual bytecode scalar statement expected"),
+                let (Statement::AssignConst { name: expected, .. }
+                | Statement::Incr { name: expected, .. }) = statement
+                else {
+                    panic!("actual bytecode scalar statement expected");
                 };
                 let tokens = procedure
                     .body

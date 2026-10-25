@@ -2448,13 +2448,14 @@ mod tests {
         known: &HashSet<String>,
         config: tcl_lexer::LexerConfig,
     ) -> Vec<String> {
+        use std::fmt::Write as _;
         let mut declarations: Vec<_> = known.iter().collect();
         declarations.sort();
         let mut source = String::from("namespace eval ::ns {}\n");
         for name in declarations {
-            source.push_str(&format!("proc {name} {{}} {{}}\n"));
+            let _ = writeln!(source, "proc {name} {{}} {{}}");
         }
-        source.push_str(&format!("proc {caller} {{}} {{{body}}}\n"));
+        let _ = writeln!(source, "proc {caller} {{}} {{{body}}}");
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for_with_config(&source, &registry, false, config);
         let known_ids: HashSet<_> = known
