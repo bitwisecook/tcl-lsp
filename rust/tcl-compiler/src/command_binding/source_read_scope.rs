@@ -469,6 +469,45 @@ mod read_body_ancestry_tests {
     }
 
     #[test]
+    fn logical_case_bodies_keep_their_actual_declared_owner_without_a_native_version() {
+        let source =
+            "proc f {x} { switch -glob $x { a* { return 1 } default { set z 9 } }\n puts $y }";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(input.has_logical_source_name_context());
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+                .tcl_version
+                .is_none()
+        );
+        let realm = analysis.retained_command_realm().unwrap();
+        let seed = realm
+            .source_bindings_ref()
+            .original_source_transition_seed()
+            .unwrap();
+        let catalogue =
+            SourceReadCatalogue::prepare(&seed, input.borrowed_context_registry().commands())
+                .unwrap();
+        let config = input.lexer_config();
+        for head in ["return 1", "set z 9", "puts $y"] {
+            let offset = u32::try_from(source.find(head).unwrap()).unwrap();
+            let owned = catalogue.read_advice(offset).unwrap();
+            let scope = owned.logical_source_scope().unwrap();
+            let root = scope.scope_body().content_span();
+            assert!(
+                matches_read_body_ancestry(owned, root, &catalogue.context, config),
+                "{head}"
+            );
+            assert!(!matches_read_body_ancestry(
+                owned,
+                Span::new(root.start() + 1, root.end()),
+                &catalogue.context,
+                config
+            ));
+        }
+    }
+
+    #[test]
     fn original_namespace_and_frame_boundaries_do_not_inherit_read_scope() {
         for nested in [
             "namespace eval n {puts $missing}",
