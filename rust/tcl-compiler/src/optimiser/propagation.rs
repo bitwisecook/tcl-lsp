@@ -5491,19 +5491,28 @@ mod tests {
         assert!(!has_o115("proc ::f {x} { puts [expr {[someproc]}] }"));
     }
 
+    fn fold(src: &str) -> Vec<String> {
+        crate::optimiser::optimise_raw(src, &registry(), None)
+            .into_iter()
+            .filter(|o| o.code == DiagCode::O129)
+            .map(|o| o.replacement)
+            .collect()
+    }
+
+    fn fold_code(src: &str, code: &str) -> Vec<String> {
+        crate::optimiser::optimise_raw(src, &registry(), None)
+            .into_iter()
+            .filter(|o| o.code.as_str() == code)
+            .map(|o| o.replacement)
+            .collect()
+    }
+
     #[test]
     fn o129_folds_pure_builtin_cmd_subst() {
         // A pure-builtin cmd-sub with constant
         // (literal) args folds via the registry `const_fold` callback
         // (O129). `optimise_raw` sets `ctx.registry`, which the O129
         // path requires.
-        let fold = |src: &str| -> Vec<String> {
-            crate::optimiser::optimise_raw(src, &registry(), None)
-                .into_iter()
-                .filter(|o| o.code == DiagCode::O129)
-                .map(|o| o.replacement)
-                .collect()
-        };
         assert_eq!(fold("puts [string toupper foo]"), vec!["FOO".to_string()]);
         assert_eq!(fold("puts [string tolower BAR]"), vec!["bar".to_string()]);
         assert_eq!(fold("puts [string reverse abc]"), vec!["cba".to_string()]);
@@ -5532,13 +5541,6 @@ mod tests {
         assert_eq!(fold("puts [join {a b c} -]"), vec!["a-b-c".to_string()]);
         // `lindex` / `list` report their own codes (O118 / O116) for
         // editor granularity, so filter by those rather than O129.
-        let fold_code = |src: &str, code: &str| -> Vec<String> {
-            crate::optimiser::optimise_raw(src, &registry(), None)
-                .into_iter()
-                .filter(|o| o.code.as_str() == code)
-                .map(|o| o.replacement)
-                .collect()
-        };
         assert_eq!(
             fold_code("puts [lindex {a b c} 1]", "O118"),
             vec!["b".to_string()]
