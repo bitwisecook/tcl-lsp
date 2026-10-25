@@ -1105,6 +1105,13 @@ impl SourceBodyMode {
     }
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy)]
+enum SourceBodySyntaxCacheVerification {
+    Disabled,
+    Enabled,
+}
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -1283,7 +1290,7 @@ pub struct Lowerer<'r> {
     original_body_cache: Option<&'r OriginalBodyLoweringCache<'r>>,
     optimiser_lowering_integrity: Option<&'r std::cell::Cell<bool>>,
     #[cfg(test)]
-    verify_source_body_syntax_cache: bool,
+    verify_source_body_syntax_cache: SourceBodySyntaxCacheVerification,
     /// Current `lower_script` / `lower_body` recursion depth, bounded by
     /// [`MAX_LOWER_NEST_DEPTH`] so deeply-nested bodies cannot overflow the
     /// stack. Mirrors [`crate::cfg_builder::CfgBuilder`]'s `depth` field —
@@ -1475,7 +1482,7 @@ impl<'r> Lowerer<'r> {
             optimiser_lowering_integrity: None,
             source_body_syntax_cache: None,
             #[cfg(test)]
-            verify_source_body_syntax_cache: false,
+            verify_source_body_syntax_cache: SourceBodySyntaxCacheVerification::Disabled,
             nest_depth: 0,
             source: String::new(),
             word_space: WordSpace::new("", 0, tcl_lexer::SourceChannel::Document),
@@ -8440,7 +8447,7 @@ mod tests {
         );
         for name in ["::when::CLIENT_DATA", "::bare_proc", "::quoted_proc"] {
             assert!(
-                !fixture_id_if_present(&module.procedures, name).is_some(),
+                fixture_id_if_present(&module.procedures, name).is_none(),
                 "a non-braced declaration body must not open {name}"
             );
         }
@@ -8801,8 +8808,10 @@ mod tests {
         let unit = m
             .methods
             .unique_display("::@objdefine@::k::probe")
-            .map(|(_, method)| method)
-            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+            .map_or_else(
+                || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
+                |(_, method)| method,
+            );
         assert_eq!(unit.method_name, "probe");
         assert!(!unit.body.statements.is_empty(), "body must be lowered");
         // The block's `variable z` is per-object state in scope for the
@@ -8845,11 +8854,10 @@ mod tests {
                    \x20   typemethod count {} { return 0 }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
-        let bark = m
-            .methods
-            .unique_display("::Dog::bark")
-            .map(|(_, method)| method)
-            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        let bark = m.methods.unique_display("::Dog::bark").map_or_else(
+            || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
+            |(_, method)| method,
+        );
         assert_eq!(bark.kind, MethodKind::Method);
         assert_eq!(
             bark.execution_namespace,
@@ -8885,11 +8893,10 @@ mod tests {
                    \x20   method redraw {} { return $win }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
-        let redraw = m
-            .methods
-            .unique_display("::MyBar::redraw")
-            .map(|(_, method)| method)
-            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        let redraw = m.methods.unique_display("::MyBar::redraw").map_or_else(
+            || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
+            |(_, method)| method,
+        );
         assert!(redraw.instance_vars.contains("win"));
         assert!(redraw.instance_vars.contains("hull"));
     }
@@ -8907,11 +8914,10 @@ mod tests {
                    \x20   constructor {} { set crumbs 0 }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
-        let toast = m
-            .methods
-            .unique_display("::Toaster::toast")
-            .map(|(_, method)| method)
-            .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
+        let toast = m.methods.unique_display("::Toaster::toast").map_or_else(
+            || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
+            |(_, method)| method,
+        );
         assert_eq!(toast.params, vec!["n".to_string()]);
         assert_eq!(
             toast.execution_namespace,
@@ -9238,7 +9244,7 @@ mod tests {
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
+            fixture_id_if_present(&m.procedures, "::helper").is_none(),
             "nested method proc must not be registered: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9266,7 +9272,7 @@ mod tests {
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !fixture_id_if_present(&m.procedures, "::foo::helper").is_some(),
+            fixture_id_if_present(&m.procedures, "::foo::helper").is_none(),
             "apply body proc must NOT inherit the caller namespace: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9299,7 +9305,7 @@ mod tests {
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !fixture_id_if_present(&m.procedures, "::caller::sub::helper").is_some(),
+            fixture_id_if_present(&m.procedures, "::caller::sub::helper").is_none(),
             "relative lambda ns must NOT pin against the caller: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9652,7 +9658,7 @@ mod tests {
             m.procedures.keys().collect::<Vec<_>>(),
         );
         assert!(
-            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
+            fixture_id_if_present(&m.procedures, "::helper").is_none(),
             "nested proc must NOT home lexically to ::",
         );
     }
@@ -9671,7 +9677,7 @@ mod tests {
             "third level must stay in ::g, got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
-        assert!(!fixture_id_if_present(&m.procedures, "::h7").is_some());
+        assert!(fixture_id_if_present(&m.procedures, "::h7").is_none());
     }
 
     #[test]
@@ -9687,8 +9693,8 @@ mod tests {
             "got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
-        assert!(!fixture_id_if_present(&m.procedures, "::d::h3").is_some());
-        assert!(!fixture_id_if_present(&m.procedures, "::h3").is_some());
+        assert!(fixture_id_if_present(&m.procedures, "::d::h3").is_none());
+        assert!(fixture_id_if_present(&m.procedures, "::h3").is_none());
     }
 
     #[test]
@@ -9718,7 +9724,7 @@ mod tests {
             &reg(),
         );
         assert!(fixture_id_if_present(&m.procedures, "::abs").is_some());
-        assert!(!fixture_id_if_present(&m.procedures, "::a::abs").is_some());
+        assert!(fixture_id_if_present(&m.procedures, "::a::abs").is_none());
     }
 
     #[test]
@@ -9898,7 +9904,7 @@ mod tests {
         ] {
             let m = lower_to_ir(src, &reg());
             assert!(
-                !fixture_id_if_present(&m.procedures, "::p").is_some(),
+                fixture_id_if_present(&m.procedures, "::p").is_none(),
                 "no ::p for {src:?}: {:?}",
                 m.procedures.keys().collect::<Vec<_>>(),
             );
@@ -10317,9 +10323,9 @@ mod tests {
         // ``::ns`` (which is what the bug would produce) or any
         // empty-key variant.
         assert!(
-            !fixture_id_if_present(&m.procedures, "::ns").is_some()
-                && !fixture_id_if_present(&m.procedures, "::ns::").is_some()
-                && !fixture_id_if_present(&m.procedures, "").is_some(),
+            fixture_id_if_present(&m.procedures, "::ns").is_none()
+                && fixture_id_if_present(&m.procedures, "::ns::").is_none()
+                && fixture_id_if_present(&m.procedures, "").is_none(),
             "trailing-:: proc should not be AOT-registered; got {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -10493,7 +10499,7 @@ mod tests {
         // No inner procedure should be registered — params couldn't
         // be parsed statically.
         assert!(
-            !fixture_id_if_present(&m.procedures, "::x").is_some(),
+            fixture_id_if_present(&m.procedures, "::x").is_none(),
             "dynamic-params shape must not AOT-register: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -10641,7 +10647,7 @@ mod tests {
             &reg(),
         );
         assert!(fixture_id_if_present(&m.procedures, "::Second").is_some());
-        assert!(!fixture_id_if_present(&m.procedures, "::First").is_some());
+        assert!(fixture_id_if_present(&m.procedures, "::First").is_none());
     }
 
     #[test]
@@ -11411,7 +11417,7 @@ mod tests {
         assert_eq!(
             names,
             HashSet::from([
-                "".to_owned(),
+                String::new(),
                 "$counter".to_owned(),
                 "brace{name}".to_owned(),
                 "-dash".to_owned()
@@ -11453,7 +11459,7 @@ mod tests {
         );
         assert_eq!(
             names,
-            HashSet::from(["".to_owned(), "$counter".to_owned(), "a(b)".to_owned()])
+            HashSet::from([String::new(), "$counter".to_owned(), "a(b)".to_owned()])
         );
         assert!(!names.contains("counter"));
         assert!(!names.contains("a"));
@@ -11879,7 +11885,7 @@ mod tests {
         let mut stale = Lowerer::with_config(context.commands(), input.lexer_config());
         stale.config.strict_quoting = !stale.config.strict_quoting;
         stale = stale.with_resolved_analysis_input(input.clone());
-        assert!(!fixture_id_if_present(&stale.lower(source).procedures, "::subject").is_some());
+        assert!(fixture_id_if_present(&stale.lower(source).procedures, "::subject").is_none());
         let foreign = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
@@ -11888,7 +11894,7 @@ mod tests {
         );
         let mut foreign = Lowerer::with_config(context.commands(), foreign.lexer_config())
             .with_resolved_analysis_input(foreign);
-        assert!(!fixture_id_if_present(&foreign.lower(source).procedures, "::subject").is_some());
+        assert!(fixture_id_if_present(&foreign.lower(source).procedures, "::subject").is_none());
 
         let native_profile = context.commands().profile().unwrap();
         let native = crate::analyser::ResolvedAnalysisInput::new(
@@ -11910,7 +11916,7 @@ mod tests {
             .with_resolved_analysis_input(native)
             .with_explicit_unknown_entry();
         let module = absent.lower(source);
-        assert!(!fixture_id_if_present(&module.procedures, "::subject").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::subject").is_none());
         assert!(module.source_entry.logical_source_input.is_none());
         assert!(module.source_entry.native_entry.is_none());
         assert!(module.source_entry.unknown_entry);
@@ -11968,7 +11974,7 @@ mod tests {
         let source = "rename proc ::α; ::α ::α args {return PAYLOAD}; ::α subject {} {}";
         let mut replaced = Lowerer::with_config(context.commands(), input.lexer_config())
             .with_resolved_analysis_input(input);
-        assert!(!fixture_id_if_present(&replaced.lower(source).procedures, "::subject").is_some());
+        assert!(fixture_id_if_present(&replaced.lower(source).procedures, "::subject").is_none());
     }
 
     #[test]
@@ -12175,7 +12181,7 @@ mod tests {
             "expected Call via lower_default fallback, got {stmt:?}",
         );
         assert!(
-            !fixture_id_if_present(&m.procedures, "::greet").is_some(),
+            fixture_id_if_present(&m.procedures, "::greet").is_none(),
             "expected ::greet NOT to be registered when arity is wrong",
         );
     }

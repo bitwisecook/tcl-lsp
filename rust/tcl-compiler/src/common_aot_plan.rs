@@ -2893,7 +2893,7 @@ mod tests {
             Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
         );
         let mut missing_point = module.clone();
-        missing_point.top_level.command_binding_sites = Default::default();
+        missing_point.top_level.command_binding_sites = crate::ir::CommandBindingSites::default();
         for statement in &mut missing_point.top_level.statements {
             if let Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } =
                 statement
@@ -3136,10 +3136,10 @@ mod tests {
         missing_module.ir_module.source_metadata_input = None;
         let mut missing_caller = unit.clone();
         missing_caller.top_level.source_metadata_input = None;
-        let mut missing_callee = unit.clone();
+        let mut missing_target = unit.clone();
         {
-            let id = fixture_id(&missing_callee.procedures, "::p");
-            missing_callee.procedures.get_mut(&id)
+            let id = fixture_id(&missing_target.procedures, "::p");
+            missing_target.procedures.get_mut(&id)
         }
         .unwrap()
         .source_metadata_input = None;
@@ -3156,10 +3156,10 @@ mod tests {
                     .default_context_registry(),
                 input.lexer_config(),
             ));
-        for refused in [
+        for refused in vec![
             missing_module,
             missing_caller,
-            missing_callee,
+            missing_target,
             stale_grammar,
             foreign,
         ] {
@@ -3525,7 +3525,7 @@ mod tests {
             selected.len(),
             2,
             "{}\n{plan:#?}",
-            original_formal_diagnostics(&unit, "::add")
+            original_formal_diagnostics(unit, "::add")
         );
         assert!(
             selected

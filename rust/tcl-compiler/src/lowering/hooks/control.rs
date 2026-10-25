@@ -768,10 +768,7 @@ mod tests {
             &[ArgTokenKind::Esc, ArgTokenKind::Esc],
             None,
         );
-        assert!(matches!(
-            try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None),
-            None
-        ));
+        assert!(try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None).is_none());
     }
 
     #[test]

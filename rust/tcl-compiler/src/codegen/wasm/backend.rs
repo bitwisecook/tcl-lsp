@@ -3044,7 +3044,9 @@ mod tests {
                                 RegistryInvocationResolution::Resolved(facts) => {
                                     format!("{:?}: {}", facts.operation, facts.canonical_command)
                                 }
-                                other => format!("{other:?}"),
+                                other @ RegistryInvocationResolution::Unresolved(_) => {
+                                    format!("{other:?}")
+                                }
                             });
                     rows.push(format!(
                         "words={:?}, aligned={}, target={target:?}, handler={handler:?}, literal={literal:?}, resolution={resolution:?}, flow={:?}, effective={:?}",
@@ -3240,9 +3242,10 @@ mod tests {
                     )
                 })
                 .expect("original lowered assignment");
-            let name = match statement {
-                Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => name,
-                _ => unreachable!(),
+            let (Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. }) =
+                statement
+            else {
+                unreachable!()
             };
             assert_eq!(
                 original_assignment_name(
@@ -3275,7 +3278,7 @@ mod tests {
             let mut stale = statement.clone();
             match &mut stale {
                 Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
-                    *name = "OTHER".to_owned()
+                    *name = "OTHER".to_owned();
                 }
                 _ => unreachable!(),
             }
@@ -3379,7 +3382,7 @@ mod tests {
             .direct_assignments
             .is_empty()
         );
-        for refused in [older, foreign, missing, different_grammar] {
+        for refused in vec![older, foreign, missing, different_grammar] {
             assert!(
                 assignment_facts(&refused, &unit, registry)
                     .direct_assignments

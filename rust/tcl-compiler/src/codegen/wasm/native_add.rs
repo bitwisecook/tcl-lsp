@@ -620,6 +620,45 @@ fn exact_i64(interval: Interval) -> Option<i64> {
     }
 }
 
+pub(super) fn selected_native_operand_argument(
+    common: &CommonAotProofPlan,
+    direct: &crate::common_aot_plan::DirectProcEvidence,
+    operand: &crate::native_integer_proof::NativeOperandIdentity,
+) -> bool {
+    use crate::native_integer_proof::NativeOperandIdentity;
+    match operand {
+        NativeOperandIdentity::Ssa(value) => {
+            selected_materialisable_int(common, direct.callee.id, *value)
+        }
+        NativeOperandIdentity::IncomingSlot(read) => common
+            .declared_argument_for_incoming_read(&direct.callee, read)
+            .is_some_and(|(identity, evidence)| {
+                evidence.shape() == &TypeShape::Int
+                    && direct.original_formals.as_deref()
+                        == Some(evidence.declaration().arguments())
+                    && usize::try_from(identity.ordinal)
+                        .ok()
+                        .and_then(|ordinal| direct.original_formals.as_ref()?.names().get(ordinal))
+                        .is_some_and(|original| original.as_bytes() == read.slot.as_bytes())
+            }),
+    }
+}
+
+fn selected_materialisable_int(
+    common: &CommonAotProofPlan,
+    body_id: crate::ir::ProcedureId,
+    value: crate::ssa::ValueKey,
+) -> bool {
+    common.materialisable_slots().any(|(identity, decision)| {
+        identity.body_id == Some(body_id)
+            && (identity.symbol, identity.version) == value
+            && matches!(
+                decision,
+                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
+            )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::{WasmCodegenPlan, compile_wasm};
@@ -811,43 +850,4 @@ mod tests {
             ]
         );
     }
-}
-
-pub(super) fn selected_native_operand_argument(
-    common: &CommonAotProofPlan,
-    direct: &crate::common_aot_plan::DirectProcEvidence,
-    operand: &crate::native_integer_proof::NativeOperandIdentity,
-) -> bool {
-    use crate::native_integer_proof::NativeOperandIdentity;
-    match operand {
-        NativeOperandIdentity::Ssa(value) => {
-            selected_materialisable_int(common, direct.callee.id, *value)
-        }
-        NativeOperandIdentity::IncomingSlot(read) => common
-            .declared_argument_for_incoming_read(&direct.callee, read)
-            .is_some_and(|(identity, evidence)| {
-                evidence.shape() == &TypeShape::Int
-                    && direct.original_formals.as_deref()
-                        == Some(evidence.declaration().arguments())
-                    && usize::try_from(identity.ordinal)
-                        .ok()
-                        .and_then(|ordinal| direct.original_formals.as_ref()?.names().get(ordinal))
-                        .is_some_and(|original| original.as_bytes() == read.slot.as_bytes())
-            }),
-    }
-}
-
-fn selected_materialisable_int(
-    common: &CommonAotProofPlan,
-    body_id: crate::ir::ProcedureId,
-    value: crate::ssa::ValueKey,
-) -> bool {
-    common.materialisable_slots().any(|(identity, decision)| {
-        identity.body_id == Some(body_id)
-            && (identity.symbol, identity.version) == value
-            && matches!(
-                decision,
-                MaterialisableSlotDecision::Selected(evidence) if evidence.shape == TypeShape::Int
-            )
-    })
 }

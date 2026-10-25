@@ -51,7 +51,7 @@ fn original_format_instruction_keeps_single_value_and_mixed_piece_order() {
                     .entries()
                     .iter()
                     .filter(|literal| literal.bytes() == b"A" || literal.bytes() == b"%B")
-                    .map(|literal| literal.bytes())
+                    .map(tcl_bytecode::NativeStringLiteral::bytes)
                     .collect::<Vec<_>>();
                 assert_eq!(fragments, vec![b"A".as_slice(), b"%B".as_slice()]);
             }

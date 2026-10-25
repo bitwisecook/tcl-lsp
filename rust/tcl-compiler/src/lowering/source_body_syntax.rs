@@ -470,7 +470,10 @@ impl Lowerer<'_> {
             && let Some(body) = request.restore(&cache(&request))
         {
             #[cfg(test)]
-            if self.verify_source_body_syntax_cache {
+            if matches!(
+                self.verify_source_body_syntax_cache,
+                crate::lowering::SourceBodySyntaxCacheVerification::Enabled
+            ) {
                 // Compare under the same current owner; independent analyses
                 // intentionally retain different attachment receipts.
                 let fresh = self.lower_body(text, offset, namespace);
@@ -517,7 +520,8 @@ mod tests {
         // history; no entry means a fresh interpreter that defines them.
         .with_explicit_unknown_entry()
         .with_source_body_syntax_cache(cache);
-        lowerer.verify_source_body_syntax_cache = true;
+        lowerer.verify_source_body_syntax_cache =
+            crate::lowering::SourceBodySyntaxCacheVerification::Enabled;
         crate::lowering::lower_to_ir_with(lowerer, source)
     }
 
