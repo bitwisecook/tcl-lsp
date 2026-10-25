@@ -4943,3 +4943,6 @@ mod original_alias_key_tests {
         assert!(scope.currency().ensure_current_or_refuse().is_ok());
     }
 }
+
+#[cfg(test)]
+mod native_positive_option_prefixes;
