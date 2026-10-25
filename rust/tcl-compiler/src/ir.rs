@@ -4830,7 +4830,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_source_procedure_inventory_tests {
-    fn module() -> super::Module {
+    fn logical_missing_namespace_module() -> super::Module {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -4847,10 +4847,43 @@ mod original_source_procedure_inventory_tests {
         )
     }
 
+    fn allocated_module() -> (tcl_vm::Vm, super::Module) {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        });
+        let module = crate::lowering::lower_to_ir_with(
+            lowerer,
+            "proc p {} {global x; set x VALUE}; rename p {}; missing_command",
+        );
+        (owner, module)
+    }
+
+    #[test]
+    fn logical_missing_namespace_has_no_allocation_bearing_declaration() {
+        let module = logical_missing_namespace_module();
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.procedures.is_empty());
+        assert!(module.original_declaration_body_units.is_empty());
+        assert!(!module.original_logical_declaration_body_units.is_empty());
+        assert!(module.body_units.values().all(|procedure| {
+            procedure.publication.is_none() && procedure.body.executed_source.is_none()
+        }));
+    }
+
     #[test]
     fn original_declaration_summary_inventory_requires_issued_body_and_allocation() {
-        let module = module();
-        assert!(module.source_entry.native_entry.is_none());
+        let (_owner, module) = allocated_module();
+        assert!(module.source_entry.native_entry.is_some());
         let (id, allocation) = module
             .original_declaration_body_units
             .iter()
