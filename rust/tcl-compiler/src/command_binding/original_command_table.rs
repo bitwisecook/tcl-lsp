@@ -856,6 +856,41 @@ mod tests {
         )
     }
 
+    fn assert_evaluated_command_operand(
+        state: &ModuleCommandBindings,
+        root_namespace: &SourceNamespaceKey,
+        input: &SignatureSourceNameInput,
+    ) {
+        assert!(
+            state
+                .original_command_paths_for_input(root_namespace, input)
+                .is_some()
+        );
+        assert!(
+            state
+                .original_alias_loop_paths_for_input(root_namespace, input)
+                .is_some()
+        );
+        assert!(
+            state
+                .original_targets_for_input(
+                    input,
+                    root_namespace,
+                    super::super::CommandTargetLookup::CompilerSlots,
+                )
+                .is_some()
+        );
+        assert!(
+            state
+                .original_publication_key(
+                    root_namespace,
+                    input,
+                    super::super::namespace_slots::PublicationPurpose::Command,
+                )
+                .is_some()
+        );
+    }
+
     #[test]
     fn evaluated_command_roles_do_not_consume_lexical_root_units() {
         let (state, config, policy) = catalogue_state(tcl_dialect::TclVersion::V8_6);
@@ -889,34 +924,7 @@ mod tests {
         assert_eq!(root.bytes(), operand.bytes());
         assert_eq!(root.policy(), operand.policy());
         for input in [&operand, &value] {
-            assert!(
-                state
-                    .original_command_paths_for_input(&root_namespace, input)
-                    .is_some()
-            );
-            assert!(
-                state
-                    .original_alias_loop_paths_for_input(&root_namespace, input)
-                    .is_some()
-            );
-            assert!(
-                state
-                    .original_targets_for_input(
-                        input,
-                        &root_namespace,
-                        super::super::CommandTargetLookup::CompilerSlots,
-                    )
-                    .is_some()
-            );
-            assert!(
-                state
-                    .original_publication_key(
-                        &root_namespace,
-                        input,
-                        super::super::namespace_slots::PublicationPurpose::Command,
-                    )
-                    .is_some()
-            );
+            assert_evaluated_command_operand(&state, &root_namespace, input);
         }
         assert!(
             state

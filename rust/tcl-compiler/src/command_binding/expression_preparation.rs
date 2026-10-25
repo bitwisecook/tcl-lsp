@@ -2031,6 +2031,37 @@ mod tests {
         ));
     }
 
+    fn assert_nested_owner_refusals(
+        binding: &super::super::SourceInvocationBinding,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        parser: &tcl_syntax::expr::parser::ExprParseContext,
+        profile_name: &str,
+    ) {
+        let mut wrong_frame = binding.clone();
+        wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+        eprintln!(
+            "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
+            binding.variable_frame,
+            wrong_frame.variable_frame,
+            binding == &wrong_frame,
+            tokens.source_binding.as_ref() == Some(binding),
+            tokens.source_binding.as_ref() == Some(&wrong_frame),
+            binding
+                .normalisation_expression(registry, tokens)
+                .map(|proof| proof.frame),
+            wrong_frame
+                .normalisation_expression(registry, tokens)
+                .map(|proof| proof.frame),
+        );
+        binding.trace_g4_normal_frame_facts("nested-original", tokens, registry);
+        wrong_frame.trace_g4_normal_frame_facts("nested-mutated", tokens, registry);
+        assert!(!wrong_frame.nested_expression_normalisation(registry, tokens, parser, None));
+        let mut foreign = tokens.clone();
+        foreign.word_exprs.clear();
+        assert!(!binding.nested_expression_normalisation(registry, &foreign, parser, None));
+    }
+
     #[test]
     fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
         let expression = "expr {[expr {$x * 2}]}";
@@ -2105,33 +2136,7 @@ mod tests {
                     "{profile_name}: {source}"
                 );
                 if allowed {
-                    let mut wrong_frame = binding.clone();
-                    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
-                    eprintln!(
-                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
-                        binding.variable_frame,
-                        wrong_frame.variable_frame,
-                        binding == &wrong_frame,
-                        tokens.source_binding.as_ref() == Some(binding),
-                        tokens.source_binding.as_ref() == Some(&wrong_frame),
-                        binding
-                            .normalisation_expression(registry, &tokens)
-                            .map(|proof| proof.frame),
-                        wrong_frame
-                            .normalisation_expression(registry, &tokens)
-                            .map(|proof| proof.frame),
-                    );
-                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
-                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
-                    assert!(
-                        !wrong_frame
-                            .nested_expression_normalisation(registry, &tokens, &parser, None)
-                    );
-                    let mut foreign = tokens.clone();
-                    foreign.word_exprs.clear();
-                    assert!(
-                        !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
-                    );
+                    assert_nested_owner_refusals(binding, &tokens, registry, &parser, profile_name);
                 }
             }
         }
@@ -2217,33 +2222,7 @@ mod tests {
                         projection,
                         Some(("$x * 2".to_owned(), "[expr {$x * 2}]".to_owned()))
                     );
-                    let mut wrong_frame = binding.clone();
-                    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
-                    eprintln!(
-                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
-                        binding.variable_frame,
-                        wrong_frame.variable_frame,
-                        binding == &wrong_frame,
-                        tokens.source_binding.as_ref() == Some(binding),
-                        tokens.source_binding.as_ref() == Some(&wrong_frame),
-                        binding
-                            .normalisation_expression(registry, &tokens)
-                            .map(|proof| proof.frame),
-                        wrong_frame
-                            .normalisation_expression(registry, &tokens)
-                            .map(|proof| proof.frame),
-                    );
-                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
-                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
-                    assert!(
-                        !wrong_frame
-                            .nested_expression_normalisation(registry, &tokens, &parser, None)
-                    );
-                    let mut foreign = tokens.clone();
-                    foreign.word_exprs.clear();
-                    assert!(
-                        !binding.nested_expression_normalisation(registry, &foreign, &parser, None)
-                    );
+                    assert_nested_owner_refusals(binding, &tokens, registry, &parser, profile_name);
                 } else {
                     assert!(projection.is_none());
                 }
