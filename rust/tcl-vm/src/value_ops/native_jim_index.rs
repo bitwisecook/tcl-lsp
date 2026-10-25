@@ -1113,8 +1113,8 @@ mod tests {
         let mut vm = actual();
         let list = Value::new_native_string_bytes(b"a b c d e f g".as_slice());
         let first = Value::new_native_string_bytes(b"2*3".as_slice());
-        let last = Value::new_native_string_bytes(b"end".as_slice());
-        let result = tcl_cmd_core::list::lrange(&mut vm, &list, &first, &last).unwrap();
+        let end_index = Value::new_native_string_bytes(b"end".as_slice());
+        let result = tcl_cmd_core::list::lrange(&mut vm, &list, &first, &end_index).unwrap();
         assert_eq!(result.string_bytes().as_ref(), b"g");
         vm.with_native_interp_result(|result| assert_eq!(result.string_bytes().as_ref(), b"6"))
             .unwrap();
@@ -1232,7 +1232,9 @@ mod direct_binary_native_rows634a {
     fn unhex(bytes: &str) -> Vec<u8> {
         bytes
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
@@ -1269,47 +1271,44 @@ mod direct_binary_native_rows634a {
                 row.in_place,
             );
             let label = (row.dialect, row.case, row.stream_sha);
-            match row.output {
-                Some(output) => {
-                    let result = reached.unwrap();
-                    assert_eq!(
-                        result.is_same_object(&subject),
-                        row.alias_subject,
-                        "{label:?}"
-                    );
-                    assert_eq!(
-                        result.is_same_object(&replacement),
-                        row.alias_replacement,
-                        "{label:?}"
-                    );
-                    let snapshot = result.native_object_snapshot();
-                    assert!(
-                        matches!(
-                            snapshot.cache,
-                            tcl_syntax::native_object::NativeObjectCacheSnapshot::ByteArray {
-                                proper: true,
-                                ..
-                            }
-                        ),
-                        "{label:?}"
-                    );
-                    assert!(snapshot.resident.is_none(), "{label:?}");
-                    assert_eq!(
-                        vm.index_operand_bytes(&result).unwrap().as_ref(),
-                        unhex(output),
-                        "{label:?}"
-                    );
-                }
-                None => {
-                    assert!(matches!(reached.unwrap_err().native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("uninitialised original C binary replacement constructor")))), "{label:?}");
-                    // Pure public inspection after refusal supplies no original
-                    // getter or successful continuation credit to this Vm.
-                    assert_eq!(
-                        subject.native_object_snapshot(),
-                        subject_before,
-                        "{label:?}"
-                    );
-                }
+            if let Some(output) = row.output {
+                let result = reached.unwrap();
+                assert_eq!(
+                    result.is_same_object(&subject),
+                    row.alias_subject,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    result.is_same_object(&replacement),
+                    row.alias_replacement,
+                    "{label:?}"
+                );
+                let snapshot = result.native_object_snapshot();
+                assert!(
+                    matches!(
+                        snapshot.cache,
+                        tcl_syntax::native_object::NativeObjectCacheSnapshot::ByteArray {
+                            proper: true,
+                            ..
+                        }
+                    ),
+                    "{label:?}"
+                );
+                assert!(snapshot.resident.is_none(), "{label:?}");
+                assert_eq!(
+                    vm.index_operand_bytes(&result).unwrap().as_ref(),
+                    unhex(output),
+                    "{label:?}"
+                );
+            } else {
+                assert!(matches!(reached.unwrap_err().native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("uninitialised original C binary replacement constructor")))), "{label:?}");
+                // Pure public inspection after refusal supplies no original
+                // getter or successful continuation credit to this Vm.
+                assert_eq!(
+                    subject.native_object_snapshot(),
+                    subject_before,
+                    "{label:?}"
+                );
             }
             if row.output.is_some() {
                 assert_eq!(
@@ -1333,7 +1332,9 @@ mod indexed_binary_native_projections633 {
     fn unhex(bytes: &str) -> Vec<u8> {
         bytes
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
