@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-25T19:47:28.485796+00:00",
+  "scheduled": "2026-10-25T19:45:00+00:00",
+  "report_written_utc": "2026-10-25T19:45:13.274836+00:00",
+  "source_snapshot": "474cd10e806a7a82435889f43f80c889e8de0c61",
+  "published_snapshot": "4019f1527bb4f77cdcec1d4d0a006a0e3d6b275c",
+  "clean_published": "85105f50cf512bb47547def806d88ff298f4c643",
+  "source_commits": [
+    "0487bd875b015ab50afa93cc3f87561dee87029b",
+    "474cd10e806a7a82435889f43f80c889e8de0c61"
+  ],
+  "published_mapping": [
+    [
+      "0487bd875b015ab50afa93cc3f87561dee87029b",
+      "f2ff767d6"
+    ],
+    [
+      "474cd10e806a7a82435889f43f80c889e8de0c61",
+      "4019f1527bb4f77cdcec1d4d0a006a0e3d6b275c"
+    ]
+  ],
+  "docs_patches_exact": true,
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "remote_confirmed": "4019f1527bb4f77cdcec1d4d0a006a0e3d6b275c",
+  "gate_admissions": [],
+  "interruption": "Docs-only publisher stopped before push because ten own reviewed product/contract after-images differed from origin. Verified exact ten reviewed after-images, then normal reviewed-tip pusher fetched/synced and confirmed both branch pushes. Never replayed already cherry-picked checkpoints.",
+  "prepush_receipt": "/workspace/naming-proof-storage/root-cycle-1945-reviewed-product-prepush.json",
+  "active_product_remains_frozen": true
+}

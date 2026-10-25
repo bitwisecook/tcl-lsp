@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T20:16:34.659625+00:00",
+  "scheduled_report_utc": "2026-10-25T20:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T20:45:00+00:00",
+  "change_since_previous_report": [
+    "Reviewed browser deferred-procedure source coverage is paired integrated080ba/2322 with shippingcontracts4d949/b8ef. WORK-only child firstguard and bytecommand factory observers preserve original queries/guards/rows. Current207record union independentpeerda93 passes exact23JSON/17maps/166files. Cancellation-pattern repair29d99/e773 fixes actualE0369 without adding enum equality. Preflight29d99 PASS13/30/20; actualnewsource validation pending.",
+    "Fresh cd2 compiler102 fullyauthenticated fcd7fac4/352c19b3 remains96PASS6FAIL/0UNRUN,223closedprocesses. Closed16+originalfoldpass. ActualRBScondition.parse13 confirms heldliteralcandidate cause; readonly failures now measured walker59/576, Logicalpoints lack exactoffset/frame. Originalassertions untouched; genuineproducer fixes next.",
+    "Fresh cd2WASM fullyauthenticatededaf9005 has22PASS3FAIL. Allocation witness joins retainedpublicglobalheaders exactly to precedingprivateerrorobjects, consistentwithC9ResetResult; livebaselineassertcoverage needs concreteuserdecision, no productioncleanup/warmup/subtraction. Depth2perlevel measured but ABI128refusal needs properactualframeproof; NativeAOTADD futuredeclarationplan stillheld.",
+    "Fullyauthenticatedc238startup b50838a1 hasallruntimeUNRUN on newtest E0369; separateCore2b7bf59a8PASS2. The peer-reviewed oneexpressionmatches fix is integrated. CurrentClippy frontier is242plusE0369 beforeitsfix, notgreen. Core43/VM20/Studio1/compilerremaining lintrepairs assigned withoutallows/assertionweakening. NewexactDefault2Coreintegrationvalidation prepared separately; originalcorecases stillUNRUN.",
+    "QuietSpec5da fullcorpus completedin592.06s andFAILS only docs/design/spec-dsl-examples/string.tclspec (3boundhooks/0attempt). All17873attemptedhooks succeed;25packs/1516commands/24hookbodies loaded,327diagnostics/85optimisations. Fullauth1b4fcd8d/4ad4d59b preserves600/shared20MiB andallownedclosure. Allfocused16PASS. Per-packaggregate doesnotproveeachboundhook identity; fullC1C2 remainsopen.",
+    "Latestff56matchingCIprofile native scan stilltimesout20.004s; peak382380KiB. Exact26leafprofile hasno sampledwholeAdviceCellmapclone butversion/surface/namework remains; no causalorperformancepassclaim. Pureduplicate immutable surfacepredicate factoring awaitingstrongpeer. OriginalfactorialURIminify stillleavesinnerexpression spaces, while simpleexpressionmatches; no sourcebound/core/oracle admission.",
+    "FullCLEANCIff56 buildPASS/all5Rustshards reachactualtests. Newcargo-denyFAIL is now-yankedcrypto-bigint0.7.6; exactCargo-generated079 version/checksum-only update inall8liveworkspaces independentlypeereda611e50f andpairedintegrated. Registrydeps/features/MSRVunchanged; historicalevidenceuntouched. No newcargo-deny/buildPASSinferred.",
+    "Usernewchecked_character_view compatibledefault/genuinegetter/originalpositiveinputcontextadaptation questionPENDING; V4reviewablecandidate30224fdf remainsOFFTREE, no fabricateddecision. Currentdiskabout2.3GiB after rootremovedonly8additional>24h supersedednonexe.rmeta(no liveCargo/Rustc; newestkept), receiptroot-superseded-nonexec-rmeta-reclaim-20261025T1957Z. No source/evidence/ZIP/executableloss. ExternalBIGIP/perfstale notified/no takeover. Next20:45; noPR/merge/tag/release."
+  ],
+  "committed": [
+    "474cd10e806a7a82435889f43f80c889e8de0c61"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Run currentbrowser/Jim/iRules/startup/strictafterpush; collectactualDefault2integrationcontrols andcurrentbaselineCI outcomes.",
+    "Resolve genuineRBS/readonly/Logical/Jim/stringSpec/source-owner producers; complete scopedstrictbatches andshippingTclperformance.",
+    "KeepnewNativeAPIdecisionpending; prepare reviewableallocationcoveragechoicewithoutassertionweakening; finishrelease docs/comments/generated/fixtures/prep-pr gates."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Newpartial outcomes are scoped to exactsource; no global release or audit-unit admission. User API question remains unanswered.",
+  "disk_free_bytes": 2454806528,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T19:33:23Z
+Last updated: 2026-10-25T19:53:44Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -1044,3 +1044,11 @@ Option B remains HOLD: SourceProc `f2e66799` finds no existing genuine general N
 Fresh570 Spec run40225571811/job121266087034 is now fully authenticated: old16 ALL PASS; separately appended fullcorpus INCOMPLETE due aggregate_log_cap_exceeded after6.6085s (10,383,342B remaining consumed), not600s timeout or semantic assertion failure. Exact same freshELF/list180/test600, groupempty afterSIGINT, seals/sourceGitbytes/fullmemberstreamSHA/ordered shared20MiB(noreset) verified. Receipt `vm-spectcl-actual-40225571811/outcome-boundary-authentication.json` SHA `8a492c586e91ed2aa7eb6af689fbcfc7ba9a5dc6ce7140d9873306992809b4a7`. C1/C2 remains open. NewLogical3 still compile-only/not selected.
 
 Root-authorized narrow QUIET child successor is OFFTREE `vm-spectcl-full-corpus-quiet-work-v1/manifest.json` SHA `057aefd5eda0a92e87957f4748a5ee69eb854d2e434e51b7b646a7a54d0055d4`; Names protocol peer pending. Only fullcorpus600 child copies env and removes3existing diagnosticvars; old16/listing/caller env, selectors/assertions,600/sharedCAP/deadline/floor unchanged. Actual-helper nochild mock verifies isolation; no new actual execution or cap waiver.
+
+## Resume 2026-10-25T19:53:44Z — concrete checked-view proposal, decision pending
+
+Quiet full-corpus successor protocol has independent Names clearance `e9527eb4`; root dispatched run40227226329/job121271057185 exact `5da34e9bd880e00163635523675480b5812aa2a6`. Sole capture owner remains this role; artifact not yet available at last poll. Original16 env/guards and shared20MiB/600 limit are unchanged; only appended corpus child removes3diagnostic vars.
+
+Getter proposal now includes actual production/public API mapping: OFFTREE `vm-native-unicode-getter-capability-prototype-v4/manifest.json` SHA `add06f5e082ce05b43cbcafdb82ad3f75c5bdffb0caa882da3fe52438bb0cb65`, source proof `ecfb50c32cf5e3e04739499a7bbe9d73facefe507b0cac6ce645f781da9eceaf`. Public checked_character_view has a compatible default; existing as_chars/try_as_str signatures+bodies remain exact. Runtime actual constructor-issued backend entry; bytelength fallback migration; compiledreplace count uses existing checked NativeIndexOps at original C GetCharLength stage. Original baseline named41FF42/twoassert test restored via actual PUBLIC checked API FIRST/freshNativeCore, explicit object/context input-door adaptation, no priming. New controls cover reentrant free/updater and retired-header refusal while allocation lease held. V2 public retain-before-liveness bug is corrected; V4 also restores old negative test doc attachment. Current pinned source/wholeold6inverse/fmt16/copiedF-R-F0 PASS; hosted typing/tests UNRUN. SourceProc independent review pending; root user decision PENDING. No decision JSON/answer, source integration, baseline closure or Native grant inferred.
+
+V4 independent static design-candidate CLEAR: `source-peer-native-unicode-getter-prototype-v4/receipt.json` SHA `30224fdf4b14c783dd75a653e3d2dca25c0d9b67f1b3ea6434011f661c1197db`. SourceProc reviewed actual issuer/lifecycle/free+retired custody/public default+override/error propagation/native-count migration and independently verified current16/F-R-F0/fmt16. Integration remains HOLD for pending user decision and hosted compile/control execution; adapted NativeCore/object input is explicit, not old bytes-only door equivalence.
