@@ -218,11 +218,21 @@ impl IntoIterator for OriginalSubstitutionInventory {
     }
 }
 
+fn trace_substitution_fact<T>(stage: &'static str, value: Option<T>) -> Option<T> {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if value.is_none()
+        && std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some()
+        && LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64
+    {
+        eprintln!("NATIVE_READONLY_FACT stage={stage} present=false");
+    }
+    value
+}
 pub(crate) fn original_substitution_invocations(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<OriginalSubstitutionInventory> {
-    let binding = tokens.source_binding.as_ref()?;
+    let binding = trace_substitution_fact("substitution.binding", tokens.source_binding.as_ref())?;
     if binding.has_original_authored_source_body_name_role_owner() {
         let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
         let receipts =
@@ -251,22 +261,31 @@ pub(crate) fn original_substitution_invocations(
             input,
         )?
     } else {
-        let metadata = binding
-            .original_source_metadata_for_advice(tokens, registry)
-            .ok()?;
+        let metadata = trace_substitution_fact(
+            "substitution.metadata",
+            binding
+                .original_source_metadata_for_advice(tokens, registry)
+                .ok(),
+        )?;
         let config = binding.original_lexer_config_for_tokens(tokens)?;
-        let site = binding.invocation_site()?;
-        crate::registry_invocation::original_native_compiler_words(
-            site.source.source_image(),
-            tokens.words(),
-            site.offset,
-            config,
+        let site = trace_substitution_fact("substitution.site", binding.invocation_site())?;
+        trace_substitution_fact(
+            "substitution.native_words",
+            crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                config,
+            ),
         )?;
         if let Some(metadata) =
             metadata.filter(|metadata| metadata.source_analysis_input().is_some())
         {
-            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-                tokens, config, registry, metadata,
+            trace_substitution_fact(
+                "substitution.child_metadata",
+                crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                    tokens, config, registry, metadata,
+                ),
             )?
         } else {
             let calls = crate::word_subst::checked_argument_lifted_calls(tokens, config)?;
@@ -282,7 +301,7 @@ pub(crate) fn original_substitution_invocations(
                         .iter()
                         .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
                 {
-                    return None;
+                    return trace_substitution_fact("substitution.role_obligation", None);
                 }
             }
             calls

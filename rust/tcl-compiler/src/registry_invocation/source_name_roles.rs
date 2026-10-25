@@ -247,24 +247,49 @@ pub(crate) fn original_name_role_values(
     }
 }
 
+fn trace_owned_role<T>(stage: &'static str, value: Option<T>) -> Option<T> {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if value.is_none()
+        && std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some()
+        && LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64
+    {
+        eprintln!("NATIVE_READONLY_FACT stage={stage} present=false");
+    }
+    value
+}
 pub(crate) fn original_assignment_name_operand(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
     statement_name: &str,
 ) -> Option<(OriginalVariableNameOperand, bool)> {
-    let source = original_source_name_roles(registry, tokens)?;
-    source
-        .facts
-        .traits
-        .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
-        .then_some(())?;
+    let source = trace_owned_role(
+        "assignment.source_roles",
+        original_source_name_roles(registry, tokens),
+    )?;
+    trace_owned_role(
+        "assignment.name_trait",
+        source
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::FIRST_ARG_VARNAME)
+            .then_some(()),
+    )?;
     let argument = source.facts.argument_offset;
-    source
-        .roles
-        .contains(&(argument, tcl_registry::ArgRole::VarWrite))
-        .then_some(())?;
-    let name = source.original_variable_name_operand(argument)?;
-    (name.as_str() == statement_name).then_some((name, source.has_unknown_residual()))
+    trace_owned_role(
+        "assignment.write_role",
+        source
+            .roles
+            .contains(&(argument, tcl_registry::ArgRole::VarWrite))
+            .then_some(()),
+    )?;
+    let name = trace_owned_role(
+        "assignment.literal_name",
+        source.original_variable_name_operand(argument),
+    )?;
+    trace_owned_role(
+        "assignment.ir_name_match",
+        (name.as_str() == statement_name).then_some((name, source.has_unknown_residual())),
+    )
 }
 
 /// Conditional source metadata under the actual supplied input. Existing
