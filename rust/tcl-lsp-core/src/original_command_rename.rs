@@ -411,6 +411,19 @@ fn coverage_region(
         .ok_or(OriginalCommandRenameRefusal::StaleSource)
 }
 
+fn quiet_store_coverage(
+    walk: &crate::refactor::FrameWalk<'_>,
+    document: OriginalDeclarationDocument<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    offset: u32,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    let Some(selected) = walk.quiet_store_for_rename_coverage(document.source, command) else {
+        return Ok(false);
+    };
+    reject_selected_command_link_coverage(&selected, offset)?;
+    Ok(true)
+}
+
 fn queue_declaration(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
@@ -512,7 +525,9 @@ fn document_requests(
                     requests.push((input.clone(), NameBytes::from(wanted)));
                 }
             }
-            if queue_declaration(&walk, document, &command, depth, &mut pending)? {
+            if queue_declaration(&walk, document, &command, depth, &mut pending)?
+                || quiet_store_coverage(&walk, document, &command, command_offset)?
+            {
                 continue;
             }
             if let Some(selected) = walk.structure_for_rename_coverage(document.source, &command) {
@@ -1129,6 +1144,69 @@ mod tests {
                 .procedure_declaration_for_rename_coverage(source, &command)
                 .is_none())
         );
+    }
+
+    #[test]
+    fn quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source() {
+        let source = "proc host_old {value} { return $value }\nset host_marker \"🧪 café\"; proc host_caller {} {return [host_old 7]}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let walk = crate::refactor::FrameWalk::new(source, &analysis).unwrap();
+        let command = walk.segment_document(source).into_iter().nth(1).unwrap();
+        let tokens = walk.tokens(source, &command);
+        let selected = walk
+            .quiet_store_for_rename_coverage(source, &command)
+            .expect("actual same-owner quiet store and complete handler");
+        assert_eq!(
+            selected.written_argument_roles(),
+            vec![(0, tcl_registry::ArgRole::VarWrite)]
+        );
+        let document = OriginalDeclarationDocument {
+            uri: "file:///quiet.tcl",
+            source,
+            analysis: &analysis,
+        };
+        assert!(quiet_store_coverage(&walk, document, &command, 40).unwrap());
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
+                source, &foreign, &tokens
+            )
+            .is_none()
+        );
+        assert!(
+            tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
+                "set host_marker OTHER",
+                &analysis,
+                &tokens
+            )
+            .is_none()
+        );
+        let mut wrong_input = analysis.clone();
+        wrong_input.resolved_input = Analyser::new().analyse(source, "tcl9.0").resolved_input;
+        assert!(
+            tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
+                source,
+                &wrong_input,
+                &tokens
+            )
+            .is_none()
+        );
+        for refused_source in [
+            "proc set args {return VALUE}; set host_marker VALUE",
+            "proc observer args {puts OBS}; trace add variable host_marker write observer; set host_marker VALUE",
+            "unknown_op; set host_marker VALUE",
+            "puts VALUE",
+        ] {
+            let refused = Analyser::new().analyse(refused_source, "tcl8.6");
+            let other = crate::refactor::FrameWalk::new(refused_source, &refused).unwrap();
+            let last = other.segment_document(refused_source).pop().unwrap();
+            assert!(
+                other
+                    .quiet_store_for_rename_coverage(refused_source, &last)
+                    .is_none(),
+                "{refused_source}"
+            );
+        }
     }
 
     #[test]

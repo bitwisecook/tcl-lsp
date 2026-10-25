@@ -978,6 +978,59 @@ pub fn original_structured_invocation_with_metadata_context(
         .map(|selected| selected.invocation)
 }
 
+/// Coverage of one actual completed quiet scalar store in authored source.
+/// Original point, operands, receiver and handler completion stay independent;
+/// no compiler visit or descriptor callback absence supplies their evidence.
+#[must_use]
+pub fn original_authored_quiet_store_for_source_coverage(
+    source: &str,
+    analysis: &crate::analyser::AnalysisResult,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = tcl_lexer::SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input) {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let offset = tokens.argv.first()?.start();
+    let site = binding.invocation_site()?;
+    let origin = realm.source_bindings_ref().source_origin()?;
+    if site.offset != offset || !std::sync::Arc::ptr_eq(&site.source, origin) {
+        return None;
+    }
+    let expected = realm.retained_original_tokens_for_command(&image, config, offset, tokens)?;
+    if expected.source_binding.as_ref() != Some(binding)
+        || !binding.original_invocation_completes_normally(tokens)
+    {
+        return None;
+    }
+    let registry = analysis.resolved_registry()?;
+    let context = InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        analysis.resolved_profile(),
+    )?;
+    if binding.original_source_advice_purpose(tokens, context, registry)?
+        != crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+    {
+        return None;
+    }
+    let selected = original_declared_structured_invocation(registry, context, tokens)?;
+    original_structured_operands_are_supported(registry, &selected, None, tokens)?;
+    let native = original_native_compiler_words(&image, tokens.words(), offset, config)?;
+    realm
+        .source_bindings_ref()
+        .original_quiet_scalar_store_for_source_coverage(&native, &selected.facts, registry)
+        .then_some(selected)
+}
+
 /// Original deferred procedure declaration grammar for source coverage only.
 /// This retains the exact authored source lookup and direct static operands;
 /// it grants neither body entry nor Native frame or Normal completion.
