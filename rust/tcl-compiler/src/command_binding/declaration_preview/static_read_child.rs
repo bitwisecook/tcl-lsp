@@ -185,8 +185,10 @@ impl OriginalProcedureStaticReadAlternatives {
         if state.variable_frame != *frame {
             return super::trace_static_read_refusal("child.snapshot_frame", None);
         }
-        if binding.variable_frame != *frame {
-            return super::trace_static_read_refusal("child.binding_frame", None);
+        let binding_frame = &binding.variable_frame;
+        if binding_frame != frame {
+            let stage = child_binding_frame_refusal(binding_frame, binding.lookup_state.is_some());
+            return super::trace_static_read_refusal(stage, None);
         }
         if !super::super::SourceCommandBindings::context_owns_frame(
             &binding.variable_context,
@@ -341,6 +343,37 @@ impl OriginalProcedureStaticReadAlternatives {
                     )
                     .map(|roles| roles.iter().any(|(_, reads, _)| *reads))
             ))
+    }
+}
+
+fn child_binding_frame_refusal(
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    has_lookup_snapshot: bool,
+) -> &'static str {
+    use crate::var_resolve::VariableExecutionFrame as Frame;
+    match (frame, has_lookup_snapshot) {
+        (Frame::Global, true) => "child.binding_frame.Global.lookup",
+        (Frame::Global, false) => "child.binding_frame.Global.no_lookup",
+        (Frame::Namespace(_), true) => "child.binding_frame.Namespace.lookup",
+        (Frame::Namespace(_), false) => "child.binding_frame.Namespace.no_lookup",
+        (Frame::NamespaceActivation { .. }, true) => {
+            "child.binding_frame.NamespaceActivation.lookup"
+        }
+        (Frame::NamespaceActivation { .. }, false) => {
+            "child.binding_frame.NamespaceActivation.no_lookup"
+        }
+        (Frame::Procedure { .. }, true) => "child.binding_frame.Procedure.lookup",
+        (Frame::Procedure { .. }, false) => "child.binding_frame.Procedure.no_lookup",
+        (Frame::ReceiverMethod { .. }, true) => "child.binding_frame.ReceiverMethod.lookup",
+        (Frame::ReceiverMethod { .. }, false) => "child.binding_frame.ReceiverMethod.no_lookup",
+        (Frame::Selected { .. }, true) => "child.binding_frame.Selected.lookup",
+        (Frame::Selected { .. }, false) => "child.binding_frame.Selected.no_lookup",
+        (Frame::NamespaceIdentity { .. }, true) => "child.binding_frame.NamespaceIdentity.lookup",
+        (Frame::NamespaceIdentity { .. }, false) => {
+            "child.binding_frame.NamespaceIdentity.no_lookup"
+        }
+        (Frame::Unknown, true) => "child.binding_frame.Unknown.lookup",
+        (Frame::Unknown, false) => "child.binding_frame.Unknown.no_lookup",
     }
 }
 
