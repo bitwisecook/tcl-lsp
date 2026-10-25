@@ -1018,7 +1018,10 @@ mod tests {
             .unwrap();
         assert_eq!(entry.source_point_entry.as_ref(), Some(&point));
         assert!(entry.native_entry.is_none());
-        assert_eq!(entry.native_compilation, Default::default());
+        assert_eq!(
+            entry.native_compilation,
+            tcl_registry::native_compilation::NativeCompilationContext::default()
+        );
         assert!(
             child
                 .original_source_analysis_entry("WRONG", registry, None)
@@ -1093,11 +1096,11 @@ mod tests {
             |a| a.pack_overlay = 41,
             |a| {
                 a.declared_targets
-                    .push(("tcl".to_owned(), "8.6-".to_owned()))
+                    .push(("tcl".to_owned(), "8.6-".to_owned()));
             },
             |a| {
                 a.package_provides
-                    .push(("Pkg".to_owned(), vec!["Other".to_owned()]))
+                    .push(("Pkg".to_owned(), vec!["Other".to_owned()]));
             },
             |a| a.deep_param_traits = true,
             |a| a.structure_only = true,
@@ -1108,12 +1111,14 @@ mod tests {
             |a| {
                 a.workspace_bare_word_classes.insert("Other".to_owned());
             },
-            |a| a.workspace_class_factories = Some(Arc::new(Default::default())),
-            |a| a.workspace_subclass_methods = Some(Arc::new(Default::default())),
+            |a| a.workspace_class_factories = Some(Arc::new(std::collections::BTreeMap::default())),
+            |a| {
+                a.workspace_subclass_methods = Some(Arc::new(std::collections::BTreeMap::default()))
+            },
             |a| {
                 a.library_versions = crate::analyser::Analyser::new()
                     .with_bigip_version(Some("16.1".to_owned()))
-                    .library_versions
+                    .library_versions;
             },
         ];
         for mutate in variants {
