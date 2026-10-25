@@ -33,6 +33,7 @@ use crate::registry_invocation::{
     effective_words_for_target, resolve_registry_words_in_realm,
 };
 
+pub(super) mod logical_body_entry;
 mod static_read_child;
 
 /// A positioned conditional declaration recipe, never an implementation allocation.

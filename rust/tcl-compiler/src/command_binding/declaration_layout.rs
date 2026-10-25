@@ -2669,6 +2669,13 @@ impl SourceCommandBindings {
                 OriginalDiagnosticFrameEntry::Body(body),
                 context.namespace_identity(),
             )
+        } else if let Some(body) =
+            super::declaration_preview::logical_body_entry::current_entry(state, context, offset)
+        {
+            (
+                OriginalDiagnosticFrameEntry::DeclaredProcedure(body),
+                context.namespace_identity(),
+            )
         } else if let Some(body) = self.declared_receiver_body_entry_at(origin, offset) {
             if body.preview_frame() != &state.variable_frame {
                 return;

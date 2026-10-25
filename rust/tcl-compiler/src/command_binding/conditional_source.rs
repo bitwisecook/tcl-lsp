@@ -47,6 +47,7 @@ impl SourceConditionalContext {
         registry: &'a tcl_registry::CommandRegistry,
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
+            original_logical_body: None,
             source_purpose: self.source_purpose,
             body_entry: super::SourceBodyEntryPurpose::Conditional,
             realm: self.realm,
