@@ -6787,6 +6787,7 @@ pub fn lower_script_bytes_module_for_bytecode_with_options(
             source: target.source,
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::Script,
+            parameters: &[],
         },
         registry,
         config,
@@ -6814,6 +6815,7 @@ pub fn lower_procedure_bytes_module_for_bytecode_with_options(
             source: target.source,
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::ProcedureBody,
+            parameters: target.parameters,
         },
         registry,
         config,
@@ -6828,6 +6830,7 @@ struct NativeLoweringTarget<'a> {
     source: &'a tcl_lexer::SourceImage,
     namespace: &'a tcl_core_types::ByteNamespacePath,
     kind: crate::ir::TopLevelKind,
+    parameters: &'a [tcl_core_types::NameBytes],
 }
 
 fn lower_native_target(
@@ -6842,6 +6845,7 @@ fn lower_native_target(
         source,
         namespace,
         kind,
+        parameters,
     } = target;
     let mut lowerer = Lowerer::with_config(registry, config)
         .with_dialect(dialect)
@@ -6851,6 +6855,18 @@ fn lower_native_target(
     }
     if plain_command_dispatch {
         lowerer = lowerer.trace_visible();
+    }
+    if kind == crate::ir::TopLevelKind::ProcedureBody
+        && lowerer
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            == Some(tcl_dialect::ParameterGrammar::Tcl)
+        && let Ok(names) = parameters
+            .iter()
+            .map(|name| name.try_utf8().map(str::to_owned))
+            .collect::<Result<Vec<_>, _>>()
+    {
+        lowerer.incoming_formals = names;
     }
     lowerer.set_source_image_channel(source);
     lowerer.module.native_namespace = Some(namespace.clone());
