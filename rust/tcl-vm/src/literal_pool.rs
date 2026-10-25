@@ -1184,6 +1184,29 @@ mod tests {
     }
 }
 
+/// Plain source words retain distinct Native and Logical issuers.
+#[derive(Clone, Copy)]
+pub(crate) enum PlainSourceOperands {
+    Native(NativeDirectSourceOperands),
+    LogicalUpLevel(crate::interp::LogicalUpLevelSourceEntry),
+}
+
+impl PlainSourceOperands {
+    pub(crate) fn is_current(self, policy: &crate::compiled::NativeCompilerPolicy) -> bool {
+        match self {
+            Self::Native(original) => original.is_current(policy),
+            Self::LogicalUpLevel(logical) => logical.is_current(policy),
+        }
+    }
+
+    pub(crate) fn value(self, literal: &tcl_bytecode::NativeStringLiteral) -> Value {
+        match self {
+            Self::Native(original) => original.value(literal),
+            Self::LogicalUpLevel(logical) => logical.value(literal),
+        }
+    }
+}
+
 /// Closed actual DIRECT operand producer; the control plan owns no guest literal object.
 #[derive(Clone, Copy)]
 pub(crate) struct NativeDirectSourceOperands {
@@ -1235,6 +1258,49 @@ impl NativeDirectSourceOperands {
 }
 
 impl crate::Vm {
+    pub(crate) fn logical_uplevel_source_unit(
+        &self,
+        asm: &Rc<tcl_bytecode::FunctionAsm>,
+        namespace: &ByteNamespacePath,
+        selected: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+    ) -> Result<Option<crate::compiled::CompiledUnit>, tcl_syntax::value::ValueError> {
+        let Some(entry) = self.logical_uplevel_source_entry(selected, purpose)? else {
+            return Ok(None);
+        };
+        if !asm.plain_command_dispatch
+            || asm.literals.entries().iter().any(|literal| {
+                matches!(
+                    literal.allocation(),
+                    NativeLiteralAllocation::PrivateConstantList { .. }
+                        | NativeLiteralAllocation::PrivateInteger(_)
+                )
+            })
+            || !asm.literals.discarded_native_passes().is_empty()
+            || asm
+                .literals
+                .native_actions()
+                .iter()
+                .any(|action| !matches!(action, NativeLiteralAction::Register(_)))
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "logical uplevel source operand plan",
+            ));
+        }
+        let mut unit = crate::compiled::CompiledUnit::new(
+            Rc::clone(asm),
+            namespace.clone(),
+            self.profile_generation(),
+            self.trace_deopt_epoch(),
+            None,
+            self.native_interpreter_identity(),
+            crate::compiled::CompilerProvenance::LogicalUpLevel(self.compiler_generation()),
+        );
+        unit.compiled_local_layout = None;
+        unit.direct_source_operands = Some(PlainSourceOperands::LogicalUpLevel(entry));
+        Ok(Some(unit))
+    }
+
     /// Retain a plain source control plan without creating native compiled objects or pools.
     pub(crate) fn direct_source_unit(
         &self,
@@ -1256,7 +1322,7 @@ impl crate::Vm {
             crate::compiled::CompilerProvenance::NativeDirect(self.compiler_generation()),
         );
         unit.compiled_local_layout = None;
-        unit.direct_source_operands = Some(operands);
+        unit.direct_source_operands = Some(PlainSourceOperands::Native(operands));
         Ok(unit)
     }
 }

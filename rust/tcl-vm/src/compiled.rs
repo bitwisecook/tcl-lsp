@@ -36,6 +36,8 @@ pub(crate) enum CompilerProvenance {
     NativeScript,
     /// A plain source control plan, with no native compiled cache or literal registrations.
     NativeDirect(u64),
+    /// Authored uplevel source words, without native compilation or cache authority.
+    LogicalUpLevel(u64),
     CurrentService(u64),
     AdmittedForeign(u64),
 }
@@ -45,6 +47,7 @@ impl CompilerProvenance {
         match self {
             Self::NativeScript => 0,
             Self::NativeDirect(generation)
+            | Self::LogicalUpLevel(generation)
             | Self::CurrentService(generation)
             | Self::AdmittedForeign(generation) => generation,
         }
@@ -125,7 +128,7 @@ pub(crate) struct CompiledUnit {
     pub(crate) fixed_math_calls:
         Option<Rc<std::collections::HashMap<usize, crate::interp::NativeFixedMathCall>>>,
     pub(crate) literal_pool: crate::literal_pool::NativeLiteralPoolReceipt,
-    pub(crate) direct_source_operands: Option<crate::literal_pool::NativeDirectSourceOperands>,
+    pub(crate) direct_source_operands: Option<crate::literal_pool::PlainSourceOperands>,
     pub(crate) source_location:
         Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     pub(crate) source_namespace: CompiledUnitNamespace,

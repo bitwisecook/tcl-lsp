@@ -62,6 +62,8 @@ use tcl_syntax::naming::{NamePolicyProtocol, NativeCommandVisibilityFailure};
 use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
+mod logical_uplevel_source;
+pub(crate) use logical_uplevel_source::LogicalUpLevelSourceEntry;
 mod authored_package;
 pub(crate) use authored_package::PackageTableReceipt;
 mod authored_rule_callables;
@@ -28105,20 +28107,28 @@ impl Vm {
     ) -> Result<CompiledUnit, TclError> {
         let module = self.compile_module_bytes(admitted_source, namespace, true)?;
         self.merge_procs(&module);
-        Ok(self
-            .direct_source_unit(
-                Rc::new(module.top_level.clone()),
+        let asm = Rc::new(module.top_level.clone());
+        let unit = if let Some(unit) =
+            self.logical_uplevel_source_unit(&asm, &module.source_namespace, evaluation, purpose)?
+        {
+            unit
+        } else {
+            self.direct_source_unit(
+                asm,
                 module.source_namespace.clone(),
                 strings,
                 evaluation,
                 purpose,
             )?
-            .with_source_location(self.script_stack.last().map(|file| {
+        };
+        Ok(
+            unit.with_source_location(self.script_stack.last().map(|file| {
                 tcl_runtime_api::script_source_location::ScriptSourceLocation {
                     file: file.clone(),
                     line: 1,
                 }
-            })))
+            })),
+        )
     }
 
     pub(crate) fn prepare_script_commands_value_for(
