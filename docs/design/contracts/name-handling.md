@@ -3853,6 +3853,22 @@ and current producer and dependency leases. The selected declaration keeps its
 original owner. No analysis fields are rewritten and no owner is reissued; a
 missing join keeps the ordinary unknown-world refusal.
 
+### Deferred procedure declaration source coverage
+
+Command rename coverage may survey a deferred procedure declaration using its
+actual Authored source lookup, independently from the same-invocation control
+flow structure route. The original declaration issuer retains the exact input,
+registry, namespace, lexer configuration and selected command alternatives.
+Only the selected Proc schema with complete direct Name, ParamList and Body
+roles, static unchanged operands and deferred own-frame body traits supplies
+this declaration structure. Existing command-link obligations still apply.
+
+The literal braced body is queued as a separate source survey. Every nested
+command retains its own original lookup and coverage checks; unknown or foreign
+owners refuse. This route does not add Proc to the same-frame control whitelist,
+enter its body, establish an installed procedure, or supply a Native frame,
+Normal completion or edit equivalence.
+
 ### Authored uplevel source words
 
 An explicitly installed Logical uplevel dispatcher uses its own source-word entry.
