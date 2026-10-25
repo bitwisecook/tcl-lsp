@@ -1847,16 +1847,18 @@ impl Builder<'_> {
                 list_element: None,
             },
         );
-        let Some(source) = source else {
+        let Some(source) = trace_rbs_required(source, site.offset, "condition.source") else {
             return (vec![Event::Unknown], None, None);
         };
         let dialect = self.entry_dialect();
         let Ok(text) = source.try_text() else {
+            trace_rbs_refusal(site.offset, "condition.text");
             return (vec![Event::Unknown], None, None);
         };
         let CheckedExprParse::Parsed(expression) =
             parse_expr_checked_with_context(text, &dialect.expression_parse_context(None))
         else {
+            trace_rbs_refusal(site.offset, "condition.parse");
             return (vec![Event::Unknown], None, None);
         };
         let value = if let ExprNode::Literal { text, .. } = &expression {
@@ -3944,6 +3946,32 @@ mod conditional_declared_read_point_tests {
         }
     }
 
+    fn trace_point_facets(
+        fixture: &Fixture,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        points: &[crate::command_binding::SourceBindingPoint],
+        origin_points: &std::collections::BTreeMap<
+            Arc<crate::command_binding::SourceOriginId>,
+            Vec<crate::command_binding::SourceBindingPoint>,
+        >,
+    ) {
+        for point in points
+            .iter()
+            .chain(origin_points.values().flatten())
+            .take(64)
+        {
+            eprintln!(
+                "LOGICAL_POINT_FACET offset_match={} dispatch={} frame_match={} origin_match={} words={} compiled_words={}",
+                point.offset == fixture.site.offset,
+                point.dispatch,
+                point.state.variable_frame == *frame,
+                point.state.current_source_origin.as_ref() == Some(&fixture.site.source),
+                point.original_written_words.is_some(),
+                point.compiled_execution.original_words.is_some(),
+            );
+        }
+    }
+
     #[test]
     fn logical_missing_layout_keeps_conditional_reads_without_faking_an_observation() {
         let fixture = Fixture::new(
@@ -3993,6 +4021,7 @@ mod conditional_declared_read_point_tests {
         };
         let mut points = fixture.inventory.points.as_ref().clone();
         let mut origin_points = fixture.inventory.origin_points.as_ref().clone();
+        trace_point_facets(&fixture, frame, &points, &origin_points);
         assert!(
             points
                 .iter()
