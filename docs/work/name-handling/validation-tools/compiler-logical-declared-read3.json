@@ -34,8 +34,9 @@
     }
   ],
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "c72859f3d8a1bfd843ece3db1256851cd4d8cb097ce6beea3381942676687e67",
-    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "c27238d2bfbdc6ac3e0eba1bc08bc6083df3ac15d9027bb3ff2d3d0b2bfbc15f"
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "e46b8a839cb8b84ba4207d639edb4cee378ef7807e615513a9f88d8a23e63174",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "59b412071697faf40e718e1940b0e06d6a6f1da6d08ec71d2601cb4c3aa70e99",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "a42ede4671bc43377b9bb2599543c94150c25f45e7402e280f5aaf83c2188866"
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",

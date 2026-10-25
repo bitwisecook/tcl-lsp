@@ -33,7 +33,7 @@
     "rust/tcl-compiler/src/deferred_writes.rs": "3144418bdc9b8d8ed3f43bff6b4397e0802bf31d16defe3d9387e042093e3e4b",
     "rust/tcl-compiler/src/deferred_writes/supplied.rs": "8815677c7b50a2ec7626d373936dee2bbf2e9768a870d0bf9ca43095ad588f79",
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
-    "rust/tcl-compiler/src/registry_invocation.rs": "9c369357c008506a7dc04cafe3c98fea83e61da185eac1fd4c28d6a7bdf271fd",
+    "rust/tcl-compiler/src/registry_invocation.rs": "2b41f8c305a64cb0e7c9ee228f58649462aaf51a6f0cf057be70e97e8e8c3cd5",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
     "rust/tcl-compiler/src/value_transfer.rs": "e17db506591ed8c21a7ddee88819876f4fa614d47e60acb7f0842c81c76c0be6",
     "rust/tcl-registry/src/model/context.rs": "20a007d711350118ba0873d5aa050093bcdd8e7aa67651e6f20dbe2aa87c7a31",
@@ -52,7 +52,8 @@
     "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
     "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
     "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
-    "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5"
+    "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "dee45fc7f9c50223816dcb23b352a175ef9a8796e9a78c3723b9c9b1ffb6938a"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",

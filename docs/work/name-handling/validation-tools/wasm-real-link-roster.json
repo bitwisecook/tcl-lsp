@@ -21,9 +21,9 @@
     "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
     "runtime/rust/src/capi.rs": "db23d766170ee455383dfa736d79f5145014a65a8512e629ebe536fe17f93465",
     "runtime/rust/src/env_trace.rs": "6f60caf5075ed8bd23e9d15bebefd85bdb7d30d91b3f95b5189aa4baea2a35d9",
-    "runtime/rust/src/interp.rs": "8984a1ecdcbd52d52b4d21200f3acf82f0bcd8363ee64907592ed30d5cf04ee9",
+    "runtime/rust/src/interp.rs": "615c45b6a32a3c517c146b9bdaa14a4c7c2aa04d4047636f056fc90589f4c76f",
     "runtime/rust/src/interp/command_guard_lookup.rs": "67f62a72049672b97b82c7459c9557553baa8a5e67d18ec04b337731c980efbf",
-    "runtime/rust/src/interp/native_error_headers.rs": "b9ec2cdc95dd988d68af37ce53f14199d8c674f1888447d058cf77330b8c5fdd",
+    "runtime/rust/src/interp/native_error_headers.rs": "9a0f62e8c9b966ee4089d34bcd994feb0a59657c73d80e7fce96a766c5e1e66a",
     "runtime/rust/src/namespace.rs": "d2b79b2daad7af30b0d963d132f2339a0612ad089dbaccbe0d9213dfa56778f9",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-compiler/src/codegen/wasm/backend.rs": "02ff0b18a232bfc375991dd6b6ec32b60b077f0fe17afdb92fc20354f0718a95",
@@ -33,7 +33,7 @@
     "rust/tcl-compiler/src/native_lowering/lower.rs": "eef08d81c0bfd6db449a92afbff717788716a7db925e5fa94df133541266d0d6",
     "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "10e3e629bb3b7266aa16ab9dbd123d4b9a172ae9237b54809719c1109b3d71ed",
     "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
-    "rust/tcl-compiler/tests/wasm_real_link.rs": "d4238a2ebf5b5916b7eb00bab31207f17befd2dc482887ef66054616e48e6eb6"
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "420ee42c95354a1ffd172e2bc5f74f77b379d5dd880b550e14cf59158e836a6d"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",
