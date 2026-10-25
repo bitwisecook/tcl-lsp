@@ -54,6 +54,7 @@ use tcl_registry::{
     StateTransitionDomain, TransitionSubject,
 };
 
+mod called_static_layouts;
 mod default_manufacture_advice;
 mod deferred_body_index;
 mod deferred_namespace_index;
@@ -7365,6 +7366,7 @@ impl SourceCommandBindings {
         self.analyse_called_declaration_results(incoming, config, registry);
         self.retain_called_receiver_source_catalogues(incoming, config, registry);
         self.retain_uninstalled_declaration_body_layouts(registry);
+        self.retain_called_static_declaration_layouts(incoming, config, registry);
     }
 
     fn analyse_called_declaration_results(

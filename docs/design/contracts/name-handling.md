@@ -3759,6 +3759,20 @@ must join before a receipt is issued. An independent equal-source analyser realm
 cannot substitute for that producer. Inherited, unknown, entered Native and
 hosted execution entries supply no receipt through this route.
 
+Installed callable statics retain a separate original declaration layout even
+when their observed calls have only entered-activation rows. The collector uses
+the same selected body, declaration/allocation, source origin, namespace and
+retained input as the existing conditional body producer. It seeds unknown
+formals and widens deferred namespace contents through that producer; receiver,
+event and future caller-frame bodies remain excluded. Only positively issued
+original declaration layouts are copied from its private branch. Dispatch,
+variable reads, compiler observations, deferred outcomes and all result/Normal
+inventories remain separate, and the called-declaration result collector still
+excludes statics. Entered or receiver rows never become original declarations.
+All consumer owner/input, row unanimity, residual, frame, alias and lexical guards
+remain independent; no actual activation, static value or constructor success is
+supplied by these layouts.
+
 A direct lexical argument may also retain a bare callable-static key issued by
 that same original declaration. It must have the first allocation incarnation,
 the identical issued source Arc, declaration offset and implementation generation,
