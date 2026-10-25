@@ -45,7 +45,7 @@
     "rust/tcl-spectcl/tests/support/derived_first_decline.rs": "6bccd65eebd581b94f19517331eec6b793ce1db463a669b4091cd2f4cd138f25",
     "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870",
     "rust/tcl-vm/Cargo.toml": "f19deb2d6ef6290c11824326a05c37b2e5e0ea79b166a9c24183e9219d6fc732",
-    "rust/tcl-vm/src/exec.rs": "4f643a4ab6156c5e4f2f8890a39cb22e4c8379872cc88cda552a750c6a4e4f65",
+    "rust/tcl-vm/src/exec.rs": "272e07ae53f33e698ceb2135f94eabea91695ee69fd3312eac792c9336d312bc",
     "rust/tcl-vm/src/exec/native_namespace_string_tests.rs": "e17651354db2b1ca167346efa037db95d9a8f5202d29c44827bbbf8692a1f985",
     "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
     "rust/tcl-vm/src/value_ops/native_jim_index.rs": "7790d8f932ece5a93e00f70c340384ed6557910be9a8b8e36202c8ae7d8068f1",

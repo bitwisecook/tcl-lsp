@@ -7,7 +7,7 @@
   ],
   "source_pins": {
     "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "751d45d258ad1d173136ce7ab5b568fd824d3d119769f5639aefc06b5824773d",
-    "rust/tcl-lsp-core/src/source_structure.rs": "05e5bf98df3ef09b2a845add0f5f1cd86525b8cc899e93c1aae23c8717efb9ba"
+    "rust/tcl-lsp-core/src/source_structure.rs": "00335a3db23fe9c5c4d86d635014f34797dd45ced13caf22e802a92f8c0e1e46"
   },
   "target": "tcl_lsp_core"
 }
