@@ -834,7 +834,8 @@ mod logical_may_dependency_tests {
                     .is_none()
             );
             changed = tokens.clone();
-            changed.source_binding = Some(Default::default());
+            changed.source_binding =
+                Some(crate::command_binding::SourceInvocationBinding::default());
             assert!(
                 original_logical_procedure_may_dependencies_for_module(&changed, &module, registry)
                     .is_none()
@@ -851,7 +852,7 @@ mod logical_may_dependency_tests {
                     0 => changed.retained_source_bindings = None,
                     1 => {
                         changed.source =
-                            tcl_lexer::SourceImage::document("different complete source")
+                            tcl_lexer::SourceImage::document("different complete source");
                     }
                     2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
                     3 => {

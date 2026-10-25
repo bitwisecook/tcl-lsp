@@ -1904,7 +1904,7 @@ mod logical_body_inventory_tests {
         assert_eq!(
             words
                 .arguments()
-                .get(0)
+                .first()
                 .and_then(|word| word.literal_bytes()),
             Some(b"set".as_slice())
         );

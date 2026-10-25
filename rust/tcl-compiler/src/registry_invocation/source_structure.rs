@@ -4757,8 +4757,10 @@ mod tests {
                 Some(&plan.commands[0].words[1])
             );
             assert_eq!(
-                words.with_source_schema(&context, |schema| schema
-                    .authored_source_variable_name_arguments()),
+                words.with_source_schema(
+                    &context,
+                    tcl_registry::ResolvedInvocation::authored_source_variable_name_arguments
+                ),
                 Some(vec![(0, tcl_registry::ArgRole::VarWrite)])
             );
             assert!(source_registry_words_at(source, &analysis, 15).is_none());
@@ -5219,11 +5221,11 @@ mod tests {
                     analysis.resolved_input = Some(logical_schema_input(
                         tcl_registry::model::ingress::resolve_environment("tcl8.6")
                             .default_context_registry(),
-                    ))
+                    ));
                 }
                 2 => {
                     analysis.body_lexer_config.as_mut().unwrap().strict_quoting =
-                        !input.lexer_config().strict_quoting
+                        !input.lexer_config().strict_quoting;
                 }
                 _ => analysis.body_lexer_config = None,
             }
@@ -5290,13 +5292,13 @@ mod tests {
                 match axis {
                     0 => {
                         changed.origins[1] =
-                            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(1)
+                            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(1);
                     }
                     1 => changed.config.strict_quoting = !changed.config.strict_quoting,
                     2 => changed.image = tcl_lexer::SourceImage::document("unrelated source"),
                     _ => {
                         changed.origins[1] =
-                            crate::registry_invocation::InvocationWordOrigin::Written(1)
+                            crate::registry_invocation::InvocationWordOrigin::Written(1);
                     }
                 }
                 assert!(
