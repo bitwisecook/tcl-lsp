@@ -47,6 +47,6 @@
     "rust/tcl-compiler/src/taint/source_context.rs": "1b37befd609ebb3bef635d4d31a059b00b25afee81357130c89feb73622794fb",
     "rust/tcl-compiler/src/taint_interproc.rs": "ada061856adbce79fe31d46599c7237e2e74ed0405730bcc3a999093593be42f",
     "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
-    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "dee45fc7f9c50223816dcb23b352a175ef9a8796e9a78c3723b9c9b1ffb6938a"
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4"
   }
 }

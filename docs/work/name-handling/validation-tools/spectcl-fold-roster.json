@@ -53,7 +53,7 @@
     "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
     "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
     "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5",
-    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "dee45fc7f9c50223816dcb23b352a175ef9a8796e9a78c3723b9c9b1ffb6938a"
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",

@@ -44,6 +44,6 @@
     "scripts/dev/lsp-naming-host-proof.mjs": "a82a55ba4d76a703f0afff1f92b2e5387f1d7b06023efcb3cc6ca37a712eacf8",
     "scripts/dev/wasm-cc-env.sh": "6d541058ef79aa09981eb7345540b7bcc61174423250c08128ee8b6cbb400b89",
     "scripts/verify-wasm-externref.mjs": "19410bf5475824d6d59c85b319fc129e826deebf32140fe06180a3e1df747366",
-    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "dee45fc7f9c50223816dcb23b352a175ef9a8796e9a78c3723b9c9b1ffb6938a"
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4"
   }
 }
