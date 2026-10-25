@@ -633,7 +633,7 @@ mod tests {
             tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
         )
         .resolved_input;
-        for refused in [missing, unavailable, stale, foreign] {
+        for refused in vec![missing, unavailable, stale, foreign].into_boxed_slice() {
             let result =
                 optimise_under_policy_from_analysis(source, &registry, &refused, 3, &policy);
             assert_eq!(result.text, source);

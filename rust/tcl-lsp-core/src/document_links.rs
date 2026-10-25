@@ -892,8 +892,8 @@ mod tests {
             links[0].target,
             "file:///home/user/project/.tcl-lsp/shared%20%CE%B1.tclspec"
         );
-        let start = src.find("shared").unwrap() as u32;
-        let end = start + "shared α.tclspec".len() as u32;
+        let start = u32::try_from(src.find("shared").unwrap()).unwrap();
+        let end = start + u32::try_from("shared α.tclspec".len()).unwrap();
         let index = LineIndex::new(src);
         assert_eq!(
             links[0].start_character,
@@ -1945,7 +1945,10 @@ mod original_link_parse_purpose_tests {
             (links[0].start_line, links[0].start_character),
             (position.line, position.character.get())
         );
-        let end = line_index.position_at_utf16(start + "visible.tclspec".len() as u32, source);
+        let end = line_index.position_at_utf16(
+            start + u32::try_from("visible.tclspec".len()).unwrap(),
+            source,
+        );
         assert_eq!(
             (links[0].end_line, links[0].end_character),
             (end.line, end.character.get())
@@ -1972,7 +1975,7 @@ mod original_link_parse_purpose_tests {
         let start = u32::try_from(source.find("leaf.tcl").unwrap()).unwrap();
         assert_eq!(
             link_anchor_with_config(source, config, &token),
-            Some((start, start + "leaf.tcl".len() as u32))
+            Some((start, start + u32::try_from("leaf.tcl".len()).unwrap()))
         );
         let analysis = super::tests::path_analysis(source, profile, config);
         // Geometry cannot resolve the unknown marked command as a file producer.
@@ -2052,8 +2055,8 @@ mod original_logical_link_prefix_tests {
             file_uri_for_path("/ROOT with space/literal$é.tcl")
         );
         let line_index = LineIndex::new(source);
-        let start = source.find("literal$é.tcl").unwrap() as u32;
-        let end = start + "literal$é.tcl".len() as u32;
+        let start = u32::try_from(source.find("literal$é.tcl").unwrap()).unwrap();
+        let end = start + u32::try_from("literal$é.tcl".len()).unwrap();
         assert_eq!(
             links[0].start_character,
             line_index.position_at_utf16(start, source).character.get()
@@ -2070,7 +2073,7 @@ mod original_logical_link_prefix_tests {
         ] {
             let plan = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::document(source),
-                tcl_lexer::Span::new(0, source.len() as u32),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
                 config,
             )
             .unwrap();

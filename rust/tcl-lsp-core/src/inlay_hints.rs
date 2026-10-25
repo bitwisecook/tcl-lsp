@@ -2470,14 +2470,15 @@ mod original_variable_type_tests {
 
     #[test]
     fn original_type_hints_keep_local_frames_and_alias_targets_separate() {
-        let source = "set shared 7\nproc first {} {set value 42; global shared; set shared 8}\nproc second {} {set value TEXT}\nfirst; second\n";
-        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         fn clear(scope: &mut Scope) {
             scope.variables.clear();
             for child in &mut scope.children {
                 clear(child);
             }
         }
+
+        let source = "set shared 7\nproc first {} {set value 42; global shared; set shared 8}\nproc second {} {set value TEXT}\nfirst; second\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         clear(&mut analysis.global_scope);
         analysis.all_procs.clear();
         let hints = hints(source, &analysis);

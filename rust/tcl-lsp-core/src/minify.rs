@@ -6051,7 +6051,7 @@ mod original_alias_phase_tests {
         let image = tcl_lexer::SourceImage::document(&spelling.assignment);
         let plan = tcl_lexer::native_script_words_in(
             image,
-            Span::new(0, spelling.assignment.len() as u32),
+            Span::new(0, u32::try_from(spelling.assignment.len()).unwrap()),
             config,
         )
         .unwrap();

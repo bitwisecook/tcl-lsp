@@ -1551,6 +1551,8 @@ mod tests {
 
     #[test]
     fn constructor_transport_retains_distinct_source_applicability_obligations() {
+        use tcl_compiler::command_binding::SourceCommandTransitionObligation as Obligation;
+
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
         // Source inventory is conditional; the procedure is not invoked.
@@ -1575,7 +1577,6 @@ mod tests {
                     "futureOriginalProcedureSourceApplicability"
                 ))
         );
-        use tcl_compiler::command_binding::SourceCommandTransitionObligation as Obligation;
         for (value, label) in [
             (
                 Obligation::NativeBaselineSourceApplicability,

@@ -2560,6 +2560,122 @@ mod tests {
         assert!(SourceStructure::capture(source, Some(&analysis), foreign).is_none());
     }
 
+    fn assert_definition_cursor_region(
+        captured: &SourceStructure,
+        body: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+        expected_parent: &tcl_registry::definer::DefinitionBodyGrammar,
+        context: &tcl_registry::model::ContextRegistry,
+    ) {
+        let region = captured
+            .definition_cursor_regions
+            .iter()
+            .find(|region| region.span == body.content_span())
+            .expect("the cursor walk must retain each source-issued body");
+        let parent = region
+            .parent
+            .as_ref()
+            .expect("the retained body region must keep its genuine source owner");
+        assert!(region.members.is_some());
+        assert!(std::ptr::eq(
+            parent
+                .source_words()
+                .with_source_schema(context, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })
+                .flatten()
+                .unwrap(),
+            expected_parent
+        ));
+    }
+
+    fn assert_original_definition_cursor_parent_chain(source: &str) {
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let config = analysis.body_lexer_config.unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let document = registry.document_grammar().unwrap();
+        let expected_pack = registry
+            .authored_document_member_grammar(document, "speclib")
+            .unwrap();
+        let expected_command = registry
+            .authored_document_member_grammar(expected_pack, "command")
+            .unwrap();
+
+        let root_command = segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .find(|command| command.name() == "speclib")
+            .unwrap();
+        let root_words =
+            crate::original_invocation::source_registry_words(source, &analysis, &root_command)
+                .unwrap();
+        let mut root_bodies = root_words.source_script_bodies(&context);
+        assert_eq!(root_bodies.len(), 1);
+        let pack_body = root_bodies.remove(0);
+        let pack_parent = pack_body
+            .definition_parent_for(&context, None)
+            .expect("the authored speclib body must issue its own source owner");
+        assert!(pack_parent.matches_source(&SourceImage::document(source), config));
+        assert!(std::ptr::eq(
+            pack_parent
+                .source_words()
+                .with_source_schema(&context, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })
+                .flatten()
+                .unwrap(),
+            expected_pack
+        ));
+
+        let pack_source = source.get(pack_parent.content_span().as_range()).unwrap();
+        let command = segment_commands_with_offset_and_config(
+            pack_source,
+            pack_parent.content_span().start(),
+            config,
+        )
+        .into_iter()
+        .find(|command| command.name() == "command")
+        .unwrap();
+        let command_words = crate::original_invocation::source_registry_words_in_definition_body(
+            source,
+            &analysis,
+            &command,
+            &pack_parent,
+        )
+        .unwrap();
+        let mut command_bodies = command_words.source_script_bodies(&context);
+        assert_eq!(command_bodies.len(), 1);
+        let command_body = command_bodies.remove(0);
+        let command_parent = command_body
+            .definition_parent_for(&context, Some(&pack_parent))
+            .expect("the authored command body must issue its actual child owner");
+        assert!(command_parent.matches_source(&SourceImage::document(source), config));
+        assert!(std::ptr::eq(
+            command_parent
+                .source_words()
+                .with_source_schema(&context, |schema| {
+                    schema.authored_source_definition_body_grammar()
+                })
+                .flatten()
+                .unwrap(),
+            expected_command
+        ));
+
+        let captured = SourceStructure::capture_with_purpose(
+            source,
+            Some(&analysis),
+            config,
+            CapturePurpose::DefinitionCursor,
+        )
+        .unwrap();
+        for (body, expected_parent) in [
+            (&pack_parent, expected_pack),
+            (&command_parent, expected_command),
+        ] {
+            assert_definition_cursor_region(&captured, body, expected_parent, &context);
+        }
+    }
+
     #[test]
     fn original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies() {
         // naming.core.original-definition-grammar-cursor
@@ -2570,112 +2686,77 @@ mod tests {
             "speclib demo 1 {command demo {arty 1; arty 2; arg 0 -rle Body}}",
             "speclib demo 1 {\n command demo::x {\n  arty 1\n }\n}",
         ] {
-            let analysis = Analyser::new().analyse(source, "spectcl");
-            let config = analysis.body_lexer_config.unwrap();
-            let input = analysis.resolved_input.as_ref().unwrap();
-            let context = input.context_registry();
-            let registry = context.commands();
-            let document = registry.document_grammar().unwrap();
-            let expected_pack = registry
-                .authored_document_member_grammar(document, "speclib")
-                .unwrap();
-            let expected_command = registry
-                .authored_document_member_grammar(expected_pack, "command")
-                .unwrap();
-
-            let root_command = segment_commands_with_offset_and_config(source, 0, config)
-                .into_iter()
-                .find(|command| command.name() == "speclib")
-                .unwrap();
-            let root_words =
-                crate::original_invocation::source_registry_words(source, &analysis, &root_command)
-                    .unwrap();
-            let mut root_bodies = root_words.source_script_bodies(&context);
-            assert_eq!(root_bodies.len(), 1);
-            let pack_body = root_bodies.remove(0);
-            let pack_parent = pack_body
-                .definition_parent_for(&context, None)
-                .expect("the authored speclib body must issue its own source owner");
-            assert!(pack_parent.matches_source(&SourceImage::document(source), config));
-            assert!(std::ptr::eq(
-                pack_parent
-                    .source_words()
-                    .with_source_schema(&context, |schema| {
-                        schema.authored_source_definition_body_grammar()
-                    })
-                    .flatten()
-                    .unwrap(),
-                expected_pack
-            ));
-
-            let pack_source = source.get(pack_parent.content_span().as_range()).unwrap();
-            let command = segment_commands_with_offset_and_config(
-                pack_source,
-                pack_parent.content_span().start(),
-                config,
-            )
-            .into_iter()
-            .find(|command| command.name() == "command")
-            .unwrap();
-            let command_words =
-                crate::original_invocation::source_registry_words_in_definition_body(
-                    source,
-                    &analysis,
-                    &command,
-                    &pack_parent,
-                )
-                .unwrap();
-            let mut command_bodies = command_words.source_script_bodies(&context);
-            assert_eq!(command_bodies.len(), 1);
-            let command_body = command_bodies.remove(0);
-            let command_parent = command_body
-                .definition_parent_for(&context, Some(&pack_parent))
-                .expect("the authored command body must issue its actual child owner");
-            assert!(command_parent.matches_source(&SourceImage::document(source), config));
-            assert!(std::ptr::eq(
-                command_parent
-                    .source_words()
-                    .with_source_schema(&context, |schema| {
-                        schema.authored_source_definition_body_grammar()
-                    })
-                    .flatten()
-                    .unwrap(),
-                expected_command
-            ));
-
-            let captured = SourceStructure::capture_with_purpose(
-                source,
-                Some(&analysis),
-                config,
-                CapturePurpose::DefinitionCursor,
-            )
-            .unwrap();
-            for (body, expected_parent) in [
-                (&pack_parent, expected_pack),
-                (&command_parent, expected_command),
-            ] {
-                let region = captured
-                    .definition_cursor_regions
-                    .iter()
-                    .find(|region| region.span == body.content_span())
-                    .expect("the cursor walk must retain each source-issued body");
-                let parent = region
-                    .parent
-                    .as_ref()
-                    .expect("the retained body region must keep its genuine source owner");
-                assert!(region.members.is_some());
-                assert!(std::ptr::eq(
-                    parent
-                        .source_words()
-                        .with_source_schema(&context, |schema| {
-                            schema.authored_source_definition_body_grammar()
-                        })
-                        .flatten()
-                        .unwrap(),
-                    expected_parent
-                ));
-            }
+            assert_original_definition_cursor_parent_chain(source);
         }
+    }
+
+    fn assert_original_definition_child_foreign_owners(
+        source: &str,
+        analysis: &AnalysisResult,
+        command: &SegmentedCommand,
+        parent: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let foreign_input = ResolvedAnalysisInput::new(
+            analysis.resolved_profile().unwrap(),
+            analysis.resolved_profile().unwrap(),
+            foreign.resolved_input.as_ref().unwrap().context_registry(),
+            config,
+        );
+        let foreign_context = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(source, "spectcl");
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &foreign_context,
+                command,
+                parent,
+            )
+            .is_none()
+        );
+        let mut foreign_config = (*analysis).clone();
+        let mut different_config = config;
+        different_config.strict_quoting = !different_config.strict_quoting;
+        foreign_config.body_lexer_config = Some(different_config);
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source,
+                &foreign_config,
+                command,
+                parent,
+            )
+            .is_none()
+        );
+        assert!(
+            crate::original_invocation::source_registry_words_in_definition_body(
+                source, &foreign, command, parent,
+            )
+            .is_none()
+        );
+        assert!(
+            crate::original_invocation::source_registry_words(source, analysis, command).is_none()
+        );
+    }
+
+    fn original_definition_document_parents(
+        source: &str,
+        analysis: &AnalysisResult,
+        roots: &[SegmentedCommand],
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Vec<tcl_compiler::registry_invocation::OriginalSourceScriptBody> {
+        roots
+            .iter()
+            .map(|command| {
+                crate::original_invocation::source_registry_words(source, analysis, command)
+                    .unwrap()
+                    .source_script_bodies(context)
+                    .remove(0)
+                    .definition_parent_for(context, None)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>()
     }
 
     #[test]
@@ -2686,17 +2767,7 @@ mod tests {
         let config = analysis.body_lexer_config.unwrap();
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
         let roots = segment_commands_with_offset_and_config(source, 0, config);
-        let parents = roots
-            .iter()
-            .map(|command| {
-                crate::original_invocation::source_registry_words(source, &analysis, command)
-                    .unwrap()
-                    .source_script_bodies(&context)
-                    .remove(0)
-                    .definition_parent_for(&context, None)
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
+        let parents = original_definition_document_parents(source, &analysis, &roots, &context);
         assert_eq!(parents.len(), 2);
         let pack_source = &source[parents[0].content_span().as_range()];
         let command = segment_commands_with_offset_and_config(
@@ -2774,50 +2845,12 @@ mod tests {
             )
             .is_none()
         );
-        let foreign = Analyser::new().analyse(source, "tcl8.6");
-        let foreign_input = ResolvedAnalysisInput::new(
-            analysis.resolved_profile().unwrap(),
-            analysis.resolved_profile().unwrap(),
-            foreign.resolved_input.as_ref().unwrap().context_registry(),
+        assert_original_definition_child_foreign_owners(
+            source,
+            &analysis,
+            &command,
+            &parents[0],
             config,
-        );
-        let foreign_context = Analyser::new()
-            .with_resolved_input(foreign_input)
-            .analyse(source, "spectcl");
-        assert!(
-            crate::original_invocation::source_registry_words_in_definition_body(
-                source,
-                &foreign_context,
-                &command,
-                &parents[0],
-            )
-            .is_none()
-        );
-        let mut foreign_config = analysis.clone();
-        let mut different_config = config;
-        different_config.strict_quoting = !different_config.strict_quoting;
-        foreign_config.body_lexer_config = Some(different_config);
-        assert!(
-            crate::original_invocation::source_registry_words_in_definition_body(
-                source,
-                &foreign_config,
-                &command,
-                &parents[0],
-            )
-            .is_none()
-        );
-        assert!(
-            crate::original_invocation::source_registry_words_in_definition_body(
-                source,
-                &foreign,
-                &command,
-                &parents[0],
-            )
-            .is_none()
-        );
-        assert!(
-            crate::original_invocation::source_registry_words(source, &analysis, &command)
-                .is_none()
         );
     }
 
