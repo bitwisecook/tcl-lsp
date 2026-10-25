@@ -4137,7 +4137,7 @@ mod tests {
                 2 => changed.top_level_namespace = "::other".into(),
                 3 => {
                     changed.native_namespace =
-                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]));
                 }
                 4 => changed.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
                 _ => unreachable!(),

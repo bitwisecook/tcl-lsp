@@ -760,12 +760,12 @@ mod tests {
                 2 => module.top_level_namespace = "::other".into(),
                 3 => {
                     module.native_namespace =
-                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]));
                 }
                 4 => module.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
                 5 => {
                     module.source_entry.compilation_scope =
-                        tcl_runtime_api::SourceCompilationScope::EnteredSource
+                        tcl_runtime_api::SourceCompilationScope::EnteredSource;
                 }
                 _ => unreachable!(),
             }
@@ -1079,12 +1079,12 @@ oo::class create Derived {superclass Base; method safe {} {return DERIVED}}";
                     );
                 }
                 3 => {
-                    std::sync::Arc::make_mut(&mut module.class_relations[0].definer).argv_texts[0] =
-                        "missing".into()
+                    std::sync::Arc::make_mut(&mut module.class_relations[0].definer).argv_texts
+                        [0] = "missing".into();
                 }
                 _ => {
                     std::sync::Arc::make_mut(&mut module.class_relations[0].member).argv_texts[1] =
-                        "Other".into()
+                        "Other".into();
                 }
             }
             assert!(allocations(&module, context.commands()).is_none());
