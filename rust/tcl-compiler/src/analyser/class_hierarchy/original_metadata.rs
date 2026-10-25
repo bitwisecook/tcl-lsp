@@ -381,7 +381,8 @@ mod registry_provider_tests {
         assert!(original_registry_metaclass_provider(&foreign, class, &context).is_none());
 
         let mut missing_owner = class.clone();
-        missing_owner.original_relations = Default::default();
+        missing_owner.original_relations =
+            crate::analyser::types::OriginalSourceClassRelationLedger::default();
         assert!(
             original_registry_metaclass_provider(&analysis, &missing_owner, &context).is_none()
         );
@@ -432,7 +433,8 @@ mod registry_provider_tests {
         );
 
         let mut missing_parent = class.clone();
-        missing_parent.original_members = Default::default();
+        missing_parent.original_members =
+            crate::analyser::types::OriginalSourceMemberLedger::default();
         missing_parent
             .original_members
             .declare(members[0].clone().with_definition_parent(None).unwrap());
