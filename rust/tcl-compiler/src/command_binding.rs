@@ -54,6 +54,7 @@ use tcl_registry::{
     StateTransitionDomain, TransitionSubject,
 };
 
+mod called_static_layouts;
 mod default_manufacture_advice;
 mod deferred_body_index;
 mod deferred_namespace_index;
@@ -7901,6 +7902,7 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         trace_source_deferred(started, "called", self);
         self.retain_uninstalled_declaration_body_layouts(registry);
+        self.retain_called_static_declaration_layouts(incoming, config, registry);
         #[cfg(any(test, debug_assertions))]
         trace_source_deferred(started, "layouts", self);
     }
