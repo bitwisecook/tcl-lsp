@@ -187,8 +187,8 @@ impl OriginalProcedureStaticReadAlternatives {
         }
         let binding_frame = &binding.variable_frame;
         if binding_frame != frame {
-            let stage = child_binding_frame_refusal(binding_frame, binding.lookup_state.is_some());
-            return super::trace_static_read_refusal(stage, None);
+            let label = child_binding_frame_refusal(binding_frame, binding.lookup_state.is_some());
+            return super::trace_static_read_refusal(label, None);
         }
         if !super::super::SourceCommandBindings::context_owns_frame(
             &binding.variable_context,
