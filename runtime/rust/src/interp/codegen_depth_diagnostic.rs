@@ -14,7 +14,7 @@ impl super::Interp {
         {
             return;
         }
-        let Ok(sequence) = EVENTS.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
+        let Ok(sequence) = EVENTS.try_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
             (old < 512).then_some(old + 1)
         }) else {
             return;
