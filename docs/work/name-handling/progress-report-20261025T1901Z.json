@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T19:01:22.370289+00:00",
+  "scheduled_report_utc": "2026-10-25T18:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T19:15:00+00:00",
+  "change_since_previous_report": [
+    "The 18:45 checkpoint is late. Actual report and push times are recorded; the next reminder is armed for 19:15. No PR or release action is taken.",
+    "Compiler46d fully authenticates 96 PASS / 6 FAIL / 0 UNRUN. Readonly4 stop at escape-summary DYNAMIC_BARRIER, not compiler admission; RBS1 and Logical1 remain. The reviewed bounded first-transition and point-facet observers await the next diagnostic run.",
+    "Jim46d fully authenticates all51 executions: 34/45 originals and 2/5 diagnostics pass; the additional case fails. Child-read V4 source b24d5479 and metadata707c84ca are independently cleared after exact operand-role/write-scope corrections; integration is underway, tests remain unrun.",
+    "Spec46d all16 PASS is fully authenticated (af77c43f / 6e762d7a). iRules is1FAIL/2PASS; the first remaining refusal is compiler dependency admission. Full corpus600 protocol is reviewed and committed only on WORK; it has not yet executed.",
+    "Eight missing test binaries are now assigned on WORK and the release branch. Actual Cargo metadata covers395 targets across5 shards; the existing verifier shell tests pass. This is coverage metadata, not test execution.",
+    "The CI-profile4f453 scan still misses20s. An owned24-IP profile identifies AdviceCell HashMap clone and SipHash samples; Names is preparing a small existing-container COW change with strict equality/currentness guards and snapshot-isolation controls. No speedup is claimed.",
+    "Disk recovery removed only3 old non-executable regenerable build-cache files (262696960B), after confirming all matching Cargo/Rustc PIDs were defunctZ and no live build existed. Source, evidence, ZIPs and test executables were untouched. Lossless old-log/JSON archival retains exact bytes and restore receipts.",
+    "All sectionF, zero-pass-to-fail, full current CLEAN CI, shipping Tcl performance, SpecC1C2/6D, docs/comments/generated/packaging/prep-pr gates remain open. BIGIP/perf external trackers are stale; the user is notified without takeover."
+  ],
+  "committed": [
+    "7d056a22183cf94f6c121b281ff57f153fe98e4d"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publishlate18:45WIP/report/freshness/diskandarm19:15.",
+    "IntegrateindependentlyreviewedproductiveJimV4andboundedWORKdiagnosticwave, coherentwhole23sourcepinunion, thenrunactualcausaltests/Specfullcorpus/strict.",
+    "Implementgenuinereadonly/Logical/RBS/host/sourceproducerfixesandmeasuredAdviceCellCOWoptimization; completeallfinalreleasegatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Current46dactual102/51/Spec16arefullyauthenticatedscopedresults;6compiler+15Jimnonpassesandallglobalgatesremainopen. NewV4/observers/COW/APIproposalsareUNRUN. No shipping-performanceorbaselineclosure inferred.",
+  "disk_free_bytes": 2312818688,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
