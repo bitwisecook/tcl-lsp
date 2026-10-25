@@ -39,7 +39,7 @@ pub fn vm_output(source: &str, environment: &str) -> String {
     let dialect = tcl_registry::InvocationDialect::of_profile(profile);
     if dialect
         .native_name_protocol()
-        .is_some_and(|names| names.is_jim084())
+        .is_some_and(tcl_compiler::naming::NativeNameProtocol::is_jim084)
     {
         let mut declared = std::collections::HashSet::new();
         for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
