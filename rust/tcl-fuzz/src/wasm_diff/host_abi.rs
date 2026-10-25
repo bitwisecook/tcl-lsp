@@ -130,7 +130,9 @@ pub(super) fn register(linker: &mut Linker<HostState>) -> Result<(), String> {
                 .map_err(|error| format!("link {:?}: {error}", CodegenAbiImportId::$id))?;
         }};
     }
-    register!(HostRefusalPending, refusal_pending);
+    register!(HostRefusalPending, |caller: Caller<'_, HostState>| {
+        refusal_pending(&caller)
+    });
     register!(ObjectNewString, super::host_obj_new_string);
     register!(EvalCode, super::host_eval_code);
     register!(CallFrameAlloc, frame_alloc);
@@ -142,7 +144,7 @@ pub(super) fn register(linker: &mut Linker<HostState>) -> Result<(), String> {
     Ok(())
 }
 
-fn refusal_pending(caller: Caller<'_, HostState>) -> i32 {
+fn refusal_pending(caller: &Caller<'_, HostState>) -> i32 {
     i32::from(caller.data().abi.refusal.is_some())
 }
 
@@ -337,7 +339,12 @@ fn expr_bool(
         code == i32::try_from(Code::Error.as_int()).expect("Tcl error code");
     let memory = caller.data().memory.expect("validated output memory");
     let data = memory.data_mut(&mut caller);
-    for (slot, value) in data[completion_range].chunks_exact_mut(4).zip(words) {
+    for (slot, value) in data[completion_range]
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(words)
+    {
         slot.copy_from_slice(&value.to_le_bytes());
     }
     if let Some(boolean) = boolean {
@@ -364,8 +371,10 @@ fn completion_release(mut caller: Caller<'_, HostState>, pointer: i32) {
         return;
     };
     let actual: Vec<i32> = bytes
-        .chunks_exact(4)
-        .map(|b| i32::from_le_bytes(b.try_into().expect("i32 slot")))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| i32::from_le_bytes(*b))
         .collect();
     let expected = caller.data().abi.completions.get(&pointer).map(|record| {
         [
