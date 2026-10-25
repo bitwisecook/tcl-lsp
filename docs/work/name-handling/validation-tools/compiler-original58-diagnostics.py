@@ -1224,7 +1224,20 @@ readonly_rows: list[dict[str, Any]] = [
 require(
     [row["group"] for row in readonly_rows]
     == ["diagnostic-inlining-readonly10"] * 10 + ["diagnostic-original-body-owner3"] * 3
-    and all(row["env"] == {} for row in readonly_rows),
+    and all(
+        row["env"]
+        == (
+            {"TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"}
+            if row["selector"] in {
+                "classify_large_pure_leaf_one_caller_is_if_single_call",
+                "classify_small_pure_leaf_is_always",
+                "classify_threshold_boundary_is_always",
+                "static_call_count_drives_large_proc_decision",
+            }
+            else {}
+        )
+        for row in readonly_rows
+    ),
     "readonly13 groups/env",
 )
 require(
