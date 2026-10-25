@@ -774,9 +774,9 @@ try:
     )
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
     status = 2
-    remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
-    status = 2
     remaining = string_first_gates_append(artifacts, env, remaining, processes, string_first_gate_rows[0])
+    status = 2
+    remaining = full_corpus_append(artifacts, env, remaining, processes, full_corpus_rows[0])
     status = 0 if all(row["state"] == "PASS" for row in rows + full_corpus_rows + string_first_gate_rows) else 1
 except (
     RuntimeError,
