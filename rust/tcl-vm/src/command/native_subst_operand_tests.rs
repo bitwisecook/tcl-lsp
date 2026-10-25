@@ -37,7 +37,18 @@ fn original(bytes: &[u8]) -> Value {
 fn call(vm: &mut Vm, head: &[u8], arguments: &[Value]) -> Completion<Value> {
     vm.invoke_host_original_object_vector(&original(head), arguments)
 }
+// Keep the owned completion until every assertion temporary has been retired.
 fn assert_row(vm: &Vm, result: Completion<Value>, captured: &str, label: &str, engine: &str) {
+    assert_borrowed_row(vm, &result, captured, label, engine);
+    drop(result);
+}
+fn assert_borrowed_row(
+    vm: &Vm,
+    result: &Completion<Value>,
+    captured: &str,
+    label: &str,
+    engine: &str,
+) {
     let fields = captured
         .lines()
         .find(|row| row.starts_with(&format!("{label}|")))

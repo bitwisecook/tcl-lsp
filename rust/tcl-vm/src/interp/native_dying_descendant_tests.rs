@@ -49,8 +49,8 @@ fn expected(rows: &str, label: &str) -> Vec<u8> {
 }
 
 fn setup(target: &[u8]) -> Vec<u8> {
-    [br#"
-set ::target {"#.as_slice(), target, br#"}
+    [br"
+set ::target {".as_slice(), target, br"}
 set ::observations UNREACHED
 set ::callback_count 0
 namespace eval retiring {
@@ -65,13 +65,13 @@ proc during args {
         set ::observations [list [namespace current] [observe_original_ancestor] [namespace exists [namespace current]] [info exists value] [set value] [p]]
     }
 }
-"#].concat()
+"].concat()
 }
 
-const FINISH: &[u8] = br#"
+const FINISH: &[u8] = br"
 namespace delete ::retiring
 list $::observations [namespace exists ::retiring] [namespace exists $::target] [info exists ${::target}::value] [info commands ${::target}::p] $::callback_count
-"#;
+";
 
 struct ObserveAncestor {
     original: NsId,

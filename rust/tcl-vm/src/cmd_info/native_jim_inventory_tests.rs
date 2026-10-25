@@ -294,7 +294,7 @@ fn assert_original_alias_public_window(case: &str, observed: &[u8], captured: &[
         )
         .unwrap()
         .into_iter()
-        .map(|field| field.into_owned())
+        .map(std::borrow::Cow::into_owned)
         .collect::<Vec<_>>()
     };
     let actual = fields(observed);

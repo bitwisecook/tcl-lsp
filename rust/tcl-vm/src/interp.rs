@@ -24405,14 +24405,14 @@ impl Vm {
     /// Add the innermost command context for a new Tcl 8.6+ error episode.
     #[cfg(test)]
     pub(crate) fn begin_error_stack_context(&mut self, context: Value) {
-        if self.supports_error_stack() && !self.native_errors.error_logged.is_logged() {
-            if let Err(error) = self
+        if self.supports_error_stack()
+            && !self.native_errors.error_logged.is_logged()
+            && let Err(error) = self
                 .native_errors
                 .error_stack
                 .begin_inner(Value::string("INNER"), context)
-            {
-                let _ = crate::command::completion_from_tcl_error(self, error.into());
-            }
+        {
+            let _ = crate::command::completion_from_tcl_error(self, error.into());
         }
     }
 
@@ -34770,7 +34770,7 @@ mod debug_owned_cell_tests {
             .iter()
             .map(|variable| (variable.name.as_str(), variable.value.as_str()))
             .collect();
-        variables.sort();
+        variables.sort_unstable();
         assert_eq!(
             variables,
             vec![
@@ -35046,13 +35046,13 @@ mod native_hidden_namespace_context_tests {
 
     #[test]
     fn hidden_global_frame_levels_match_original_c_releases() {
-        let source = r#"
+        let source = r"
 interp hide {} info hiddenInfo
 proc observe {} {
     list [interp invokehidden {} -global hiddenInfo level] [interp invokehidden {} hiddenInfo level]
 }
 list [observe] [interp invokehidden {} -global hiddenInfo level]
-"#;
+";
         for version in tcl_dialect::TclVersion::ALL {
             let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
             let mut vm = crate::native_fixture::interpreter(profile);
@@ -35073,7 +35073,7 @@ list [observe] [interp invokehidden {} -global hiddenInfo level]
 
     #[test]
     fn hidden_namespace_context_matches_original_child_and_current_inputs() {
-        let source = r#"
+        let source = r"
 interp create kid
 kid eval {interp hide {} set hiddenSet}
 set out [list [kid invokehidden -namespace chosen hiddenSet item CHILD]]
@@ -35089,7 +35089,7 @@ lappend out [interp invokehidden {} hiddenNamespace eval outer {
     interp invokehidden {} -namespace chosen hiddenNamespace current
 }]
 set out
-"#;
+";
         for version in tcl_dialect::TclVersion::ALL {
             if version == tcl_dialect::TclVersion::V8_4 {
                 continue;
@@ -35109,7 +35109,7 @@ set out
 
     #[test]
     fn hidden_namespace_context_keeps_the_original_dying_namespace_token() {
-        let source = r#"
+        let source = r"
 set ::observations {}
 proc during {name1 name2 operation} {
     foreach script {
@@ -35128,7 +35128,7 @@ namespace eval retiring {
 interp hide {} namespace hiddenNamespace
 set deleted [catch {interp invokehidden {} hiddenNamespace delete retiring} message]
 list $deleted $message $::observations [interp invokehidden {} hiddenNamespace exists retiring]
-"#;
+";
         for version in tcl_dialect::TclVersion::ALL {
             if version == tcl_dialect::TclVersion::V8_4 {
                 continue;
@@ -35162,7 +35162,7 @@ list $deleted $message $::observations [interp invokehidden {} hiddenNamespace e
                     crate::environment::profile_for_dialect(version.dialect_profile_name()),
                 );
                 let source = format!(
-                    r#"
+                    r"
 set ::observations {{}}
 proc during {{name1 name2 operation}} {{
     set status [catch {{interp invokehidden {{}} hiddenNamespace eval $::operand {{}}}} value]
@@ -35176,7 +35176,7 @@ namespace eval {seed} {{
 interp hide {{}} namespace hiddenNamespace
 interp invokehidden {{}} hiddenNamespace delete {seed}
 set ::observations
-"#
+"
                 );
                 let completion = vm.eval_source(&source).unwrap();
                 assert_eq!(completion.code, Code::Ok);
@@ -35218,7 +35218,7 @@ set ::observations
                 );
                 vm.set_var_bytes(b"::operand", Value::new_native_string_bytes(original))
                     .unwrap();
-                let source = r#"
+                let source = r"
 set ::observations {}
 proc during {name1 name2 operation} {
     set status [catch {namespace eval $::operand {namespace current}} value]
@@ -35230,7 +35230,7 @@ namespace eval retiring {
 }
 namespace delete retiring
 set ::observations
-"#;
+";
                 let completion = vm.eval_source(source).unwrap();
                 assert_eq!(completion.code, Code::Ok);
                 assert_eq!(

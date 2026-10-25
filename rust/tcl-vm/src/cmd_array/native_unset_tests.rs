@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Complete original ArrayUnset public results across native releases.
+//! Complete original `ArrayUnset` public results across native releases.
 
 type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
 
