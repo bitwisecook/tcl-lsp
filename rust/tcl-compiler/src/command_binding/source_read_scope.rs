@@ -69,6 +69,32 @@ impl SourceReadCatalogue {
         Some(Self { context, tape })
     }
 
+    /// A retained Logical body receipt owns its declared frame; the separate
+    /// syntax catalogue deliberately carries no such interpretation. Prefer
+    /// that existing receipt only when both original vectors and inputs agree.
+    fn read_advice(&self, offset: u32) -> Option<&OriginalSourceCommandTransitionAdvice> {
+        let current = match self.tape.lookup(offset) {
+            OriginalSourceTransitionAdviceLookup::Advice(advice) => Some(advice),
+            OriginalSourceTransitionAdviceLookup::Refused
+            | OriginalSourceTransitionAdviceLookup::Unrepresented => None,
+        };
+        let catalogue = self.tape.body_catalogue(offset);
+        if let Some(owned) = current.filter(|advice| advice.logical_source_scope().is_some()) {
+            let input = owned.logical_source_input()?;
+            if !input.has_logical_source_name_context()
+                || catalogue.is_some_and(|syntax| {
+                    syntax.site() != owned.site()
+                        || syntax.original_words() != owned.original_words()
+                        || syntax.logical_source_input() != Some(input)
+                })
+            {
+                return None;
+            }
+            return Some(owned);
+        }
+        catalogue.or(current)
+    }
+
     /// A conditional source schema inside its genuine declared body. The body
     /// and exact argv do not supply a reached lookup, frame or current store.
     pub(super) fn scope(
@@ -81,15 +107,7 @@ impl SourceReadCatalogue {
         if tokens.synthetic.is_some() || self.tape.blocks_registry_source(site.offset) {
             return None;
         }
-        let advice = if let Some(advice) = self.tape.body_catalogue(site.offset) {
-            advice
-        } else {
-            match self.tape.lookup(site.offset) {
-                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
-                OriginalSourceTransitionAdviceLookup::Refused
-                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
-            }
-        };
+        let advice = self.read_advice(site.offset)?;
         if advice.site() != site
             || !advice.matches_source(site.source.source_image(), config)
             || !advice.matches_context(&self.context)
