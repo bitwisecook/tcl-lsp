@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "b189fa73b5e4d4d96133621ca27323164ee194d57067c0f06e4cbb1156d24713",
+    == "f68860e21a950e18ebc0c5c27db8597e9dc80fb0a8c14f0d9d466c063da6dc36",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -1208,7 +1208,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "3d8f5e46e993da66690d4aa0479ba40d7838382344fd3a93903cb73321a1534f",
+    == "47ec336011bbcfffc50f36c4fbca890a9d50e00514a987343abebe10593f3cd4",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -1319,7 +1319,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "c55444017afa3b3adc7eb3548b09851819d9e166935f9fc01bbf98b2a6a9a7bd",
+    == "94bdfb10512ba1701dc4bd4b66393f3422a24a895679029b8449de280902e5d6",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
