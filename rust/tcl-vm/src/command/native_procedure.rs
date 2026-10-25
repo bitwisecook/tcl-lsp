@@ -269,6 +269,15 @@ impl ProcDef {
                     .iter()
                     .map(|parameter| parameter.name.clone())
                     .collect(),
+                binding_context:
+                    tcl_runtime_api::native_procedure_compilation::OriginalProcedureBindingContext {
+                        parameter_grammar: self.parameter_grammar,
+                        has_static_bindings: self.native_resources.statics.borrow().is_some(),
+                        has_adapter_bindings: self.call_identity.is_some()
+                            || self.usage_name.is_some()
+                            || self.lambda_term.is_some()
+                            || self.native_resources.original_jim_import,
+                    },
                 namespace: tcl_runtime_api::native_compilation::NativeNamespaceContext {
                     path: namespace.clone(),
                     token: u64::from(self.actual_namespace_id().0),
@@ -427,6 +436,132 @@ mod tests {
             call_identity: None,
             lambda_term: None,
         })
+    }
+
+    fn modified_declaration(change: impl FnOnce(&mut ProcDef)) -> NativeProcedureCommand {
+        let seed = declaration(
+            Value::new_native_string_bytes(b"return $x".as_slice()),
+            Value::new_native_string_bytes(b"DEFAULT".as_slice()),
+        );
+        let mut original = seed.declaration().as_ref().clone();
+        change(&mut original);
+        NativeProcedureCommand::new(original)
+    }
+
+    fn request_for_declaration(
+        command: &NativeProcedureCommand,
+        issuer: &tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
+    ) -> tcl_runtime_api::OriginalProcedureCompileRequest {
+        let source = tcl_runtime_api::SourceImage::native(b"return $x");
+        command
+            .declaration()
+            .original_compilation_request(
+                &source,
+                &ByteNamespacePath::root(),
+                source.len(),
+                issuer,
+                tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner: 11,
+                    interpreter: 2,
+                },
+            )
+            .unwrap()
+    }
+
+    fn compilation_issuer() -> tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner {
+        tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner::new(
+            tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                owner: 11,
+                interpreter: 2,
+            },
+        )
+    }
+
+    #[test]
+    fn original_compilation_formals_use_the_captured_binding_grammar() {
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        use tcl_syntax::formal_params::FormalByteArgumentBinding;
+        let issuer = compilation_issuer();
+        for grammar in [Tcl, Jim] {
+            let command = modified_declaration(|procedure| {
+                procedure.parameter_grammar = grammar;
+                procedure.params[0].name = "&x".into();
+                procedure.params[0].default = None;
+            });
+            let original = command.declaration();
+            let plan = tcl_syntax::formal_params::bind_formal_argument_bytes(
+                &original.formal_parameters(),
+                1,
+                original.parameter_grammar,
+            )
+            .unwrap();
+            let request = request_for_declaration(&command, &issuer);
+            assert!(request.is_live());
+            assert_eq!(request.binding_context().parameter_grammar, grammar);
+            match grammar {
+                Tcl => {
+                    assert!(matches!(
+                        plan.as_slice(),
+                        [FormalByteArgumentBinding::Value { .. }]
+                    ));
+                    assert_eq!(
+                        request.ordinary_formals().unwrap(),
+                        request.target().parameters
+                    );
+                }
+                Jim => {
+                    assert!(matches!(
+                        plan.as_slice(),
+                        [FormalByteArgumentBinding::CallerLink { .. }]
+                    ));
+                    assert!(request.ordinary_formals().is_none());
+                }
+            }
+            assert_eq!(original.native_reference_count(), 1);
+        }
+    }
+
+    #[test]
+    fn original_compilation_formals_decline_persistent_and_adapter_bindings() {
+        let issuer = compilation_issuer();
+        let changes: &[fn(&mut ProcDef)] = &[
+            |procedure| {
+                procedure.statics = Some(
+                    crate::vars::VarArena::default().retain_statics(crate::vars::VarTable::new()),
+                )
+            },
+            |procedure| procedure.call_identity = Some(vec![Value::string("method")]),
+            |procedure| procedure.usage_name = Some(vec![Value::string("object method")]),
+            |procedure| procedure.lambda_term = Some(Value::string("x {return $x}")),
+        ];
+        for change in changes {
+            let command = modified_declaration(change);
+            let request = request_for_declaration(&command, &issuer);
+            assert!(request.is_live());
+            assert_eq!(
+                request.binding_context().parameter_grammar,
+                tcl_dialect::ParameterGrammar::Tcl
+            );
+            assert!(
+                request.binding_context().has_static_bindings
+                    || request.binding_context().has_adapter_bindings
+            );
+            assert!(request.ordinary_formals().is_none());
+        }
+    }
+
+    #[test]
+    fn original_compilation_formals_retain_non_unicode_storage_keys() {
+        let issuer = compilation_issuer();
+        let command = modified_declaration(|procedure| {
+            procedure.params[0].name = tcl_core_types::NameBytes::from(b"opaque\xff".as_slice());
+        });
+        let request = request_for_declaration(&command, &issuer);
+        let parameters = request.ordinary_formals().unwrap();
+        assert_eq!(parameters[0].as_bytes(), b"opaque\xff");
+        assert!(std::str::from_utf8(parameters[0].as_bytes()).is_err());
+        command.retire();
+        assert!(request.ordinary_formals().is_none());
     }
 
     #[test]

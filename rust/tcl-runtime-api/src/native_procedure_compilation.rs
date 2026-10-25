@@ -12,6 +12,18 @@ use std::sync::{Arc, Weak};
 use crate::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
 use crate::{NameBytes, NativeCompilationEntry, SourceImage};
 
+/// Captured declaration binding policy, independent of the active host policy.
+/// Adapter frames and persistent bindings need their own alias contracts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OriginalProcedureBindingContext {
+    /// Formal parsing and binding grammar retained at declaration creation.
+    pub parameter_grammar: tcl_dialect::ParameterGrammar,
+    /// The original declaration retains persistent variable bindings.
+    pub has_static_bindings: bool,
+    /// A method, lambda or interpreter adapter supplies additional frame context.
+    pub has_adapter_bindings: bool,
+}
+
 /// Inputs selected by a backend from its original declaration at preparation.
 /// Only its live native role ledger can bind these into a retained request.
 pub struct OriginalProcedureCompileInput {
@@ -19,6 +31,8 @@ pub struct OriginalProcedureCompileInput {
     pub original: SourceImage,
     /// Actual bound formal storage keys in declaration order.
     pub parameters: Vec<NameBytes>,
+    /// Actual declaration's captured formal and frame binding policy.
+    pub binding_context: OriginalProcedureBindingContext,
     /// Actual constructed procedure namespace and its retained incarnation.
     pub namespace: NativeNamespaceContext,
     /// Complete prefix selected by the original compiler's parse plan.
@@ -31,6 +45,7 @@ pub struct OriginalProcedureCompileInput {
 pub(crate) struct OriginalProcedureSource {
     original: SourceImage,
     parameters: Vec<NameBytes>,
+    binding_context: OriginalProcedureBindingContext,
     namespace: NativeNamespaceContext,
     issuer: crate::native_compiler_pass::NativeCompilerPassIdentity,
     current: AtomicBool,
@@ -44,6 +59,7 @@ impl OriginalProcedureSource {
     fn matches(&self, other: &Self) -> bool {
         self.original == other.original
             && self.parameters == other.parameters
+            && self.binding_context == other.binding_context
             && self.namespace == other.namespace
     }
 }
@@ -108,6 +124,7 @@ impl OriginalProcedureCompileRequest {
         let incoming = OriginalProcedureSource {
             original: input.original,
             parameters: input.parameters,
+            binding_context: input.binding_context,
             namespace: input.namespace,
             issuer: issuer.clone(),
             current: AtomicBool::new(true),
@@ -139,6 +156,25 @@ impl OriginalProcedureCompileRequest {
             parameters: &self.source.parameters,
             namespace: &self.source.namespace.path,
         }
+    }
+
+    /// Captured declaration policy; this is independent of the active compiler entry.
+    #[must_use]
+    pub fn binding_context(&self) -> &OriginalProcedureBindingContext {
+        &self.source.binding_context
+    }
+
+    /// Actual Tcl formal storage keys without persistent or adapter bindings.
+    /// The caller still checks active compilation grammar, byte support and
+    /// its original entry. This does not establish physical local-slot access.
+    #[must_use]
+    pub fn ordinary_formals(&self) -> Option<&[NameBytes]> {
+        let context = self.binding_context();
+        (self.is_live()
+            && context.parameter_grammar == tcl_dialect::ParameterGrammar::Tcl
+            && !context.has_static_bindings
+            && !context.has_adapter_bindings)
+            .then_some(self.source.parameters.as_slice())
     }
 
     /// Whole original body, including an uncompiled malformed tail if present.

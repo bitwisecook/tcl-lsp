@@ -263,6 +263,11 @@ mod tests {
         crate::native_procedure_compilation::OriginalProcedureCompileInput {
             original: crate::SourceImage::native(b"return $x; malformed {"),
             parameters: vec![crate::NameBytes::from("x")],
+            binding_context: crate::native_procedure_compilation::OriginalProcedureBindingContext {
+                parameter_grammar: tcl_dialect::ParameterGrammar::Tcl,
+                has_static_bindings: false,
+                has_adapter_bindings: false,
+            },
             namespace: crate::native_compilation::NativeNamespaceContext {
                 path: crate::ByteNamespacePath::root(),
                 token: 1,
@@ -343,6 +348,7 @@ mod tests {
             !request.is_live(),
             "this payload mutation withdraws its initially live context"
         );
+        assert!(request.ordinary_formals().is_none());
         assert_eq!(
             declaration
                 .roles
@@ -391,6 +397,9 @@ mod tests {
         )] = &[
             |input| input.original = crate::SourceImage::native(b"return OTHER"),
             |input| input.parameters = vec![crate::NameBytes::from("y")],
+            |input| input.binding_context.parameter_grammar = tcl_dialect::ParameterGrammar::Jim,
+            |input| input.binding_context.has_static_bindings = true,
+            |input| input.binding_context.has_adapter_bindings = true,
             |input| input.namespace.path = crate::ByteNamespacePath::from_segments(["foreign"]),
             |input| input.namespace.token += 1,
             |input| input.original = crate::SourceImage::document("return $x; malformed {"),
