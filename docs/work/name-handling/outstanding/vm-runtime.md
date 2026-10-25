@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T14:42:55+00:00
+Last updated: 2026-10-25T15:07:39.585402+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -17,6 +17,12 @@ Current Small20/Mechanical23 union peer a3f3e522 and subsequent registry-only pi
 Spec40201525761 exact9cf FULL scoped auth0bc7772a: original11+Native1 allPASS; separately unchangedhostileFAIL with actual spin+burn `native private errorInfo result` (receiverNone), boom onlypanic. Private-result publication/source-log skipped by drive_loop ticklimit directunwind. Frozen paired /vm-limit-error-native-ingress-v1 master7c6eab07 factors EXACT oldsettle prefix into sharedhelper, reusesbeforeORIGINALunwind without catch/policy/header guard changes;2 new realNative controls/4profiles. Sourceproof1e5b81f5 has fullinverse/F-R/fmt and4C85–91 original LimitCheck→SetObjResult→gotError/log windows. Companion09672035 onlyirulesexecpin+driverdigest; independent Codegen peer pending. NewRust/controls/hostile retryUNRUN.
 
 Runtime13540201526367 exact9cf FULL scoped auth CURRENT receipt-current.json c0346861 (receipt.json superseded old run-label copy retained);459CRC/SHA/source126333NULmembership+39pins/provider/Tomprepost PASS. Original3+128 statuses identical8cfa, unboundedprocPASS(b20ffefc),Info3PASS(8de7e07d),135ownedparentsclosed/sharedCAP635274B.84nonpasses/incompleteCFI remain; mainVMgenericIndex controls require CLEAN756 CIactual, not standalone135 inference. Old658Heavy DIRECT5predicate bootstrap lead separately underCodegen, no actualfacet inferred from genericerror. No extraction source removal proposed.
+
+## Latest source/dispatch handoff 2026-10-25T15:07:39Z
+
+Erroringress FINALV2 integrated root WORKfc4afb/CLEAN62442; sourcepeer3d5e70ef/metadatab7518d15. VM Jim mutable slice branch preserved; V1 typing defect explicitly held, not promoted. NextSpec fresh unchangedhostile retry pending. Separate NativeIndex3 protocol d00a5723/prooff6b05dcd independently CLEAR11f7139f; exact old11+Native1+hostile1 retained, fresh tcl_vm actuallib-test ELF afterthem with exact3 listing and sharedbounds. Root integration/dispatch pending actualUNRUN. Long11+VMexec+RBS4 metadata V1 held on keyorder byteinverse; successorV2 independently CLEAR2382abc1 after wholeJSON byteinverse/all23ALLpin census. No VMsource mutation from that metadata.
+
+Root assigns VM sole upcoming irules-preflight artifact/auth/firstDIRECTfacet. Current actualsource fullinventory59/14, selectedunchangedbootstrap1+trace2, existing first-decline flag. Five NativeDirect guardpredicates remain intact; old658Heavy genericerror alone cannot identifyfacet. Mixed explicitF5 logicalC84/C9 actual sourcepath is structural lead only, no repair inferred before actualfirstfacet. No localRustbuild or duplicateZIP.
 
 ## Resume and authority
 

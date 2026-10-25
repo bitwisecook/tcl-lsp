@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-25T14:59:37.937726+00:00",
+  "work": "296a0073e43b9665ca87815664e8eabf34bafeff",
+  "release": "3ab2a2fd29d8ff8fbda976162b6e5b1efc36767c",
+  "integrated": [
+    {
+      "change": "Native owner lifetime and literal fixture lint cleanup22",
+      "peer": "3b951c69c8009d94e80b38d27ec113a8ce42a6fb0e24d894ed39838488a23a57"
+    },
+    {
+      "change": "Ten long test helpers plus Spec install lint11",
+      "peer": "d3395920d653d3d28ecd3f68dc7858c0d1c75dcaa6b588750cec1f0ee1fa2ad2"
+    },
+    {
+      "change": "Genuine native limit error publication/logging before original unwind",
+      "peer": "3d5e70ef16e802ba9146c165b460939a75d26e4c6e1a04157fe026571b60ac7f"
+    },
+    {
+      "change": "Identical retained source-call fallback Arc reuse after genuineNormalNone",
+      "peer": "b41195dd05dc4d5af17a56bb9dd8b0d0793030f230f95021704ecb7aeecbe136"
+    },
+    {
+      "change": "Genuine Logical conditional case child scope through existing owned-body issuer",
+      "peer": "e3f2e289d0af98bcf8c56a24ba76b94775e7daa454bc41edf4ae1ad4b4e390e2"
+    }
+  ],
+  "runtime_outcomes": "UNRUN on this source;9cf actuals remain prior source only",
+  "sourcepin_union": "pending Codegen current union",
+  "global_gates_admitted": []
+}

@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T15:16:12.599090+00:00",
+  "scheduled_report_utc": "2026-10-25T15:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T15:45:00+00:00",
+  "change_since_previous_report": [
+    "Pushed current reviewed source WORK008aae58/release3ab2a2fd:22-file Nativeowner/literal-fixture lint cleanup,11 long-test/Specinstall lint fixes, guarded inclusive-index slices, genuine limit-error publication before unwind, same-realm fallback Tape reuse and actualLogical conditional childbody issuance. Full keys/equality/guards/assertions retained; source review is not execution acceptance.",
+    "Current sourcepin unionV2 fully reviewed and preflightPASS13inputs/30runners/20wholeguards. V1 was held for oldJSONkey-order churn; successor restoresoldbytes after reversing5approvedhashchanges and6addedproducerdep pins. No rosters/budgets weakened.",
+    "Fresh four focused runs dispatched15:11 on exact008:strict40205731527, Spec40205731422 with separateNativeIndex3 afterunchangedold13, compiler10240205731348 and iRulesbootstrap3 40205733827. Singlecaptureowners assigned; healthyolderfullCIjobs preserved.",
+    "Fully authenticated9cf compiler102 improves to96PASS6FAIL with all102 executed: original58at57P1F, readonly6P4F, owner3PASS/ancestry3PASS, Logical2P1F, all16closedconsumer+oldfoldPASS. ThispredatesW002/RBSV4. One negativeLogicalfixture hasoracle-backed literal-argv premise correction underreview; readonlyfailures now reachgenuineclassifiers.",
+    "Current9cf Specoriginal11+Native1ALLPASS, separatehostileFAIL tracesactualmissingerrorInfoheader; integratedgenuineerrorpublication nowneedsexecution. Standalone runtime135unchanged,originalproc/Info3PASS and84othernonpasses/incompleteCFI remain. No mainVMNativeIndex3 verdictfromtheseotherpasses.",
+    "All9cfhostcaptureauthclosed; browserreaches24checks beforecoverageguard, WASImissinghelperbody/formalsmeasured, originalscan30PASS19.765s/cold120.44ms theninitialdiagCancelled445.55ms. NativeRPCcurrentlytimesoutconfigcommands; actualcurrencyrefusalhasgenuineconcurrentedit/same_sourcefalse, soneverrelaxed. Bounded2workspacefiles stillscanunfinished20.016s/417612KiB; notacceptedTclperformance.",
+    "Diagnosticregistryproducer gap is semantic-content inequality between documentinput contextregistry and separatelyglobalpackderivedDiagInputs registry. LSPcandidate selectsonecheckedcurrentdocument registry beforeanalysis/lifts/pass underoldpublication/source/configguards; pendingindependentreview, noEqrelaxation. JimmissingOriginalDeclaration layoutrow transportrepair preparing withoutpromotingEnteredActivation orgrantingNormal.",
+    "BaselineHeavyprovenancecorrection retained:355selectedlistingbelongsCLEAN658notrust;44missing-baselineclaimswithdrawn, baseline24624observedPASS/Heavy312PASSunchanged. TenactualbaselinearchivesverifyAPIrun/source/digests; selectedHeavyprovenanceremainsunknown. No synthesizedpass/mapping.",
+    "Diskfree~2.2GiB, no localRustbuilds. Reclaimedoneunused105minuteoldc142ELF147703736BafterfullZIPCRC/digest/member-byteequality andno-runningmatchproof; originalZIP/allreceipts andcurrentnativepayloadpreserved. No target/youngtestexe deletion. ExternalBIGIP/perfstaleover60min,usernotifiedwithouttakeover. NoPR/merge/tag/release/globalgateadmission."
+  ],
+  "committed": [
+    "72aad31897fc8d13a0a6de55850ebcaabf232398"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish15:15WIP/report and rearm15:45reminder.",
+    "Authenticate four008focusedruns; fixmeasuredstrict/Spec/readonly/Logical/DIRECTcauses.",
+    "Landreviewedhostregistry/Jimlayout/negativefixturefixes onWORKfirst, carrycleanpair, runfreshhosts/Jim/fullCIwhenolderhealthygraphcomplete.",
+    "Completebaselinecounterpartreview, corpusperformance, allsectionF/docsgeneratedpackaging/prep-pr checks beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Exact-source scoped failures and passes only; validatedrows5/6/9 updated with stored authenticatedreceipts. Agenttable remainsagent-reported/notvalidated. No auditunit/sectionF/globalreleaseadmission.",
+  "disk_free_bytes": 2348118016,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

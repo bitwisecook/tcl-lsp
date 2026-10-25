@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-25T14:48:40.320952+00:00",
+  "removed": "/workspace/naming-proof-storage/lsp-hosted-startup40192556525-actual-v1/server-payload",
+  "bytes": 147703736,
+  "age_minutes": 105.364668126901,
+  "source": "c142b066202e1601e4c133c91128841fb070310b",
+  "payload_sha256": "b760d728233701e101794605d522ea44eb39a16fe9c6e4f4a52a5d5d7b20c673",
+  "retained_archive": "/workspace/naming-proof-storage/lsp-hosted-startup40192556525-actual-v1/artifact.zip",
+  "archive_sha256": "ceb9d38acdeb156779ab88becbf21951da9659072b80bdd7d09e0a8c97ecfb60",
+  "artifact_id": 12598134534,
+  "all_zip_CRC_and_exact_member_bytes_verified": true,
+  "no_running_executable_matches": true,
+  "current9cf_native_payload_preserved": true,
+  "target_or_test_executable_removed": false,
+  "free_after": 2394546176
+}
