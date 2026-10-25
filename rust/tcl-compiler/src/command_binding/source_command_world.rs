@@ -2494,7 +2494,7 @@ mod tests {
         let plan = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::document("$ping"),
             tcl_lexer::Span::new(0, 5),
-            word.config(),
+            authored_word.config(),
         )
         .unwrap();
         let variable = &plan.commands[0].words[0];
