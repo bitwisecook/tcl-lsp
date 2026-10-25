@@ -8,6 +8,15 @@ static EVENTS: AtomicU32 = AtomicU32::new(0);
 impl super::Interp {
     #[track_caller]
     pub(crate) fn observe_codegen_depth(&self, phase: &'static str, entry: usize) {
+        self.observe_codegen_depth_labeled(|| phase, entry);
+    }
+
+    #[track_caller]
+    pub(crate) fn observe_codegen_depth_labeled(
+        &self,
+        phase: impl FnOnce() -> &'static str,
+        entry: usize,
+    ) {
         let eval = self.eval_depth.get();
         if (eval > 6 && eval < 124)
             || std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
@@ -29,6 +38,7 @@ impl super::Interp {
         // The frame borrow is gone; these are copied scalars only. An unavailable
         // frame is unobserved, not absence, and supplies no owner or admission.
         let caller = std::panic::Location::caller();
+        let phase = phase();
         eprintln!(
             "CCG_WASM_DEPTH seq={sequence} phase={phase} eval={eval} dispatch={dispatch} frame={frame:?} entry={entry} caller={caller}",
         );

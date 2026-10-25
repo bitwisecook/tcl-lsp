@@ -490,6 +490,36 @@ impl<'a> BorrowedArgv<'a> {
     }
 }
 
+impl BorrowedArgv<'_> {
+    // Pure physical resident-cache classification. Retain already owns every
+    // live header; no string provider, resolver or object operation is called.
+    fn cached_depth_head(&self) -> &'static str {
+        let Some(&head) = self.words.first() else {
+            return "abi-before.noResidentBytes";
+        };
+        // SAFETY: this guard retains this exact live header through observation.
+        let header = unsafe { &*head };
+        if header.bytes.is_null() || header.length < 0 {
+            return "abi-before.noResidentBytes";
+        }
+        let length = match header.length {
+            1 => 1,
+            4 => 4,
+            6 => 6,
+            _ => return "abi-before.other",
+        };
+        // SAFETY: the TclObj contract makes its non-null resident string buffer
+        // readable for its cached length while this retained header is live.
+        let bytes = unsafe { core::slice::from_raw_parts(header.bytes.cast::<u8>(), length) };
+        match bytes {
+            b"expr" => "abi-before.expr",
+            b"return" => "abi-before.return",
+            b"d" => "abi-before.d",
+            _ => "abi-before.other",
+        }
+    }
+}
+
 impl Drop for BorrowedArgv<'_> {
     fn drop(&mut self) {
         for &word in self.words {
@@ -937,8 +967,18 @@ impl AbiActivation {
     /// `interp` must be the live current interpreter for the whole guard's life.
     #[track_caller]
     unsafe fn enter(interp: *mut Interp) -> Option<Self> {
-        // SAFETY: forwarded per this function's contract; observation copies scalars.
-        unsafe { (*interp).observe_codegen_depth("abi-before", 0) };
+        // SAFETY: forwarded unchanged; the default observation remains static.
+        unsafe { Self::enter_labeled(interp, || "abi-before") }
+    }
+
+    #[track_caller]
+    unsafe fn enter_labeled(
+        interp: *mut Interp,
+        label: impl FnOnce() -> &'static str,
+    ) -> Option<Self> {
+        // SAFETY: same retained interpreter. Label is evaluated only after the
+        // existing flag/quota/filter and frame-borrow release in the observer.
+        unsafe { (*interp).observe_codegen_depth_labeled(label, 0) };
         // SAFETY: forwarded per this function's contract.
         unsafe { (*interp).codegen_activation_enter() }.then(|| {
             // SAFETY: the same live interpreter just entered its activation.
@@ -2373,7 +2413,9 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     }
     // All caller-owned argv references remain borrowed through dispatch and capture.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    let activation = unsafe {
+        AbiActivation::enter_labeled(&mut operation.interpreter, || _borrowed.cached_depth_head())
+    };
     if activation.is_none() {
         return unsafe {
             operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
