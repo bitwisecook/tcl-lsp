@@ -284,6 +284,7 @@ pub(super) struct OriginalProcedureReadFlowEntry {
 /// This receipt can withdraw that local-absence claim only; it supplies no
 /// existing value, entered frame, constructor completion or physical cell.
 pub(crate) struct OriginalProcedureStaticReadAlternatives {
+    source_analysis: std::sync::Weak<super::SourceCommandBindings>,
     owner: Arc<super::OriginalSourceAnalysisOwner>,
     input: crate::analyser::ResolvedAnalysisInput,
     declaration: OriginalProcedureReadFlowEntry,
@@ -1908,7 +1909,7 @@ impl SourceCommandBindings {
     /// Every original observation and target must retain the same full argv,
     /// static operand, source/formal/body recipe and caller-variable context.
     pub(crate) fn original_procedure_static_read_alternatives(
-        &self,
+        self: &Arc<Self>,
         procedure: &crate::ir::Procedure,
         image: &tcl_lexer::SourceImage,
         registry: &tcl_registry::CommandRegistry,
@@ -1981,6 +1982,7 @@ impl SourceCommandBindings {
             })
             .collect();
         Some(OriginalProcedureStaticReadAlternatives {
+            source_analysis: Arc::downgrade(self),
             owner: Arc::clone(owner),
             input: input.clone(),
             declaration: facet.declaration,

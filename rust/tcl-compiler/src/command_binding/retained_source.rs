@@ -370,6 +370,16 @@ impl RetainedSourceModuleBindings {
         module: &Module,
         registry: &CommandRegistry,
     ) -> Option<&SourceCommandBindings> {
+        self.positioned_owner_for_module(module, registry)
+            .map(Arc::as_ref)
+    }
+
+    /// Borrow the same validated immutable owner for a non-owning read receipt.
+    pub(crate) fn positioned_owner_for_module(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+    ) -> Option<&Arc<SourceCommandBindings>> {
         // naming.source.retained-positioned-command-realm
 
         if !self.matches_module(module, registry)

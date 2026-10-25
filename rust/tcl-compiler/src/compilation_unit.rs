@@ -5365,7 +5365,7 @@ impl CompilationUnit {
             .ir_module
             .retained_source_bindings
             .as_deref()?
-            .positioned_for_module(&self.ir_module, registry)?;
+            .positioned_owner_for_module(&self.ir_module, registry)?;
         bindings.original_procedure_static_read_alternatives(
             procedure,
             &self.ir_module.source,
