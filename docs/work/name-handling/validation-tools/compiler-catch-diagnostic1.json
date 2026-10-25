@@ -18,7 +18,7 @@
     "cu_catch_literal_body_threads_its_upvar"
   ],
   "source_pins": {
-    "rust/tcl-compiler/tests/var_escape_residual2.rs": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265"
+    "rust/tcl-compiler/tests/var_escape_residual2.rs": "d672622a855a7c63839ff020c9c291e8868cbd59c2a5b76875fd8a8ff42f0131"
   },
   "target": "var_escape_residual2"
 }

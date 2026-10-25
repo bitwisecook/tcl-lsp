@@ -101,7 +101,7 @@
     ]
   },
   "source_pins": {
-    "rust/tcl-spectcl/tests/jim_document.rs": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+    "rust/tcl-spectcl/tests/jim_document.rs": "61da1e78d96fa064cee2fc0a43ce91cd585343e41883aeaf680ed6e606472fbb",
     "rust/tcl-spectcl/tests/jim_own_surface.rs": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
     "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
     "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",

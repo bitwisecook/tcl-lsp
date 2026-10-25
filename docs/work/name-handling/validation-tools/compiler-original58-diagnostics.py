@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "f3e7449ebc47bd008ad9aff8c666c852951f0778bb6fed8ab901189b0252b804",
+    == "5b1ddd787dc3494a87fc5ac564442c0782ea4ea2b4f8dd557241bc8e1b7239d2",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -1039,7 +1039,7 @@ require(
 )
 require(
     sha(BASE / "compiler-sh21-supplemental2.json")
-    == "57efd360301c1672d7a24035f1de98334caf33f25382c2cdc4833f3a33722e77",
+    == "8d4eb5f02a0324659b689e0678d0ff6a83c4ff443be54c920255da6b2b7c6ccb",
     "exact separate SH21 diagnostic duplicate input pin",
 )
 sh21_diagnostic = json.loads((BASE / "compiler-sh21-supplemental2.json").read_text())
@@ -1114,7 +1114,7 @@ require(
 )
 require(
     sha(BASE / "compiler-catch-diagnostic1.json")
-    == "bf26a59a222199741ac571cabff01a46d8ea01d847d3ea62d79484459726dd2b",
+    == "b354a76d54d0510b4bb27e2802c66ffa3d56d2270062a908ba2ae937d3a6edeb",
     "exact separate catch diagnostic1 input pin",
 )
 catch_diagnostic = json.loads((BASE / "compiler-catch-diagnostic1.json").read_text())
@@ -1152,7 +1152,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "31aed862b1a6675b288e54c9eb8762e3116bea2d28b774cd3c9677d19a39de44",
+    == "cf52b77f9097c5d781c3155471599983795cd632f64c07e9562aed19192cc19b",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -1208,7 +1208,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "76dad83d875339949a7218d1bc438c88e8848c40548d26e4c5657edf487923c7",
+    == "396ec5aa70e19fcfa0518baaf9c05dcca400a2abbee6b3794ce225f097d65c85",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -1332,7 +1332,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "26a4d3e466c8ed5b1f6ee4aaab5d43bf5450b55b781e70b215db5886cecadb3c",
+    == "14925c484dabfb70ab7f0fb12f29947a5f44c39704325e7cdb65003d388ea730",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
