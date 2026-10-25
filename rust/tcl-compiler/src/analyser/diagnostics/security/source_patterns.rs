@@ -546,11 +546,11 @@ mod tests {
                     changed.ir_module.source_metadata_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl9.0")
                             .default_context_registry(),
-                    ))
+                    ));
                 }
                 3 => {
                     changed.ir_module.lexer_config.strict_quoting =
-                        !changed.ir_module.lexer_config.strict_quoting
+                        !changed.ir_module.lexer_config.strict_quoting;
                 }
                 _ => {
                     changed
@@ -558,7 +558,7 @@ mod tests {
                         .values_mut()
                         .next()
                         .unwrap()
-                        .source_metadata_input = None
+                        .source_metadata_input = None;
                 }
             }
             let mut analyser = analyse(source, &input);
@@ -623,7 +623,7 @@ mod tests {
                     analyser.result.resolved_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl9.0")
                             .default_context_registry(),
-                    ))
+                    ));
                 }
                 3 => {
                     let mut changed = input.clone();
