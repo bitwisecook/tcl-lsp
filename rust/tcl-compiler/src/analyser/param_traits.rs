@@ -2086,6 +2086,49 @@ mod tests {
         }
     }
 
+    fn assert_logical_parameter_shape_refusals(
+        text: &str,
+        env: TraitScanEnv<'_>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) {
+        assert!(infer_param_traits(&["other"], text, env).is_empty());
+        assert!(infer_param_traits(&["name", "other"], text, env).is_empty());
+        assert!(infer_param_traits_deep(&["name", "other"], text, env).is_empty());
+        assert!(caller_frame_upvar_params(&["name", "other"], text, env).is_empty());
+        assert!(infer_param_traits(&["name"], &(text.to_owned() + " "), env).is_empty());
+        let prefix = &text[..text.len() - 1];
+        assert!(infer_param_traits(&["name"], prefix, env).is_empty());
+        assert!(infer_param_traits_deep(&["name"], prefix, env).is_empty());
+        assert!(caller_frame_upvar_params(&["name"], prefix, env).is_empty());
+        assert!(caller_frame_literal_targets(prefix, env).is_empty());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(infer_param_traits(&["name"], text, TraitScanEnv { config, ..env }).is_empty());
+        assert!(
+            infer_param_traits(
+                &["name"],
+                text,
+                TraitScanEnv {
+                    original_logical_body: None,
+                    ..env
+                }
+            )
+            .is_empty()
+        );
+    }
+
+    fn assert_no_closed_logical_parameter_roles(
+        view: &crate::registry_invocation::InvocationBodyAssistance,
+    ) {
+        // This current formal read retains real observer/lookup debt. Its
+        // source recipe must never become a closed execution candidate.
+        assert!(!view.parameter_role_advice().is_closed());
+        assert!(view.parameter_role_advice().candidates().is_empty());
+        assert!(view.parameter_invocation(&["name"]).is_none());
+        assert!(view.parameter_invocation(&["other"]).is_none());
+        assert!(view.caller_name_template_invocation().is_none());
+    }
+
     #[test]
     fn original_logical_parameter_roles_keep_authored_body_and_formals_without_entry() {
         let source = "proc reader {name} {upvar 1 $name cell; set cell 1}";
@@ -2127,30 +2170,7 @@ mod tests {
                 .param_traits,
             traits
         );
-        assert!(infer_param_traits(&["other"], text, env).is_empty());
-        assert!(infer_param_traits(&["name", "other"], text, env).is_empty());
-        assert!(infer_param_traits_deep(&["name", "other"], text, env).is_empty());
-        assert!(caller_frame_upvar_params(&["name", "other"], text, env).is_empty());
-        assert!(infer_param_traits(&["name"], &(text.to_owned() + " "), env).is_empty());
-        let prefix = &text[..text.len() - 1];
-        assert!(infer_param_traits(&["name"], prefix, env).is_empty());
-        assert!(infer_param_traits_deep(&["name"], prefix, env).is_empty());
-        assert!(caller_frame_upvar_params(&["name"], prefix, env).is_empty());
-        assert!(caller_frame_literal_targets(prefix, env).is_empty());
-        let mut config = input.lexer_config();
-        config.strict_quoting = !config.strict_quoting;
-        assert!(infer_param_traits(&["name"], text, TraitScanEnv { config, ..env }).is_empty());
-        assert!(
-            infer_param_traits(
-                &["name"],
-                text,
-                TraitScanEnv {
-                    original_logical_body: None,
-                    ..env
-                }
-            )
-            .is_empty()
-        );
+        assert_logical_parameter_shape_refusals(text, env, input);
         let command =
             segment_commands_with_offset_and_config(text, 0, input.lexer_config().nested())
                 .remove(0);
@@ -2163,13 +2183,7 @@ mod tests {
             content.start(),
         )
         .unwrap();
-        // This current formal read retains real observer/lookup debt. Its
-        // source recipe must never become a closed execution candidate.
-        assert!(!view.parameter_role_advice().is_closed());
-        assert!(view.parameter_role_advice().candidates().is_empty());
-        assert!(view.parameter_invocation(&["name"]).is_none());
-        assert!(view.parameter_invocation(&["other"]).is_none());
-        assert!(view.caller_name_template_invocation().is_none());
+        assert_no_closed_logical_parameter_roles(&view);
         let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
         let selected = view
             .conditional_parameter_source_invocation(&["name"])
