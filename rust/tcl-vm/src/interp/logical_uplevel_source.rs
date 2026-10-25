@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Authored uplevel source words, independent of native literal registration.
 
-use super::{InterpState, Value};
+use super::Value;
 use crate::compiled::NativeCompilerPolicy;
 use tcl_registry::native_eval_object::{EvalObjectPurpose, NativeEvalObjectProtocol};
 use tcl_syntax::value::ValueError;
@@ -22,7 +22,7 @@ impl LogicalUpLevelSourceEntry {
     }
 }
 
-impl InterpState {
+impl crate::Vm {
     pub(crate) fn logical_uplevel_source_entry(
         &self,
         selected: NativeEvalObjectProtocol,
