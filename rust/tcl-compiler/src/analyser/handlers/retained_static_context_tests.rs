@@ -116,7 +116,7 @@ fn original_static_context_refuses_missing_foreign_and_changed_source_axes() {
                 analyser.resolved_input = Some(input(
                     "tcl8.4",
                     Arc::clone(actual.borrowed_context_registry().commands()),
-                ))
+                ));
             }
             2 => {
                 let foreign = input(
