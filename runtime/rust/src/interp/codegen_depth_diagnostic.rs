@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 static EVENTS: AtomicU32 = AtomicU32::new(0);
 
 impl super::Interp {
+    #[track_caller]
     pub(crate) fn observe_codegen_depth(&self, phase: &'static str, entry: usize) {
         let eval = self.eval_depth.get();
         if (eval > 6 && eval < 124)
@@ -27,8 +28,9 @@ impl super::Interp {
             .map(|frames| frames.current_activation());
         // The frame borrow is gone; these are copied scalars only. An unavailable
         // frame is unobserved, not absence, and supplies no owner or admission.
+        let caller = std::panic::Location::caller();
         eprintln!(
-            "CCG_WASM_DEPTH seq={sequence} phase={phase} eval={eval} dispatch={dispatch} frame={frame:?} entry={entry}",
+            "CCG_WASM_DEPTH seq={sequence} phase={phase} eval={eval} dispatch={dispatch} frame={frame:?} entry={entry} caller={caller}",
         );
     }
 }

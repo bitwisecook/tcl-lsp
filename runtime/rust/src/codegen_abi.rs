@@ -935,6 +935,7 @@ impl AbiActivation {
     ///
     /// # Safety
     /// `interp` must be the live current interpreter for the whole guard's life.
+    #[track_caller]
     unsafe fn enter(interp: *mut Interp) -> Option<Self> {
         // SAFETY: forwarded per this function's contract; observation copies scalars.
         unsafe { (*interp).observe_codegen_depth("abi-before", 0) };
