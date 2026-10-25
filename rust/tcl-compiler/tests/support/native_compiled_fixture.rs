@@ -17,6 +17,7 @@ struct ObserveCompilation {
     observed: Observations,
     attempted: Rc<Cell<usize>>,
     refuse_original: bool,
+    bindings: Option<Rc<RefCell<Vec<BindingObservation>>>>,
 }
 
 impl CompileService for ObserveCompilation {
@@ -80,9 +81,27 @@ impl CompileService for ObserveCompilation {
                 "body compiler refusal control".to_owned(),
             ));
         }
-        let compiled = self
+        let result = self
             .compiler
-            .compile_original_procedure_bytes_with_entry(request, profile, entry, dispatch)?;
+            .compile_original_procedure_bytes_with_entry(request, profile, entry, dispatch);
+        if let Some(bindings) = &self.bindings {
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let wrapped = result.is_ok()
+                && NativeCompiledProcedure::lower(request, registry, profile, entry, dispatch)
+                    .is_ok();
+            let active_grammar = BytecodeCompileService::native_entry_options(entry, Some(profile))
+                .invocation_dialect
+                .and_then(tcl_registry::InvocationDialect::parameter_grammar);
+            bindings.borrow_mut().push(BindingObservation {
+                captured: *request.binding_context(),
+                ordinary: request.ordinary_formals().map(<[_]>::to_vec),
+                active_grammar,
+                wrapped,
+            });
+            return result;
+        }
+        let compiled = result?;
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let original = NativeCompiledProcedure::lower(request, registry, profile, entry, dispatch)?;
         self.observed.borrow_mut().push((original, entry.clone()));
@@ -133,7 +152,15 @@ impl CompiledFixture {
 }
 
 fn runtime(refuse_original: bool) -> Runtime {
-    let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+    runtime_with_bindings(refuse_original, "tcl9.0", None)
+}
+
+fn runtime_with_bindings(
+    refuse_original: bool,
+    environment: &str,
+    bindings: Option<Rc<RefCell<Vec<BindingObservation>>>>,
+) -> Runtime {
+    let profile = tcl_registry::model::ingress::resolve_environment(environment).unit_profile();
     let observed = Rc::new(RefCell::new(Vec::new()));
     let attempted = Rc::new(Cell::new(0));
     let mut owner = tcl_vm::Vm::with_native_core(
@@ -151,6 +178,7 @@ fn runtime(refuse_original: bool) -> Runtime {
         observed: Rc::clone(&observed),
         attempted: Rc::clone(&attempted),
         refuse_original,
+        bindings,
     }));
     (owner, observed, attempted)
 }
@@ -211,4 +239,110 @@ pub fn assert_declaration_and_refusal_boundaries() {
         observed.borrow().is_empty(),
         "a refused compiler issued no compiled fixture"
     );
+}
+
+#[derive(Debug)]
+struct BindingObservation {
+    captured: tcl_runtime_api::OriginalProcedureBindingContext,
+    ordinary: Option<Vec<tcl_core_types::NameBytes>>,
+    active_grammar: Option<tcl_dialect::ParameterGrammar>,
+    wrapped: bool,
+}
+
+pub fn assert_dispatched_binding_boundaries() {
+    use tcl_dialect::ParameterGrammar;
+
+    // The declaration's Jim reference binder survives a later Tcl host entry.
+    let bindings = Rc::new(RefCell::new(Vec::new()));
+    let (mut owner, _, _) = runtime_with_bindings(false, "jim", Some(Rc::clone(&bindings)));
+    let declared = owner
+        .try_eval_source("proc p {&x} {set x changed}")
+        .expect("actual Jim declaration provider");
+    assert!(declared.is_ok(), "{declared:?}");
+    assert!(
+        bindings.borrow().is_empty(),
+        "declaration is not a body visit"
+    );
+    let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+    assert!(owner.set_native_engine_profile(host));
+    assert!(owner.set_command_surface_profile(host));
+    let completion = owner
+        .try_eval_native_host_source("set target old; p target; set target")
+        .expect("actual mixed-policy body compilation and execution");
+    assert!(completion.is_ok(), "{completion:?}");
+    assert_eq!(completion.result.string_bytes().as_ref(), b"changed");
+    let records = bindings.borrow();
+    assert!(
+        !records.is_empty(),
+        "actual mixed-policy body callback was reached"
+    );
+    for record in records.iter() {
+        assert_eq!(record.captured.parameter_grammar, ParameterGrammar::Jim);
+        assert_eq!(record.active_grammar, Some(ParameterGrammar::Tcl));
+        assert!(record.ordinary.is_none());
+        assert!(
+            !record.wrapped,
+            "captured Jim aliases cannot become ordinary Tcl formals"
+        );
+    }
+    drop(records);
+
+    // Method adapter bindings are owned by the original ProcDef, not names.
+    let bindings = Rc::new(RefCell::new(Vec::new()));
+    let (mut owner, _, _) = runtime_with_bindings(false, "tcl9.0", Some(Rc::clone(&bindings)));
+    let declared = owner
+        .try_eval_source("oo::class create C {method m {value} {return $value}}; C create object")
+        .expect("actual method declaration provider");
+    assert!(declared.is_ok(), "{declared:?}");
+    assert!(bindings.borrow().is_empty());
+    let completion = owner
+        .try_invoke_command(
+            "object",
+            &[
+                tcl_vm::Value::new_native_string_bytes(b"m"),
+                tcl_vm::Value::new_native_string_bytes(b"value"),
+            ],
+        )
+        .expect("actual method body compilation and execution");
+    assert!(completion.is_ok(), "{completion:?}");
+    assert_eq!(completion.result.string_bytes().as_ref(), b"value");
+    let records = bindings.borrow();
+    assert!(
+        !records.is_empty(),
+        "actual method body callback was reached"
+    );
+    for record in records.iter() {
+        assert!(record.captured.has_adapter_bindings);
+        assert!(record.ordinary.is_none());
+        assert!(!record.wrapped);
+    }
+    drop(records);
+
+    // Byte-exact Tcl keys are retained by the producer; Unicode-only lowering
+    // cannot replace an unsupported key with a decoded or escaped spelling.
+    let bindings = Rc::new(RefCell::new(Vec::new()));
+    let (mut owner, _, _) = runtime_with_bindings(false, "tcl9.0", Some(Rc::clone(&bindings)));
+    let declared = owner
+        .try_eval_source_bytes(b"proc p {\xff} {set x 1}")
+        .expect("actual byte-formal declaration provider");
+    assert!(declared.is_ok(), "{declared:?}");
+    assert!(bindings.borrow().is_empty());
+    let completion = owner
+        .try_invoke_command("p", &[tcl_vm::Value::new_native_string_bytes(b"value")])
+        .expect("actual byte-formal body compilation and execution");
+    assert!(completion.is_ok(), "{completion:?}");
+    assert_eq!(completion.result.string_bytes().as_ref(), b"1");
+    let records = bindings.borrow();
+    assert!(
+        !records.is_empty(),
+        "actual byte-formal body callback was reached"
+    );
+    for record in records.iter() {
+        let names = record
+            .ordinary
+            .as_ref()
+            .expect("actual ordinary Tcl byte keys");
+        assert_eq!(names, &[tcl_core_types::NameBytes::from(&b"\xff"[..])]);
+        assert!(!record.wrapped);
+    }
 }
