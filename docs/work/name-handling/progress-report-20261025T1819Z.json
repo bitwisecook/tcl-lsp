@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T18:19:54.339357+00:00",
+  "scheduled_report_utc": "2026-10-25T18:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T18:45:00+00:00",
+  "change_since_previous_report": [
+    "18:15checkpointislatewhilecurrentreceiverfixedresultsandcoveragefixesarecollected; actualreport/push timesretained. Prior17:45report/push17:46/17:51recorded. Currentreceiverfixed46dhasactualexecutedSpec/Jim, nofurtherlint-onlylandings; allremaininggatesopen.",
+    "Current46dSpec40218623776JOBSUCCESS/owneractualall16PASS, fullartifactauthenticationpending; previous5877all16remainslastrecordedPassed9g. CurrentiRules40218621774bootstrapFAIL/trace2PASS; oldprotocol-purposefacetgone, newCompilationAdmissionNativePreflightRequired with4compilerdependency_refusal observations. Actualpreflightassessmentfailure/possible_error/nativeentry_unavailablefalse, no guardwaiver.",
+    "Current46dCore2andnativeunitjobsSUCCESS; startup/browser/WASIfailed, ownercollectingclosedcaptures. Jim40218619590completedFAILUREbutactualcounts/typevssemanticnotyetclaimed; Compiler10240218620073stillrunning. Previous08all19Spec/iRules+Jim51+5hostsUNRUNreceiverE0599areseparatefullyauthenticatedbuildfailures, resolvedbycurrentVmownerrepair.",
+    "Late18:19Jimcurrent46dFULLAUTHcefb121e: buildrecovered/all51executed, original34P11F/45,diagnostic2P3F/5,new1FAIL. ActualUseSiteextractionfbd604b9: namedincrName/VariableName/index0stillstatic_alternativefalse; nestedExprSubstituted/Operand/index0static_alternativetruebeforeoldpart_shapeguard. Existingread-role/frame/source/argumentownersmustbetransportedgenuinely, noshape/permissionwaiver.",
+    "ActualofflineCargoMetadatacensusfoundEIGHTmissingtestbinaryassignments, notjust2: Jim-authored/core-identity/static-read/static-uncertainty, native-normal-store, UPF-hooks, variable-reference-boundaries, VMthread-exit-retirement. Append8rowskeepsalloldrows/exclusions/5partitionsbyteexact, independentpeera83b7636. PairedWORKcbe2204/CLEAN1c5c4integrated; existingverifierbeforeFAIL8missing\u2192afterPASS395targets/5partitions. NoRust/sourceassertionschanged; newfullCIwillincludethesetargets.",
+    "RootverifieddecodedactualallFIVE4f453Rustshardlogs: soleE0594config.braced_varimmutablebuildstop, no reachedtests; sourcefixalreadycurrent. Nativebuild+e2earchivePASSareseparate. WASMreal-link22P3Funchangedassertions, Codegenfunctionalworkcontinues.",
+    "ReviewableNativeAOTdesignproposalsrecordedofftree: actualcompiler-issueddeclarationsourcebridgeandprivategenerated-bodyperinvocation/framecapabilitywithcallback-safesuspension. SourceProcdeepcausalreviewbeforeanygenuinenewdesignuserquestion. No parententrygraft/numericbearerNativeauthority/limitweakeningimplemented. Allocationownerpassivewitnessindependentlyclear84690butoffcanonicaluntilcurrentcompilerbuildpasses.",
+    "BrowserfirstguardWORKobserverV2caughtTLSunwindleak; RAII!SendV3peer95brestorespriorrows/deactivatesbeforeformat; V4narrowscapturetoexplicitcoverageonly. StilloffcanonicalpendingcurrentbuildPASSandmetadata. No Nativepredicate/order/getter/grantchangesadmitted. Lint-onlycanonicalintegrationremainsPAUSEDuntilcompilerlib+semanticresultsrecover.",
+    "Currentreleasefixturecensus18families/195oldsubstantivepaths:1exactcurrentconsumed,17byteidenticalcurrentconsumedcounterparts,39absentwitholdhash/noequalcurrentfamilyfile,138absentwithoutoldhash(contentunknown). No safeunconsumedcurrentremovalcandidate. Separate132absentmarkersand13prosediscrepancynotfoldedintoacceptedcoverage. No fixturedeletion/assertionchange.",
+    "Disk: old4badextractedELFduplicateeligible>60minremovedonlyafterAPI/archive/allmemberSHA/CRC+completeownUIDprocesscensus;ZIP/evidenceretained. LSP2closedfailed-launchsourceJSONslosslessgzip22966272Bphysicalrecovery; compiler2closedold67stderr/stdoutgzip45707264Bphysicalrecoverywithmode/time/hardlinkrestoreproof. No target/exe/source/active/ZIPdata loss. New4f453nativeELFremainsZIP-onlyuntilfloor+24MiBreservefits.",
+    "Digestalertfullyresolvedwithoutguardchange: authorconfusedSpecfold1a41withtaint2a9b43; exact46dsourceguard/preflightvalid. No fabricateduserdecision/baselinewaiver. AllsectionF/fullC1C2/6D/zeropass-to-fail/acceptedTclperformance/docs/generated/packaging/prep-prremainopen. ExternalBIGIP/perf>60minstale, notifiedwithouttakeover; next18:45."
+  ],
+  "committed": [
+    "0d8325569e2f1fc20285388708c62543d7976097"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish18:15WIP/reportandpureCIcoveragefix; rearm18:45reminder.",
+    "Authenticatecurrent46dactualSpec/hosts/Jim/compilerandtracegenuineNativePreflightRequireddependencyproducer; no lintintegrationuntilbuild/semanticrecovery.",
+    "Measure4f453geometrynativeartifactoncefloorfits; completeallremainingreleasegatesandreviewconcretenewABIchoicesbeforeuserdecision."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Currentjobstatuses/ownerfirstreadsareexplicitlypendingfullauth; no new globaladmission. LastrecordedSpec5877all16PASSscopekept. EightCIrowsmetadataPASSiscoverageonly, notexecution. Allreleasegatesremainopen.",
+  "disk_free_bytes": 2299383808,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

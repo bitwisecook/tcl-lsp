@@ -1,6 +1,12 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-25T17:37:45Z
+Last updated: 2026-10-25T18:09:24Z
+
+Resume 2026-10-25T18:09:24Z: Actual08eeb ALL5FULLAUTH/CLOSED COMPILEFAIL2E0599 source_string_protocol/native_compiler_policy onInterpState;126378members/exactGit+maps/processseals, no ELF/hostchecks/tests/Send/runtimeacceptance. Finalindex8b8e5928d7aca05615f4f545ababdd3103c3caddc9568ac7721988e1fefe768e. Rootreceiverfix owns06396. NEWassigned46d460d63aeddc102e323ad4c23aa68bb5d89257 hosts40218620159 browser121245100034/unit121245100286/WASI121245100288; startup40218620870 direct121245101738/Core2121245101977 APIpinnedPENDING, no capturedoutcome yet.
+
+Old4badextractedduplicate safelyreclaimed >60min age3802.9s/fullAPI+ZIPCRC/memberSHA+completebroaderownUIDcensus9zero matches/unknown receipt1e7bc1cb1f022a9da7a6ef073ea203ea76e76ebb2691776a24c1d0dfd871f901; allZIP/evidence retained. SolefullWORK4f453 nativeartifact API source4f453e770123d8c6ba470830a0ef6d12fc18b81f/run40215128734/build121235014485PASS ZIP1910b2d0 size45222236 member147900696B SHA9ea7ab5d5903b9fa7bc7e2102657648dcae006be78cc9d879730d8830eee4823 streamCRC/magicPASS. StillZIP-only/platform/RPC/perfUNRUN; precisefloor+payload+24MiB reserve short45.75MB, rootnotifiedfurtherlosslessoldJSONrecovery needed. No memfd/protocolworkaround/localRust/target/testexedeletion.
+
+WORKobserverV4 explicitrenamecaller scope frozenacb2b78b patch7a18aa62, notin46d andhelduntilactualbuildPASS. OrdinaryFrameWalk.structure byteexactbaseline; privatecoverage-onlymethod scopes32staticrows, RAII !Send synchronousguard restorespreviousonunwind/nesting/finishbeforeformatting; no extraqueries/owner/Nativegrant, samebool/Option once/lazy/order. Fullwhole4file formattederasure+F-R-F0/fmt5PASS; CompilerV3deepclear95b840c3 supersededbyV4delta pending. Earlierreported08taintguardmismatch WASFALSE attribution: taint2a9b43matchesdriver;1a41belongsSpecfoldnoguard, ROOTnotifiedno canonicalchange. V3metadata3JSON+2driverd02a9830 mustrefreshCoreafterV4source. All52ownedSTRICT primaries concreteofftreecohorts HELDROOT untilcompiler102/Jimrecover; no Clippyclosure.
 
 Resume 2026-10-25T17:37:45Z: NEWsoleassigned5hosts APIexact08eeb03f1c624fcbad3cbdb74cb0750dcc3d8eb0 pathperf.yml:40217144732 WASI121240646078/browser121240646293/unit121240646388; startup40217144456 direct121240644628/Core2121240644500. ALL5inprogressoriginalsteps/healthy/no cancellation/noZIPdownloadyet. Sourceincludesapproved freshretryV2/nestedsyntax/Logical+mutrestore; nativeplatform/runtimeoutcomesUNRUN. Preserve2GiBfloor; currentonly4badELFyounguntil~17:55, no newextract/duplicateZIP. Current4bad5hosts+native/RPC/perf/minifyFULLAUTH qualifications retained nativefollowupV3index09f6e4cf.
 
