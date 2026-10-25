@@ -3950,6 +3950,19 @@ mod conditional_declared_read_point_tests {
             }
         }
 
+        // Real source-body visits retain layouts. This fixture exercises one
+        // missing observation while preserving its actual source points.
+        fn without_tail_layout(mut self) -> Self {
+            let mut layouts = self.inventory.layouts.as_ref().clone();
+            assert!(layouts.remove(&self.site).is_some());
+            self.inventory = Arc::new(self.with_layouts_and_points(
+                layouts,
+                self.inventory.points.as_ref().clone(),
+                self.inventory.origin_points.as_ref().clone(),
+            ));
+            self
+        }
+
         fn select(
             &self,
             inventory: &DeclarationFlowInventory,
@@ -4021,7 +4034,8 @@ mod conditional_declared_read_point_tests {
             "proc p {x} {switch -glob $x {a* {return 1} default {set z 9}}; puts $missing}",
             "switch",
             "puts",
-        );
+        )
+        .without_tail_layout();
         assert!(!fixture.inventory.layouts.contains_key(&fixture.site));
         let selected = fixture.select(&fixture.inventory).unwrap();
         assert_eq!(
@@ -4104,7 +4118,7 @@ mod conditional_declared_read_point_tests {
     #[test]
     fn conditional_read_scope_keeps_unknown_prefix_and_wrong_point_refusals() {
         let source = "proc p {} {set anchor 1; unknown_command; puts $missing}";
-        let mut fixture = Fixture::new(source, "set anchor", "puts");
+        let mut fixture = Fixture::new(source, "set anchor", "puts").without_tail_layout();
         assert!(!fixture.inventory.layouts.contains_key(&fixture.site));
         let report = fixture
             .binding
