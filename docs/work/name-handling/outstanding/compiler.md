@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-25T12:07:49.145507+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-25T13:18:06.073095+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Current handoff and shipping perf blocker:** Root has integrated faithful service, retained Logical scope and subsequent helper binding-type/byte fixes; c142 Compiler102 run40192556629 remains separately source-pinned and excludes later helper fixes. Sole ZIP ownership stays here; actual counts pending authentication. Shipping candidate72d scan/token latency remains BLOCKED; no valid baseline/candidate perf pair and no threshold waiver. Independent peers now queued for authentic shared DB structure projections, server conditional-world owner reuse and WORK-only Names active-scope logger. No local Cargo/rustc or canonical edits. Index-purpose producer V2 STATIC CLEAR b71e5a65 and producer-only metadata7ed25f61; runtime consumer/final metadata union remain separate.
 
 **Actual Compiler20401 authenticated: same94PASS8FAIL, no assertion/typedbody success inferred:** SINGLEZIP `compiler-original102-40187146887/artifact.zip`, artifact12596563471/12181094B/SHAcfe525b9898539e789d74f97c1636ea46ed64ab481f39b214e744578fe98c8d3 exact20401a81423166f2ff17ce6206da55ce3506105b/job121150244933. Assessment12452f8de8b98e686e7a84a184f8eb7824de2d1a8e209157fec487587d6eb0a2; fullsource/Native6a610dd2e9862a2254df951acc612d8ad9302342707bf0d86273babeada5a8b0; protocol/firstguard42e009517a6e364764fe6cb3d2d6f8c1517ae57d545adb5f580376e30c4c34b1. Original57P1F, old9P, closed16P+oldfoldP, readonly6P4F, owner3P, ancestry3P, Logical3F. ALL102terminal/223ownedclosed/exactserializedreceipts+uniquePIDbirth,9freshstrictartifacts/0Rustdiagnostics/all5sealsTRUE/source126311/provider10202/deps21503/tools equal. Capretained10254195+remaining10717325=20MiB exactmonotone/noreset. Prior1c102 identities/env/order ANDSTATES exact, zeroPASS→FAIL. Actualjobcompletedfailure. No maps extracted/secondZIP. Source204 excludes later fixture/mixed/W002/Box+Clippy fixes.
 

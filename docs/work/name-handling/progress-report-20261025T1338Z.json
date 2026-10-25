@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T13:38:18.133071+00:00",
+  "scheduled_report_utc": "2026-10-25T13:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T13:45:00+00:00",
+  "change_since_previous_report": [
+    "Reviewedtypedindexproducer/consumer, currentrootownerreuse+shippingcontracts andsharedDBthreeprojectionproducer are nowintegratedWORKfirstandpairedCLEAN; actualruntime/type/performanceoutcomes remainunrun. WORK-onlycurrencyobserver included; no guard/equality/issuer weakening.",
+    "Paired52completechunkiterationfixes plus4semantic-overlapindexstylecorrectionsarelandingwithindependentpeer andcurrentpinunion. No assertions/sourcebytes/order/remainder changed; remainingnonchunk160batch workispartitionedamongCodegen,Names,andmechanicalhelper. No globalgreenclaim.",
+    "Prepared a copied nonchunk mechanical Clippy packet from run40195067552: 23 exact mechanical fixes across16 files;13 diagnostics deliberately held. Pinned rustfmt check and F/R apply proof pass. Packet remains unintegrated; no canonical edits or post-fix Clippy claim.",
+    "Joint typed StringIndex purpose producer/consumer review is STATIC DEEP CLEAR with metadata companion; actual typing, Clippy, and focused SpecTcl validation remain pending. DB shared-project structure and conditional-world owner-reuse proposals have static peer clearance only; their runtime/type/Clippy/test/performance checks remain open.",
+    "Fresh Info PF135 closes only the focused original Info baseline PF plus two adversarial currency controls; original132 outcomes unchanged and84 standalone cases remain scoped nonpasses. This is not a global gate admission.",
+    "Paired Tcl performance run40187523991 produced no accepted pair in any of six required corpus/platform scopes: Linux runners terminated with143 before receipts; macOS candidate trials timed out with invalid results and process-group closure unproven. No performance acceptance conclusion."
+  ],
+  "committed": [
+    "d6f29725a60dfdad9aacda909abd7086368e8c65"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Integrate/review only authorized source packets into current WORK first, then obtain fresh paired CLEAN/WORK source pins and actual compilation/Clippy/test outcomes; do not infer passes from static receipts.",
+    "Resolve and rerun Tcl paired performance with valid receipts for small/medium/full on Linux and macOS; preserve all runner/timeout/cleanup failures and make no acceptance claim until valid paired measurements exist.",
+    "Close the full160-primary Clippy inventory incrementally; the copied mechanical packet is not integrated and13 of its observed diagnostics remain held pending equivalent safe formulations.",
+    "Run actual typing, focused SpecTcl outcomes, and required tests for typed index, shared DB structure, owner reuse, and Info PF scope; maintain explicit scoped/nonpass counts.",
+    "Root to calculate fresh source/product-tree diff and decide publication cycle; this draft grants no global gate admissions."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Draft only for the late 13:15 cycle; exact seven-key schema for /tmp/naming-write-cycle.py. Based on current tracker evidence and source tips WORK ec8ca21f/CLEAN 48b607fe. No product-tree diff or published tip is asserted. gate admissions are intentionally none; root-owned helpers calculate current report fields and publication metadata.",
+  "disk_free_bytes": 2531143680,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

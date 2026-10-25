@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T12:05:13.691180+00:00
+Last updated: 2026-10-25T13:02:54.144766+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T13:02:54.144766+00:00: Actualc142 Jimrun40192557870/job121166481138 FULLAUTHaf6c188d allcontrolsPASS, soleworkspaceZIP41995e2f/11,035,044B, capassessment217099eb. Original45unchanged31P14F +separate5FAIL +new1FAIL. Capturefailure: ALL5diag processes saturated generic1024operandtracecap duringearlierunrelatedanalysis/lowering, beforeactualRBSoperandgetter; target10outeroperand_advice refusals remainexact, mixed earlierrow/projection failurescannotidentifytargetsubguard. Namesacknowledged ownscopegap, no inventedSource/Native/framegrant. FROZEN WORK-only active-query capture repair names-jim-operand-active-scope-work-v1 manifestcb23b31f/patche7d0de46 baseaf0: cfgdebug threadlocalbool+localRAIIscope aroundEXACT oldRBSoperandquery; loggerfiltersactiveBEFORE unchangedflag/global1024cap. Drop restorespreviousflag fornesting/unwind; no query/schema/guard/authority/cache/Eq/Sendleaf orreleaseprod change. Current5files (twoRust+Logical3/Taint2/currentdriverc416→9411), full23census/current5/full2Rustinverse/fmt4/F-R-F0/JSONdriverinverseAST authorPASS. Codegenpeerexplicitlyqueued but behindRuntimeproductiveconsumer; rootnotified reviewNOTcomplete. No actualscopedsubguard/productiveadmissionfix/perfclaim; sourceboundaryc142 excludeslateraf0/99a/type/style/runtimechanges.
 
 Resume 2026-10-25T12:05:13.691180+00:00: Operandprobe sourceDEEP CLEAR cf57609a; oldV1driverafter stale afterfaithfulfixtureguard. RootrequestedONEcombinedcurrent4path V2 frozen names-jim-operand-layout-first-refusal-work-v2 manifest3caa82bf/patch43624204 currente484899a withstandardbefore_sha256/after_sha256. ExactV1twoRust+Taint2bytes preserved, CURRENTdriverd672→30db inversekeepsreadonlyfixtureca53+allotherguardbytes. IndependentwholecurrentV2 CLEAR Codegen2c03b711 (hashindependentlyreread): current4/F-R/source+Taint2exactV1/fullcurrentdriverinverseAST fixtureguardpreserved. Author F-R-F0zero/fmt4/full2Rustinverse/full23census carried. Rootnotified readyonepatchapply; actualsubguard/positivity/performance unrun. Currentactualc31operand_advice firstrefusal10rows unchanged31P14F+5F+1F; no guardrelaxation.
 

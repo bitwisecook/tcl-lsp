@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T12:50:44.257022+00:00
+Last updated: 2026-10-25T13:38:17.562208+00:00
 
 ## Resume
 
@@ -13,15 +13,11 @@ Last updated: 2026-10-25T12:50:44.257022+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (12:45 UTC)
+### Current cycle and routing (13:15 UTC)
 
-- Currentreviewed source/codegen fixture lint corrections and strictkeepgoing improvement pushedWORKfirst thenCLEAN. Keepsallfeatures/targets/-Dwarnings andfailureexit; eachfailingClippy invocation nowfinishes independentunits toreportmoreerrors percapture. AllthreeWORK-onlyCoreobserver fixes preservequeries/guards andstayoutsideCLEAN.
-- Latestc142 fivehost captures nowgetpastownedworld typefix: nativeunit/Core2reportPASS (fullqualificationpending), releasebrowser/WASI0compileerrors. Browsermain98 rename stillUnknownWorld, matchingmeasuredindependentDB-vs-Fresh producerownership; genuine transientprefixownerreuse preparing, no Arc equalityorWorldguardweakening.
-- WASIquietdefinitionstillPASS→refs[] fromunrelatedapp incompleteprojection. ExistingV3end-only observerforwardingcannotproveabsencewhenassertion exitsparent; missingrowsunknown, no inventedNative/effectproof. V4boundedreceived-rowstreaming plannedwithout changingtestassertions/exitcontract/budgets.
-- Lateststartup actualselected147703736-byteELFretained inexistingZIP; scan30PASS25.822s/cold155ms thenSTALE. Existingfirstguardtrace identifiespass.source-currency→direct.publish, no producerfailure. Fullauth/compatibilitythenboundednativeReplayrequired; no staleguardrelaxation.
-- Fullbaselineactual24624namedPASS rows retained withzero observedduplicatekeys. Heavy355listing vs312PASS isnot reconciled:44selectednonignoredlackoutcomes,onePASSabsentlisting, producinglistingcommand/worktreeunproven. HeavycoverageHOLD, no manufacturedpasses/currentzeroPFadmission. Candidate658fiveRustshards0namedoutcomesbecauseknowncompileerrors, nowpairedcorrected.
-- Actualc142strictfullauth41a2324 threeCoreobserverClippies; actual8cfafullauthd5b73 singleVMfixturemethodclosure. Allminimalfixesindependentlyreviewedandapplied, no assertionorNativepermissionchange. Newcurrentstrictneeded. WholebothRustworkspacefmtPASSd5source withemptylogs/groups; laterRustchangesperfilefmtchecked.
-- ProductionSpecfullCLEAN658fails hostilepackcrashaccounting andreturn/switch nativeUnicodepolicy. Exactproducer/consumer collisionidentified: genericStringIndex andNamespaceQualifier shareSTR_INDEX+versionmarkerbutonlylatterhasreachedUnicode. Typedpurposeproducer/privateVMconsumerunderjointreview preservingalloriginalingress/header/provider/specializedguards; no forcedUnicode/profileorcommandhelperfallback.
-- ExactInfointrinsicbaselinePFfix+negativecontrols alreadyintegrated; samefreshELF135boundedcapturecompleted40193567906, artifactqualificationpending. Allold132blocks/budgets/rosters unchanged. Standalone runtime extraction consumerclosure remainsread-only; LSP/SpecTclsharedVM/API retained, no test-onlydeletion or scopewaiver.
-- Currentc142compiler/Jimsource-awarecapturingstillactive; no acceptednewgains beyondprior94/102and31/45. Correctedgenuinefixturedelegation+Logicalscopepreference/privateattestationallrequireactualrechecks. AllsectionF/fullcurrentzeroPF/requiredgreenCI/Spec/runtime/hosts/editor/generated/packaging/prep-pr/finaldocscommentsfmt/Tclperfgatesremainopen.
-- 12:45checkpointusesactualtimestamps, no backdating. No PR/mergetorust/tag/release. Diskabout2.8GiB, no livebuildtarget oryoungtestexe deletion. ExternalBIGIP/perfstaleover60min usernotifiedwithouttakeover. Next13:15.
+- Reviewedtypedindexproducer/consumer, currentrootownerreuse+shippingcontracts andsharedDBthreeprojectionproducer are nowintegratedWORKfirstandpairedCLEAN; actualruntime/type/performanceoutcomes remainunrun. WORK-onlycurrencyobserver included; no guard/equality/issuer weakening.
+- Paired52completechunkiterationfixes plus4semantic-overlapindexstylecorrectionsarelandingwithindependentpeer andcurrentpinunion. No assertions/sourcebytes/order/remainder changed; remainingnonchunk160batch workispartitionedamongCodegen,Names,andmechanicalhelper. No globalgreenclaim.
+- Prepared a copied nonchunk mechanical Clippy packet from run40195067552: 23 exact mechanical fixes across16 files;13 diagnostics deliberately held. Pinned rustfmt check and F/R apply proof pass. Packet remains unintegrated; no canonical edits or post-fix Clippy claim.
+- Joint typed StringIndex purpose producer/consumer review is STATIC DEEP CLEAR with metadata companion; actual typing, Clippy, and focused SpecTcl validation remain pending. DB shared-project structure and conditional-world owner-reuse proposals have static peer clearance only; their runtime/type/Clippy/test/performance checks remain open.
+- Fresh Info PF135 closes only the focused original Info baseline PF plus two adversarial currency controls; original132 outcomes unchanged and84 standalone cases remain scoped nonpasses. This is not a global gate admission.
+- Paired Tcl performance run40187523991 produced no accepted pair in any of six required corpus/platform scopes: Linux runners terminated with143 before receipts; macOS candidate trials timed out with invalid results and process-group closure unproven. No performance acceptance conclusion.
