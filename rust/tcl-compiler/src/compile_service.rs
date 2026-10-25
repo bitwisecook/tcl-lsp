@@ -2293,14 +2293,7 @@ mod tests {
         instructions
     }
 
-    #[test]
-    fn procedure_target_matches_static_proc_across_profiles_and_dispatches() {
-        // Keep the cases together: each exercises module state a
-        // procedure-target lowering must assemble the same way a static
-        // `proc` body does (procedure frame/LVT, namespace resolution, nested and
-        // const-materialised procedures, command aliases and rename, and
-        // namespace directives).
-        let body = "namespace import ::source::*\n\
+    const PROCEDURE_TARGET_MATRIX_BODY: &str = "namespace import ::source::*\n\
                     namespace export exposed\n\
                     interp alias {} mirror {} append\n\
                     mirror value $suffix\n\
@@ -2309,6 +2302,15 @@ mod tests {
                     set child_body {return child}\n\
                     proc child {} $child_body\n\
                     return $value";
+
+    #[test]
+    fn procedure_target_matches_static_proc_across_profiles_and_dispatches() {
+        // Keep the cases together: each exercises module state a
+        // procedure-target lowering must assemble the same way a static
+        // `proc` body does (procedure frame/LVT, namespace resolution, nested and
+        // const-materialised procedures, command aliases and rename, and
+        // namespace directives).
+        let body = PROCEDURE_TARGET_MATRIX_BODY;
         let parameters = vec!["value".to_owned(), "suffix".to_owned()];
 
         for environment in ["tcl8.4", "tcl9.0"] {
