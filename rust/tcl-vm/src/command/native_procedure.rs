@@ -452,7 +452,7 @@ mod tests {
         command: &NativeProcedureCommand,
         issuer: &tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
     ) -> tcl_runtime_api::OriginalProcedureCompileRequest {
-        let source = tcl_runtime_api::SourceImage::native(b"return $x");
+        let source = tcl_runtime_api::SourceImage::native(*b"return $x");
         command
             .declaration()
             .original_compilation_request(
@@ -692,7 +692,7 @@ mod tests {
         };
         let issuer =
             tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner::new(interpreter);
-        let image = tcl_runtime_api::SourceImage::native(b"return $x");
+        let image = tcl_runtime_api::SourceImage::native(*b"return $x");
         let request = original
             .original_compilation_request(
                 &image,
