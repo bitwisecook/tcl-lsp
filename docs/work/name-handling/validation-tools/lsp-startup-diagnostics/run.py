@@ -395,6 +395,7 @@ try:
         "strict normal Rust warnings required",
     )
     environment["RUSTC"] = str(tools["rustc"])
+    environment["TCL_LSP_TRACE_COARSE_SOURCE"] = "1"
     provider_roots = [Path(environment["TCL_TOMMATH_DIR"]).parent]
     sysroot = Path(
         subprocess.check_output(
@@ -445,6 +446,7 @@ try:
                     "CARGO_INCREMENTAL",
                     "RUSTFLAGS",
                     "TCL_TOMMATH_DIR",
+                    "TCL_LSP_TRACE_COARSE_SOURCE",
                 ]
             },
             "limits": {
