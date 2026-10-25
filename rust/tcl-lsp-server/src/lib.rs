@@ -37,6 +37,7 @@
 /// through `tcl-lsp-core`.
 pub use tcl_lsp_core::config_ini;
 mod current_diagnostics;
+mod diagnostic_read_cancellation;
 mod workspace_diagnostic_sources;
 use workspace_diagnostic_sources::WorkspaceDiagnosticSources;
 mod document_transform;
@@ -5450,7 +5451,7 @@ async fn sync_overlay_epoch(db: &TrackedMutex<tcl_lsp_db::TclDatabase>) {
 /// pass and feeds *both* the workspace-independent fast tier and the deep tier.
 /// `ctx.file` is `None` only if the salsa input is somehow absent; then fall
 /// back to a direct (uncached) analyse.  The cross-file callback-arity pass is
-/// a separate query ([`compute_project_diags`]) so it can run concurrently with
+/// a separate query ([`compute_project_diags_with_read_cancellations`]) so it can run concurrently with
 /// this one and so the fast tier can publish before it.
 ///
 /// `Continue(analysis)` carries the result; `Break(settled)` is the early return
@@ -5464,6 +5465,27 @@ async fn compute_base_analysis(
     extra_commands: &HashSet<String>,
     non_ascii_mode: NonAsciiMode,
     recovery: &RecoveryWidenCtx<'_>,
+) -> ControlFlow<bool, Arc<AnalysisResult>> {
+    compute_base_analysis_with_read_cancellations(
+        client,
+        ctx,
+        disabled,
+        extra_commands,
+        non_ascii_mode,
+        recovery,
+        None,
+    )
+    .await
+}
+
+async fn compute_base_analysis_with_read_cancellations(
+    client: &Client,
+    ctx: &SalsaAnalysisCtx<'_>,
+    disabled: &HashSet<String>,
+    extra_commands: &HashSet<String>,
+    non_ascii_mode: NonAsciiMode,
+    recovery: &RecoveryWidenCtx<'_>,
+    cancellations: Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
 ) -> ControlFlow<bool, Arc<AnalysisResult>> {
     let &SalsaAnalysisCtx {
         db,
@@ -5507,10 +5529,15 @@ async fn compute_base_analysis(
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.snapshot("compute_base_analysis").await;
+        let cancellations = cancellations.cloned();
+        let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
                     tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
+                })
+                .inspect_err(|reason| {
+                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
                 })
                 .ok()
             })
@@ -5529,6 +5556,7 @@ async fn compute_base_analysis(
             // re-marking the slot dirty; the document keeps its prior
             // diagnostics rather than spinning the CPU.
             Err(e) => {
+                diagnostic_read_cancellation::terminal(cancellations.as_ref());
                 report_analysis_worker_panic(client, uri, "incremental", &e).await;
                 ControlFlow::Break(true)
             }
@@ -5573,9 +5601,10 @@ async fn compute_base_analysis(
 /// the split adds no second whole-file analysis.  `Break(settled)` mirrors
 /// [`compute_base_analysis`] — `Break(false)` on cancellation (retry),
 /// `Break(true)` on a deterministic worker panic (settle).
-async fn compute_project_diags(
+async fn compute_project_diags_with_read_cancellations(
     ctx: &SalsaAnalysisCtx<'_>,
     project: Option<tcl_lsp_db::Project>,
+    cancellations: Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
 ) -> ControlFlow<bool, Option<Vec<tcl_compiler::analyser::Diagnostic>>> {
     let &SalsaAnalysisCtx {
         db,
@@ -5588,12 +5617,17 @@ async fn compute_project_diags(
         return ControlFlow::Continue(None);
     };
     let snapshot = db.snapshot("compute_project_diags").await;
+    let cancellations = cancellations.cloned();
+    let worker_cancellations = cancellations.clone();
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
             (*tcl_lsp_db::project_callback_diagnostics_for_inputs(
                 &*snapshot, file, config, project,
             ))
             .clone()
+        })
+        .inspect_err(|reason| {
+            diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
         })
         .ok()
     })
@@ -5602,6 +5636,7 @@ async fn compute_project_diags(
         Ok(Some(d)) => ControlFlow::Continue(Some(d)),
         Ok(None) => ControlFlow::Break(false),
         Err(e) => {
+            diagnostic_read_cancellation::terminal(cancellations.as_ref());
             eprintln!(
                 "tcl-lsp: cross-file diagnostics worker panicked for {} (is_panic={}); \
                  skipping this document's diagnostics to avoid a retry livelock",
@@ -5640,11 +5675,29 @@ fn overlay_miss_message(miss: &tcl_registry::model::OverlayMiss) -> String {
 ///
 /// `Break(false)` on cancellation (retry), `Break(true)` on a deterministic
 /// worker panic (settle) — matching [`compute_base_analysis`].
+#[cfg(test)]
 async fn compute_compiler_diags(
     ctx: &SalsaAnalysisCtx<'_>,
     registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
     analysis: Option<&Arc<AnalysisResult>>,
+) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
+    compute_compiler_diags_with_read_cancellations(
+        ctx,
+        registry,
+        generic_variable_patterns,
+        analysis,
+        None,
+    )
+    .await
+}
+
+async fn compute_compiler_diags_with_read_cancellations(
+    ctx: &SalsaAnalysisCtx<'_>,
+    registry: &Arc<CommandRegistry>,
+    generic_variable_patterns: Option<&[String]>,
+    analysis: Option<&Arc<AnalysisResult>>,
+    cancellations: Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
 ) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
     let &SalsaAnalysisCtx {
         db,
@@ -5656,10 +5709,15 @@ async fn compute_compiler_diags(
     } = ctx;
     if let Some(file) = file {
         let snapshot = db.snapshot("compute_compiler_diags").await;
+        let cancellations = cancellations.cloned();
+        let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 let diagnostics = salsa::Cancelled::catch(|| {
                     tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
+                })
+                .inspect_err(|reason| {
+                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason)
                 })
                 .ok();
                 report_overlay_misses();
@@ -5673,6 +5731,7 @@ async fn compute_compiler_diags(
             Ok(None) => ControlFlow::Break(false),
             // Deterministic worker panic — settle instead of livelocking.
             Err(e) => {
+                diagnostic_read_cancellation::terminal(cancellations.as_ref());
                 eprintln!(
                     "tcl-lsp: compiler-check worker panicked for {} (is_panic={}); \
                      skipping this document's diagnostics to avoid a retry livelock",
@@ -5724,18 +5783,50 @@ async fn compute_compiler_diags(
 /// Indexed compiler work is independent of the base walk. An unindexed
 /// document borrows the configured base result, including terminal refusal,
 /// rather than reconstructing an input from the registry's display profile.
+#[cfg(test)]
 async fn compute_compiler_diags_after_base(
     ctx: &SalsaAnalysisCtx<'_>,
     registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
+    compute_compiler_diags_after_base_with_read_cancellations(
+        ctx,
+        registry,
+        generic_variable_patterns,
+        base,
+        None,
+    )
+    .await
+}
+
+async fn compute_compiler_diags_after_base_with_read_cancellations(
+    ctx: &SalsaAnalysisCtx<'_>,
+    registry: &Arc<CommandRegistry>,
+    generic_variable_patterns: Option<&[String]>,
+    base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+    cancellations: Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
+) -> ControlFlow<bool, Option<Arc<tcl_lsp_db::CompilerDiagnostics>>> {
     if ctx.file.is_some() {
-        return compute_compiler_diags(ctx, registry, generic_variable_patterns, None).await;
+        return compute_compiler_diags_with_read_cancellations(
+            ctx,
+            registry,
+            generic_variable_patterns,
+            None,
+            cancellations,
+        )
+        .await;
     }
     match base.await {
         ControlFlow::Continue(analysis) => {
-            compute_compiler_diags(ctx, registry, generic_variable_patterns, Some(&analysis)).await
+            compute_compiler_diags_with_read_cancellations(
+                ctx,
+                registry,
+                generic_variable_patterns,
+                Some(&analysis),
+                cancellations,
+            )
+            .await
         }
         ControlFlow::Break(settled) => ControlFlow::Break(settled),
     }
@@ -7450,16 +7541,42 @@ async fn compute_deep_diagnostic_report(
     project: Option<tcl_lsp_db::Project>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> ControlFlow<(bool, DiagnosticUnavailable), ProducedDiagnosticReport> {
+    compute_deep_diagnostic_report_with_read_cancellations(
+        uri,
+        documents,
+        salsa_ctx,
+        lift_inputs,
+        inputs,
+        project,
+        (base, None),
+    )
+    .await
+}
+
+async fn compute_deep_diagnostic_report_with_read_cancellations(
+    uri: &Uri,
+    documents: &Arc<DocumentStore>,
+    salsa_ctx: &SalsaAnalysisCtx<'_>,
+    lift_inputs: &LiftInputs<'_>,
+    inputs: &AnalyserPathInputs<'_>,
+    project: Option<tcl_lsp_db::Project>,
+    production: (
+        impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+        Option<&diagnostic_read_cancellation::DiagnosticReadCancellations>,
+    ),
+) -> ControlFlow<(bool, DiagnosticUnavailable), ProducedDiagnosticReport> {
+    let (base, cancellations) = production;
     let base = base.shared();
     let (base_result, compiler_result, project_result) = tokio::join!(
         base.clone(),
-        compute_compiler_diags_after_base(
+        compute_compiler_diags_after_base_with_read_cancellations(
             salsa_ctx,
             &inputs.registry,
             inputs.generic_variable_patterns,
             base,
+            cancellations,
         ),
-        compute_project_diags(salsa_ctx, project),
+        compute_project_diags_with_read_cancellations(salsa_ctx, project, cancellations),
     );
     let provider_completion = deep_provider_completion(
         uri,
@@ -7468,6 +7585,7 @@ async fn compute_deep_diagnostic_report(
         &compiler_result,
         &project_result,
     );
+    diagnostic_read_cancellation::terminal_if_context(cancellations, &provider_completion);
     let analysis: Arc<AnalysisResult> = match base_result {
         ControlFlow::Continue(a) => a,
         ControlFlow::Break(settled) => {
