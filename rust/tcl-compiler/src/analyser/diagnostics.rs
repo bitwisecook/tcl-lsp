@@ -889,7 +889,13 @@ impl Analyser {
                     &|statement| unit_commands.resolves(statement),
                 ),
             );
-            self.emit_original_native_declaration_reads(function, procedure, &known_bound, module);
+            self.emit_original_native_declaration_reads(
+                function,
+                procedure,
+                &known_bound,
+                module,
+                cu,
+            );
         }
     }
 
@@ -899,6 +905,7 @@ impl Analyser {
         procedure: &crate::ir::Procedure,
         known_bound: &HashSet<String>,
         module: &crate::interprocedural::ModuleProcedures<'_>,
+        cu: &crate::compilation_unit::CompilationUnit,
     ) {
         let context = self.analysis_context();
         let registry = self.registry.as_deref().unwrap_or(context.commands());
@@ -931,6 +938,7 @@ impl Analyser {
             Some(procedure),
             &dataflow::ReadBeforeSetCtx {
                 initial_global: false,
+                original_unit: Some(cu),
                 global_aliases: &global_aliases,
                 defined_vars: &defined,
                 scope_aliases: &scope_aliases,
@@ -1150,6 +1158,7 @@ impl Analyser {
             .unwrap_or_default();
         let read_before_set_ctx = dataflow::ReadBeforeSetCtx {
             initial_global,
+            original_unit: None,
             global_aliases: &global_aliases,
             defined_vars: &defined,
             scope_aliases: &scope_aliases,
