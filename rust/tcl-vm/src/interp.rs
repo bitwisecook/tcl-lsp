@@ -2256,6 +2256,7 @@ struct ProcedureCompilationOwner<'a> {
     command_namespace: Option<NsId>,
 }
 
+#[derive(Clone, Copy)]
 struct ProcedureBodySource<'a> {
     image: &'a tcl_runtime_api::SourceImage,
     declaration: Option<&'a ProcDef>,
@@ -18281,7 +18282,7 @@ impl Vm {
                 declaration: owner
                     .filter(|owner| {
                         std::ptr::eq(parameters, owner.declaration.params.as_slice())
-                            && std::ptr::eq(original, &owner.declaration.body_src)
+                            && std::ptr::eq(original, &raw const owner.declaration.body_src)
                             && namespace == owner.declaration.actual_namespace_id()
                     })
                     .map(|owner| owner.declaration),
