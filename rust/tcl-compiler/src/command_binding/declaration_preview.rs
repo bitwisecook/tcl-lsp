@@ -469,10 +469,11 @@ impl OriginalProcedureStaticReadAlternatives {
             "invocation_metadata",
             binding.original_invocation_metadata_for_input(tokens, &self.input, registry)
         );
-        let advice = static_read_guard!(
-            "operand_advice",
+        let advice = static_read_guard!("operand_advice", {
+            #[cfg(debug_assertions)]
+            let _trace_scope = super::RbsOperandTraceScope::enter();
             binding.original_conditional_operand_layout_advice(tokens, registry)
-        );
+        });
         if advice.has_unclosed_source_coverage() {
             return trace_static_read_refusal("unclosed_source_coverage", None);
         }

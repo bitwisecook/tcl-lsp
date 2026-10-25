@@ -2813,9 +2813,35 @@ enum OriginalOperandLayoutPurpose {
     LogicalDeclarationTargets,
 }
 
+#[cfg(debug_assertions)]
+std::thread_local! {
+    static RBS_OPERAND_TRACE_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(debug_assertions)]
+struct RbsOperandTraceScope(bool);
+
+#[cfg(debug_assertions)]
+impl RbsOperandTraceScope {
+    fn enter() -> Self {
+        let previous = RBS_OPERAND_TRACE_ACTIVE.with(|active| active.replace(true));
+        let _ = trace_rbs_operand_option("scope.begin", Some(()));
+        Self(previous)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for RbsOperandTraceScope {
+    fn drop(&mut self) {
+        RBS_OPERAND_TRACE_ACTIVE.with(|active| active.set(self.0));
+    }
+}
+
 fn trace_rbs_operand_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if RBS_OPERAND_TRACE_ACTIVE.with(std::cell::Cell::get)
+        && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
+    {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static RECORDS: AtomicUsize = AtomicUsize::new(0);
         if RECORDS.fetch_add(1, Ordering::Relaxed) < 1024 {
