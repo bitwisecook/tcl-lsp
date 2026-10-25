@@ -60497,6 +60497,58 @@ proc p {} {
     }
 
     #[tokio::test]
+    async fn direct_diagnostic_waits_for_live_index_before_capture() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///direct-diagnostic-before-index.tcl").unwrap();
+        let source = "proc ready {} {return 42}\nready\n";
+        register(&backend, &uri, source).await;
+        backend
+            .documents
+            .lock("test")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .publication = DocumentPublication::Salsa;
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+        let mut request = Box::pin(backend.diagnostic(doc_diag_params(&uri, None)));
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(25), &mut request)
+                .await
+                .is_err(),
+            "the same direct request must join its live index publication",
+        );
+        assert!(backend.rehoming_gate.try_lock().is_ok());
+        assert!(backend.original_source_view_build_gate.try_lock().is_ok());
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            register(&backend, &uri, source),
+        )
+        .await
+        .expect("the waiting request must leave publication unblocked");
+        backend.live_publication_advanced.notify_waiters();
+        let report = crate::rt::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .expect("index publication releases the same direct request")
+            .expect("the current provider computes its actual report");
+        let report = serde_json::to_value(report).unwrap();
+        assert_eq!(report["kind"], "full");
+        assert!(report["items"].is_array());
+        let id = report["resultId"].as_str().unwrap();
+        assert!(!id.is_empty());
+        let current = backend
+            .diagnostic(doc_diag_params(&uri, Some(id)))
+            .await
+            .unwrap();
+        let current = serde_json::to_value(current).unwrap();
+        assert_eq!(current["kind"], "unchanged");
+        assert_eq!(current["resultId"], id);
+    }
+
+    #[tokio::test]
     async fn public_navigation_waits_for_live_index_before_source_view_routing() {
         for references in [false, true] {
             let backend = test_backend();
