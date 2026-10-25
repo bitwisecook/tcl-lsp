@@ -1482,6 +1482,14 @@ impl SourceCommandBindings {
             "ledger.root-state",
             self.original_completed_root_state.as_ref(),
         )?;
+        self.completed_original_world_from_normal_state(Arc::clone(state))
+    }
+
+    /// The caller must independently own a completed whole-root Normal route.
+    pub(super) fn completed_original_world_from_normal_state(
+        &self,
+        state: Arc<ModuleCommandBindings>,
+    ) -> Option<OriginalCompletedCommandWorld> {
         if trace_completed_world_flag("ledger.unknown-entry", state.baseline.unknown_entry)
             || trace_completed_world_flag(
                 "ledger.unavailable",
@@ -1498,7 +1506,7 @@ impl SourceCommandBindings {
         Some(OriginalCompletedCommandWorld {
             source: trace_completed_world_option("ledger.root-origin", self.root_origin.clone())?,
             config: trace_completed_world_option("ledger.config", self.lexer_config)?,
-            state: Arc::clone(state),
+            state,
         })
     }
 }
