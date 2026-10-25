@@ -3393,7 +3393,7 @@ mod tests {
             .direct_assignments
             .is_empty()
         );
-        for refused in vec![older, foreign, missing, different_grammar] {
+        for refused in vec![older, foreign, missing, different_grammar].into_boxed_slice() {
             assert!(
                 assignment_facts(&refused, &unit, registry)
                     .direct_assignments
