@@ -1121,7 +1121,7 @@ mod tests {
                 0 => changed.source_entry.unknown_entry = true,
                 1 => {
                     changed.source_entry.metadata_context =
-                        OwnedInvocationMetadataContext::Unavailable
+                        OwnedInvocationMetadataContext::Unavailable;
                 }
                 2 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
                 3 => changed.source = tcl_lexer::SourceImage::document("set value CHANGED"),
@@ -1662,7 +1662,7 @@ mod tests {
                             Arc::clone(&foreign)
                         },
                         input.lexer_config(),
-                    ))
+                    ));
                 }
                 3 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
                 4 => changed.source = tcl_lexer::SourceImage::document("eval set ::changed VALUE"),
@@ -1703,7 +1703,7 @@ mod tests {
             .unwrap();
         assert!(std::ptr::eq(
             footprint.bindings(),
-            &binding.lookup_state.as_ref().unwrap().state
+            &raw const binding.lookup_state.as_ref().unwrap().state
         ));
         assert_eq!(
             footprint.metadata_context().source_analysis_input(),
@@ -1792,12 +1792,12 @@ mod tests {
                 1 => changed.source_entry.unknown_entry = !changed.source_entry.unknown_entry,
                 2 => {
                     changed.source_entry.compilation_scope =
-                        tcl_runtime_api::SourceCompilationScope::EnteredSource
+                        tcl_runtime_api::SourceCompilationScope::EnteredSource;
                 }
                 3 => changed.top_level_namespace = "::other".into(),
                 4 => {
                     changed.native_namespace =
-                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]));
                 }
                 5 => changed.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
                 6 => changed.source_entry.incoming_formals.push("new".into()),
@@ -2015,7 +2015,7 @@ mod tests {
                         input.unit_profile(),
                         Arc::clone(&older),
                         input.lexer_config(),
-                    ))
+                    ));
                 }
                 2 => {
                     changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
@@ -2024,7 +2024,7 @@ mod tests {
                         tcl_registry::model::ingress::resolve_environment("tcl9.1")
                             .default_context_registry(),
                         input.lexer_config(),
-                    ))
+                    ));
                 }
                 3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
                 _ => unreachable!(),
@@ -3210,7 +3210,7 @@ mod tests {
                 3 => changed.source_binding.as_mut().unwrap().may_be_absent = true,
                 4 => {
                     changed.source_binding.as_mut().unwrap().targets[0].implementation_allocation =
-                        None
+                        None;
                 }
                 5 => {
                     let point = Arc::make_mut(
@@ -3425,7 +3425,7 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .original_logical_declaration_targets
-                        .clone()
+                        .clone();
                 }
                 2 => {
                     changed
@@ -3437,12 +3437,12 @@ mod tests {
                         .as_ref()
                         .unwrap()
                         .declaration_layout_observations
-                        .clone()
+                        .clone();
                 }
                 3 => {
                     changed.source_binding.as_mut().unwrap().targets = binding
                         .original_logical_procedure_call_targets(&tokens, input)
-                        .unwrap()
+                        .unwrap();
                 }
                 _ => unreachable!(),
             }
