@@ -565,6 +565,16 @@ try:
         "cargo_event": selected[0],
         "profile_scope": "ci, functional diagnosis only; not shipping release",
     }
+    # Retain the already selected build for separately bounded local diagnosis.
+    # It is an artifact payload, not retained process output or another build.
+    payload = out / "server-payload"
+    shutil.copyfile(server, payload)
+    require(
+        payload.read_bytes()[:4] == b"\x7fELF" and sha(payload) == artifact["sha256"],
+        "retained selected ELF mismatch",
+    )
+    artifact["retained_payload"] = payload.name
+    artifact["elf_magic"] = "7f454c46"
     save(out / "server-artifact.json", artifact)
     dependencies_after_build = files(dependency_roots)
     save(out / "dependencies-after-build.json", dependencies_after_build)
