@@ -1029,6 +1029,13 @@ impl BindingBaseline {
     }
 
     fn for_registry(registry: &CommandRegistry) -> Self {
+        Self::for_registry_with_semantics(registry, None)
+    }
+
+    fn for_registry_with_semantics(
+        registry: &CommandRegistry,
+        semantics: Option<Arc<EffectiveRegistrySemantics>>,
+    ) -> Self {
         let mut baseline = Self {
             source_point_entry: None,
             metadata_context:
@@ -1056,15 +1063,17 @@ impl BindingBaseline {
             declared_commands: Arc::default(),
             declared_surface: None,
             catalogue_commands: registry.snapshot().command_descriptor_coordinates(),
-            semantics: registry.profile().map_or_else(
-                || registry.effective_semantics(),
-                |profile| {
-                    registry.effective_semantics_for_dialect_in_realm(
-                        tcl_registry::InvocationDialect::of_profile(profile),
-                        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-                    )
-                },
-            ),
+            semantics: semantics.unwrap_or_else(|| {
+                registry.profile().map_or_else(
+                    || registry.effective_semantics(),
+                    |profile| {
+                        registry.effective_semantics_for_dialect_in_realm(
+                            tcl_registry::InvocationDialect::of_profile(profile),
+                            tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+                        )
+                    },
+                )
+            }),
             metadata_slots: OnceLock::new(),
             advice_slots: Arc::default(),
             import_binding: registry
@@ -15065,7 +15074,24 @@ impl ModuleCommandBindings {
             baseline.refresh_fingerprint();
             return Self::initial_entry_from_baseline(registry, Arc::new(baseline));
         }
-        let mut baseline = BindingBaseline::for_registry(registry);
+        let logical_source_input = options.retained_logical_source_input(registry, config);
+        let logical = config.map_or_else(
+            || options.logical_invocation_dialect(),
+            |config| options.source_invocation_dialect(config),
+        );
+        // Select the final roster once. A supplied policy previously replaced
+        // an already-built whole-registry roster before any state used it.
+        let semantics = logical.map(|dialect| match logical_source_input.as_ref() {
+            Some(input) => registry.authored_source_semantics_in_context(
+                input.context_registry().context(),
+                options.invocation_realm,
+            ),
+            None => registry.effective_semantics_for_dialect_in_realm(
+                dialect,
+                tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+            ),
+        });
+        let mut baseline = BindingBaseline::for_registry_with_semantics(registry, semantics);
         if options.native_entry.is_some()
             || options.execution_name_policy.is_some()
             || options.invocation_dialect.is_some()
@@ -15078,7 +15104,7 @@ impl ModuleCommandBindings {
             crate::var_resolve::SourceReadConfiguration::Standalone,
             crate::var_resolve::SourceReadConfiguration::Selected,
         );
-        baseline.logical_source_input = options.retained_logical_source_input(registry, config);
+        baseline.logical_source_input = logical_source_input;
         baseline.vendor_source_input = options.retained_vendor_source_input(registry, config);
         baseline.hosted_execution_context = options.hosted_execution_context;
         baseline.native_compilation = options.native_compilation;
@@ -15104,26 +15130,12 @@ impl ModuleCommandBindings {
             .iter()
             .map(|loader| (loader.package.clone(), loader.clone()))
             .collect();
-        let logical = config.map_or_else(
-            || options.logical_invocation_dialect(),
-            |config| options.source_invocation_dialect(config),
-        );
         if options.native_entry.is_some() && logical.is_none() {
             baseline.dialect = None;
             baseline.release = None;
             baseline.import_binding = None;
         }
         if let Some(dialect) = logical {
-            baseline.semantics = match baseline.logical_source_input.as_ref() {
-                Some(input) => registry.authored_source_semantics_in_context(
-                    input.context_registry().context(),
-                    baseline.invocation_realm,
-                ),
-                None => registry.effective_semantics_for_dialect_in_realm(
-                    dialect,
-                    tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-                ),
-            };
             baseline.import_binding = dialect.namespace_import_binding;
             baseline.release = dialect.tcl_version;
             baseline.dialect = Some(dialect);

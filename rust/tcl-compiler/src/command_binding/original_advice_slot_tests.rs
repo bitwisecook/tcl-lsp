@@ -504,3 +504,47 @@ fn declared_descriptor_indexes_preserve_components_and_decline_coordinate_collis
         );
     }
 }
+
+#[test]
+fn selected_baseline_roster_keeps_its_owner_and_all_other_baseline_fields() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let selected = registry.effective_semantics_for_dialect_in_realm(
+        dialect,
+        tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+    );
+    let baseline = super::super::BindingBaseline::for_registry_with_semantics(
+        registry,
+        Some(Arc::clone(&selected)),
+    );
+    assert!(Arc::ptr_eq(&baseline.semantics, &selected));
+    let mut previous = super::super::BindingBaseline::for_registry(registry);
+    previous.semantics = selected;
+    previous.refresh_fingerprint();
+    assert_eq!(baseline, previous);
+    assert_eq!(baseline.fingerprint, previous.fingerprint);
+}
+
+#[test]
+fn source_entry_roster_obeys_requested_release_instead_of_registry_profile() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+    let state = ModuleCommandBindings::initial_with_options(
+        registry,
+        super::super::SourceAnalysisOptions {
+            invocation_dialect: Some(dialect),
+            ..Default::default()
+        },
+        Some(config),
+    );
+    assert_eq!(state.baseline.dialect, Some(dialect));
+    assert_eq!(state.baseline.release, Some(tcl_dialect::TclVersion::V8_4));
+    assert!(state.baseline.semantics.command("set").is_some());
+    assert!(state.baseline.semantics.command("try").is_none());
+    assert!(!state.baseline.semantics.binding_names().contains("::try"));
+    assert_eq!(
+        state.baseline.registry_snapshot,
+        Some(registry.snapshot().semantic_key()),
+    );
+}
