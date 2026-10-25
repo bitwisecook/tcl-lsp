@@ -39,6 +39,8 @@ mod native_each;
 #[path = "exec/native_fixed_math_tests.rs"]
 mod native_fixed_math_tests;
 #[cfg(test)]
+mod native_limit_error_tests;
+#[cfg(test)]
 #[path = "exec/native_list_index_tests.rs"]
 mod native_list_index_tests;
 mod native_list_insertion;
@@ -2389,6 +2391,10 @@ impl Vm {
             // counter is Vm-scoped so it survives the short activations a
             // command-driven loop re-enters (see `limit_check_tick`).
             if let Some(c) = self.limit_check_tick() {
+                let c = match self.publish_and_log_completion(acts, c) {
+                    Ok(completion) => completion,
+                    Err(completion) => return RunExit::Done(completion),
+                };
                 if let Some(done) = self.unwind(acts, c) {
                     return RunExit::Done(done);
                 }
@@ -3012,10 +3018,33 @@ impl Vm {
         acts: &mut Vec<Frame>,
         c: Completion<Value>,
     ) -> Option<Completion<Value>> {
+        let c = match self.publish_and_log_completion(acts, c) {
+            Ok(completion) => completion,
+            Err(completion) => return Some(completion),
+        };
+        let c = match self
+            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
+        {
+            Ok(()) => return None,
+            Err(c) => c,
+        };
+        if matches!(c.code, Code::Break | Code::Continue)
+            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
+        {
+            return None;
+        }
+        self.unwind(acts, c)
+    }
+
+    fn publish_and_log_completion(
+        &mut self,
+        acts: &mut [Frame],
+        c: Completion<Value>,
+    ) -> Result<Completion<Value>, Completion<Value>> {
         let c = match self.publish_native_interp_completion(c) {
             Ok(completion) => completion,
             Err(error) => {
-                return Some(crate::command::completion_from_tcl_error(self, error));
+                return Err(crate::command::completion_from_tcl_error(self, error));
             }
         };
         if c.code == Code::Error {
@@ -3064,18 +3093,7 @@ impl Vm {
             let message = c.result.string_bytes();
             self.log_command_with_enclosing(&text, context, &enclosing, &message, line);
         }
-        let c = match self
-            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
-        {
-            Ok(()) => return None,
-            Err(c) => c,
-        };
-        if matches!(c.code, Code::Break | Code::Continue)
-            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
-        {
-            return None;
-        }
-        self.unwind(acts, c)
+        Ok(c)
     }
 
     /// A compiled `catch` evaluating its script word inside its catch range:
