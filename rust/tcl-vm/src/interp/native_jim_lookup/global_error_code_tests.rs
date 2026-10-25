@@ -66,14 +66,15 @@ fn read_in_caller(vm: &mut Vm, _: &[Value]) -> Completion<Value> {
     let bytes = vm
         .with_native_interp_result(|result| result.resident_string_bytes().unwrap().to_vec())
         .unwrap();
-    let actual = bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let actual = bytes.iter().fold(String::new(), |mut text, byte| {
+        use std::fmt::Write as _;
+        write!(&mut text, "{byte:02x}").expect("writing hexadecimal to String");
+        text
+    });
     assert_eq!(actual, row[9]);
     assert!(vm.execution_refusal.is_none());
     let result = vm
-        .with_native_interp_result(|result| result.native_lifetime_lease())
+        .with_native_interp_result(crate::value::Value::native_lifetime_lease)
         .unwrap();
     super::super::ok(result.into_value())
 }

@@ -247,6 +247,74 @@ fn command_list(
     Ok(joined)
 }
 
+fn arity(
+    vm: &mut Vm,
+    original: &Value,
+    entry: &NativeJimNamespaceSubcommand,
+    scope: &OriginalNameConsumerScope,
+) -> Result<Completion<Value>, CmdError> {
+    scope.current_for_value(vm, original)?;
+    let dialect = vm.actual_native_invocation_dialect();
+    let protocol = dialect.native_object_append_protocol(None).ok_or(
+        ValueError::CommandProtocolUnavailable("original Jim public arity append issuer"),
+    )?;
+    let published = vm.adopt_native_interp_result(Value::new_native_string_bytes(
+        b"wrong # args: should be \"".as_slice(),
+    ))?;
+    let current = |vm: &mut Vm| {
+        scope.current_for_value(vm, original)?;
+        published.value().check_native_header()?;
+        let selected = published.value().native_object_reference_count() == 1
+            && !published.value().native_object_is_shared()
+            && vm.with_native_interp_result(|actual| actual.is_same_object(published.value()))?;
+        scope.require(vm, selected, "original Jim public arity published receiver")
+    };
+    current(vm)?;
+    let head = vm
+        .invoked_name_value()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original Jim public arity head",
+        ))?;
+    let head = vm.native_name_operand_bytes_checked_using(&head, &current);
+    current(vm)?;
+    let head = head?;
+    let mut pieces: Vec<&[u8]> = vec![&head, b" ", entry.name().as_bytes()];
+    if !entry.usage().is_empty() {
+        pieces.extend([b" ".as_slice(), entry.usage().as_bytes()]);
+    }
+    pieces.push(b"\"");
+    for piece in pieces {
+        let mut first = None;
+        let appended = tcl_cmd_core::native_append::append_published_unshared_jim_cstring(
+            &crate::value::VmAppendObjects,
+            protocol.recipe(),
+            published.value(),
+            piece,
+            &mut || {
+                current(vm).map_err(|error| {
+                    first.get_or_insert(error);
+                    ValueError::CommandProtocolUnavailable("original Jim public arity owner")
+                })
+            },
+        );
+        if let Some(error) = first {
+            return Err(error);
+        }
+        current(vm)?;
+        appended?;
+    }
+    let code = vm.apply_cmd_error_code(
+        tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(b"NONE".to_vec()),
+        false,
+    );
+    current(vm)?;
+    Ok(Completion::new_error_metadata(
+        Code::Error,
+        published.into_value(),
+        crate::command::options_dict(Code::Error, 0, &[("-errorcode", code)]),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,72 +432,4 @@ mod tests {
         assert!(selector.resident_string_bytes().is_none());
         scope.finish(&mut vm).unwrap();
     }
-}
-
-fn arity(
-    vm: &mut Vm,
-    original: &Value,
-    entry: &NativeJimNamespaceSubcommand,
-    scope: &OriginalNameConsumerScope,
-) -> Result<Completion<Value>, CmdError> {
-    scope.current_for_value(vm, original)?;
-    let dialect = vm.actual_native_invocation_dialect();
-    let protocol = dialect.native_object_append_protocol(None).ok_or(
-        ValueError::CommandProtocolUnavailable("original Jim public arity append issuer"),
-    )?;
-    let published = vm.adopt_native_interp_result(Value::new_native_string_bytes(
-        b"wrong # args: should be \"".as_slice(),
-    ))?;
-    let current = |vm: &mut Vm| {
-        scope.current_for_value(vm, original)?;
-        published.value().check_native_header()?;
-        let selected = published.value().native_object_reference_count() == 1
-            && !published.value().native_object_is_shared()
-            && vm.with_native_interp_result(|actual| actual.is_same_object(published.value()))?;
-        scope.require(vm, selected, "original Jim public arity published receiver")
-    };
-    current(vm)?;
-    let head = vm
-        .invoked_name_value()
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "original Jim public arity head",
-        ))?;
-    let head = vm.native_name_operand_bytes_checked_using(&head, &current);
-    current(vm)?;
-    let head = head?;
-    let mut pieces: Vec<&[u8]> = vec![&head, b" ", entry.name().as_bytes()];
-    if !entry.usage().is_empty() {
-        pieces.extend([b" ".as_slice(), entry.usage().as_bytes()]);
-    }
-    pieces.push(b"\"");
-    for piece in pieces {
-        let mut first = None;
-        let appended = tcl_cmd_core::native_append::append_published_unshared_jim_cstring(
-            &crate::value::VmAppendObjects,
-            protocol.recipe(),
-            published.value(),
-            piece,
-            &mut || {
-                current(vm).map_err(|error| {
-                    first.get_or_insert(error);
-                    ValueError::CommandProtocolUnavailable("original Jim public arity owner")
-                })
-            },
-        );
-        if let Some(error) = first {
-            return Err(error);
-        }
-        current(vm)?;
-        appended?;
-    }
-    let code = vm.apply_cmd_error_code(
-        tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(b"NONE".to_vec()),
-        false,
-    );
-    current(vm)?;
-    Ok(Completion::new_error_metadata(
-        Code::Error,
-        published.into_value(),
-        crate::command::options_dict(Code::Error, 0, &[("-errorcode", code)]),
-    ))
 }

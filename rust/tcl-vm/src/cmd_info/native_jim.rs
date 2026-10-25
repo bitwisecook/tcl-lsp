@@ -193,7 +193,8 @@ mod tests {
     use super::*;
 
     const EXCESS: &[&[u8]] = &[b"__r2286_operand__" as &[u8]; 10];
-    const CASES: &[(&str, &[u8], &[&[u8]])] = &[
+    type InventoryCase = (&'static str, &'static [u8], &'static [&'static [u8]]);
+    const CASES: &[InventoryCase] = &[
         ("inventory-miss", b"__r2286_absent__", &[]),
         ("inventory-jim-list", b"-commands", &[]),
         (

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Counted explicit TclOO variable controls with actual result and namespace effects.
+//! Counted explicit `TclOO` variable controls with actual result and namespace effects.
 
 use super::*;
 

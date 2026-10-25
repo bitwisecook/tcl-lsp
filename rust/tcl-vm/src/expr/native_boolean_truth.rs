@@ -643,10 +643,10 @@ mod tests {
             assert_eq!(value.resident_string_bytes().is_some(), resident);
             match (number, value.native_scalar_cache()) {
                 (Number::Int(expected), Some(Cache::Number(Number::Int(actual)))) => {
-                    assert_eq!(actual, expected)
+                    assert_eq!(actual, expected);
                 }
                 (Number::Double(expected), Some(Cache::Number(Number::Double(actual)))) => {
-                    assert_eq!(actual.to_bits(), expected.to_bits())
+                    assert_eq!(actual.to_bits(), expected.to_bits());
                 }
                 other => panic!("original cache changed: {other:?}"),
             }
