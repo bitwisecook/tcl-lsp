@@ -28,7 +28,7 @@
     "Makefile": "b1436acc2f05c29ccca44f2f375d408a6208c3942706d04b002b6362450f2210",
     "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
-    "rust/tcl-lsp-core/src/original_command_rename.rs": "a02c432806539cef584eddd1bca39e1363689dc686852c3e6486d5423cc654b5",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "d693f357d5e0ee1abfa57751eedf733491eb4a06b1b81b4bda0c6c9425e09690",
     "rust/tcl-lsp-core/src/original_source_views.rs": "abf86ee8a007ef7b48f2b613402c45548be3e51b06a9d9a4caa0467eb1e3c193",
     "rust/tcl-lsp-server-wasi/Cargo.lock": "f04c66d81562e657c6af0b59292a53bfcb9a0fe6d3cef2c5d2ca6e937b6e4a86",
     "rust/tcl-lsp-server-wasi/Cargo.toml": "0f3faa985dbb85b94acca7a5d220f4814f07d5969b721c7e3e1d36b8b413bdec",
