@@ -331,8 +331,11 @@ delete under target while cargo/rustc exists. Preserve existing budgets.
    required PR checks: after the user asks to open the PR, its actual required
    checks must also pass on the PR/merge candidate before squash merge.
 
-The current baseline has24,312 exact named PASS identities in CI5203, plus
-separate host/heavy inventories. Join canonical binary ID and test selector,
+The selected `ed694de47cbbeff0bb9f5cd5888cc336e1e8a463` baseline run
+`40187433105` has24,624 observed named PASS identities:22,017 workspace-shard,
+312 Heavy and2,295 native outcomes. The older CI5203 inventory is historical.
+The complete baseline Heavy selector listing is unavailable; the misattributed
+candidate listing cannot fill that gap. Join canonical binary ID and test selector,
 features, toolchain and backend. Add separate matching baseline coverage for
 unlisted shipping gates; never add overlapping ledger totals. Report all new,
 removed, renamed, skipped and unreached identities. Require every relevant
@@ -340,11 +343,11 @@ baseline PASS to have a candidate PASS, with narrowly justified test correction
 mapping where allowed. No retry, larger timeout, assertion weakening or default
 stack change can erase an original failure.
 
-Fix CI result retrieval before relying on another long run: current connector
-logs return Transport closed and artifact redirects hit proxy CONNECT403.
-The reviewed bounded Nextest capture wrapper still needs a real reporter pilot
-before integration; preserve bounded logs, complete selectors and final outcomes
-without changing test assertions/budgets. Do not rely on cancelled or partial
+CI result retrieval uses bounded logs and retained artifact bytes. Authenticate
+the API run/source identity, archive digest and contents before interpreting a
+result. Direct artifact redirects previously failed; the connector's cached
+download path works and must retain the same identity checks. Preserve complete
+selectors and final outcomes without changing test assertions or budgets. Do not rely on cancelled or partial
 jobs to close the ledger. Manual-only fuzz/exhaustive campaigns are not added
 to normal gates unless the user explicitly invokes them by name.
 

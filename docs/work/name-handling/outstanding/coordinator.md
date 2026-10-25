@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T16:45:05.000731+00:00
+Last updated: 2026-10-25T17:18:15.885105+00:00
 
 ## Resume
 
@@ -13,15 +13,15 @@ Last updated: 2026-10-25T16:45:05.000731+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed. Current checkpoints run every30 minutes; preserve actual report and push timestamps. The current cycle below records the next deadline.
 
-### Current cycle and routing (16:45 UTC)
+### Current cycle and routing (17:15 UTC)
 
-- Reviewed source-only lint cohorts landed WORK first with release counterparts: Codegen53, compiler96, root tests11, Names small1/2/3, LSPsmall9, VMsmall7, plus bounded coordinator semicolon/raw-string fixes. Actual4bad506 diagnostics remain the last executed result; no inferred zero-warning success.
-- Compiler4bad all102 UNRUN before build because readonly13 env predicate rejected four approved observers; no artifact was uploaded. Single driver patch997b accepts exactly the four expected flags and preserves empty env for nine other rows; 13 positive and43 missing/bad/extra/foreign negative checks recorded. Actual102 rerun required.
-- Restored original successful interpreter option coverage with actual native C90 core, preserving old negative assertions and production guards. New originalpositive case UNRUN pending next tests; baseline correspondence not yet globally closed.
-- Immutable declaration preview geometry cacheV2 integrated with original owner/frame/source and per-use authority checks retained. No speedup or equality-gate acceptance inferred. Names current actualJim34/45 remains partial.
-- Fully authenticated4bad hosts establish registry producer repair14true/0false, current slot staleness None→Some1, browser direct-procedure-owner decline and incomplete WASI source projection. These remain real implementation blockers; nextbounded genuine recapture/owner fixes must keep failclosed guards.
-- Actual4bad Spec13PASS including unchanged hostile assertions, NativeIndex3UNRUN due nowrepaired callback typing. iRules1FAIL+trace2PASS; realLogicalUpLevelissuer still needed. Full C1–C2 corpus, original runtime suites, baseline zero pass-to-fail and Tcl corpus performance remain open.
-- Current23 live sourcepin maps and Python wholeJSON guards are being rebuilt as one source-consistent union, preserving all historical previous_source_pins. WORK driver observation fix included before derived hashing; strict/compiler/Spec reruns wait for preflight and publication.
-- Two mechanical packets correctly held after review found missing ledger constructor imports and unbounded whole AnalysisResult Debug output. Qualified/bounded successor packets now off-tree pending independent review; no lint suppressions or weakened comparisons.
-- Disk fell below2GiB; repository builds and native extraction paused. Suspected old capture duplicates were actually aliases to one physical copy: temporary path adjustment reversed before byte deletion, originalpaths restored; rejection receipt records0bytesdeleted. LSP is losslessly compressing old closed owner captures with verified roundtrip hashes and restoration receipts. No target or executable deletion.
-- Latest clean fullCI40201542033 still has nativepartition1 running; useful old job preserved, other failures are not claimedfixed. ExternalBIGIP/perf trackers stale>60min; usernotified without takeover. Original six-hour target missed; noPR, merge, tag orrelease; next17:15.
+- 17:15 checkpoint slightly late during reviewed semantic integration; actual report/push times retained. FullWORKCI40215128734 is QUEUED on exact4f453e770; three focused corrected strict/compiler/Jim reruns are active. OldCLEAN40201542033 preserved. NoPR/merge/tag/release.
+- Fully authenticated5877Spec40213427427 ALL16PASS: original11+Native1+unchangedhostile1+firstactualNativeIndex3. Extra streamed ZIP/source/processbudget boundaries verified; hostileexact2WallClockBudget+1Panic/3crashes/3quarantines/0fold/3attempts preserved. Current-state Passed9g and row9 updated onlyfromrecordedreceipts3c8273c7/0df13605. No fullC1C2/corpus/global acceptance.
+- Fully authenticated5877strict73primaries=4Rust+69Clippy/6summaries; compilerlibtestbuildblocksbroaderfrontier, so not506closure. Compiler102ALLUNRUN2type/nameerrors; Jim51ALLUNRUNreferencelevelerror. Four narrow fixtureerrors repairedwithactualreceiver/fieldtypes, pairedreviewandsourcepins. 4f453PUSHED/preflightPASS13inputs/30runners/20guards; no semanticresults inferred.
+- Native4bad originalRPC3PASS1FAIL: earlierextraCommands/dialecttimeoutersresolved; putsoriginal6s stillfails. Allprovider/source/processclosureverified. Native4bad twofile67KiBworkspace scanstill20sunfinished, peakabout407MiB; noacceptedpairedperformanceorcurrentcachegain inferred.
+- Native4bad URIminifydiagnostics establish simpleexpr exactexpectedcompactoutput butfactorialinnermost$n-1spacesremain. Snapshotboundbothrefusewhileworkspaceadmissionunfinished; no transformgatepass. Reviewednestedexpression source-syntax transport nowpairedintegratedusingexistinggrammar/currentowner, noNative/Normal/framegrant; shippingdoccarryneedscompositionwithLogicalcontract.
+- LogicalUpLevelV2genuineopaqueissuerindependentlydeepclearafe3 andpairedintegrated20957/5e47. Explicitlogicalproviders/currentgrammar/pinnedphysicalcore, UpLevelonly; NativeDirect/fullguardsunchanged. Newstale-policytest correctedtoactualCode::Error+noncurrent+zerooutputbeforeintegration; actualtestsUNRUN.
+- FreshdiagnosticretryV2deepclear548c: onlyfirstactualpublicationStale getsonecache-firstfreshproduction, max2attempts/sameouterfuture/noreset; oldreceiptnotrelabelled. NewfixturecorrectedtoactualdirtyPending then same-generationworkerdrain; repeatedin-loopstalenessisstaticproof, notinjectedtimingcoverage. Integratingpairedsource; actualtestsUNRUN.
+- WholeCLEANroot/runtimeformatPASS exact0d68 recorded; laterfileshaveboundedchecks. Repositorychaff/linkaudit781Markdown/3738localtargets0missing, onehardcodedcheckoutpathcorrectedbothbranches. Thisisboundedpattern/pathaudit, notcompletecontent/fragment/fixture/generation/prep-pracceptance. Current-statefrontsectionrefreshedtoavoidstale9cf-onlylatestclaims.
+- MatchedC86/C90oracleV2rawTcl_NewStringObj41ff42 producesUnicode41,ff,42withbytesunchangedboth. ExactoldunqualifiednamespaceunknownaliasscriptERRORnosuch; currentqualifiedscriptPASSnsnosuchxboth. Noassertion/sourcecontractchanged; independentpeerpending. Baselinecorrespondenceandzero-pass-to-failremainopen.
+- Disk: compilerclosedsourcecopygzipreclaims304328704physicalbyteswith1534originalpaths/mode/time/hardlinkrestoremanifest; LSPclosedJSONgzip55pathsroundtrip. No target/exe/canonical/ZIP deletion. Availableheadroomconsumedbynativeartifact/captures; below2GiBstopsbuilds. ExternalBIGIP/perfstaleover60min; notifiedwithouttakeover. Next17:45.

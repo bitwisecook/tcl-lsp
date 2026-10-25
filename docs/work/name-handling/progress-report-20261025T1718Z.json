@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T17:18:15.982909+00:00",
+  "scheduled_report_utc": "2026-10-25T17:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T17:45:00+00:00",
+  "change_since_previous_report": [
+    "17:15 checkpoint slightly late during reviewed semantic integration; actual report/push times retained. FullWORKCI40215128734 is QUEUED on exact4f453e770; three focused corrected strict/compiler/Jim reruns are active. OldCLEAN40201542033 preserved. NoPR/merge/tag/release.",
+    "Fully authenticated5877Spec40213427427 ALL16PASS: original11+Native1+unchangedhostile1+firstactualNativeIndex3. Extra streamed ZIP/source/processbudget boundaries verified; hostileexact2WallClockBudget+1Panic/3crashes/3quarantines/0fold/3attempts preserved. Current-state Passed9g and row9 updated onlyfromrecordedreceipts3c8273c7/0df13605. No fullC1C2/corpus/global acceptance.",
+    "Fully authenticated5877strict73primaries=4Rust+69Clippy/6summaries; compilerlibtestbuildblocksbroaderfrontier, so not506closure. Compiler102ALLUNRUN2type/nameerrors; Jim51ALLUNRUNreferencelevelerror. Four narrow fixtureerrors repairedwithactualreceiver/fieldtypes, pairedreviewandsourcepins. 4f453PUSHED/preflightPASS13inputs/30runners/20guards; no semanticresults inferred.",
+    "Native4bad originalRPC3PASS1FAIL: earlierextraCommands/dialecttimeoutersresolved; putsoriginal6s stillfails. Allprovider/source/processclosureverified. Native4bad twofile67KiBworkspace scanstill20sunfinished, peakabout407MiB; noacceptedpairedperformanceorcurrentcachegain inferred.",
+    "Native4bad URIminifydiagnostics establish simpleexpr exactexpectedcompactoutput butfactorialinnermost$n-1spacesremain. Snapshotboundbothrefusewhileworkspaceadmissionunfinished; no transformgatepass. Reviewednestedexpression source-syntax transport nowpairedintegratedusingexistinggrammar/currentowner, noNative/Normal/framegrant; shippingdoccarryneedscompositionwithLogicalcontract.",
+    "LogicalUpLevelV2genuineopaqueissuerindependentlydeepclearafe3 andpairedintegrated20957/5e47. Explicitlogicalproviders/currentgrammar/pinnedphysicalcore, UpLevelonly; NativeDirect/fullguardsunchanged. Newstale-policytest correctedtoactualCode::Error+noncurrent+zerooutputbeforeintegration; actualtestsUNRUN.",
+    "FreshdiagnosticretryV2deepclear548c: onlyfirstactualpublicationStale getsonecache-firstfreshproduction, max2attempts/sameouterfuture/noreset; oldreceiptnotrelabelled. NewfixturecorrectedtoactualdirtyPending then same-generationworkerdrain; repeatedin-loopstalenessisstaticproof, notinjectedtimingcoverage. Integratingpairedsource; actualtestsUNRUN.",
+    "WholeCLEANroot/runtimeformatPASS exact0d68 recorded; laterfileshaveboundedchecks. Repositorychaff/linkaudit781Markdown/3738localtargets0missing, onehardcodedcheckoutpathcorrectedbothbranches. Thisisboundedpattern/pathaudit, notcompletecontent/fragment/fixture/generation/prep-pracceptance. Current-statefrontsectionrefreshedtoavoidstale9cf-onlylatestclaims.",
+    "MatchedC86/C90oracleV2rawTcl_NewStringObj41ff42 producesUnicode41,ff,42withbytesunchangedboth. ExactoldunqualifiednamespaceunknownaliasscriptERRORnosuch; currentqualifiedscriptPASSnsnosuchxboth. Noassertion/sourcecontractchanged; independentpeerpending. Baselinecorrespondenceandzero-pass-to-failremainopen.",
+    "Disk: compilerclosedsourcecopygzipreclaims304328704physicalbyteswith1534originalpaths/mode/time/hardlinkrestoremanifest; LSPclosedJSONgzip55pathsroundtrip. No target/exe/canonical/ZIP deletion. Availableheadroomconsumedbynativeartifact/captures; below2GiBstopsbuilds. ExternalBIGIP/perfstaleover60min; notifiedwithouttakeover. Next17:45."
+  ],
+  "committed": [
+    "6015d97632ae1887df24e7e18f8348d2140e56c7"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishpairedsemanticintegration+exactsourcepinunion/shippingdoccomposition, publish17:15WIP/report withactualtimestamps.",
+    "Collectcorrected4f453fullWORK/focusedjobswithoutsourceverdictmixing; resolveoriginalDefaultminify/slot/browser/WASI/Jim/readonlycausesandremainingwarnings.",
+    "CompleteallsectionF/6D/EDA/Jim/UPF/reload/baselinezero-pass-to-fail/acceptedTclperformance/docs/comments/generated/packaging/prep-prbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "OnlySpec5877selected16 is newlyrecordedPASS; allothernewsourceisreviewedbutUNRUN. Compiler/Jim5877buildfailuresareUNRUN, strict73doesnotclose506frontier. Allreleasegatesremainopen.",
+  "disk_free_bytes": 2158350336,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

@@ -1,0 +1,33 @@
+{
+  "source": "58775473546dd060cf22bb6b075ad85fc82b6b4b",
+  "base_fullauth_sha256": "3c8273c78c0480ec961cd294e0cb5fc094c7b02ae9412ec8db06825f5a8d18c7",
+  "all_members_streamSHA_inventory_sha256": "9c0d48efb6cc8ef4f38816e57e4551b6c0af54905771e65858104e2c6730b34d",
+  "member_count": 97,
+  "actualGit_boundary_source_pins": {
+    "rust/tcl-vm/src/exec.rs": "4f643a4ab6156c5e4f2f8890a39cb22e4c8379872cc88cda552a750c6a4e4f65",
+    "rust/tcl-vm/src/literal_pool.rs": "2780df3bbbc08ecc8c90f93601d0aaf500f93fd29ab6e82775661cdda3a76a48",
+    "rust/tcl-vm/src/compiled.rs": "78391e9a2ff31deff7688087d15348ac7122ee994c984ed9f0447252ad73ae7c",
+    "rust/tcl-vm/src/interp.rs": "7a163cc4d6f514cb362dadd68107bdd2d74e48807eb15a76c13e8346bb3bc2af",
+    "rust/tcl-vm/src/interp/native_error_variables.rs": "a375d48b1106f3e071e024e8a2417b6f7dbdee86a00a1c03cfdf269cf8837176",
+    "rust/tcl-vm/src/value/native_property_name.rs": "753679179d52099a992616224ec82bb3933e3a5b24235eee6b4778b2bb688ac6",
+    "rust/tcl-registry/src/native_eval_object.rs": "d26098d5114d622a1eef2db49c02161b05872b4d9d7636f266b8b1564e01b378",
+    "rust/tcl-registry/src/invocation_words.rs": "6b4ae2b4fa0886f83583d90150fe2c30f4b16fd9e9ab23c17e949f18f9628d9a",
+    "rust/tcl-irule-test/src/live.rs": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7"
+  },
+  "all_owned_processes_absolute_ordered_shared_CAP_no_reset": true,
+  "aggregate_retained_log_bytes": 10585371,
+  "observations": {
+    "old12_allPASS": true,
+    "unchanged_original_hostile_assertion_and_fixture_sourcehashes": {
+      "rust/tcl-spectcl/tests/spec_corpus.rs": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d"
+    },
+    "hostile_actual": "PASS with2WallClockBudget+1Panic;0answers/3attempts and3quarantined; no generichost-error",
+    "native_index3": "ALL3 PASS on exact fresh listed lib test ELF; genuine original storage, alias getter/current-header/foreign retirement, C86 surrogate instruction controls",
+    "fullcorpus": "UNRUN in isolated scope"
+  },
+  "limits": [
+    "No whole-suite/performance execution acceptance inferred; all16 selected cases are actual PASS.",
+    "Source presence/pins and diagnosticfacets cannot mint Native/provider capabilities."
+  ]
+}
