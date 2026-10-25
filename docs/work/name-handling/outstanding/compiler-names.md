@@ -2,11 +2,15 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T15:24:15.590275+00:00
+Last updated: 2026-10-25T16:05:10.256527+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T16:05:10.256527+00:00: Jim run 40208429286 at exact 4bad is fully authenticated (verification b51983bf; single ZIP 20395ac9, 11,033,017 bytes). Original45 improves to 34 PASS / 11 FAIL; diagnostic5 has 2 PASS / 3 FAIL; new1 still fails at its first nested-incr case, later internal cases unreached. Genuine original rows and all declaration/static-projection stages now succeed; remaining static-read refusal is part_shape for nested command/expression substitutions. Existing direct lexical guard is unchanged. Preparing a genuine typed nested-read route, not skipping geometry/effects checks. Root assigned exact 53-file/144-primary strict4bad Names ownership; will deliver small immutable paired cohorts and preserve every guard, assertion and owner/drop order. Three new compiler controls are still outside Jim51 selectors; their actual result is unrun here. No performance acceptance.
+
+Resume 2026-10-25T15:54:02.017443+00:00: The called-static original-layout producer and source pins landed in WORK 4bad / CLEAN 2d59 after Runtime’s independent deep review (receipt 1db18360, hash verified). Jim run 40208429286, job 121214280078, uses exact source 4bad4c91b641fd6e783871ac795c148a5e34fafe. Bootstrap passed; the unchanged Jim51 cohort is running without an artifact yet. Names owns its single ZIP download and authentication; preparation receipt 64716c21 pins the driver, parent, preview and new child. The three added compiler unit controls require a separate library/full-CI result because Jim51 selectors are unchanged. The previous 31/45 result belongs to 9cf, not this run. No further semantic change or performance acceptance is claimed.
 
 Resume 2026-10-25T15:24:15.590275+00:00: Paired genuine Jim called-static declaration-layout source FROZEN names-jim-called-static-layouts-v1 manifest1d16af8c WORK98a1be9a/CLEAN4c67dc36, current70a3 parents. Existing results/static exclusion and consumers unchanged; only original-layout merge from existing selected body/frame producer. Three focused compiler tests UNRUN, F/R/F0/fmt PASS. Once-only collector clone costs honestly recorded (Arc/COW inventories plus ordinary Vec/map/set clone), no measured timing/gains. Companion5cea5be7/660275cb parent+newchild Taint2 pins and sole driver digest, all23 census exactlyone parent consumer. Root owns peer/integration. Compiler fixture source018e and metadata7c4dcfa5 independently STATIC CLEAR; actualC86 scoped oracle preserved, all original assertions/corruption unchanged. Jim9cf fullauthba58fce1 still31/45; exact scoped-layout trace archived, no acceptance inferred.
 

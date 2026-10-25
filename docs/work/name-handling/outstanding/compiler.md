@@ -2,11 +2,14 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-25T15:36:35.777747+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-25T16:11:05.658858+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Strict4bad current ownership:** 58 compiler files/150 primaries in strict4bad-file-ownership-v1/compiler.json. No local Cargo/rustc; preparing bounded paired lint cohorts, all Native/drop/assertion/currentness guards retained. Codegen small45 source+fourfile metadata independently STATIC DEEP CLEAR compiler-peer-codegen-small45-v1/receipt.json SHA8a620be5d40804766c6dc805fcbbb0d1cf7799666887af4239a0d8fd2da8d037; no actual Rust/Clippy claim. Fresh4bad Compiler102 run40208428375/job121214277278 solecapture owner here; awaiting sole artifact, do not cancel. Exact4bad4c91b641fd6e783871ac795c148a5e34fafe includes typedrepair/literal/readonly4 firstgate trace; no actual new classifier/RBS result yet. Actual008 all102 UNRUN after first compiler build three known type errors, captured/authenticated separately (assessment08e4e5398a7712b7718e63459e7217813641c62b84b444febce6b13d40e9037d; source04e5b114a4e1b03a1205a3d9a908276eccd5085acab808d3faa7026f2d899431). Strict4bad confirms these three source types gone; broad strict gate remains open.
+
 
 **Actual9cf FULLAUTH96PASS6FAIL:** compiler-original102-40201526087 SINGLEZIP6c86d5b457e4944ba3f872919d9784c70ef1fd0f93f73837c3fa937b44f6f354/artifact12603172284/12178328B. Assessment31bde0b5bdb85b6e5ba24e82a69e904db5c92f44b19e6b53bdfd3ca663b80542; fullsource/Nativeedfc790b87ab938503659b3b21cc832b9f07abdd568b0743e11f2aade7638453; protocol3b945aa2a22416af30d4eec17e5931d83d9ee3b530b4644d100f18f69dbd79db. All102terminal/223serializedreceipts+PIDbirthunique/closed,9freshstrictartifacts/0Rustdiag, source126333/provider10202/deps21503/tools equal;20MiBretained10246405+remaining10725115 exact/noreset. Prior204 identities/env/order102exact,0PASS→FAIL,2FAIL→PASS Logicalmissinglayout+unknownprefix controls. Original57P1F/old9P/closed16P/readonly6P4F/owner3P/ancestry3P/Logical2P1F. Source9cf excludeslaterW002/RBS/literal/typefix. Readonly4 now actualclassifierNevervspositive; admission-vs-escape stage unmeasured. RemainingLogical1 fails genuineevaluatedpointpremise beforecorruption, notsourceeffects assertion.
 

@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T16:22:03.745119+00:00",
+  "scheduled_report_utc": "2026-10-25T16:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T16:45:00+00:00",
+  "change_since_previous_report": [
+    "16:15 report is late; all actual report/push times are retained. Required release gates remain open. Current reviewed source and cleanup are still separate WORK/release counterparts; no PR/merge/tag/release.",
+    "Fully authenticated4bad strict exposes506 primaries across190files:504Clippy and2VM test-helper E0369 errors. Prior compiler token/registry type errors are absent. This broader frontier was hidden by earlier dependency failures. Ownership is partitioned by exact files: codegen13/53, compiler58/150, Names53/144, LSP23/52, VM9/16 including2nowfixed, coordinator mechanical27/80 and root tests7/11. No lint suppression or assertion weakening.",
+    "VM unit-context callbacks repaired with exact correctly typed closure patterns, preserving all production/header/provider/checks. A metadata-only standalone Rustc test confirms the interface syntax, not repository acceptance. Reviewed codegen/lowering small45 batch is paired integrated; further independently reviewed cohorts are queued.",
+    "Fully authenticated4bad SpecTcl original11+native-store1+unchanged hostile1 ALL13PASS. Hostile spin and burn now produce genuine budget crashes and boom a panic, exactly3crashes/quarantines with original zero-fold/three-attempt assertions. NativeIndex3 remainUNRUN because the later cfgtest lib build hits the repaired callback errors. No full corpus or global Spec gate is inferred.",
+    "Fully authenticated4bad Jim original45 improves31P14F\u219234P11F; separate diagnostics improve0P5F\u21922P3F, new1stillFAIL. Declaration layouts now reach the guarded reader withall14 operand/layout stages passing. Remaining named nested incr and expression reads need their actual SSA/nested-binding provenance, not parent shape or Normal promotion.",
+    "Authenticated4bad iRulesbootstrap1FAIL/CLItrace2PASS. Exact first refusal is protocol-purpose: selectedLogicalC84 UpLevel versus physicalC90 strings. Native guard is correct; a distinct genuine Logical source-operand issuer is being designed without changing NativeDirect, forcing profile, or donating native headers.",
+    "Preliminary4bad host captures show the document-registry producer fix working: completed.registry true, no mismatches. Next diagnostic refusal is genuine slot admission during computation (None\u2192Some1), with same source/dialect/version/revision/epoch. Browser coverage identifies direct-procedure-owner at offset0. Full host authentication is in progress; bounded recapture will preserve old guards and outer deadlines.",
+    "Release main and standalone runtime formatting pass on recorded2d59. Latest source changes have per-file checks; final whole-tree/generation/docs/packaging/prep-pr and all current tests remain required. Older fullCI has one native partition running; useful results preserved. Tcl corpus performance remains unaccepted, latest bounded scan still20s at prior source.",
+    "Disk safety: complete broader executable census and retained API/archive/member/CRC proof permitted removal of unused old9cf extracted duplicate (>71min), preserving its ZIP and every receipt. New native payload extraction is deferred because available headroom would cross2GiBfloor. /tmp filled; only root-owned closed registry-composition source scratch was removed, no Cargo/target/young executable deletion.",
+    "External BIGIP/perf trackers remain older than60min, user notified without taking over. Baseline counterpart and complete zero-pass-to-fail questions remain open; observed passes never synthesized. Next checkpoint16:45."
+  ],
+  "committed": [
+    "17771dc9a8c600de8d0f2bf899390859eeb92e9f"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish late16:15 checkpoint and rearm16:45 reminder.",
+    "Integrate independently reviewed bounded lint cohorts and coherent source-pin companions, then rerun strict/semantic checks.",
+    "Authenticate latest compiler/host captures, repair genuine readonly/slot/body/nested-read/LogicalUpLevel producers.",
+    "Complete all sectionF, baseline, accepted performance, documentation/generated/packaging/prep-pr gates before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Source-only lint review is not execution acceptance. Actual scoped Spec13PASS and Jim34/45 gains require their recorded guards; NativeIndex3 remainsUNRUN. No unit/sectionF/global gate admitted.",
+  "disk_free_bytes": 2184802304,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

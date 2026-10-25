@@ -1,6 +1,8 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-25T15:39:06Z
+Last updated: 2026-10-25T15:50:49Z
+
+Resume 2026-10-25T15:50:49Z: New4bad actualwave independently API-pinned exact4bad4c91b641fd6e783871ac795c148a5e34fafe, Gitmembers126356/treedbe72883e25f99c3418b216e701c76abf20704a6. Hosts40208428366 WASI121214277861/browser121214278137/unit121214278156; startup40208430537 startup121214283084/Core2121214282951. ALL5healthy originalboundedsteps; noZIPdownloads yet. SoleLSP ownsfullsource/provider/process/ELFZIPauth then actualV3Registrymatch/originalassertions/coveragefirstguard, selectednativeplatformeligibility+boundedoriginalRPC/latency. Source4bad includesapprovedV3registry+WORKcoverage+jointpins; ROOTdocsHEAD65e0sameproduct, no inferencefromcurrentdocHEAD. Source-gate/nativehelpervariants prepared lsp-4bad-host-wave-evidence-index-v1. Disk2.2GiB/floor2; ONLYold9cfextractedpayload. Verifyage>60min/unused/exactretainedZIPbackup before any off-tree duplicate reclaim ifneeded; no source/target/testexe/expandedmaps/localRust/healthycancel.
 
 Resume 2026-10-25T15:39:06Z: Productive diagnostic Registry V3 pairedSOURCE+shipping contracts independentDEEP CLEAR0ae1d1162a90992a4381d796ac501bd7a28a68d1a0dbd8845829a35fea3608d3, manifest116af7c8 WORKacc97cdf0743211f537bbbe91835a247f3786e27a2ed6d185d9b4dd451e568ba CLEAN267ad06fb024f5ec6b95f6eec1b17be9c95ca461937924a7962d2488660ed52f. V1missingtestimports fixedinV2; substantiveV2source-sensitive invalidsnapshot caching livenessHOLD fixedV3: sameexistingboundedresolveattempts acceptonlycapturedSome(epoch), cachedNoneepoch demands ordinaryrefresh; genuinePending→Indexed sameepoch control added. No newwaits/budget/stale fallback/semanticEqrelaxation. NewactualRust/controlsUNRUN.
 
