@@ -5751,14 +5751,14 @@ mod original_event_owner_tests {
                 3 => changed.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content,
                 4 => {
                     changed.ir_module.lexer_config.strict_quoting =
-                        !changed.ir_module.lexer_config.strict_quoting
+                        !changed.ir_module.lexer_config.strict_quoting;
                 }
                 5 => changed
                     .procedures
                     .values_mut()
                     .for_each(|function| function.source_metadata_input = None),
                 6 => changed.procedures.values_mut().for_each(|function| {
-                    function.source_config.strict_quoting = !function.source_config.strict_quoting
+                    function.source_config.strict_quoting = !function.source_config.strict_quoting;
                 }),
                 7 => changed
                     .procedures

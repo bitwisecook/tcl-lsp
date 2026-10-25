@@ -4460,7 +4460,7 @@ mod tests {
                         .statements
                         .get_mut(&(block, index))
                         .unwrap()
-                        .dynamic_bindings = true
+                        .dynamic_bindings = true;
                 }
                 1 => changed
                     .after
@@ -4475,7 +4475,7 @@ mod tests {
                     .swap(1, 2),
                 3 => {
                     changed.metadata_context =
-                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
                 }
                 _ => {
                     changed

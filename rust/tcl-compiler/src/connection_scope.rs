@@ -1153,7 +1153,7 @@ mod tests {
                         profile,
                         Arc::clone(&older),
                         config,
-                    ))
+                    ));
                 }
                 2 => {
                     changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
@@ -1162,7 +1162,7 @@ mod tests {
                         tcl_registry::model::ingress::resolve_environment("tcl9.1")
                             .default_context_registry(),
                         config,
-                    ))
+                    ));
                 }
                 3 => changed.source_config.strict_quoting = !changed.source_config.strict_quoting,
                 _ => unreachable!(),

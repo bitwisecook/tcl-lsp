@@ -9896,7 +9896,7 @@ mod selected_class_roster_tests {
                 2 => module.source_metadata_input = None,
                 _ => {
                     module.source =
-                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()));
                 }
             }
             assert!(
@@ -9963,7 +9963,7 @@ mod selected_class_roster_tests {
                 0 => changed.source = "forge create Other {}".to_owned(),
                 1 => {
                     changed.ir_module.source =
-                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()));
                 }
                 2 => changed.ir_module.lexer_config.strict_quoting ^= true,
                 3 => changed.ir_module.source_metadata_input = None,
@@ -9972,7 +9972,7 @@ mod selected_class_roster_tests {
                 6 => changed.source_class_facts = None,
                 _ => {
                     changed.source_class_facts =
-                        unit("forge create Other {}", &context).source_class_facts
+                        unit("forge create Other {}", &context).source_class_facts;
                 }
             }
             assert!(

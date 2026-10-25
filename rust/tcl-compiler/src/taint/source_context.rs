@@ -456,7 +456,7 @@ mod original_standalone_unit_tests {
         match &mut payload {
             Statement::Call { args, .. } => args.push("FORGED".to_owned()),
             Statement::AssignValue { value, .. } | Statement::AssignConst { value, .. } => {
-                value.push_str("FORGED")
+                value.push_str("FORGED");
             }
             _ => unreachable!(),
         }

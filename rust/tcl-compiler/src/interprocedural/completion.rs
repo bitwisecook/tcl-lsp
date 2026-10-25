@@ -785,7 +785,7 @@ pub(super) mod tests {
                     module.procedures.get_mut(&id)
                 }
                 .unwrap()
-                .qualified_name = "::other".into()
+                .qualified_name = "::other".into();
             },
             |module| {
                 {
@@ -793,7 +793,7 @@ pub(super) mod tests {
                     module.procedures.get_mut(&id)
                 }
                 .unwrap()
-                .params_raw = "{x DEFAULT}".into()
+                .params_raw = "{x DEFAULT}".into();
             },
             |module| {
                 {
@@ -801,7 +801,7 @@ pub(super) mod tests {
                     module.procedures.get_mut(&id)
                 }
                 .unwrap()
-                .params = vec!["y".into()]
+                .params = vec!["y".into()];
             },
             |module| {
                 {
@@ -809,7 +809,7 @@ pub(super) mod tests {
                     module.procedures.get_mut(&id)
                 }
                 .unwrap()
-                .body_offset += 1
+                .body_offset += 1;
             },
             |module| {
                 {
@@ -817,7 +817,7 @@ pub(super) mod tests {
                     module.procedures.get_mut(&id)
                 }
                 .unwrap()
-                .body_source = Some("return OTHER".into())
+                .body_source = Some("return OTHER".into());
             },
             |module| {
                 {
@@ -827,7 +827,7 @@ pub(super) mod tests {
                 .unwrap()
                 .body
                 .statements
-                .clear()
+                .clear();
             },
         ];
         for change in mutations {

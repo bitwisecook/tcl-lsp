@@ -536,7 +536,7 @@ mod tests {
                 2 => module.retained_source_bindings = None,
                 3 => {
                     module.source_entry.metadata_context =
-                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
                 }
                 _ => module.source = tcl_lexer::SourceImage::document("set x OTHER"),
             }

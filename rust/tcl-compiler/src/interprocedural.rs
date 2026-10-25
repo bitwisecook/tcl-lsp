@@ -7136,7 +7136,7 @@ mod tests {
                 let actual = classify_return(Some(raw), false, word, None, &params, Some(config));
                 match (actual, expected) {
                     (ReturnKind::Passthrough(actual), Some(expected)) => {
-                        assert_eq!(actual, expected)
+                        assert_eq!(actual, expected);
                     }
                     (ReturnKind::Other, None) => {}
                     _ => panic!("{profile}: {raw}"),
