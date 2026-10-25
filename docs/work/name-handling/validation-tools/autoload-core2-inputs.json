@@ -6,8 +6,8 @@
     "package_resolver::original_names::tests::autoload_structure_retains_current_source_and_input_refusals"
   ],
   "source_pins": {
-    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "751d45d258ad1d173136ce7ab5b568fd824d3d119769f5639aefc06b5824773d",
-    "rust/tcl-lsp-core/src/source_structure.rs": "00335a3db23fe9c5c4d86d635014f34797dd45ced13caf22e802a92f8c0e1e46",
+    "rust/tcl-lsp-core/src/package_resolver/original_names.rs": "b835560a6fe4d291c6e22654811e17739ecafcb2b149e3f9c77c24fea3590b30",
+    "rust/tcl-lsp-core/src/source_structure.rs": "60eeee41802557f2b3d9096a29580715872196e7b912dc7e8362636f60b5d344",
     "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs": "f71dce219426076e338f6bf1b12a408882f875fd8c2651b84978756913b7693d"
   },
   "target": "tcl_lsp_core",
