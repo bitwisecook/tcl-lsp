@@ -329,9 +329,12 @@ pub fn classify_proc(
     summary: Option<&ProcEscapeSummary>,
     static_call_count: usize,
 ) -> InlineDecision {
-    if crate::native_compilation_admission::script_requires_admission(&proc.body)
-        || !summary.is_some_and(ProcEscapeSummary::safe_to_inline)
-    {
+    if crate::native_compilation_admission::script_requires_admission(&proc.body) {
+        trace_native_inline_decline("compiler-admission", proc, summary);
+        return InlineDecision::Never;
+    }
+    if !summary.is_some_and(ProcEscapeSummary::safe_to_inline) {
+        trace_native_inline_decline("escape-summary", proc, summary);
         return InlineDecision::Never;
     }
     let body_size = count_statements(&proc.body);
@@ -342,6 +345,34 @@ pub fn classify_proc(
     } else {
         InlineDecision::Never
     }
+}
+
+fn trace_native_inline_decline(stage: &str, proc: &Procedure, summary: Option<&ProcEscapeSummary>) {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
+        || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 16
+    {
+        return;
+    }
+    eprintln!(
+        "NATIVE_INLINE_DECLINE proc={} stage={stage} admission={:?} legacy_failure={} summary={:?}",
+        proc.qualified_name,
+        proc.body
+            .native_compilation_admission
+            .as_ref()
+            .map(|admission| (
+                admission.provider_required,
+                admission.failure.is_some(),
+                admission.source.is_some(),
+            )),
+        proc.body.native_compilation_failure.is_some(),
+        summary.map(|summary| (
+            summary.pure_leaf,
+            summary.frame_needed,
+            &summary.flags,
+            summary.barriers.len()
+        )),
+    );
 }
 
 // splice-eligibility
