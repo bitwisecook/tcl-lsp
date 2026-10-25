@@ -1471,6 +1471,43 @@ pub(crate) struct OriginalCommandSourceWorldCapture {
 }
 
 impl OriginalCommandSourceWorldCapture {
+    /// Select the actual still-leased prefix producer for independent collision
+    /// participants. The selected declaration retains its original owner.
+    fn document_owners(
+        &self,
+        documents: &[super::super::OriginalDocumentSnapshot],
+        selected_uri: &str,
+    ) -> Option<Vec<super::super::OriginalDocumentSnapshot>> {
+        documents.iter().map(|document| {
+            if document.0 == selected_uri || document.2.original_completed_command_world().is_some() {
+                return Some(document.clone());
+            }
+            let mut scopes = self.settlement.scopes.iter().filter(|scope|
+                scope.root_uri.as_str() == document.0.as_str() && scope.completion.is_some());
+            let Some(scope) = scopes.next() else { return Some(document.clone()) };
+            if scopes.next().is_some() || !scope.complete || scope.conditional_obligations {
+                return None;
+            }
+            let completion = scope.completion.as_ref()?;
+            let prefix = &completion.prefix.draft;
+            let analysis = &prefix.producer.seed.analysis;
+            let context = tcl_lsp_core::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&document.2)?;
+            if scope.root != Some(completion.prefix.id)
+                || prefix.inherited.is_some() || prefix.region.is_some()
+                || prefix.physical.uri.as_str() != document.0.as_str()
+                || prefix.physical.source.as_ref() != document.1.as_ref()
+                || prefix.producer.seed.path_admission.as_ref() != prefix.physical.admission.as_ref()
+                || !prefix.matches_producer()
+                || !original_readonly_analysis_matches_input(&document.1, &document.2, &prefix.producer.input)
+                || tcl_lsp_core::workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) != Some(context)
+                || !completion.outcome.matches_prefix_analysis(analysis)
+            {
+                return None;
+            }
+            Some((document.0.clone(), Arc::clone(&document.1), Arc::clone(analysis)))
+        }).collect()
+    }
+
     pub(crate) fn worlds(
         &self,
     ) -> Vec<tcl_lsp_core::original_command_rename::OriginalConditionalCommandWorld<'_>> {
@@ -2647,6 +2684,31 @@ impl Backend {
         Ok(state.finish_scope(root_id, root_uri, true))
     }
 
+    pub(crate) async fn command_source_documents(
+        &self,
+        member: bool,
+        documents: Vec<super::super::OriginalDocumentSnapshot>,
+        selected_uri: &str,
+    ) -> DocumentSourceResult<(
+        Vec<super::super::OriginalDocumentSnapshot>,
+        Option<OriginalCommandSourceWorldCapture>,
+    )> {
+        let capture = {
+            let owners = super::super::implementation_inventory(&documents);
+            self.capture_original_command_source_worlds_if_needed(member, &owners)
+                .await?
+        };
+        let Some(capture) = capture else {
+            return Ok((documents, None));
+        };
+        let Some(selected_documents) = capture.document_owners(&documents, selected_uri) else {
+            // Keep the original unknown-world refusal; no alternate owner is
+            // installed when a current full-context/physical join is missing.
+            return Ok((documents, None));
+        };
+        Ok((selected_documents, Some(capture)))
+    }
+
     pub(crate) async fn capture_original_command_source_worlds_if_needed(
         &self,
         member: bool,
@@ -3410,5 +3472,212 @@ impl Backend {
                     .iter()
                     .any(|new| old.id == new.id && old.draft.same_live_producer(&new.draft))
             })
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod completed_world_owner_controls {
+    use super::*;
+    use crate::{DocumentPublication, DocumentState};
+
+    struct Fixture {
+        root: std::path::PathBuf,
+        main: Uri,
+        host: Uri,
+        source: String,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    async fn open(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .db_set_source(uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let mut document = DocumentState::with_version(source.to_owned(), "tcl8.6".to_owned(), 1);
+        document.path_admission = Some(backend.document_path_admission(uri).await.unwrap());
+        document.publication = DocumentPublication::Indexed;
+        backend
+            .documents
+            .lock("completed world owner fixture")
+            .await
+            .insert(uri.clone(), document);
+    }
+
+    async fn fixture(opaque: bool) -> (Fixture, Backend, Vec<crate::OriginalDocumentSnapshot>) {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "tcl-lsp-completed-owner-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let child = root.join("child.tcl");
+        std::fs::write(&child, "proc helper {value} {return $value}\n").unwrap();
+        let source = if opaque {
+            let source =
+                "proc host_old {value} { return $value }\nputs \"🧪 café\"; puts [host_old 7]\n";
+            assert_eq!(source.len(), 77);
+            source.to_owned()
+        } else {
+            format!(
+                "source {{{}}}\nproc independent {{}} {{return [helper 21]}}\n",
+                child.display()
+            )
+        };
+        let host_source = "proc selected {} {return 42}\n";
+        std::fs::write(root.join("main.tcl"), &source).unwrap();
+        std::fs::write(root.join("host.tcl"), host_source).unwrap();
+        let main = Uri::from_file_path(root.join("main.tcl")).unwrap();
+        let host = Uri::from_file_path(root.join("host.tcl")).unwrap();
+        let backend = crate::tests::test_backend();
+        open(&backend, &main, &source).await;
+        open(&backend, &host, host_source).await;
+        let documents = backend.original_declaration_documents(&host).await.unwrap();
+        (
+            Fixture {
+                root,
+                main,
+                host,
+                source,
+            },
+            backend,
+            documents,
+        )
+    }
+
+    #[tokio::test]
+    async fn actual_prefix_owner_is_selected_without_renewing_the_old_analysis() {
+        let (fixture, backend, documents) = fixture(false).await;
+        let original = documents
+            .iter()
+            .find(|row| row.0 == fixture.main.as_str())
+            .unwrap()
+            .2
+            .clone();
+        assert!(original.original_completed_command_world().is_none());
+        let (owned, capture) = backend
+            .command_source_documents(false, documents, fixture.host.as_str())
+            .await
+            .unwrap();
+        let capture = capture.unwrap();
+        let analysis = &owned
+            .iter()
+            .find(|row| row.0 == fixture.main.as_str())
+            .unwrap()
+            .2;
+        let worlds = capture.worlds();
+        let outcome = worlds
+            .iter()
+            .find(|row| row.uri == fixture.main.as_str())
+            .unwrap()
+            .outcome;
+        assert!(outcome.original_completed_command_world(analysis).is_some());
+        assert!(
+            outcome
+                .original_completed_command_world(&original)
+                .is_none()
+        );
+        assert!(!Arc::ptr_eq(&original, analysis));
+        assert!(original.original_completed_command_world().is_none());
+        assert!(
+            backend
+                .original_command_source_worlds_are_current(&capture)
+                .await
+                .unwrap()
+        );
+        std::fs::write(
+            fixture.root.join("child.tcl"),
+            "proc changed {} {return OTHER}\n",
+        )
+        .unwrap();
+        assert!(
+            !backend
+                .original_command_source_worlds_are_current(&capture)
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn foreign_input_source_uri_and_selected_owner_keep_their_refusals() {
+        let (fixture, backend, documents) = fixture(false).await;
+        let index = documents
+            .iter()
+            .position(|row| row.0 == fixture.main.as_str())
+            .unwrap();
+        let original = Arc::clone(&documents[index].2);
+        let (selected, _) = backend
+            .command_source_documents(false, documents.clone(), fixture.main.as_str())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&selected[index].2, &original));
+        let (members, capture) = backend
+            .command_source_documents(true, documents.clone(), fixture.host.as_str())
+            .await
+            .unwrap();
+        assert!(capture.is_none() && Arc::ptr_eq(&members[index].2, &original));
+        let mut foreign = documents.clone();
+        foreign[index].2 =
+            Arc::new(tcl_compiler::analyser::Analyser::new().analyse(&fixture.source, "tcl9.0"));
+        let retained = Arc::clone(&foreign[index].2);
+        let (refused, capture) = backend
+            .command_source_documents(false, foreign, fixture.host.as_str())
+            .await
+            .unwrap();
+        assert!(capture.is_none() && Arc::ptr_eq(&refused[index].2, &retained));
+        let mut wrong_source = documents.clone();
+        wrong_source[index].1 = Arc::from("different source");
+        let (refused, capture) = backend
+            .command_source_documents(false, wrong_source, fixture.host.as_str())
+            .await
+            .unwrap();
+        assert!(capture.is_none() && Arc::ptr_eq(&refused[index].2, &original));
+        let mut wrong_uri = documents;
+        wrong_uri[index].0 = Uri::from_file_path(fixture.root.join("other.tcl"))
+            .unwrap()
+            .as_str()
+            .to_owned();
+        let (refused, _) = backend
+            .command_source_documents(false, wrong_uri, fixture.host.as_str())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&refused[index].2, &original));
+    }
+
+    #[tokio::test]
+    async fn exact_original_opaque_source_never_borrows_a_peer_world() {
+        let (fixture, backend, documents) = fixture(true).await;
+        let original = documents
+            .iter()
+            .find(|row| row.0 == fixture.main.as_str())
+            .unwrap()
+            .2
+            .clone();
+        let (owned, capture) = backend
+            .command_source_documents(false, documents, fixture.host.as_str())
+            .await
+            .unwrap();
+        let analysis = &owned
+            .iter()
+            .find(|row| row.0 == fixture.main.as_str())
+            .unwrap()
+            .2;
+        assert!(Arc::ptr_eq(analysis, &original));
+        assert!(analysis.original_completed_command_world().is_none());
+        if let Some(capture) = capture {
+            assert!(
+                capture
+                    .worlds()
+                    .iter()
+                    .all(|row| row.uri != fixture.main.as_str())
+            );
+        }
     }
 }
