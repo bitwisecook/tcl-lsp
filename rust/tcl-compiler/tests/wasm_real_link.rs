@@ -1312,6 +1312,39 @@ fn run_boot_only(runtime: &Path, tag: &str, wat: &str) -> Result<String, String>
     }
 }
 
+fn interpreted_source_bootstrap_wat(source: &str) -> String {
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
+  (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
+  (import "tcl" "tcl_obj_new_string" (func $box (param i32 i32) (result i32)))
+  (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
+  (import "tcl" "tcl_obj_release" (func $rel (param i32)))
+  (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $script i32) (local $result i32) (local $strptr i32) (local $len i32)
+    (call $setcur (call $create))
+    (local.set $script (call $box (i32.const 0x180000) (i32.const {length})))
+    (if (i32.eqz (local.get $script)) (then unreachable))
+    (local.set $result (call $eval (local.get $script)))
+    (if (i32.eqz (local.get $result)) (then unreachable))
+    (local.set $strptr (call $getstr (local.get $result) (i32.const 0x190000)))
+    (if (i32.eqz (local.get $strptr)) (then unreachable))
+    (local.set $len (i32.load (i32.const 0x190000)))
+    (i32.store (i32.const 0x190008) (local.get $strptr))
+    (i32.store (i32.const 0x19000C) (local.get $len))
+    (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010)))
+    (call $rel (local.get $result)))
+  (data (i32.const 0x180000) "{source}"))
+"#,
+        length = source.len(),
+        source = wat_escape(source),
+    )
+}
+
 /// Like [`bootstrap_wat`], plus the one thing a behavioural assertion cannot
 /// see: how many procedure bodies actually ran through a native entry.
 ///
@@ -1603,6 +1636,15 @@ set r62 [probe 62]
 set answer [list $r60 $r61 $r62]
 ";
     let printed = run_real_native_proc(&runtime, "native_proc_depth", program, 2, "set answer", 50);
+    if printed != "ok ok {too many nested evaluations (infinite loop?)}" {
+        let source = format!("{program}\nset answer");
+        let interpreted = run_boot_only(
+            &runtime,
+            "interpreted_proc_depth_witness",
+            &interpreted_source_bootstrap_wat(&source),
+        );
+        eprintln!("WASM_INTERPRETED_DEPTH_WITNESS result={interpreted:?}");
+    }
     assert_eq!(
         printed, "ok ok {too many nested evaluations (infinite loop?)}",
         "the compiled body must refuse at the interpreted runtime's own depth, \

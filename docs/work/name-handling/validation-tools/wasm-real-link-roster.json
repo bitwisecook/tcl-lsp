@@ -33,7 +33,7 @@
     "rust/tcl-compiler/src/native_lowering/lower.rs": "eef08d81c0bfd6db449a92afbff717788716a7db925e5fa94df133541266d0d6",
     "rust/tcl-compiler/src/registry_invocation/execution_trace.rs": "10e3e629bb3b7266aa16ab9dbd123d4b9a172ae9237b54809719c1109b3d71ed",
     "rust/tcl-compiler/tests/common/wasm_link.rs": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
-    "rust/tcl-compiler/tests/wasm_real_link.rs": "a9a66a09209e0e63b7ffb232f17836d2ec4925a838bc52bf431ec3060e18d041"
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "53efd43539e5de8aece03d64ec8a487af94f01381f527789b05a442f0a0a43f9"
   },
   "wasm_real_link": [
     "a_compiled_proc_body_runs_through_the_runtimes_function_table",
