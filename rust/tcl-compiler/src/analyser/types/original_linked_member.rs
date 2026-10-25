@@ -541,6 +541,13 @@ mod tests {
 
     #[test]
     fn original_link_advice_refuses_malformed_foreign_and_conflicting_receipts() {
+        fn change_report_labels(scope: &mut Scope) {
+            scope.name = "::report-only".to_owned();
+            for child in &mut scope.children {
+                change_report_labels(child);
+            }
+        }
+
         for descriptor in ["{}", "{route first second}", "$descriptor"] {
             let source = format!(
                 "oo::class create C {{method first {{}} {{}}; method second {{}} {{}}; constructor {{}} {{link {descriptor}}}; method use {{}} {{route}}}}"
@@ -562,12 +569,7 @@ mod tests {
         let mut analysis = Analyser::new().analyse(source, "tcl9.0");
         let cursor = u32::try_from(source.rfind("foo").unwrap()).unwrap();
         let genuine = original_source_linked_member_at(&analysis, source, cursor).unwrap();
-        fn change_report_labels(scope: &mut Scope) {
-            scope.name = "::report-only".to_owned();
-            for child in &mut scope.children {
-                change_report_labels(child);
-            }
-        }
+
         change_report_labels(&mut analysis.global_scope);
         for class in analysis.all_classes.values_mut() {
             class.qualified_name = "::report-only".to_owned();
