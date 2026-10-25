@@ -32,6 +32,10 @@ use crate::codegen::emitter::{
     ModuleEmissionScope, codegen_module_with_emission_scope,
     codegen_procedure_module_with_emission_scope,
 };
+#[path = "compile_service/native_procedure_source.rs"]
+mod native_procedure_source;
+pub use native_procedure_source::NativeCompiledProcedure;
+
 use crate::lowering::{
     lower_procedure_bytes_module_for_bytecode_with_options,
     lower_procedure_target_module_for_bytecode_with_options,
@@ -810,6 +814,21 @@ impl CompileService for BytecodeCompileService {
             Some(profile),
             CompileSourcePolicy::entered(Some(entry)),
         )
+    }
+
+    fn compile_original_procedure_bytes_with_entry(
+        &self,
+        request: &tcl_runtime_api::OriginalProcedureCompileRequest,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        if !request.matches_entry(entry) {
+            return Err(CompileError::Unsupported(
+                "original procedure compilation owner is unavailable".to_owned(),
+            ));
+        }
+        self.compile_procedure_bytes_with_entry(request.target(), profile, entry, dispatch)
     }
 
     fn compile_procedure_with_entry(

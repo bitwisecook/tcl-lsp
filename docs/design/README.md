@@ -186,6 +186,8 @@ fails.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [namespace-model.md](contracts/namespace-model.md) — the unified namespace
   model across dialects.
+- [native-procedure-compilation-custody.md](contracts/native-procedure-compilation-custody.md)
+  — original procedure allocation, compiler-owner and body custody.
 - [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
   primitive getter purposes, queried C target widths, host numeric effects,
   single-probe failure rendering, and raw Boolean output.

@@ -76,6 +76,9 @@
 //! proof: a caller variable and a callee local that share a name must stay
 //! distinct after inlining, and tclsh shows the two values never collide.
 
+#[path = "support/native_compiled_fixture.rs"]
+mod native_compiled_fixture;
+
 #[path = "support/body_identity.rs"]
 mod body_identity;
 use body_identity::{fixture_id, fixture_id_if_present};
@@ -208,10 +211,14 @@ fn static_call_count_drives_large_proc_decision() {
     // both → NEVER; exactly 1 caller → IF_SINGLE_CALL. The raw count helper is
     // internal, so this is asserted through the classifier.
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
-    let module = module_for(&format!("proc big {{}} {{\n{body}}}\n"));
-    let summaries = analyse_var_escape(&module, true);
-    let (body_id, proc) =
-        original_body_for_analysis(&module, "::big").expect("authored fixture body");
+    let fixture = native_compiled_fixture::compiled_fixture(
+        &format!("proc big {{}} {{\n{body}}}\n"),
+        "::big",
+        &[],
+    );
+    let module = fixture.module();
+    let summaries = analyse_var_escape(module, true);
+    let (body_id, proc) = fixture.body();
     let s = summary_for(&summaries, body_id);
     assert_eq!(classify_proc(proc, s, 0), InlineDecision::Never);
     assert_eq!(classify_proc(proc, s, 1), InlineDecision::IfSingleCall);
@@ -225,10 +232,14 @@ fn classify_small_pure_leaf_is_always() {
     // Small + pure-leaf → ALWAYS regardless of call count.
     // tclsh (8.6, 9.0): `proc add {a b} {expr {$a + $b}}; add 3 4` → 7, so
     // inlining `add` must preserve that result.
-    let module = module_for("proc add {a b} { return [expr {$a + $b}] }\n");
-    let summaries = analyse_var_escape(&module, true);
-    let (body_id, proc) =
-        original_body_for_analysis(&module, "::add").expect("authored fixture body");
+    let fixture = native_compiled_fixture::compiled_fixture(
+        "proc add {a b} { return [expr {$a + $b}] }\n",
+        "::add",
+        &["3", "4"],
+    );
+    let module = fixture.module();
+    let summaries = analyse_var_escape(module, true);
+    let (body_id, proc) = fixture.body();
     assert_eq!(
         classify_proc(proc, summary_for(&summaries, body_id), 0),
         InlineDecision::Always
@@ -256,10 +267,14 @@ fn classify_non_pure_leaf_is_never() {
 #[test]
 fn classify_large_pure_leaf_one_caller_is_if_single_call() {
     let body = assign_body(SMALL_BODY_THRESHOLD + 2);
-    let module = module_for(&format!("proc big {{}} {{\n{body}}}\nbig\n"));
-    let summaries = analyse_var_escape(&module, true);
-    let (body_id, proc) =
-        original_body_for_analysis(&module, "::big").expect("authored fixture body");
+    let fixture = native_compiled_fixture::compiled_fixture(
+        &format!("proc big {{}} {{\n{body}}}\nbig\n"),
+        "::big",
+        &[],
+    );
+    let module = fixture.module();
+    let summaries = analyse_var_escape(module, true);
+    let (body_id, proc) = fixture.body();
     assert_eq!(
         classify_proc(proc, summary_for(&summaries, body_id), 1),
         InlineDecision::IfSingleCall
@@ -284,10 +299,14 @@ fn classify_threshold_boundary_is_always() {
     // Edge case driving the `body_size <= SMALL_BODY_THRESHOLD` branch: a
     // pure-leaf body of *exactly* the threshold size is still ALWAYS.
     let body = assign_body(SMALL_BODY_THRESHOLD);
-    let module = module_for(&format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"));
-    let summaries = analyse_var_escape(&module, true);
-    let (body_id, proc) =
-        original_body_for_analysis(&module, "::edge").expect("authored fixture body");
+    let fixture = native_compiled_fixture::compiled_fixture(
+        &format!("proc edge {{}} {{\n{body}}}\nedge\nedge\n"),
+        "::edge",
+        &[],
+    );
+    let module = fixture.module();
+    let summaries = analyse_var_escape(module, true);
+    let (body_id, proc) = fixture.body();
     assert_eq!(count_statements(&proc.body), SMALL_BODY_THRESHOLD);
     assert_eq!(
         classify_proc(proc, summary_for(&summaries, body_id), 2),
@@ -1278,4 +1297,73 @@ fn static_shape_carries_body() {
         }
         other => panic!("expected Static, got {other:?}"),
     }
+}
+
+#[test]
+fn readonly_source_profitability_does_not_grant_executable_inlining() {
+    let large = assign_body(SMALL_BODY_THRESHOLD + 2);
+    let edge = assign_body(SMALL_BODY_THRESHOLD);
+    for (source, label) in [
+        (
+            "proc add {a b} { return [expr {$a + $b}] }\n".to_owned(),
+            "::add",
+        ),
+        (format!("proc big {{}} {{\n{large}}}\n"), "::big"),
+        (format!("proc big {{}} {{\n{large}}}\nbig\n"), "::big"),
+        (
+            format!("proc edge {{}} {{\n{edge}}}\nedge\nedge\n"),
+            "::edge",
+        ),
+    ] {
+        let module = module_for(&source);
+        assert!(module.source_entry.native_entry.is_none());
+        let (id, procedure) =
+            original_body_for_analysis(&module, label).expect("actual readonly source body");
+        let summaries = analyse_var_escape(&module, true);
+        for count in 0..=2 {
+            assert_eq!(
+                classify_proc(procedure, summary_for(&summaries, id), count),
+                InlineDecision::Never,
+                "readonly {label} at {count} static callers"
+            );
+        }
+    }
+}
+
+#[test]
+fn actual_compiled_procedure_rejects_foreign_modified_and_retired_custody() {
+    let source = "proc p {} {set x 1}";
+    let mut actual = native_compiled_fixture::compiled_fixture(source, "p", &[]);
+    let foreign = native_compiled_fixture::compiled_fixture(source, "p", &[]);
+    let (id, procedure) = actual.body();
+    assert_eq!(
+        procedure.body_kind,
+        tcl_compiler::ir::ProcedureBodyKind::Installed
+    );
+    assert!(procedure.publication.is_none());
+    assert!(procedure.declaration_site.is_none());
+    assert!(procedure.params_raw.is_empty());
+    assert!(actual.module().top_level.statements.is_empty());
+    assert_eq!(actual.module().body_units.len(), 1);
+    assert!(actual.refuses_module(foreign.module()));
+    assert!(actual.refuses_foreign_entry(&foreign));
+    let mut changed = actual.module().clone();
+    changed
+        .body_units
+        .get_mut(&id)
+        .unwrap()
+        .body
+        .statements
+        .clear();
+    assert!(actual.refuses_module(&changed));
+    let mut wrong_issuer = actual.module().clone();
+    wrong_issuer.procedure_ids = tcl_compiler::ir::ProcedureIdIssuer::default();
+    assert!(actual.refuses_module(&wrong_issuer));
+    actual.drop_owner();
+    assert!(actual.refuses_module(actual.module()));
+}
+
+#[test]
+fn declaration_only_and_refused_body_compilation_issue_no_compiled_fixture() {
+    native_compiled_fixture::assert_declaration_and_refusal_boundaries();
 }
