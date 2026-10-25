@@ -357,7 +357,9 @@ internal class CompilerExplorerPanel(private val project: Project) : Disposable 
                     publishCompileMessage(lease, "error", mapOf("error" to "Tcl LSP server did not become ready."))
                     return@executeOnPooledThread
                 }
-                // Explicit timeout avoids the version-specific synthetic LspServer default bridge.
+
+                // An explicit timeout uses the interface method rather than a synthetic
+                // $default bridge whose declaring owner varies between supported IDEs.
                 val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                     lsp4j.workspaceService.executeCommand(
                         org.eclipse.lsp4j.ExecuteCommandParams(

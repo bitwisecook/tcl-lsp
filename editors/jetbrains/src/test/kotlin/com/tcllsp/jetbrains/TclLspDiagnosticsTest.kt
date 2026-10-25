@@ -42,6 +42,15 @@ class TclLspDiagnosticsTest {
     }
 
     @Test
+    fun `the tooltip escapes the raw message and lists the code only once`() {
+        val tip = support.getTooltip(diagnostic("CUSTOM", "bad <command> & argument"))
+        assertEquals(
+            "bad &lt;command&gt; &amp; argument<br/><b>CUSTOM</b> — diagnostic<br/>No automatic fix.",
+            tip,
+        )
+    }
+
+    @Test
     fun `an optimiser code is named as a rewrite rather than a defect`() {
         val tip = support.getTooltip(diagnostic("O102", "Forward literal load of 'a'"))
         assertTrue(tip.contains("optimiser rewrite"), tip)

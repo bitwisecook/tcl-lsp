@@ -40,7 +40,7 @@ import java.io.File
 import java.net.JarURLConnection
 import java.nio.file.Paths
 
-private val LOG = Logger.getInstance("com.tcllsp.jetbrains.TclLspServerDescriptor")
+private val DESCRIPTOR_LOG = Logger.getInstance("com.tcllsp.jetbrains.TclLspServerDescriptor")
 
 class TclLspServerDescriptor(project: Project) :
     ProjectWideLspServerDescriptor(project, "Tcl Language Server") {
@@ -48,12 +48,7 @@ class TclLspServerDescriptor(project: Project) :
     override fun isSupportedFile(file: VirtualFile): Boolean =
         TclFileType.isSupported(file)
 
-    // Supplying a semantic-tokens customiser is what makes the IDE advertise
-    // `textDocument/semanticTokens` and ask the server for tokens at all.
-    // `getClientCapabilities` sets every other capability unconditionally and
-    // guards this one alone on the customiser being present — so without this
-    // the host never asks, whatever the server offers. That member first
-    // exists at 2024.3, which is the floor below which the plugin cannot go.
+    // The semantic-tokens customiser enables token requests in the IDE's LSP client.
     override val lspCustomization: LspCustomization = TclLspCustomization()
 
     // Pack-declared file extensions. The push is the main path:
@@ -95,11 +90,11 @@ class TclLspServerDescriptor(project: Project) :
             if (!SystemInfo.isWindows) {
                 val binary = File(devBinary)
                 if (!binary.canExecute() && !binary.setExecutable(true)) {
-                    LOG.warn("Failed to mark dev server executable: $devBinary")
+                    DESCRIPTOR_LOG.warn("Failed to mark dev server executable: $devBinary")
                 }
             }
 
-            LOG.info("Dev mode: native server $devBinary")
+            DESCRIPTOR_LOG.info("Dev mode: native server $devBinary")
             return GeneralCommandLine(devBinary)
                 .withWorkDirectory(devBinary.substringBeforeLast(File.separator))
                 .withCharset(Charsets.UTF_8)
@@ -122,11 +117,11 @@ class TclLspServerDescriptor(project: Project) :
         if (!SystemInfo.isWindows) {
             val binary = File(serverBinary)
             if (!binary.canExecute() && !binary.setExecutable(true)) {
-                LOG.warn("Failed to mark bundled server executable: $serverBinary")
+                DESCRIPTOR_LOG.warn("Failed to mark bundled server executable: $serverBinary")
             }
         }
 
-        LOG.info("Production mode: native server $serverBinary")
+        DESCRIPTOR_LOG.info("Production mode: native server $serverBinary")
         return GeneralCommandLine(serverBinary)
             .withWorkDirectory(serverBinary.substringBeforeLast(File.separator))
             .withCharset(Charsets.UTF_8)
@@ -198,11 +193,7 @@ class TclLspServerDescriptor(project: Project) :
         val name = bundledServerName()
         val platformServer = File(pluginDir, "server/${bundledPlatformDir()}/$name")
         if (platformServer.exists()) return platformServer.absolutePath
-        // Defensive fallbacks: tolerate a flat server/<name> (pre-universal
-        // single-platform layout) or an install that drops the binary at the
-        // plugin root or inside ``lib/``.  Shouldn't happen with the current
-        // build but keeps a user's working install working if anyone changes
-        // ``prepareSandbox``.
+        // Also accept binaries directly under server/, the plugin root, or lib/.
         val flatServer = File(pluginDir, "server/$name")
         if (flatServer.exists()) return flatServer.absolutePath
         val rootServer = File(pluginDir, name)
@@ -228,7 +219,7 @@ class TclLspServerDescriptor(project: Project) :
             val jarFile = Paths.get(conn.jarFileURL.toURI()).toFile()
             jarFile.parentFile?.parentFile
         } catch (e: Exception) {
-            LOG.warn("Failed to locate plugin install directory", e)
+            DESCRIPTOR_LOG.warn("Failed to locate plugin install directory", e)
             null
         }
     }

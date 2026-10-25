@@ -13,7 +13,7 @@
             <li>Document symbols, workspace symbols, and call hierarchy</li>
             <li>Code folding, inlay hints, and signature help</li>
             <li>Compiler Explorer tool window (IR, CFG, SSA, optimiser, shimmer analysis)</li>
-            <li>Supports Tcl 8.4–9.0, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
+            <li>Supports Tcl 8.4–9.1, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
         </ul>
     ]]></description>
 
