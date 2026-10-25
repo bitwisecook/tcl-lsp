@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "046518e787b49bb9f67bcc4414bfadf29e5dffad7601bf93528a5c0bef834a59",
+    == "5b6f3a3ded0ff509b1ad92829c80a2f507ebe6deded633cafc45b52dcc2c0260",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -1332,7 +1332,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "36265f3c4121129be2f54f0178e3446ded38beced9a2bb00c80084421726ef16",
+    == "7c7292b13954ba4e68dcdb90b0bedf1a448048a68ddf769805e3f8ec6a8e13fa",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
