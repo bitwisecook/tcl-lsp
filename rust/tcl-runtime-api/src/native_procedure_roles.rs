@@ -261,7 +261,7 @@ mod tests {
 
     fn compilation_input() -> crate::native_procedure_compilation::OriginalProcedureCompileInput {
         crate::native_procedure_compilation::OriginalProcedureCompileInput {
-            original: crate::SourceImage::native(b"return $x; malformed {"),
+            original: crate::SourceImage::native(*b"return $x; malformed {"),
             parameters: vec![crate::NameBytes::from("x")],
             binding_context: crate::native_procedure_compilation::OriginalProcedureBindingContext {
                 parameter_grammar: tcl_dialect::ParameterGrammar::Tcl,
@@ -395,7 +395,7 @@ mod tests {
         let changes: &[fn(
             &mut crate::native_procedure_compilation::OriginalProcedureCompileInput,
         )] = &[
-            |input| input.original = crate::SourceImage::native(b"return OTHER"),
+            |input| input.original = crate::SourceImage::native(*b"return OTHER"),
             |input| input.parameters = vec![crate::NameBytes::from("y")],
             |input| input.binding_context.parameter_grammar = tcl_dialect::ParameterGrammar::Jim,
             |input| input.binding_context.has_static_bindings = true,
