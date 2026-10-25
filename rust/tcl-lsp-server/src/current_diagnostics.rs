@@ -2305,12 +2305,39 @@ impl DiagnosticPass {
             || self.inputs_epoch != epoch
             || self.slot_generation != slot.map(|slot| slot.generation)
         {
+            self.trace_source_currency(source, version, doc, epoch, slot);
             return Err(diag_stale("pass.source-currency"));
         }
         if slot.is_some_and(|slot| slot.dirty) {
             return Err(DiagnosticUnavailable::Pending);
         }
         Ok(())
+    }
+
+    // WORK-only bounded scalar observation of the existing failed guard.
+    fn trace_source_currency(
+        &self,
+        source: &str,
+        version: Option<i32>,
+        doc: &DocumentState,
+        epoch: u64,
+        slot: Option<&DiagSlot>,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
+            eprintln!(
+                "DIAGNOSTIC_CURRENCY same_source={} same_dialect={} version={:?}/{:?} revision={}/{} epoch={}/{} slot={:?}/{:?}",
+                self.source.as_ref() == source,
+                self.dialect == doc.dialect,
+                self.version,
+                version,
+                self.revision,
+                doc.revision,
+                self.inputs_epoch,
+                epoch,
+                self.slot_generation,
+                slot.map(|slot| slot.generation),
+            );
+        }
     }
 
     pub(super) fn rewrite_source_association(
