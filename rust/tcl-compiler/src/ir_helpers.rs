@@ -2597,7 +2597,7 @@ mod tests {
                     vars: vec![
                         "$iterator".into(),
                         "${iterator}".into(),
-                        "".into(),
+                        String::new(),
                         "array(key)".into(),
                     ],
                     list_arg: "ONE TWO THREE FOUR".into(),
@@ -3246,7 +3246,7 @@ mod tests {
         assert!(!crate::ssa::nested_writes(&script, registry, &mut names));
         assert_eq!(
             names,
-            BTreeSet::from(["".into(), "$literal".into(), "nested".into()])
+            BTreeSet::from([String::new(), "$literal".into(), "nested".into()])
         );
     }
 

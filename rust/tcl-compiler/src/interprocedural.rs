@@ -6639,7 +6639,14 @@ mod tests {
             parameter_body: None,
         };
         let mut facts = LocalFacts::default();
-        scan_call_statement("global", &["".into()], &["".into()], None, ctx, &mut facts);
+        scan_call_statement(
+            "global",
+            &[String::new()],
+            &[String::new()],
+            None,
+            ctx,
+            &mut facts,
+        );
         assert!(facts.global_aliases.contains(""));
         assert!(
             !facts.writes_global,
@@ -6647,8 +6654,8 @@ mod tests {
         );
         scan_call_statement(
             "append",
-            &["".into(), "VALUE".into()],
-            &["".into()],
+            &[String::new(), "VALUE".into()],
+            &[String::new()],
             None,
             ctx,
             &mut facts,
@@ -6673,14 +6680,14 @@ mod tests {
     fn nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names() {
         let registry = CommandRegistry::build_default();
         let coverage =
-            global_alias_names("global", &["".into(), "array(key)".into()], &registry).unwrap();
+            global_alias_names("global", &[String::new(), "array(key)".into()], &registry).unwrap();
         assert!(coverage.names.contains("") && coverage.names.contains("array"));
         assert!(!coverage.unknown);
         let coverage = global_alias_names("global", &["$computed".into()], &registry).unwrap();
         assert!(coverage.names.is_empty() && coverage.unknown);
         let coverage = global_alias_names(
             "upvar",
-            &["#0".into(), "source".into(), "".into()],
+            &["#0".into(), "source".into(), String::new()],
             &registry,
         )
         .unwrap();

@@ -929,7 +929,7 @@ mod tests {
             .original_declaration_body_units
             .iter()
             .find(|(_, allocation)| *allocation == &original.allocation)
-            .map(|(label, _)| label.clone())
+            .map(|(label, _)| *label)
             .expect("original declaration body unit");
         let body = module
             .body_units

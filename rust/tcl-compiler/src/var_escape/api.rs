@@ -289,7 +289,7 @@ mod tests {
                 tokens.source_binding = None;
             }
         }
-        detached.top_level.command_binding_sites = Default::default();
+        detached.top_level.command_binding_sites = crate::ir::CommandBindingSites::default();
         assert!(
             analyse_var_escape(&detached, false)
                 .values()

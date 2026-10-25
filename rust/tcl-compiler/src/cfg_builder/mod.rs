@@ -6847,7 +6847,7 @@ mod tests {
             "namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]\n\
              proc caller {} {::n::writer}",
         );
-        assert!(!fixture_id_if_present(&module.procedures, "::n::writer").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::n::writer").is_none());
         let cfg = build_cfg(&module, false);
         assert!(
             cfg.procedures

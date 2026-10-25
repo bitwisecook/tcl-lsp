@@ -1005,7 +1005,8 @@ mod tests {
                 .any(|opt| opt.code == DiagCode::O104)
         );
         let mut missing = original;
-        missing.ir_module.top_level.command_binding_sites = Default::default();
+        missing.ir_module.top_level.command_binding_sites =
+            crate::ir::CommandBindingSites::default();
         assert!(run_unit(&missing, &registry).is_empty());
     }
 

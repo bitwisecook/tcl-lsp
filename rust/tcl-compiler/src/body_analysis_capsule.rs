@@ -1571,7 +1571,7 @@ mod native_source_lattice_tests {
         assert!(Arc::ptr_eq(&restored.def_use, &function.def_use));
         assert!(function.restored_source_proofs(&proofs).is_none());
         let mut missing = procedure.body.clone();
-        missing.command_binding_sites = Default::default();
+        missing.command_binding_sites = crate::ir::CommandBindingSites::default();
         for statement in &mut missing.statements {
             if let Some(tokens) = statement.tokens_mut() {
                 tokens.source_binding = None;

@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(units[0].name, "::made");
         assert_eq!(units[0].body_source.as_deref(), Some("return 7"));
         assert_eq!(units[0].params, ["x"]);
-        assert!(!fixture_id_if_present(&module.procedures, "::made").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::made").is_none());
         assert_eq!(module.top_level, before);
         assert!(
             module
@@ -195,7 +195,7 @@ mod tests {
         specialise_factories(&mut module, registry);
         assert_eq!(installed(&module).len(), 1);
         assert_eq!(module.top_level, before);
-        assert!(!fixture_id_if_present(&module.procedures, "::made").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::made").is_none());
         assert_eq!(
             module.parameter_grammar(),
             Some(tcl_dialect::ParameterGrammar::Jim)
@@ -212,7 +212,7 @@ mod tests {
         specialise_factories_with_cap(&mut module, &registry(), 1);
         assert_eq!(installed(&module).len(), 1);
         assert_eq!(module.top_level, before);
-        assert!(!fixture_id_if_present(&module.procedures, "::a").is_some());
-        assert!(!fixture_id_if_present(&module.procedures, "::b").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::a").is_none());
+        assert!(fixture_id_if_present(&module.procedures, "::b").is_none());
     }
 }
