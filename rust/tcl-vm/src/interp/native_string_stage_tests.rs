@@ -1002,14 +1002,14 @@ fn original_integer_operations_keep_selected_cache_and_magnitude_reference_roles
     let mut modern = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
     let magnitude = Value::new_native_string_bytes(b"18446744073709551617".as_slice());
     let before = magnitude.native_object_snapshot();
-    let formatted = tcl_cmd_core::format::format_cmd_with_syntax(
+    let format_result = tcl_cmd_core::format::format_cmd_with_syntax(
         &mut modern,
         &[Value::string("%lld"), magnitude.clone()],
         tcl_dialect::NumberSyntax::Tcl90,
     )
     .unwrap();
     assert_eq!(
-        formatted.resident_string_bytes().unwrap().as_ref(),
+        format_result.resident_string_bytes().unwrap().as_ref(),
         b"18446744073709551617"
     );
     assert_eq!(magnitude.native_object_snapshot(), before);

@@ -434,7 +434,7 @@ mod physical_ensemble_owner_tests {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
         let def = EnsembleDef {
-            originals: Default::default(),
+            originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
             native: None,
             namespace: tcl_core_types::ROOT_NS,
             map: Vec::new(),

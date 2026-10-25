@@ -13,7 +13,7 @@ fn record(vm: &mut Vm, args: &[Value], value: i64) -> Completion<Value> {
             args.len() + 1,
             bytes,
             vm.current_ns_id() == tcl_core_types::ROOT_NS,
-        ))
+        ));
     });
     let code = MODE.with(|mode| match mode.get() {
         3 => crate::Code::Error,

@@ -186,9 +186,8 @@ fn original_method_cache_string_refusal_or_header_withdrawal_precedes_cache_adop
             let references = original.native_object_reference_count();
             *formatter.original.borrow_mut() = Some(original);
             let steps = selected(&vm, target);
-            let error = match remember(&mut vm, target, "42", held.value(), true, steps) {
-                Ok(_) => panic!("original String refusal must stop cache publication"),
-                Err(error) => error,
+            let Err(error) = remember(&mut vm, target, "42", held.value(), true, steps) else {
+                panic!("original String refusal must stop cache publication");
             };
             let first = vm.execution_refusal.clone().unwrap();
             assert_eq!(error.native_execution_refusal(), Some(&first));

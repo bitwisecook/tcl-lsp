@@ -192,7 +192,7 @@ fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usi
                     *marks.borrow(),
                     expected,
                     "{engine}/{case} reached originals"
-                )
+                );
             });
             results += 1;
             headers += expected.len();

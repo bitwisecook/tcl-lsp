@@ -236,7 +236,10 @@ fn original_private_variable_mapping_keeps_counted_key_and_stored_cstring_full_n
             .original
             .is_same_object(lease.value())
     );
-    assert_eq!(copy.private_variables[0].private_storage(999999), full.name);
+    assert_eq!(
+        copy.private_variables[0].private_storage(999_999),
+        full.name
+    );
     assert_eq!(lease.value().native_object_reference_count(), 2);
     drop(copy);
     assert_eq!(lease.value().native_object_reference_count(), 1);

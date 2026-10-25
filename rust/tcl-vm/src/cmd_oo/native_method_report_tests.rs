@@ -42,7 +42,7 @@ impl crate::command::NativeCommand for Observer {
         REPORTS.with(|reports| {
             reports
                 .borrow_mut()
-                .push((label, role, report.result.native_object_identity()))
+                .push((label, role, report.result.native_object_identity()));
         });
         ok(Value::empty())
     }

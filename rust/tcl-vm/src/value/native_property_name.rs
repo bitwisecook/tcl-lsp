@@ -20,12 +20,12 @@ impl Value {
             recipe,
             writable,
             &mut (),
-            &mut |_| {
+            &mut () | {
                 self.native_string_bytes(recipe.strings())
                     .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
                     .map_err(Into::into)
             },
-            &mut |_| Ok(()),
+            &mut () | Ok(()),
         )
     }
     pub(crate) fn native_property_accessor_checked<C>(
