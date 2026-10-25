@@ -3351,9 +3351,9 @@ mod stub_name_geometry_tests {
     #[test]
     fn document_stub_suppression_uses_written_tail_geometry() {
         let facts = UserResolutionFacts {
-            non_proc_qnames: Default::default(),
-            proc_offsets: Default::default(),
-            rename_offsets: Default::default(),
+            non_proc_qnames: rustc_hash::FxHashSet::default(),
+            proc_offsets: rustc_hash::FxHashMap::default(),
+            rename_offsets: rustc_hash::FxHashMap::default(),
             stub_names: ["known", "a:b"].into_iter().map(str::to_owned).collect(),
         };
         for name in ["known", "::ns:::known", "::ns::::known", "::ns::a:b"] {
@@ -3460,7 +3460,7 @@ mod logical_class_family_tests {
         analyser.context = result
             .resolved_input
             .as_ref()
-            .map(|input| input.context_registry());
+            .map(crate::analyser::ResolvedAnalysisInput::context_registry);
         analyser.resolved_input = result.resolved_input.clone();
         analyser.source = SOURCE.to_owned();
         analyser.result = result;

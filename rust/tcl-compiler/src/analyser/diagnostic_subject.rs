@@ -534,7 +534,7 @@ mod user_source_call_controls {
             SourceUserCallAritySubject::capture(
                 deleted,
                 &result,
-                deleted.rfind("target").unwrap() as u32
+                u32::try_from(deleted.rfind("target").unwrap()).unwrap()
             )
             .is_none()
         );
