@@ -3916,3 +3916,11 @@ rename planning. Ordinary Core callers retain their existing path. The optional
 conditional-world route does not replace declaration identity, current source
 geometry, complete reference coverage or static edit-container guards; it grants
 no Native entry, runtime execution or new procedure-body completion.
+
+For an independent collision participant whose ordinary analysis has no completed
+world, the Server can retain the actual leased root-prefix analysis together
+with its own completion. This selection requires the same physical source,
+complete input and diagnostic source context, unambiguous complete root scope,
+and current producer and dependency leases. The selected declaration keeps its
+original owner. No analysis fields are rewritten and no owner is reissued; a
+missing join keeps the ordinary unknown-world refusal.
