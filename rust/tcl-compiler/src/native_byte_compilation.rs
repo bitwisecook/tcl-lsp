@@ -111,11 +111,11 @@ pub(crate) enum NativeByteCommandUnavailable {
 impl NativeByteCommandUnavailable {
     /// Observe only this already-returned refusal under the existing diagnostic flag.
     pub(crate) fn trace_factory_refusal(&self) {
+        static ROWS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
         {
             return;
         }
-        static ROWS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         if ROWS
             .try_update(
                 std::sync::atomic::Ordering::Relaxed,
