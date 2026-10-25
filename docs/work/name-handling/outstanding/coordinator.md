@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T10:36:11.461140+00:00
+Last updated: 2026-10-25T10:58:37.543155+00:00
 
 ## Resume
 
@@ -13,15 +13,12 @@ Last updated: 2026-10-25T10:36:11.461140+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (10:15 UTC)
+### Current cycle and routing (10:45 UTC)
 
-- The10:15checkpoint islate; actualwrite/push timestamps are retained, notbackdated. CurrentreviewedsourceWORK09cded479e6340af7b8dda8d09fd7dfe8e92ffd2 andCLEAN585204ad5fb787888bfd447b043f04ef70d87ccc pushing afterfreshdepth1workfetch. NoPR/merge/tag/release.
-- Strictf7 FULLauth6edee retainedAPIexact4,016,527B ZIP/source126286/tools/17criticalGitblobs/ownedemptygroups/capfloor; primarymanual_is_variant_and atAPI183only, downstreamconsumer/quiettypingunreached. EquivalentResult.is_ok_and oneexpressionfixandmatchingrosterhashescorrected; freshstrict09cdlaunching. No sourceguard orassertionweakening.
-- Integratedtypeddeferredsource-call regionownership withgenuineprivatecallerSourceTransitions/definersite/SAMEorigin/region+analysis+input+Registry joins. Genericcommandownerandallper-call/debt/target/unique/collisionguardsunchanged. Peer21357; newcontrols/hostretryunrun.
-- Integrateddirectdiagnosticreadiness withboxed existingread_documentIndexedawaitbeforecapturinginputs/job; no lockheldacrossawait, waitedDocignored andcurrentjob/finalguardsrecaptured. currentDiagnostics remainsreadonly; no clientretry orlargerbudget. Peer8e8f; actualnewpublicFuture/controlandstartupretryunrun.
-- Caughtandfixedcaptured-vs-activeformalgrammar edge beforeacceptance: producerbindsactualProcDef grammar/statics/adaptercontext, sourcecurrencywithdraws oncontextchange. Genericunownedbyte loweringrestored conservative prepatch; only genuineownedcapturedordinaryTcl+activeTcl+UTF8 provides incomingformal slots. LegitimateJim/method/lambda remainsconservative execution, narrowclassifierwrapperdeclines unsupportedbindings. Peersa69af/ccd693; genuinemixeddispatchcontrolseparateunrun. V1typoheldbeforeintegration.
-- All23activeGitJSON sourcepin censusused (notsparse); exactapproveddelta sourcepinsandtwo wholeguardsrefreshed. V12PASS13startupinputs/30runners/20wholeguards current09cd; original102/env/order/targets/budgetsandinlining75 inventoryunchanged. Freshhost+startup+strictlaunching againstexactremotesource.
-- ActualJimf7fullauthff87 still31/45+diag5FAIL+newfirstnestedincrFAIL, butpassiveobserverexposesbareRetainedSlotCallable First withtypedsiteEqTRUE/offset/gen/nameTRUE andsourceArcFALSE. ValueEqisnotauthority. NewproductiveCU-owned static receipt transportfixfrozen/peerpending, keepsallSSA/lexical/metadata/alias/residualguards andrejectsforeign equaltext CU. No newgainclaimed.
-- ActualCLEANd622fullruntimejobqualified13c940: BOTHcorrectedpublicationtests/allholdercontrolsPASS; moderateforeach50andoriginal300PASS; nextoriginalunboundedprocstackoverflow/SIGABRT. 2371declared,2079retaineduniqueterminals1992ok87failed, >=292outerterminalsunreported. No completePFclaim; guards128/assertions unchanged, physicalframecause stillunproved. Runtimepreparesnarrowframephase/measurement next.
-- LocalexistingCIELF replay scope580e4: exactdc52source/binary/providerendpoints/actualmappedELFs+owned180/cap20MiB/floor/emptygroups. First3originalA+BcasesPASSincludingF5; noContextcheckfalse. Fourthfailsoriginal6sprecondition W123insteadW002; flipbackunreached. ThisdoesnotcloseVSCode4failures orshipping/hostedgate; UI/precedingformatterlifecycle notcovered.
-- AllsectionF/fullcurrent24,312baselineidentityzeroPF/greenrequiredCI/runtime/SpecTclC1-C2/nativebrowsereditor/generated/packaging/prep-pr/Tclshippingperformance/finaldocscommentsformatremainrequired. Priorclosed16+oldfoldandowner3scopedPASSretained. DedicatediRules timingonlywaived. ExternalBIGIP/perfstillstale>60min,usernotifiedwithouttakeover.
+- The10:45 checkpoint is late; actual write/publication timestamps are retained. Reviewed product fixes pushed to work a575d8478ec1a83f5b2ec58a16dfe3afe210606e and release/lsp-naming5e480342f347fda3aa3cebfc858298232d3b8a97 after depth1 origin/work fetch. No PR, merge, tag or release.
+- Actual strict09cd assessment dc0f9e33 authenticates the exact source and bounded run. Two E0277 errors occurred only in new native lifecycle fixtures passing borrowed byte arrays. The supported owned byte-array inputs preserve every assertion and are now pushed. Later gates were not reached; fresh strict retry required.
+- The genuine SAME-CU Jim static-read owner fix and complete tracked-source pin companions are now integrated on both product branches. No semantic equality, Native permission or opaque-call navigation relaxation. Prior actual Jim31/45 remains the last result; fresh51 validation pending.
+- Procedure recursion phase split is independently source-reviewed, with one explicit Box allocation per prepared call. Original128 guards and activation/admission rules remain unchanged. Separate same-ELF proc test measurement after original131 has mocked guard coverage and independent review. Integration and actual Rust/stack outcomes remain pending.
+- Existing09cd five-host wave remains active with typed source-body region ownership and direct diagnostic Indexed readiness. Actual new host/source controls are not yet admitted. Full source/ELF/process authentication will precede any result claim.
+- Scoped prior actual gains remain: closed16 and original expression-fold test pass; allocation-owner3 pass; corrected publication2 and holder controls pass; foreach50 and300 pass. Original Logical/compiler, runtime, host and WASM failures remain recorded.
+- All sectionF, complete current24312 baseline identities with zero pass-to-fail, required green CI, SpecTcl acceptance, native/browser/editor checks, generated files, packaging/prep-pr, final documentation/comments/formatting and shipping Tcl performance remain required. Dedicated iRules timing only is waived. External BIGIP/perf trackers remain over60minutes stale; user notified and no takeover.

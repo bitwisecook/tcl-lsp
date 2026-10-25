@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T10:24:09.726556+00:00
+Last updated: 2026-10-25T10:57:24.340092+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -795,3 +795,47 @@ entry ownership, rawsiteIDs alone insufficient. Complete callback-capable rawAPI
 must includeGetString→update_string_proc andSetObjResult oldresultdrop, notonlyrelease
 helpers; suspend beforegetters/drops/dispatch, restoreonlyexactinvocation/Weak/currency,
 consumeonetokenbeforecallbacks. No implementation/admission/depthcauseclearance.
+
+
+## Current unbounded procedure stack proposal and next measurement
+
+Actual CLEAN d622 runtime job121134041667/run40181716139 now confirms both
+C86-backed publication callback fixtures PASS and original foreach300/moderate50
+PASS. Full runtime suite remains incomplete: unchanged
+`interp::tests::unbounded_proc_recursion_errors_instead_of_crashing` stack-overflows
+and SIGABRTs. Both existing128 guards remain; current capped CFI does not prove
+physical frame cause. No Native/provider/activation/limit shortcut is authorized.
+
+Frozen paired OFF-TREE `vm-proc-call-phase-split-v1/manifest.json`
+5e7b09e431011f3fa149b6505ae41ab713f57aab731b4ed8925411adc3560b45 prepares
+before recursive body entry using #[inline(never)], retains original owners in one
+owned Rust Box, then splits actual selected body and completion. One Box allocation
+per prepared call is an explicit new cost. Reverse-acquisition field order preserves
+info/import/frame/method/admission/artifact/meta retirement; original preparation,
+shared Native activation, body decline frame, cleanup/return/error assertions and
+both128 guards unchanged. Exact current paired source/full F-R-F0 and entire file
+derivation inverse validated. Codegen independent deep STATIC CLEAR b030239a95eea5d69c08ca80d4e219a7eb12f2a8e74a1fcc1dfadc1e3dde4701.
+Actual Rust typing, Clippy, measured frames and recursive success remain UNRUN.
+
+WORK-only sourcepin companion `vm-proc-call-phase-split-v1/metadata/manifest.json`
+818fe3e3da87a5d499b9fb11ddbd84ef5f69c4f4ce0229ad69d83633282059c3 changes
+sole wasm roster interp pin plus derived driver wholehash;23 tracked JSON census,
+whole byte inverse/F-R-F0/AST. Independent Codegen peer7af69325b04b205a4197655a21b0a6b4c537c92b66849b660901631577795710 STATIC CLEAR.
+
+WORK-only bounded measurement `vm-proc-stack-measurement-v1/manifest.json`
+72d6e040f3a17457e84ebacf8f7d8365f3dfcc3db92e670f46975dbf82aad74d adds
+actual proc/preparation/body/completion/dispatch CFI watches within original caps,
+and separately labelled unchanged original proc_stack1 AFTER old131 execution
+closes. Old128 loop byte-exact; old rosters/groups/counts unchanged. Same fresh ELF,
+owner, environment,180s deadline,205s reserve,2GiB floor, suite/absolute deadline and
+remaining20MiB cap; no new build, budget reset or stack increase. Fourteen focused
+mocked guard branches/full F-R-F0 PASS receipt2c278f80134a5346d0a306c335bb7a9dfda0704d34c3e7ee2a30cd71f9bbdca3.
+Actual new measurement UNRUN until root canonical integration/dispatch. Earlier118e
+watch-name manifest superseded; Codegen final exact watch correction review pending.
+
+Independent cfgtest SourceImage byte-array conversion peer STATIC CLEAR
+`vm-peer-native-custody-fixture-bytes-v1/receipt.json`
+bb255ce9e14c121aff6dcd389455a1a3a8cf475a7981dbe7b67d50051eb5256d:
+exact two byte-array dereferences/whole source inverse, paired F-R-F0/fmt, sole roles
+pin and derived readonly13 hash; no production/assertion/header/prefix change.
+Actual post-fix Rust/Clippy remains UNRUN at peer time.

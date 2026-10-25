@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T10:58:37.687291+00:00",
+  "scheduled_report_utc": "2026-10-25T10:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T11:15:00+00:00",
+  "change_since_previous_report": [
+    "The10:45 checkpoint is late; actual write/publication timestamps are retained. Reviewed product fixes pushed to work a575d8478ec1a83f5b2ec58a16dfe3afe210606e and release/lsp-naming5e480342f347fda3aa3cebfc858298232d3b8a97 after depth1 origin/work fetch. No PR, merge, tag or release.",
+    "Actual strict09cd assessment dc0f9e33 authenticates the exact source and bounded run. Two E0277 errors occurred only in new native lifecycle fixtures passing borrowed byte arrays. The supported owned byte-array inputs preserve every assertion and are now pushed. Later gates were not reached; fresh strict retry required.",
+    "The genuine SAME-CU Jim static-read owner fix and complete tracked-source pin companions are now integrated on both product branches. No semantic equality, Native permission or opaque-call navigation relaxation. Prior actual Jim31/45 remains the last result; fresh51 validation pending.",
+    "Procedure recursion phase split is independently source-reviewed, with one explicit Box allocation per prepared call. Original128 guards and activation/admission rules remain unchanged. Separate same-ELF proc test measurement after original131 has mocked guard coverage and independent review. Integration and actual Rust/stack outcomes remain pending.",
+    "Existing09cd five-host wave remains active with typed source-body region ownership and direct diagnostic Indexed readiness. Actual new host/source controls are not yet admitted. Full source/ELF/process authentication will precede any result claim.",
+    "Scoped prior actual gains remain: closed16 and original expression-fold test pass; allocation-owner3 pass; corrected publication2 and holder controls pass; foreach50 and300 pass. Original Logical/compiler, runtime, host and WASM failures remain recorded.",
+    "All sectionF, complete current24312 baseline identities with zero pass-to-fail, required green CI, SpecTcl acceptance, native/browser/editor checks, generated files, packaging/prep-pr, final documentation/comments/formatting and shipping Tcl performance remain required. Dedicated iRules timing only is waived. External BIGIP/perf trackers remain over60minutes stale; user notified and no takeover."
+  ],
+  "committed": [
+    "8f9609c7d8ce1f092278b9232e5e3325a5fba67c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish overdue10:45 snapshot and arm11:15 reminder.",
+    "Run fresh strict and original Jim51 against pushed source; authenticate existing host outcomes.",
+    "Integrate reviewed procedure phase split and measurement, then run original recursion and runtime controls.",
+    "Resolve remaining Logical/compiler failures and complete all release gates before opening the authorized PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new global gate or audit admission. Reviewed source fixes and unrun controls are explicit; scoped actual results retain their original source and receipts.",
+  "disk_free_bytes": 3427307520,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
