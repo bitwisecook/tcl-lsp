@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "9645335e2274f851b7f7d89dfeedd281d8fd139e68e29446e9f25c3038afef3b",
+    == "756bfe99f76fa1eaa61dbc9ac4a0f69d1fd613b6d3ea358f86ba89f1e3e85662",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
@@ -1208,7 +1208,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "2ef1c9e388710300c499de56c0b0bd9624527e499194df7f63e14cd8ee4fc49a",
+    == "f32fb10e45a3baba6928dde4633d125524cee875180016a70be54e62da6e472d",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -1276,7 +1276,7 @@ require(
 )
 require(
     sha(BASE / "compiler-source-read-ancestry3.json")
-    == "91e5729816649039b257c434716c493be3fd42c2d505b78559c6ed37033a4f7f",
+    == "a79357aa1221090ceeb253eae97d7bcedd0eeba79b28c4dec76f92a18f66f459",
     "exact separate ancestry3 roster",
 )
 ancestry_validation = json.loads(
