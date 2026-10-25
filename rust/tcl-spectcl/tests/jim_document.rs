@@ -593,6 +593,7 @@ fn authored_jim_bases_join_the_source_provider_at_the_original_parent() {
                 .base_fields()
                 .unwrap()
                 .iter()
+                .copied()
                 .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
                 .collect::<Vec<_>>(),
             ["Point"]
