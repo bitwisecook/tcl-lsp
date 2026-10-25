@@ -3900,3 +3900,19 @@ physical activation, storage, values and completion remain unknown. Other
 unknown/foreign/up-frame uses retain their old diagnostics. Nested named reads
 and expression reads need their own stronger occurrence owner and do not fall
 back to body containment. Parsing/allocation costs remain unmeasured.
+
+### Conditional source worlds for editor collisions
+
+A source continuation may supply a completed modeled collision world only from
+its genuine whole-input ordered Normal outcome and the same retained prefix
+analysis owner, complete input/configuration, restored source origin and frame.
+The existing unknown-entry, unavailable, source-step and observed-execution
+refusals remain. A graph, source publication, compiler visit or region inventory
+alone cannot supply that world.
+
+The Server retains every physical prefix, child and region dependency used by
+the outcome and rechecks their current publications before and after prepare or
+rename planning. Ordinary Core callers retain their existing path. The optional
+conditional-world route does not replace declaration identity, current source
+geometry, complete reference coverage or static edit-container guards; it grants
+no Native entry, runtime execution or new procedure-body completion.
