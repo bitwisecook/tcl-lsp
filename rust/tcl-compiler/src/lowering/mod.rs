@@ -7107,7 +7107,7 @@ pub fn lower_script_bytes_module_for_bytecode_with_options(
             source: target.source,
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::Script,
-            parameters: &[],
+            ordinary_parameters: None,
         },
         registry,
         config,
@@ -7135,7 +7135,44 @@ pub fn lower_procedure_bytes_module_for_bytecode_with_options(
             source: target.source,
             namespace: target.namespace,
             kind: crate::ir::TopLevelKind::ProcedureBody,
-            parameters: target.parameters,
+            ordinary_parameters: None,
+        },
+        registry,
+        config,
+        dialect,
+        plain_command_dispatch,
+        options,
+    )
+}
+
+/// Lower the immutable body request with its independently captured binding plan.
+/// Unsupported formal bindings keep the legacy conservative variable treatment.
+///
+/// # Errors
+/// Returns the original lexical operand capability failure.
+pub fn lower_original_procedure_bytes_module_for_bytecode_with_options(
+    request: &tcl_runtime_api::OriginalProcedureCompileRequest,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    plain_command_dispatch: bool,
+    mut options: Option<SourceAnalysisOptions<'_>>,
+) -> Result<Module, tcl_lexer::word_parts::NativeWordError> {
+    let ordinary_parameters = options
+        .as_ref()
+        .and_then(|options| options.native_entry)
+        .filter(|entry| request.matches_entry(entry))
+        .and_then(|_| request.ordinary_formals());
+    if let Some(options) = &mut options {
+        options.incoming_formals = &[];
+    }
+    let target = request.target();
+    lower_native_target(
+        NativeLoweringTarget {
+            source: target.source,
+            namespace: target.namespace,
+            kind: crate::ir::TopLevelKind::ProcedureBody,
+            ordinary_parameters,
         },
         registry,
         config,
@@ -7150,7 +7187,7 @@ struct NativeLoweringTarget<'a> {
     source: &'a tcl_lexer::SourceImage,
     namespace: &'a tcl_core_types::ByteNamespacePath,
     kind: crate::ir::TopLevelKind,
-    parameters: &'a [tcl_core_types::NameBytes],
+    ordinary_parameters: Option<&'a [tcl_core_types::NameBytes]>,
 }
 
 fn lower_native_target(
@@ -7165,7 +7202,7 @@ fn lower_native_target(
         source,
         namespace,
         kind,
-        parameters,
+        ordinary_parameters,
     } = target;
     let mut lowerer = Lowerer::with_config(registry, config)
         .with_dialect(dialect)
@@ -7181,6 +7218,7 @@ fn lower_native_target(
             .invocation_dialect
             .and_then(tcl_registry::InvocationDialect::parameter_grammar)
             == Some(tcl_dialect::ParameterGrammar::Tcl)
+        && let Some(parameters) = ordinary_parameters
         && let Ok(names) = parameters
             .iter()
             .map(|name| name.try_utf8().map(str::to_owned))
