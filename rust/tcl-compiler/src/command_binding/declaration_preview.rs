@@ -285,6 +285,7 @@ pub(crate) struct OriginalProcedureStaticReadAlternatives {
     input: crate::analyser::ResolvedAnalysisInput,
     declaration: OriginalProcedureReadFlowEntry,
     names: std::collections::BTreeSet<String>,
+    original_body_plan: std::sync::OnceLock<Option<tcl_lexer::NativeScriptWordsPlan>>,
 }
 
 macro_rules! static_read_guard {
@@ -528,7 +529,26 @@ impl OriginalProcedureStaticReadAlternatives {
                 config
             )
         );
-        self.direct_source_read_geometry(&original, name, span, image, config)
+        self.direct_source_read_geometry(&original, name, span)
+    }
+
+    /// One immutable lexical plan for this exact declaration/input owner.
+    /// The cached syntax grants no lookup, frame, effect or successful read.
+    fn original_body_plan(&self) -> Option<&tcl_lexer::NativeScriptWordsPlan> {
+        self.original_body_plan
+            .get_or_init(|| {
+                let image = self.declaration.read.original_image();
+                tcl_lexer::native_script_words_in(
+                    image.clone(),
+                    static_read_guard!(
+                        "original_body_span",
+                        self.declaration.read.original_body_span()
+                    ),
+                    self.input.lexer_config(),
+                )
+                .ok()
+            })
+            .as_ref()
     }
 
     fn direct_source_read_geometry(
@@ -536,21 +556,8 @@ impl OriginalProcedureStaticReadAlternatives {
         original: &[tcl_lexer::NativeWord],
         name: &str,
         span: tcl_lexer::Span,
-        image: &tcl_lexer::SourceImage,
-        config: tcl_lexer::LexerConfig,
     ) -> Option<()> {
-        let plan = static_read_guard!(
-            "body_parse",
-            tcl_lexer::native_script_words_in(
-                image.clone(),
-                static_read_guard!(
-                    "original_body_span",
-                    self.declaration.read.original_body_span()
-                ),
-                config,
-            )
-            .ok()
-        );
+        let plan = static_read_guard!("body_parse", self.original_body_plan());
         if plan.fatal_tail.is_some() {
             return trace_static_read_refusal("fatal_body_tail", None);
         }
@@ -2185,6 +2192,7 @@ impl SourceCommandBindings {
             input: input.clone(),
             declaration: facet.declaration,
             names,
+            original_body_plan: std::sync::OnceLock::new(),
         })
     }
 
