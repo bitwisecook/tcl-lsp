@@ -142,6 +142,11 @@ fn original_namespace_qualifiers_emits_the_observed_counted_compiler_loop() {
         assert_eq!(operations[search + 3], Op::OVER, "{engine}");
         assert_eq!(operations[search + 4], Op::OVER, "{engine}");
         assert_eq!(operations[search + 5], Op::STR_INDEX, "{engine}");
+        assert_eq!(
+            context.instructions[search + 5].native_string_index_purpose,
+            Some(tcl_bytecode::NativeStringIndexPurpose::ReachedNamespaceUnicode),
+            "{engine}"
+        );
         assert_eq!(operations[search + 7], Op::STR_EQ, "{engine}");
         assert!(matches!(
             operations[search + 8],
@@ -155,5 +160,31 @@ fn original_namespace_qualifiers_emits_the_observed_counted_compiler_loop() {
                 "{engine}"
             );
         }
+    }
+    // The registered String index compiler owns a different original recipe,
+    // including the public C8.4/8.5 hooks without pre-reached Unicode.
+    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let entry: crate::environment_ingress::CapturedNativeEntry =
+            crate::environment_ingress::captured_native_entry(profile);
+        let context = emit_source(&registry, &entry, b"string index $value 1");
+        assert!(!context.native_dependency_refusal, "{engine}");
+        let mut indices = context
+            .instructions
+            .iter()
+            .filter(|item| item.op == Op::STR_INDEX);
+        let instruction = indices.next().expect("registered index instruction");
+        assert!(indices.next().is_none(), "{engine}");
+        assert_eq!(
+            instruction.native_switch_version,
+            Some(entry.execution_point.unwrap().tcl_version().unwrap()),
+            "{engine}"
+        );
+        assert_eq!(
+            instruction.native_string_index_purpose,
+            Some(tcl_bytecode::NativeStringIndexPurpose::RegisteredInstruction),
+            "{engine}"
+        );
     }
 }

@@ -162,6 +162,10 @@ enum NativeEmissionTask {
         usize,
     ),
     ErrorReturn,
+    NativeStringIndex(
+        tcl_dialect::TclVersion,
+        tcl_bytecode::NativeStringIndexPurpose,
+    ),
     SwitchOperation(Op, Vec<Operand>, tcl_dialect::TclVersion),
     SwitchTable(
         tcl_dialect::TclVersion,
@@ -1940,7 +1944,9 @@ impl CodegenCtx<'_> {
                 | Task::NamespaceGenericRollback(..)) => {
                     self.emit_native_binding_task(selected, &mut pending);
                 }
-                selected @ (Task::SwitchOperation(..) | Task::SwitchTable(..)) => {
+                selected @ (Task::NativeStringIndex(..)
+                | Task::SwitchOperation(..)
+                | Task::SwitchTable(..)) => {
                     self.emit_native_switch_task(selected);
                 }
                 selected @ (Task::ExpressionSyntax(..) | Task::Syntax(..)) => {
@@ -2254,6 +2260,11 @@ impl CodegenCtx<'_> {
     fn emit_native_switch_task(&mut self, task: NativeEmissionTask) {
         use NativeEmissionTask as Task;
         match task {
+            Task::NativeStringIndex(version, purpose) => {
+                let index = self.emit(Op::STR_INDEX, Vec::new());
+                self.instructions[index].native_switch_version = Some(version);
+                self.instructions[index].native_string_index_purpose = Some(purpose);
+            }
             Task::SwitchOperation(op, operands, version) => {
                 let index = self.emit(op, operands);
                 self.instructions[index].native_switch_version = Some(version);

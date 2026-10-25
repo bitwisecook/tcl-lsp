@@ -38,7 +38,10 @@ impl CodegenCtx<'_> {
                     Task::Operation(Op::SUB, vec![]),
                     Task::Operation(Op::OVER, vec![Operand::Imm(2)]),
                     Task::Operation(Op::OVER, vec![Operand::Imm(1)]),
-                    Task::SwitchOperation(Op::STR_INDEX, vec![], version),
+                    Task::NativeStringIndex(
+                        version,
+                        tcl_bytecode::NativeStringIndexPurpose::ReachedNamespaceUnicode,
+                    ),
                     Task::Literal(b":".to_vec()),
                     Task::SwitchOperation(Op::STR_EQ, vec![], version),
                     Task::Operation(Op::JUMP_TRUE4, vec![Operand::Label(previous_colon)]),
