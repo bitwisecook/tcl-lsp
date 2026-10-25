@@ -36,7 +36,7 @@
     "rust/tcl-compiler/src/registry_invocation.rs": "1c7761bb781239c878e8084b1c35aeacb889373a722bbfbd143e1b0ab76f7261",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
     "rust/tcl-compiler/src/value_transfer.rs": "e17db506591ed8c21a7ddee88819876f4fa614d47e60acb7f0842c81c76c0be6",
-    "rust/tcl-registry/src/model/context.rs": "20a007d711350118ba0873d5aa050093bcdd8e7aa67651e6f20dbe2aa87c7a31",
+    "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",
     "rust/tcl-registry/src/registry.rs": "faf1dff8ebc7a7911a99079229b0044373b6658f94a7e940faab9e41e54f4b76",
     "rust/tcl-spectcl/tests/fixtures/hostile.tclspec": "a676875ad9cd972e6afea2ab9331d85c8759a640e695fcde22a71fe5ec5a3b3d",
     "rust/tcl-spectcl/tests/native_normal_store.rs": "2fa0e2318392a2f286d0ecdc7e6b6b2899a2907fd1affa7292b5ae8791de145b",
