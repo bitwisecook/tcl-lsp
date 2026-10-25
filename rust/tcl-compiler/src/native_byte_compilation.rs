@@ -111,6 +111,10 @@ pub(crate) enum NativeByteCommandUnavailable {
 impl NativeByteCommandUnavailable {
     /// Observe only this already-returned refusal under the existing diagnostic flag.
     pub(crate) fn trace_factory_refusal(&self) {
+        self.trace_factory_refusal_stage(None);
+    }
+
+    fn trace_factory_refusal_stage(&self, detail: Option<&'static str>) {
         static ROWS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
         {
@@ -126,7 +130,7 @@ impl NativeByteCommandUnavailable {
         {
             return;
         }
-        let stage = match self {
+        let stage = detail.unwrap_or_else(|| match self {
             Self::Entry => "entry",
             Self::Words(NativeCompilerWordsUnavailable::MissingHead) => "words.missing_head",
             Self::Words(NativeCompilerWordsUnavailable::SourceOwnership) => "words.source_owner",
@@ -136,9 +140,17 @@ impl NativeByteCommandUnavailable {
             Self::Registration => "registration",
             Self::Dependencies => "dependencies",
             Self::Recipe => "recipe",
-        };
+        });
         eprintln!("CCG_NATIVE_BYTE_FACTORY_REFUSAL stage={stage}");
     }
+}
+
+// Return the identical original error only after its existing predicate failed.
+// Detail and outer refusal share one diagnostic quota; no entry is inspected here.
+fn observed_entry_refusal(stage: &'static str) -> NativeByteCommandUnavailable {
+    let refusal = NativeByteCommandUnavailable::Entry;
+    refusal.trace_factory_refusal_stage(Some(stage));
+    refusal
 }
 
 /// Resolve one original compiler head and select its authenticated recipe.
@@ -160,7 +172,7 @@ pub(crate) fn native_byte_command_plan(
     let dialect = compiler_dialect(entry)?;
     let protocol = entry
         .source_string_protocol
-        .ok_or(NativeByteCommandUnavailable::Entry)?;
+        .ok_or_else(|| observed_entry_refusal("entry.source_string_protocol"))?;
     let captured = NativeCompilerWords::capture(words, protocol)
         .map_err(NativeByteCommandUnavailable::Words)?;
     let head = captured.shapes()[0];
@@ -357,16 +369,16 @@ fn compiler_dialect(
 ) -> Result<InvocationDialect, NativeByteCommandUnavailable> {
     let point = entry
         .execution_point
-        .ok_or(NativeByteCommandUnavailable::Entry)?;
+        .ok_or_else(|| observed_entry_refusal("entry.execution_point"))?;
     let policy = entry
         .command_name_policy()
-        .ok_or(NativeByteCommandUnavailable::Entry)?;
+        .ok_or_else(|| observed_entry_refusal("entry.command_name_policy"))?;
     if tcl_syntax::naming::NamePolicyProtocol::for_native_point(point) != Some(policy) {
-        return Err(NativeByteCommandUnavailable::Entry);
+        return Err(observed_entry_refusal("entry.name_policy_point"));
     }
     point
         .tcl_version()
-        .ok_or(NativeByteCommandUnavailable::Entry)?;
+        .ok_or_else(|| observed_entry_refusal("entry.tcl_version"))?;
     Ok(InvocationDialect::of_point(point))
 }
 
