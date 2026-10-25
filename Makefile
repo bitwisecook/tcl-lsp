@@ -1475,9 +1475,9 @@ _check-rust-pr:
 	echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
 	cd $(ROOT); \
 	cargo fmt --all --check; \
-	cargo clippy --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	cargo clippy --keep-going --workspace --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	echo "==> Checking tcl-bigip-query's offline x509 feature set (clippy + test)"; \
-	cargo clippy -p tcl-bigip-query --no-default-features --features x509 --all-targets -- $(CLIPPY_LINT_FLAGS); \
+	cargo clippy --keep-going -p tcl-bigip-query --no-default-features --features x509 --all-targets -- $(CLIPPY_LINT_FLAGS); \
 	cargo test -p tcl-bigip-query --no-default-features --features x509 --test x509_only; \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking runtime/rust (fmt + clippy)"; \
@@ -2898,7 +2898,7 @@ runtime-rust-test-no-tommath-capability: ## Test original scalar caches and miss
 	cargo test --locked --lib typed_value::native_number_tests::missing_bignum_backend_refuses_before_lossy_numeric_mutation -- --exact
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --features engine -- $(CLIPPY_LINT_FLAGS)
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --keep-going --locked --all-targets --features engine -- $(CLIPPY_LINT_FLAGS)
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test
