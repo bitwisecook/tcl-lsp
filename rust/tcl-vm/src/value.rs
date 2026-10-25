@@ -191,8 +191,11 @@ impl Drop for RetiringNativeReference<'_> {
 }
 
 #[cfg(test)]
+type NativeRetirementObserver = Box<dyn FnOnce(&Value)>;
+
+#[cfg(test)]
 thread_local! {
-    static NATIVE_RETIREMENT_OBSERVERS: RefCell<HashMap<usize, Box<dyn FnOnce(&Value)>>> = RefCell::new(HashMap::new());
+    static NATIVE_RETIREMENT_OBSERVERS: RefCell<HashMap<usize, NativeRetirementObserver>> = RefCell::new(HashMap::new());
 }
 
 #[cfg(test)]

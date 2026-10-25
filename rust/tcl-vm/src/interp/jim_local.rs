@@ -725,12 +725,14 @@ mod tests {
                 .push((self.label, outside_borrow));
         }
     }
-    fn selected_local() -> (
+    type SelectedLocalControls = (
         super::Vm,
         super::CommandSlot,
         u64,
         std::rc::Rc<std::cell::RefCell<Vec<(u8, bool)>>>,
-    ) {
+    );
+
+    fn selected_local() -> SelectedLocalControls {
         let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
         let mut vm = super::Vm::new();
         assert!(vm.set_native_engine_profile(profile));

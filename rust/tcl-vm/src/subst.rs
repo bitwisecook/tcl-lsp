@@ -681,6 +681,15 @@ fn materialise_word_component(vm: &mut Vm, value: &Value) -> Result<std::rc::Rc<
 
 #[cfg(test)]
 mod tests {
+    fn lower_hex(bytes: &[u8]) -> String {
+        use std::fmt::Write;
+        let mut text = String::new();
+        for byte in bytes {
+            write!(&mut text, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        text
+    }
+
     use super::{
         SubstState, SubstStep, SubstitutionControl, command_end, parse_var_ref_parts,
         subst_scan_step, whole_braced,
@@ -785,10 +794,7 @@ mod tests {
                         "{context} x after storage"
                     );
                     let bytes = vm.native_name_operand_bytes(&result).unwrap();
-                    let hex = bytes
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>();
+                    let hex = lower_hex(&bytes);
                     assert_eq!(hex, expected[18], "{context} value");
                 }
             }

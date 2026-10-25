@@ -159,7 +159,7 @@ fn increment_fixture_host(engine: &str) -> Option<Rc<tcl_host_native::NativeHost
 }
 
 fn selected_increment_host(
-    host: &Option<Rc<tcl_host_native::NativeHost>>,
+    host: Option<&Rc<tcl_host_native::NativeHost>>,
 ) -> Rc<dyn tcl_platform::Host> {
     match host {
         Some(host) => host.clone(),
@@ -186,7 +186,7 @@ fn native_increment_commands_match_180_original_object_controls() {
             // The native probe constructs a fresh interpreter for each row.
             // In particular, a previous Jim error must not suppress this
             // invocation's first error-stack capture.
-            let selected_host = selected_increment_host(&host);
+            let selected_host = selected_increment_host(host.as_ref());
             let mut vm = crate::native_fixture::core_with_host(profile, selected_host);
             let dialect = vm.native_invocation_dialect();
             let fields = row.split('\t').collect::<Vec<_>>();

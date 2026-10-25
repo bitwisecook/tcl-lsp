@@ -277,25 +277,26 @@ fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
     }
     assert_eq!(count, 260);
 }
+const BOOLEAN_NATIVE_FIXTURES: [&str; 6] = [
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.4.txt"),
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.5.txt"),
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.6.txt"),
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-9.0.txt"),
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-9.1.txt"),
+    include_str!("../../tcl-syntax/tests/data/native_scalar_getters/jim-boolean-native.txt"),
+];
+const BOOLEAN_NATIVE_INPUTS: [&[u8]; 7] = [
+    b"1\0X",
+    b"true\0X",
+    b"false\0X",
+    b"true",
+    b"false",
+    b"2",
+    b"1.5",
+];
+
 #[test]
 fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
-    const FIXTURES: [&str; 6] = [
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.4.txt"),
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.5.txt"),
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-8.6.txt"),
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-9.0.txt"),
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/boolean-9.1.txt"),
-        include_str!("../../tcl-syntax/tests/data/native_scalar_getters/jim-boolean-native.txt"),
-    ];
-    let inputs: [&[u8]; 7] = [
-        b"1\0X",
-        b"true\0X",
-        b"false\0X",
-        b"true",
-        b"false",
-        b"2",
-        b"1.5",
-    ];
     let native = crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile(),
     );
@@ -304,7 +305,7 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
         .numeric_environment()
         .expect("the actual native host numeric environment");
     let mut count = 0;
-    for (index, fixture) in FIXTURES.iter().enumerate() {
+    for (index, fixture) in BOOLEAN_NATIVE_FIXTURES.iter().enumerate() {
         let dialect = VERSIONS.get(index).map_or_else(
             || {
                 tcl_registry::InvocationDialect::of_profile(
@@ -328,7 +329,7 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
                 .expect("actual Jim fixture retains its numeric host")
         });
         for line in fixture.lines() {
-            let input = inputs[field(line, "case").parse::<usize>().unwrap()];
+            let input = BOOLEAN_NATIVE_INPUTS[field(line, "case").parse::<usize>().unwrap()];
             // The C fixture has both storage kinds; Jim's seven rows
             // are raw strings and its schema intentionally has no kind.
             let object = if index < VERSIONS.len() && field(line, "kind") == "bytearray" {

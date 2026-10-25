@@ -10,13 +10,32 @@ struct DirectBinaryRow {
     omit: bool,
     shared: bool,
     in_place: bool,
-    resident_subject: bool,
-    resident_replacement: bool,
-    alias_subject: bool,
-    alias_replacement: bool,
     output: Option<&'static str>,
     subject_output: &'static str,
+    flags: DirectBinaryFlags,
 }
+struct DirectBinaryFlags {
+    resident_subject: bool,
+    resident_replacement: bool,
+    aliases: DirectBinaryAliases,
+}
+struct DirectBinaryAliases {
+    alias_subject: bool,
+    alias_replacement: bool,
+}
+impl core::ops::Deref for DirectBinaryRow {
+    type Target = DirectBinaryFlags;
+    fn deref(&self) -> &Self::Target {
+        &self.flags
+    }
+}
+impl core::ops::Deref for DirectBinaryFlags {
+    type Target = DirectBinaryAliases;
+    fn deref(&self) -> &Self::Target {
+        &self.aliases
+    }
+}
+
 const DIRECT_ROWS: &[DirectBinaryRow] = &[
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -27,12 +46,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -43,12 +66,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: true,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -59,12 +86,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: true,
         output: Some("51c3be"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: true,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -75,12 +106,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: true,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: None,
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -91,12 +126,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: true,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some(""),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -107,12 +146,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: false,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -123,12 +166,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: true,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: true,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.0",
@@ -139,12 +186,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: true,
-        resident_replacement: false,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: true,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -155,12 +206,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -171,12 +226,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: true,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -187,12 +246,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: true,
         output: Some("51c3be"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: true,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -203,12 +266,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: true,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: None,
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -219,12 +286,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: true,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some(""),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -235,12 +306,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: false,
-        resident_subject: false,
-        resident_replacement: false,
-        alias_subject: false,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "41c080c3bf5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: false,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -251,12 +326,16 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: false,
-        resident_replacement: true,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: false,
+            resident_replacement: true,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
     DirectBinaryRow {
         dialect: "tcl9.1",
@@ -267,11 +346,15 @@ const DIRECT_ROWS: &[DirectBinaryRow] = &[
         omit: false,
         shared: false,
         in_place: true,
-        resident_subject: true,
-        resident_replacement: false,
-        alias_subject: true,
-        alias_replacement: false,
         output: Some("4151c3be5a"),
         subject_output: "4151c3be5a",
+        flags: DirectBinaryFlags {
+            resident_subject: true,
+            resident_replacement: false,
+            aliases: DirectBinaryAliases {
+                alias_subject: true,
+                alias_replacement: false,
+            },
+        },
     },
 ];

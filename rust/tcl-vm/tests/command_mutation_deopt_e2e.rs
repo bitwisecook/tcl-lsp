@@ -54,7 +54,6 @@ struct InliningCompilerSvc(BytecodeCompileService);
 
 impl InliningCompilerSvc {
     fn compile_script_with_ir(
-        &self,
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<(tcl_bytecode::ModuleAsm, tcl_compiler::ir::Module), CompileError> {
@@ -828,8 +827,7 @@ impl CompileService for InliningCompilerSvc {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        self.compile_script_with_ir(target, profile)
-            .map(|(module, _)| module)
+        Self::compile_script_with_ir(target, profile).map(|(module, _)| module)
     }
 
     fn compile_traced_for_profile(
@@ -1095,17 +1093,16 @@ fn assert_mid_run_switch_refused(result: Result<Completion<Value>, tcl_vm::TclEr
 fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let source = "proc target {} {return OLD}; proc caller {} {target}";
-    let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let (module, ir) = service
-        .compile_script_with_ir(
-            ScriptCompileTarget {
-                source,
-                namespace: "",
-                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-            },
-            profile,
-        )
-        .expect("explicit inline pipeline compiles");
+    let _compiler_owner = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
+    let (module, ir) = InliningCompilerSvc::compile_script_with_ir(
+        ScriptCompileTarget {
+            source,
+            namespace: "",
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+        },
+        profile,
+    )
+    .expect("explicit inline pipeline compiles");
     assert_eq!(
         compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller")
             .procedure_bindings,
@@ -1161,17 +1158,16 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
         "proc target {} {return GLOBAL}\n",
         "proc ::N::caller {} {target}",
     );
-    let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let (module, ir) = service
-        .compile_script_with_ir(
-            ScriptCompileTarget {
-                source,
-                namespace: "",
-                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-            },
-            profile,
-        )
-        .expect("explicit inline pipeline compiles");
+    let _compiler_owner = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
+    let (module, ir) = InliningCompilerSvc::compile_script_with_ir(
+        ScriptCompileTarget {
+            source,
+            namespace: "",
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+        },
+        profile,
+    )
+    .expect("explicit inline pipeline compiles");
     assert_eq!(
         compiled_body_at_declaration(
             &ir,
@@ -1233,17 +1229,16 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
         "proc ::n::callee {} {expr {40 + 2}}\n",
         "proc caller {} {::n::callee}\n",
     );
-    let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let (module, ir) = service
-        .compile_script_with_ir(
-            ScriptCompileTarget {
-                source,
-                namespace: "",
-                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-            },
-            profile,
-        )
-        .expect("explicit inline pipeline compiles");
+    let _compiler_owner = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
+    let (module, ir) = InliningCompilerSvc::compile_script_with_ir(
+        ScriptCompileTarget {
+            source,
+            namespace: "",
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+        },
+        profile,
+    )
+    .expect("explicit inline pipeline compiles");
     let caller =
         compiled_body_at_declaration(&ir, &module, ir.top_level.statements.len() - 1, "::caller");
     assert!(
@@ -1297,41 +1292,42 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
     }
 }
 
+const INLINED_NAMESPACED_BOUNDARY_SOURCE: &str = concat!(
+    "namespace eval ::n {}\nnamespace eval ::m {}\nnamespace eval ::e {}\n",
+    "proc mutate_n {name1 name2 op} {",
+    "proc ::n::expr args {return N_OVERRIDE}}\n",
+    "proc mutate_m {name1 name2 op} {",
+    "proc ::m::expr args {return M_OVERRIDE}}\n",
+    "proc mutate_e {name1 name2 op} {",
+    "proc ::e::expr args {error E_FAILURE}}\n",
+    "set ::trigger_n {}; trace add variable ::trigger_n read mutate_n\n",
+    "set ::trigger_m {}; trace add variable ::trigger_m read mutate_m\n",
+    "set ::trigger_e {}; trace add variable ::trigger_e read mutate_e\n",
+    "proc ::n::callee {} {",
+    "::llength $::trigger_n; ::puts -nonewline {}; expr {40 + 2}}\n",
+    "proc ::m::callee {} {",
+    "::llength $::trigger_m; ::puts -nonewline {}; expr {40 + 2}}\n",
+    "proc ::e::callee {} {",
+    "::llength $::trigger_e; ::puts -nonewline {}; expr {40 + 2}}\n",
+    "proc caller_n {} {::n::callee}\n",
+    "proc caller_m {} {::m::callee}\n",
+    "proc caller_e {} {::e::callee}\n",
+);
+
 #[test]
 fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-    let source = concat!(
-        "namespace eval ::n {}\nnamespace eval ::m {}\nnamespace eval ::e {}\n",
-        "proc mutate_n {name1 name2 op} {",
-        "proc ::n::expr args {return N_OVERRIDE}}\n",
-        "proc mutate_m {name1 name2 op} {",
-        "proc ::m::expr args {return M_OVERRIDE}}\n",
-        "proc mutate_e {name1 name2 op} {",
-        "proc ::e::expr args {error E_FAILURE}}\n",
-        "set ::trigger_n {}; trace add variable ::trigger_n read mutate_n\n",
-        "set ::trigger_m {}; trace add variable ::trigger_m read mutate_m\n",
-        "set ::trigger_e {}; trace add variable ::trigger_e read mutate_e\n",
-        "proc ::n::callee {} {",
-        "::llength $::trigger_n; ::puts -nonewline {}; expr {40 + 2}}\n",
-        "proc ::m::callee {} {",
-        "::llength $::trigger_m; ::puts -nonewline {}; expr {40 + 2}}\n",
-        "proc ::e::callee {} {",
-        "::llength $::trigger_e; ::puts -nonewline {}; expr {40 + 2}}\n",
-        "proc caller_n {} {::n::callee}\n",
-        "proc caller_m {} {::m::callee}\n",
-        "proc caller_e {} {::e::callee}\n",
-    );
-    let service = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
-    let (module, ir) = service
-        .compile_script_with_ir(
-            ScriptCompileTarget {
-                source,
-                namespace: "",
-                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-            },
-            profile,
-        )
-        .expect("explicit inline pipeline compiles");
+    let source = INLINED_NAMESPACED_BOUNDARY_SOURCE;
+    let _compiler_owner = InliningCompilerSvc(BytecodeCompileService::for_profile(profile));
+    let (module, ir) = InliningCompilerSvc::compile_script_with_ir(
+        ScriptCompileTarget {
+            source,
+            namespace: "",
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+        },
+        profile,
+    )
+    .expect("explicit inline pipeline compiles");
     for (index, (caller_name, callee_name, namespace)) in [
         ("::caller_n", "::n::callee", "n"),
         ("::caller_m", "::m::callee", "m"),
