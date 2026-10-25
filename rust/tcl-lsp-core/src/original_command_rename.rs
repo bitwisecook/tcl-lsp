@@ -292,6 +292,13 @@ fn coverage_region(
         .ok_or(OriginalCommandRenameRefusal::StaleSource)
 }
 
+fn reject_selected_command_link_coverage(
+    selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
+    _command_offset: u32,
+) -> Result<(), OriginalCommandRenameRefusal> {
+    reject_link_obligations(selected)
+}
+
 fn quiet_store_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
@@ -358,6 +365,10 @@ fn document_requests(
         } else {
             walk.segment_nested(region, offset)
         } {
+            let command_offset = command
+                .argv
+                .first()
+                .map_or(offset, |word| word.span.start());
             let words = walk
                 .native_words(document.source, &command)
                 .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
