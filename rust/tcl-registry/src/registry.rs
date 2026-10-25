@@ -989,6 +989,9 @@ pub struct RegistrySnapshot(Arc<RegistrySnapshotData>);
 struct RegistrySnapshotData {
     semantic_key: RegistrySemanticKey,
     registry: Arc<CommandRegistry>,
+    /// Pure projection of this immutable store's descriptor labels. The
+    /// existing semantic key, equality and hash remain unchanged.
+    descriptor_coordinates: OnceLock<Arc<BTreeMap<String, String>>>,
 }
 
 /// Immutable structural registry identity without retained reader caches.
@@ -1018,6 +1021,23 @@ struct RegistrySnapshotKey {
 }
 
 impl RegistrySnapshot {
+    /// Collision-checked metadata coordinates from this exact frozen store.
+    /// The table depends only on its descriptor labels and the pure coordinate
+    /// rule; it reads no selection hooks, live registrations or source state.
+    /// Reuse supplies no selected descriptor or Native command binding.
+    #[must_use]
+    pub fn command_descriptor_coordinates(&self) -> Arc<BTreeMap<String, String>> {
+        Arc::clone(self.0.descriptor_coordinates.get_or_init(|| {
+            Arc::new(
+                crate::unique_command_descriptor_coordinates(
+                    self.0.registry.command_descriptor_keys(),
+                )
+                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+                .collect(),
+            )
+        }))
+    }
+
     /// Clone the cache-free identity for keys that do not need a registry reader.
     #[must_use]
     pub fn semantic_key(&self) -> RegistrySemanticKey {
@@ -1982,6 +2002,7 @@ impl CommandRegistry {
                         fingerprint: hasher.finish(),
                     })),
                     registry: Arc::new(registry),
+                    descriptor_coordinates: OnceLock::new(),
                 }))
             })
             .clone()
@@ -19289,6 +19310,101 @@ mod tests {
 #[cfg(test)]
 mod registry_snapshot_tests {
     use super::*;
+
+    #[test]
+    fn descriptor_coordinates_reuse_only_their_actual_snapshot_and_keep_identity() {
+        let mut registry = CommandRegistry::build_default();
+        let snapshot = registry.snapshot();
+        let independent = CommandRegistry::build_default().snapshot();
+        let hash = |value: &RegistrySnapshot| {
+            let mut state = std::collections::hash_map::DefaultHasher::new();
+            value.hash(&mut state);
+            state.finish()
+        };
+        let before_hash = hash(&snapshot);
+        let before_key = snapshot.semantic_key();
+        assert!(snapshot.0.descriptor_coordinates.get().is_none());
+        let coordinates = snapshot.command_descriptor_coordinates();
+        let expected =
+            crate::unique_command_descriptor_coordinates(registry.command_descriptor_keys())
+                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+                .collect::<BTreeMap<_, _>>();
+        assert_eq!(coordinates.as_ref(), &expected);
+        assert!(Arc::ptr_eq(
+            &coordinates,
+            &registry.snapshot().command_descriptor_coordinates(),
+        ));
+        assert_eq!(snapshot, independent);
+        assert_eq!(snapshot.semantic_key(), before_key);
+        assert_eq!(hash(&snapshot), before_hash);
+        assert!(!Arc::ptr_eq(
+            &coordinates,
+            &independent.command_descriptor_coordinates(),
+        ));
+
+        // Same labels do not erase a changed selected spec or registry owner.
+        let original = registry.get("set").unwrap();
+        let mut changed = original.clone();
+        changed.traits = crate::Traits::PURE;
+        registry.insert(changed);
+        let current = registry.snapshot();
+        assert_ne!(snapshot, current);
+        assert_eq!(coordinates, current.command_descriptor_coordinates());
+        assert!(!Arc::ptr_eq(
+            &coordinates,
+            &current.command_descriptor_coordinates(),
+        ));
+        assert!(std::ptr::eq(
+            snapshot.registry().get("set").unwrap(),
+            original
+        ));
+        assert!(!std::ptr::eq(
+            current.registry().get("set").unwrap(),
+            original
+        ));
+    }
+
+    #[test]
+    fn descriptor_coordinate_cache_preserves_bytes_collisions_and_old_generations() {
+        let mut registry = CommandRegistry::build_default();
+        for name in [
+            "snapshot_coordinate_probe",
+            "snapshot::",
+            "::::snapshot_probe",
+        ] {
+            registry.insert(crate::CommandSpec {
+                name,
+                ..crate::CommandSpec::DEFAULT
+            });
+        }
+        let original = registry.snapshot();
+        let before = original.command_descriptor_coordinates();
+        assert_eq!(
+            before["::snapshot_coordinate_probe"],
+            "snapshot_coordinate_probe"
+        );
+        assert_eq!(before["::snapshot::"], "snapshot::");
+        assert_eq!(before["::::snapshot_probe"], "::::snapshot_probe");
+        registry.insert(crate::CommandSpec {
+            name: "::snapshot_coordinate_probe",
+            ..crate::CommandSpec::DEFAULT
+        });
+        let current = registry.snapshot();
+        assert_ne!(original, current);
+        assert!(
+            !current
+                .command_descriptor_coordinates()
+                .contains_key("::snapshot_coordinate_probe")
+        );
+        assert_eq!(
+            original.command_descriptor_coordinates()["::snapshot_coordinate_probe"],
+            "snapshot_coordinate_probe",
+        );
+        assert!(Arc::ptr_eq(
+            &before,
+            &original.command_descriptor_coordinates()
+        ));
+    }
 
     #[test]
     fn snapshot_retains_pack_reference_overlay_and_special_variable_axes() {

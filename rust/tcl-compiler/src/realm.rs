@@ -1090,14 +1090,16 @@ fn realm_from_source_bindings(
     bindings: SourceCommandBindings,
     registry: &CommandRegistry,
 ) -> CommandBindingRealm {
-    let specs =
-        tcl_registry::unique_command_descriptor_coordinates(registry.command_descriptor_keys())
-            .filter_map(|(coordinate, key)| {
-                registry
-                    .get(key.label())
-                    .map(|spec| (coordinate, SpecKey::new(spec)))
-            })
-            .collect();
+    let specs = registry
+        .snapshot()
+        .command_descriptor_coordinates()
+        .iter()
+        .filter_map(|(coordinate, label)| {
+            registry
+                .get(label)
+                .map(|spec| (coordinate.clone(), SpecKey::new(spec)))
+        })
+        .collect();
     CommandBindingRealm {
         bindings,
         source_input: None,
