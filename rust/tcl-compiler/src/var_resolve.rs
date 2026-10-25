@@ -6960,7 +6960,7 @@ mod original_read_configuration_tests {
     #[test]
     fn actual_source_configuration_survives_frames_and_conflicting_join_is_unavailable() {
         let registry = CommandRegistry::build_default();
-        let config = tcl_lexer::LexerConfig {
+        let mut config = tcl_lexer::LexerConfig {
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
             strict_quoting: true,
             ..tcl_lexer::LexerConfig::default()
