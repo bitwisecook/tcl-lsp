@@ -33,7 +33,7 @@
     "rust/tcl-lsp-server-wasi/Cargo.lock": "f04c66d81562e657c6af0b59292a53bfcb9a0fe6d3cef2c5d2ca6e937b6e4a86",
     "rust/tcl-lsp-server-wasi/Cargo.toml": "0f3faa985dbb85b94acca7a5d220f4814f07d5969b721c7e3e1d36b8b413bdec",
     "rust/tcl-lsp-server-wasi/build-wasi.sh": "a03e4a2dca9a0bf2061ba92770cc643b21cf6503c05ca7eaf9b0e8ecaa4d3235",
-    "rust/tcl-lsp-server-wasi/test/e2e.mjs": "9f7d9c35569881ee5bd735b070f945030cb8450fe50f402399f99e2044629382",
+    "rust/tcl-lsp-server-wasi/test/e2e.mjs": "5e4508381001f72e8bd04779c532a7d77dbbe8c58c889e7820bcfdf6be34d314",
     "rust/tcl-lsp-server-wasm/Cargo.lock": "b7c0e7283dc37e795eef39a52461cd8bb58fabf9d114f35967a64f96c6c7af38",
     "rust/tcl-lsp-server-wasm/Cargo.toml": "21a540aa63ee4c29841d96e2e2411e15cd31dfe6e820894e230e55e464f62cc5",
     "rust/tcl-lsp-server-wasm/build-wasm.sh": "de4eea75a94680cc2fd50a6f6c098dcbfad3b1a717fdad7c3321ede6f52cb4c6",
