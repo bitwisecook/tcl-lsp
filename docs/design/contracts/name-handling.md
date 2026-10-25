@@ -62,6 +62,13 @@ retains one jointly current source/input/provider set. Actual diagnostic
 configuration is retained independently from editing input identity, including
 all selected target ranges and package settings. Missing ownership remains
 unavailable. No direct report or policy outcome can satisfy push completion.
+
+An initially live direct diagnostic request joins that document's existing
+Indexed publication before capturing its provider inputs. The wait holds no
+document, source-view, database or publisher lock. The direct provider then
+recaptures the current job and retains all source/input/configuration checks.
+This neither schedules a push report nor changes the read-only publisher query:
+that query can still report pending until its own acknowledged pass completes.
 Configured report completion grants no runtime execution, normal completion,
 edit equivalence or absence of unknown effects.
 

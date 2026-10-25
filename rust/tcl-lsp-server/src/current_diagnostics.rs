@@ -2373,6 +2373,17 @@ impl Backend {
         &self,
         uri: &Uri,
     ) -> Result<ProducedDirectDiagnosticReport, DiagnosticUnavailable> {
+        self.edits_settled().await;
+        let is_open = self
+            .documents
+            .lock("direct_diagnostic_readiness")
+            .await
+            .contains_key(uri);
+        if is_open {
+            let _ = Box::pin(self.read_document(uri))
+                .await
+                .map_err(|_| DiagnosticUnavailable::Context)?;
+        }
         let dialect = {
             let docs = self.documents.lock("direct_diagnostic_source").await;
             docs.get(uri)
