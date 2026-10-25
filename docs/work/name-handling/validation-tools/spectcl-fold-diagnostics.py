@@ -199,8 +199,16 @@ def full_corpus_append(artifacts, environment, budget, processes, outcome):
     require(sha(executable) == artifact["sha256"], "full-corpus ELF changed after listing")
     require(deadline - time.time() >= 625, "full 600+25 second corpus reservation unavailable after listing")
     require(budget > 512 * 1024, "remaining shared log budget unavailable after corpus listing")
+    # The full corpus uses its normal quiet execution environment. Keep the
+    # earlier diagnostic cohorts and their shared capture budget unchanged.
+    corpus_environment = environment.copy()
+    for name in [
+        "TCL_LSP_TRACE_N17_FOLD", "TCL_LSP_TRACE_DEFERRED_WRITES_ANY",
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC",
+    ]:
+        corpus_environment.pop(name, None)
     save(out / "full-corpus-environment.json", {
-        name: environment.get(name) for name in [
+        name: corpus_environment.get(name) for name in [
             "SPECTCL_CORPUS_TMP", "SPECTCL_CORPUS_DIFF", "SPECTCL_CORPUS_BLESS",
             "SPECTCL_CORPUS_PACK_THREADS", "TCL_LSP_TRACE_N17_FOLD",
             "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC", "TCL_LSP_TRACE_DEFERRED_WRITES_ANY",
@@ -211,7 +219,7 @@ def full_corpus_append(artifacts, environment, budget, processes, outcome):
     prefix = "full-corpus-00"
     receipt = execute(
         [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
-        prefix, executable, 600, environment, budget,
+        prefix, executable, 600, corpus_environment, budget,
     )
     processes.append(receipt)
     budget -= receipt["retained_bytes"]
