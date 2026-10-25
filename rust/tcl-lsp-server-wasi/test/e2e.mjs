@@ -56,6 +56,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { writeSync } from "node:fs";
 import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -132,6 +133,8 @@ class Session {
         });
         this.buffer = Buffer.alloc(0);
         this.stderr = "";
+        this.effectTraceOffset = 0;
+        this.effectTraceRows = 0;
 
         const envArgs = Object.entries(env).flatMap(([key, value]) => [
             "--env",
@@ -145,17 +148,31 @@ class Session {
         this.child.stdout.on("data", (chunk) => this.receive(chunk));
         this.child.stderr.on("data", (chunk) => {
             this.stderr += chunk.toString("utf8");
+            this.forwardEffectTrace();
         });
-        this.child.stderr.on("end", () => {
-            for (const line of this.stderr.split("\n").filter((line) =>
-                line.startsWith("HOST_PROC_EFFECTS ")).slice(0, 1408)) {
-                console.log(line);
-            }
-        });
+        this.child.stderr.on("end", () => this.forwardEffectTrace(true));
         this.child.on("exit", (code) => {
             this.exitCode = code;
             this.resolveExit(code);
         });
+    }
+
+    // Forward already-received complete rows before an assertion can exit.
+    // An abrupt exit can still omit an unread child tail; absence proves nothing.
+    forwardEffectTrace(final = false) {
+        while (this.effectTraceRows < 1408) {
+            let end = this.stderr.indexOf("\n", this.effectTraceOffset);
+            if (end < 0) {
+                if (!final || this.effectTraceOffset === this.stderr.length) return;
+                end = this.stderr.length;
+            }
+            const line = this.stderr.slice(this.effectTraceOffset, end);
+            this.effectTraceOffset = Math.min(end + 1, this.stderr.length);
+            if (line.startsWith("HOST_PROC_EFFECTS ")) {
+                writeSync(1, `${line}\n`);
+                this.effectTraceRows += 1;
+            }
+        }
     }
 
     receive(chunk) {
