@@ -1630,6 +1630,70 @@ impl Backend {
             .await
     }
 
+    /// Retain the checked document input's actual command store across
+    /// diagnostic metadata computation and pass capture.
+    pub(super) async fn diagnostic_registry(
+        &self,
+        uri: &Uri,
+        dialect: &'static tcl_dialect::DialectProfile,
+        packs: &tcl_spectcl::pack::PackSet,
+    ) -> (Arc<tcl_registry::CommandRegistry>, bool) {
+        match self.checked_open_diagnostic_registry(uri).await {
+            Ok(Some(registry)) => (registry, true),
+            other => {
+                let registry = if packs.is_empty() {
+                    Arc::clone(
+                        tcl_lsp_core::environment_for_dialect(dialect.name)
+                            .default_context_registry()
+                            .commands(),
+                    )
+                } else {
+                    tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, packs)
+                };
+                (registry, other.is_ok())
+            }
+        }
+    }
+
+    async fn checked_open_diagnostic_registry(
+        &self,
+        uri: &Uri,
+    ) -> Result<Option<Arc<tcl_registry::CommandRegistry>>, DiagnosticUnavailable> {
+        let (source, dialect) = {
+            let docs = self.documents.lock("diagnostic_registry_source").await;
+            let Some(doc) = docs.get(uri) else {
+                return Ok(None);
+            };
+            if Self::is_bigip_dialect(&doc.dialect) || is_apl_source(uri, &doc.language_id) {
+                return Ok(None);
+            }
+            if doc.publication != DocumentPublication::Indexed {
+                return Err(DiagnosticUnavailable::Pending);
+            }
+            (Arc::clone(&doc.text), doc.dialect.clone())
+        };
+        let admission = self
+            .document_path_admission(uri)
+            .await
+            .map_err(|_| DiagnosticUnavailable::Context)?;
+        let current = self
+            .current_diagnostic_input_parts(uri, &source, &admission)
+            .await?;
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        let published = self
+            .source_path_admissions
+            .lock()
+            .map_err(|_| DiagnosticUnavailable::Context)?;
+        current.matches_locked(uri, &admission, &db, &files, &published)?;
+        if current.file.dialect(&*db) != &dialect {
+            return Err(DiagnosticUnavailable::Stale);
+        }
+        Ok(Some(Arc::clone(
+            current.input.borrowed_context_registry().commands(),
+        )))
+    }
+
     pub(super) async fn current_diagnostic_input_parts(
         &self,
         uri: &Uri,
@@ -2465,6 +2529,142 @@ mod tests {
             panic!("actual completed push report");
         };
         assert_document_rewrites(&report.diagnostics, &expected);
+    }
+
+    async fn folder_registry_fixture() -> (
+        Backend,
+        DiagnosticSourceExpectation,
+        tcl_lsp_db::AnalyserConfig,
+    ) {
+        let backend = crate::tests::test_backend();
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: PathBuf::from("/diagnostic-registry/owned.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
+            },
+            "speclib diagnostic-registry 1.0 {command registry_probe {arity 3; arg 0 -role Name; arg 1 -role ParamList; arg 2 -role Body; analyser_hook -native Proc; command_table_effect DefinesProcedure}}".to_owned(),
+        )]);
+        assert!(packs.notices.is_empty(), "{:?}", packs.notices);
+        let _installed = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        let config = {
+            let mut db = backend.db.lock().await;
+            tcl_lsp_db::set_overlay_epoch(&mut *db, tcl_registry::overlay_epoch());
+            tcl_lsp_db::AnalyserConfig::new(
+                &*db,
+                Vec::new(),
+                tcl_compiler::analyser::NonAsciiMode::Default,
+                Vec::new(),
+                None,
+                None,
+                packs.key,
+                Vec::new(),
+                Vec::new(),
+            )
+        };
+        backend
+            .folder_db_configs
+            .lock()
+            .await
+            .push((Uri::from_file_path("/diagnostic-registry").unwrap(), config));
+        let expected = DiagnosticSourceExpectation {
+            uri: Uri::from_file_path("/diagnostic-registry/source.tcl").unwrap(),
+            version: 1,
+            source: "registry_probe provided {one} {return $one}\n".into(),
+        };
+        open_source(&backend, &expected).await;
+        (backend, expected, config)
+    }
+
+    #[tokio::test]
+    async fn diagnostic_metadata_and_pass_retain_the_actual_folder_registry() {
+        let (backend, expected, _) = folder_registry_fixture().await;
+        let inputs = backend
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        let job = inputs.capture_job(&expected.uri).await.unwrap();
+        let pass = job.diagnostic_pass.as_ref().unwrap();
+        let input = pass.input.as_ref().unwrap();
+        assert!(inputs.registry.get("registry_probe").is_some());
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input((**input).clone())
+            .structure_only()
+            .analyse(&expected.source, "tcl8.6");
+        assert!(pass.matches_completed_analysis(&analysis));
+        assert_eq!(
+            inputs.registry.snapshot().semantic_key(),
+            analysis
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key()
+        );
+    }
+
+    #[tokio::test]
+    async fn an_old_diagnostic_registry_cannot_cover_a_changed_folder_input() {
+        use salsa::Setter as _;
+        let (backend, expected, config) = folder_registry_fixture().await;
+        let inputs = backend
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        {
+            let mut db = backend.db.lock().await;
+            config.set_spec_pack_key(&mut *db).to(0);
+        }
+        let job = inputs.capture_job(&expected.uri).await.unwrap();
+        let pass = job.diagnostic_pass.as_ref().unwrap();
+        let input = pass.input.as_ref().unwrap();
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input((**input).clone())
+            .structure_only()
+            .analyse(&expected.source, "tcl8.6");
+        assert_eq!(analysis.resolved_input.as_ref(), Some(input.as_ref()));
+        assert!(!pass.matches_completed_analysis(&analysis));
+    }
+
+    #[tokio::test]
+    async fn an_invalid_source_capture_is_refreshed_by_an_ordinary_same_epoch_schedule() {
+        let (backend, expected, _) = folder_registry_fixture().await;
+        {
+            let mut docs = backend
+                .documents
+                .lock("pending diagnostic registry control")
+                .await;
+            docs.get_mut(&expected.uri).unwrap().publication = DocumentPublication::Pending;
+        }
+        let invalid = backend
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        assert!(invalid.inputs_epoch.is_none());
+        {
+            let mut docs = backend
+                .documents
+                .lock("indexed diagnostic registry control")
+                .await;
+            docs.get_mut(&expected.uri).unwrap().publication = DocumentPublication::Indexed;
+        }
+        let epoch = backend.diag_inputs_epoch();
+        backend.diag_slots.lock().await.insert(
+            expected.uri.clone(),
+            DiagSlot {
+                latest_inputs: Some(invalid),
+                inputs_epoch: epoch,
+                running: true,
+                ..DiagSlot::default()
+            },
+        );
+        backend
+            .schedule_diagnostics(expected.uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let slots = backend.diag_slots.lock().await;
+        let slot = slots.get(&expected.uri).unwrap();
+        assert_eq!(slot.inputs_epoch, epoch);
+        assert_eq!(
+            slot.latest_inputs.as_ref().unwrap().inputs_epoch,
+            Some(epoch)
+        );
     }
 
     fn assert_document_rewrites(

@@ -69,6 +69,16 @@ that query can still report pending until its own acknowledged pass completes.
 Configured report completion grants no runtime execution, normal completion,
 edit equivalence or absence of unknown effects.
 
+Text-document diagnostic metadata and its pass snapshot retain the command
+store of the same checked document input and folder configuration. Capture
+rechecks its database revision, SourceFile, publication admission and dialect;
+the existing pack-publication and input-epoch guards remain independent. An
+unavailable current open input cannot authorise a coherent diagnostic pass.
+Later completion still requires the actual full input and registry to match.
+Scheduling accepts only coherent captured epochs within its existing bounded
+resolve attempts; a retained invalid snapshot requires resolution on the next
+ordinary schedule even when the configuration epoch is unchanged.
+
 ## Editor AI fix reports
 
 The active-document `/fix` path retains the original URI, version, and complete
