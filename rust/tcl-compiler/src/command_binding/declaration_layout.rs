@@ -4750,6 +4750,38 @@ mod tests {
         }
     }
 
+    fn assert_scalar_original_layout_kind(
+        brace: tcl_dialect::BraceBackslashNewline,
+        source_layout: &super::DeclarationSourceOperandLayoutAdvice,
+        original_operand: Option<&super::DeclarationVariableOperandAdvice>,
+        expected: Option<&str>,
+        source: &str,
+    ) {
+        match brace {
+            tcl_dialect::BraceBackslashNewline::Folds => {
+                assert!(matches!(
+                    source_layout.kind,
+                    super::DeclarationSourceOperandLayoutKind::Configured { .. }
+                ));
+                assert!(original_operand.is_none());
+            }
+            tcl_dialect::BraceBackslashNewline::Literal => {
+                // No body transform occurred: its genuine original
+                // owner keeps the ordinary trace-name veto, just as in
+                // the unchanged-body controls above.
+                assert!(matches!(
+                    source_layout.kind,
+                    super::DeclarationSourceOperandLayoutKind::Original(_)
+                ));
+                assert_eq!(
+                    original_operand.map(super::DeclarationVariableOperandAdvice::name),
+                    expected,
+                    "unchanged original body: {source}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn declaration_scalar_trace_exclusions_retain_other_names_and_mapped_source_configurations() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -4836,31 +4868,13 @@ mod tests {
                     &tokens,
                     &tokens.words()[1],
                 );
-                match brace {
-                    tcl_dialect::BraceBackslashNewline::Folds => {
-                        assert!(matches!(
-                            source_layout.kind,
-                            super::DeclarationSourceOperandLayoutKind::Configured { .. }
-                        ));
-                        assert!(original_operand.is_none());
-                    }
-                    tcl_dialect::BraceBackslashNewline::Literal => {
-                        // No body transform occurred: its genuine original
-                        // owner keeps the ordinary trace-name veto, just as in
-                        // the unchanged-body controls above.
-                        assert!(matches!(
-                            source_layout.kind,
-                            super::DeclarationSourceOperandLayoutKind::Original(_)
-                        ));
-                        assert_eq!(
-                            original_operand
-                                .as_ref()
-                                .map(super::DeclarationVariableOperandAdvice::name),
-                            expected,
-                            "unchanged original body: {source}"
-                        );
-                    }
-                }
+                assert_scalar_original_layout_kind(
+                    brace,
+                    &source_layout,
+                    original_operand.as_ref(),
+                    expected,
+                    &source,
+                );
             }
         }
     }
@@ -5162,6 +5176,78 @@ mod tests {
 mod original_nested_root_activation_purpose_tests {
     use super::*;
 
+    fn assert_original_nested_eval_activation(
+        source: &str,
+        expected: &str,
+        materialised: bool,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+        options: super::super::SourceAnalysisOptions<'_>,
+    ) {
+        let image = tcl_lexer::SourceImage::document(source);
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            frame,
+            config,
+            context.commands(),
+            options,
+        )
+        .unwrap();
+        let origin = Arc::clone(bindings.root_origin.as_ref().unwrap());
+        let site = CommandAllocationSite {
+            source: Arc::clone(&origin),
+            offset: 0,
+        };
+        let entered = bindings.executed_script_at(&site, 0).unwrap();
+        assert_eq!(entered.text.try_text().unwrap(), expected);
+        if materialised {
+            assert_eq!(entered.base(), 0);
+            assert!(matches!(
+                entered.mapping,
+                super::super::ExecutedScriptMapping::Materialised
+            ));
+            assert_ne!(entered.origin, origin);
+        }
+        let body_rows = bindings
+            .declaration_layouts
+            .get(&CommandAllocationSite {
+                source: Arc::clone(&entered.origin),
+                offset: entered.base(),
+            })
+            .unwrap();
+        let activation = body_rows
+            .iter()
+            .find(|row| {
+                matches!(
+                    row.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::ScriptActivation { .. }
+                )
+            })
+            .unwrap();
+        assert_eq!(activation.entry.source(), entered);
+        assert_eq!(activation.entry.frame().layout(), frame);
+        assert_eq!(activation.config, config);
+        assert_eq!(activation.words[0].legacy_text(), "set");
+        assert!(
+            matches!(activation.entry.as_ref(), OriginalDiagnosticFrameEntry::ScriptActivation {
+    config: actual, ..
+} if *actual == config)
+        );
+        assert!(activation.snapshot.state.baseline.native_entry.is_none());
+        assert!(
+            bindings
+                .declaration_layouts
+                .get(&site)
+                .unwrap()
+                .iter()
+                .any(|row| matches!(
+                    row.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::RootScript { .. }
+                ))
+        );
+    }
+
     #[test]
     fn original_nested_parser_keeps_entered_root_frame_separate_from_whole_input() {
         // naming.source.original-configured-script-completeness
@@ -5188,66 +5274,14 @@ mod original_nested_root_activation_purpose_tests {
             ("eval {set x VALUE; list $x}", "set x VALUE; list $x", false),
             ("eval {set} {x VALUE}", "set x VALUE", true),
         ] {
-            let image = tcl_lexer::SourceImage::document(source);
-            let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
-                &image,
+            assert_original_nested_eval_activation(
+                source,
+                expected,
+                materialised,
                 &frame,
                 config,
-                context.commands(),
+                &context,
                 options,
-            )
-            .unwrap();
-            let origin = Arc::clone(bindings.root_origin.as_ref().unwrap());
-            let site = CommandAllocationSite {
-                source: Arc::clone(&origin),
-                offset: 0,
-            };
-            let entered = bindings.executed_script_at(&site, 0).unwrap();
-            assert_eq!(entered.text.try_text().unwrap(), expected);
-            if materialised {
-                assert_eq!(entered.base(), 0);
-                assert!(matches!(
-                    entered.mapping,
-                    super::super::ExecutedScriptMapping::Materialised
-                ));
-                assert_ne!(entered.origin, origin);
-            }
-            let body_rows = bindings
-                .declaration_layouts
-                .get(&CommandAllocationSite {
-                    source: Arc::clone(&entered.origin),
-                    offset: entered.base(),
-                })
-                .unwrap();
-            let activation = body_rows
-                .iter()
-                .find(|row| {
-                    matches!(
-                        row.entry.as_ref(),
-                        OriginalDiagnosticFrameEntry::ScriptActivation { .. }
-                    )
-                })
-                .unwrap();
-            assert_eq!(activation.entry.source(), entered);
-            assert_eq!(activation.entry.frame().layout(), &frame);
-            assert_eq!(activation.config, config);
-            assert_eq!(activation.words[0].legacy_text(), "set");
-            assert!(
-                matches!(activation.entry.as_ref(), OriginalDiagnosticFrameEntry::ScriptActivation {
-            config: actual, ..
-        } if *actual == config)
-            );
-            assert!(activation.snapshot.state.baseline.native_entry.is_none());
-            assert!(
-                bindings
-                    .declaration_layouts
-                    .get(&site)
-                    .unwrap()
-                    .iter()
-                    .any(|row| matches!(
-                        row.entry.as_ref(),
-                        OriginalDiagnosticFrameEntry::RootScript { .. }
-                    ))
             );
         }
 
@@ -5385,21 +5419,12 @@ mod original_logical_declaration_receipt_tests {
         }
     }
 
-    #[test]
-    fn original_logical_declaration_receipt_rejects_changed_inputs_rows_and_world() {
-        // naming.compiler.original-positioned-callee-body-availability
-
-        let (input, tokens) = original_statement(
-            "proc subject {} {package require Tcl}",
-            "package require Tcl",
-        );
-        let registry = input.borrowed_context_registry().commands();
-        let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(
-            binding
-                .original_logical_declaration_call_targets(&tokens, &input, registry)
-                .is_some()
-        );
+    fn assert_changed_declared_call_inputs(
+        binding: &crate::command_binding::SourceInvocationBinding,
+        tokens: &CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         for axis in [0, 1] {
             let mut config = input.lexer_config();
             if axis == 0 {
@@ -5418,10 +5443,43 @@ mod original_logical_declaration_receipt_tests {
             );
             assert!(
                 binding
-                    .original_logical_declaration_call_targets(&tokens, &changed, registry)
+                    .original_logical_declaration_call_targets(tokens, &changed, registry)
                     .is_none()
             );
         }
+    }
+
+    fn assert_changed_original_call_refused(
+        changed: &CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        assert!(
+            changed
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_declaration_call_targets(changed, input, registry,)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_logical_declaration_receipt_rejects_changed_inputs_rows_and_world() {
+        // naming.compiler.original-positioned-callee-body-availability
+
+        let (input, tokens) = original_statement(
+            "proc subject {} {package require Tcl}",
+            "package require Tcl",
+        );
+        let registry = input.borrowed_context_registry().commands();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_logical_declaration_call_targets(&tokens, &input, registry)
+                .is_some()
+        );
+        assert_changed_declared_call_inputs(binding, &tokens, &input, registry);
         let other_input = ResolvedAnalysisInput::new(
             input.analyser_profile(),
             input.unit_profile(),
@@ -5454,34 +5512,13 @@ mod original_logical_declaration_receipt_tests {
             .unwrap()
             .declaration_layout_observations
             .clone();
-        assert!(
-            changed
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_logical_declaration_call_targets(&changed, &input, registry,)
-                .is_none()
-        );
+        assert_changed_original_call_refused(&changed, &input, registry);
         let mut changed = tokens.clone();
         changed.source_binding.as_mut().unwrap().unknown = false;
-        assert!(
-            changed
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_logical_declaration_call_targets(&changed, &input, registry,)
-                .is_none()
-        );
+        assert_changed_original_call_refused(&changed, &input, registry);
         let mut changed = tokens.clone();
         changed.source_binding.as_mut().unwrap().may_be_absent = true;
-        assert!(
-            changed
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_logical_declaration_call_targets(&changed, &input, registry,)
-                .is_none()
-        );
+        assert_changed_original_call_refused(&changed, &input, registry);
         let mut changed = tokens.clone();
         changed
             .source_binding
@@ -5496,14 +5533,7 @@ mod original_logical_declaration_receipt_tests {
                 .original_logical_declaration_targets
                 .is_none()
         );
-        assert!(
-            changed
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_logical_declaration_call_targets(&changed, &input, registry,)
-                .is_none()
-        );
+        assert_changed_original_call_refused(&changed, &input, registry);
         let mut changed = tokens.clone();
         changed.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
         assert!(
