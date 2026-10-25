@@ -169,6 +169,36 @@ impl OriginalSourceProcedureCall {
                 .is_some_and(|current| Arc::ptr_eq(current, owner))
             && owner.matches(realm.source_bindings_ref(), input)
     }
+    pub(in crate::command_binding) fn matches_region_call(
+        &self,
+        region: &crate::command_binding::OriginalSourceConditionalRegion,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> bool {
+        self.matches_analysis(analysis)
+            && region
+                .bindings()
+                .original_inherited_source_entry()
+                .is_some_and(|entry| self.inherited_entry.as_ref() == Some(entry))
+            && self.matches_source_context(
+                region.source_image(),
+                region.input().lexer_config(),
+                &region.input().context_registry(),
+            )
+    }
+
+    pub(in crate::command_binding) fn caller_command_site(
+        &self,
+    ) -> Option<&crate::command_binding::CommandAllocationSite> {
+        let body = self.caller.as_ref()?;
+        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+            advice,
+        ) = body.source_words().source()
+        else {
+            return None;
+        };
+        Some(advice.site())
+    }
+
     pub(crate) fn with_input(
         mut self,
         input: &crate::analyser::ResolvedAnalysisInput,

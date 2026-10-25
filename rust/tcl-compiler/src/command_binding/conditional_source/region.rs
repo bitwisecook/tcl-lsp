@@ -579,8 +579,7 @@ impl OriginalSourceConditionalRegion {
                         Arc::clone(owner),
                         bindings.original_inherited_source_entry(),
                     );
-                    let head = call.original_words().first()?;
-                    (self.owns_original_command_at(analysis, head.span().start())
+                    (self.owns_original_procedure_call(analysis, &call)
                         && call.matches_source_context(
                             self.source_image(),
                             self.input().lexer_config(),
@@ -1013,6 +1012,31 @@ impl OriginalSourceConditionalRegion {
 }
 
 impl OriginalSourceConditionalRegion {
+    /// A current call can use its genuine selected procedure-body owner. This
+    /// does not add the body command to generic region execution membership.
+    #[must_use]
+    pub fn owns_original_procedure_call(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+        call: &crate::command_binding::OriginalSourceProcedureCall,
+    ) -> bool {
+        if !self.matches_region_analysis(analysis) || !call.matches_region_call(self, analysis) {
+            return false;
+        }
+        let Some(head) = call.original_words().first() else {
+            return false;
+        };
+        if self.owns_original_command_at(analysis, head.span().start()) {
+            return true;
+        }
+        call.caller_command_site().is_some_and(|site| {
+            self.bindings()
+                .source_origin()
+                .is_some_and(|origin| Arc::ptr_eq(origin, &site.source))
+                && self.owns_original_command_at(analysis, site.offset)
+        })
+    }
+
     /// Actual command-vector membership, not span containment. Quoted/braced
     /// data cannot create an executable vector. Script-body owners remain a
     /// separate registry-selected purpose and are not inferred from braces.
