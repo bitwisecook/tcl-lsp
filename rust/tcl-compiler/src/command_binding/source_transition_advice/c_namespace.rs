@@ -558,11 +558,11 @@ mod tests {
             descriptor.required_package = None;
             match condition {
                 "foreign-interpreter" => {
-                    descriptor.body_interpreter = tcl_registry::BodyInterpreter::Argument(0)
+                    descriptor.body_interpreter = tcl_registry::BodyInterpreter::Argument(0);
                 }
                 "non-caller" => {
                     descriptor.body_execution =
-                        Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredGlobalScript)
+                        Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredGlobalScript);
                 }
                 "foreign-provider" | "foreign-phase-frame" => {
                     let Some(tcl_registry::body_execution::BodyExecutionSpec::CapturedLifecycle(

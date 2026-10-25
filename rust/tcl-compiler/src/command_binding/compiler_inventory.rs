@@ -2055,7 +2055,7 @@ mod original_inline_control_source_tests {
                             .source_binding
                             .as_mut()
                             .unwrap()
-                            .compiler_lookup_state = None
+                            .compiler_lookup_state = None;
                     }
                     3 => changed.source_binding.as_mut().unwrap().compiler_policy = None,
                     4 => {
@@ -2063,14 +2063,14 @@ mod original_inline_control_source_tests {
                             .source_binding
                             .as_mut()
                             .unwrap()
-                            .original_compiler_words = None
+                            .original_compiler_words = None;
                     }
                     _ => {
                         changed
                             .source_binding
                             .as_mut()
                             .unwrap()
-                            .original_analysis_owner = None
+                            .original_analysis_owner = None;
                     }
                 }
                 assert!(

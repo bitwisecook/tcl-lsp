@@ -718,7 +718,7 @@ mod original_native_body_tests {
                     !module
                         .executable_script_roots()
                         .iter()
-                        .any(|(script, _)| std::ptr::eq(*script, &procedure.body))
+                        .any(|(script, _)| std::ptr::eq(*script, &raw const procedure.body))
                 );
                 procedure
             })
@@ -872,7 +872,7 @@ mod original_native_body_tests {
             assert_eq!(
                 advice
                     .original_procedure_source_body()
-                    .map(|body| body.content_span()),
+                    .map(crate::registry_invocation::OriginalSourceScriptBody::content_span),
                 card.body_span(),
             );
             assert!(
@@ -949,7 +949,7 @@ mod original_native_body_tests {
             .unwrap()
             .positioned_for_module(&foreign_same_input, registry)
             .unwrap();
-        assert!(card.source_children(&foreign_bindings).is_none());
+        assert!(card.source_children(foreign_bindings).is_none());
     }
 
     #[test]
