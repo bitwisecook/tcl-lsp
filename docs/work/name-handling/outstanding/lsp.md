@@ -1,6 +1,8 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-25T13:22:07Z
+Last updated: 2026-10-25T14:08:17Z
+
+Resume 2026-10-25T14:08:17Z: Root resumed LSP blocker ownership at WORK40639636/CLEANe93f6f5; own next hosted/native5 full singleZIP authentication after root final pin union/dispatch. Root integrated browser owner reuse source+contracts+companions (peers9dc43422/7e0b01ab) and scalar observer57ca1097; exact runtime gates still UNRUN until fresh source. Preparing WORK-only WASI V4 incremental stderr prefix forwarding so already-received HOST_PROC_EFFECTS complete rows are synchronously retained before assertion process.exit, same1408row bound/end-tail scope/no waits/deadline/assertion changes. Independently investigate W002 realm/sourcecurrency correlation; preserve identity guards and actual original deadlines. Root reclaimed only authenticated old dc52 extracted duplicate ELF with ZIP restoration receipt; currentc142b760 preserved. Disk~2.49GiB/floor2, maps remain ZIP-only, no further duplicate/native build.
 
 Resume 2026-10-25T13:22:07Z: Productive browser owner reuse SOURCE paired FROZEN manifest0f33d0c2 WORKc42e005615182aefe74fe689b154a5278e1e48d5e05ffeac2d851c597643d5c1 CLEANddb6a1973c715ba290f8f3df994bd06a6e7c3da05454316897f3d3ae4041612e, Compiler deep STATICCLEAR9dc43422545f7a48abe70627270dcca91acddb174e6f0fe74bfa38e3fe234f3a. Two server Rust files: actual leased unique root-prefix analysis selected only independent missing-world collision participants, selected declaration/member owners unchanged; full source/input/context/physical/outcome/lease/Core guards retained. Paired shipping contracts fe6fd7bb(Wedfd42c4/Ceaf5cc06), WORK current23JSON4sourcepins+2derivedguards patch7c63495c manifeste1309c9e peer pending. Native controls/typing/browser UNRUN.
 

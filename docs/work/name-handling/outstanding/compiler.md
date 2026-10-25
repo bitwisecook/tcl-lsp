@@ -2,11 +2,19 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-25T13:18:06.073095+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-25T14:10:18.101341+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**W002 current candidate V3 pending Codegen peer:** compiler-w002-stamped-binding-v3 WORKbc42ada1/CLEANcc0487ed. Same retained analysis realm full stamped token binding required at creation AND matches_analysis currentness; receipt retains original full tokens, no raw projection/Eq relaxation. WORK helper keeps existing mainbody100; CLEAN no observer/import leak. V1/V2 HELD (line count, CLEAN trace reference, raw currency concern). Foreign same-source receipt refusal control added. Registrycache and lint pins now integrated by root; source preimages checked independently before admission. Next priority genuine Logical read-effect producer; source catalogue strict-warning blanket stays closed.
+
+**Current14:02 handoff:** c142 exact Compiler102 run40192556629 artifact12599471976 SINGLEZIP8403a0e35712b55e83638da93913bf392184c1b0a8979c91f5952123e0fbbf62 authenticated:82PASS1FAIL19UNRUN. Original57P1F; old9+closed16PASS; fresh inlining build4known fixture-typeerrors (already fixed2cb later), readonly10/owner3/ancestry3/Logical3UNRUN. Assessment7c2579246eafb60ef71236449716132eff45bd8bfce20c46cb1ba51d5446abd2; fullNative/source0ef5af81106f3f8663201d6ee08bc79af436b5901c52aef0a6644578061cdc07 allclosed16+oldfoldPASS. Source126321/provider10202/deps21503/tools equal;184ownedprocess records. No latestHEAD or duplicateZIP join.
+
+**Independent peers completed:** DBsharedstructure6ff67e5b; browserownerreuse9dc43422 and shipping+metadata7e0b01ab; Namesactive-scopeV2 WORKonly8ba50b71; strictsmall20source+metadataf25c44df; nonchunkmechanical23sourcef08dc9c4; RegistrySnapshot descriptorcoordinates source+metadata166cf397. All exactGit/F-R-F0/fmt/inverses where applicable; no actualtyping/runtime/perfgain claim. Rootalone composes newest sharedJSON/driver afterimages. Shipping performance stillBLOCKED.
+
+**Genuine W002 fix DRAFT pending Codegen peer:** compiler-w002-stamped-binding-v1 source_availability.rs paired only. Actualc142 offset6 source.realm-binding refuses. Fullystampedtokens may contain genuineLogicaladvice absentfromraw invocation_at_source; fullEq includesattachment. Draft prepares exact expectedoriginaltokens through SAMEretainedanalysisrealm existingmemo and retains fullbindingEq. ExistingLogicaltest extended stampedpositive/rawdifference/foreignsame-source/rawnegative; no Eq/policy/framegrant. Rust/tests/actualW002UNRUN; no canonical source edit.
 
 **Current handoff and shipping perf blocker:** Root has integrated faithful service, retained Logical scope and subsequent helper binding-type/byte fixes; c142 Compiler102 run40192556629 remains separately source-pinned and excludes later helper fixes. Sole ZIP ownership stays here; actual counts pending authentication. Shipping candidate72d scan/token latency remains BLOCKED; no valid baseline/candidate perf pair and no threshold waiver. Independent peers now queued for authentic shared DB structure projections, server conditional-world owner reuse and WORK-only Names active-scope logger. No local Cargo/rustc or canonical edits. Index-purpose producer V2 STATIC CLEAR b71e5a65 and producer-only metadata7ed25f61; runtime consumer/final metadata union remain separate.
 

@@ -1,12 +1,16 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T13:27:45+00:00
+Last updated: 2026-10-25T14:08:17+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current checkpoint 2026-10-25T13:27:45Z
 
 Required SpecTcl Native index typed-purpose source/consumer integrated by root; actual fresh typing/semantic validation pending. Original namespace unreached backing refusal and all Native entry/current-header/provider checks retained. Latest focused8cfa authentic135 closes original Info baselinePF plus2 adversarial currency controls; original132 outcomes unchanged and84 standalone nonpasses remain scoped, not a full release gate. Parked standalone general parity requires reviewed production/dependency extraction closure preserving LSP/SpecTcl and xtask real backing producers. Main52 mechanical chunk peer receipt66523c69 and separate native-index lint receipt205713ad complete STATIC CLEAR; no post-fix Rust/Clippy claim. Next required execution lead is hostile spin/burn genuine early host error and string hook attempts, using actual first-gate observation, never reclassifying refusal as crash.
+
+## Current dispatch preparation 2026-10-25T14:08:17Z
+
+Current Small20/Mechanical23 union peer a3f3e522 and subsequent registry-only pin carry peer d5ffda6a CLEAR; all23 JSON wholepin censuses narrow approved deltas, no mixed stale pins. Spec existing mode already sets/requires/captures first-gate-v1. Off-tree hostile append V2 manifest92e9103e/patch61c39a97 uses approved registry roster8890, retains faf1, original11+supplemental1 exact, appends separately-labelled unchanged hostile1 using shared bounds. Pending independent Codegen peer and root integration/actual dispatch; no measured firstcause yet. Extraction current graph7a472f7a retains xtask actual NativeCore backing obligation and ABI/wrappers; no removal proposal/waiver.
 
 ## Resume and authority
 

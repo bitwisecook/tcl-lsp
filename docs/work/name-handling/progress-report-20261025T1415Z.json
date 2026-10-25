@@ -1,0 +1,71 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T14:15:06.391900+00:00",
+  "scheduled_report_utc": "2026-10-25T14:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T14:45:00+00:00",
+  "change_since_previous_report": [
+    "Applied reviewed20 small and23 mechanical VM lint fixes to WORK and release counterpart, preserving helper lifetimes, assertions and execution order. Existing strict160 diagnostics are historical; current source still unrun.",
+    "Applied independently reviewed registry snapshot coordinate cache in both branches. Existing semantic keys, equality, hashing and per-use selection checks preserved. No measured performance improvement claimed.",
+    "Current source-pin union updates existing records only after full tracked validation JSON census; registry cache companion follows. Fresh strict/compiler/Jim/host/Spec captures are next.",
+    "Actual compiler c142 trace proves retained RBS scope selected at offset70, while the expected W210 remains absent; unknown read effects and the separate warning-only read path are under causal review. W002 full-stamp producer repair V2 remains under peer review.",
+    "Latest shipping Tcl performance remains unaccepted. Three-projection DB sharing and registry coordinate reuse require new execution measurements; baseline and candidate paired-run failures are not valid accepted comparisons.",
+    "External BIGIP/perf headers remain more than60 minutes stale; user notified, no takeover. No global gate admission, PR, merge, tag or release. Disk approximately2.5GiB; no local Rust builds.",
+    "Repaired paired benchmark workflow Rust cache setup only; exact benchmark commands, assertions, revisions and deadlines unchanged. macOS EPERM process cleanup remains unresolved. WORK-only WASI stderr capture retains already-received rows on failure; unread child tail remains unknown."
+  ],
+  "committed": [
+    "5a061f420c8a7571b7a187a2ccf4ab5ae52ce8c1"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Push checkpoint and rearm14:45 reminder.",
+    "Execute fresh strict, compiler102, Jim51, host/startup and unchanged SpecTcl tests on current pinned source.",
+    "Finish remaining lint fixes and production source/read-effect, runtime, host and Tcl performance blockers."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Agent-reported implementation status only. Actual validation rows remain tied to their recorded older source hashes. No release gate admitted by source review.",
+  "disk_free_bytes": 2621771776,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
