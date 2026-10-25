@@ -100,5 +100,22 @@
       }
     ],
     "scope": "Five separate source body-entry controls after unchanged original102 close. Same existing fresh compiler-lib ELF and full inventory, strict0W, exact180s list/run, lossless transport, one shared20MiB/2GiB/absolute3600 lifecycle budget. No additional build, reset or Native permission. Unexecuted controls remain explicitly incomplete."
+  },
+  "separate_compact_codec_control": {
+    "schema": "compact-source-context-codec1-v1",
+    "expected_selected": 1,
+    "source_peer_sha256": "93b1ada4eb7d4e21d23d92c89b69826a07172d84042ca84b6f4cb2e3d7480126",
+    "rows": [
+      {
+        "group": "diagnostic-compact-codec1",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::source_execution_control::tests::compact_control_roundtrips_full_native_boundaries_and_independent_source_facts",
+        "env": {}
+      }
+    ]
   }
 }
