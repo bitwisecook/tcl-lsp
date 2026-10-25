@@ -3092,7 +3092,7 @@ mod original_ledger_tests {
                 ExecutableInstruction::Invoke(invoke) => Some(invoke),
                 _ => None,
             })
-            .last()
+            .next_back()
             .unwrap()
     }
 

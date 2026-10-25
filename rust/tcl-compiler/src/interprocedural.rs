@@ -7518,7 +7518,9 @@ mod tests {
                 );
             assert!(
                 !calls.is_some_and(|calls| !calls.calls().is_empty()
-                    && calls.calls().iter().all(|call| call.accepts_arguments())),
+                    && calls.calls().iter().all(
+                        crate::registry_invocation::OriginalSourceProcedureCall::accepts_arguments
+                    )),
                 "{body}"
             );
             assert!(

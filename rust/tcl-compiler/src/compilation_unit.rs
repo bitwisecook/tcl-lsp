@@ -2590,8 +2590,10 @@ impl ModuleWideFacts {
 fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
-    body_cache: Option<&BodyLoweringCache<'_>>,
-    source_body_cache: Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+    caches: (
+        Option<&BodyLoweringCache<'_>>,
+        Option<&crate::lowering::SourceBodySyntaxCache<'_>>,
+    ),
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<&crate::analyser::ResolvedAnalysisInput>,
@@ -2602,6 +2604,7 @@ fn lower_and_build_cfg(
     HashMap<crate::ir::ProcedureId, HashSet<String>>,
     PreparedCfgContext,
 ) {
+    let (body_cache, source_body_cache) = caches;
     let integrity = std::cell::Cell::new(true);
     lower_and_build_cfg_with_original_caches(
         source,
@@ -6260,7 +6263,7 @@ mod tests {
             declared_commands: None,
         };
         let (module, cfg, _, prepared) =
-            lower_and_build_cfg(source, options, None, None, None, None, None, None);
+            lower_and_build_cfg(source, options, (None, None), None, None, None, None);
         assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
         let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
         assert_eq!(
@@ -6379,7 +6382,7 @@ mod tests {
         let mut different_grammar = selected.clone();
         different_grammar.source_config.strict_quoting =
             !different_grammar.source_config.strict_quoting;
-        for negative in [foreign, missing, different_grammar] {
+        for negative in vec![foreign, missing, different_grammar] {
             let refused = negative.with_retained_semantic_analysis(
                 registry,
                 Some(&unit.ir_module.top_level),
@@ -6465,7 +6468,7 @@ mod tests {
         let mut stale = unit.clone();
         stale.top_level.source_config.strict_quoting =
             !stale.top_level.source_config.strict_quoting;
-        for negative in [missing, foreign, stale] {
+        for negative in vec![missing, foreign, stale] {
             let refused = negative.with_retained_deep_semantic_analysis(registry);
             assert!(matches!(
                 refused.top_level.semantic_facts.executable(),
@@ -6502,7 +6505,7 @@ mod tests {
                 .with_retained_deep_semantic_analysis(registry)
                 .top_level
         ));
-        for refused in [missing, stale, different_owner] {
+        for refused in vec![missing, stale, different_owner] {
             let refused = refused.with_retained_deep_semantic_analysis(registry);
             assert!(matches!(
                 refused.top_level.semantic_facts.executable(),
@@ -6610,7 +6613,7 @@ mod tests {
                 Arc::clone(&current),
                 original.lexer_config(),
             ));
-        for refused in [
+        for refused in vec![
             missing_module,
             missing_function,
             stale_module,
@@ -7110,21 +7113,19 @@ mod tests {
             // A hosted document supplied without an entry is a fresh rule load
             // where the dialect admits the
             // authored F5 naming simulation; elsewhere history stays unknown.
-            match crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(&input)
-                .filter(|fresh| !fresh.unknown_entry)
+            if let Some(fresh) =
+                crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(&input)
+                    .filter(|fresh| !fresh.unknown_entry)
             {
-                Some(fresh) => {
-                    assert!(!entry.unknown_entry);
-                    assert_eq!(
-                        entry.invocation_realm,
-                        tcl_dialect::model::InvocationRealm::RuleLoader
-                    );
-                    assert_eq!(entry.execution_name_policy, fresh.execution_name_policy);
-                }
-                None => {
-                    assert!(entry.unknown_entry);
-                    assert!(entry.execution_name_policy.is_none());
-                }
+                assert!(!entry.unknown_entry);
+                assert_eq!(
+                    entry.invocation_realm,
+                    tcl_dialect::model::InvocationRealm::RuleLoader
+                );
+                assert_eq!(entry.execution_name_policy, fresh.execution_name_policy);
+            } else {
+                assert!(entry.unknown_entry);
+                assert!(entry.execution_name_policy.is_none());
             }
         }
     }
@@ -7994,7 +7995,7 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
                 "namespace eval ::lib {",
                 "namespace eval ::lib {\n                namespace export *",
             );
-            for cu in [
+            for cu in vec![
                 CompilationUnit::build_for(&exported, &reg, false),
                 build_closed_world(&exported, &reg),
             ] {
@@ -8037,7 +8038,7 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
                 namespace ensemble create -command myens -map {go helper}
                 myens go dev
             ";
-            for cu in [
+            for cu in vec![
                 CompilationUnit::build_for(src, &reg, false),
                 build_closed_world(src, &reg),
             ] {
