@@ -3979,7 +3979,9 @@ mod original_jim_canonical_current_holder_tests {
             assert_eq!(expected[0], "0");
             let expected: Vec<_> = expected[1]
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             assert_eq!(

@@ -3235,7 +3235,7 @@ const ROWS: &[Row] = &[
     },
  ];
 fn unhex(input: &str) -> Vec<u8> {
-    input.as_bytes().chunks_exact(2).map(|pair| {
+    input.as_bytes().as_chunks::<2>().0.iter().map(|pair| {
         u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap()
     }).collect()
 }

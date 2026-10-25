@@ -383,7 +383,9 @@ mod tests {
         let expected = row("RESULT", &phase);
         let bytes: Vec<_> = expected[1]
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         assert_eq!(completion.code.as_int().to_string(), expected[0], "{phase}");

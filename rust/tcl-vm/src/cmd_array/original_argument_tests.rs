@@ -58,7 +58,9 @@ fn compare_completion(completion: &Completion<Value>, capture: &str, case: usize
         .collect();
     let decoded: Vec<_> = row[4]
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect();
     assert_eq!(completion.code.as_int(), row[3].parse::<i64>().unwrap());

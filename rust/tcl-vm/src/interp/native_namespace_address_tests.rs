@@ -12,7 +12,7 @@ fn compare_public_rows(engine: &str, observation: &str) {
     let mut excluded = Vec::new();
     let mut active_identity = String::new();
     let mut vm: Option<Vm> = None;
-    for row in rows.chunks_exact(5) {
+    for row in rows.as_chunks::<5>().0 {
         let id = tcl_syntax::list::split_list(&row[0]).unwrap();
         let identity = tcl_syntax::list::split_list(&id[0]).unwrap();
         let context = identity[0].as_ref();
