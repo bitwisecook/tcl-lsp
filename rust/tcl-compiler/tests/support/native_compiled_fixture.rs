@@ -377,7 +377,7 @@ pub fn assert_declaration_and_refusal_boundaries() {
 
 #[derive(Debug)]
 struct BindingObservation {
-    captured: tcl_runtime_api::OriginalProcedureBindingContext,
+    captured: tcl_runtime_api::native_procedure_compilation::OriginalProcedureBindingContext,
     ordinary: Option<Vec<tcl_core_types::NameBytes>>,
     active_grammar: Option<tcl_dialect::ParameterGrammar>,
     wrapped: bool,
@@ -433,8 +433,8 @@ pub fn assert_dispatched_binding_boundaries() {
         .try_invoke_command(
             "object",
             &[
-                tcl_vm::Value::new_native_string_bytes(b"m"),
-                tcl_vm::Value::new_native_string_bytes(b"value"),
+                tcl_vm::Value::new_native_string_bytes(b"m".as_slice()),
+                tcl_vm::Value::new_native_string_bytes(b"value".as_slice()),
             ],
         )
         .expect("actual method body compilation and execution");
@@ -462,7 +462,10 @@ pub fn assert_dispatched_binding_boundaries() {
     assert!(declared.is_ok(), "{declared:?}");
     assert!(bindings.borrow().is_empty());
     let completion = owner
-        .try_invoke_command("p", &[tcl_vm::Value::new_native_string_bytes(b"value")])
+        .try_invoke_command(
+            "p",
+            &[tcl_vm::Value::new_native_string_bytes(b"value".as_slice())],
+        )
         .expect("actual byte-formal body compilation and execution");
     assert!(completion.is_ok(), "{completion:?}");
     assert_eq!(completion.result.string_bytes().as_ref(), b"1");
