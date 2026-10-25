@@ -6060,11 +6060,11 @@ mod tests {
         let body_id = fixture_id(&unit.ir_module.procedures, "::p");
         assert!(std::ptr::eq(
             unit.function_for_body(Some(body_id)).unwrap(),
-            &unit.procedures[&body_id]
+            std::ptr::from_ref(&unit.procedures[&body_id])
         ));
         assert!(std::ptr::eq(
             unit.function_for_body(None).unwrap(),
-            &unit.top_level
+            std::ptr::from_ref(&unit.top_level)
         ));
         let mut wrong_stamp = unit.clone();
         wrong_stamp.procedures.get_mut(&body_id).unwrap().body_id = None;

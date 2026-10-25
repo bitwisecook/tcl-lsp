@@ -3839,7 +3839,8 @@ mod native_source_lifted_inventory_owner_tests {
                 .next()
                 .unwrap();
             let script = &unit.ir_module.body_units.get(&body).unwrap().body;
-            let offset = source.find("expr").unwrap() as u32;
+            let offset = u32::try_from(source.find("expr").unwrap())
+                .expect("fixture source offset fits u32");
             let originals = script
                 .statements
                 .iter()

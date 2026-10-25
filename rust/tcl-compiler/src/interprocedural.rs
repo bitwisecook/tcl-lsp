@@ -7433,7 +7433,7 @@ mod tests {
         assert_eq!(call.argument_count(), Some(1));
         assert!(std::ptr::eq(
             call.procedure(),
-            &module.body_units[&call.id()]
+            std::ptr::from_ref(&module.body_units[&call.id()])
         ));
         assert_eq!(
             module.original_authored_declaration_body_units[&call.id()].name(),

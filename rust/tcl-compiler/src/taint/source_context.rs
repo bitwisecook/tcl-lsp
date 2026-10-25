@@ -335,7 +335,10 @@ mod original_standalone_unit_tests {
         assert!(unit.ir_module.source_entry.native_entry.is_none());
         assert!(source.allows_nominal_metadata());
         assert!(source.module_owner().is_some());
-        assert!(std::ptr::eq(source.module().unwrap(), &unit.ir_module));
+        assert!(std::ptr::eq(
+            source.module().unwrap(),
+            std::ptr::from_ref(&unit.ir_module)
+        ));
 
         let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
         assert!(
