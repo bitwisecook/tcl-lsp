@@ -609,6 +609,19 @@ mod tests {
         }
     }
 
+    // Keep the actual set alive in the caller across all later lattice queries.
+    fn assert_distinct_body_purpose_hashing<T: Clone + Eq + std::hash::Hash>(
+        legacy: T,
+        body: &T,
+    ) -> impl Sized {
+        let mut purposes = HashSet::new();
+        assert!(purposes.insert(legacy.clone()));
+        assert!(purposes.insert(body.clone()));
+        assert!(!purposes.insert(body.clone()));
+        assert!(!purposes.insert(legacy));
+        purposes
+    }
+
     #[test]
     fn original_lattice_worker_keeps_actual_recipe_and_refuses_changed_key_or_request() {
         let context =
@@ -622,11 +635,7 @@ mod tests {
                 .expect("actual original source request");
             let legacy = BodyLatticeInputs::from(request.body.clone());
             assert_ne!(legacy, body);
-            let mut purposes = HashSet::new();
-            assert!(purposes.insert(legacy.clone()));
-            assert!(purposes.insert(body.clone()));
-            assert!(!purposes.insert(body.clone()));
-            assert!(!purposes.insert(legacy));
+            let _purposes = assert_distinct_body_purpose_hashing(legacy, &body);
             let bindings = BodyLatticeCommandBindings::from(request.command_bindings.clone());
             let metadata = request.original_metadata_context(registry);
             let trust = request.command_trust.snapshot();

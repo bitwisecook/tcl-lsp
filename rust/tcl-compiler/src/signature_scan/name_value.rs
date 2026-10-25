@@ -1620,6 +1620,20 @@ mod logical_formal_field_tests {
         (Arc::new(owner), input)
     }
 
+    // Evaluate the repeated issuer query at its original insertion point and
+    // retain the actual set through the caller's remaining source queries.
+    fn assert_formal_field_hash_identity<T: Clone + Eq + std::hash::Hash>(
+        field: &T,
+        duplicate: impl FnOnce() -> T,
+        foreign_allocation: T,
+    ) -> impl Sized {
+        let mut set = std::collections::HashSet::new();
+        assert!(set.insert(field.clone()));
+        assert!(!set.insert(duplicate()));
+        assert!(set.insert(foreign_allocation));
+        set
+    }
+
     #[test]
     fn logical_formal_fields_retain_complete_call_path_and_unicode_source_units() {
         let source = "apply {{first {second DEFAULT} args} {return $first}} ONE";
@@ -1679,10 +1693,11 @@ mod logical_formal_field_tests {
             assert_ne!(foreign_allocation, field);
             assert!(!foreign_allocation.matches_source(owner.lambda().image(), &input));
             assert!(!foreign_allocation.matches_lambda(&owner, &input));
-            let mut set = std::collections::HashSet::new();
-            assert!(set.insert(field.clone()));
-            assert!(!set.insert(owner.formal_name_field(&input, ordinal).unwrap()));
-            assert!(set.insert(foreign_allocation));
+            let _set = assert_formal_field_hash_identity(
+                &field,
+                || owner.formal_name_field(&input, ordinal).unwrap(),
+                foreign_allocation,
+            );
             let mut foreign_config = input.lexer_config();
             foreign_config.strict_quoting = !foreign_config.strict_quoting;
             let foreign = crate::analyser::ResolvedAnalysisInput::new(
