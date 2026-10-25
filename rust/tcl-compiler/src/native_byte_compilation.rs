@@ -130,7 +130,7 @@ impl NativeByteCommandUnavailable {
         {
             return;
         }
-        let stage = detail.unwrap_or_else(|| match self {
+        let stage = detail.unwrap_or(match self {
             Self::Entry => "entry",
             Self::Words(NativeCompilerWordsUnavailable::MissingHead) => "words.missing_head",
             Self::Words(NativeCompilerWordsUnavailable::SourceOwnership) => "words.source_owner",
