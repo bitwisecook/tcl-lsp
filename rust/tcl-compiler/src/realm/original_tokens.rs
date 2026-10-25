@@ -63,6 +63,39 @@ impl OriginalCommandTokenCache {
 }
 
 impl CommandBindingRealm {
+    /// Reborrow the real representative tokens from the exact original word
+    /// projection. Compatibility spans and kinds cannot create a token owner.
+    pub(crate) fn retained_original_tokens_for_command(
+        &self,
+        image: &SourceImage,
+        config: LexerConfig,
+        offset: u32,
+        tokens: &CommandTokens,
+    ) -> Option<Arc<CommandTokens>> {
+        if tokens.synthetic.is_some() || !self.matches_original_source_image(image, config) {
+            return None;
+        }
+        let origin = self.bindings.source_origin()?;
+        let original = origin.original_lexical_command(tokens.words(), offset, config)?;
+        let command = original.command();
+        if tokens.argv.len() != command.argv.len()
+            || tokens.argv_kinds.len() != command.argv.len()
+            || tokens
+                .argv
+                .iter()
+                .zip(&command.argv)
+                .any(|(span, token)| *span != token.span)
+            || tokens
+                .argv_kinds
+                .iter()
+                .zip(&command.argv)
+                .any(|(kind, token)| *kind != token.kind)
+        {
+            return None;
+        }
+        self.retained_original_tokens(image, config, offset, &command.argv)
+    }
+
     /// Retain the existing original lexical preparation and source stamping
     /// under this immutable realm. Complete image/channel, full config, site
     /// and representative tokens distinguish queries; no reporting name,

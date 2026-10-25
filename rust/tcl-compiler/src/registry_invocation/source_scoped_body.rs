@@ -449,7 +449,7 @@ pub(super) fn normal_source_case_bodies_for(
                 input.has_logical_source_name_context()
                     && scope.matches_input(input)
                     && scope.owns_words(advice.original_words())
-                    && input.borrowed_context_registry() == context
+                    && std::ptr::eq(input.borrowed_context_registry(), context)
             }),
         _ => false,
     };

@@ -152,11 +152,11 @@ impl OriginalSourceCommandAvailability {
                 )
                 && analysis.retained_command_realm().is_some_and(|realm| {
                     realm
-                        .retained_original_tokens(
+                        .retained_original_tokens_for_command(
                             self.original_head().image(),
                             self.input.lexer_config(),
                             self.original_head().span().start(),
-                            &self.invocation.argv,
+                            &self.invocation,
                         )
                         .is_some_and(|tokens| {
                             tokens.source_binding == self.invocation.source_binding
@@ -187,7 +187,7 @@ impl SourceAvailabilityTrace<'_> {
         binding: &crate::command_binding::SourceInvocationBinding,
     ) -> Option<bool> {
         let expected = self.required(
-            realm.retained_original_tokens(image, config, offset, &self.0.argv),
+            realm.retained_original_tokens_for_command(image, config, offset, self.0),
             "source.retained-tokens",
         )?;
         Some(expected.source_binding.as_ref() == Some(binding))
