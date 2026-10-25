@@ -1335,9 +1335,29 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         let loop_ctx = ordering::build_loop_context(cfg);
         return finalize_function(ctx, cfg, &block_order, &loop_ctx);
     }
-    ctx.native_dependency_refusal = !ctx
-        .retain_expression_preparations(&cfg.required_expression_preparations)
-        || !ctx.retain_math_invocations(&cfg.required_math_invocations);
+    let preparations_retained =
+        ctx.retain_expression_preparations(&cfg.required_expression_preparations);
+    ctx.native_dependency_refusal =
+        !preparations_retained || !ctx.retain_math_invocations(&cfg.required_math_invocations);
+    if ctx.native_dependency_refusal
+        && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+    {
+        eprintln!(
+            "CCG_NATIVE_INITIAL_DEPENDENCY_REFUSAL stage={} preparations={} math={} source={:?}",
+            if preparations_retained {
+                "math"
+            } else {
+                "expression-preparation"
+            },
+            cfg.required_expression_preparations.len(),
+            cfg.required_math_invocations.len(),
+            cfg.executed_source.as_ref().map(|source| (
+                std::sync::Arc::as_ptr(&source.origin) as usize,
+                source.base(),
+                source.text.len(),
+            )),
+        );
+    }
     if !ctx.plain_command_dispatch {
         for site in &cfg.command_binding_sites {
             ctx.require_command_site(site);
