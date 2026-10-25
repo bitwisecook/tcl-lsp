@@ -814,7 +814,7 @@ mod tests {
             .get(&fixture_id(&original.procedures, "::p"))
             .expect("authored fixture body")
             .clone();
-        cooked.body.command_binding_sites = Default::default();
+        cooked.body.command_binding_sites = crate::ir::CommandBindingSites::default();
         let Statement::Return { tokens, .. } = &mut cooked.body.statements[0] else {
             panic!("genuine original return fixture");
         };

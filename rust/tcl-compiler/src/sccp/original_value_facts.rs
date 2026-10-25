@@ -3954,7 +3954,7 @@ mod tests {
                 command: "::unset".into(),
                 canonical_command: None,
                 args: vec![
-                    "".into(),
+                    String::new(),
                     "array(key)".into(),
                     "$computed".into(),
                     "nul\0tail".into(),

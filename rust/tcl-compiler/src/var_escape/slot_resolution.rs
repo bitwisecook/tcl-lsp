@@ -972,7 +972,7 @@ mod tests {
         }
         assert!(assign_local_slots(&changed, &ProcEscapeSummary::default(), &[]).is_empty());
         let mut missing = procedure.body.clone();
-        missing.command_binding_sites = Default::default();
+        missing.command_binding_sites = crate::ir::CommandBindingSites::default();
         assert!(assign_local_slots(&missing, &ProcEscapeSummary::default(), &[]).is_empty());
         let mut unowned = assign_const("$literal", "1");
         if let Statement::AssignConst { name_braced, .. } = &mut unowned {

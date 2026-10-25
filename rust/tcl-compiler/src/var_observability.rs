@@ -592,7 +592,7 @@ mod tests {
                     Some((&context).into()),
                 );
             }
-            assert_eq!(flags.get("$g").is_some(), available, "{environment}");
+            assert_eq!(flags.contains_key("$g"), available, "{environment}");
         }
         let unavailable =
             analyse_var_observability_with_metadata_context(&function.cfg, &registry, None);

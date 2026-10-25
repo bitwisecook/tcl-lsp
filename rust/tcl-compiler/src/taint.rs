@@ -9637,7 +9637,7 @@ mod tests {
                     ("$literal".into(), HashSet::from(["LiteralClass".into()])),
                     ("${literal}".into(), HashSet::from(["BraceClass".into()])),
                     ("literal".into(), HashSet::from(["ReferenceClass".into()])),
-                    ("".into(), HashSet::from(["EmptyClass".into()])),
+                    (String::new(), HashSet::from(["EmptyClass".into()])),
                     ("arr".into(), HashSet::from(["ScalarClass".into()])),
                     ("arr(key)".into(), HashSet::from(["CommandClass".into()])),
                     ("a{b}c".into(), HashSet::from(["NestedClass".into()])),

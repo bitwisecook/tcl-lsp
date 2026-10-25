@@ -2236,9 +2236,9 @@ mod tests {
                 .iter()
                 .map(|span| source.get(span.as_range()).unwrap())
                 .collect::<Vec<_>>();
-            actual.sort();
+            actual.sort_unstable();
             let mut expected = expected;
-            expected.sort();
+            expected.sort_unstable();
             assert_eq!(actual, expected, "{source}");
             let mut changed = tokens.clone();
             changed.argv_texts[0].push_str(" changed");

@@ -1643,7 +1643,7 @@ fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context
     assert!(build_inlinable_map(&mismatched_names, &bound, context.commands()).is_empty());
     let mut missing_tokens = module.clone();
     let proc = missing_tokens.procedures.get_mut(&p_id).unwrap();
-    proc.body.command_binding_sites = Default::default();
+    proc.body.command_binding_sites = crate::ir::CommandBindingSites::default();
     let Statement::Return { tokens, .. } = &mut proc.body.statements[0] else {
         panic!("genuine original return fixture");
     };
