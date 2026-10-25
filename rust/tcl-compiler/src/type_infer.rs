@@ -3035,6 +3035,41 @@ mod tests {
         ));
     }
 
+    fn assert_unsupported_caller_factories(
+        version: tcl_dialect::TclVersion,
+        metadata: TypePropagationMetadata<'_>,
+    ) {
+        for (source, args) in [
+            (
+                "oo::class create C {}; C create object",
+                vec!["create", "object"],
+            ),
+            ("oo::class create C {}; C new value", vec!["new", "value"]),
+            (
+                "oo::class create C {constructor {} {return}}; C new",
+                vec!["new"],
+            ),
+            (
+                "oo::class create C {self method new args {return}}; C new",
+                vec!["new"],
+            ),
+            (
+                "oo::class create C {method observe args {}; filter observe}; C new",
+                vec!["new"],
+            ),
+            (
+                "oo::class create C {}; rename C retired; proc C args {}; C new",
+                vec!["new"],
+            ),
+        ] {
+            let tokens = original_factory_tokens(source, version, "C ", "C");
+            assert!(
+                !caller_safe_factory_invocation(metadata, &tokens, "C", &args),
+                "{version:?}: {source}"
+            );
+        }
+    }
+
     #[test]
     fn original_caller_safe_factory_keeps_selected_layout_and_withdraws_changed_owners() {
         // naming.tcloo.original-default-manufacture-source-shape
@@ -3118,35 +3153,7 @@ mod tests {
                 "C",
                 &["new"],
             ));
-            for (source, args) in [
-                (
-                    "oo::class create C {}; C create object",
-                    vec!["create", "object"],
-                ),
-                ("oo::class create C {}; C new value", vec!["new", "value"]),
-                (
-                    "oo::class create C {constructor {} {return}}; C new",
-                    vec!["new"],
-                ),
-                (
-                    "oo::class create C {self method new args {return}}; C new",
-                    vec!["new"],
-                ),
-                (
-                    "oo::class create C {method observe args {}; filter observe}; C new",
-                    vec!["new"],
-                ),
-                (
-                    "oo::class create C {}; rename C retired; proc C args {}; C new",
-                    vec!["new"],
-                ),
-            ] {
-                let tokens = original_factory_tokens(source, version, "C ", "C");
-                assert!(
-                    !caller_safe_factory_invocation(metadata, &tokens, "C", &args),
-                    "{version:?}: {source}"
-                );
-            }
+            assert_unsupported_caller_factories(version, metadata);
         }
     }
 

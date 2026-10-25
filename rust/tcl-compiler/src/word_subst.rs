@@ -3794,6 +3794,45 @@ mod readonly_logical_substitution_tests {
 mod native_source_lifted_inventory_owner_tests {
     use super::*;
 
+    fn assert_native_expression_child_refusals(
+        retained: &CommandTokens,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) {
+        let mut detached = retained.clone();
+        detached.source_binding = None;
+        assert!(
+            original_call_context(
+                &detached,
+                config,
+                registry,
+                OriginalLiftedCallContext::Metadata(metadata)
+            )
+            .is_none()
+        );
+        let mut changed = retained.clone();
+        changed.argv_texts[0] = "other".into();
+        assert!(
+            changed
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_native_source_syntax_offset(&changed, input, registry)
+                .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.nested_bindings.clear();
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &missing, config, registry, metadata,
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn native_source_braced_expression_inventory_preserves_child_geometry_and_refuses_expansion() {
         let context =
@@ -3886,34 +3925,8 @@ mod native_source_lifted_inventory_owner_tests {
                         .original_native_source_words(retained, &input, registry)
                         .is_none()
                 );
-                let mut detached = retained.clone();
-                detached.source_binding = None;
-                assert!(
-                    original_call_context(
-                        &detached,
-                        config,
-                        registry,
-                        OriginalLiftedCallContext::Metadata(metadata)
-                    )
-                    .is_none()
-                );
-                let mut changed = retained.clone();
-                changed.argv_texts[0] = "other".into();
-                assert!(
-                    changed
-                        .source_binding
-                        .as_ref()
-                        .unwrap()
-                        .original_native_source_syntax_offset(&changed, &input, registry)
-                        .is_none()
-                );
-                let mut missing = tokens.clone();
-                missing.nested_bindings.clear();
-                assert!(
-                    checked_original_lifted_calls_with_metadata_context(
-                        &missing, config, registry, metadata,
-                    )
-                    .is_none()
+                assert_native_expression_child_refusals(
+                    retained, tokens, &input, config, registry, metadata,
                 );
             }
         }

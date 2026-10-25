@@ -261,6 +261,34 @@ mod tests {
         }
     }
 
+    fn assert_changed_argument_inventory(
+        tokens: CommandTokens,
+        input: &ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+        owner: &OwnedInvocationMetadataContext,
+    ) {
+        let mut changed = tokens.clone();
+        changed.word_exprs = original_tokens("list [dict size OTHER]", input).word_exprs;
+        assert!(
+            argument_calls(
+                &changed,
+                registry,
+                ArgumentReadInput::for_owner(owner, registry)
+            )
+            .is_none()
+        );
+        let mut detached = tokens;
+        detached.source_binding = None;
+        assert!(
+            argument_calls(
+                &detached,
+                registry,
+                ArgumentReadInput::for_owner(owner, registry)
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn original_argument_inventory_refuses_changed_missing_and_foreign_owners() {
         // naming.compiler.original-analysis-metadata-context
@@ -350,26 +378,7 @@ mod tests {
             )
             .is_none()
         );
-        let mut changed = tokens.clone();
-        changed.word_exprs = original_tokens("list [dict size OTHER]", &input).word_exprs;
-        assert!(
-            argument_calls(
-                &changed,
-                registry,
-                ArgumentReadInput::for_owner(&owner, registry)
-            )
-            .is_none()
-        );
-        let mut detached = tokens;
-        detached.source_binding = None;
-        assert!(
-            argument_calls(
-                &detached,
-                registry,
-                ArgumentReadInput::for_owner(&owner, registry)
-            )
-            .is_none()
-        );
+        assert_changed_argument_inventory(tokens, &input, registry, &owner);
     }
 
     #[test]
