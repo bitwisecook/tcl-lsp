@@ -1,0 +1,168 @@
+{
+  "utc": "2026-10-25T09:15:21.924875+00:00",
+  "verdict": "STATIC DEEP PRODUCER/ISSUER/SOURCE/LIFETIME/CURRENTNESS CLEAR; UNBUILT/UNRUN",
+  "checks": {
+    "WORK": {
+      "manifest_sha256": "3cc1a1faf466ac20bee16d74e3b0bb654ba3c074e72ce9df19ae8621e8d054b6",
+      "patch_sha256": "8e2e8a870969645caeb1b010289bb172ef40d3a97ba3e4ab6d010d7f1560929b",
+      "rows": [
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "before_sha256": "96efefa87019b63a29f9f3f30d4bcaf171a58f114eff468a3433dc9d42db23a0",
+          "after_sha256": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_compiler_pass.rs",
+          "before_sha256": "4d52d40a82228d17e7fb4e3531551dc015ade7ae08c55ce7aa0df035567b8a5d",
+          "after_sha256": "bea79bd4c38b3d7b4fef315f71f60b86685dff737f53b3a2525fbf3ad4444bfc",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "before_sha256": null,
+          "after_sha256": "ee307456b80910e0d3b39e4ff69c675fc1db0438dfe635db0488c839cf876453",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "before_sha256": "787cf03bc38f5fca1d3edfaa66111b3eda9fa194a22ecc254e1f26891ee01b97",
+          "after_sha256": "64dafbcec6d212eeeac22e617ec8cb866b47af7d59c883405156d925016064fc",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "before_sha256": "5e3a01e3f9c07587245933d141af364a407d74e405a36240dc874cac653499ad",
+          "after_sha256": "a0307709fce89a4f241ac4c4936be2daeb753f2ed017a602cfab7a26b9215d42",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "before_sha256": "0005ce2b2455e01405be3e86a941932bdec099ed06415cb3e4301948e969d41f",
+          "after_sha256": "b4a748c379ff775282aa5dd3864d37025953b6accf146034b87684bc3a55fa97",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_compiler_pass.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "rc": 0
+        }
+      ]
+    },
+    "CLEAN": {
+      "manifest_sha256": "ad1474f04f7f4fb18681529510f86bb3c2990316bd0a21f285a5ac7807d1c502",
+      "patch_sha256": "8e2e8a870969645caeb1b010289bb172ef40d3a97ba3e4ab6d010d7f1560929b",
+      "rows": [
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "before_sha256": "96efefa87019b63a29f9f3f30d4bcaf171a58f114eff468a3433dc9d42db23a0",
+          "after_sha256": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_compiler_pass.rs",
+          "before_sha256": "4d52d40a82228d17e7fb4e3531551dc015ade7ae08c55ce7aa0df035567b8a5d",
+          "after_sha256": "bea79bd4c38b3d7b4fef315f71f60b86685dff737f53b3a2525fbf3ad4444bfc",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "before_sha256": null,
+          "after_sha256": "ee307456b80910e0d3b39e4ff69c675fc1db0438dfe635db0488c839cf876453",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "before_sha256": "787cf03bc38f5fca1d3edfaa66111b3eda9fa194a22ecc254e1f26891ee01b97",
+          "after_sha256": "64dafbcec6d212eeeac22e617ec8cb866b47af7d59c883405156d925016064fc",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "before_sha256": "5e3a01e3f9c07587245933d141af364a407d74e405a36240dc874cac653499ad",
+          "after_sha256": "a0307709fce89a4f241ac4c4936be2daeb753f2ed017a602cfab7a26b9215d42",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "before_sha256": "a957bdedbfe304779c43d188125d6b0a0be668389ce4b3dec0de275b52b6bc7f",
+          "after_sha256": "6f5d0b7cf7d8febb1043b24605c0a64e970a69ac4f83c792104194946b894cef",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-runtime-api/src/lib.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_compiler_pass.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "rc": 0
+        }
+      ]
+    }
+  },
+  "deep_review": [
+    "Actual ProcDef reaches preparation through ensure_proc_traced with exact params slice/body Value pointer/current namespace checked. Request source comes from existing checked original body getter/complete-prefix plan; formals come immutable ProcDef names and namespace includes actual incarnation token/path/interpreter. No report-name join or declaration-site reconstruction.",
+    "Generic live role is not sufficient issuer: ledger requires actual interpreter-owned NativeCompilerPassOwner; private token+Weak identity is inaccessible from captured environment, same numeric interpreter with new owner fails original captured entry. No NativeCompilationEntry field/projection added and old Eq/Hash unchanged.",
+    "Request matches_entry is explicitly CONDITIONAL on supplied authentic entry: exact compiler owner, interpreter/current namespace and full retained namespace context. It cannot authenticate arbitrary user-mutated snapshots and grants no execution/frame/Normal/handler authority. Actual runtime still owns original operation currency before/after callbacks and existing module/profile/namespace/source/compiler prerequisites.",
+    "Canonical immutable source Arc holds whole original image/channel, bound formal keys, exact namespace incarnation and original issuer. Prefix is a slice of retained whole image, reporting name separate. First genuine payload mismatch permanently withdraws current flag before returning ChangedOriginal; equal restoration cannot revive. Foreign issuer and invalid prefix checked before they can mutate original custody.",
+    "Actual relocate_with_body_namespace withdraws captured source context BEFORE location write or Jim namespace-holder replacement/drop callback; old request dies immediately even if source returns to same namespace before any later compilation. Source/body/formals immutable behind ProcDef Rc; duplicate recompile constructs fresh resources/ledger; genuine running old declaration after binding replacement stays distinct historical owner without callable publication.",
+    "Only optional ChangedOriginal uses original legacy compile target with no request/new custody grant. Retired/foreign issuer/invalid prefix remain terminal. Existing Jim branch precedes new C request logic; anonymous/no-owner path remains ordinary compile.",
+    "Native final role release sets lifetime false before freeing original resources/hooks. Request clones own copied immutable source metadata/Weak identities only, add no native procedure/body/default role and cannot postpone original retirement. No ledger RefCell borrow crosses callbacks.",
+    "Compiler callback default and actual VM pre/post checks forward immutable request target unchanged; currentness withdrawal during callback drops returned module and refuses. Existing plain fallback dispatch, whole-source prefix equality, module namespace/profile checks and ordinary preparation/entry flow retained.",
+    "New software API controls use fresh declaration/binding/request for EACH body/formals/path/token/channel mutation, assert initially live then specific ChangedOriginal+withdrawal+no-revival. Separate same-number foreign issuer/missingenv/expiry/no-extra-role/retirement/identical distinct declarations controls retained. Actual VM relocation control moves away AND back before reissue, checking immediate withdrawal both times. All new controls remain UNRUN."
+  ],
+  "scope_limits": [
+    "No proof that this request joins an AOT whole-program source declaration allocation; WASM NativeAdd producer remains separate.",
+    "No Cargo/rustc/Clippy/native/Tcl/actual callback execution or classifier success claim.",
+    "No broader Native body/frame/compiled-variable/Normal authority is supplied; compiler consumer must preserve its own Module issuer/source/entry/retained metadata checks and existing admission/escape gates."
+  ]
+}

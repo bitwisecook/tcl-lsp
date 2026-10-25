@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-25T09:31:33.614861+00:00",
+  "verdict": "INDEPENDENT NARROW FIXTURE/SOURCE/API CLEAR; actual corrected Rust tests still UNRUN",
+  "sourceproof_sha256": "e66fae5f250df4ba7bdd05e2d77fd6aaace43e816fb80463dd8e7cbffc9b7f83",
+  "work_manifest_sha256": "c63b29ec0a28d787e8592693d02ce4d82938a6c8c6599eea75887c4c068bb038",
+  "clean_manifest_sha256": "d2abc5c52e10ba85a377845786b73c93fc689af39be369cea1600d7aa446d963",
+  "metadata_manifest_sha256": "a5b7aeb5197d70c48bcbeda5cfbc02c7c2cdfa9507f82cc1d155d10e87a5c039",
+  "mechanical_checks_sha256": "36959722f305291867e4dc530aad984bfef28938aa2cfc5adb8e1a13c7c5ec4e",
+  "oracle_receipt_sha256": "c90c21a70f3ef7daccbb88a2ce7f44fe10d6c521cb2bd1c62b41ae4778f9801a",
+  "C_source": "All five provisioned reference tclBasic.c full SHA/actual bytewindow slices/rawFF/physical-LF coordinates/computed blob OID independently verified. First ordinary deletion sets dying flag but leaves old hash entry until after deleteProc; reentrant deletion unlinks early without callback. Exact C85 import ordering differs from C86+, so this review covers no earlier trace/import/reentrant deletion only. Source windows are untracked provisioned references, not falsely Git-owned.",
+  "actual_C86": "Independently read exact old Tcl_Command/token+Old objProc+same clientData callback observations and new replacement afterward; checked current pinned inputs/full before-after hashes, process JSON/receipt identity, 20s/1MiB/2GiB/no-stop/exit0/two emptygroup checks, .so/output hashes. Existing bounded root-authorized oracle only; no native rerun performed. No namespace delete/recreate/full replacement parity inferred.",
+  "fixture": "Wrong old-absence assumption becomes exact original generation presence. Observation stays inside actual callback; exact assertion moves outside extern-C so a test failure remains visible without callback unwind abort. Namespace/delete/recreate path and mode0/1/2 all later callcount/result/context/currency/replacement/first-refusal assertions remain. Shared active-call callback still retires its original Box exactly once; new observer holds only Option<u64>, no native Command/Rc clone. Original create still unwraps success, now binds exact returned generation.",
+  "API_ownership": "command_generation directly reads table.generation, unlike old command_in which briefly cloned Command. resolve_cmd_token already used, now returned exact Option<u64> instead of is_none bool. Same weak interpreter Rc upgrade/Box consumption/drop and mode actions; new Rc<Cell<Option<u64>>> is test-only scalar observation, no interpreter ownership cycle. Production bytes preceding fixture structs remain byte-exact in both lanes; all diff hunks are in existing cfg(test) fixtures.",
+  "checks": [
+    "Both actual current preimages, original production prefix exact",
+    "Paired isolated F/R/F0 zero fuzz/offset and after bytes",
+    "Rustfmt2021 skip_children both afterfiles PASS",
+    "Full23JSON census: sole Wasm interp pin+derived fullroster driver digest, whole JSON+driver literal inverse/current preimages/AST PASS"
+  ],
+  "limits": [
+    "This corrects only disproved callback-absence test premise; no runtime production order, native frame/entry/currentness/Normal/Eq/report guard change.",
+    "No Rust/Cargo/typecheck/test execution or new global CI acceptance; actual raw CI failure identity is supplied by root/runtime and not a separate full run-source authentication here.",
+    "Later namespace retirement refusal contract remains unchanged even though C constructors may re-ensure a namespace; no broad replacement outcome parity inferred."
+  ]
+}

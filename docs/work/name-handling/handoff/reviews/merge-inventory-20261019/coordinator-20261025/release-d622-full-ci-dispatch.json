@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-25T09:41:55.827763+00:00",
+  "source": "d622c8932ee8048d5b658efc98e7bb5ca4c9c98f",
+  "workflow": "ci.yml",
+  "request": {
+    "ref": "release/lsp-naming",
+    "inputs": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": false
+    }
+  },
+  "full_CI_graph": true,
+  "publish_or_release": false,
+  "older_run_superseded": 40087877719,
+  "reason": "Validate current reduced release tree after real procedure custody, formal forwarding, same-query source calls and oracle-backed callback fixtures. Existing WORK CI remains running; no publishing.",
+  "validation_admission": false
+}

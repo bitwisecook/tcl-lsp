@@ -1,0 +1,195 @@
+{
+  "utc": "2026-10-25T09:21:16.647551+00:00",
+  "verdict": "STATIC DEEP PRODUCT/FIXTURE/OWNER/TYPE/API/CARRY CLEAR; ACTUAL RUST/NATIVE UNRUN",
+  "producer_dependency": "8e2e8a870969645caeb1b010289bb172ef40d3a97ba3e4ab6d010d7f1560929b",
+  "producer_peer": "597fe56703aa6977dffd1f25e7746fa987328d633807202cc7fcc4aaab52619c",
+  "checks": {
+    "WORK": {
+      "manifest_sha256": "ab01fbe8702a4ac6c0821bf85cc0e17a0b364d90cec51d3624fb3b3dc24f1844",
+      "patch_sha256": "6fc6875bc9c17f13d1d1c7fff860b6fb84e0ee6e56ce43f24338d2f2736c62ac",
+      "rows": [
+        {
+          "path": "docs/design/README.md",
+          "before_sha256": "de00005cb687931cddacbed6fd5884f884af28787483e963a2fbe91e0ae3803f",
+          "after_sha256": "98d9fe26ab1943ae2e6d648f99e91f14de0f5bf8979548dec5f9cd8dff62ada2",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/native-procedure-compilation-custody.md",
+          "before_sha256": null,
+          "after_sha256": "439b1baacbe50428393178f723ce349161b33f24529672fb88f4c2c1b0616126",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+          "before_sha256": "3e12839aa2c50f14c7d8a62e90c469a57d45f3768b2576ef89182158e7278440",
+          "after_sha256": "f76f0ef585bb8a0febcff0750df5cef252706b16c29249d69ee49fcf109c9277",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service/native_procedure_source.rs",
+          "before_sha256": null,
+          "after_sha256": "fc9446146bff1e54a1c91c32578f77d50fbd55b577008c13f9bf0b397ed02d99",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service.rs",
+          "before_sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+          "after_sha256": "f123edf298ba498422236d4a1032a46e7c54c2fb917a8fa2325790fbb0a16cf0",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "before_sha256": "0d622460204ba6f34c0f2ea455ad09738ccabf7419a60672308e425821bf065e",
+          "after_sha256": "d34798c4ccc80f8fc2a4c7daa7756d730b6e1c79c044311ca49cf421ec5c949d",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining.rs",
+          "before_sha256": "b75a59b79b29f9db284ced26d7bf6b16c99c14d0e7aeca4e2ab6c69b1989b612",
+          "after_sha256": "cbce1dd759bb2380de0ab21e767ce5d03231c058c1a55110fa9916228aa2f27e",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/tests/support/native_compiled_fixture.rs",
+          "before_sha256": null,
+          "after_sha256": "216b4deac03501dfcca428a7157691c406ce1d1efc2dffa4d710bbb0df61599d",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-compiler/src/compile_service/native_procedure_source.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/tests/support/native_compiled_fixture.rs",
+          "rc": 0
+        }
+      ],
+      "original_test_count": 72,
+      "new_test_count": 3,
+      "original_assert_macro_count": 123,
+      "all_original_assertions_literal_preserving_token_exact": true,
+      "owner_manifest_five_columns_correct": true
+    },
+    "CLEAN": {
+      "manifest_sha256": "c5fbb92b98fa39771b2e3674aa0915e7bc27dd480aef3be2e717c5014caf7dd9",
+      "patch_sha256": "bb5af1cebddd9193e74f3e72c93812e5770e01e0b829fa2501e995173b945971",
+      "rows": [
+        {
+          "path": "docs/design/README.md",
+          "before_sha256": "a49825ae4812296574f2a92910d9f4e38ab220a3e02a7accbefbff457a7d0a64",
+          "after_sha256": "52736500c068b004b08546f1992181282c7baa6c4cea505052ce85f913d75ffb",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/native-procedure-compilation-custody.md",
+          "before_sha256": null,
+          "after_sha256": "439b1baacbe50428393178f723ce349161b33f24529672fb88f4c2c1b0616126",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+          "before_sha256": "c27008d5bfd82657df8d066f7649cdfb02d3dd98c343395fb757701a7bdfe633",
+          "after_sha256": "fbfc2fcb5dce3cbd323baf77af5cb4054949a3cf25a60752aa4ff73faa338fa1",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service/native_procedure_source.rs",
+          "before_sha256": null,
+          "after_sha256": "fc9446146bff1e54a1c91c32578f77d50fbd55b577008c13f9bf0b397ed02d99",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service.rs",
+          "before_sha256": "ef99334928c8ad1e1c5d3ef957c6693cfda378a9355b59cc766ca07a29deb9e1",
+          "after_sha256": "3233dce1d73f06bfcfc77e2d09050b56ef0e35978290a4d7abded92fc2716b27",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "before_sha256": "5929b77ad6ca1a88c110629d95acc18f988f00c6d27c7233f415a65bd18c8f93",
+          "after_sha256": "3fa6f9f639a7dea8d9db332463924163a8cb2b53835836e18a8b6af7b6e85e62",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining.rs",
+          "before_sha256": "b75a59b79b29f9db284ced26d7bf6b16c99c14d0e7aeca4e2ab6c69b1989b612",
+          "after_sha256": "cbce1dd759bb2380de0ab21e767ce5d03231c058c1a55110fa9916228aa2f27e",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-compiler/tests/support/native_compiled_fixture.rs",
+          "before_sha256": null,
+          "after_sha256": "216b4deac03501dfcca428a7157691c406ce1d1efc2dffa4d710bbb0df61599d",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-compiler/src/compile_service/native_procedure_source.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/src/compile_service.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-compiler/tests/support/native_compiled_fixture.rs",
+          "rc": 0
+        }
+      ],
+      "original_test_count": 72,
+      "new_test_count": 3,
+      "original_assert_macro_count": 123,
+      "all_original_assertions_literal_preserving_token_exact": true,
+      "owner_manifest_five_columns_correct": true
+    }
+  },
+  "deep_review": [
+    "Production formal bug fix transports actual ProcedureCompileTargetBytes.parameters through NativeLoweringTarget, Script supplies empty list, and only ProcedureBody+actual Tcl parameter grammar+all valid UTF8 names seeds incoming_formals before existing lower_procedure_target. Existing options/native compiler/metadata/body ownership/analysis guards untouched; Jim/unknown/nonUTF8 old conservative path remains.",
+    "BytecodeCompileService new actual-request callback checks issuer/currentness then delegates exact request.target to existing real byte procedure compiler; no altered compiler policies, preparation tasks, admission or execution gates. New trait default preserves existing external compiler callbacks.",
+    "NativeCompiledProcedure constructor receives opaque actual request, exact profile/entry and standard owner-lowering path. It MOVES one same freshly lowered top-level body into one fresh SAME-Module-issued Installed unit. No foreign Script injection, duplicate body copy, authored declaration site, callable publication or formal-header reconstruction. Bound names do not invent original C ParamList spelling.",
+    "original_compiled_body checks live request/full original body, actual owned ProcedureId, whole source/entry/metadata/config/native namespace, original Procedure equality, semantic registry, exact retained-source Arc and existing positioned_for_module full original input guard. Foreign same-text Module/modified body/wrong issuer/currentness failure cannot borrow this custody. Installed body is not added to original declaration inventory; original relocation/frame/escape/admission gates remain independent.",
+    "Public query lifetime is from supplied Module reference; no self-borrow escapes, body is accessed only through owned id and compared with retained same producer. request.clone retains immutable bytes/Weak issuers only, no native role/frame/provider. same_declaration is explicitly identity comparison with no currentness/execution implication.",
+    "Integration fixture installs real NativeHost/C9 core, delegates actual plan/script/procedure compilation, observes runtime-issued request only AFTER successful original body compile, and retains actual owning VM through all queries. Decl-only fixtures perform genuine public procedure invocation when needed; call-bearing fixtures naturally reach same declaration and all captures require same opaque declaration identity. No fake Native entry or source-plan success.",
+    "All original72 test functions and every original assertion macro independently extracted with nested delimiter/string/raw-string/comment aware scanner: literals preserved and only outer whitespace/comments ignored. Only four construction/body lookup premises changed, no old assertion weakening. New3 controls preserve readonly allNever, actual declaration-only/refused callback, and own/foreign/modified/retired custody; actual results remain UNRUN.",
+    "V1 owner-table schema defect corrected in V2: real five-column owner manifest and existing xtask-owner-resolution gate, all Rust/test/otherdocs byte-identical to V1. Contract distinguishes authenticity-relative source custody from runtime entry/normal/frame/compiled-slot authority and leaves ordinary lifecycle guards required."
+  ],
+  "scope_limits": [
+    "Static only; no Rust typecheck/Clippy/Cargo/native/Tcl oracle, positive classifier or end-to-end gate acceptance.",
+    "No join of this isolated runtime declaration to an independent AOT whole-program original declaration allocation. WASM NativeAdd body/slot/frame owner frontier remains unproved.",
+    "No recursive activation change, discarded preparation tasks, source-only executable permission or broad VM parity change. Root integrates/pins/dispatches."
+  ]
+}

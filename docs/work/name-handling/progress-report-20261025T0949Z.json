@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T09:49:51.451717+00:00",
+  "scheduled_report_utc": "2026-10-25T09:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T10:15:00+00:00",
+  "change_since_previous_report": [
+    "CurrentpushedWORKf7a8d05e2ae160ade78c875c667a5f7c468347d2 andCLEANd622c8932ee8048d5b658efc98e7bb5ca4c9c98f. AllfunctionalfixesfirstWORK, correspondingproductsource/contracts reviewedinto releasebranch. NoPR/merge/tag/release/globalgateadmission.",
+    "Integratedgenuineprocedurecompilationcustody: actualNativeRole+privateCompilerPassOwner+originalbody/formals+namespaceincarnation retained, relocationwithdrawsbeforeeffects/no-revival, onlyoptionalChangedOriginal preserveslegacywithoutnewgrant. CompilerforwardsordinaryTclformals andretains same-Module issuedbody, exactold123assertionmacros across72tests retained;3newactualcallbackcontrols. Peers597fe/ca609; actualRust/type/runtime outcomespending.",
+    "Integratedsame-querycertifiedsource-call tape transport, separatecacheandresetpaths, retainedalready-issuedregionquerytape; alloldNormal/currentness/earlierdebt/per-call/target guards preserved. Peer69f909, no visits\u2192Normal/Native. Thisplausiblyrepairsquietsetdebt; hostactualpending.",
+    "IntegratedC86oracle-backedtwo publicationfixtures with exactOLDgenerationvisibility assertions outsideexternC; allothermode/namespaceholder/currentness/firstrefusal/replacement/result/assertions retained. ProductiondeleteProc-before-unlink unchanged. Peers24e0, actualRustpublicationtests pending.",
+    "SourcepinsrefreshedONLYforapprovedactualchanges; readonly13 protectsall11 Native/compilerRust dependencies andactualinlininginventory75 atallthreeguards. MandatoryV12PASS13startupmaps/30runners/20wholeinputguards. No sourcecap/budget/old102row/ELF admissionweakening.",
+    "New09:41 WORKf7 focusedstrict40181682529 FAILexit2,4MiBartifact12594576148 SHA97c3f841 assignedCodegen forfullauthandactualerror; jobrawlogdoesnotcontainchildRuststdout. Jim40181684929, hosts40181687278 andruntime40181689489 active. FreshreducedreleasefullCI40181716139 exactd622 active, existingoldWORKCI40177232371 notcancelled.",
+    "ActualWASM96 diagnosticfullyauth5cafd14b closes25originaltests22PASS3FAIL. Newinterpretedwitness actualOk(ok ok ok) fordepth60/61/62; compiledremainsok/error/error whileoldexpectedok/ok/error. Thisdoesnotjustifyfixed-depthtestchange orheuristicactivationborrowing. Genuineframe/callsite/callbacklease design remainsunimplemented pendingproperaccounting.",
+    "Correctionto09:15aggregate: startupfailureistextDocument/diagnostic immediatelyafterNEWprobe open,reasonPending; scan.readycoversonlyworkspaceindex/package readiness. Itisnotmainreportcontextrejection. Exactwirefrontier0ec8e6d1/indexV275b3d491 supersedesoldstatuslabel, all5authenticatedoutcomesunchanged. Newdirect-providerIndexedjoin beinginvestigated; no harnessretry/contractwaiver applied. Multifolder4 actualcontextfailuresindependent.",
+    "Originalcompiler102guarded94PASS8FAIL: sixgainsvsold99 (fold+4closedpositive+owner1),zeroobservedselectedPASS\u2192FAIL. RemainingLogicalRBS/Logical3allfail/readonly4fail. All223retainedprocesscapsdeductsharedbytesexactly, all9freshselectedartifacts0W. No complete24,312baseline comparison admission.",
+    "Typeddeferredbodyregionownershippatch newlysource-reviewed21357: genuineprivatecaller/definersite/currentattachment/SAMEOriginArc, genericcommandowner unchanged andallper-calluncertainty/targetguards retained. Source notyetintegrated atf7. No actualmainchildingressclosureclaim.",
+    "ExternalBIGIP/perf trackersstillstale>60minutes,usernotifiedwithouttakeover. RequiredTclperformance/nativebrowser/editor/SpecTclC1-C2/runtime/fullbaseline/generated/packaging/prep-pr/finaldocscommentsformat gatesremainopen. DedicatediRules timingonlywaived; correctnessnotwaived. Originalsixhourtargetmissed."
+  ],
+  "committed": [
+    "03e889fa72a2f5ac6424e05ef078dbca6f86547c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish09:45report/WIPand re-arm10:15.",
+    "Authenticateactualnewstrict/Jim/host/runtime/releaseCI; repairreachedRusttyping/lintsfirst.",
+    "Integratetypedregionowner anddirectpullIndexedjoin afterindependentreview; exposeactualLogicalleaf andJimkey beforefurtherproducerchanges.",
+    "RunnewNativeAPI/consumer/Vmrelocationcontrolsonfreshownedartifacts, completecurrentallgreen/baseline/Tclperformance/finalreleasequalitybeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No newgate/auditadmission thiscycle. Currentnewsource actualtype/native/host/semantic checks remainpending orfailed explicitly; prior scopedpositive receipts retained.",
+  "disk_free_bytes": 3746283520,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

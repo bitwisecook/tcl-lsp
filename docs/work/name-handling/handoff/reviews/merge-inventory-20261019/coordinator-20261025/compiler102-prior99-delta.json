@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-25T09:26:35.167989+00:00",
+  "source": "1c2944510ff9a7105a95151111942cf8fcb2b64a",
+  "assessment_sha256": "fdf7cc3cff4e5f36b0aa3324313bf154039f9a9b874dae6ede8b3787b063329f",
+  "all223_serialized_process_receipts_equal_exact_ZIP_members": true,
+  "all223_native_pid_birth_identities_unique": true,
+  "all223_owned_process_lifecycle_closed": true,
+  "global20MiB_exact_monotone_caps_no_phase_reset": true,
+  "retained_log_bytes": 10219564,
+  "remaining_log_bytes": 10751956,
+  "all5_reported_seals_true": true,
+  "source_provider_dependency_tool_auth": "Runtime native-boundary-authentication-v1.json independently binds full source/API/Git/provider/dependency/tool scope; no duplicate ZIP or map extraction",
+  "old99_identity_env_order_exact": true,
+  "old99_FAIL_to_PASS": [
+    {
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "before": "FAIL",
+      "after": "PASS"
+    },
+    {
+      "selector": "ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation",
+      "before": "FAIL",
+      "after": "PASS"
+    }
+  ],
+  "old99_PASS_to_FAIL": [],
+  "newLogical3_actual": "ALL3FAIL; two positive preparation/selection refusals; third unavailable-report potential-read assertion fails; no semantic guard/test weakening inferred",
+  "original58_actual": "57PASS1FAIL; only original Logical completing-arm switch W210 remains",
+  "all102_actual_total": {
+    "PASS": 94,
+    "FAIL": 8
+  },
+  "limits": [
+    "No uploaded actual ELF payload; fresh Cargo event and driver before/after ELF hashes only.",
+    "Original filters summarize source tables; approved post-table repeat reconstruction is independently byte/order/SHA exact, not unfiltered source-table recovery.",
+    "No whole release/baseline/Clippy/performance green."
+  ]
+}

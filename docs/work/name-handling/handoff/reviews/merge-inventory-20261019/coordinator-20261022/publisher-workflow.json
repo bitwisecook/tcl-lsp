@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
-  "last_published_snapshot": "73c72273f97ad2da6aeddbbb36d4878cdf627da1",
+  "last_source_snapshot": "03e889fa72a2f5ac6424e05ef078dbca6f86547c",
+  "last_published_snapshot": "4ff2797248e18c1a086263b66e9361feae6cc7e2",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-25T08:48:27.445723+00:00",
+  "last_published_utc": "2026-10-25T09:24:28.200949+00:00",
   "product_tree_diff": [
     ".github/workflows/ci.yml",
     ".github/workflows/perf.yml",
@@ -464,15 +464,15 @@
   ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
-  "active_current_head": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
+  "unpublished_active_base": "03e889fa72a2f5ac6424e05ef078dbca6f86547c",
+  "active_current_head": "03e889fa72a2f5ac6424e05ef078dbca6f86547c",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-25T08:48:27.445723+00:00",
+  "updated_utc": "2026-10-25T09:24:28.200949+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": true,
-  "external_product_base": "1c2944510ff9a7105a95151111942cf8fcb2b64a",
+  "external_product_base": "68c611a8eeae8acf9c1632a2b8975a22c9c47284",
   "source_equivalence_checked_at": "2026-10-23T17:08:33.347195+00:00",
   "source_equivalence_published_head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4"
 }

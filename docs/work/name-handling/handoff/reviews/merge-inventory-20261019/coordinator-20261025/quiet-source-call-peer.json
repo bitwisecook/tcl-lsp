@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-25T09:28:21.004639+00:00",
+  "verdict": "INDEPENDENT STATIC OWNER/SOURCE/API/CACHE CLEAR; no actual typing/Send compile/new controls/host acceptance",
+  "manifest_sha256": "0cca0f2e1bd9fcfdc05d4807a66928dc6baf440c8d223f618dfe1528051231c0",
+  "mechanical_checks_sha256": "61bda3d9e9d98e306ef6317f1be5bce33ce42f56f87eff252549351d0546e20c",
+  "companion_manifest_sha256": "dde553e2fdfc8f976f340edb792fd222b8bc5e822fcddce1e1527336e1fb2baa",
+  "query_horizon": "Same prepare_for_query invocation issues genuine graph and tape. All old full original owner/source/config/baseline/context/Registry and refused/sealed/final graph checks remain. No final graph substituted as prior state; old walker captures each call after its original operand inspection and before handler effects. Body surveys remain after root sealing; quiet refinement refuses once sealed, so local opaque debt persists.",
+  "cache": "Separate source_call_advice leaves general source_advice unchanged. Whole getter module inverse proves only cache/normal-first prep with exact old fallback. Two explicit constructors reset plus derived Default; other producers funnel constructors; no mutable Realm setter found. Clone shares cache only alongside same immutable bindings/source/input and retained full owner/input/source/Registry checks. Existing context/Registry key/four-entry cap unchanged. Foreign equal-source seed refuses original analysis-owner mismatch.",
+  "region": "Same pair retained at existing normal-query producer before RegionPayload Arc mint, so no current-region self-cycle. Existing region analysis/full input/owner/source/Registry and command/context filters retained. Missing certification uses exact old ConditionalRegion preparation; deferred-body ownership issue stays separate.",
+  "equality": "Realm Eq bodies byte-identical full bindings/specs/input. Only new derived cache of existing type, no generic cache criterion/Graph/State/report/call Eq/Hash/Salsa cutoff changes. Region equality still Arc identity.",
+  "Send_shape": "New leaves are the existing Arc<Mutex<...Tape>> cache type and Option<Arc<Tape>> region field. Existing persistent Realm already stores Tape. No new Rc/RefCell/closure/borrowed query enters retained types. Transient query Cell/RefCell remains local; Tape has no query lifetime. No new !Send leaf found; actual Analyser/CU/FreshDriver Send compilation still unrun/required.",
+  "new_fixed_controls": "Read quiet/foreign/prior puts/opaque operand/body-local opaque/exact77 tests; all old controls unchanged. New Rust assertions UNRUN.",
+  "independent_checks": [
+    "Both current six-preimages/after maps and exact F/R/F0 zero",
+    "Whole native-getter module inverse + old query guard and Realm Eq bytes exact",
+    "Both5Rust rustfmt2024 skip_children check PASS",
+    "All23 current JSON descriptors independently parsed: sole realm Taint2pin+derived fullJSONdriver inverse/current preimages PASS"
+  ],
+  "reviewer_format_attempt": "Initial --check mistakenly used2021 (runtime crate edition) on compiler2024 files and predictably refused pre-existing let-chains; no file mutation. Correct2024 full10file check passed. Not an author formatting failure.",
+  "limits": [
+    "No Cargo/rustc/typecheck/new control execution/host result/performance acceptance. Extra root certificate/cache/tape memory cost unmeasured.",
+    "Tape gives no Native/runtime Normal/frame/physical/edit permission. ILX opaque-stop unchanged.",
+    "Browser main-child frame/cursor and every-document completed rename worlds remain independently open."
+  ]
+}

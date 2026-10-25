@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T09:08:30.186704+00:00
+Last updated: 2026-10-25T09:33:14.431314+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -30,9 +30,20 @@ ADD/SUB/MULT inside existing private preparation, all common Native checks and d
 compiler tasks unchanged. Existingpositive control now also executes owner-selected
 ORIGINAL sub/multiply/composed arithmetic; cancellationnegative rejects overbound
 intermediate despite boundedfinal. Originalfold assertions/closed16 rosters/env/counts
-unchanged. Actualcompiler102 run40177918319/job121122525462 nowactive on exact1c2944510;
-role owns singleZIP/source envelope/closed16+oldfoldfirststages, Compiler owns main102
-counts/protocol. No artifactyet; all post-arithmetic actual outcomes remain UNRUN.
+unchanged. Actualcompiler102 run40177918319/job121122525462 exact1c2944510 is AUTHENTICATED.
+Genuine closed16 ALL16PASS and unchanged original bracedfold PASS (bothassertions
+unchanged). New positivecontrol executes owner-selected ORIGINAL SUB/MULT/composed
+ADD-SUB-MULT actualarithmetic; boundedfinal/intermediateoverflow negative alsoPASS.
+Former4positive ADDstagefrontiers allPASS/no marker; expectednegative markers are not
+unitfailures. Native boundary receipt
+`compiler-original102-40177918319/native-boundary-authentication-v1.json`
+29443bf91ecaeb416fad9ac02c1e86a337c406f2f5ca88321dc4944f020fd8bf: all791CRC+SHA,
+source126262beforeafter/fullGitmembership/20keypins/providers10202/deps21503/toolsPASS.
+Compiler main102 assessment fdf7cc3cff4e5f36b0aa3324313bf154039f9a9b874dae6ede8b3787b063329f:
+94P8F total, original57P1F, old9ALLPASS, readonly6P4F/bodyowner3ALLPASS/ancestry3ALLPASS,
+newLogical3ALLFAIL. All223processesclosed/9freshCargo0Rustdiagnostics; old99sixF→P and
+zeroobservedP→F. Remaininglogical/dataflow cases separate; this proves bounded genuine
+private capability, no ordinaryoptimiser/globalrelease/performance permission.
 
 Fresh559/compiler99 authenticated in place: original56P2F, separateclosed12P4F, all4
 firstNative markers stage22/detail21/ordinal10=ADD afterNOP. Oldfold internalfirstcause
@@ -66,6 +77,32 @@ CFIunknown21892/relevantrowsomitted25735 =>WHOLEPROTOCOLINCOMPLETE; no dynamicfr
 depth/stackcause proof. Runtimefocused is pre-arithmetic and cannot admit newclosedfold.
 Root fullCI40177232371 independent/rootowned. Root resolvedworkspace disk; role performs
 no target/executable deletion and no cancellation/dispatch.
+
+FullCI same dc52 actualruntime job121120876913/run40177232371 ABORTED later in
+`original_publication_holder_refuses_delete_and_recreated_namespace`, callbackline21302
+wrongly demandsoldtableabsence. Rawlog root-ci-dc52-20261025/job121120876913.log retained.
+Allfive Csource versions explicitly keep firstordinary oldentry through deleteProc;
+Rust productionimplementation→unlink agrees. Rootauthorised actualpinnedC86CAPI witness:
+20s/1MiB/2GiB ownedcommandPASS, exactoldtoken/oldcallable/clientdata visibleinsidecallback,
+newtoken/newcallable/newresultafter/count1. InputsCC/bash/tclsh/libs/headers/source
+beforeafterexact; retainedSO/probe/scripts, oracle receipt c90c21a70f3ef7daccbb88a2ce7f44fe10d6c521cb2bd1c62b41ae4778f9801a.
+Pairedfixture-only `vm-publication-deleteproc-visibility-fixture-v1` fixes BOTHnamespace
+externCpanic andidle samewrongabsence: captureexactoldgeneration in callback, strong
+assertoutsideexternC. All oldmode0/1/2/callcount/results/currency/firstrefusal/namespace
+holder assertions retained; ZEROproductionorderchange. WORKpatch1a84687533c4de311594bec1d182d29878e8fb2296d037f6526befcba59feefc/
+CLEAN0e7a7177d3ccd553ef13dd0a76a4cd345a02a9c37d5a95ac9f8c9af3f90341df;
+proofe66fae5f250df4ba7bdd05e2d77fd6aaace43e816fb80463dd8e7cbffc9b7f83,
+bothF-R-F0+fmt2021PASS f239da753126af9db911650f94c4cc4c8b33a2849828e799e94fa2ed626e4a50.
+WORK-only Wasmsoleinterpfilepin+derivedrosterhash companion metadata/a5b7aeb5197d70c48bcbeda5cfbc02c7c2cdfa9507f82cc1d155d10e87a5c039;
+patchc6bb545c2f0faa51a417bb6d6ec2021e024f1ac86501da231827ac291339011a.
+Names independent FIXTURE/SOURCE/API CLEAR24e0e0cbb1ffc94353ed9b1f346e658dbf7a9517ddb69ae875489353c483a66b
+verified all5sourcewindows/LF/OID, actualC86process/inputs/stdout/SO, bothcurrent/F-R-F0/
+wholeproductionprefix/fmt2021/metadatawholeinverse+23descriptorcensus. Rooteligibility/
+integration pending; correctedRustactuals UNRUN. Csource windows are
+provisioned referencefiles/hash/physicalLF, not trackedGit/tmp; onlyC86actualexecuted.
+No full Cconstructor namespace-recreate outcome parity inferred from visibility; original
+Runtime conservative staleholder refusal remains independently asserted. Earlier131
+stackPASS never closes this sharedprocess gate.
 
 BIGIP mandatory VM startup source obligation: authentic externalnote under
 `external-owner-notes-oct25/live-startup-repro-20261023.md` Gitblob
