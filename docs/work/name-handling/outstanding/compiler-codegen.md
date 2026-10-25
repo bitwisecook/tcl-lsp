@@ -2,11 +2,22 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T20:07:34.418541+00:00 (ACTIVE; cd2 FULLAUTH22P3F WASM/247Clippy0RustE; current2ba207pinunion peerpending; wholeInterp coveragechoice HELD; no localRust)
+Last updated: 2026-10-25T20:42:26.374955+00:00 (ACTIVE; c440 strictFULLAUTH2earlyClippy0RustE; Core43V2clear9ec8; allocationV4useranswerPENDING; finalcurrentpinunionawaitrootfreeze; no localRust)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Newest c440strict40230562056/job121281165688 FULLAUTH24checks assessment3e2d1b67: ONLY2early compilerobserverClippyprimaries, ZERO Rust E-codes. Names static_read_child53 unitargument andownnative_byte_compilation118 staticitemafterif maskbroader243, notclosure. Ownminimal WORK `ccg-factory-observer-static-item-work-v1` manifest31626b89/patch709e931c independentlyCLEAR95e56fd1, rootapplying; exactstaticdeclarationmove beforeflag/0topmaprefs, no runtimequery/order/count/admissionchange. Namesownsourcefix45e5. c238priorFULLAUTH133checksce1323db recorded243=242Clippy+serverE0369; LSPpatternrepair removesinlatestc440.
+
+Core43V2 independent DEEP CLEAR9ec831d67e21178b2635d93d63f4ffc266f0a30adf21c2c7e201209fa47ba156 (ccg-peer-core43-combined-v2/receipt.json), rootlanded87700394d/40553bc46. Full16source/type/owner/drop/oracleflow reviewed,32exactcurrent/F-R/fmt/literalvalues. V1HOLD changedrawTclfixtureandopposingVec lints correctedexactV2. Actual8oldfunctionbodycounts reproduced; neworiginals70/87/95/81/98/100/6/91, allhelpers<=82. SoleexistingautoloadCore2pins source_structure+package_resolverOriginalNames mustcomposealreadyapprovedCore2exactDefaultprotocol42ff. Own3boxediterationV2 DEEPCLEAR6bf51ec7 rootlandedfcbfe/4ffb; V1Once.chainHOLDhiddenlargeStackintent, notadmitted.
+
+Allocation coverage successor `ccg-wasm-owned-teardown-coverage-option-v4` manifestf3a9416c independentlySTATICDESIGNCLEAR2722bdf9. Exactsame3originaltops/scripts, rawobject2==3 andrawbuffer2==3, frames0each; completeclearcurrent/deleteownedInterp conservation separatelyobjs/bufs/residual/doubles0/nonvacuity. Adds2readonlyexistingcountertestexports andcfgtestactualC9 private→globalheaderidentity/pureList/context. Allocation-onlyNativeObjectLifetime leases+checkedincarnation acrossnextentrycloseABA; negativecontrolnoNativerefincandretiredrefusal. Rootaskedusercoveragechoice; ANSWERPENDING, no canonical/decisionJSON. No teardown/liveequality PASS orC9neworacle claimed.
+
+Bounded string3 firstgate WORK-only diagnostic source prepared `ccg-string-pack-actual-corpus-first-gates-work-v1` manifest60a34dce/patch99a528a1, newselector shipped_string_pack_replays_actual_corpus_first_gates. Sameactualshippedstringpack/run_pack/forcedoverride/host/Sharedconsumer,3EXACT original24selectedsamples lengthwasm01/mapW102/rangeformat07. ExistingN17flagonlyfromRuntimeprotocol,120watchdog/noenvmutation/oldfullmodulebyteexact. Newtestusesunchangedrequire_live_hook_execution andstillFAILS0hooks; notprobe-as-passfix. SourceProcpeerrequested; RuntimeownsboundedsharedELFchild/rosteraftercurrentwave. ActualquietSpec5da full600solefailure3stringhooks0attempt, allother17873hooksPASS; no sourcegatehypothesis promoted.
+
+Actual iRulesc440 factory stage=entry confirmed (Runtime soleZIP), exactpredicate amongphysicalpoint/namepolicy/pointmatch/version/sourceprotocol stillunknown. No blanketplain→Generic orNativeprofilegrant. FutureNativeAOT design concrete seam `ccg-future-native-publication-plan-design-v2` manifesta0beaffa preservesactualProcDefpublicationANDd/eassignments thenruntimeissuedcurrentcallproof→boundedinteger/originalpreparedcall. Ambientdepthandcallbackframeobservabilitymustalsohold; existingguardedprocdefinitionABIisusablepublicationmechanism, notaframegrant. Designonly/noimplementation; sourceProcdepthchallenge agreescountsdoNOTidentifyactualABIcallee. TinyboundedcallerlineextensionauthorizedafterCore43peer, pending.
+
 
 Latest current2ba final sourcepin union `ccg-2ba454-browser-factory-lock-pin-union-work-v1` manifest738fe1bd/patch28496916 is frozen and Compiler peerpending. Exactly11files=6JSON+5drivers;10existing scalar records: browser regInv2/CoreRename1;factory statements2;mainCargo.lock3;WASI/WASMlocks2. All23/17maps207existingrecords preserved, no newkeys; NamesfreshLogical metadata and Specquietdriver retained. WholeJSON/driverbyteinverseAST/F-R/F0 pass. Sourceonly current2ba/C05f4, no futureexecutionclaim.
 

@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T20:49:07.719509+00:00",
+  "scheduled_report_utc": "2026-10-25T20:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T21:15:00+00:00",
+  "change_since_previous_report": [
+    "20:45report writtena fewminuteslate withactualtimestamp. LatestpushedproductWORKe40045f2a/CLEANd87dc254b. Finalmetadata208records/167actualGitfiles across23JSON/17maps independentlypeer935a602b nowintegrated2b18bd61; rootpreflightnext, no gateadmission. Source/contractchangesfirstWORK, pairedrelease; no PR/merge/tag/release.",
+    "Currentc440 wave compiler40230562020/Jim40230561963/iRules40230563296/hosts40230563313/startup40230562783/strict40230562056 exactc440c0cce. RBS literal0/1fix444ecf61 andpureduplicate immutable surfacepredicate37d9746f integratedb400/a6d withcurrentguards; newfunctionaloutcomes pending exceptscopedpartials below. No Nativeparser/frame/Normal permission widened.",
+    "Provisionalc440 startupactualgenuinefreshdiagnostic response492.396ms, cold48.569ms/scan18.638s/definition8.425ms/references142.085ms reach; nextoriginalprepareRenameFAILnull. PriorCancelstopgone, fullauthenticationpending. BrowseradvancesProc0\u2192literalSet40 butstillfailsAuthoredSimulation nonbodycoverage; Main98matchingcall remainsmissing. B5notwholehostclosure.",
+    "Fullyauthenticatedc440Jim284d11a8 all51reached unchanged34P11F/45+2P3F5+extraFAIL. Exactfirstchild refusal snapshot_frame: staticrecipe declared-procedure-layout andgenuine deferred-source frame have differentissuers. Namespreparing exactsource/body/formals/namespace correspondence receipt, keepingownissuedframe/world andallguards; no retagging/equalityrelaxation.",
+    "Currentc440strict3e2d1b67 stoppedon2newearly WORKobserverClippywarnings, noRustE; not2remainingoverall. Exactunitstatement andstaticdeclaration repairs areintegrated5a7/06c/e400. Core43 independent9ec831d6 paired877/405; VM20+Studio1 complete3358/05466/6cc8 paired6d0/8368+93ec/46bd+557a/d87; CCG3boxed6bf51ec7 andCompiler8boxed45ef3228 retainheapfixtureownership, originalrawfixtures/assertions. SuccessorRust/Clippy/testsUNRUN.",
+    "Exactold2Defaultminifyintegrationvalidation42ff/d3e1806d integratedd1c888: sameoneCargo invocation nowbuilds actualCorelib+actualintegrationtarget, separatelyauthenticates2freshELFs/old2+new2rows withunchanged180s/sharedCAP/absolutebudget. No sourcefixturechange. Original2actualexecutionpending; NativefactorialURIstillfails. BothwholeCLEANRustworkspaces fmtPASS onD87, receipt retained.",
+    "Actualc440iRules bootstrapFAILtrace2PASSprovisional nowpinpoints bytefactoryentry stage; no newbypass. Quiet5da fullSpeccorpus remainsFAILonlystring3bound0attempt;17873attemptedhooksallPASS/old16PASS. Sameactualpack/selectedsamples bounded3casefirstgate sourceprobepreparedunreviewed, heldaftercoherentbatch. FullC1C2/per-hook/UPF/Jim/reload/e2e/baseline remainopen.",
+    "TwogenuinelynewuserquestionsPENDING: compatiblecheckedNativecharview+exactoldpositivecontextadaptation (latestofftreeV5negativecanonicalprofileclear62851af6); allocation same3calls exact2\u21923counts+ownedteardowncoverage (review2722bdf9, protectedincarnationcontrol). No fabricatedanswer/decisionJSON/canonicalchange. Tclperformanceunaccepted, latestCIprofilequietscan20sFAIL; purepredicate reuseeffectunmeasured. ExternalBIGIP/perfstale usernotified/no takeover; diskabout2.1GiB/no localRustbuild. Next21:15."
+  ],
+  "committed": [
+    "79d76dc01b499ec9fe3653ccff08a48b1d21a02d"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish20:45report/rearm21:15; preflight/push208pinunion andrunstrict+exactDefaultminifycurrentcohorts.",
+    "FinishgenuineJimbodyframe/sourceownership,RBS/readonly/LogicalandSpecstring3producerfixes;collectcurrentfullbaselineCI.",
+    "Keep2userchoicespending; completecurrentCI/zeroPASS-to-FAIL/Tclperformance/docs/comments/generated/packaging/prep-pr beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Scopedsource/format/provisionalruntimeprogressonly. No fullgate/auditadmission; explicitpendinguserchoicesunchanged.",
+  "disk_free_bytes": 2288504832,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
