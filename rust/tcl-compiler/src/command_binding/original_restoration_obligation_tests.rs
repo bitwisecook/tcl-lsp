@@ -111,11 +111,12 @@ fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_w
         match axis {
             0 => restored.native_compilation_admission = None,
             1 => {
-                Arc::make_mut(restored.native_compilation_admission.as_mut().unwrap()).source = None
+                Arc::make_mut(restored.native_compilation_admission.as_mut().unwrap()).source =
+                    None;
             }
             2 => {
                 Arc::make_mut(restored.native_compilation_admission.as_mut().unwrap())
-                    .provider_required = false
+                    .provider_required = false;
             }
             3 => {
                 Arc::make_mut(restored.native_compilation_admission.as_mut().unwrap()).source =
@@ -123,7 +124,7 @@ fn original_native_restoration_refuses_missing_changed_and_foreign_obligations_w
                         .top_level
                         .native_compilation_admission
                         .as_ref()
-                        .and_then(|admission| admission.source.clone())
+                        .and_then(|admission| admission.source.clone());
             }
             _ => unreachable!(),
         }
@@ -169,7 +170,7 @@ fn original_native_restoration_requires_full_failure_contexts_and_dependency_gen
                 .clear(),
             2 => {
                 Arc::make_mut(admission.failure.as_mut().unwrap()).contexts[0].line_in_chunk =
-                    Some(u32::MAX)
+                    Some(u32::MAX);
             }
             3 => restored.native_compilation_failure = None,
             _ => unreachable!(),

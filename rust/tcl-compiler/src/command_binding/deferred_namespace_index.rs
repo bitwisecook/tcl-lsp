@@ -382,7 +382,8 @@ mod tests {
                 0 => special.event = Some("TEST_EVENT".into()),
                 1 => special.receiver_method = true,
                 _ => {
-                    special.future_frame = Some(crate::var_resolve::VariableExecutionFrame::Unknown)
+                    special.future_frame =
+                        Some(crate::var_resolve::VariableExecutionFrame::Unknown);
                 }
             }
             case.deferred.clear();
