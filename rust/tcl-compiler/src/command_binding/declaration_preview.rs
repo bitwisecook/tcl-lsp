@@ -288,6 +288,77 @@ pub(crate) struct OriginalProcedureStaticReadAlternatives {
 }
 
 impl OriginalProcedureStaticReadAlternatives {
+    #[cfg(debug_assertions)]
+    pub(crate) fn trace_static_read_cell(
+        &self,
+        key: &crate::var_resolve::VariableCellKey,
+        name: &str,
+    ) {
+        use crate::var_resolve::VariableCellKey;
+        fn kind(key: &VariableCellKey) -> &'static str {
+            match key {
+                VariableCellKey::Authored(_) => "authored",
+                VariableCellKey::Namespace { .. } => "namespace",
+                VariableCellKey::Activation { .. } => "activation",
+                VariableCellKey::SelectedFrame { .. } => "selected-frame",
+                VariableCellKey::Instance { .. } => "instance",
+                VariableCellKey::AllocatedInstance { .. } => "allocated-instance",
+                VariableCellKey::RetainedSlot(_) => "retained-slot",
+                VariableCellKey::Lifetime { .. } => "lifetime",
+                VariableCellKey::Element { .. } => "element",
+            }
+        }
+        eprintln!(
+            "RBS_STATIC_CELL name={name} outer={} root={}",
+            kind(key),
+            kind(key.root()),
+        );
+        match key.root() {
+            VariableCellKey::RetainedSlot(slot) => match slot.as_ref() {
+                crate::raw_binding::RawBindingSlotId::Callable {
+                    allocation,
+                    name: held,
+                } => {
+                    let expected = &self.declaration.header.declaration;
+                    eprintln!(
+                        "RBS_STATIC_CELL callable site={} expected_site={} site_equal={} origin_same={} incarnation={:?} generation={} generation_matches_site={} name_equal={}",
+                        allocation.site.offset,
+                        expected.offset,
+                        allocation.site == *expected,
+                        Arc::ptr_eq(&allocation.site.source, &expected.source),
+                        allocation.incarnation,
+                        allocation.implementation_generation,
+                        allocation.implementation_generation == expected.offset,
+                        held.as_bytes() == name.as_bytes(),
+                    );
+                }
+                crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+                    let owner = match &cell.owner {
+                        crate::place::CellOwner::CurrentFrame => "current-frame",
+                        crate::place::CellOwner::Activation(_) => "activation",
+                        crate::place::CellOwner::Namespace(_) => "namespace",
+                        crate::place::CellOwner::NamespaceIdentity(_) => "namespace-identity",
+                        crate::place::CellOwner::SelectedFrame(_) => "selected-frame",
+                        crate::place::CellOwner::RetainedSlot(_) => "retained-slot",
+                        crate::place::CellOwner::Instance(_) => "instance",
+                        crate::place::CellOwner::AllocatedInstance(_) => "allocated-instance",
+                    };
+                    eprintln!(
+                        "RBS_STATIC_CELL variable owner={owner} generation={:?} name_equal={}",
+                        cell.generation,
+                        cell.name.as_bytes() == name.as_bytes(),
+                    );
+                }
+            },
+            VariableCellKey::Namespace { identity, simple } => eprintln!(
+                "RBS_STATIC_CELL namespace declaration_equal={} name_equal={}",
+                identity == &self.declaration.header.namespace,
+                simple.as_bytes() == name.as_bytes(),
+            ),
+            _ => {}
+        }
+    }
+
     pub(crate) fn may_select_static(&self, name: &str, span: tcl_lexer::Span) -> bool {
         self.names.contains(name) && self.declaration.read.owns_original_read(span)
     }

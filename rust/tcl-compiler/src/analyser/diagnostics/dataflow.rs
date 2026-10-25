@@ -2855,6 +2855,9 @@ is renamed or deleted in this file."
                 eprintln!(
                     "RBS_READ_OWNER stage=static_lookup_at_use name={var} storage_kind={storage_kind} own_activation={own_activation:?} native_alternative={native_alternative} static_alternative={static_alternative}"
                 );
+                if let Some(alternatives) = declaration.statics {
+                    alternatives.source.trace_static_read_cell(cell_name, var);
+                }
             }
             if static_alternative {
                 continue;
