@@ -66,11 +66,9 @@ impl NativeCommand for Retire {
         crate::interp::ok(Value::empty())
     }
 }
-fn installed(
-    vm: &mut Vm,
-    mode: u8,
-    child: Option<InterpId>,
-) -> (String, Rc<RefCell<Vec<&'static str>>>, Rc<Cell<usize>>) {
+type InstalledCommandCleanup = (String, Rc<RefCell<Vec<&'static str>>>, Rc<Cell<usize>>);
+
+fn installed(vm: &mut Vm, mode: u8, child: Option<InterpId>) -> InstalledCommandCleanup {
     assert_eq!(
         vm.eval_source("namespace eval src {namespace export *}; namespace eval dst {}")
             .unwrap()

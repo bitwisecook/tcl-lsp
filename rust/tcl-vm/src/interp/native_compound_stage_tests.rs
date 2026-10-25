@@ -64,7 +64,9 @@ impl tcl_platform::Host for Host {
         Some(&*self.formatter)
     }
 }
-fn provided() -> (Vm, Rc<Formatter>, Rc<Cell<usize>>, Rc<Cell<usize>>) {
+type ProvidedCompoundControls = (Vm, Rc<Formatter>, Rc<Cell<usize>>, Rc<Cell<usize>>);
+
+fn provided() -> ProvidedCompoundControls {
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
     let formatter = Rc::new(Formatter::default());
     let acquisitions = Rc::new(Cell::new(0));

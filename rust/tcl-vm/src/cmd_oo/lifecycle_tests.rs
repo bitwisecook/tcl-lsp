@@ -302,10 +302,10 @@ fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restore
             let first = reached.unwrap_err();
             assert_eq!(vm.oo.names[&object], old_display);
             assert!(
-                !vm.oo
+                vm.oo
                     .command_keys
                     .get(&object)
-                    .is_some_and(|key| key.name() == "later_metadata")
+                    .is_none_or(|key| key.name() != "later_metadata")
             );
             assert_eq!(
                 scope.check(&mut vm).unwrap_err().native_execution_refusal(),

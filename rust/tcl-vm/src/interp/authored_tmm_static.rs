@@ -1430,6 +1430,51 @@ mod tests {
         assert_eq!(reached, [true; 4]);
     }
 
+    const RECORDED_STATIC_INITIAL: [&str; 4] = [
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42100.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42101.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42102.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42103.body"
+        ),
+    ];
+
+    const RECORDED_STATIC_AFTER_WRITE: [&str; 4] = [
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42100.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42101.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42102.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42103.body"
+        ),
+    ];
+
+    const RECORDED_STATIC_AFTER_UNSET: [&str; 4] = [
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42100.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42101.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42102.body"
+        ),
+        include_str!(
+            "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42103.body"
+        ),
+    ];
+
     #[test]
     fn authored_static_policy_matches_mapped_unit_missing_read_before_recreation() {
         // naming.bigip.variable-static-event-currency
@@ -1455,24 +1500,7 @@ mod tests {
             )
             .is_ok()
         );
-        check_recorded_vl_static(
-            &mut vm,
-            workers,
-            &[
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42100.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42101.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42102.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42103.body"
-                ),
-            ],
-        );
+        check_recorded_vl_static(&mut vm, workers, &RECORDED_STATIC_INITIAL);
         assert_eq!(
             static_event(
                 &mut vm,
@@ -1481,24 +1509,7 @@ mod tests {
             ),
             "MARK_UNIT"
         );
-        check_recorded_vl_static(
-            &mut vm,
-            workers,
-            &[
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42100.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42101.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42102.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42103.body"
-                ),
-            ],
-        );
+        check_recorded_vl_static(&mut vm, workers, &RECORDED_STATIC_AFTER_WRITE);
 
         let missing = include_str!(
             "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-unset-42101.body"
@@ -1542,23 +1553,6 @@ mod tests {
             ),
             "RECREATED"
         );
-        check_recorded_vl_static(
-            &mut vm,
-            workers,
-            &[
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42100.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42101.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42102.body"
-                ),
-                include_str!(
-                    "../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42103.body"
-                ),
-            ],
-        );
+        check_recorded_vl_static(&mut vm, workers, &RECORDED_STATIC_AFTER_UNSET);
     }
 }

@@ -392,11 +392,13 @@ mod tests {
     #[track_caller]
     fn text(completion: Completion<Value>) -> String {
         assert_eq!(completion.code, Code::Ok, "{completion:?}");
-        completion
+        let text = completion
             .result
             .try_to_str()
             .expect("ASCII package control")
-            .to_string()
+            .to_string();
+        drop(completion);
+        text
     }
 
     #[test]

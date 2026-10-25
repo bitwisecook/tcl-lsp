@@ -48,15 +48,13 @@ impl NativeCommand for LeaveChild {
         ok(Value::string("UNPUBLISHED"))
     }
 }
-fn install(
-    vm: &mut Vm,
-    child: InterpId,
-    prior_host: bool,
-) -> (
+type InstalledActivationCleanup = (
     Rc<Cell<usize>>,
     Rc<Cell<usize>>,
     Rc<RefCell<Option<Weak<ActivationIdentity>>>>,
-) {
+);
+
+fn install(vm: &mut Vm, child: InterpId, prior_host: bool) -> InstalledActivationCleanup {
     let calls = Rc::new(Cell::new(0));
     let later = Rc::new(Cell::new(0));
     let original = Rc::new(RefCell::new(None));

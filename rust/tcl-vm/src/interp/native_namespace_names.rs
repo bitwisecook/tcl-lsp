@@ -64,7 +64,9 @@ impl Vm {
         path: tcl_core_types::ByteNamespacePath,
     ) -> NsId {
         self.declare_namespace_path_with_origin(path.clone(), true);
-        self.definition_namespace_token_at_path(&path, true)
+        let selected = self.definition_namespace_token_at_path(&path, true);
+        drop(path);
+        selected
     }
 
     /// Snapshot the selected physical namespace reporting owner without parsing

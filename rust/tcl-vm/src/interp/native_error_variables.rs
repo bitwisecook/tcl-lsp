@@ -849,12 +849,44 @@ impl InterpState {
     }
 }
 
+impl InterpState {
+    pub(super) fn replace_native_error_trace_state(
+        &mut self,
+        saved: NativeErrorTraceState,
+    ) -> NativeErrorTraceState {
+        NativeErrorTraceState {
+            info: std::mem::replace(&mut self.native_errors.native_error_info, saved.info),
+            info_len: std::mem::replace(
+                &mut self.native_errors.native_error_info_len,
+                saved.info_len,
+            ),
+            result: std::mem::replace(&mut self.native_errors.native_error_result, saved.result),
+            code: std::mem::replace(&mut self.native_errors.primitive_error_code, saved.code),
+            options: std::mem::replace(
+                &mut self.native_errors.native_return_options,
+                saved.options,
+            ),
+            bytes: std::mem::replace(&mut self.native_errors.error_info, saved.bytes),
+            logged: std::mem::replace(&mut self.native_errors.error_logged, saved.logged),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::rc::Rc;
     use tcl_registry::special_vars::NativeBootstrapInputs;
     use tcl_runtime_api::{Code, Completion};
+
+    fn lower_hex(bytes: &[u8]) -> String {
+        use std::fmt::Write;
+        let mut text = String::new();
+        for byte in bytes {
+            write!(&mut text, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        text
+    }
 
     fn check_repeated_error_episode(
         vm: &mut Vm,
@@ -1119,12 +1151,7 @@ mod tests {
                 fields[offset]
             );
             assert_eq!(value.native_object_type_name(), fields[offset + 1]);
-            let hex = value
-                .resident_string_bytes()
-                .unwrap()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let hex = lower_hex(&value.resident_string_bytes().unwrap());
             assert_eq!(hex, fields[offset + 3]);
         }
         assert!(!info.value().is_same_object(code.value()));
@@ -1285,7 +1312,7 @@ mod tests {
             .get_var_bytes(&rooted)
             .expect("actual traced global cell");
         let bytes = vm.native_string_bytes(&value).unwrap();
-        let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+        let hex: String = lower_hex(&bytes);
         C84_CODE_EVENTS.with(|events| {
             events.borrow_mut().push(format!(
                 "{}|{}|{hex}",
@@ -1331,12 +1358,7 @@ mod tests {
             let mut vm = c84_code_vm();
             let completion = vm.eval_source(source).unwrap();
             assert_eq!(completion.code.as_int().to_string(), fields[1], "{row}");
-            let result: String = vm
-                .native_string_bytes(&completion.result)
-                .unwrap()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect();
+            let result: String = lower_hex(&vm.native_string_bytes(&completion.result).unwrap());
             assert_eq!(result, fields[2], "{row}");
             C84_CODE_EVENTS
                 .with(|events| assert_eq!(events.borrow().join(";"), fields[3], "{row}"));
@@ -1419,14 +1441,7 @@ mod tests {
             fields[10] == "1"
         );
         let result = vm
-            .with_native_interp_result(|result| {
-                result
-                    .resident_string_bytes()
-                    .unwrap()
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>()
-            })
+            .with_native_interp_result(|result| lower_hex(&result.resident_string_bytes().unwrap()))
             .unwrap();
         assert_eq!(result, fields[11]);
         assert!(vm.execution_refusal.is_none());
@@ -1461,12 +1476,7 @@ mod tests {
                 .unwrap();
             let fields = row.split('|').collect::<Vec<_>>();
             assert_eq!(completion.code.as_int().to_string(), fields[2]);
-            let hex = |bytes: &[u8]| {
-                bytes
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>()
-            };
+            let hex = lower_hex;
             assert_eq!(
                 hex(&vm.native_string_bytes(&completion.result).unwrap()),
                 fields[3]
@@ -1841,28 +1851,5 @@ mod tests {
         ));
         assert_eq!(private.string_bytes().as_ref(), b"seed context");
         assert!(original.byte_array_representation().is_some());
-    }
-}
-
-impl InterpState {
-    pub(super) fn replace_native_error_trace_state(
-        &mut self,
-        saved: NativeErrorTraceState,
-    ) -> NativeErrorTraceState {
-        NativeErrorTraceState {
-            info: std::mem::replace(&mut self.native_errors.native_error_info, saved.info),
-            info_len: std::mem::replace(
-                &mut self.native_errors.native_error_info_len,
-                saved.info_len,
-            ),
-            result: std::mem::replace(&mut self.native_errors.native_error_result, saved.result),
-            code: std::mem::replace(&mut self.native_errors.primitive_error_code, saved.code),
-            options: std::mem::replace(
-                &mut self.native_errors.native_return_options,
-                saved.options,
-            ),
-            bytes: std::mem::replace(&mut self.native_errors.error_info, saved.bytes),
-            logged: std::mem::replace(&mut self.native_errors.error_logged, saved.logged),
-        }
     }
 }

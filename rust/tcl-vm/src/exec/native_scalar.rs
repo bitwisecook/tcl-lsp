@@ -104,41 +104,69 @@ mod tests {
             .collect()
     }
 
+    const SCALAR_COMPILATION_FIXTURES: [(&str, &str); 5] = [
+        (
+            "tcl8.4",
+            include_str!("../../../tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv"),
+        ),
+        (
+            "tcl8.5",
+            include_str!("../../../tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv"),
+        ),
+        (
+            "tcl8.6",
+            include_str!("../../../tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv"),
+        ),
+        (
+            "tcl9.0",
+            include_str!("../../../tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv"),
+        ),
+        (
+            "tcl9.1",
+            include_str!("../../../tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv"),
+        ),
+    ];
+
+    fn check_original_scalar_result_type(
+        vm: &Vm,
+        result: &Value,
+        fields: &[&str],
+        engine: &str,
+        case: usize,
+    ) {
+        if result.native_object_type_name() != fields[2] {
+            let Some(crate::command::Command::Proc(command)) = vm.lookup_command("p") else {
+                panic!("retained original scalar procedure");
+            };
+            let declaration = command.declaration();
+            let cache = declaration.body_src.native_bytecode_cache();
+            panic!(
+                "{engine}/{case}: actual result {:?}; retained instruction metadata {:?}",
+                (
+                    result.native_object_type_name(),
+                    result.resident_string_bytes(),
+                    result.native_scalar_cache()
+                ),
+                cache.as_ref().map(|cache| cache
+                    .unit
+                    .asm
+                    .instructions
+                    .iter()
+                    .take(40)
+                    .map(|instruction| (
+                        instruction.op,
+                        &instruction.operands,
+                        instruction.native_switch_version
+                    ))
+                    .collect::<Vec<_>>())
+            );
+        }
+    }
+
     #[test]
     fn compiled_scalars_preserve_forty_one_native_original_header_windows() {
         let mut windows = 0;
-        for (engine, table) in [
-            (
-                "tcl8.4",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv"
-                ),
-            ),
-            (
-                "tcl8.5",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv"
-                ),
-            ),
-            (
-                "tcl8.6",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv"
-                ),
-            ),
-            (
-                "tcl9.0",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv"
-                ),
-            ),
-            (
-                "tcl9.1",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv"
-                ),
-            ),
-        ] {
+        for (engine, table) in SCALAR_COMPILATION_FIXTURES {
             let mut vm = crate::native_fixture::interpreter(
                 tcl_dialect::DialectProfile::find(engine).unwrap(),
             );
@@ -175,34 +203,7 @@ mod tests {
                     "{engine}/{case}"
                 );
                 let result = &completion.result;
-                if result.native_object_type_name() != fields[2] {
-                    let Some(crate::command::Command::Proc(command)) = vm.lookup_command("p")
-                    else {
-                        panic!("retained original scalar procedure");
-                    };
-                    let declaration = command.declaration();
-                    let cache = declaration.body_src.native_bytecode_cache();
-                    panic!(
-                        "{engine}/{case}: actual result {:?}; retained instruction metadata {:?}",
-                        (
-                            result.native_object_type_name(),
-                            result.resident_string_bytes(),
-                            result.native_scalar_cache()
-                        ),
-                        cache.as_ref().map(|cache| cache
-                            .unit
-                            .asm
-                            .instructions
-                            .iter()
-                            .take(40)
-                            .map(|instruction| (
-                                instruction.op,
-                                &instruction.operands,
-                                instruction.native_switch_version
-                            ))
-                            .collect::<Vec<_>>())
-                    );
-                }
+                check_original_scalar_result_type(&vm, result, &fields, engine, case);
                 assert_eq!(
                     result.native_object_type_name(),
                     fields[2],

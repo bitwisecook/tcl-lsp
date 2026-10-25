@@ -36,6 +36,52 @@ fn containing(members: &[&Value], protocol: NativeStringProtocol) -> Value {
     )
     .into_native_reference()
 }
+fn check_original_option_index_scope(ops: &mut crate::Vm) {
+    crate::interp::native_operation_currency::NativeOperationScope::enter(ops)
+        .unwrap()
+        .check(ops)
+        .unwrap();
+}
+
+fn check_original_option_index_result(
+    ops: &mut crate::Vm,
+    row: &Row,
+    completion: &tcl_runtime_api::Completion<Value>,
+    observed: &[Option<&Value>; 2],
+) {
+    for (ordinal, observed) in observed.iter().enumerate() {
+        if let Some(original) = observed {
+            assert_eq!(
+                original.native_object_type_name(),
+                row.member_types[ordinal],
+                "{}:{}:{}",
+                row.dialect,
+                row.case,
+                ordinal
+            );
+            if let Some(resident) = row.member_resident[ordinal] {
+                assert_eq!(
+                    original.resident_string_bytes().is_some(),
+                    resident,
+                    "{}:{}:{}",
+                    row.dialect,
+                    row.case,
+                    ordinal
+                );
+            }
+        }
+    }
+    assert_eq!(
+        ops.index_operand_bytes(&completion.result)
+            .unwrap()
+            .as_ref(),
+        unhex(row.result),
+        "{}:{}",
+        row.dialect,
+        row.case
+    );
+}
+
 #[test]
 fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
     // naming.list.original-option-index-path-preparation-and-results
@@ -100,8 +146,8 @@ fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
         };
         let container = if row.empty {
             containing(&[], protocol)
-        } else if let Some(rows) = &rows {
-            containing(&[&rows[0], &rows[1]], protocol)
+        } else if let Some([left_row, right_row]) = &rows {
+            containing(&[left_row, right_row], protocol)
         } else {
             containing(&[&inner[0], &inner[1]], protocol)
         };
@@ -133,10 +179,7 @@ fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
             row.case,
             row.stream_sha256
         );
-        crate::interp::native_operation_currency::NativeOperationScope::enter(&mut ops)
-            .unwrap()
-            .check(&mut ops)
-            .unwrap();
+        check_original_option_index_scope(&mut ops);
         let observed = [
             (row.path_kind != 0).then_some(&first),
             if row.path_kind == 4 {
@@ -145,36 +188,6 @@ fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
                 last.as_ref()
             },
         ];
-        for (ordinal, observed) in observed.iter().enumerate() {
-            if let Some(original) = observed {
-                assert_eq!(
-                    original.native_object_type_name(),
-                    row.member_types[ordinal],
-                    "{}:{}:{}",
-                    row.dialect,
-                    row.case,
-                    ordinal
-                );
-                if let Some(resident) = row.member_resident[ordinal] {
-                    assert_eq!(
-                        original.resident_string_bytes().is_some(),
-                        resident,
-                        "{}:{}:{}",
-                        row.dialect,
-                        row.case,
-                        ordinal
-                    );
-                }
-            }
-        }
-        assert_eq!(
-            ops.index_operand_bytes(&completion.result)
-                .unwrap()
-                .as_ref(),
-            unhex(row.result),
-            "{}:{}",
-            row.dialect,
-            row.case
-        );
+        check_original_option_index_result(&mut ops, row, &completion, &observed);
     }
 }

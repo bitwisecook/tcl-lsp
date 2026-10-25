@@ -3,6 +3,24 @@
 use super::*;
 use crate::interp::native_numeric_ops::OriginalNumericOps;
 use tcl_cmd_core::CmdError;
+fn dictionary_member_reference_counts(source: &Value) -> Vec<(usize, usize)> {
+    let primary = source.0.intrep.borrow();
+    let IntRep::Dict(dict) = &*primary else {
+        unreachable!()
+    };
+    dict.with_pairs(|pairs| {
+        pairs
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.native_object_reference_count(),
+                    value.native_object_reference_count(),
+                )
+            })
+            .collect()
+    })
+}
+
 #[test]
 fn checked_dictionary_duplicate_holds_members_after_their_key_and_rejects_same_backing_mutation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -39,23 +57,7 @@ fn checked_dictionary_duplicate_holds_members_after_their_key_and_rejects_same_b
             &mut |key| {
                 let call = calls.get();
                 calls.set(call + 1);
-                let counts = {
-                    let primary = source.0.intrep.borrow();
-                    let IntRep::Dict(dict) = &*primary else {
-                        unreachable!()
-                    };
-                    dict.with_pairs(|pairs| {
-                        pairs
-                            .iter()
-                            .map(|(key, value)| {
-                                (
-                                    key.native_object_reference_count(),
-                                    value.native_object_reference_count(),
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                };
+                let counts = dictionary_member_reference_counts(&source);
                 assert_eq!(
                     counts,
                     if call == 0 {
@@ -107,23 +109,7 @@ fn checked_dictionary_duplicate_holds_members_after_their_key_and_rejects_same_b
             let duplicate = reached.unwrap();
             assert_eq!(calls.get(), 2);
             assert!(!duplicate.is_same_object(&source));
-            let counts = || {
-                let primary = source.0.intrep.borrow();
-                let IntRep::Dict(dict) = &*primary else {
-                    unreachable!()
-                };
-                dict.with_pairs(|pairs| {
-                    pairs
-                        .iter()
-                        .map(|(key, value)| {
-                            (
-                                key.native_object_reference_count(),
-                                value.native_object_reference_count(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-            };
+            let counts = || dictionary_member_reference_counts(&source);
             assert_eq!(counts(), vec![(2, 2), (2, 2)]);
             drop(duplicate);
             assert_eq!(counts(), vec![(1, 1), (1, 1)]);
