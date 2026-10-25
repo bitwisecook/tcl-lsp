@@ -1377,6 +1377,14 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn original_completed_command_world(&self) -> Option<OriginalCompletedCommandWorld> {
         let state = self.original_completed_root_state.as_ref()?;
+        self.completed_original_world_from_normal_state(Arc::clone(state))
+    }
+
+    /// The caller must independently own a completed whole-root Normal route.
+    pub(super) fn completed_original_world_from_normal_state(
+        &self,
+        state: Arc<ModuleCommandBindings>,
+    ) -> Option<OriginalCompletedCommandWorld> {
         if state.baseline.unknown_entry
             || state.original_command_world.unavailable
             || state.source_step_observed()
@@ -1387,7 +1395,7 @@ impl SourceCommandBindings {
         Some(OriginalCompletedCommandWorld {
             source: self.root_origin.clone()?,
             config: self.lexer_config?,
-            state: Arc::clone(state),
+            state,
         })
     }
 }

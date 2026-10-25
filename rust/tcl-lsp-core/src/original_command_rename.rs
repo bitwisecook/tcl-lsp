@@ -160,16 +160,41 @@ fn renamed_slot(
     })
 }
 
+/// A kernel-owned whole-root conditional outcome. The host must independently
+/// retain and recheck every physical prefix/child/region publication it used.
+pub struct OriginalConditionalCommandWorld<'a> {
+    /// Current physical root URI owned and rechecked by the host.
+    pub uri: &'a str,
+    /// Exact compiler-issued whole-root continuation, independently joined below.
+    pub outcome: &'a tcl_compiler::command_binding::OriginalSourceConditionalOutcome,
+}
+
+fn collision_world(
+    document: &OriginalDeclarationDocument<'_>,
+    conditional: &[OriginalConditionalCommandWorld<'_>],
+) -> Option<tcl_compiler::command_binding::OriginalCompletedCommandWorld> {
+    if let Some(world) = document.analysis.original_completed_command_world() {
+        return Some(world);
+    }
+    let mut selected = conditional.iter().filter(|entry| entry.uri == document.uri);
+    let entry = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    entry
+        .outcome
+        .original_completed_command_world(document.analysis)
+}
+
 fn occupied(
     documents: &[OriginalDeclarationDocument<'_>],
+    conditional: &[OriginalConditionalCommandWorld<'_>],
     slot: &ByteCommandSlot,
     policy: NamePolicyProtocol,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
     let mut present = false;
     for document in documents {
-        let world = document
-            .analysis
-            .original_completed_command_world()
+        let world = collision_world(document, conditional)
             .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
         present |= world
             .command_slot_occupied(slot, policy)
@@ -180,6 +205,7 @@ fn occupied(
 
 fn destination_matches(
     documents: &[OriginalDeclarationDocument<'_>],
+    conditional: &[OriginalConditionalCommandWorld<'_>],
     lookup: &OriginalCommandLookup,
     destination: &ByteCommandSlot,
     tail: &[u8],
@@ -195,7 +221,7 @@ fn destination_matches(
                 reached = true;
                 break;
             }
-            if occupied(documents, &candidate, lookup.policy())? {
+            if occupied(documents, conditional, &candidate, lookup.policy())? {
                 return Err(OriginalCommandRenameRefusal::Collision);
             }
         }
@@ -259,6 +285,7 @@ pub(crate) fn reject_link_obligations(
 fn document_requests(
     document: OriginalDeclarationDocument<'_>,
     documents: &[OriginalDeclarationDocument<'_>],
+    conditional: &[OriginalConditionalCommandWorld<'_>],
     declaration: &Declaration<'_>,
     destination: &ByteCommandSlot,
     tail: &[u8],
@@ -315,7 +342,7 @@ fn document_requests(
                     if !declaration.reference_matches(reference, false) {
                         return Err(OriginalCommandRenameRefusal::UneditableLinks);
                     }
-                    destination_matches(documents, &lookup, destination, tail)?;
+                    destination_matches(documents, conditional, &lookup, destination, tail)?;
                     let wanted = input
                         .policy()
                         .recipe()
@@ -356,6 +383,17 @@ pub fn original_command_rename_edits(
     identity: &OriginalDeclarationIdentity,
     new_tail: &str,
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
+    original_command_rename_edits_with_conditional_worlds(documents, identity, new_tail, &[])
+}
+
+/// Preserve all ordinary edit guards while admitting independently current,
+/// fully completed conditional source worlds solely for collision coverage.
+pub fn original_command_rename_edits_with_conditional_worlds(
+    documents: &[OriginalDeclarationDocument<'_>],
+    identity: &OriginalDeclarationIdentity,
+    new_tail: &str,
+    conditional: &[OriginalConditionalCommandWorld<'_>],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
     if !documents
         .iter()
         .any(|document| document.uri == identity.uri())
@@ -372,16 +410,36 @@ pub fn original_command_rename_edits(
         policy.string_protocol(),
     )
     .map_err(|_| OriginalCommandRenameRefusal::InvalidTail)?;
-    original_command_rename_units(documents, identity, &tail)
+    original_command_rename_units_with_conditional_worlds(documents, identity, &tail, conditional)
 }
 
-fn original_command_rename_units(
+fn rename_declaration<'a>(
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    identity: &OriginalDeclarationIdentity,
+) -> Result<Declaration<'a>, OriginalCommandRenameRefusal> {
+    Ok(match identity.role() {
+        OriginalDeclarationRole::Procedure => Declaration::Procedure(
+            identity
+                .procedure_metadata(analysis)
+                .ok_or(OriginalCommandRenameRefusal::StaleSource)?,
+        ),
+        OriginalDeclarationRole::Class => Declaration::Class(
+            identity
+                .class_metadata(analysis)
+                .ok_or(OriginalCommandRenameRefusal::StaleSource)?,
+        ),
+        _ => return Err(OriginalCommandRenameRefusal::UnsupportedRole),
+    })
+}
+
+fn original_command_rename_units_with_conditional_worlds(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
     tail: &[u8],
+    conditional: &[OriginalConditionalCommandWorld<'_>],
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
     let mut uris = HashSet::new();
-    validate_rename_document_owners(documents, &mut uris)?;
+    validate_rename_document_owners(documents, conditional, &mut uris)?;
     let owner = documents
         .iter()
         .find(|document| document.uri == identity.uri())
@@ -389,19 +447,7 @@ fn original_command_rename_units(
     if !identity.is_current(owner.uri, owner.source, owner.analysis) {
         return Err(OriginalCommandRenameRefusal::StaleSource);
     }
-    let declaration = match identity.role() {
-        OriginalDeclarationRole::Procedure => Declaration::Procedure(
-            identity
-                .procedure_metadata(owner.analysis)
-                .ok_or(OriginalCommandRenameRefusal::StaleSource)?,
-        ),
-        OriginalDeclarationRole::Class => Declaration::Class(
-            identity
-                .class_metadata(owner.analysis)
-                .ok_or(OriginalCommandRenameRefusal::StaleSource)?,
-        ),
-        _ => return Err(OriginalCommandRenameRefusal::UnsupportedRole),
-    };
+    let declaration = rename_declaration(owner.analysis, identity)?;
     let owners = declaration_owner_count(documents, &declaration);
     if owners != 1 {
         return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
@@ -423,7 +469,9 @@ fn original_command_rename_units(
     if Some(publication.declaration_site()) != identity.site() {
         return Err(OriginalCommandRenameRefusal::ChangedPublication);
     }
-    if destination != *declaration.name().slot() && occupied(documents, &destination, policy)? {
+    if destination != *declaration.name().slot()
+        && occupied(documents, conditional, &destination, policy)?
+    {
         return Err(OriginalCommandRenameRefusal::Collision);
     }
     let replacement = policy
@@ -460,8 +508,14 @@ fn original_command_rename_units(
     let mut edits = Vec::new();
     for &document in documents {
         reject_readonly_math_references(document, owner, &declaration)?;
-        let mut requests =
-            document_requests(document, documents, &declaration, &destination, tail)?;
+        let mut requests = document_requests(
+            document,
+            documents,
+            conditional,
+            &declaration,
+            &destination,
+            tail,
+        )?;
         if document.uri == owner.uri {
             requests.push((original.clone(), NameBytes::from(replacement.clone())));
         }
@@ -609,6 +663,24 @@ pub fn original_command_prepare_span_in(
     cursor_uri: &str,
     cursor: u32,
 ) -> Result<Span, OriginalCommandRenameRefusal> {
+    original_command_prepare_span_in_with_conditional_worlds(
+        documents,
+        identity,
+        cursor_uri,
+        cursor,
+        &[],
+    )
+}
+
+/// Prepare against the same independently completed conditional collision
+/// worlds as the edit planner; cursor/declaration/edit guards remain unchanged.
+pub fn original_command_prepare_span_in_with_conditional_worlds(
+    documents: &[OriginalDeclarationDocument<'_>],
+    identity: &OriginalDeclarationIdentity,
+    cursor_uri: &str,
+    cursor: u32,
+    conditional: &[OriginalConditionalCommandWorld<'_>],
+) -> Result<Span, OriginalCommandRenameRefusal> {
     let owner = documents
         .iter()
         .find(|document| document.uri == identity.uri())
@@ -678,7 +750,7 @@ pub fn original_command_prepare_span_in(
         .command_tail_extent(input.bytes())
         .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
     let tail = &input.bytes()[native.clone()];
-    original_command_rename_units(documents, identity, tail)?;
+    original_command_rename_units_with_conditional_worlds(documents, identity, tail, conditional)?;
     crate::original_name_edit::original_static_name_value_span(&input, native)
         .ok_or(OriginalCommandRenameRefusal::UneditableInput)
 }
@@ -720,6 +792,7 @@ fn reject_incomplete_source_procedure(
 
 fn validate_rename_document_owners<'a>(
     documents: &[OriginalDeclarationDocument<'a>],
+    conditional: &[OriginalConditionalCommandWorld<'_>],
     uris: &mut HashSet<&'a str>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
     for document in documents {
@@ -737,9 +810,7 @@ fn validate_rename_document_owners<'a>(
         {
             return Err(OriginalCommandRenameRefusal::StaleSource);
         }
-        let world = document
-            .analysis
-            .original_completed_command_world()
+        let world = collision_world(document, conditional)
             .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
         if world.source_image() != &image || world.lexer_config() != config {
             return Err(OriginalCommandRenameRefusal::StaleSource);
@@ -816,6 +887,82 @@ mod tests {
             result.replace_range(edit.span.as_range(), &edit.new_text);
         }
         result
+    }
+
+    #[test]
+    fn conditional_collision_world_requires_exact_prefix_and_unique_publication() {
+        let source = "source child.tcl; proc unrelated {} {return VALUE}";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let load =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &parent, 0,
+            )
+            .unwrap();
+        let point = load.source_point_entry(&parent).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry("proc helper {} {return VALUE}", "tcl8.6", &point)
+            .unwrap();
+        let regions = load
+            .conditional_continuation(&parent, &child)
+            .unwrap()
+            .source_regions(&parent, &child)
+            .unwrap();
+        let outcome = regions.normal_outcome().unwrap();
+        let probe_source = "proc host_old {} {return VALUE}";
+        let probe = Analyser::new().analyse(probe_source, "tcl8.6");
+        let world = probe.original_completed_command_world().unwrap();
+        let publication = world.declarations().next().unwrap();
+        let slot = publication.slot();
+        let policy = publication.policy();
+        let document = OriginalDeclarationDocument {
+            uri: "file:///main.tcl",
+            source,
+            analysis: &parent,
+        };
+        assert_eq!(
+            occupied(&[document], &[], slot, policy),
+            Err(OriginalCommandRenameRefusal::UnknownWorld)
+        );
+        let entry = OriginalConditionalCommandWorld {
+            uri: document.uri,
+            outcome: &outcome,
+        };
+        assert_eq!(occupied(&[document], &[entry], slot, policy), Ok(false));
+        let wrong = OriginalConditionalCommandWorld {
+            uri: "file:///other.tcl",
+            outcome: &outcome,
+        };
+        assert_eq!(
+            occupied(&[document], &[wrong], slot, policy),
+            Err(OriginalCommandRenameRefusal::UnknownWorld)
+        );
+        let duplicate = [
+            OriginalConditionalCommandWorld {
+                uri: document.uri,
+                outcome: &outcome,
+            },
+            OriginalConditionalCommandWorld {
+                uri: document.uri,
+                outcome: &outcome,
+            },
+        ];
+        assert_eq!(
+            occupied(&[document], &duplicate, slot, policy),
+            Err(OriginalCommandRenameRefusal::UnknownWorld)
+        );
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let foreign_document = OriginalDeclarationDocument {
+            analysis: &foreign,
+            ..document
+        };
+        let entry = OriginalConditionalCommandWorld {
+            uri: document.uri,
+            outcome: &outcome,
+        };
+        assert_eq!(
+            occupied(&[foreign_document], &[entry], slot, policy),
+            Err(OriginalCommandRenameRefusal::UnknownWorld)
+        );
     }
 
     #[test]

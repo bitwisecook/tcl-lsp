@@ -281,6 +281,39 @@ impl OriginalSourceConditionalOutcome {
                 ConditionalOutcomeKind::ThroughRegion(_) => true,
             }
     }
+    /// Completed source publication advice from this exact whole-root Normal
+    /// continuation. This grants no physical load, Native entry or execution.
+    #[must_use]
+    pub fn original_completed_command_world(
+        &self,
+        prefix: &crate::analyser::AnalysisResult,
+    ) -> Option<super::super::OriginalCompletedCommandWorld> {
+        let outcomes = self.outcomes_for(prefix)?;
+        self.graph_for(prefix)?;
+        let first = self.entry_plan().frames.first()?;
+        if first.base != 0
+            || first.context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
+            || first.exit.is_some()
+            || outcomes.normal_completion.is_none()
+            || !outcomes.abrupt.is_empty()
+        {
+            return None;
+        }
+        let bindings = prefix.retained_command_realm()?.source_bindings_ref();
+        let origin = bindings.source_origin()?;
+        let state = outcomes.normal.as_ref()?;
+        if !Arc::ptr_eq(origin, &first.source)
+            || state.variable_frame != first.context.frame
+            || state
+                .current_source_origin
+                .as_ref()
+                .is_none_or(|current| !Arc::ptr_eq(current, origin))
+        {
+            return None;
+        }
+        bindings.completed_original_world_from_normal_state(Arc::new((**state).clone()))
+    }
+
     pub(super) fn outcomes_for(
         &self,
         prefix: &crate::analyser::AnalysisResult,
@@ -724,6 +757,62 @@ mod controls {
             u32::try_from(source.find(text).unwrap()).unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn completed_conditional_world_keeps_exact_prefix_owner_and_opaque_refusal() {
+        let source = "source child.tcl; proc run {} {return [helper 21]}";
+        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let load = source_load(source, &parent, "source child");
+        let point = load.source_point_entry(&parent).unwrap();
+        let child = crate::analyser::Analyser::new()
+            .analyse_with_source_point_entry(
+                "proc helper {value} {return $value}",
+                "tcl8.6",
+                &point,
+            )
+            .unwrap();
+        let regions = load
+            .conditional_continuation(&parent, &child)
+            .unwrap()
+            .source_regions(&parent, &child)
+            .unwrap();
+        let outcome = regions.normal_outcome().unwrap();
+        assert!(parent.original_completed_command_world().is_none());
+        let world = outcome.original_completed_command_world(&parent).unwrap();
+        assert_eq!(
+            world.source_image(),
+            &tcl_lexer::SourceImage::document(source)
+        );
+        assert!(world.declarations().count() >= 2);
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(outcome.original_completed_command_world(&foreign).is_none());
+        let mut detached = parent.clone();
+        detached.resolved_input = None;
+        assert!(
+            outcome
+                .original_completed_command_world(&detached)
+                .is_none()
+        );
+        for suffix in [
+            "puts opaque",
+            "source missing.tcl",
+            "proc recurse {} {recurse}; recurse",
+        ] {
+            let source = format!("source child.tcl; {suffix}");
+            let parent = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
+            let load = source_load(&source, &parent, "source child");
+            let point = load.source_point_entry(&parent).unwrap();
+            let child = crate::analyser::Analyser::new()
+                .analyse_with_source_point_entry("", "tcl8.6", &point)
+                .unwrap();
+            let regions = load
+                .conditional_continuation(&parent, &child)
+                .unwrap()
+                .source_regions(&parent, &child)
+                .unwrap();
+            assert!(regions.normal_outcome().is_none(), "{suffix}");
+        }
     }
 
     #[test]

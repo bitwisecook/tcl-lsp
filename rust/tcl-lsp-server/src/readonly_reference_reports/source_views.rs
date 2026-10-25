@@ -1383,6 +1383,12 @@ impl OriginalSourceViewWorkState {
         root_uri: Uri,
         complete: bool,
     ) -> OriginalSourceRootScope {
+        let completion = self
+            .finished
+            .get(&root)
+            .cloned()
+            .flatten()
+            .filter(|_| complete);
         let required = self
             .visited
             .into_iter()
@@ -1399,6 +1405,7 @@ impl OriginalSourceViewWorkState {
             association_owners: self.association_owners,
             ids: self.membership.into_iter().collect(),
             complete,
+            completion,
             eligibility: HashSet::new(),
             conditional_obligations: self.conditional_obligations,
         }
@@ -1433,6 +1440,7 @@ struct OriginalSourceRootScope {
     association_owners: Vec<OriginalSourceViewAssociation>,
     ids: Vec<OriginalSourceViewId>,
     complete: bool,
+    completion: Option<OriginalSourceViewCompletion>,
     eligibility: HashSet<Uri>,
     conditional_obligations: bool,
 }
@@ -1446,6 +1454,7 @@ impl OriginalSourceRootScope {
             association_owners: Vec::new(),
             ids: Vec::new(),
             complete: false,
+            completion: None,
             eligibility: HashSet::new(),
             conditional_obligations: false,
         }
@@ -1455,6 +1464,30 @@ impl OriginalSourceRootScope {
 pub(crate) struct OriginalSourceViewSettlement {
     scopes: Vec<OriginalSourceRootScope>,
     revision: u64,
+}
+
+pub(crate) struct OriginalCommandSourceWorldCapture {
+    settlement: OriginalSourceViewSettlement,
+}
+
+impl OriginalCommandSourceWorldCapture {
+    pub(crate) fn worlds(
+        &self,
+    ) -> Vec<tcl_lsp_core::original_command_rename::OriginalConditionalCommandWorld<'_>> {
+        self.settlement
+            .scopes
+            .iter()
+            .filter_map(|scope| {
+                let completion = scope.completion.as_ref()?;
+                Some(
+                    tcl_lsp_core::original_command_rename::OriginalConditionalCommandWorld {
+                        uri: scope.root_uri.as_str(),
+                        outcome: &completion.outcome,
+                    },
+                )
+            })
+            .collect()
+    }
 }
 
 struct OriginalSourceScopeProjection {
@@ -2581,6 +2614,73 @@ impl Backend {
             return Ok(state.finish_scope(root_id, root_uri, false));
         }
         Ok(state.finish_scope(root_id, root_uri, true))
+    }
+
+    pub(crate) async fn capture_original_command_source_worlds_if_needed(
+        &self,
+        member: bool,
+        owners: &[tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'_>],
+    ) -> DocumentSourceResult<Option<OriginalCommandSourceWorldCapture>> {
+        if !member
+            && owners
+                .iter()
+                .any(|owner| owner.analysis.original_completed_command_world().is_none())
+        {
+            self.capture_original_command_source_worlds().await
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) async fn capture_original_command_source_worlds(
+        &self,
+    ) -> DocumentSourceResult<Option<OriginalCommandSourceWorldCapture>> {
+        let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+            return Ok(None);
+        };
+        let capture = OriginalCommandSourceWorldCapture { settlement };
+        Ok(self
+            .original_command_source_worlds_are_current(&capture)
+            .await?
+            .then_some(capture))
+    }
+
+    pub(crate) async fn original_command_source_worlds_are_current(
+        &self,
+        capture: &OriginalCommandSourceWorldCapture,
+    ) -> DocumentSourceResult<bool> {
+        if !self.original_source_view_settlement_is_indexed(&capture.settlement) {
+            return Ok(false);
+        }
+        for scope in &capture.settlement.scopes {
+            let Some(completion) = &scope.completion else {
+                continue;
+            };
+            let current = self
+                .with_selected_original_source_views(
+                    &scope.ids,
+                    Some(capture.settlement.revision),
+                    |views| {
+                        (views.iter().any(|view| {
+                            view.id == completion.prefix.id
+                                && view.draft.same_live_producer(&completion.prefix.draft)
+                        }) && completion.dependencies.iter().all(|dependency| {
+                            views.iter().any(|view| {
+                                view.id == dependency.id
+                                    && view.draft.same_live_producer(&dependency.draft)
+                            })
+                        }) && completion.outcome.matches_prefix_analysis(
+                            &completion.prefix.draft.producer.seed.analysis,
+                        ))
+                        .then_some(())
+                    },
+                )
+                .await?;
+            if current.is_none() {
+                return Ok(false);
+            }
+        }
+        Ok(self.original_source_view_settlement_is_indexed(&capture.settlement))
     }
 
     pub(crate) fn original_source_view_settlement_is_indexed(
