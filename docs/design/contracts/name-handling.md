@@ -3986,3 +3986,12 @@ list elements cannot supply this correspondence. This bounded path refuses
 other variable destinations, removals, loop bindings and name queries.
 Every candidate must retain the same ordered Written-index/read/write role
 vector; a shared boolean or equal operand name cannot establish unanimity.
+
+
+Conditional advice graphs share their private command-cell table through the
+existing exact shared-inventory carrier. Cloning a graph retains its immutable
+cell snapshot; every mutable access detaches before mutation. Widening first
+checks the unchanged pure retention predicate and does not detach when no cell
+would be removed. Source identity, ownership, cell equality/hash, uncertainty,
+lookup guards and all other graph fields retain their existing semantics.
+This storage change grants no source, Native, frame or completion authority.
