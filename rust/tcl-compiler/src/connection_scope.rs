@@ -1094,6 +1094,25 @@ mod tests {
             .expect("original complete statement carrier")
     }
 
+    fn assert_connection_tail_owners(
+        function: &FunctionUnit,
+        tokens: &crate::ir::CommandTokens,
+        current: &tcl_registry::model::ContextRegistry,
+        module: &crate::ir::Module,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) {
+        let mut stale = module.clone();
+        stale.top_level_namespace = "::stale".into();
+        assert_eq!(
+            statement_destroys(function, block, index, current.commands(), Some(&stale)),
+            None
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(point_metadata(function, &changed, current.commands(), Some(module)).is_none());
+    }
+
     #[test]
     fn original_connection_destruction_keeps_current_availability_and_source_owners() {
         // naming.compiler.original-analysis-metadata-context
@@ -1194,23 +1213,7 @@ mod tests {
                 "changed clobber facet {facet}"
             );
         }
-        let mut stale = unit.ir_module.clone();
-        stale.top_level_namespace = "::stale".into();
-        assert_eq!(
-            statement_destroys(function, block, index, current.commands(), Some(&stale)),
-            None
-        );
-        let mut changed = tokens.clone();
-        changed.word_exprs.pop();
-        assert!(
-            point_metadata(
-                function,
-                &changed,
-                current.commands(),
-                Some(&unit.ir_module)
-            )
-            .is_none()
-        );
+        assert_connection_tail_owners(function, tokens, &current, &unit.ir_module, block, index);
     }
 
     #[test]

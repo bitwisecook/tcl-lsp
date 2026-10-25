@@ -711,6 +711,19 @@ mod tests {
             crate::interprocedural::test_body_identity::fixture_id(&module.methods, "::C::safe")
         ));
     }
+    fn nested_helper_dispatch_anywhere(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        components: &std::collections::HashMap<String, usize>,
+    ) -> bool {
+        super::proc_dispatch_facts(module, registry, components)
+            [&crate::interprocedural::test_body_identity::fixture_id(
+                &module.procedures,
+                "::helper",
+            )]
+            .anywhere
+    }
+
     #[test]
     fn nested_dispatch_uses_retained_availability_and_source_grammar() {
         // naming.compiler.original-analysis-metadata-context
@@ -743,14 +756,11 @@ mod tests {
         .ir_module;
         assert!(module.source_entry.native_entry.is_none());
         let components = std::collections::HashMap::new();
-        assert!(
-            !super::proc_dispatch_facts(&module, registry, &components)
-                [&crate::interprocedural::test_body_identity::fixture_id(
-                    &module.procedures,
-                    "::helper"
-                )]
-                .anywhere
-        );
+        assert!(!nested_helper_dispatch_anywhere(
+            &module,
+            registry,
+            &components
+        ));
         let original = module.clone();
         for change in 0..6 {
             module = original.clone();
@@ -776,12 +786,7 @@ mod tests {
                 .is_some()
             );
             assert!(
-                super::proc_dispatch_facts(&module, registry, &components)
-                    [&crate::interprocedural::test_body_identity::fixture_id(
-                        &module.procedures,
-                        "::helper"
-                    )]
-                    .anywhere,
+                nested_helper_dispatch_anywhere(&module, registry, &components),
                 "change {change}"
             );
         }
@@ -797,34 +802,25 @@ mod tests {
             module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
                 profile, profile, context, config,
             ));
-            assert!(
-                super::proc_dispatch_facts(&module, registry, &components)
-                    [&crate::interprocedural::test_body_identity::fixture_id(
-                        &module.procedures,
-                        "::helper"
-                    )]
-                    .anywhere
-            );
+            assert!(nested_helper_dispatch_anywhere(
+                &module,
+                registry,
+                &components
+            ));
         }
         module.source_metadata_input = None;
-        assert!(
-            super::proc_dispatch_facts(&module, registry, &components)
-                [&crate::interprocedural::test_body_identity::fixture_id(
-                    &module.procedures,
-                    "::helper"
-                )]
-                .anywhere
-        );
+        assert!(nested_helper_dispatch_anywhere(
+            &module,
+            registry,
+            &components
+        ));
         module.source_metadata_input = Some(input);
         module.lexer_config.expand_syntax = !module.lexer_config.expand_syntax;
-        assert!(
-            super::proc_dispatch_facts(&module, registry, &components)
-                [&crate::interprocedural::test_body_identity::fixture_id(
-                    &module.procedures,
-                    "::helper"
-                )]
-                .anywhere
-        );
+        assert!(nested_helper_dispatch_anywhere(
+            &module,
+            registry,
+            &components
+        ));
     }
 
     #[test]
