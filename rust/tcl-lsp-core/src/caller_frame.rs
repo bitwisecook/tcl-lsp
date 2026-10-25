@@ -1013,9 +1013,9 @@ oo::class create chart {
                 bindings
             );
             let mut changed = analysis.clone();
-            let mut content = config;
-            content.leading_bom = tcl_lexer::LeadingBom::Content;
-            changed.body_lexer_config = Some(content);
+            let mut body_config = config;
+            body_config.leading_bom = tcl_lexer::LeadingBom::Content;
+            changed.body_lexer_config = Some(body_config);
             assert!(
                 caller_frame_bindings(&changed, source, profile, resolution, read, "shared")
                     .is_empty()

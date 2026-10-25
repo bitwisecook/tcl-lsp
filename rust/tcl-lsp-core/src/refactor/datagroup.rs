@@ -1777,7 +1777,7 @@ mod shared_expression_data_tests {
             assert!(parse_eq(r#"$x == "GET""#, config, &context).is_some());
             for condition in [
                 r#"$x == "01""#,
-                r#"$x eq one"#,
+                r"$x eq one",
                 r#"$x eq "$dynamic""#,
                 r#"{$x eq "one"}"#,
             ] {

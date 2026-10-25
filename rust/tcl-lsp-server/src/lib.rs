@@ -64,6 +64,7 @@ mod original_workspace_diagnostics_tests;
 pub mod path_glob;
 mod provider_source;
 mod readonly_reference_reports;
+use readonly_reference_reports::source_views::OriginalCommandSourceWorldCapture;
 mod recovery_source;
 #[cfg(test)]
 use recovery_source::widen_recovery_extra_commands;
@@ -22748,7 +22749,7 @@ impl Backend {
         let owners = implementation_inventory(&documents);
         let conditional_worlds = source_worlds
             .as_ref()
-            .map(|capture| capture.worlds())
+            .map(OriginalCommandSourceWorldCapture::worlds)
             .unwrap_or_default();
         let planned = if member {
             tcl_lsp_core::original_member_rename::original_member_rename_edits(
@@ -22872,7 +22873,7 @@ impl Backend {
         let owners = implementation_inventory(&documents);
         let conditional_worlds = source_worlds
             .as_ref()
-            .map(|capture| capture.worlds())
+            .map(OriginalCommandSourceWorldCapture::worlds)
             .unwrap_or_default();
         let planned = Self::original_command_prepare_plan(
             member,

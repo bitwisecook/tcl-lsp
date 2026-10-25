@@ -51,6 +51,7 @@
 //! cover the whole sample), only the click-a-word view stops at them.
 
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
@@ -94,7 +95,7 @@ struct Word {
     depth: usize,
     /// Genuine source-word topology and its independently decoded value facets.
     tokens: Arc<CommandTokens>,
-    values: Arc<Vec<EffectiveInvocationWord>>,
+    values: Rc<Vec<EffectiveInvocationWord>>,
     config: LexerConfig,
 }
 
@@ -161,7 +162,7 @@ fn walk(
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
         let tokens = Arc::new(CommandTokens::from_segmented(&source_map, config, &segment));
-        let values = Arc::new(
+        let values = Rc::new(
             tokens
                 .words()
                 .iter()
@@ -197,7 +198,7 @@ fn walk(
                 args: args.clone(),
                 depth,
                 tokens: Arc::clone(&tokens),
-                values: Arc::clone(&values),
+                values: Rc::clone(&values),
                 config,
             });
         }

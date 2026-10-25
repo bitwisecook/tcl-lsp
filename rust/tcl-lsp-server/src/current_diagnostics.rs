@@ -2550,7 +2550,7 @@ mod tests {
         let _installed = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
         let config = {
             let mut db = backend.db.lock().await;
-            tcl_lsp_db::set_overlay_epoch(&mut *db, tcl_registry::overlay_epoch());
+            tcl_lsp_db::set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
             tcl_lsp_db::AnalyserConfig::new(
                 &*db,
                 Vec::new(),
