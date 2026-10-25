@@ -3631,8 +3631,8 @@ mod configured_method_proposal_controls {
         let source = "oo::class create Dog {method bark {} {return {}}}\n[Dog new] {bakr}";
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
-        let method = source.rfind("bakr").unwrap() as u32;
-        let head = source.rfind("[Dog new]").unwrap() as u32;
+        let method = u32::try_from(source.rfind("bakr").unwrap()).unwrap();
+        let head = u32::try_from(source.rfind("[Dog new]").unwrap()).unwrap();
         let site = W308DiagnosticSite {
             reach: tcl_registry::definer::MethodReach::ObjectCommand,
             method_span: Some(tcl_lexer::Span::new(method, method + 4)),

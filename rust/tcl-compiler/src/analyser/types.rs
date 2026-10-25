@@ -3027,7 +3027,7 @@ impl AnalysisResult {
                             cut -= 1;
                         }
                         self.0.push_str(&text[..cut]);
-                        self.0.push_str("…");
+                        self.0.push('…');
                         return Err(std::fmt::Error);
                     }
                     self.0.push_str(text);
@@ -5736,7 +5736,7 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                     .iter()
                     .filter(|invocation| {
                         invocation.name == "greet"
-                            && invocation.range.start() >= declaration.len() as u32
+                            && invocation.range.start() >= u32::try_from(declaration.len()).unwrap()
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(
@@ -5832,7 +5832,7 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                     .iter()
                     .filter(|invocation| {
                         invocation.name == "return"
-                            && invocation.range.start() < declaration.len() as u32
+                            && invocation.range.start() < u32::try_from(declaration.len()).unwrap()
                     })
                     .collect::<Vec<_>>();
                 if body_returns.is_empty()

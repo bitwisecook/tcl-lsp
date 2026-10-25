@@ -641,7 +641,7 @@ mod tests {
         let survey = OriginalPackageIndexSourceSurvey::capture(source, &registry, config);
         let plan = tcl_lexer::native_script_words_in(
             survey.source_image().clone(),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
         .unwrap();
@@ -748,7 +748,7 @@ mod retained_body_tests {
         );
         let plan = tcl_lexer::native_script_words_in(
             survey.source_image().clone(),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
         .unwrap();
@@ -817,7 +817,7 @@ mod retained_body_tests {
             };
             let plan = tcl_lexer::native_script_words_in(
                 survey.image.clone(),
-                tcl_lexer::Span::new(0, source.len() as u32),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
                 config,
             )
             .unwrap();
@@ -885,7 +885,7 @@ mod advertisement_tests {
         );
         let plan = tcl_lexer::native_script_words_in(
             survey.source_image().clone(),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
         .ok()?;
@@ -923,7 +923,7 @@ mod control_tests {
         );
         let plan = tcl_lexer::native_script_words_in(
             survey.source_image().clone(),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
         .ok()?;
@@ -950,7 +950,7 @@ mod control_tests {
         );
         let plan = tcl_lexer::native_script_words_in(
             survey.source_image().clone(),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
         .unwrap();
