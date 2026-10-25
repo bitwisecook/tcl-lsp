@@ -1319,7 +1319,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "919f8d8e22a69d38f8152d2bd816407f91c6f64a31fdff62da341fdb6cbc6ded",
+    == "c55444017afa3b3adc7eb3548b09851819d9e166935f9fc01bbf98b2a6a9a7bd",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(

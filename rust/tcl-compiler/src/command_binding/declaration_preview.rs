@@ -562,18 +562,30 @@ impl DeclaredProcedureBody {
         config: tcl_lexer::LexerConfig,
     ) -> bool {
         let advice = read.advice();
+        let offset = advice.site().offset;
+        let required = |value: bool, stage: &'static str| {
+            if !value {
+                super::source_read_scope::trace_rbs_refusal(offset, stage);
+            }
+            value
+        };
         let Some(input) = advice.logical_source_input() else {
-            return false;
+            return required(false, "declared.logical-input");
         };
         let Some(scope) = advice.logical_source_scope() else {
-            return false;
+            return required(false, "declared.logical-scope");
         };
-        if !input.has_logical_source_name_context()
-            || input.lexer_config() != config
-            || !scope.matches_input(input)
-            || scope.frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Procedure
-        {
-            return false;
+        if !input.has_logical_source_name_context() {
+            return required(false, "declared.input-purpose");
+        }
+        if input.lexer_config() != config {
+            return required(false, "declared.input-config");
+        }
+        if !scope.matches_input(input) {
+            return required(false, "declared.scope-input");
+        }
+        if scope.frame_recipe() != super::OriginalDeclaredSourceBodyFrame::Procedure {
+            return required(false, "declared.scope-frame");
         }
         let body = scope.scope_body();
         let words = body.source_words();
@@ -581,22 +593,22 @@ impl DeclaredProcedureBody {
             header,
         ) = words.source()
         else {
-            return false;
+            return required(false, "declared.header-source");
         };
         let super::ExecutedScriptMapping::Contiguous { base } = self.source.mapping else {
-            return false;
+            return required(false, "declared.body-mapping");
         };
         let Some(end) = u32::try_from(self.source.text.len())
             .ok()
             .and_then(|length| base.checked_add(length))
         else {
-            return false;
+            return required(false, "declared.body-end");
         };
         let Some(namespace) =
             tcl_syntax::naming::checked_namespace_path_key(scope.namespace_recipe())
                 .map(super::SourceNamespaceKey::authored)
         else {
-            return false;
+            return required(false, "declared.namespace");
         };
         let Some(shape) = words
             .with_source_schema(input.borrowed_context_registry(), |schema| {
@@ -604,24 +616,44 @@ impl DeclaredProcedureBody {
             })
             .flatten()
         else {
-            return false;
+            return required(false, "declared.header-shape");
         };
-        header.site() == &self.declaration
-            && header.logical_source_input() == Some(input)
-            && self.source.origin == self.declaration.source
-            && body.content_span() == tcl_lexer::Span::new(base, end)
-            && body.matches_source(self.source.origin.source_image(), config)
-            && namespace == self.namespace
-            && self.logical_name.as_ref().map(String::as_bytes)
-                == scope
-                    .scope_name_input()
-                    .map(super::OriginalLogicalSourceNameInput::bytes)
-            && self
-                .logical_parameters_word
-                .as_ref()
-                .is_some_and(|parameters| {
-                    words.original_argument_word(shape.parameters) == Some(parameters)
-                })
+        required(header.site() == &self.declaration, "declared.header-site")
+            && required(
+                header.logical_source_input() == Some(input),
+                "declared.header-input",
+            )
+            && required(
+                self.source.origin == self.declaration.source,
+                "declared.source-origin",
+            )
+            && required(
+                body.content_span() == tcl_lexer::Span::new(base, end),
+                "declared.body-span",
+            )
+            && required(
+                body.matches_source(self.source.origin.source_image(), config),
+                "declared.body-source",
+            )
+            && required(namespace == self.namespace, "declared.body-namespace")
+            && required(
+                self.logical_name.as_ref().map(String::as_bytes)
+                    == scope
+                        .scope_name_input()
+                        .map(super::OriginalLogicalSourceNameInput::bytes),
+                "declared.name",
+            )
+            && required(
+                self.logical_parameters_word
+                    .as_ref()
+                    .is_some_and(|parameters| {
+                        required(
+                            words.original_argument_word(shape.parameters) == Some(parameters),
+                            "declared.parameters-word",
+                        )
+                    }),
+                "declared.parameters",
+            )
     }
 
     pub(super) fn static_source_uncertainty(
