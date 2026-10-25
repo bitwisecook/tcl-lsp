@@ -349,7 +349,7 @@ fn select_declaration_layouts(
             observations.len()
         );
     }
-    let first = original.clone().next()?;
+    let first = super::trace_rbs_operand_option("rows.first_original", original.clone().next())?;
     #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
         for observation in original.clone() {
@@ -390,7 +390,7 @@ fn select_declaration_layouts(
                         .entry
                         .owns_original_context(&observation.snapshot.state.source_variables)))
     }) {
-        return None;
+        return super::trace_rbs_operand_option("rows.owner_join", None);
     }
     Some(original)
 }
@@ -3919,22 +3919,30 @@ impl super::SourceInvocationBinding {
         ) -> Option<OriginalCompilationLookupAdvice>,
     ) -> Option<OriginalCompilationLookupAdvice> {
         let binding = self;
-        let site = binding.invocation_site()?;
-        let observations =
-            original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let site = super::trace_rbs_operand_option("declaration.site", binding.invocation_site())?;
+        let observations = super::trace_rbs_operand_option(
+            "declaration.original_rows",
+            original_declaration_layouts(super::trace_rbs_operand_option(
+                "declaration.rows",
+                self.declaration_layout_observations.as_deref(),
+            )?),
+        )?;
         let mut unanimous: Option<OriginalCompilationLookupAdvice> = None;
         for observation in observations {
             // Entered activations retain their own immutable points; they do
             // not participate in this original declaration's unanimity.
             if !observation.entry.owns_source(&site.source, site.offset) {
-                return None;
+                return super::trace_rbs_operand_option("declaration.row_owner", None);
             }
-            let advice = project(
-                binding,
-                tokens,
-                &observation.snapshot,
-                &observation.namespace,
-                observation.config,
+            let advice = super::trace_rbs_operand_option(
+                "declaration.row_project",
+                project(
+                    binding,
+                    tokens,
+                    &observation.snapshot,
+                    &observation.namespace,
+                    observation.config,
+                ),
             )?;
             if unanimous.as_ref().is_some_and(|previous| {
                 previous.targets != advice.targets
@@ -3946,11 +3954,11 @@ impl super::SourceInvocationBinding {
                     || previous.unknown != advice.unknown
                     || previous.may_be_absent != advice.may_be_absent
             }) {
-                return None;
+                return super::trace_rbs_operand_option("declaration.unanimity", None);
             }
             unanimous = Some(advice);
         }
-        unanimous
+        super::trace_rbs_operand_option("declaration.result", unanimous)
     }
 }
 

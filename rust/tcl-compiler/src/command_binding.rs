@@ -2377,9 +2377,22 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         registry: &CommandRegistry,
     ) -> Option<OriginalCompilationLookupAdvice> {
-        self.declaration_operand_layout_advice(tokens)
-            .or_else(|| self.original_compilation_lookup_advice(tokens))
-            .or_else(|| self.original_logical_source_operand_layout_advice(tokens, registry))
+        trace_rbs_operand_option(
+            "root.declaration",
+            self.declaration_operand_layout_advice(tokens),
+        )
+        .or_else(|| {
+            trace_rbs_operand_option(
+                "root.compiler",
+                self.original_compilation_lookup_advice(tokens),
+            )
+        })
+        .or_else(|| {
+            trace_rbs_operand_option(
+                "root.logical",
+                self.original_logical_source_operand_layout_advice(tokens, registry),
+            )
+        })
     }
 
     /// Source roles from the captured post-operand Logical lookup world.
@@ -2806,6 +2819,23 @@ enum OriginalOperandLayoutPurpose {
     LogicalDeclarationTargets,
 }
 
+fn trace_rbs_operand_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static RECORDS: AtomicUsize = AtomicUsize::new(0);
+        if RECORDS.fetch_add(1, Ordering::Relaxed) < 1024 {
+            eprintln!(
+                "RBS_OPERAND_LAYOUT stage={stage} present={}",
+                value.is_some()
+            );
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 fn original_site_layout_advice(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
@@ -2815,9 +2845,12 @@ fn original_site_layout_advice(
     config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
     if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
-        return None;
+        return trace_rbs_operand_option("site.original_argv", None);
     }
-    let mut dialect = snapshot.state.source_variables.invocation_dialect?;
+    let mut dialect = trace_rbs_operand_option(
+        "site.dialect",
+        snapshot.state.source_variables.invocation_dialect,
+    )?;
     let logical_source = snapshot
         .state
         .logical_source_name_advice_input()
@@ -2833,7 +2866,7 @@ fn original_site_layout_advice(
     ) && !logical_source)
         || (matches!(purpose, OriginalOperandLayoutPurpose::DeclarationTargets) && logical_source)
     {
-        return None;
+        return trace_rbs_operand_option("site.purpose", None);
     }
     // Conditional Logical command layout uses its retained source namespace
     // and lookup world. It does not require or issue a physical variable frame.
@@ -2844,12 +2877,14 @@ fn original_site_layout_advice(
                 crate::var_resolve::VariableExecutionFrame::Unknown
             ))
     {
-        return None;
+        return trace_rbs_operand_option("site.origin_or_frame", None);
     }
-    let original = site
-        .source
-        .original_lexical_command(tokens.words(), site.offset, config)?;
-    let head = original.native_words().first()?;
+    let original = trace_rbs_operand_option(
+        "site.original_command",
+        site.source
+            .original_lexical_command(tokens.words(), site.offset, config),
+    )?;
+    let head = trace_rbs_operand_option("site.original_head", original.native_words().first())?;
     if snapshot
         .state
         .source_variables
@@ -2863,27 +2898,19 @@ fn original_site_layout_advice(
         dialect.word_values =
             tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
     }
-    let projection = original_static_layout_projection(
-        snapshot,
-        namespace,
-        head,
-        config,
-        dialect,
-        logical_source,
+    let projection = trace_rbs_operand_option(
+        "site.static_projection",
+        original_static_layout_projection(
+            snapshot,
+            namespace,
+            head,
+            config,
+            dialect,
+            logical_source,
+        ),
     )?;
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
-        eprintln!(
-            "ORIGINAL_DECLARATION offset={} stage=layout logical={} frame={:?} targets={} unknown={} absent={} opaque={}",
-            site.offset,
-            logical_source,
-            snapshot.state.variable_frame,
-            projection.targets.len(),
-            projection.unknown,
-            projection.may_be_absent,
-            snapshot.state.opaque_binding_mutation,
-        );
-    }
+    trace_original_site_projection(site.offset, logical_source, snapshot, &projection);
     if projection.targets.is_empty()
         || projection.targets.iter().any(|target| {
             !target.registry_backed
@@ -2899,7 +2926,7 @@ fn original_site_layout_advice(
                 }
         })
     {
-        return None;
+        return trace_rbs_operand_option("site.registry_targets", None);
     }
     Some(OriginalCompilationLookupAdvice {
         snapshot: Arc::clone(snapshot),
@@ -2912,6 +2939,27 @@ fn original_site_layout_advice(
         unknown: projection.unknown,
         may_be_absent: projection.may_be_absent,
     })
+}
+
+#[cfg(test)]
+fn trace_original_site_projection(
+    offset: u32,
+    logical_source: bool,
+    snapshot: &SourceLookupSnapshot,
+    projection: &SourceInvocationBinding,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+        eprintln!(
+            "ORIGINAL_DECLARATION offset={} stage=layout logical={} frame={:?} targets={} unknown={} absent={} opaque={}",
+            offset,
+            logical_source,
+            snapshot.state.variable_frame,
+            projection.targets.len(),
+            projection.unknown,
+            projection.may_be_absent,
+            snapshot.state.opaque_binding_mutation,
+        );
+    }
 }
 
 fn original_standalone_document_naming(
@@ -2945,32 +2993,45 @@ fn original_static_layout_projection(
         .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
     {
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-        let key = if original_standalone_document_naming(snapshot, head, policy) {
-            // Authored naming and the original Document grammar are separate
-            // axes. This key supplies source layout, not Native object units.
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+        let key = trace_rbs_operand_option(
+            "projection.source_key",
+            if original_standalone_document_naming(snapshot, head, policy) {
+                // Authored naming and the original Document grammar are separate
+                // axes. This key supplies source layout, not Native object units.
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
                 head, rules, policy,
             )
-        } else {
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                head, rules, policy,
-            )
-        }?;
-        source_binding_from_original_input_in(
-            &snapshot.state,
-            &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
-            namespace,
-            CommandTargetLookup::NamedSlots,
+            } else {
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    head, rules, policy,
+                )
+            },
+        )?;
+        trace_rbs_operand_option(
+            "projection.native_lookup",
+            source_binding_from_original_input_in(
+                &snapshot.state,
+                &crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key),
+                namespace,
+                CommandTargetLookup::NamedSlots,
+            ),
         )
     } else {
         // Independent authored simulation metadata does not issue a Native slot.
-        (logical_source || dialect.authored_name_policy().is_none()).then_some(())?;
-        let presentation = if logical_source {
-            tcl_syntax::word_rules::original_static_word_unicode_value(head)?
-        } else {
-            tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?
-        };
-        let head = std::str::from_utf8(&presentation).ok()?;
+        trace_rbs_operand_option(
+            "projection.source_policy",
+            (logical_source || dialect.authored_name_policy().is_none()).then_some(()),
+        )?;
+        let presentation = trace_rbs_operand_option(
+            "projection.presentation",
+            if logical_source {
+                tcl_syntax::word_rules::original_static_word_unicode_value(head)
+            } else {
+                tcl_syntax::word_rules::original_static_word_ascii_presentation(head)
+            },
+        )?;
+        let head =
+            trace_rbs_operand_option("projection.utf8", std::str::from_utf8(&presentation).ok())?;
         Some(source_binding_projection_in(
             &snapshot.state,
             head,
