@@ -402,3 +402,11 @@
 5	tcl-vm::library_bootstrap_presence	test	tcl-vm	library_bootstrap_presence
 5	tcl-vm::native_byte_literals	test	tcl-vm	native_byte_literals
 5	tcl-vm::native_variable_declaration	test	tcl-vm	native_variable_declaration
+2	tcl-spectcl::jim_authored_call	test	tcl-spectcl	jim_authored_call
+2	tcl-spectcl::jim_core_metadata_identity	test	tcl-spectcl	jim_core_metadata_identity
+2	tcl-spectcl::jim_static_read_alternatives	test	tcl-spectcl	jim_static_read_alternatives
+2	tcl-spectcl::jim_static_source_uncertainty	test	tcl-spectcl	jim_static_source_uncertainty
+5	tcl-spectcl::native_normal_store	test	tcl-spectcl	native_normal_store
+5	tcl-spectcl::upf_hooks	test	tcl-spectcl	upf_hooks
+5	tcl-spectcl::variable_reference_boundaries	test	tcl-spectcl	variable_reference_boundaries
+4	tcl-vm::thread_exit_retirement	test	tcl-vm	thread_exit_retirement
