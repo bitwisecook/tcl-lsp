@@ -1757,7 +1757,7 @@ mod tests {
     fn bare_superclass_links_via_unique_tail_across_namespaces() {
         // C Tcl 8.6/9.0/9.1 requires the actual import; a unique tail is not
         // a lookup owner. Analyse the exported/imported original source.
-        let source = r#"namespace eval ::SpiceGenTcl {
+        let source = r"namespace eval ::SpiceGenTcl {
     namespace export Device
     oo::class create Device {
         method genSPICEString {} {return OK}
@@ -1766,7 +1766,7 @@ mod tests {
 rename auto_import savedPrelude
 namespace import ::SpiceGenTcl::Device
 oo::class create ::Core {superclass Device}
-"#;
+";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let h = build_class_hierarchy(analysis.all_classes);
         assert_eq!(
