@@ -19,7 +19,8 @@
 // Shared by the existing browser-worker and WASI protocol harnesses.
 import assert from "node:assert/strict";
 
-export const HOST_NAMING_SOURCE = 'proc host_old {value} { return $value }\nputs "🧪 café"; puts [host_old 7]\n';
+export const HOST_NAMING_SOURCE = 'proc host_old {value} { return $value }\nset host_marker "🧪 café"; proc host_caller {} {return [host_old 7]}\n';
+export const OPAQUE_PUTS_NAMING_SOURCE = 'proc host_old {value} { return $value }\nputs "🧪 café"; puts [host_old 7]\n';
 
 function offsetAt(source, position) {
     const lines = source.split("\n");
@@ -155,4 +156,36 @@ export async function runNamingHostProof(session, uri, check, publish = () => {}
     await completed(applied, 2);
     await targets(applied, "host_new");
     check("protocol rename applies every UTF-16 edit and the first new-revision targets agree", true);
+    async function opaquePutsSourceAbstains() {
+        await publish(uri, OPAQUE_PUTS_NAMING_SOURCE);
+        session.notify("textDocument/didChange", {
+            textDocument: { uri, version: 3 }, contentChanges: [{ text: OPAQUE_PUTS_NAMING_SOURCE }],
+        });
+        await completed(OPAQUE_PUTS_NAMING_SOURCE, 3);
+        const position = { line: 1, character: OPAQUE_PUTS_NAMING_SOURCE.split("\n")[1].indexOf("host_old") + 2 };
+        const params = { textDocument: { uri }, position };
+        const definition = await request("textDocument/definition", params, Date.now() + budgetMs);
+        const references = await request("textDocument/references", { ...params, context: { includeDeclaration: true } }, Date.now() + budgetMs);
+        assert.deepEqual(locations(definition), [], "earlier opaque puts prevents a unique call definition");
+        assert.deepEqual(locations(references), [], "earlier opaque puts prevents a unique call reference owner");
+        let timer;
+        try {
+            const deadline = Date.now() + budgetMs;
+            const response = await Promise.race([
+                session.request("textDocument/rename", {
+                    textDocument: { uri }, position: { line: 0, character: 7 }, newName: "host_new",
+                }, budgetMs),
+                new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("opaque puts rename refusal timed out")), budgetMs); }),
+            ]);
+            assert(Date.now() < deadline, "opaque puts rename refusal exceeded the host reply budget");
+            assert.equal(response?.error?.code, -32602);
+            assert.equal(response.error.data?.code, "unknown-completed-command-world");
+            assert.equal(response.error.data?.reason, "a completed original command world is unavailable for collision coverage");
+            assert(response.result == null, "opaque puts never receives an edit grant");
+        } finally {
+            clearTimeout(timer);
+        }
+        check("opaque puts retains uncertainty and abstains from navigation and rename", true);
+    }
+    await opaquePutsSourceAbstains();
 }
