@@ -21,8 +21,8 @@
     "playwright": "1.64.1",
     "prettier": "^3.9.10",
     "typescript": "~7.0.2",
-    "vscode-jsonrpc": "^9.0.3",
-    "vscode-languageserver-protocol": "^3.18.4",
+    "vscode-jsonrpc": "^10.0.0",
+    "vscode-languageserver-protocol": "^3.18.5",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
   },
