@@ -168,62 +168,107 @@ pub fn original_source_command_availability(
     analysis: &AnalysisResult,
     tokens: &crate::ir::CommandTokens,
 ) -> Option<OriginalSourceCommandAvailability> {
+    let trace = |stage: &'static str| {
+        if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+            eprintln!(
+                "COMMAND_AVAILABILITY offset={} stage={stage} passed=false",
+                tokens.argv.first().map_or(0, |word| word.start())
+            );
+        }
+    };
+    macro_rules! required {
+        ($value:expr, $stage:expr) => {{
+            let value = $value;
+            if value.is_none() {
+                trace($stage);
+            }
+            value?
+        }};
+    }
+
     // naming.diagnostic.original-command-source-unavailability
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
-    let input = analysis.resolved_input.as_ref()?;
+    let input = required!(analysis.resolved_input.as_ref(), "source.resolved-input");
     let image = SourceImage::document(source);
     let config = input.lexer_config();
-    analysis
-        .matches_original_source_image(&image, config)
-        .then_some(())?;
-    let realm = analysis.retained_command_realm()?;
-    realm.matches_resolved_analysis_input(input).then_some(())?;
+    required!(
+        analysis
+            .matches_original_source_image(&image, config)
+            .then_some(()),
+        "source.original-image"
+    );
+    let realm = required!(analysis.retained_command_realm(), "source.retained-realm");
+    required!(
+        realm.matches_resolved_analysis_input(input).then_some(()),
+        "source.realm-input"
+    );
     if tokens.synthetic.is_some() {
+        trace("source.synthetic-vector");
         return None;
     }
-    let binding = tokens.source_binding.as_ref()?;
-    let offset = tokens.argv.first()?.start();
+    let binding = required!(tokens.source_binding.as_ref(), "source.original-binding");
+    let offset = required!(tokens.argv.first(), "source.head-word").start();
     if realm.invocation_at_source("", offset) != *binding {
+        trace("source.realm-binding");
         return None;
     }
-    let original = super::original_native_compiler_words(&image, tokens.words(), offset, config)?;
+    let original = required!(
+        super::original_native_compiler_words(&image, tokens.words(), offset, config),
+        "source.original-words"
+    );
     if original.iter().any(|word| word.group().expand) {
+        trace("source.expanded-vector");
         return None;
     }
-    let first = original.first()?;
+    let first = required!(original.first(), "source.original-head");
     let invocation_realm = binding.invocation_realm().unwrap_or_default();
     let context = input.context_registry();
     let (descriptor, origin) = if input.has_hosted_source_name_context() {
-        hosted_unavailability(
-            analysis,
-            binding,
-            tokens,
-            &original,
-            input,
-            invocation_realm,
-        )?
+        required!(
+            hosted_unavailability(
+                analysis,
+                binding,
+                tokens,
+                &original,
+                input,
+                invocation_realm,
+            ),
+            "hosted.unavailability"
+        )
     } else if realm
         .source_bindings_ref()
         .original_logical_source_name_advice_input()
         == Some(input)
     {
-        (binding.logical_source_name_advice_input() == Some(input)).then_some(())?;
-        let bytes = tcl_syntax::word_rules::original_static_word_ascii_presentation(first)?;
+        required!(
+            (binding.logical_source_name_advice_input() == Some(input)).then_some(()),
+            "logical.binding-input"
+        );
+        let bytes = required!(
+            tcl_syntax::word_rules::original_static_word_ascii_presentation(first),
+            "logical.static-head"
+        );
         if bytes.contains(&0) {
+            trace("logical.head-nul");
             return None;
         }
-        let written = std::str::from_utf8(&bytes).ok()?;
-        let (descriptor, paths) = binding.original_authored_unavailable_command(
-            tokens,
-            first,
-            &context,
-            invocation_realm,
-            written,
-        )?;
+        let written = required!(std::str::from_utf8(&bytes).ok(), "logical.head-encoding");
+        let (descriptor, paths) = required!(
+            binding.original_authored_unavailable_command(
+                tokens,
+                first,
+                &context,
+                invocation_realm,
+                written,
+            ),
+            "logical.unavailability"
+        );
         (descriptor, AvailabilityOrigin::Logical { paths })
     } else {
-        let selected =
-            binding.original_native_unavailable_command(tokens, &context, invocation_realm)?;
+        let selected = required!(
+            binding.original_native_unavailable_command(tokens, &context, invocation_realm),
+            "native.unavailability"
+        );
         (
             selected.descriptor,
             AvailabilityOrigin::Native {

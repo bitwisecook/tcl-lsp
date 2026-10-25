@@ -31,31 +31,61 @@ impl SourceInvocationBinding {
         context: &ContextRegistry,
         realm: InvocationRealm,
     ) -> Option<OriginalNativeUnavailableCommand> {
+        let trace = |stage: &'static str| {
+            if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+                eprintln!(
+                    "COMMAND_AVAILABILITY offset={} stage={stage} passed=false",
+                    tokens.argv.first().map_or(0, |word| word.start())
+                );
+            }
+        };
+        macro_rules! required {
+            ($value:expr, $stage:expr) => {{
+                let value = $value;
+                if value.is_none() {
+                    trace($stage);
+                }
+                value?
+            }};
+        }
+
         // naming.diagnostic.original-command-source-unavailability
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
-        let lookup = self.original_static_head_lookup_for_tokens(tokens)?;
+        let lookup = required!(
+            self.original_static_head_lookup_for_tokens(tokens),
+            "native.original-head-lookup"
+        );
         let registry = context.commands().snapshot().semantic_key();
         let mut selected = None;
         let mut obligations = Vec::new();
         for row in lookup.source_observations() {
             if row.words.as_ref() != tokens.words()
-                || row.config != lookup.name_input().original_word_key()?.lexer_config()
+                || row.config
+                    != required!(
+                        lookup.name_input().original_word_key(),
+                        "native.original-word-key"
+                    )
+                    .lexer_config()
                 || row.entry.source().origin.as_ref() != lookup.site().source.as_ref()
                 || row.snapshot.state.baseline.registry_snapshot.as_ref() != Some(&registry)
             {
+                trace("native.original-row-state");
                 return None;
             }
-            let (descriptor, residual) =
+            let (descriptor, residual) = required!(
                 row.snapshot.state.original_unavailable_command_from_paths(
                     lookup.candidates(),
                     lookup.policy(),
                     context,
                     realm,
-                )?;
+                ),
+                "native.catalogue-source-paths"
+            );
             if selected
                 .as_ref()
                 .is_some_and(|previous| previous != &descriptor)
             {
+                trace("native.descriptor-consensus");
                 return None;
             }
             selected = Some(descriptor);
@@ -67,7 +97,7 @@ impl SourceInvocationBinding {
         }
         Some(OriginalNativeUnavailableCommand {
             lookup,
-            descriptor: selected?,
+            descriptor: required!(selected, "native.original-observation-selection"),
             obligations,
         })
     }

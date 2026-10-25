@@ -2476,16 +2476,30 @@ impl Analyser {
             );
         }
         let unavailable = if presubstituted_args || original.is_some() {
+            if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+                eprintln!(
+                    "COMMAND_AVAILABILITY offset={} stage=dispatch.domain passed=false presubstituted={presubstituted_args} selected={}",
+                    cmd_tok.span.start(),
+                    original.is_some()
+                );
+            }
             None
         } else {
-            self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens)
-                .and_then(|tokens| {
-                    crate::registry_invocation::original_source_command_availability(
-                        &self.source,
-                        &self.result,
-                        &tokens,
-                    )
-                })
+            let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens);
+            if tokens.is_none() && std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some()
+            {
+                eprintln!(
+                    "COMMAND_AVAILABILITY offset={} stage=dispatch.original-tokens passed=false",
+                    cmd_tok.span.start()
+                );
+            }
+            tokens.and_then(|tokens| {
+                crate::registry_invocation::original_source_command_availability(
+                    &self.source,
+                    &self.result,
+                    &tokens,
+                )
+            })
         };
         self.emit_w002_disabled_command(unavailable, scope_path);
         self.emit_e004_clause_shape_diagnostic(original.as_ref());
