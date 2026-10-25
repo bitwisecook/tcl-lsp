@@ -63,8 +63,10 @@ pub mod native_oo;
 /// Actual original substitution-template compiler purpose.
 pub mod native_substitution;
 
+pub mod native_procedure_compilation;
 /// Native procedure roles shared by concrete declaration and frame owners.
 pub mod native_procedure_roles;
+pub use native_procedure_compilation::OriginalProcedureCompileRequest;
 
 /// Direct callbacks registered on actual stable variable cells.
 pub mod native_variable_trace;
@@ -1179,6 +1181,24 @@ pub trait CompileService {
         Err(CompileError::Unsupported(
             "CompileService does not support retained-entry byte procedures".into(),
         ))
+    }
+
+    /// Compile an actual retained declaration's original body. The request owns
+    /// the exact prefix, formal keys and namespace; a separate target cannot be
+    /// substituted. Existing services retain their ordinary procedure contract.
+    fn compile_original_procedure_bytes_with_entry(
+        &self,
+        request: &OriginalProcedureCompileRequest,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        if !request.matches_entry(entry) {
+            return Err(CompileError::Unsupported(
+                "original procedure declaration is unavailable at this entry".into(),
+            ));
+        }
+        self.compile_procedure_bytes_with_entry(request.target(), profile, entry, dispatch)
     }
 
     /// Locate a byte script's complete-command prefix before executing it.

@@ -46,6 +46,14 @@ impl NativeCompilerPassOwner {
         }
     }
 
+    pub(crate) fn procedure_compilation_identity(&self) -> NativeCompilerPassIdentity {
+        NativeCompilerPassIdentity {
+            interpreter: self.interpreter,
+            token: self.token,
+            lifetime: Arc::downgrade(&self.lifetime),
+        }
+    }
+
     /// Capture independently observed parent, enabled limits and procedure owner.
     /// The backend must use its actual interpreter state, not a logical profile.
     #[must_use]
@@ -65,6 +73,33 @@ impl NativeCompilerPassOwner {
             procedure,
             lifetime: Arc::downgrade(&self.lifetime),
         }
+    }
+}
+
+/// Private relation to the actual interpreter-owned compiler environment.
+/// A captured environment never exposes the owner needed to issue this identity.
+#[derive(Debug, Clone)]
+pub(crate) struct NativeCompilerPassIdentity {
+    pub(crate) interpreter: NativeInterpreterIdentity,
+    token: u64,
+    lifetime: Weak<()>,
+}
+
+impl NativeCompilerPassIdentity {
+    pub(crate) fn is_live(&self) -> bool {
+        self.lifetime.strong_count() != 0
+    }
+
+    pub(crate) fn same_owner(&self, other: &Self) -> bool {
+        self.interpreter == other.interpreter
+            && self.token == other.token
+            && Weak::ptr_eq(&self.lifetime, &other.lifetime)
+    }
+
+    pub(crate) fn matches_environment(&self, environment: &NativeCompilerPassEnvironment) -> bool {
+        self.token == environment.token
+            && Weak::ptr_eq(&self.lifetime, &environment.lifetime)
+            && environment.is_current_for(self.interpreter)
     }
 }
 

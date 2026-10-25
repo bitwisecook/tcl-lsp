@@ -2250,6 +2250,93 @@ impl CmdTraceEntry {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ProcedureCompilationOwner<'a> {
+    declaration: &'a ProcDef,
+    command_namespace: Option<NsId>,
+}
+
+struct ProcedureBodySource<'a> {
+    image: &'a tcl_runtime_api::SourceImage,
+    declaration: Option<&'a ProcDef>,
+}
+
+#[derive(Clone, Copy)]
+struct ProcedureCompilationTarget<'a> {
+    ordinary: tcl_runtime_api::ProcedureCompileTargetBytes<'a>,
+    original: Option<&'a tcl_runtime_api::OriginalProcedureCompileRequest>,
+}
+
+struct ProcedureCompilationInputs<'a> {
+    prefix: tcl_runtime_api::SourceImage,
+    parameters: Vec<tcl_core_types::NameBytes>,
+    namespace: &'a NamespacePath,
+    original: Option<tcl_runtime_api::OriginalProcedureCompileRequest>,
+}
+
+impl<'a> ProcedureCompilationInputs<'a> {
+    fn new(
+        source: ProcedureBodySource<'_>,
+        parameters: &[crate::command::Param],
+        namespace: &'a NamespacePath,
+        complete_prefix_len: usize,
+        issuer: &tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> Result<Self, tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError>
+    {
+        use tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError;
+        let original = match source.declaration.map(|declaration| {
+            declaration.original_compilation_request(
+                source.image,
+                namespace,
+                complete_prefix_len,
+                issuer,
+                interpreter,
+            )
+        }) {
+            Some(Ok(request)) => Some(request),
+            Some(Err(OriginalProcedureCompileError::ChangedOriginal)) | None => None,
+            Some(Err(error)) => return Err(error),
+        };
+        let prefix = original.as_ref().map_or_else(
+            || {
+                tcl_runtime_api::SourceImage::from_bytes(
+                    &source.image.bytes()[..complete_prefix_len],
+                    source.image.channel(),
+                )
+            },
+            |request| request.target().source.clone(),
+        );
+        Ok(Self {
+            prefix,
+            parameters: parameters
+                .iter()
+                .map(|parameter| parameter.name.clone())
+                .collect(),
+            namespace,
+            original,
+        })
+    }
+
+    fn target(&self) -> ProcedureCompilationTarget<'_> {
+        ProcedureCompilationTarget {
+            ordinary: tcl_runtime_api::ProcedureCompileTargetBytes {
+                source: &self.prefix,
+                parameters: &self.parameters,
+                namespace: self.namespace,
+            },
+            original: self.original.as_ref(),
+        }
+    }
+}
+
+impl ProcedureCompilationTarget<'_> {
+    fn target(&self) -> tcl_runtime_api::ProcedureCompileTargetBytes<'_> {
+        self.original
+            .map_or(self.ordinary, |request| request.target())
+    }
+}
+
 impl Vm {
     /// Actual owner and current interpreter identity for retained object bridges.
     /// A bridge must authenticate its private carrier before using these values.
@@ -18109,17 +18196,12 @@ impl Vm {
         parameters: &[crate::command::Param],
         namespace: NsId,
         original: &Value,
-        command_namespace: Option<NsId>,
+        owner: Option<ProcedureCompilationOwner<'_>>,
     ) -> Result<CompiledUnit, TclError> {
         let scope = native_name_consumers::OriginalNameConsumerScope::enter(self)
             .map_err(|error| self.original_name_cmd_error(error))?;
         let reached = self.prepare_procedure_body_value_with_owner_in_original_name(
-            admission,
-            parameters,
-            namespace,
-            original,
-            command_namespace,
-            &scope,
+            admission, parameters, namespace, original, owner, &scope,
         );
         self.original_name_finish(scope, reached)
             .map_err(|error| self.original_name_cmd_error(error))?
@@ -18147,7 +18229,7 @@ impl Vm {
         parameters: &[crate::command::Param],
         namespace: NsId,
         original: &Value,
-        command_namespace: Option<NsId>,
+        owner: Option<ProcedureCompilationOwner<'_>>,
         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<CompiledUnit, TclError> {
         original_name_scope
@@ -18171,28 +18253,39 @@ impl Vm {
         let source = tcl_runtime_api::SourceImage::native(bytes.as_ref());
         let path = self.ns_path(namespace);
         let mut entry = self.native_compilation_entry_for_namespace_token(namespace, true);
-        let procedure = command_namespace.and_then(|token| {
-            let namespace = entry.retained_namespace_context(u64::from(token.0)).ok()?;
-            let mut name = b"::".to_vec();
-            for (index, component) in namespace.path.as_segments().iter().enumerate() {
-                if index != 0 {
-                    name.extend_from_slice(b"::");
+        let procedure = owner
+            .and_then(|owner| owner.command_namespace)
+            .and_then(|token| {
+                let namespace = entry.retained_namespace_context(u64::from(token.0)).ok()?;
+                let mut name = b"::".to_vec();
+                for (index, component) in namespace.path.as_segments().iter().enumerate() {
+                    if index != 0 {
+                        name.extend_from_slice(b"::");
+                    }
+                    name.extend_from_slice(component.as_bytes());
                 }
-                name.extend_from_slice(component.as_bytes());
-            }
-            Some(
-                tcl_runtime_api::native_compiler_pass::NativeCompilerPassProcedure {
-                    namespace,
-                    namespace_full_name: tcl_runtime_api::NameBytes::from(name),
-                },
-            )
-        });
+                Some(
+                    tcl_runtime_api::native_compiler_pass::NativeCompilerPassProcedure {
+                        namespace,
+                        namespace_full_name: tcl_runtime_api::NameBytes::from(name),
+                    },
+                )
+            });
         entry.compiler_pass_environment = self.capture_native_compiler_pass_environment(procedure);
         let reached = self.prepare_procedure_body_with_entry(
             admission,
             parameters,
             &path,
-            &source,
+            ProcedureBodySource {
+                image: &source,
+                declaration: owner
+                    .filter(|owner| {
+                        std::ptr::eq(parameters, owner.declaration.params.as_slice())
+                            && std::ptr::eq(original, &owner.declaration.body_src)
+                            && namespace == owner.declaration.actual_namespace_id()
+                    })
+                    .map(|owner| owner.declaration),
+            },
             &entry,
             original_name_scope,
         );
@@ -18299,23 +18392,47 @@ impl Vm {
     fn compile_procedure_module(
         &mut self,
         compiler: &dyn CompileService<Module = ModuleAsm>,
-        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        target: ProcedureCompilationTarget<'_>,
         source: &tcl_runtime_api::SourceImage,
         entry: &tcl_runtime_api::NativeCompilationEntry,
         dispatch: ProcedureDispatch,
         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<ModuleAsm, TclError> {
         use tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody;
-        let namespace = target.namespace;
-        let reached = compiler.compile_procedure_bytes_with_entry(
-            target,
-            self.source_profile(),
-            entry,
-            dispatch,
-        );
+        let namespace = target.target().namespace;
+        let reached = match target.original {
+            Some(request) if !request.matches_entry(entry) => {
+                Err(tcl_runtime_api::CompileError::Unsupported(
+                    "original procedure declaration does not match its compiler entry".into(),
+                ))
+            }
+            Some(request) => compiler.compile_original_procedure_bytes_with_entry(
+                request,
+                self.source_profile(),
+                entry,
+                dispatch,
+            ),
+            None => compiler.compile_procedure_bytes_with_entry(
+                target.ordinary,
+                self.source_profile(),
+                entry,
+                dispatch,
+            ),
+        };
         original_name_scope
             .check(self)
             .map_err(|error| self.original_name_cmd_error(error))?;
+        let reached = if target
+            .original
+            .is_some_and(|request| !request.matches_entry(entry))
+        {
+            drop(reached);
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "original procedure declaration retired during compilation".into(),
+            ))
+        } else {
+            reached
+        };
         let reported = reached.map_err(|error| {
             self.compile_service_error_bytes(error, source, namespace, ProcedureBody)
         });
@@ -18330,11 +18447,12 @@ impl Vm {
         admission: Option<(&str, &str)>,
         parameters: &[crate::command::Param],
         namespace: &NamespacePath,
-        source: &tcl_runtime_api::SourceImage,
+        original: ProcedureBodySource<'_>,
         entry: &tcl_runtime_api::NativeCompilationEntry,
         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<CompiledUnit, TclError> {
         use tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody;
+        let source = original.image;
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -18365,28 +18483,31 @@ impl Vm {
                 .map_err(|error| self.original_name_cmd_error(error))?;
             return Ok(unit.with_literal_pool(pool));
         }
-        let prefix = tcl_runtime_api::SourceImage::from_bytes(
-            &source.bytes()[..plan.complete_prefix_len],
-            source.channel(),
-        );
-        let parameter_names: Vec<_> = parameters
-            .iter()
-            .map(|parameter| parameter.name.clone())
-            .collect();
+        let inputs = ProcedureCompilationInputs::new(
+            original,
+            parameters,
+            namespace,
+            plan.complete_prefix_len,
+            &self.native_compiler_pass_owner,
+            entry.interpreter,
+        )
+        .map_err(|error| {
+            self.compile_service_error_bytes(
+                tcl_runtime_api::CompileError::Unsupported(error.to_string()),
+                source,
+                namespace,
+                ProcedureBody,
+            )
+        })?;
         let force_plain = self.requires_plain_command_dispatch();
         let mut dispatch = if force_plain {
             ProcedureDispatch::Plain
         } else {
             ProcedureDispatch::Optimised
         };
-        let target = tcl_runtime_api::ProcedureCompileTargetBytes {
-            source: &prefix,
-            parameters: &parameter_names,
-            namespace,
-        };
         let mut module = self.compile_procedure_module(
             compiler.as_ref(),
-            target,
+            inputs.target(),
             source,
             entry,
             dispatch,
@@ -18399,21 +18520,16 @@ impl Vm {
             )
         {
             dispatch = ProcedureDispatch::Plain;
-            let target = tcl_runtime_api::ProcedureCompileTargetBytes {
-                source: &prefix,
-                parameters: &parameter_names,
-                namespace,
-            };
             module = self.compile_procedure_module(
                 compiler.as_ref(),
-                target,
+                inputs.target(),
                 source,
                 entry,
                 dispatch,
                 original_name_scope,
             )?;
         }
-        if module.source != prefix {
+        if module.source != inputs.prefix {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
                     "CompileService returned another procedure source image or channel".into(),
@@ -18717,7 +18833,10 @@ impl Vm {
                     &proc.params,
                     proc.actual_namespace_id(),
                     &proc.body_src,
-                    self.command_owned_procedure_namespace(&proc),
+                    Some(ProcedureCompilationOwner {
+                        declaration: &proc,
+                        command_namespace: self.command_owned_procedure_namespace(&proc),
+                    }),
                 )?
                 .with_source_location(proc.body_src.source_location());
             let storage = self
