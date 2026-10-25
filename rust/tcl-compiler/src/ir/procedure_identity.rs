@@ -219,6 +219,13 @@ impl CarriedInstalledLowerings {
     }
 }
 
+impl core::ops::Index<&ProcedureId> for ProcedureInventory {
+    type Output = Procedure;
+    fn index(&self, id: &ProcedureId) -> &Self::Output {
+        &self.0[id]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,12 +296,5 @@ mod tests {
         assert!(clone.procedures.get(&left).is_none());
         let foreign = Module::default().retain_procedure(body("::p", "return FIRST"));
         assert!(module.procedures.get(&foreign).is_none());
-    }
-}
-
-impl core::ops::Index<&ProcedureId> for ProcedureInventory {
-    type Output = Procedure;
-    fn index(&self, id: &ProcedureId) -> &Self::Output {
-        &self.0[id]
     }
 }

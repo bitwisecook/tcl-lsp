@@ -903,6 +903,19 @@ fn check_incr_read(
 }
 
 #[cfg(test)]
+pub(crate) fn find_use_site_shimmers(
+    cfg: &CfgFunction,
+    commit_ctx: &super::commit::CommitCtx<'_>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
+    facts: &super::ShimmerFacts,
+) -> Vec<ShimmerWarning> {
+    find_use_site_shimmers_with_context(cfg, commit_ctx, (executable_blocks, in_force), facts)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
@@ -2251,17 +2264,4 @@ mod tests {
             "a varName-less regsub returns the substituted string: {on_out:?}"
         );
     }
-}
-
-#[cfg(test)]
-pub(crate) fn find_use_site_shimmers(
-    cfg: &CfgFunction,
-    commit_ctx: &super::commit::CommitCtx<'_>,
-    (executable_blocks, in_force): (
-        &HashSet<BlockId>,
-        &HashMap<(BlockId, ValueKey), TypeLattice>,
-    ),
-    facts: &super::ShimmerFacts,
-) -> Vec<ShimmerWarning> {
-    find_use_site_shimmers_with_context(cfg, commit_ctx, (executable_blocks, in_force), facts)
 }

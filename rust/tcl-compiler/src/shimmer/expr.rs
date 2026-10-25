@@ -786,6 +786,19 @@ fn numeric_equivalent(op: BinOp) -> &'static str {
 }
 
 #[cfg(test)]
+pub(crate) fn find_expr_shimmers(
+    cfg: &CfgFunction,
+    commit_ctx: &super::commit::CommitCtx<'_>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
+    facts: &super::ShimmerFacts,
+) -> Vec<ShimmerWarning> {
+    find_expr_shimmers_with_context(cfg, commit_ctx, (executable_blocks, in_force), facts)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
@@ -1585,17 +1598,4 @@ mod tests {
             "expected the informational hint, got: {s:?}"
         );
     }
-}
-
-#[cfg(test)]
-pub(crate) fn find_expr_shimmers(
-    cfg: &CfgFunction,
-    commit_ctx: &super::commit::CommitCtx<'_>,
-    (executable_blocks, in_force): (
-        &HashSet<BlockId>,
-        &HashMap<(BlockId, ValueKey), TypeLattice>,
-    ),
-    facts: &super::ShimmerFacts,
-) -> Vec<ShimmerWarning> {
-    find_expr_shimmers_with_context(cfg, commit_ctx, (executable_blocks, in_force), facts)
 }

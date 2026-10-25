@@ -704,6 +704,19 @@ mod tests {
 
     #[test]
     fn pass_metadata_requires_the_module_producer_profile_and_lexer() {
+        fn metadata(
+            registry: &CommandRegistry,
+            module: &IrModule,
+        ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+            PassContext {
+                registry: Some(registry),
+                ir_module: Some(module),
+                // A reporting label cannot replace the Module's actual source owner.
+                dialect: tcl_dialect::DialectProfile::find("tcl9.1"),
+                ..PassContext::default()
+            }
+            .retained_metadata_context()
+        }
         // naming.compiler.original-analysis-metadata-context
 
         let current =
@@ -728,19 +741,6 @@ mod tests {
             None,
             &input,
         );
-        fn metadata(
-            registry: &CommandRegistry,
-            module: &IrModule,
-        ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
-            PassContext {
-                registry: Some(registry),
-                ir_module: Some(module),
-                // A reporting label cannot replace the Module's actual source owner.
-                dialect: tcl_dialect::DialectProfile::find("tcl9.1"),
-                ..PassContext::default()
-            }
-            .retained_metadata_context()
-        }
         assert!(std::sync::Arc::ptr_eq(
             &metadata(current.commands(), &unit.ir_module).unwrap(),
             &current

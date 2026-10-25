@@ -5534,6 +5534,17 @@ mod tests {
 
     #[test]
     fn original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty() {
+        fn caller(
+            owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        ) -> CallerFrame<'_> {
+            CallerFrame {
+                metadata_owner: owner,
+                scope: CallerScopeId::Extra(0),
+                params: &[],
+                callers_tracked: true,
+            }
+        }
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
         // naming.compiler.original-analysis-metadata-context
 
         // The actual catch region captures this Return as an argv phase.
@@ -5605,16 +5616,6 @@ mod tests {
             unenumerable_reach: &reach,
             unresolved_handler: None,
         };
-        fn caller(
-            owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
-        ) -> CallerFrame<'_> {
-            CallerFrame {
-                metadata_owner: owner,
-                scope: CallerScopeId::Extra(0),
-                params: &[],
-                callers_tracked: true,
-            }
-        }
         let mut current = CallSiteEvidence::default();
         record_original_lifted_call_sites(
             &mut current,
@@ -5626,7 +5627,6 @@ mod tests {
             current.is_empty(),
             "the actual expr child calls no local procedure"
         );
-        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
         let mut changed_config = input.lexer_config();
         changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
         let changed = crate::analyser::ResolvedAnalysisInput::new(
@@ -5681,6 +5681,7 @@ mod tests {
 
     #[test]
     fn original_argument_caller_metadata_joins_from_the_module_to_its_nested_owner() {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
         // naming.compiler.original-analysis-metadata-context
 
         // Actual retained Native source and CFG argv phase; no handler entry or
@@ -5729,7 +5730,6 @@ mod tests {
             unenumerable_reach: &reach,
             unresolved_handler: None,
         };
-        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
         for owner in [
             Owner::for_source_input(Some(input)),
             Owner::for_source_input(Some(&input.for_nested_source())),
