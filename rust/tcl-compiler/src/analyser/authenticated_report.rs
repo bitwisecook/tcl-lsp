@@ -378,7 +378,7 @@ proc empty {} {}
     #[test]
     fn report_capture_self_comparison_requires_complete_current_owners() {
         let report = actual_report();
-        assert!(report.analysis() == report.analysis());
+        assert_eq!(report.analysis(), report.analysis());
         assert_eq!(report.compare(&report), AnalysisReportComparison::Equal);
     }
 
@@ -506,7 +506,7 @@ proc empty {} {}
             .analysis
             .object_handle_facts
             .any_scope
-            .insert("changed".into(), Default::default());
+            .insert("changed".into(), std::collections::HashSet::default());
         assert_eq!(
             report.current_capture().err(),
             Some(AnalysisReportUnavailable::ChangedProducedFacts)

@@ -3139,7 +3139,7 @@ mod original_body_parser_purpose_tests {
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
         );
-        let metadata = BoundsMetadataContext::Retained(&context);
+        let metadata = BoundsMetadataContext::Retained(context);
         assert!(body_may_exit("break", metadata, config));
         assert!(!body_may_exit("\u{feff}break", metadata, config));
         assert!(!body_may_exit("if 1 {\u{feff}break}", metadata, config));
