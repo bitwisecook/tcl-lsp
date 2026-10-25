@@ -1,0 +1,108 @@
+{
+  "utc": "2026-10-25T10:13:12.459943+00:00",
+  "verdict": "STATIC DEEP PRODUCER/BINDER/CURRENCY/API CLEAR; CONSUMER ROUTING+ACTUAL OUTCOMES UNRUN",
+  "checks": {
+    "WORK": {
+      "manifest_sha256": "53a737994d25709d0b54d102705e2d03120ff9507f60512be206c7836a5c1310",
+      "patch_sha256": "125056d80e3845dbcf471e2e95058c0d5454d28c2329529afd2bc641a1269f05",
+      "rows": [
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "before_sha256": "4a31b73be24b56a1347e95338876c262e2e421d5209c95f3daa1f01b31143bb5",
+          "after_sha256": "0c16ce8734f57b556a70fb6e709e81b5f518e1fa40335736a96e20349c0e96ea",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "before_sha256": "64dafbcec6d212eeeac22e617ec8cb866b47af7d59c883405156d925016064fc",
+          "after_sha256": "ac053bfc9340785cbfd258463b6c0e202cd0c675836bebb88ebe57af51b3ff7e",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "before_sha256": "a0307709fce89a4f241ac4c4936be2daeb753f2ed017a602cfab7a26b9215d42",
+          "after_sha256": "7446e539cbeccbd665d7fae14f0fa453ef7295fdb8f96899b35729372da8f9e0",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "rc": 0
+        }
+      ],
+      "prior_is_ok_and_lint_fix_retained": true
+    },
+    "CLEAN": {
+      "manifest_sha256": "663d06e7f637cc1b23f11adbad3a6636606cb0299719b5c02ef414281e9a8120",
+      "patch_sha256": "125056d80e3845dbcf471e2e95058c0d5454d28c2329529afd2bc641a1269f05",
+      "rows": [
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "before_sha256": "4a31b73be24b56a1347e95338876c262e2e421d5209c95f3daa1f01b31143bb5",
+          "after_sha256": "0c16ce8734f57b556a70fb6e709e81b5f518e1fa40335736a96e20349c0e96ea",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "before_sha256": "64dafbcec6d212eeeac22e617ec8cb866b47af7d59c883405156d925016064fc",
+          "after_sha256": "ac053bfc9340785cbfd258463b6c0e202cd0c675836bebb88ebe57af51b3ff7e",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "before_sha256": "a0307709fce89a4f241ac4c4936be2daeb753f2ed017a602cfab7a26b9215d42",
+          "after_sha256": "7446e539cbeccbd665d7fae14f0fa453ef7295fdb8f96899b35729372da8f9e0",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "format": [
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_compilation.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_procedure_roles.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_procedure.rs",
+          "rc": 0
+        }
+      ],
+      "prior_is_ok_and_lint_fix_retained": true
+    }
+  },
+  "review": [
+    "New OriginalProcedureBindingContext retains actual declaration parameter grammar, persistent storage presence and adapter context; immutable canonical source compares the entire binding context. It is independent of active host policy and reporting/source words. Existing first changed-context withdrawal/no-revival applies.",
+    "Actual ProcDef extraction uses self.parameter_grammar, native_resources.statics.is_some, and real call_identity/usage_name/lambda_term/original_jim_import presence. No name-prefix or ampersand heuristic and no Native policy synthesized from profile. These fields are immutable after declaration construction; new contexts/copies have independent lifecycle.",
+    "ordinary_formals requires full request liveness, captured Tcl grammar, no static bindings, no adapter context and returns original NameBytes slice. It supplies no variable value, observer absence, actual frame, physical compiled slot, Normal or current compilation policy. Consumer must ALSO check active Tcl grammar and UTF8 before seeding ordinary source live-ins.",
+    "Independent source audit: exec::procedure_argument_bindings uses captured ProcDef.parameter_grammar. Tcl binding routes to bind_compiled_formal_slot; Jim supports CallerLink. TclOO method ProcDef constructor has usage_nameSome+call_identitySome, so method/implicit alias context declines this new projection even with captured Tcl grammar. Lambda/usage adapters likewise conservatively decline.",
+    "New concrete NativeProcedureCommand tests compare literal Tcl ampersand formal Value versus Jim CallerLink from the shared formal binding owner, not authored expectation only. Actual command-owned static/context extraction and raw nonUnicode names retained; nonUTF8 has no implicit String conversion and later consumer must stay conservative.",
+    "Source mutation tests use existing fresh declaration/request per each grammar/static/adapter change, checking withdrawal and old-payload no-revival. New ordinary_formals is unavailable on old withdrawn requests. These tests are authored UNRUN and confer no actual runtime result.",
+    "Earlier actual private compiler-pass issuer, exact namespace incarnation, weak role retirement, relocation withdrawal and optional ChangedOriginal-only legacy behavior are unchanged; prior is_ok_and measured lint correction preserved. No execution routing or original procedure callback guards changed in this producer packet."
+  ],
+  "limits": [
+    "Static only; no Cargo/rustc/typecheck/Clippy/native/Jim/mixed-policy execution.",
+    "This producer alone does not remove generic byte-target seeding: compiler-owned successor must restore unowned route conservatism and require captured+active binding proof for owned route before combined safety is claimed.",
+    "No AOT whole-program original declaration join, frame/Normal/provider capability or body relocation permission. Root integrates and dispatches."
+  ]
+}

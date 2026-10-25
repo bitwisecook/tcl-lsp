@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T09:47:48.395283+00:00
+Last updated: 2026-10-25T10:31:18.703404+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T10:31:18.703404+00:00: ActualJimf7a40181684929 FULLAUTHff87e522/assessment89f861ca retains original45=31P14F+5diagnosticFAIL+new1FAIL. Exact10logged slots bareCallableFirst/siteEq+generation+nameTRUE, originArcFALSE (independent Analyzerrealm vsCUsource); no gains. Productive sameCU static-read V1 FROZEN names-jim-cu-static-read-v1 manifest4540751f WORK043eb785/CLEANdc2ba799, author95df8ecd/companionbbe1d763. Existing exactNativecard/FU/CFG/input/Registry→same retainedpositionedbindings, factoryoldpositions via transientctx CUborrow; rootunenteredOnly, Native/hosted/unknown/inherited refuse. BareCallableFirst SAMEArc/site/gen/countname sourceeligibility, alloldperuse/currentowner/residual/flow/alias/lexicalguards intact; nestedincr/expr remainunsupported. Three genuineCU/SSA/foreignequalowner/keytamper/directbothTier controls UNRUN. Current5each/F-R-F0/full4Rust+contractinverse/fmt8/23JSON+twoexactsourcepin+deriveddriver inverses/original51preservation passSTATIC. Codegen independentpeer requested; Compiler confirms disjoint CUspan and previewlogicalobserver interval, root mustcompose finalwholepreviewpin/shareddriver. No canonical source/Cargo/rustc or performance optimization.
 
 Resume 2026-10-25T09:47:48.395283+00:00: NewJimf7a run40181684929/job121133891555 driverACTIVE after checkout/Rust/providers success; noartifact/result inferred. FutureZIP/workspaceonly/verifier563081a0 unchanged. Independent typedregioncallbody-owner V1 CLEAR21357ba1 at names-peer-region-body-call-owner-v1: genuine private callerbody→SourceTransitions header, exactcurrentregion/input/source/Registry/owner/inheritedpoint plus sameOriginArc and oldgenericheader membership; Core5call-only gates no olddebt/target/ref/collision waiver. Bothcurrent8/F-R-F0/fmt6/wholeSourceProcedure inverse/genericowner-currentness-preparetail/current23JSON+2pin-driver inverses PASSstatic. No new fields/!Sendleaf/Eq/Salsacutoff; newRust/hosts/perfcost unrun/unmeasured. Root notified; activef7a wave excludes this pending packet.
 

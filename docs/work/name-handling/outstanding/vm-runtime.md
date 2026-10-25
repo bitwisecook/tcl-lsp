@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T09:33:14.431314+00:00
+Last updated: 2026-10-25T10:24:09.726556+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -20,6 +20,48 @@ reset/expansion); finer per-command currency094136Z(call41a47ee03fd745b9bf8e6b1f
 preserves original2guards and all real dependency/Namespace/Unknown/Native invalidations;
 post-refusal directretained-stateV4 USERAPPROVED114826Z, applied8dcfdc1/80e473e.
 No pending permission for those decisions; no resurrection of held alternatives.
+
+## Current actual follow-up after integrated fixture
+
+Fresh focused40181689489/job121133903947 exactWORKf7a8d05e2ae160ade78c875c667a5f7c468347d2
+TERMINALFAIL authenticated SINGLEZIP `vm-runtime-actual-40181689489/artifact.zip`
+29024121B/f421bdaf201cd2c61df3c8a233afee1c859c387ccd06802b3b71cccacd66c530.
+Receipt1d6e3e5a1a0a9eb805ab6a51785eb7ac460609500a03540bf7bf57676c1c3194:
+443CRC+SHA/all126286sourcebeforeafterGitmembership+35keyblobs/C84sixmaps/ownedbootstrap/
+TomMathsealsPASS; noexpandedmaps/secondZIP. All131executedclosed: original3ALLPASS,
+baseline14ALLPASS, stack300PASS, other10320P83F, prune7=6P1F,target3ALLPASS. Sameobserved
+statuses asdc52. Append112.136886199s/original180, NO causal/performanceclaim. CFIincomplete
+=>WHOLEPROTOCOLINCOMPLETE. Thisroster doesnotcontain corrected2publicationtests.
+
+CLEANfullCI40181716139/runtimejob121134041667 exactd622c8932ee8048d5b658efc98e7bb5ca4c9c98f
+TERMINALFAIL: BOTHcorrectedpublicationcontrols ANDallholder siblingsPASS; original300
+foreachANDmoderate50PASS. Newfatalfrontier `unbounded_proc_recursion_errors_instead_of_crashing`
+stackoverflow/SIGABRT09:51:44; no namespacecallbackpanic. Rawdecodedjoblog + receipt
+`vm-clean-runtime-40181716139/receipt.json`
+13c94008e0a0a7929d23c79748292eb68871b3716d00e5860df9ba78cfd1ddd1 retained. Exact
+reviewedafterfixturewholefileSHA3722b3ec89e99913142043acb166e9019eafb3580cc82fb89de4036e61ed41d6
+matchesCLEANsource. 2371declared/2079uniqueobservedterminals=1992ok87FAILED; one nestedchild
+same-nameoutputduplicate retained, >=292outerterminals unreported(includesknownabort).
+OrdinaryCIcheckout/Cargo/namedlogs, NOTguarded per-childELF/source/providersealed protocol.
+All observed currentisolated/fullCI overlap statuses agree; no fullinventory/zeroPF/GO.
+NoTom17+1/C84setup/TomfetchSUCCESS stayseparate fromFullTomsemanticgate. Original812updater
+belongs tcl-test-support native_integer_formatter::tests::loaded_c84_updater_matches_812_original_archive_and_image_windows,
+not thisstandaloneworkspace; nopromotionfromC84setup. OldWORKfullCI40177232371 untouched.
+
+Procstack sourceassessment `vm-recursive-proc-host-stack-frontier-v1/source-assessment.json`
+1c7feda0735d3b00865e58dc4390181c26b9c6de2448ccd1347080e31fa9ff63. Existing128dispatch
+andbodyactivation guards verified; no missingguard evidence. Run_proc/setup/cleanup and
+genericdispatch are sourceframepressure candidates only. ExistingCFIWATCH omitsproc/
+genericdispatch andcatalogue lacksrun_proc; no actualdynamicbranch/depth/framecause.
+Codegen typedWASMactivation remainsDESIGNONLY, no competingruntimeproductedits. Keep128,
+allassertions/Nativepredicates andbudgets; no stacksizeincrease or logicalfallback.
+
+Minimalactualf7manualvariant lintfix5d6597c3 +WORKinputsc1d35ced independently STATIC DEEP
+CLEAR `vm-peer-native-custody-lint-v1/receipt.json`
+f2b0333033e328f129d0bfa71b1757378c8703a6a630aff6cda5c5fb714b0016: sameonequery/Okmove/
+Errdrop/Eq/&&order, all3lanescurrent/fullinverse/F-R-F0/fmt2, JSON/driverinverse and23JSON
+census(17pinmaps)/soleconsumer. No SourcePredicate/Nativeauthoritychange. Actualpostfix
+Clippy unexecuted byrole; root ownsreview/integration/retry.
 
 ## Current source handoffs and fresh pending actuals
 

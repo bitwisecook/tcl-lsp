@@ -1,0 +1,254 @@
+{
+  "utc": "2026-10-25T10:09:21.577803+00:00",
+  "verdict": "STATIC DEEP READINESS/LIFETIME/FUTURE/CONTEXT/GUARD/METADATA CLEAR; ACTUAL TYPING/TEST UNRUN",
+  "manifest_sha256": "93bb5df11ee5ae504de45bda455f3e536900c710b62223ca3d0fa548fd7e91d4",
+  "checks": {
+    "work": {
+      "rows": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "before_sha256": "a1771a008166116ee67ec93f815fe6b1d691b5a2e4b636911e9b475534297a23",
+          "after_sha256": "366aa98daca3211bdef61de0c6052cf3195af96d6f576b3b898d0a6a5d6b62e3",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "before_sha256": "7f080724e4a8076836f29cc042cf5850f87386de6db50a8c47c7a2fadb97f97d",
+          "after_sha256": "5788b5741db36a6e37593ff465addbeb0b22b3773ba1e85ff227fe9684b36406",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "3c5c91f4f6c18df43d99f045c9ea8b3dafed0de2bd07258ffe50d05bf0fc3a69",
+          "after_sha256": "f70ef1bb3a52e45bd6ff4059208c007ab9fb4863ea6209397df772681a26a345",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "patch_sha256": "46d2fcf2246b363da48ce944816c8418dae8b75895963f87ef88cc852196803c",
+      "fullold_threefiles_inverse_exact": true,
+      "format": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "rc": 0
+        }
+      ]
+    },
+    "clean": {
+      "rows": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "before_sha256": "fbbbad37bfc2fb47dc36a8d5434e0d93446cc8815659e19dab40c223e4ce368c",
+          "after_sha256": "fe531c88f7140c009979b0beaa71fdec898358b07ecbb4486de9c85c0885b653",
+          "current_before_exact": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "before_sha256": "141d38734a917307c46cf7363859b75419c2d216c383e7b9518f460d484a9bfa",
+          "after_sha256": "5b415d3d8c6392ea83cbd3fd839773234be7c532488281e56bf87f7e695396a8",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/design/contracts/name-handling.md",
+          "before_sha256": "dde91eccc636cc926ac3d0f69b70b14dba8ea1af5e05f89d7b1d5bd906b7074f",
+          "after_sha256": "fd6cc2913e767eaaddf39eb658ccb714c0d99d3d8285d2e70d653316153b5bf3",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ],
+      "patch_sha256": "f8a0d2f4802d378c2d086bb5f3594a7ca8b8e16f4d413369275f43f643c5302d",
+      "fullold_threefiles_inverse_exact": true,
+      "format": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "rc": 0
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "rc": 0
+        }
+      ]
+    },
+    "companion": {
+      "rows": [
+        {
+          "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+          "before_sha256": "bb7266af0471a6ca705b6afeb19d0c582599fba4841a1d6710d028bd5d539e6c",
+          "after_sha256": "23a003019ce2bc3185fe6fd36f3b0d58ed79949fd2a130bef6a0143f81958876",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+          "before_sha256": "b8003552f38362f9e7dae5a3a25669a5575aeed1687ec0ab88dd131e5e83a731",
+          "after_sha256": "7fad8d167a2d886956fc43e9e7233a2001485032c5635f4e009adcd5b352a91a",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-diagnostics.py",
+          "before_sha256": "5c09ed53a6f289d86727b043b915e3faafb296633ead14f34f9c5d22c2df6fc0",
+          "after_sha256": "7e13ae64ae3cb005e5e914841aa91ffff9f2a33a4fa939534133af27a942fcc9",
+          "current_before_exact": true
+        },
+        {
+          "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-diagnostics.py",
+          "before_sha256": "7f4df580a4082a2d2e15b16d0af93b0a3d36249ab27d0eea29634c46c50d08e8",
+          "after_sha256": "e3ad7d2abdc8fe540e1d9630d4705de1a69bb359c39e476ca71e798fec0d169d",
+          "current_before_exact": true
+        }
+      ],
+      "copied_F_R_F": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "companion_manifest_sha256": "fc27d849c83eee78072ff4225a8f5890b68e54278d3beea754a7475ae34fde8b",
+  "tracked_Git_JSON_census": [
+    {
+      "path": "docs/work/name-handling/validation-tools/autoload-core2-inputs.json",
+      "sha256": "5545f70ecb11cb3b026b253c4a7ebf0d4c1dabdb0028b3ed20ca4c9daaf00b46",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-catch-diagnostic1.json",
+      "sha256": "bf26a59a222199741ac571cabff01a46d8ea01d847d3ea62d79484459726dd2b",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-closed-consumer-controls.json",
+      "sha256": "604f45e34d9ad26129fc058ddb306aa9cabaa99b16d09f537d938ff2410c40fb",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-inlining-readonly13.json",
+      "sha256": "8fde3045aff2aab34eeeb894fd2b29bb9d1927e584e6531621e425201855b4df",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-logical-declared-read3.json",
+      "sha256": "6576cafb4f158fd3a6075b80d266bb24615cd02b5478e4acd1a553c89d68ed15",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-native35-supplemental3.json",
+      "sha256": "4d7b0c6c74474e91d10a7e3ceee7fc388bf14ba0a4ad1a58b992e8d6561bf47f",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-inputs.json",
+      "sha256": "b189fa73b5e4d4d96133621ca27323164ee194d57067c0f06e4cbb1156d24713",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-original58-selectors.json",
+      "sha256": "d4a45ac4eb52a5743b0cb8a5a8256a7f73214f45627c05e25055f2f58bef95d2",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-readflow-supplemental1.json",
+      "sha256": "142e58518dbb68ddec64c302c2a0ec60d4f178a3ff09ff9177247299d22d099c",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-sh21-supplemental2.json",
+      "sha256": "57efd360301c1672d7a24035f1de98334caf33f25382c2cdc4833f3a33722e77",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-source-read-ancestry3.json",
+      "sha256": "6850e925765149bc22707d6dc2f666b8f4315f62bb04cba9f679567d1a40d91a",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/compiler-taint-diagnostic2.json",
+      "sha256": "c61f9b281f612e04567c4f1c9414cec5942e5574b90b57e804c5a6c71b305eb8",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/irules-preflight-roster.json",
+      "sha256": "b2b4678cefd0404e238f2782f7c8328d4c78f6959d5ac95a45148d0af18dcabe",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/jim-source-roster.json",
+      "sha256": "9d9f62271aeabc687d7e869070c431f21ebe1d8b9638bf87efb4f527d1c589dc",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-host-navigation-inputs.json",
+      "sha256": "bb7266af0471a6ca705b6afeb19d0c582599fba4841a1d6710d028bd5d539e6c",
+      "changed_source_consumers": [
+        "rust/tcl-lsp-server/src/lib.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-navigation-unit-inputs.json",
+      "sha256": "b8003552f38362f9e7dae5a3a25669a5575aeed1687ec0ab88dd131e5e83a731",
+      "changed_source_consumers": [
+        "rust/tcl-lsp-server/src/lib.rs"
+      ]
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-inputs.json",
+      "sha256": "1ecd5ab133dcc299a8808c3e217b020b246f30ea118f424f02fb98af56526fd5",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-protocol-provenance.json",
+      "sha256": "1675f6f2816aed92ad8751b1ba07b1e159d91a33b78fca255f2167cb1e2b7ed1",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-a26-failed-originals.log.json",
+      "sha256": "88dd41eae670e31bd0f08d857f3fc35f2ccf53164d0127096f5a30c08e675ab5",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-baseline-supplement-roster.json",
+      "sha256": "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-other-failures-roster.json",
+      "sha256": "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/spectcl-fold-roster.json",
+      "sha256": "bb6900ba8038b6cfda5ded7bf4d5b0c35a6e1774c370ee04841b87f06ab16575",
+      "changed_source_consumers": []
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/wasm-real-link-roster.json",
+      "sha256": "3f1df991ab6282ef66745bd5b1ce3ed17eeac5fcc9186213c68f721e92ce6938",
+      "changed_source_consumers": []
+    }
+  ],
+  "deep_review": [
+    "New wait follows edits_settled and initial documents live check, before dialect/diag_inputs/job capture or source-view/database/rehoming/publisher locks. contains_key returns bool; temporary document lock guard drops at statement semicolon, so no lock is held across read_document await.",
+    "Existing read_document chooses Indexed readiness through its actual per-document publication loop, with enabled notification registration before state check and await_outside_request_admission. No polling/retry/source-provider fallback or new timeout policy is introduced by this patch.",
+    "Box::pin(existing read_document future) keeps new child future storage on heap rather than embedding it in direct provider state. No spawn/static lifetime/Send strengthening; it borrows same self/URI until await. Actual compiler large-future/type gates remain unrun.",
+    "Waited Option<DocumentState> is discarded before fresh dialect and provider input capture; old snapshot supplies no source/Indexed permission. Close during wait can follow existing filesystem fallback, but ignored result cannot become provider authority: subsequent live docs read returns NotOpen or recaptures reopened current job; later edits can still fail Pending/Context/current final guards. Existing path admission remains checked by shared owner.",
+    "Cancellation drops existing wait/notification future with no document/database/publisher lock retained; reused single test future survives timeout through mutable pinned borrow rather than a new client retry. Waiting publication can progress since both rehoming/source-view gates are checked free.",
+    "All original direct computation/cache/publication/context/final-currency logic after the added wait is exact old bytes. Publisher-only currentDiagnostics behavior, Delivered distinction, source association and final guards are unchanged. Three old files restore exactly after erasing only wait/test/contract paragraph.",
+    "New test manipulates actual live publication Salsa/index absence, holds SAME public diagnostic future pending, proves publication gates free, republishes current source, receives actual Full report then same current resultId Unchanged. No original assertion/budget/stack/roster change; new control remains UNRUN.",
+    "Current companion preserves already integrated typedbody Core pin and all other metadata: two exact approved serverlib sourcepins and corresponding two wholeJSON hashes only; entire JSON/driverbyte+AST inverses and full23trackedGitJSON census confirm no stale prior combined patch."
+  ],
+  "limits": [
+    "Static only; no Cargo/rustc/Clippy/native/WASI/browser/server execution or measured future size/gate acceptance.",
+    "No client retry/budget/assertion/limit change and no report/runtime/frame/Normal authority from waiting. Root integrates and dispatches."
+  ]
+}

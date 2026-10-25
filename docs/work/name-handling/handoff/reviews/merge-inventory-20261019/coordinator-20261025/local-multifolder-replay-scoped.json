@@ -1,0 +1,766 @@
+{
+  "utc": "2026-10-25T10:29:14.516739+00:00",
+  "scope": "ACTUAL LOCAL original four RPC replay against old hosted release artifact, no VSCode/editor/current-source or shipping admission",
+  "source": "dc52b8a0a9aa31e2221994ef8e84d2d196cf1f56",
+  "artifact_id": 12592894198,
+  "zip_sha256": "65a12e583722cffd0733762ad2e3503ea7599f1a7c2daef42f97ae8a817a8df6",
+  "binary_sha256_before_after": "0fdc51224dd3ee3c6447e061b4b0d6cbff89b9575a122748a4ebd2b45e73187e",
+  "provider_entries": 1334,
+  "providers_full_endpoint_equal": true,
+  "providers_before_json_sha256": "e8fab0e8f771606eb371454f25a3dc4fc4c48f2efd21d9b838af80da0c92e486",
+  "providers_after_json_sha256": "e8fab0e8f771606eb371454f25a3dc4fc4c48f2efd21d9b838af80da0c92e486",
+  "python_source_inputs_exact": true,
+  "dynamic_needed_versions_supported": true,
+  "local_native_process_mapped_paths": [
+    "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6",
+    "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+    "/usr/lib/x86_64-linux-gnu/libm.so.6",
+    "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/tcl-lsp-server"
+  ],
+  "mapped_paths_outside_preseal": [],
+  "process": {
+    "argv": [
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+      "-B",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-code/worker.py",
+      "--server",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/tcl-lsp-server",
+      "--server-sha256",
+      "0fdc51224dd3ee3c6447e061b4b0d6cbff89b9575a122748a4ebd2b45e73187e",
+      "--out",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2"
+    ],
+    "cwd": "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-code",
+    "artifact": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+    "artifact_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "artifact_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "stdout": "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-owner-v2.stdout",
+    "stderr": "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-owner-v2.stderr",
+    "deadline_seconds": 180,
+    "cap_bytes": 524288,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1",
+      "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1",
+      "/workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1"
+    ],
+    "minimum_free_bytes": 3450441728,
+    "timer_armed_before_spawn": true,
+    "pid": 1020660,
+    "pid_start_ticks": 24879653,
+    "process_group": 1020660,
+    "parent_waitid_wnowait": {
+      "si_pid": 1020660,
+      "si_code": 1,
+      "si_status": 0
+    },
+    "owned_live_group_members": [],
+    "last_group_scan": {
+      "members": [],
+      "vanished_pids": [],
+      "complete": true
+    },
+    "group_scan_attempts": 2,
+    "consecutive_complete_empty_group_scans": 2,
+    "group_empty_before_parent_reap": true,
+    "exit_code": 0,
+    "stop_reason": null,
+    "cleanup_signals": [],
+    "stdout_bytes": 0,
+    "stderr_bytes": 0,
+    "retained_bytes": 0,
+    "complete": true,
+    "timer_armed_monotonic_ns": 248796526394483,
+    "timer_armed_utc": "2026-10-25T10:28:56.746104+00:00",
+    "spawn_return_monotonic_ns": 248796537502857,
+    "spawn_return_utc": "2026-10-25T10:28:56.756451+00:00",
+    "parent_exit_observed_monotonic_ns": 248813386118096,
+    "artifact_unchanged": true,
+    "ended_utc": "2026-10-25T10:29:13.983396+00:00",
+    "elapsed_seconds": 17.238368899
+  },
+  "cases": [
+    {
+      "case": "W123-puts",
+      "result": "PASS",
+      "participants": [
+        {
+          "folder": "proj-a",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl",
+            "version": 2,
+            "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-1",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 9
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 18
+                  }
+                },
+                "severity": 2,
+                "code": "T101",
+                "source": "tcl-lsp",
+                "message": "Tainted variable $who flows into puts; output may contain injected content",
+                "data": {
+                  "kind": "tcl-source-diagnostic",
+                  "version": 1,
+                  "token": "1"
+                }
+              },
+              {
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 9
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 18
+                  }
+                },
+                "severity": 2,
+                "code": "T101",
+                "source": "tcl-lsp",
+                "message": "Tainted variable $who flows into puts; output may contain injected content",
+                "data": {
+                  "kind": "tcl-source-diagnostic",
+                  "version": 1,
+                  "token": "2"
+                }
+              }
+            ]
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl",
+            "version": 2,
+            "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-1"
+          }
+        },
+        {
+          "folder": "proj-b",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl",
+            "version": 2,
+            "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+            "dialectId": "f5-irules",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-2",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 1,
+                    "character": 4
+                  },
+                  "end": {
+                    "line": 1,
+                    "character": 8
+                  }
+                },
+                "severity": 4,
+                "code": "W123",
+                "source": "tcl-lsp",
+                "message": "Unresolved command 'puts' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub puts {\u2026} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.",
+                "data": {
+                  "version": 1,
+                  "code": "W123",
+                  "subject": {
+                    "kind": "unresolvedCommand",
+                    "bytes": [
+                      112,
+                      117,
+                      116,
+                      115
+                    ],
+                    "policy": {
+                      "engine": "c-tcl",
+                      "version": "8.4",
+                      "authority": "authored"
+                    },
+                    "reportingName": "puts",
+                    "sourceChannel": "document",
+                    "start": 23,
+                    "end": 27
+                  }
+                }
+              },
+              {
+                "range": {
+                  "start": {
+                    "line": 3,
+                    "character": 0
+                  },
+                  "end": {
+                    "line": 3,
+                    "character": 5
+                  }
+                },
+                "severity": 2,
+                "code": "IRULE5007",
+                "source": "tcl-lsp",
+                "message": "'greet' is executable and cannot appear at iRules top level \u2014 use it inside a `when` block or a top-level `proc`."
+              }
+            ]
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl",
+            "version": 2,
+            "source": "proc greet {who} {\n    puts \"hi $who\"\n}\ngreet world\n",
+            "dialectId": "f5-irules",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-2"
+          }
+        }
+      ]
+    },
+    {
+      "case": "W108",
+      "result": "PASS",
+      "participants": [
+        {
+          "folder": "proj-a",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl",
+            "version": 3,
+            "source": "set greeting \"\u201chello\u201d\"\n",
+            "dialectId": "tcl8.4",
+            "revision": "2",
+            "inputsEpoch": "2",
+            "resultId": "pd-3",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 0,
+                    "character": 14
+                  },
+                  "end": {
+                    "line": 0,
+                    "character": 15
+                  }
+                },
+                "severity": 2,
+                "code": "W108",
+                "source": "tcl-lsp",
+                "message": "Non-ASCII character U+201C '\u201c' \u2014 outside the standard ASCII printable/whitespace set"
+              },
+              {
+                "range": {
+                  "start": {
+                    "line": 0,
+                    "character": 20
+                  },
+                  "end": {
+                    "line": 0,
+                    "character": 21
+                  }
+                },
+                "severity": 2,
+                "code": "W108",
+                "source": "tcl-lsp",
+                "message": "Non-ASCII character U+201D '\u201d' \u2014 outside the standard ASCII printable/whitespace set"
+              }
+            ]
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl",
+            "version": 3,
+            "source": "set greeting \"\u201chello\u201d\"\n",
+            "dialectId": "tcl8.4",
+            "revision": "2",
+            "inputsEpoch": "2",
+            "resultId": "pd-3"
+          }
+        },
+        {
+          "folder": "proj-b",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl",
+            "version": 3,
+            "source": "set greeting \"\u201chello\u201d\"\n",
+            "dialectId": "f5-irules",
+            "revision": "2",
+            "inputsEpoch": "2",
+            "resultId": "pd-4",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 0,
+                    "character": 0
+                  },
+                  "end": {
+                    "line": 0,
+                    "character": 3
+                  }
+                },
+                "severity": 2,
+                "code": "IRULE5007",
+                "source": "tcl-lsp",
+                "message": "'set' is executable and cannot appear at iRules top level \u2014 use it inside a `when` block or a top-level `proc`."
+              }
+            ]
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl",
+            "version": 3,
+            "source": "set greeting \"\u201chello\u201d\"\n",
+            "dialectId": "f5-irules",
+            "revision": "2",
+            "inputsEpoch": "2",
+            "resultId": "pd-4"
+          }
+        }
+      ]
+    },
+    {
+      "case": "W123-extra",
+      "result": "PASS",
+      "participants": [
+        {
+          "folder": "proj-a",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl",
+            "version": 2,
+            "source": "folder-a-helper foo bar\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-5",
+            "diagnostics": []
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl",
+            "version": 2,
+            "source": "folder-a-helper foo bar\n",
+            "dialectId": "tcl8.4",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-5"
+          }
+        },
+        {
+          "folder": "proj-b",
+          "report": {
+            "status": "complete",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl",
+            "version": 2,
+            "source": "folder-a-helper foo bar\n",
+            "dialectId": "f5-irules",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-6",
+            "diagnostics": [
+              {
+                "range": {
+                  "start": {
+                    "line": 0,
+                    "character": 0
+                  },
+                  "end": {
+                    "line": 0,
+                    "character": 15
+                  }
+                },
+                "severity": 2,
+                "code": "IRULE5007",
+                "source": "tcl-lsp",
+                "message": "'folder-a-helper' is executable and cannot appear at iRules top level \u2014 use it inside a `when` block or a top-level `proc`."
+              },
+              {
+                "range": {
+                  "start": {
+                    "line": 0,
+                    "character": 0
+                  },
+                  "end": {
+                    "line": 0,
+                    "character": 15
+                  }
+                },
+                "severity": 4,
+                "code": "W123",
+                "source": "tcl-lsp",
+                "message": "Unresolved command 'folder-a-helper' at this source point; did you mean 'folder-b-helper'? The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub folder-a-helper {\u2026} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.",
+                "data": {
+                  "version": 1,
+                  "code": "W123",
+                  "subject": {
+                    "kind": "unresolvedCommand",
+                    "bytes": [
+                      102,
+                      111,
+                      108,
+                      100,
+                      101,
+                      114,
+                      45,
+                      97,
+                      45,
+                      104,
+                      101,
+                      108,
+                      112,
+                      101,
+                      114
+                    ],
+                    "policy": {
+                      "engine": "c-tcl",
+                      "version": "8.4",
+                      "authority": "authored"
+                    },
+                    "reportingName": "folder-a-helper",
+                    "sourceChannel": "document",
+                    "start": 0,
+                    "end": 15
+                  }
+                }
+              }
+            ]
+          },
+          "validation": {
+            "status": "current",
+            "uri": "file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl",
+            "version": 2,
+            "source": "folder-a-helper foo bar\n",
+            "dialectId": "f5-irules",
+            "revision": "1",
+            "inputsEpoch": "2",
+            "resultId": "pd-6"
+          }
+        }
+      ]
+    },
+    {
+      "case": "dialect-flip",
+      "result": "FAIL",
+      "participants": [],
+      "error": "original6s diagnostic deadline"
+    }
+  ],
+  "first_failed_context_checks": [],
+  "all_context_checks": [
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.suppression accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.uri accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.version accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.source accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.dialect accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.revision accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.inputs-epoch accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=publication.result-id accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=capture.input_present accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-a/foo.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/extra.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.source_current accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.resolved_input accepted=true",
+    "DIAGNOSTIC_CONTEXT uri=file:///workspace/naming-proof-storage/lsp-ci-dc52-server-payload-v1/rpc-run-v2/workspace/proj-b/race.tcl stage=completed.registry accepted=true"
+  ],
+  "limits": [
+    "Old dc52 producer-bound artifact only; build source/dependencies/provider pre/post maps were not emitted by that original CI build, so no independent whole build-input immutability proof.",
+    "Native protocol replay includes original settings/defaults from exact package and four diagnostic fixtures; editor formatting interactions/UI lifecycle absent, so cannot close original editor failures if not reproduced.",
+    "Known ELF/runtime/Python standardlib/Tcl+Tk/system-library/fixture source providers sealed; Python site-packages/ambient injection not exhaustively attested. Actual native mapped paths compared; any unsealed mapping explicitly retained.",
+    "Existing trace flag changes timing; original6s diagnostic/15s configuration/30s initialise/180s owned-worker limits kept. No performance interpretation."
+  ]
+}

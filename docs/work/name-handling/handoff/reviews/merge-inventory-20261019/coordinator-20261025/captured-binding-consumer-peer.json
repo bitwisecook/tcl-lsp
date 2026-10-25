@@ -1,0 +1,54 @@
+{
+  "status": "STATIC_DEEP_CLEAR",
+  "checks": {
+    "WORK": {
+      "patch": "eadd8d0fc6451385b90919ee33dc0152a4eae55985686af8c9f1ffd265c12d5f",
+      "pins": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "roundtrip": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fmt": [
+        0,
+        0,
+        0
+      ],
+      "restored": true
+    },
+    "CLEAN": {
+      "patch": "a190fe2ddb96986d53d0846bbf106592ae078ebb97a460dec4f55f9f24557381",
+      "pins": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "roundtrip": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fmt": [
+        0,
+        0,
+        0
+      ],
+      "restored": true
+    },
+    "other_files_exact_v1": true
+  },
+  "source_review": "Public text target parameters restored; all three private target constructors match ordinary_parameters. Legacy byte roots None; owned route clears inherited formal evidence and uses live request/entry plus captured Tcl/noStatic/noAdapter and activeTcl/allUTF8. Unsupported callbacks compile conservatively; custody wrapper declines. No physical slot/frame/Native grant.",
+  "unrun": [
+    "Rust typecheck/Clippy",
+    "genuine mixed grammar/adapter/nonUTF8 dispatch controls",
+    "original and added tests/full gates"
+  ]
+}

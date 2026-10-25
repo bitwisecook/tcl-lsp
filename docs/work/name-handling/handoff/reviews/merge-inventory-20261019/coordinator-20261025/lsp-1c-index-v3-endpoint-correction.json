@@ -1,0 +1,84 @@
+{
+  "utc": "2026-10-25T09:51:20.126654+00:00",
+  "status": "ALL5_CLOSED_FULL_AUTHOR_AUTH_BROWSER_WASI_FAIL_UNIT1_CORE2_2_PASS_STARTUP_SCAN30_PASS_NEXT_DIAGNOSTIC_PENDING_FAIL",
+  "source": "1c2944510ff9a7105a95151111942cf8fcb2b64a",
+  "source_membership": {
+    "utc": "2026-10-25T08:51:21.892422+00:00",
+    "source": "1c2944510ff9a7105a95151111942cf8fcb2b64a",
+    "tree": "b0d1ffc0585d6249eecab60b9c29e9f5a30ec992",
+    "count": 126262,
+    "nul_sha256": "6a0de2daae7807452e23fe4b94dd35cb9edaac4b050164b5161d3f9f1e2191c5",
+    "method": "exact Git NUL ls-tree; maps retained ZIP-only"
+  },
+  "host_run": 40177921011,
+  "startup_run": 40177925709,
+  "scopes": {
+    "browser": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-browser40177921011-actual-v1/assessment-v1.json",
+      "assessment_sha256": "15a94e9b659986a4996f1dbe4fca79a6de8bd581c19c12845ae9f7d7412c7e27",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL",
+      "zip_sha256": "0210a69f228decb9ad8b6ddbf0da1ebf4e639e3d9acc3fb33ab6a0c06e2a561e",
+      "zip_bytes": 8077954,
+      "source_members": 126262,
+      "source_before_after_equal": true
+    },
+    "wasi": {
+      "assessment": "/workspace/naming-proof-storage/lsp-host-wasi40177921011-actual-v1/assessment-v1.json",
+      "assessment_sha256": "60d1ffadb7b1962a8e3702e918edf712e3f3b9da06e2586471ae48e692bae7e8",
+      "status": "AUTHENTIC_ORIGINAL_HOST_DIAGNOSTIC_COMMAND_FAIL",
+      "zip_sha256": "36ed66a4a7c60431b6a8eef61e33b75ebb1557bf929321820f5a1825ab4d9522",
+      "zip_bytes": 8078509,
+      "source_members": 126262,
+      "source_before_after_equal": true
+    },
+    "unit": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-unit-40177921011-actual-v1/assessment-v1.json",
+      "assessment_sha256": "16783f60827c3e3c982f79453ce55800dae1402add6abed4a750eabd71428f96",
+      "status": "AUTHENTIC_SEPARATE_UNIT_PASS",
+      "zip_sha256": "9836dee607920173103bdb4ef831c6e80b3dc50ba4e35689b43300f3424738d5",
+      "zip_bytes": 10156052,
+      "source_members": 126262,
+      "source_before_after_equal": true
+    },
+    "startup": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-startup40177925709-actual-v1/assessment-v1.json",
+      "assessment_sha256": "172fb76d6fb5e9e61d9a7db32eb5a0dc8f2df12c2fccdf67f82eb6a093af37ad",
+      "status": "AUTHENTIC_FRESH0W_STARTUP_FUNCTIONAL_FAIL",
+      "zip_sha256": "343d1b8434540cc20c32cb4a9b9540147b614b6f81f0c9f2aefa5b929cce04ad",
+      "zip_bytes": 11190316,
+      "source_members": 126262,
+      "source_before_after_equal": true
+    },
+    "autoload-core2": {
+      "assessment": "/workspace/naming-proof-storage/lsp-hosted-core2-40177925709-actual-v1/assessment-v1.json",
+      "assessment_sha256": "2a46bf91fe14b53457ceb1f6c7ba1be18c53852274a0f5c6f25ef1d19b0b0377",
+      "status": "AUTHENTIC_SEPARATE_CORE2_PASS",
+      "zip_sha256": "a6697d4da350ecba0faec2c9e3cc7a0532a1adb2a5651b1980a408edfb80e874",
+      "zip_bytes": 10156729,
+      "source_members": 126262,
+      "source_before_after_equal": true
+    }
+  },
+  "native_send_control_compiled_sha256": "af4a564cf5c3acc7ed2bb1782de42736274d2ed190cee869bceb5943d117568b",
+  "functional_findings": {
+    "browser": "quiet112 exact definition/reference assertions pass; rename refuses independent main98B missing completed-world ordinal2/count3; four preceding soft failures; negative77 UNREACHED",
+    "wasi": "quiet112 callownedhead99..107 cursor101 retains prior literal set debt head40..43/last56..68; positive definition fails; negative77/rename UNREACHED; appsourceprojection independently incomplete",
+    "startup": "cold97.744230ms PASS, original wire scan30 PASS18.604326s; opens new protocol probe then direct textDocument/diagnostic id3 error-32801 reason pending, later typical assertions UNRUN; preceding accepted context checks refer to main; both Context originals PASS",
+    "unit": "exact pending-index navigation PASS1; nativeSend control compiled3bounds, not runtime selected",
+    "autoload-core2": "two exact structural equality/current-input refusal controls PASS2"
+  },
+  "limits": [
+    "Functional diagnostic CI profiles only, no shipping performance/full-feature/editor/global release admission.",
+    "Host bootstrap consumed providers/dependencies and running module payload unsealed; owner artifact is make.",
+    "No native ELF payload in these ZIPs; unit/Core2 producer ELF-magic plus Cargo/path/hash, startup no explicit ELF-magic record, running-server image hashes only.",
+    "All original budgets/guards retained; no signal/cap/floor/healthy cancellation.",
+    "Later canonical commits are outside exact measuredsource; no causal performance attribution across hosts."
+  ],
+  "startup_wire_frontier_sha256": "0ec8e6d117756c30bd6aca7f38d9cb4029a971c4f1f26aa11300986e6f70ce30",
+  "supersedes": {
+    "path": "/workspace/naming-proof-storage/lsp-1c-host-wave-evidence-index-v1/index-v2.json",
+    "sha256": "75b3d49191bfcdb1ec3ae586b302ac3bf5da7acfa1e1b81d677c500436ec436c",
+    "reason": "Exact worker source pins show id3 is directtextDocument/diagnostic on newly opened probe, not currentDiagnostics on main. Results/auth unchanged."
+  },
+  "startup_request_source_join_sha256": "6ff92004a50760adf6edc4685d58c1d9a91624349bf170e487b026c478485bfc"
+}
