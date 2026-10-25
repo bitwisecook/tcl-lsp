@@ -32,21 +32,22 @@
   ],
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding.rs": "3c9fc323b79853f02f68ab06647705da5fbe57a9ae026dbbcb4f05e48bf24ff5",
+    "rust/tcl-compiler/src/command_binding.rs": "b886a5a4953bbebdbe1dfa4d3c478c7228cefda77797a6b94aa99a4811c5ea6b",
     "rust/tcl-compiler/src/command_binding/called_static_layouts.rs": "709a9c49819d10e69a4d97f86e641e4c41c6dd9a2c7083e3d25070fa1ebad679",
-    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "e367ab6e4443698ccdd798944ec0a3bcf70bb32e3a460353d8d226c0fd87cfc9",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "5e55ce0d9a2b8e16c5ffe01cfee4588f825c445a4f5ffd645f073a588ab6eaf7",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "c523d170beb3a3b9cec9645270a3f41988ad96031fa6d561bc3eee275da18634",
     "rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs": "247cbac9085a9363fa2eabefe5b12fabdef5f964fe5605e7ddb700726df6518b",
     "rust/tcl-compiler/src/compilation_unit.rs": "70cbbdb2898ba66c5f9a7792927e018f5de022fa12af0df9e51161ca467a10e1",
     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
     "rust/tcl-compiler/src/realm.rs": "95ff1fc2db0b842fd90ea7b834485a51bf5bb8a8c9f06327641ea1cfa76db083",
-    "rust/tcl-compiler/src/registry_invocation.rs": "1c7761bb781239c878e8084b1c35aeacb889373a722bbfbd143e1b0ab76f7261",
+    "rust/tcl-compiler/src/registry_invocation.rs": "f6ac32b0c69d5b12f04bfa2f2bb729efa252ab1765bae206ae77c82bd906d55d",
     "rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs": "abcd8c0af33d7f511cc01048e95c0202dbd03202a3ae3b40abd7d81e49bb9769",
     "rust/tcl-compiler/src/ssa.rs": "6584e7c2635154aed17827c743aa8239421d0377a62725afeb392275abad4b79",
     "rust/tcl-compiler/src/taint.rs": "96cd7d1b2616dd54163945a3541cccba128bfb15a80fe1d8bf7dc6da7f1d7f6b",
     "rust/tcl-compiler/src/taint/source_context.rs": "1b37befd609ebb3bef635d4d31a059b00b25afee81357130c89feb73622794fb",
     "rust/tcl-compiler/src/taint_interproc.rs": "ada061856adbce79fe31d46599c7237e2e74ed0405730bcc3a999093593be42f",
     "rust/tcl-compiler/tests/taint.rs": "0a3a87aef7dcab3278d020ef91756159a9a37d5050c06abf5a31e1dccc61fd9d",
-    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4"
+    "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
+    "rust/tcl-compiler/src/command_binding/declaration_preview/logical_body_entry.rs": "c4370ecfc27e7efbbdaca3bc5562597f68e5b8ce53dc0e87331d06ba69ff72cf"
   }
 }

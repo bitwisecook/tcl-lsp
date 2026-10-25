@@ -28,7 +28,7 @@
     "Makefile": "765c0058bf12741924fad89480c1acfcde55c70912474a20c5c7801e7ab46991",
     "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
-    "rust/tcl-lsp-core/src/original_command_rename.rs": "09e5c2db3c6b36fdbbb3a69fe01602850a1f15d253e0edbfeb520b26b67ad598",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "7666f239dd9b596cdd69826ee43a9b3cf9cc6fd328f7475ac7063f8edffddf66",
     "rust/tcl-lsp-core/src/original_source_views.rs": "fef876c2faf2288a7e6c804b16c400b59cecfe5211f0a357d4fff2527020dab0",
     "rust/tcl-lsp-server-wasi/Cargo.lock": "243bf01217c0cfc94b4537d66c9de60071832c2ebde62d9968676a184d1f1300",
     "rust/tcl-lsp-server-wasi/Cargo.toml": "0f3faa985dbb85b94acca7a5d220f4814f07d5969b721c7e3e1d36b8b413bdec",
@@ -39,12 +39,12 @@
     "rust/tcl-lsp-server-wasm/build-wasm.sh": "de4eea75a94680cc2fd50a6f6c098dcbfad3b1a717fdad7c3321ede6f52cb4c6",
     "rust/tcl-lsp-server-wasm/test/e2e.mjs": "66a6de736f4eaf6fd5c434dcf56652aafa2eda12e7d004cb7b2d93f747d33170",
     "rust/tcl-lsp-server-wasm/worker.js": "fbff4236144aad622f61c42f3455c1ec517fa9e59d1aa698c4e8c20d30e0417e",
-    "rust/tcl-lsp-server/src/lib.rs": "8e9d04c6cf8303a03c83f44da4c753666a72f57450d665bc6ec842b209f435cc",
+    "rust/tcl-lsp-server/src/lib.rs": "717aa395916cd343ea4f9e3ec15cdf815c62c5f7eb4f28d52aaf447c36c28b55",
     "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f",
     "scripts/dev/lsp-naming-host-proof.mjs": "a82a55ba4d76a703f0afff1f92b2e5387f1d7b06023efcb3cc6ca37a712eacf8",
     "scripts/dev/wasm-cc-env.sh": "6d541058ef79aa09981eb7345540b7bcc61174423250c08128ee8b6cbb400b89",
     "scripts/verify-wasm-externref.mjs": "19410bf5475824d6d59c85b319fc129e826deebf32140fe06180a3e1df747366",
     "rust/tcl-compiler/src/registry_invocation/host_structure_observer.rs": "9581378eb004d98a92004ef9ade2afcf41fb7e4682eb53dcf23aa55c473b74f4",
-    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "34a990a4d4133b30837ba34b99949af580f3aa7c388e30394785b2f098610e6b"
+    "rust/tcl-lsp-server/src/diagnostic_read_cancellation.rs": "4a81c894ac32d186fe3ff72a3846e61e36739e09ddf00b5f6d58d418d3f09214"
   }
 }

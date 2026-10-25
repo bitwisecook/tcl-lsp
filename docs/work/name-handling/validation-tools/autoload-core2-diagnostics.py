@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "9b33f8a9fb12ff15f2556960f6afa4e28e11395a0f419d0434f523532885046e"
+ROSTER_SHA = "52e4d650fb733db6b75e772d7bcec1739f9a3faf2bc70d292242df57532e05f9"
 BASE = Path(__file__).resolve().parent
 
 
@@ -105,7 +105,7 @@ def original_result(stdout, exit_code):
     return "PASS" if int(passed) == 1 else "FAIL"
 
 
-def execute(argv, prefix, artifact, seconds):
+def execute(argv, prefix, artifact, seconds, observation_environment=None):
     global remaining
     require(remaining > 0, "aggregate log budget exhausted")
     require(
@@ -115,7 +115,7 @@ def execute(argv, prefix, artifact, seconds):
     receipt = owner.run(
         argv,
         cwd=root,
-        env=environment,
+        env=environment if observation_environment is None else {**environment, **observation_environment},
         stdout_path=out / (prefix + ".stdout"),
         stderr_path=out / (prefix + ".stderr"),
         receipt_path=out / (prefix + ".process.json"),
@@ -178,6 +178,9 @@ try:
         and roster["integration_selectors"] == ["minify_strips_comments_and_collapses_whitespace_factorial", "minify_preserves_string_and_expr_results"],
         "Core2 roster mismatch",
     )
+    require(roster["build_observation_environment"] == {"TCL_LSP_TRACE_COARSE_SOURCE": "1"}
+        and roster["integration_observation_environment"] == {"TCL_LSP_TRACE_BODY_SYNTAX": "1"},
+        "exact minify observation environment required")
     require(
         all(sha(root / n) == pin for n, pin in roster["source_pins"].items()),
         "reviewed structural source changed",
@@ -302,6 +305,7 @@ try:
         "build",
         tools["cargo"],
         2400,
+        roster["build_observation_environment"],
     )
     require(built["exit_code"] == 0, "fresh Core libtest build failed")
     rows = [
@@ -416,6 +420,7 @@ try:
             prefix + "-list",
             integration_executable,
             180,
+            roster["integration_observation_environment"],
         )
         require(
             listed["exit_code"] == 0
@@ -428,6 +433,7 @@ try:
             prefix,
             integration_executable,
             180,
+            roster["integration_observation_environment"],
         )
         result = original_result(
             (out / (prefix + ".stdout")).read_text(), receipt["exit_code"]
@@ -493,6 +499,7 @@ finally:
             "separate_supplemental_total": len(cases),
             "exact_default_minify_integration_cases": integration_cases,
             "exact_default_minify_integration_total": len(integration_cases),
+            "minify_observation_qualification": "WORK coarse-instrumented build; BODY_SYNTAX runtime enabled only exact Default integration list/test rows; old2 runtime environment unchanged. No timing/performance acceptance or new source queries.",
             "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,
             "remaining_log_bytes": remaining,

@@ -16,7 +16,7 @@
   ],
   "source_head_at_preparation": "9c034861e58e8d1245cd52e2174d95e6843f4f3e",
   "source_pins": {
-    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "a6376ba49f26d519bdd5ec9cd9e55bdb7230f944dd110fee8d5f8c0653364597",
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "096769d7c71855baf2b108cba4766be9a1421114555cecf001b78ed891aafd96",
     "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
     "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "a981896963d87c0464325a8a3549a2fcb8987750ddbb6062f1d1f7bda57072f8"
   },
