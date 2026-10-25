@@ -152,11 +152,11 @@ impl OriginalSourceCommandAvailability {
                 )
                 && analysis.retained_command_realm().is_some_and(|realm| {
                     realm
-                        .retained_original_tokens(
+                        .retained_original_tokens_for_command(
                             self.original_head().image(),
                             self.input.lexer_config(),
                             self.original_head().span().start(),
-                            &self.invocation.argv,
+                            &self.invocation,
                         )
                         .is_some_and(|tokens| {
                             tokens.source_binding == self.invocation.source_binding
@@ -189,7 +189,7 @@ pub fn original_source_command_availability(
     }
     let binding = tokens.source_binding.as_ref()?;
     let offset = tokens.argv.first()?.start();
-    let expected = realm.retained_original_tokens(&image, config, offset, &tokens.argv)?;
+    let expected = realm.retained_original_tokens_for_command(&image, config, offset, tokens)?;
     if expected.source_binding.as_ref() != Some(binding) {
         return None;
     }
