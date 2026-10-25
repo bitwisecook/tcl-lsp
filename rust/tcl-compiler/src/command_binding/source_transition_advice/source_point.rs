@@ -412,6 +412,18 @@ impl OriginalSourceTransitionSeed {
         context: &ContextRegistry,
         bindings: &crate::command_binding::SourceCommandBindings,
     ) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
+        self.normal_source_outcome_advice(context, bindings)
+            .map(|(graph, _)| graph)
+    }
+
+    pub(in crate::command_binding) fn normal_source_outcome_advice(
+        &self,
+        context: &ContextRegistry,
+        bindings: &crate::command_binding::SourceCommandBindings,
+    ) -> Option<(
+        Arc<OriginalSourcePointAdviceGraph>,
+        super::OriginalSourceTransitionAdviceTape,
+    )> {
         // Equal-source memo reuse has a distinct analysis attachment even when
         // the original source origin and baseline allocations are shared.
         if self
@@ -444,13 +456,16 @@ impl OriginalSourceTransitionSeed {
         } else {
             OriginalSourceCataloguePurpose::CompleteProgram
         };
-        self.prepare_for_query(
+        let tape = self.prepare_for_query(
             context,
             purpose,
             Some(SourceAdviceQuery::NormalSourceOutcome(&query)),
         )?;
         (!query.refused.get() && query.sealed.get()).then_some(())?;
-        query.graph.into_inner().map(Arc::new)
+        query
+            .graph
+            .into_inner()
+            .map(|graph| (Arc::new(graph), tape))
     }
 }
 
@@ -586,6 +601,97 @@ mod quiet_variable_normal_graph_controls {
                 .normal_source_outcome_graph(second_input.borrowed_context_registry(), other)
                 .is_some()
         );
+    }
+    #[test]
+    fn quiet_root_call_advice_keeps_its_genuine_query_and_body_horizon() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let source = "proc host_old {value} {return $value}\nset host_marker VALUE; proc host_caller {} {return [host_old 7]}\n";
+            let analysis = Analyser::new().analyse(source, dialect);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let realm = analysis.retained_command_realm().unwrap();
+            let bindings = realm.source_bindings_ref();
+            let seed = bindings.original_source_transition_seed().unwrap();
+            let (_, tape) = seed
+                .normal_source_outcome_advice(input.borrowed_context_registry(), bindings)
+                .expect("genuine quiet root");
+            let offset = u32::try_from(source.find("host_old 7").unwrap()).unwrap();
+            let issued = tape.native_procedure_call_at(offset).unwrap();
+            assert!(issued.uncertain_operations().is_empty());
+            let calls =
+                crate::registry_invocation::source_structure::source_original_procedure_calls(
+                    source, &analysis,
+                )
+                .unwrap();
+            assert!(calls.iter().any(|call| {
+                call.original_words()
+                    .first()
+                    .is_some_and(|head| head.span().start() == offset)
+                    && call.uncertain_operations().is_empty()
+            }));
+            let foreign = Analyser::new().analyse(source, dialect);
+            let foreign_bindings = foreign
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref();
+            assert!(
+                seed.normal_source_outcome_advice(
+                    input.borrowed_context_registry(),
+                    foreign_bindings,
+                )
+                .is_none()
+            );
+
+            for earlier in ["puts VALUE", "set host_marker [opaque]"] {
+                let source = format!(
+                    "proc host_old {{value}} {{return $value}}; {earlier}; proc host_caller {{}} {{return [host_old 7]}}"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let calls =
+                    crate::registry_invocation::source_structure::source_original_procedure_calls(
+                        &source, &analysis,
+                    )
+                    .unwrap();
+                assert!(
+                    !calls
+                        .iter()
+                        .any(|call| call.uncertain_operations().is_empty()),
+                    "{dialect}: {source}"
+                );
+            }
+            let source = "proc host_old {value} {return $value}; set host_marker VALUE; proc host_caller {} {opaque; return [host_old 7]}";
+            let analysis = Analyser::new().analyse(source, dialect);
+            let calls =
+                crate::registry_invocation::source_structure::source_original_procedure_calls(
+                    source, &analysis,
+                )
+                .unwrap();
+            assert!(
+                !calls
+                    .iter()
+                    .any(|call| call.uncertain_operations().is_empty()),
+                "{dialect}: body-local debt"
+            );
+        }
+    }
+    #[test]
+    fn opaque_literal_channel_keeps_its_original_call_debt() {
+        let source =
+            "proc host_old {value} { return $value }\nputs \"🧪 café\"; puts [host_old 7]\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let calls = crate::registry_invocation::source_structure::source_original_procedure_calls(
+            source, &analysis,
+        )
+        .unwrap();
+        let offset = u32::try_from(source.find("host_old 7").unwrap()).unwrap();
+        let call = calls
+            .iter()
+            .find(|call| {
+                call.original_words()
+                    .first()
+                    .is_some_and(|head| head.span().start() == offset)
+            })
+            .unwrap();
+        assert!(!call.uncertain_operations().is_empty());
     }
 }
 

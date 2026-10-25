@@ -3221,6 +3221,15 @@ impl super::SourceCommandBindings {
         self.original_source_transition_seed()?.prepare(context)
     }
 
+    pub(crate) fn original_normal_source_procedure_advice_tape(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<OriginalSourceTransitionAdviceTape> {
+        self.original_source_transition_seed()?
+            .normal_source_outcome_advice(context, self)
+            .map(|(_, tape)| tape)
+    }
+
     pub(crate) fn original_source_transition_advice_tape_for(
         &self,
         context: &ContextRegistry,

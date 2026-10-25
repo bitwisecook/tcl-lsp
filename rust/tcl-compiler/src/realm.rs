@@ -130,6 +130,7 @@ pub struct CommandBindingRealm {
     original_tokens: original_tokens::OriginalCommandTokenCache,
     original_bindings: original_bindings::OriginalInvocationBindingCache,
     source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
+    source_call_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
     query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo,
 }
 
@@ -668,6 +669,8 @@ impl CommandBindingRealm {
             original_tokens: original_tokens::OriginalCommandTokenCache::default(),
             original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
             source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
+            source_call_advice:
+                source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
             query_memo:
                 crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
         };
@@ -1101,6 +1104,8 @@ fn realm_from_source_bindings(
         original_tokens: original_tokens::OriginalCommandTokenCache::default(),
         original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
         source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
+        source_call_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(
+        ),
         query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
     }
 }
