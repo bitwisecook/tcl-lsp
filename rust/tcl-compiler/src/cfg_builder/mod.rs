@@ -6810,12 +6810,15 @@ mod tests {
              proc caller {} {p}",
         );
         let summaries = detect_upvar_procs(&module);
-        let writer_start = module
-            .source
-            .try_text()
-            .unwrap()
-            .rfind("proc p {} {upvar")
-            .unwrap() as u32;
+        let writer_start = u32::try_from(
+            module
+                .source
+                .try_text()
+                .unwrap()
+                .rfind("proc p {} {upvar")
+                .unwrap(),
+        )
+        .expect("fixture source offset fits u32");
         let writer: Vec<_> = module
             .procedures
             .iter()

@@ -1312,7 +1312,10 @@ mod tests {
         let capsule = BodyAnalysisCapsule::retain(Arc::clone(&unit), body, context.commands())
             .expect("original declaration, actual module and actual body");
         assert!(std::ptr::eq(capsule.unit(), unit.as_ref()));
-        assert!(std::ptr::eq(capsule.function(), &unit.procedures[&body]));
+        assert!(std::ptr::eq(
+            capsule.function(),
+            std::ptr::from_ref(&unit.procedures[&body])
+        ));
         assert_eq!(capsule.body_id(), body);
         assert_eq!(capsule, capsule.clone());
     }

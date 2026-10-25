@@ -16153,14 +16153,20 @@ mod original_source_read_selector_tests {
             .map(|(offset, _)| {
                 original_source_read_at_unit(
                     &unit,
-                    tcl_lexer::Span::new(offset as u32, offset as u32 + 5),
+                    tcl_lexer::Span::new(
+                        u32::try_from(offset).expect("fixture source offset fits u32"),
+                        u32::try_from(offset).expect("fixture source offset fits u32") + 5,
+                    ),
                     context.commands(),
                 )
                 .expect("actual original read has its own current source/SSA producer")
             })
             .collect::<Vec<_>>();
         assert_eq!(reads.len(), 3);
-        assert!(std::ptr::eq(reads[0].function(), &unit.top_level));
+        assert!(std::ptr::eq(
+            reads[0].function(),
+            std::ptr::from_ref(&unit.top_level)
+        ));
         assert!(!std::ptr::eq(reads[0].function(), reads[1].function()));
         assert!(!std::ptr::eq(reads[1].function(), reads[2].function()));
         for read in &reads {
@@ -16417,13 +16423,19 @@ mod original_analysis_definition_selector_tests {
         let definitions = source
             .match_indices("set value")
             .map(|(offset, _)| {
-                let span = tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9);
+                let span = tcl_lexer::Span::new(
+                    u32::try_from(offset).expect("fixture source offset fits u32") + 4,
+                    u32::try_from(offset).expect("fixture source offset fits u32") + 9,
+                );
                 original_analysis_definition_at_unit(&unit, span, context.commands())
                     .expect("exact genuine source definition")
             })
             .collect::<Vec<_>>();
         assert_eq!(definitions.len(), 3);
-        assert!(std::ptr::eq(definitions[0].function(), &unit.top_level));
+        assert!(std::ptr::eq(
+            definitions[0].function(),
+            std::ptr::from_ref(&unit.top_level)
+        ));
         assert!(std::ptr::eq(
             definitions[1].function(),
             definitions[2].function()
@@ -16626,7 +16638,8 @@ mod original_analysis_definition_selector_tests {
     fn readonly_source_reads_withhold_unrepresented_contents_versions() {
         let source = "proc p {} {set value TEXT; return $value}\n";
         let (unit, context) = unit(source);
-        let offset = source.find("$value").unwrap() as u32;
+        let offset =
+            u32::try_from(source.find("$value").unwrap()).expect("fixture source offset fits u32");
         let read = original_source_read_at_unit(
             &unit,
             tcl_lexer::Span::new(offset, offset + 6),
@@ -16796,17 +16809,19 @@ mod original_authored_analysis_definition_selector_tests {
         let definitions = source
             .match_indices("set value")
             .map(|(offset, _)| {
-                let span = tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9);
+                let span = tcl_lexer::Span::new(
+                    u32::try_from(offset).expect("fixture source offset fits u32") + 4,
+                    u32::try_from(offset).expect("fixture source offset fits u32") + 9,
+                );
                 original_analysis_definition_at_unit(&original, span, &registry)
                     .expect("authentic represented Authored source definition")
             })
             .collect::<Vec<_>>();
         assert_eq!(definitions.len(), 2);
-        assert!(
-            definitions
-                .iter()
-                .all(|definition| std::ptr::eq(definition.function(), &original.top_level))
-        );
+        assert!(definitions.iter().all(|definition| std::ptr::eq(
+            definition.function(),
+            std::ptr::from_ref(&original.top_level)
+        )));
         assert_eq!(definitions[0].symbol(), definitions[1].symbol());
         assert_ne!(definitions[0].version(), definitions[1].version());
         let span = definitions[1].span();

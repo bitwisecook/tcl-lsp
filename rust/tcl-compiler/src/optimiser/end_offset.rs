@@ -731,7 +731,15 @@ mod tests {
         );
         assert_ne!(reparsed_as_file[0].argv[0].span, tokens.argv[0]);
         let marked = "\u{feff}unknown argument";
-        let zero = statement_commands(marked, Span::new(0, marked.len() as u32), config).unwrap();
+        let zero = statement_commands(
+            marked,
+            Span::new(
+                0,
+                u32::try_from(marked.len()).expect("fixture source offset fits u32"),
+            ),
+            config,
+        )
+        .unwrap();
         assert_eq!(zero[0].texts[0], "\u{feff}unknown");
         assert!(statement_commands(source, Span::new(1, 2), config).is_none());
         assert_eq!(unit.ir_module.lexer_config, config);
