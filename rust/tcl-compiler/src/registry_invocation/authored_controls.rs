@@ -917,21 +917,6 @@ mod tests {
     }
     #[test]
     fn authored_control_grammar_refuses_original_expansions_and_non_immediate_descriptors() {
-        let registry = CommandRegistry::build_default();
-        for source in ["if {*}{1 {set x 1}}", "if {*}$words"] {
-            let module = crate::lowering::lower_to_ir(source, &registry);
-            let tokens = module
-                .top_level
-                .statements
-                .iter()
-                .find_map(|statement| {
-                    module
-                        .top_level
-                        .retained_source_tokens_for_statement(statement)
-                })
-                .unwrap();
-            assert!(original_authored_control_invocation(tokens, &registry).is_none());
-        }
         fn immediate(
             _: tcl_registry::InvocationArguments<'_>,
         ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
@@ -947,6 +932,23 @@ mod tests {
         ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
             vec![(1, tcl_registry::ScriptTiming::ReferenceOnly)]
         }
+
+        let registry = CommandRegistry::build_default();
+        for source in ["if {*}{1 {set x 1}}", "if {*}$words"] {
+            let module = crate::lowering::lower_to_ir(source, &registry);
+            let tokens = module
+                .top_level
+                .statements
+                .iter()
+                .find_map(|statement| {
+                    module
+                        .top_level
+                        .retained_source_tokens_for_statement(statement)
+                })
+                .unwrap();
+            assert!(original_authored_control_invocation(tokens, &registry).is_none());
+        }
+
         for (timing, expected) in [
             (immediate as tcl_registry::ScriptTimingResolver, true),
             (deferred as tcl_registry::ScriptTimingResolver, false),
