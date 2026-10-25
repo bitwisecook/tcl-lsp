@@ -515,7 +515,10 @@ mod tests {
             .map(|(offset, _)| {
                 crate::ssa::original_analysis_definition_at_unit(
                     &unit,
-                    tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9),
+                    tcl_lexer::Span::new(
+                        u32::try_from(offset).unwrap() + 4,
+                        u32::try_from(offset).unwrap() + 9,
+                    ),
                     &registry,
                 )
                 .expect("retained authored scalar definition")
@@ -581,7 +584,10 @@ mod tests {
             .map(|(offset, _)| {
                 crate::ssa::original_analysis_definition_at_unit(
                     &unit,
-                    tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9),
+                    tcl_lexer::Span::new(
+                        u32::try_from(offset).unwrap() + 4,
+                        u32::try_from(offset).unwrap() + 9,
+                    ),
                     &registry,
                 )
                 .expect("actual represented authored definition")
@@ -595,7 +601,7 @@ mod tests {
         );
         assert_eq!(definitions[0].symbol(), definitions[1].symbol());
         assert_ne!(definitions[0].version(), definitions[1].version());
-        let offset = source.find("$value").unwrap() as u32;
+        let offset = u32::try_from(source.find("$value").unwrap()).unwrap();
         let read = crate::ssa::original_source_read_at_unit(
             &unit,
             tcl_lexer::Span::new(offset, offset + 6),

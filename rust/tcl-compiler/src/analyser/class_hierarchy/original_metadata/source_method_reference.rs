@@ -622,7 +622,7 @@ mod tests {
                     .iter()
                     .map(|reference| reference.selector_span().as_range())
                     .collect::<Vec<_>>();
-                if actual != vec![selector..selector + 4] {
+                if actual != std::iter::once(selector..selector + 4).collect::<Vec<_>>() {
                     failures.push(format!("{dialect}: {body}: {actual:?}"));
                 }
             }
@@ -728,7 +728,7 @@ mod original_source_correspondence_tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let input = analysis.resolved_input.as_ref().unwrap();
         let realm = analysis.retained_command_realm().unwrap();
-        let offset = source.find("my ping").unwrap() as u32;
+        let offset = u32::try_from(source.find("my ping").unwrap()).unwrap();
         let segment = crate::segmenter::segment_commands_with_offset_and_config(
             &source[offset as usize..offset as usize + 7],
             offset,
@@ -779,7 +779,7 @@ mod original_source_correspondence_tests {
                 )
                 .is_none()
         );
-        let foreign_source = source.replace("C", "Other");
+        let foreign_source = source.replace('C', "Other");
         let foreign = Analyser::new().analyse(&foreign_source, "tcl8.6");
         let foreign_references =
             original_source_self_method_references(&foreign_source, &foreign).unwrap();
@@ -818,7 +818,8 @@ mod original_head_correspondence_tests {
         let advice = tape
             .original_definition_member_source_catalogue()
             .find(|advice| {
-                advice.original_words()[0].span().start() == source.find("my ping").unwrap() as u32
+                advice.original_words()[0].span().start()
+                    == u32::try_from(source.find("my ping").unwrap()).unwrap()
             })
             .unwrap();
         let catalogue = advice.original_definition_member_source_body().unwrap();
@@ -856,7 +857,7 @@ mod original_head_correspondence_tests {
         assert_eq!(pair.declaration_body().original_parent_body(), parent);
         assert_eq!(pair.original_heads().left(), left);
         assert_eq!(pair.original_heads().right(), right);
-        assert!(pair.original_heads().left().source() == left.source());
+        assert_eq!(pair.original_heads().left().source(), left.source());
         let foreign = Analyser::new().analyse(source, "tcl9.0");
         assert!(
             catalogue
@@ -866,7 +867,7 @@ mod original_head_correspondence_tests {
                 )
                 .is_none()
         );
-        let changed_source = source.replace("C", "Other");
+        let changed_source = source.replace('C', "Other");
         let changed = Analyser::new().analyse(&changed_source, "tcl8.6");
         let changed_class = changed.original_class_declarations().next().unwrap();
         let changed_parent = changed_class
