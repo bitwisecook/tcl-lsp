@@ -27,6 +27,140 @@ impl CompileService for ObserveCompilation {
         self.compiler.compile(source)
     }
 
+    fn compile_substitution_with_entry(
+        &self,
+        target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_substitution_with_entry(target, profile, entry)
+    }
+
+    fn compile_for_profile(
+        &self,
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler.compile_for_profile(source, profile)
+    }
+
+    fn compile_script_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler.compile_script_for_profile(target, profile)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_script_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
+
+    fn compile_traced(&self, source: &str) -> Result<Self::Module, CompileError> {
+        self.compiler.compile_traced(source)
+    }
+
+    fn compile_traced_for_profile(
+        &self,
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler.compile_traced_for_profile(source, profile)
+    }
+
+    fn compile_plain_script_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_plain_script_for_profile(target, profile)
+    }
+
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_script_bytes_for_profile(target, profile)
+    }
+
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, CompileError> {
+        self.compiler
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+
+    fn script_command_plan_for_profile(
+        &self,
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, CompileError> {
+        self.compiler
+            .script_command_plan_for_profile(source, profile)
+    }
+
+    fn compile_failure_for_profile(
+        &self,
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        unit: tcl_runtime_api::CompileUnit,
+    ) -> Option<tcl_runtime_api::CompileFailure> {
+        self.compiler
+            .compile_failure_for_profile(source, profile, unit)
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        self.compiler
+            .compile_procedure_for_profile(target, profile, dispatch)
+    }
+
     fn script_command_plan_bytes_with_entry(
         &self,
         source: &tcl_runtime_api::SourceImage,
