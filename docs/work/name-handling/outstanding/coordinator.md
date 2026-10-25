@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T13:38:17.562208+00:00
+Last updated: 2026-10-25T13:48:04.708414+00:00
 
 ## Resume
 
@@ -13,11 +13,14 @@ Last updated: 2026-10-25T13:38:17.562208+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (13:15 UTC)
+### Current cycle and routing (13:45 UTC)
 
-- Reviewedtypedindexproducer/consumer, currentrootownerreuse+shippingcontracts andsharedDBthreeprojectionproducer are nowintegratedWORKfirstandpairedCLEAN; actualruntime/type/performanceoutcomes remainunrun. WORK-onlycurrencyobserver included; no guard/equality/issuer weakening.
-- Paired52completechunkiterationfixes plus4semantic-overlapindexstylecorrectionsarelandingwithindependentpeer andcurrentpinunion. No assertions/sourcebytes/order/remainder changed; remainingnonchunk160batch workispartitionedamongCodegen,Names,andmechanicalhelper. No globalgreenclaim.
-- Prepared a copied nonchunk mechanical Clippy packet from run40195067552: 23 exact mechanical fixes across16 files;13 diagnostics deliberately held. Pinned rustfmt check and F/R apply proof pass. Packet remains unintegrated; no canonical edits or post-fix Clippy claim.
-- Joint typed StringIndex purpose producer/consumer review is STATIC DEEP CLEAR with metadata companion; actual typing, Clippy, and focused SpecTcl validation remain pending. DB shared-project structure and conditional-world owner-reuse proposals have static peer clearance only; their runtime/type/Clippy/test/performance checks remain open.
-- Fresh Info PF135 closes only the focused original Info baseline PF plus two adversarial currency controls; original132 outcomes unchanged and84 standalone cases remain scoped nonpasses. This is not a global gate admission.
-- Paired Tcl performance run40187523991 produced no accepted pair in any of six required corpus/platform scopes: Linux runners terminated with143 before receipts; macOS candidate trials timed out with invalid results and process-group closure unproven. No performance acceptance conclusion.
+- ReviewedtypedStringIndex producer+originalversionedingressconsumer, actualleasedroot-ownerreuse withshippingcontracts, andsinglecheckedDBproducerforthreeprojectprojectionsareintegratedWORKfirstandpairedCLEAN. No guard/equality/issuer/Nativepermission relaxation; newactualtype/semantic/performanceoutcomes remainunrun.
+- All54completechunkiterationlintsandtwoothernativeindexstylelintsarepairedintegratedwith52occurrenceinverseproof+separatesemanticoverlapfollowup. ExistingTclliteralpayloads/assertions/order/ignoredremainders preserved; no newlintallows. Currentpinunion preservesjointindexsource. Remaining160batchscope partitioned acrossCodegen20smallsharedfiles/Names19nonchunklongtypefiles/mechanical23fixes16files; remaininglong/boolsharedcasesexplicit.
+- Currentc142 compiler fullauth main82PASS1FAIL19UNRUN becauseoldinlininghelperfourtypeerrorsalreadycorrectedinsource; closed16+oldfoldallPASS. No measuredLogical/readonlynewgains untilfreshhelper-fixedcapture. ScopedJimcapturelimitrepairV2clearedbutnotyetintegrated; last31/45+5F+new1F remains.
+- Currentc142 hostallfivefullyauthenticatedclosed: nativeunitPASS1, Core2PASS2; browsermainworldmismatch andWASIrefs[] remain. Newactualownerreuseaddressesfirstbrowserproducerjoinunderalloldguards. SourcecurrencyfinitefieldsWORKobserverintegrated, newnativeactualfieldsunrun. Original4+formatterlocalreplaycomplete,butextraCommandsanddialectdeadlinefail; no shippingUIacceptance.
+- ActualboundednativeTclperf TWOsmallpinnedfiles67.7KiB stillscanincomplete20swith421596KiBRSSand20.68sCPU, provingrealworknotidleallthreaddeadlock. Escalatedownedchild17sprofilecompleted28registersamplesunderexistingphaseflag, no systemchanges; leafresolutionpending. SharedDBthreefoldanalysisremovalstaticallyproven, no claimsolves1800sstall.
+- ShippingTclpairedperformance remainsBLOCKED: macallcandidatecorpuschecks hitworkspace120sorrequest1800slimits; baselinealsohasinvalidcases; Linuxrunnersshutdown143. No validacceptedpair andno thresholdwaiver. Externalperfrole equalityproofseparate; LSP/compilerownproductionlatencyfix.
+- OriginalInfoattestationbaselinefailureandtwoauthenticcurrency/imitationcontrolsqualifiedPASSin135run8cfa; originalproc remainsPASS. Old131otherstatusesunchanged, CFIincomplete/globalruntimegateopen. TypedgenericindexfixmustnowrununchangedSpec/Nativecorpus; hostilepackspin/burnearliesterrorstillneedsexistingfirstgateflag.
+- Diskfreeabout2.5GiBafterverifiedremovalofoneunusedoldextractedELFduplicate147547248B(age>60min,norunningmatches). OriginalZIP/allbytes/CRC/sourceevidencepreserved; currentc142ELFretained; no target/youngtestexecutable/source deletion. Nextnativeextractionmustretain2GiBfloor.
+- 13:15snapshotwaslate,publishedactual13:43afterreport13:38;13:45cycleactualtimestampsretained. Alloutstandingcoreheadersmonitored;Codegenfirstheaderrefreshedafterstaleobservation. ExternalBIGIP/perfstaleover60min,usernotifiedwithouttakeover. No PR/merge/tag/release or globalgateadmission. Next14:15.

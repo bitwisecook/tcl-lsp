@@ -2,11 +2,20 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T12:15:58.333204+00:00 (ACTIVE; productive Logical+Info sources/companions CLEAR; next actual wave pending)
+Last updated: 2026-10-25T13:45:51+00:00 (ACTIVE; typed index and54chunk fixes integrated; remaining20small source+pins frozen pending Compiler peer; actual fresh strict/Spec outcomes UNRUN)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+
+**Current focus: complete the authenticated af0 strict batch without weakening tests or Native authority.** The broad `--keep-going` capture40195067552/job121174027741 yielded160 primary Clippy diagnostics and no Rust E-code primary; full bounded receipt1317cd21 verifies126324 tracked source membership/endpoint seal,117 exact critical+diagnostic source Git blobs,9toolseals and original owned exit2/emptygroup/caps. Typed original String-index producer/consumer and union pins are independently clear and integrated; actual Spec outcomes remain unverified. All54 chunk warnings and the two additional Native-index test lints have paired current patches/independent peers and are integrated at WORK02ad64601/CLEAN9e4f1c84 (subject to later root commits).
+
+**Own next packet:** `ccg-strict-small20-followup-v1` master57d148e3, WORK489ba22f/CLEAN25727bd2, ten files/twenty remaining small non-long/non-bool lint corrections; Compiler peer pending. Owned Completion wrapper preserves old assertion-local-before-result Drop/unwind order, same caller signatures, whole old assertion body exact. Raw Tcl literal payloads and moved test module exact; proofec170eba. Current companion `ccg-strict-small20-sourcepins-work-v1` master9abfdb79/patch6164e5cb changes only VMinterp two existing sourcepins and two derived driver hashes, preserving54chunks/typedIndex. Actual Rust/Clippy/tests UNRUN. Ten long functions and three boolean observation structures inside the chunk-file partition remain separate root-owned routing obligations. Luna handles25 nonchunk files, Names19, root Spec install; no overlap with own small20.
+
+**Retained execution frontiers:** Actual Spec string pack zero hook attempts is not yet a proven evaluator-precedence bug. Retained native const_subst path directly calls installed hooks after world/argument proofs; legacy path alone uses registry_route, and Intrinsic semantic_operation alone creates no Direct route. Await actual N17 first refusal/installed semantics before changing authority. Runtime owns hostile hook ingress; typed string-index does not itself prove ADD/fuel/loop success. WASM recursion61 disagreement/argv one-time owner objects and deferred expression preparation remain open with old assertions/limits intact.
+
+Historical reviewed packets follow; appended timestamped receipts at the end retain the full bounded evidence trail.
 
 
 **Current productive source reviews complete; next actual results required.** Logical source43a91dfc/36fbfe89 peer `ccg-peer-logical-read-retained-scope-v1/receipt.json` SHAa1cf01411748725c6c1756747ead522638e7c92dd7a70e839a5631f0913640fb verifies both current/F-R/fmt/entire old postselection bytes. Actual private Logical-body producer and immutable tape getters inspected: select existing scoped receipt only with explicit Logical input+full site/vector/input agreement; contradiction terminal, Native/unscoped choice unchanged, all ancestry/point/target/declared-frame gates intact. No new scope attachment/frame/Native/Normal/value grant. Current Logical companion `ccg-logical-read-retained-scope-sourcepins-work-v1` masterf72aa8a23e1d1f3e88cd09c5d0ae3fc183093a4fa47f26bfa72ffb58830d569b/patch24bd628a at67b63 accounts TWO real consumers(original58inputs+ancestry3)+two derived driver hashes30db→35bf; full23census/byteASTinverse/F-R pass. IndependentCompiler0ee07d1616bcab6e33462fb9ba298714b077e3f701b1c036868daf34a41dfcce CLEAR. Actual scoped receipt availability/read70/RBS/old controls stillUNRUN.

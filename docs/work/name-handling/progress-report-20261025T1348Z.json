@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T13:48:04.801493+00:00",
+  "scheduled_report_utc": "2026-10-25T13:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T14:15:00+00:00",
+  "change_since_previous_report": [
+    "ReviewedtypedStringIndex producer+originalversionedingressconsumer, actualleasedroot-ownerreuse withshippingcontracts, andsinglecheckedDBproducerforthreeprojectprojectionsareintegratedWORKfirstandpairedCLEAN. No guard/equality/issuer/Nativepermission relaxation; newactualtype/semantic/performanceoutcomes remainunrun.",
+    "All54completechunkiterationlintsandtwoothernativeindexstylelintsarepairedintegratedwith52occurrenceinverseproof+separatesemanticoverlapfollowup. ExistingTclliteralpayloads/assertions/order/ignoredremainders preserved; no newlintallows. Currentpinunion preservesjointindexsource. Remaining160batchscope partitioned acrossCodegen20smallsharedfiles/Names19nonchunklongtypefiles/mechanical23fixes16files; remaininglong/boolsharedcasesexplicit.",
+    "Currentc142 compiler fullauth main82PASS1FAIL19UNRUN becauseoldinlininghelperfourtypeerrorsalreadycorrectedinsource; closed16+oldfoldallPASS. No measuredLogical/readonlynewgains untilfreshhelper-fixedcapture. ScopedJimcapturelimitrepairV2clearedbutnotyetintegrated; last31/45+5F+new1F remains.",
+    "Currentc142 hostallfivefullyauthenticatedclosed: nativeunitPASS1, Core2PASS2; browsermainworldmismatch andWASIrefs[] remain. Newactualownerreuseaddressesfirstbrowserproducerjoinunderalloldguards. SourcecurrencyfinitefieldsWORKobserverintegrated, newnativeactualfieldsunrun. Original4+formatterlocalreplaycomplete,butextraCommandsanddialectdeadlinefail; no shippingUIacceptance.",
+    "ActualboundednativeTclperf TWOsmallpinnedfiles67.7KiB stillscanincomplete20swith421596KiBRSSand20.68sCPU, provingrealworknotidleallthreaddeadlock. Escalatedownedchild17sprofilecompleted28registersamplesunderexistingphaseflag, no systemchanges; leafresolutionpending. SharedDBthreefoldanalysisremovalstaticallyproven, no claimsolves1800sstall.",
+    "ShippingTclpairedperformance remainsBLOCKED: macallcandidatecorpuschecks hitworkspace120sorrequest1800slimits; baselinealsohasinvalidcases; Linuxrunnersshutdown143. No validacceptedpair andno thresholdwaiver. Externalperfrole equalityproofseparate; LSP/compilerownproductionlatencyfix.",
+    "OriginalInfoattestationbaselinefailureandtwoauthenticcurrency/imitationcontrolsqualifiedPASSin135run8cfa; originalproc remainsPASS. Old131otherstatusesunchanged, CFIincomplete/globalruntimegateopen. TypedgenericindexfixmustnowrununchangedSpec/Nativecorpus; hostilepackspin/burnearliesterrorstillneedsexistingfirstgateflag.",
+    "Diskfreeabout2.5GiBafterverifiedremovalofoneunusedoldextractedELFduplicate147547248B(age>60min,norunningmatches). OriginalZIP/allbytes/CRC/sourceevidencepreserved; currentc142ELFretained; no target/youngtestexecutable/source deletion. Nextnativeextractionmustretain2GiBfloor.",
+    "13:15snapshotwaslate,publishedactual13:43afterreport13:38;13:45cycleactualtimestampsretained. Alloutstandingcoreheadersmonitored;Codegenfirstheaderrefreshedafterstaleobservation. ExternalBIGIP/perfstaleover60min,usernotifiedwithouttakeover. No PR/merge/tag/release or globalgateadmission. Next14:15."
+  ],
+  "committed": [
+    "10fb2528b69e398e30472e3388d0e82327e7df63"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish13:45WIP/reportandrearm14:15reminder.",
+    "Runfreshstrict/Spec/host/startup/compiler/Jimaftertypedindex+owner/DBfixesandlatestlint/capturecorrections.",
+    "Finishpartitionedremainingzero-warningwork,preserveallassertionsandNativeowner/dropguards.",
+    "Resolveactualshippingperformance/sourcecurrency/W002/Jim/runtimeproducersandcompleteallreleasegatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Draft only for the late 13:15 cycle; exact seven-key schema for /tmp/naming-write-cycle.py. Based on current tracker evidence and source tips WORK ec8ca21f/CLEAN 48b607fe. No product-tree diff or published tip is asserted. gate admissions are intentionally none; root-owned helpers calculate current report fields and publication metadata.",
+  "disk_free_bytes": 2671349760,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
