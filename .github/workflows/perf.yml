@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
+        options: [standard, paired, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -66,7 +66,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'standard' }}-${{ inputs.candidate_sha || '' }}
-  cancel-in-progress: ${{ inputs.mode != 'paired' }}
+  cancel-in-progress: ${{ inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' }}
 
 permissions:
   contents: read
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -1913,3 +1913,233 @@ jobs:
           path: ${{ runner.temp }}/release-rust-check-output
           if-no-files-found: error
           retention-days: 30
+
+  jetbrains-candidate-validation:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'jetbrains-candidate-validation' && github.ref == 'refs/heads/work'
+    name: Kotlin tests for ${{ inputs.candidate_sha }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - name: Admit only the WORK dispatch ref
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          echo "VALIDATION_JOB_START_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/jetbrains-validation"
+          {
+            printf 'candidate_sha=%s\n' "${CANDIDATE_SHA,,}"
+            printf 'workflow_ref=%s\n' "$GITHUB_REF"
+            printf 'workflow_sha=%s\n' "$GITHUB_SHA"
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+          } > "$RUNNER_TEMP/jetbrains-validation/identity.txt"
+          if [[ "$GITHUB_REF" != "refs/heads/work" ]]; then
+            echo "complete=false" > "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt"
+            echo "stop_reason=refusal:workflow_ref_must_be_refs/heads/work" >> "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt"
+            echo "refusal: workflow must run from refs/heads/work" >&2
+            exit 2
+          fi
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "complete=false" > "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt"
+            echo "stop_reason=refusal:candidate_sha_must_be_40_hex" >> "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt"
+            echo "refusal: candidate_sha must be 40 hexadecimal characters" >&2
+            exit 2
+          fi
+
+      # The owner is taken from WORK before the candidate is checked out. Pin
+      # its exact source bytes so candidate contents cannot select supervision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: work
+          path: workflow-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify pinned process owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="workflow-source/docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py"
+          actual="$(sha256sum "$owner" | awk '{print $1}')"
+          expected="88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+          [[ "$actual" == "$expected" ]] || { echo "refusal: process owner hash mismatch: $actual" >&2; exit 2; }
+          printf 'process_owner_sha256=%s\n' "$actual" >> "$RUNNER_TEMP/jetbrains-validation/identity.txt"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify candidate identity and initial disk floor
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git -C candidate rev-parse HEAD)"
+          expected="${CANDIDATE_SHA,,}"
+          [[ "$actual" == "$expected" ]] || { echo "refusal: checked out $actual, expected $expected" >&2; exit 2; }
+          printf 'checked_out_sha=%s\n' "$actual" >> "$RUNNER_TEMP/jetbrains-validation/identity.txt"
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 {print $4}')"
+          printf 'free_kib_before_test=%s\n' "$free_kib" >> "$RUNNER_TEMP/jetbrains-validation/identity.txt"
+          (( free_kib >= 2097152 )) || { echo "refusal: less than 2 GiB free before test setup" >&2; exit 125; }
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            candidate/editors/jetbrains/*.gradle*
+            candidate/editors/jetbrains/gradle/wrapper/gradle-wrapper.properties
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+
+      - name: Run bounded make test-jetbrains
+        id: jetbrains-test
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json, os, pathlib, shutil, sys, time
+
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "jetbrains-validation"
+          candidate = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "candidate"
+          def refuse(reason):
+              (root / "test-metadata.txt").write_text(f"complete=false\nstop_reason=refusal:{reason}\n")
+              raise SystemExit(125)
+
+          owner_file = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "workflow-source/docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py"
+          try:
+              spec = importlib.util.spec_from_file_location("runtime_diagnostics_exec", owner_file)
+              owner = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(owner)
+          except Exception as error:
+              refuse(f"cannot_load_pinned_owner:{type(error).__name__}:{error}")
+          make = shutil.which("make")
+          if not make:
+              refuse("make_unavailable")
+          make = str(pathlib.Path(make).resolve())
+          # The 60-minute job keeps 5 minutes for artifact upload/summary; this
+          # child gets at most 50 minutes, plus the owner's bounded 20s cleanup.
+          job_started = float(os.environ["VALIDATION_JOB_START_EPOCH"])
+          remaining = 3600 - (time.time() - job_started)
+          required = 3000 + 20 + 300
+          if remaining < required:
+              (root / "test-metadata.txt").write_text(
+                  f"stop_reason=insufficient_job_budget\nremaining_seconds={int(remaining)}\nrequired_seconds={required}\n"
+              )
+              raise SystemExit(125)
+          # Pass only build/runtime essentials. No GitHub token, publish token,
+          # actions token, or arbitrary credential context is forwarded.
+          allow = ("PATH", "HOME", "JAVA_HOME", "TMPDIR", "LANG", "LC_ALL", "CI", "GRADLE_OPTS", "GITHUB_WORKSPACE", "RUNNER_TEMP")
+          child_env = {key: os.environ[key] for key in allow if key in os.environ}
+          child_env["GRADLE_OPTS"] = "-Dorg.gradle.daemon=false"
+          candidate_sha = os.environ["CANDIDATE_SHA"].lower()
+          receipt_path = root / "process-receipt.json"
+          try:
+              receipt = owner.run(
+                  [make, "-C", str(candidate), "test-jetbrains"],
+                  cwd=candidate,
+                  env=child_env,
+                  stdout_path=root / "gradle-test.stdout.log",
+                  stderr_path=root / "gradle-test.stderr.log",
+                  receipt_path=receipt_path,
+                  artifact_path=make,
+                  deadline_seconds=3000,
+                  cap_bytes=20 * 1024 * 1024,
+                  disk_floor_bytes=2 * 1024 * 1024 * 1024,
+                  disk_paths=(candidate, root, pathlib.Path.home()),
+              )
+          except Exception as error:
+              try:
+                  receipt = json.loads(receipt_path.read_text()) if receipt_path.exists() else {}
+              except (OSError, json.JSONDecodeError):
+                  receipt = {}
+              reason = receipt.get("stop_reason") or f"runner_refusal:{type(error).__name__}:{error}"
+              (root / "test-metadata.txt").write_text(
+                  f"candidate_sha={candidate_sha}\ncommand=make -C candidate test-jetbrains\n"
+                  f"exit_code={receipt.get('exit_code')}\ncomplete=false\nstop_reason={reason}\n"
+                  f"elapsed_seconds={receipt.get('elapsed_seconds')}\n"
+                  f"retained_log_bytes={receipt.get('retained_bytes')}\n"
+                  f"minimum_free_bytes={receipt.get('minimum_free_bytes')}\n"
+                  f"process_group={receipt.get('process_group')}\npid={receipt.get('pid')}\n"
+                  f"pid_start_ticks={receipt.get('pid_start_ticks')}\n"
+                  f"group_empty_before_parent_reap={str(receipt.get('group_empty_before_parent_reap')).lower()}\n"
+              )
+              raise SystemExit(125) from error
+          (root / "test-metadata.txt").write_text(
+              f"candidate_sha={candidate_sha}\ncommand=make -C candidate test-jetbrains\n"
+              f"exit_code={receipt.get('exit_code')}\ncomplete={str(receipt.get('complete')).lower()}\n"
+              f"stop_reason={receipt.get('stop_reason')}\n"
+              f"elapsed_seconds={receipt.get('elapsed_seconds')}\n"
+              f"retained_log_bytes={receipt.get('retained_bytes')}\n"
+              f"minimum_free_bytes={receipt.get('minimum_free_bytes')}\n"
+              f"process_group={receipt.get('process_group')}\n"
+              f"pid={receipt.get('pid')}\npid_start_ticks={receipt.get('pid_start_ticks')}\n"
+              f"group_empty_before_parent_reap={str(receipt.get('group_empty_before_parent_reap')).lower()}\n"
+          )
+          if not receipt.get("complete"):
+              raise SystemExit(125)
+          raise SystemExit(receipt["exit_code"])
+          PY
+
+      - name: Collect bounded JUnit XML results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/jetbrains-validation/test-results"
+          python3 - <<'PY'
+          import os, pathlib, shutil
+          src = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "candidate/editors/jetbrains/build/test-results/test"
+          dst = pathlib.Path(os.environ["RUNNER_TEMP"]) / "jetbrains-validation/test-results"
+          cap = 20 * 1024 * 1024
+          copied = 0
+          truncated = False
+          if src.exists():
+              for path in sorted(src.glob("*.xml")):
+                  size = path.stat().st_size
+                  if copied + size > cap:
+                      truncated = True
+                      break
+                  shutil.copy2(path, dst / path.name)
+                  copied += size
+          (dst.parent / "result-collection.txt").write_text(
+              f"junit_xml_bytes={copied}\njunit_xml_truncated={str(truncated).lower()}\n"
+          )
+          PY
+
+      - name: Upload bounded test proof
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jetbrains-test-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/jetbrains-validation/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
+
+      - name: Publish proof summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$RUNNER_TEMP/jetbrains-validation/identity.txt" ]]; then
+            cat "$RUNNER_TEMP/jetbrains-validation/identity.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt" ]]; then
+            cat "$RUNNER_TEMP/jetbrains-validation/test-metadata.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
