@@ -742,6 +742,22 @@ pub struct VarTable {
 }
 
 impl VarTable {
+    /// Passive WORK diagnostic: inspect only an existing physical scalar slot.
+    /// No semantic lookup, links, conversion, trace, provider or ownership change.
+    pub(crate) fn inspect_existing_scalar<T>(
+        &self,
+        name: &[u8],
+        inspect: impl FnOnce(*mut TclObj) -> T,
+    ) -> Option<T> {
+        let slot = *self.slots.get(name)?;
+        let contents = self.cells.get(slot)?.contents.try_borrow().ok()?;
+        contents.check_owned_value_role().ok()?;
+        let Var::Scalar(pointer) = contents.var.as_ref()? else {
+            return None;
+        };
+        Some(inspect(*pointer))
+    }
+
     pub(crate) fn prepare_original_alias(
         &mut self,
         name: &[u8],

@@ -35,7 +35,7 @@ impl super::Interp {
             ))
         };
         let result = inspect(self.result.get());
-        let (info, code, exception_busy) = match self.exc.try_borrow() {
+        let (info, code, legacy_copy, exception_busy) = match self.exc.try_borrow() {
             Ok(exception) => (
                 exception
                     .native
@@ -47,10 +47,24 @@ impl super::Interp {
                     .code
                     .as_ref()
                     .and_then(|v| inspect(v.as_ptr())),
+                Some(exception.native.legacy_copy),
                 false,
             ),
-            Err(_) => (None, None, true),
+            Err(_) => (None, None, None, true),
         };
+        // Exact physical root slots only. None also covers busy/non-scalar cells;
+        // it does not establish semantic absence or authorize a variable read.
+        let globals = self.namespaces.try_borrow().ok().and_then(|namespaces| {
+            let table = namespaces.original_variable_table_at(crate::namespace::GLOBAL)?;
+            Some((
+                table
+                    .inspect_existing_scalar(b"errorInfo", inspect)
+                    .flatten(),
+                table
+                    .inspect_existing_scalar(b"errorCode", inspect)
+                    .flatten(),
+            ))
+        });
         let (options, options_busy) = match self.return_options.try_borrow() {
             Ok(options) => (options.header().and_then(inspect), false),
             Err(_) => (None, true),
@@ -78,7 +92,7 @@ impl super::Interp {
         // Every owner/RefCell borrow is already gone before the diagnostic I/O.
         // The counters count native headers/buffers, not these copied Rust tuples.
         eprintln!(
-            "WASM_HELD_HEAP objs={} bufs={} result={result:?} info={info:?} code={code:?} options={options:?} stack={stack:?} inner={inner:?} arrays={arrays:?} busy={exception_busy}/{options_busy}/{stack_busy}/{inner_busy}",
+            "WASM_HELD_HEAP objs={} bufs={} result={result:?} info={info:?} code={code:?} legacy_copy={legacy_copy:?} globals={globals:?} options={options:?} stack={stack:?} inner={inner:?} arrays={arrays:?} busy={exception_busy}/{options_busy}/{stack_busy}/{inner_busy}",
             crate::counters::live_objs(),
             crate::counters::live_bufs(),
         );
