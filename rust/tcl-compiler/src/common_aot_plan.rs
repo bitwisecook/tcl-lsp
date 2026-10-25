@@ -3189,7 +3189,9 @@ mod tests {
             missing_target,
             stale_grammar,
             foreign,
-        ] {
+        ]
+        .into_boxed_slice()
+        {
             let plan = CommonAotProofPlan::build_with_retained_metadata(
                 &refused,
                 &registry,

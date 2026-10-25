@@ -3938,7 +3938,7 @@ mod tests {
             unreachable!("an unavailable generation cannot dispatch a body")
         });
         assert!(!called);
-        for result in vec![full, supplied, chunked, incremental, per_item] {
+        for result in vec![full, supplied, chunked, incremental, per_item].into_boxed_slice() {
             assert_eq!(result.analysis_context_unavailable.as_ref(), Some(&missing));
             assert!(result.resolved_input.is_none());
             assert!(result.all_procs.is_empty());
