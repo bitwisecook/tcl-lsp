@@ -27,10 +27,17 @@ That match proves their original-source relation relative to the supplied
 entry; it does not authenticate an arbitrary constructed entry. The runtime's
 original scope, namespace/profile and native registration/compiler guards
 remain mandatory.
-Ordinary Tcl formal storage keys reach byte procedure lowering through the
-same input used by text procedure lowering. Unknown parameter grammar and
-non-UTF-8 names retain their conservative treatment. This supplies no variable
-contents, physical compiled-slot provider or Native handler from a name.
+The captured declaration binding context is independent of the active invocation
+policy. Ordinary Tcl formal storage keys reach the owned byte procedure route
+only when the original binding plan is Tcl, has no retained static or adapter
+bindings, the active policy is Tcl, and every key is valid UTF-8. The legacy
+unowned byte route retains its conservative treatment. Captured Jim reference
+bindings under an active C policy cannot become ordinary locals. Method,
+lambda and other adapter bindings supply no implicit formal names. Unsupported
+bindings still use the ordinary compiler path without new formal evidence;
+the classifier custody wrapper declines that unsupported context. This supplies
+no variable contents, physical compiled-slot provider or Native handler from a
+name.
 
 `NativeCompiledProcedure` lowers the original request into a fresh compiler
 Module and moves that body's IR into one Module-issued `Installed` body. It

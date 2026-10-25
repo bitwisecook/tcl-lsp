@@ -37,6 +37,7 @@ mod native_procedure_source;
 pub use native_procedure_source::NativeCompiledProcedure;
 
 use crate::lowering::{
+    lower_original_procedure_bytes_module_for_bytecode_with_options,
     lower_procedure_bytes_module_for_bytecode_with_options,
     lower_procedure_target_module_for_bytecode_with_options,
     lower_script_bytes_module_for_bytecode_with_options,
@@ -654,22 +655,34 @@ impl BytecodeCompileService {
         config: LexerConfig,
         profile: &'static DialectProfile,
         entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+        original: Option<&tcl_runtime_api::OriginalProcedureCompileRequest>,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let config = Self::native_entry_config(config, entry);
         reject_malformed_byte_script(target.source, config)?;
-        let ir = lower_procedure_bytes_module_for_bytecode_with_options(
-            target,
+        let options = Self::source_analysis_options(
+            CompileSourcePolicy::entered(entry),
             registry,
             config,
             Some(profile),
-            plain,
-            Self::source_analysis_options(
-                CompileSourcePolicy::entered(entry),
+        );
+        let ir = match original {
+            Some(request) => lower_original_procedure_bytes_module_for_bytecode_with_options(
+                request,
                 registry,
                 config,
                 Some(profile),
+                plain,
+                options,
             ),
-        )
+            None => lower_procedure_bytes_module_for_bytecode_with_options(
+                target,
+                registry,
+                config,
+                Some(profile),
+                plain,
+                options,
+            ),
+        }
         .map_err(native_word_compile_error)?;
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
@@ -774,7 +787,17 @@ impl CompileService for BytecodeCompileService {
                 "original procedure compilation owner is unavailable".to_owned(),
             ));
         }
-        self.compile_procedure_bytes_with_entry(request.target(), profile, entry, dispatch)
+        require_entry_profile(entry, profile)?;
+        let registry = self.registry.registry_for_profile(profile)?;
+        Self::compile_procedure_bytes_target_with(
+            request.target(),
+            dispatch == ProcedureDispatch::Plain,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            Some(entry),
+            Some(request),
+        )
     }
 
     fn compile_procedure_with_entry(
@@ -910,6 +933,7 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
             profile,
             None,
+            None,
         )
     }
 
@@ -929,6 +953,7 @@ impl CompileService for BytecodeCompileService {
             LexerConfig::from_grammar(profile.grammar),
             profile,
             Some(entry),
+            None,
         )
     }
 

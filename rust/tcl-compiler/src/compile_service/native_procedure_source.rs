@@ -39,8 +39,21 @@ impl NativeCompiledProcedure {
         let text = target.source.try_text().map_err(|error| {
             CompileError::Unsupported(format!("original procedure text is unavailable: {error}"))
         })?;
-        let params = target
-            .parameters
+        let ordinary = request.ordinary_formals().ok_or_else(|| {
+            CompileError::Unsupported(
+                "ordinary original formal bindings are unavailable".to_owned(),
+            )
+        })?;
+        if BytecodeCompileService::native_entry_options(entry, Some(profile))
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            != Some(tcl_dialect::ParameterGrammar::Tcl)
+        {
+            return Err(CompileError::Unsupported(
+                "active ordinary formal policy is unavailable".to_owned(),
+            ));
+        }
+        let params = ordinary
             .iter()
             .map(|name| name.try_utf8().map(str::to_owned))
             .collect::<Result<Vec<_>, _>>()
@@ -49,18 +62,19 @@ impl NativeCompiledProcedure {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             Some(entry),
         );
-        let mut module = crate::lowering::lower_procedure_bytes_module_for_bytecode_with_options(
-            target,
-            registry,
-            config,
-            Some(profile),
-            dispatch == ProcedureDispatch::Plain,
-            Some(BytecodeCompileService::native_entry_options(
-                entry,
+        let mut module =
+            crate::lowering::lower_original_procedure_bytes_module_for_bytecode_with_options(
+                request,
+                registry,
+                config,
                 Some(profile),
-            )),
-        )
-        .map_err(|error| CompileError::Unsupported(format!("{error:?}")))?;
+                dispatch == ProcedureDispatch::Plain,
+                Some(BytecodeCompileService::native_entry_options(
+                    entry,
+                    Some(profile),
+                )),
+            )
+            .map_err(|error| CompileError::Unsupported(format!("{error:?}")))?;
         let end = u32::try_from(target.source.len())
             .map_err(|error| CompileError::Unsupported(error.to_string()))?;
         let body = std::mem::take(&mut module.top_level);
@@ -111,6 +125,7 @@ impl NativeCompiledProcedure {
         entry: &NativeCompilationEntry,
     ) -> Option<(ProcedureId, &'a Procedure)> {
         if !self.request.matches_entry(entry)
+            || self.request.ordinary_formals().is_none()
             || self.request.target().source.len() != self.request.original_source().len()
             || !module.procedure_ids.owns(self.id)
             || module.source != self.module.source
