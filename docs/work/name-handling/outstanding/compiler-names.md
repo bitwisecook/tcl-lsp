@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T10:43:23.476722+00:00
+Last updated: 2026-10-25T10:58:41.109047+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T10:58:41.109047+00:00: Root integrated Names source61fbb9 + current complete metadata3de, successor WORKa575d8478ec1a83f5b2ec58a16dfe3afe210606e/CLEAN5e480342f. Assigned next originalJim51 actual authentication; root pushing/dispatching, no current runID/results yet. Exact current driver563081a0 unchanged, previewbba45960/dataflow5231edf3; existing verifierf6766339 reusable. Workspace3.2GiB, tmp17MiB: one futureZIP workspaceonly, no duplicate/expandedmaps. Compiler notified to rebase Logical observer interval/currentdriver pins; no canonical edits. Original51/oldguards unchanged; gains/newcontrols/performance unproved until actual.
 
 Resume 2026-10-25T10:43:00.926776+00:00: Productive SAME-CU source V1 independent deep CLEAR Codegen72810a40 (exactcurrent10/F-R-F0/fmt8/owner/API/lifetime; no execution claim). Metadata V1 independently HOLD8cb4ad3e: stale original58 driver and omitted readonly13/fold CU consumers. Frozen current successor names-jim-cu-static-read-metadata-v2 manifestb381880f/patch67b0f899 at WORK6739229b covers all23JSON census: CU readonly13+taint2+fold, previewLogical3 and all three current42b8 original58 wholeJSON guards. Fold driver reads roster directly, no existing wholehash consumer; unchanged. FullJSON/driverinverse+AST/F-R-F0/current5sourcepreimages PASSstatic. Codegen independent metadata CLEAR PRECOMPOSITION bf688cf7: current5pins/full4JSON+driverinverse/AST/F-R-F0/Git23 all5sourcecensus independently PASS; entire validation-tools literal census confirms only three original58 guards and fold no literalconsumer. Receipt independently hash-reread. Frozen productV1 unchanged; root must compose pending Logicalobserver separateinterval/finalpreviewpin and shared driver. Rust/newcontrols/actualJim gains/performance remain UNRUN.
 

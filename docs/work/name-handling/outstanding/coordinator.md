@@ -2,7 +2,7 @@
 
 Area: release coordination, reviewed integration, evidence admission, snapshots and shipping gates.
 
-Last updated: 2026-10-25T10:58:37.543155+00:00
+Last updated: 2026-10-25T11:15:29.058400+00:00
 
 ## Resume
 
@@ -13,12 +13,14 @@ Last updated: 2026-10-25T10:58:37.543155+00:00
 5. Disk below2GiB forbids local builds. No unsafe target/executable cleanup.
 6. Six-hour target missed.09:55 cycle missed;10:25 catch-up late, next10:55UTC. Record actual report time.
 
-### Current cycle and routing (10:45 UTC)
+### Current cycle and routing (11:15 UTC)
 
-- The10:45 checkpoint is late; actual write/publication timestamps are retained. Reviewed product fixes pushed to work a575d8478ec1a83f5b2ec58a16dfe3afe210606e and release/lsp-naming5e480342f347fda3aa3cebfc858298232d3b8a97 after depth1 origin/work fetch. No PR, merge, tag or release.
-- Actual strict09cd assessment dc0f9e33 authenticates the exact source and bounded run. Two E0277 errors occurred only in new native lifecycle fixtures passing borrowed byte arrays. The supported owned byte-array inputs preserve every assertion and are now pushed. Later gates were not reached; fresh strict retry required.
-- The genuine SAME-CU Jim static-read owner fix and complete tracked-source pin companions are now integrated on both product branches. No semantic equality, Native permission or opaque-call navigation relaxation. Prior actual Jim31/45 remains the last result; fresh51 validation pending.
-- Procedure recursion phase split is independently source-reviewed, with one explicit Box allocation per prepared call. Original128 guards and activation/admission rules remain unchanged. Separate same-ELF proc test measurement after original131 has mocked guard coverage and independent review. Integration and actual Rust/stack outcomes remain pending.
-- Existing09cd five-host wave remains active with typed source-body region ownership and direct diagnostic Indexed readiness. Actual new host/source controls are not yet admitted. Full source/ELF/process authentication will precede any result claim.
-- Scoped prior actual gains remain: closed16 and original expression-fold test pass; allocation-owner3 pass; corrected publication2 and holder controls pass; foreach50 and300 pass. Original Logical/compiler, runtime, host and WASM failures remain recorded.
-- All sectionF, complete current24312 baseline identities with zero pass-to-fail, required green CI, SpecTcl acceptance, native/browser/editor checks, generated files, packaging/prep-pr, final documentation/comments/formatting and shipping Tcl performance remain required. Dedicated iRules timing only is waived. External BIGIP/perf trackers remain over60minutes stale; user notified and no takeover.
+- Current reviewed fixes pushed on workbe5cd10dea24161d4a36af359400a71d1d768ca7 and release658de2eed4ce83044b7a20fbb3182659c60aba27. Currentrusted694 merged normally into both preserving naming synchronization/ownership and current dependency locks; no PR/merge to rust/tag/release.
+- Fresh strict09cd byte-array E0277 errors fixed; strict02672 then exposed two Clippy errors in VM lifecycle inputs. Private borrowed-only Copy and raw const pointer syntax corrected with exact identity predicates preserved. Fresh strict40187955918 atbe5 running; no warning waiver.
+- Reviewed procedure phase split actual20401 failed compile E0308: original admission owner was boxed. Exact onefield type correction preserves the original Box and retirement. Fully qualified failure6b2724; all132 and CFI unrun. Fresh focused runtime40187961883 atbe5 active; no stack/depth/assertion increase.
+- Browser09cd sibling source definition now passes; WASI quiet-call definition now passes. Remaining browser rename main-world coverage and WASI unrelated-app references projection failures assigned to LSP. Nativeunit1 fullauthPASS; new directdiagnostic control unselected. Startup/Core2 still active. No opaque-call uncertainty weakening.
+- Genuine SAME-CU Jim owner repair integrated; original51 run40187002599 at02672 active. Priorf7 original45 remains31/45. Logicalfirstguard observer run40187146887 at20401 active; later narrow oracle-backed fixture correction and real mixed-dispatch controls integrated with complete tracked sourcepin companions.
+- Completed full CLEANd622 captures retain32heavy+260e2epartition2+266partition3 failures.487 have historicalfcb baselinePASS matches and71 are absent/unknown. Mainshards failed testcompilation before named outcomes; nativepartition1 remainsactive. This is no currentbaseline verdict and no allgreen claim.
+- Currentoriginrust is nowed694, direct child offcb. OldpushCI reused prior green tree without rerunning named tests. Dispatched true baseline fullCI40187433105 with publishing disabled; paired Tcl performance on CLEAN72d vsed for sixLinux/macOS corpus scopes with threepairs/15checks. Results/performanceacceptance pending; iRules timing only waived.
+- Release-only cleanup removes unreferenced optimise_memo_experiments example; no docs/work or new evidence paths carried. Functional generatedfiles/fixtures/tooling kept. Readonly root/runtimefmt active; WORK-only read-only JetBrains workflow prepared for review and actualtesting, no publishing.
+- All sectionF/currentbaselinezeroPF/requiredgreenCI/runtime/SpecTcl/native/editor/host/generated/packaging/prep-pr/finaldocscommentsfmt/Tclperf gates remain open. Disk3.2GiB, no livebuild target deletion. ExternalBIGIP/perfstale over60min notified without taking ownership. Nextcycle11:45.

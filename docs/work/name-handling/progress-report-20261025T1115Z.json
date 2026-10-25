@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T11:15:29.313702+00:00",
+  "scheduled_report_utc": "2026-10-25T11:15:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T11:45:00+00:00",
+  "change_since_previous_report": [
+    "Current reviewed fixes pushed on workbe5cd10dea24161d4a36af359400a71d1d768ca7 and release658de2eed4ce83044b7a20fbb3182659c60aba27. Currentrusted694 merged normally into both preserving naming synchronization/ownership and current dependency locks; no PR/merge to rust/tag/release.",
+    "Fresh strict09cd byte-array E0277 errors fixed; strict02672 then exposed two Clippy errors in VM lifecycle inputs. Private borrowed-only Copy and raw const pointer syntax corrected with exact identity predicates preserved. Fresh strict40187955918 atbe5 running; no warning waiver.",
+    "Reviewed procedure phase split actual20401 failed compile E0308: original admission owner was boxed. Exact onefield type correction preserves the original Box and retirement. Fully qualified failure6b2724; all132 and CFI unrun. Fresh focused runtime40187961883 atbe5 active; no stack/depth/assertion increase.",
+    "Browser09cd sibling source definition now passes; WASI quiet-call definition now passes. Remaining browser rename main-world coverage and WASI unrelated-app references projection failures assigned to LSP. Nativeunit1 fullauthPASS; new directdiagnostic control unselected. Startup/Core2 still active. No opaque-call uncertainty weakening.",
+    "Genuine SAME-CU Jim owner repair integrated; original51 run40187002599 at02672 active. Priorf7 original45 remains31/45. Logicalfirstguard observer run40187146887 at20401 active; later narrow oracle-backed fixture correction and real mixed-dispatch controls integrated with complete tracked sourcepin companions.",
+    "Completed full CLEANd622 captures retain32heavy+260e2epartition2+266partition3 failures.487 have historicalfcb baselinePASS matches and71 are absent/unknown. Mainshards failed testcompilation before named outcomes; nativepartition1 remainsactive. This is no currentbaseline verdict and no allgreen claim.",
+    "Currentoriginrust is nowed694, direct child offcb. OldpushCI reused prior green tree without rerunning named tests. Dispatched true baseline fullCI40187433105 with publishing disabled; paired Tcl performance on CLEAN72d vsed for sixLinux/macOS corpus scopes with threepairs/15checks. Results/performanceacceptance pending; iRules timing only waived.",
+    "Release-only cleanup removes unreferenced optimise_memo_experiments example; no docs/work or new evidence paths carried. Functional generatedfiles/fixtures/tooling kept. Readonly root/runtimefmt active; WORK-only read-only JetBrains workflow prepared for review and actualtesting, no publishing.",
+    "All sectionF/currentbaselinezeroPF/requiredgreenCI/runtime/SpecTcl/native/editor/host/generated/packaging/prep-pr/finaldocscommentsfmt/Tclperf gates remain open. Disk3.2GiB, no livebuild target deletion. ExternalBIGIP/perfstale over60min notified without taking ownership. Nextcycle11:45."
+  ],
+  "committed": [
+    "05cdd163d73a07238c5cc8edd09094e933f8bbbe"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish11:15 WIP/report and arm11:45 reminder.",
+    "Assess exactbe5 strict/runtime and02672Jim/20401compiler artifacts; fix reached failures.",
+    "Complete productive LSP root-world/effect transport, current baseline named comparison and full required CI.",
+    "Collect six-scope paired Tcl performance, run Kotlin validation, finish release docs/format/chaff before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new global gate or audit admission. Reviewed source fixes and unrun controls are explicit; scoped actual results retain their original source and receipts.",
+  "disk_free_bytes": 3218923520,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

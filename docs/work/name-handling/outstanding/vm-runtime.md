@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T10:57:24.340092+00:00
+Last updated: 2026-10-25T11:12:03.155408+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -831,7 +831,8 @@ owner, environment,180s deadline,205s reserve,2GiB floor, suite/absolute deadlin
 remaining20MiB cap; no new build, budget reset or stack increase. Fourteen focused
 mocked guard branches/full F-R-F0 PASS receipt2c278f80134a5346d0a306c335bb7a9dfda0704d34c3e7ee2a30cd71f9bbdca3.
 Actual new measurement UNRUN until root canonical integration/dispatch. Earlier118e
-watch-name manifest superseded; Codegen final exact watch correction review pending.
+watch-name manifest superseded; final Codegen independent exact72d6 STATIC CLEAR
+ba220d1a8f89767f13338458e9c585b319b14f674c4a3a188589e9bdf1a146d5.
 
 Independent cfgtest SourceImage byte-array conversion peer STATIC CLEAR
 `vm-peer-native-custody-fixture-bytes-v1/receipt.json`
@@ -839,3 +840,46 @@ bb255ce9e14c121aff6dcd389455a1a3a8cf475a7981dbe7b67d50051eb5256d:
 exact two byte-array dereferences/whole source inverse, paired F-R-F0/fmt, sole roles
 pin and derived readonly13 hash; no production/assertion/header/prefix change.
 Actual post-fix Rust/Clippy remains UNRUN at peer time.
+
+
+Root integrated phase split WORKc5cf34/CLEANdde3175, WORK metadata c8b52 and
+final measurement7d4a7. Upcoming focused fullTom artifact ownership assigned here:
+authenticate single shared ZIP exact dispatched revision (never later HEAD), old131
+plus distinct proc_stack1, process lifecycle/shared aggregate budgets and retained
+CFI limits. Run ID not yet provided. No actual post-phase result/stack gain claimed.
+
+
+## Actual phase-split build refusal and exact owner-wrapper correction
+
+Focused WORK20401 run40187142138/job121150229660 completed failure. One shared ZIP
+`vm-runtime-actual-40187142138/artifact.zip`,26,918,764 bytes,
+b1f3f3711bb40d959938c3fa8af9d6bc3c6e8bf4077654f9d23d27883384777f.
+Scoped receipt6b2724c9c5707dddbd6d3d568764f56492373455025fe43d7f336369e75f7337
+checks all25 members CRC/SHA, exactAPI/run/job/source/size,126311 NUL trackedmembership
+and35 exactGitblob sourcepins, six provider pre/post maps and ownedclosedbootstrap.
+Finalsource check/tools executable hashes/TomMathpostmap absent; no stronger source/
+backendpostseal claim. Build/capture101, empty listing, sole primary E0308 at
+interp.rs18894: actual prepare_native_procedure returns Box<NativeProcedureAdmission>,
+new retained field incorrectly declared bare NativeProcedureAdmission. Earlier static
+review missed wrapper type and is superseded by actual diagnostic. ALL132+CFI UNRUN;
+no semantic gain/stackcause/typing success claim.
+
+Frozen paired `vm-proc-admission-box-fix-v1/manifest.json`
+d4be5890c45d278ec7cde46eaeff9869dd262b92b4dc70ed0155964bafe0aab4 changes
+ONLY private retained field to Box<NativeProcedureAdmission>; preserves existing Box
+move/ownership/drop and does not unbox, clone or mint admission. Paired wholeinverse,
+F-R-F0 and rustfmt1.99.1 edition2021 skipchildren CHECKPASS. WORKpatchcbaea797;
+CLEANpatchc4696d3c. Exact sole interp sourcepin+derivedwasmrosterhash companion
+manifestd9e7d400356955422d2d357ac8cf6d7a6c39a42193f5a30e3b5ba5c51c401eba,
+patch84e5f1fd. Codegen independent actualfactory-signature/source+metadata STATIC CLEAR
+ce8b6207e9c43957bc7a2c7ccfa27d838714aa6de5bd699d97e6fef1c4a11d28.
+Actual post-fix Rust/Clippy/tests/CFI UNRUN until fresh rootdispatch.
+
+Independent actualstrict026 VM lint packet peer STATIC CLEAR
+`vm-peer-native-custody-vm-clippy-v1/receipt.json`
+80554a9e8318bca81f975ae22f55274f1d52bc8f1fbd45bbe3478e37c13f130e:
+private ProcedureBodySource contains exactly2 borrowedrefs/no owners/Drop; CloneCopy
+only copies existing views, no receipt/admission grant. Explicit rawconst retains
+same actualfieldpointer/ptrEq/shortcircuit/query/drop semantics. Paired currentpins/
+wholeinverse/F-R-F0/fmt2 and BOTH readonly13+irules sourcepins+deriveddriverwholehashes,
+23trackedJSON/17pinmaps census PASS. Actual post-fix Clippy UNRUN at reviewtime.
