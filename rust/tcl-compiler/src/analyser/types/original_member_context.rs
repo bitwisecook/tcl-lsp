@@ -944,7 +944,7 @@ mod original_class_object_source_tests {
             .is_none()
         );
         let mut missing = class.clone();
-        missing.original_members = Default::default();
+        missing.original_members = crate::analyser::types::OriginalSourceMemberLedger::default();
         assert!(
             OriginalLexicalMemberContext::from_original_definition_method(
                 &analysis, &missing, method
