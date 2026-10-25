@@ -1493,7 +1493,7 @@ fn merge_receipt_inventory<K: Ord, T: PartialEq>(
 #[derive(Clone)]
 struct AdviceGraph {
     native_baseline: bool,
-    cells: HashMap<ByteCommandSlot, AdviceCell>,
+    cells: super::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>>,
     namespaces: BTreeSet<ByteNamespacePath>,
     namespace_exports: BTreeMap<ByteNamespacePath, Vec<NameBytes>>,
     namespace_paths: BTreeMap<ByteNamespacePath, Vec<ByteNamespacePath>>,
@@ -1570,7 +1570,7 @@ impl AdviceGraph {
     ) -> Option<Self> {
         let mut graph = Self {
             native_baseline: false,
-            cells: HashMap::new(),
+            cells: HashMap::new().into(),
             namespaces: BTreeSet::from([ByteNamespacePath::root()]),
             namespace_exports: BTreeMap::new(),
             namespace_paths: BTreeMap::new(),
@@ -1846,10 +1846,9 @@ impl AdviceGraph {
         self.uncertain_operations.push(Arc::from(original));
         self.handles.clear();
         self.withdraw_namespace_advice();
-        self.cells.retain(|slot, cell| match cell {
-            AdviceCell::Descriptor(_, lineage) => {
-                lineage.is_empty() || self.namespace_imports.contains_key(slot)
-            }
+        let imports = &self.namespace_imports;
+        let keep = |slot: &ByteCommandSlot, cell: &AdviceCell| match cell {
+            AdviceCell::Descriptor(_, lineage) => lineage.is_empty() || imports.contains_key(slot),
             AdviceCell::Shadowed
             | AdviceCell::Deleted
             | AdviceCell::Declared(_)
@@ -1861,7 +1860,11 @@ impl AdviceGraph {
             | AdviceCell::RegisteredInstance(_)
             | AdviceCell::Alias { .. } => true,
             AdviceCell::CreatedInterpreter(_) => false,
-        });
+        };
+        self.cells.update_if_needed(
+            |cells| cells.iter().any(|(slot, cell)| !keep(slot, cell)),
+            |cells| cells.retain(|slot, cell| keep(slot, cell)),
+        );
     }
     fn blocks_registry_source(&self, input: &SourceAdviceNameInput) -> bool {
         let Some(start) = self.lookup_head_key(input.bytes()) else {
@@ -4518,5 +4521,110 @@ mod possible_occupant_alias_tests {
         graph.possible_occupants.insert(slot(b"helper"));
         assert!(graph.resolve(&run).is_none());
         assert!(graph.blocks_registry_source(&run));
+    }
+}
+
+#[cfg(test)]
+mod advice_cell_storage_tests {
+    use super::*;
+
+    fn graph() -> AdviceGraph {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        AdviceGraph::new(
+            &context,
+            &AdviceNamingPolicy::Logical(input),
+            InvocationDialect::of_profile(profile),
+        )
+        .unwrap()
+    }
+
+    fn original_words() -> Vec<NativeWord> {
+        let config =
+            LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document("opaque"),
+            tcl_lexer::Span::new(0, 6),
+            config,
+        )
+        .unwrap()
+        .commands
+        .remove(0)
+        .words
+    }
+
+    #[test]
+    fn cloned_advice_cells_share_storage_and_mutation_preserves_old_snapshot() {
+        let mut current = graph();
+        let old = current.clone();
+        assert!(current.cells.shares_storage(&old.cells));
+        let key = AdviceNamingPolicy::logical_slot(b"::retained_cell_storage_control").unwrap();
+        assert!(!old.cells.contains_key(&key));
+        current.cells.insert(key.clone(), AdviceCell::Shadowed);
+        assert!(!current.cells.shares_storage(&old.cells));
+        assert!(!old.cells.contains_key(&key));
+        assert!(matches!(
+            current.cells.get(&key),
+            Some(AdviceCell::Shadowed)
+        ));
+        assert_eq!(current.cells.len(), old.cells.len() + 1);
+    }
+
+    #[test]
+    fn widening_with_no_cell_removals_keeps_shared_storage() {
+        let current = graph();
+        let mut branch = current.clone();
+        assert!(branch.cells.shares_storage(&current.cells));
+        branch.widen(&original_words());
+        assert!(branch.cells.shares_storage(&current.cells));
+        assert_eq!(&*branch.cells, &*current.cells);
+        assert!(current.uncertain_operations.is_empty());
+        assert_eq!(branch.uncertain_operations.len(), 1);
+        assert_eq!(branch.uncertain_operations[0][0].bytes(), b"opaque");
+    }
+
+    #[test]
+    fn widening_detaches_removed_lineage_but_retains_imported_lineage() {
+        let mut current = graph();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let source = "rename list moved; moved value";
+        let config =
+            LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        let bindings =
+            super::super::SourceCommandBindings::analyse(source, config, context.commands());
+        let tape = bindings
+            .original_source_transition_advice_tape(&context)
+            .unwrap();
+        let receipt = tape
+            .advice
+            .values()
+            .find_map(|advice| advice.lineage().first().cloned())
+            .unwrap();
+        let removed = AdviceNamingPolicy::logical_slot(b"::removed_storage_control").unwrap();
+        let imported = AdviceNamingPolicy::logical_slot(b"::imported_storage_control").unwrap();
+        let origin = AdviceNamingPolicy::logical_slot(b"::origin_storage_control").unwrap();
+        for key in [&removed, &imported] {
+            current.cells.insert(
+                key.clone(),
+                AdviceCell::Descriptor("list".into(), vec![Arc::clone(&receipt)]),
+            );
+        }
+        current.namespace_imports.insert(imported.clone(), origin);
+        let old = current.clone();
+        current.widen(&original_words());
+        assert!(!current.cells.shares_storage(&old.cells));
+        assert!(!current.cells.contains_key(&removed));
+        assert!(old.cells.contains_key(&removed));
+        assert_eq!(current.cells.get(&imported), old.cells.get(&imported));
+        assert_eq!(current.cells.len() + 1, old.cells.len());
+        assert!(old.uncertain_operations.is_empty());
     }
 }
