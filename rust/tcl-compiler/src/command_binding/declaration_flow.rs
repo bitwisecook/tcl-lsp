@@ -4038,7 +4038,13 @@ mod conditional_declared_read_point_tests {
             .declaration_flow_report(fixture.input.borrowed_context_registry().commands())
             .unwrap();
         assert!(report.unavailable);
-        assert!(!report.potential_declared_reads().contains_key("missing"));
+        let span = report.potential_declared_reads()["missing"];
+        assert!(
+            !report
+                .declared_absence_warning_occurrences()
+                .contains_key("missing")
+        );
+        assert!(!report.allows_declared_absence_warning("missing", span));
         let original = fixture.site.clone();
         fixture.site.offset += 1;
         assert_ne!(fixture.site, original);
