@@ -193,7 +193,7 @@ pub fn minify_with_analysis(
         result.refusals.push(MinifyRefusal::StaleSource);
         return result;
     }
-    if analysis.allows_lexical_declaration_advice() {
+    if lexical_minify_route(source, analysis) {
         // Implementation contract: naming.minifier.lexical-authoring-passes
         // docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
         // naming.minifier.retained-lexical-context
@@ -559,6 +559,30 @@ fn static_quoted_source_edits(word: &tcl_lexer::NativeWord) -> Option<[SourceGap
     ])
 }
 
+fn lexical_minify_route(source: &str, analysis: &AnalysisResult) -> bool {
+    let lexical = analysis.allows_lexical_declaration_advice();
+    trace_minify_source(
+        "branch.lexical",
+        source.len(),
+        None,
+        Some(usize::from(lexical)),
+    );
+    lexical
+}
+
+fn trace_minify_source(
+    stage: &'static str,
+    bytes: usize,
+    offset: Option<u32>,
+    count: Option<usize>,
+) {
+    if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1"))
+        && std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
+    {
+        eprintln!("MINIFY_SOURCE stage={stage} bytes={bytes} offset={offset:?} count={count:?}");
+    }
+}
+
 fn source_body_expression_gap_proofs(
     source: &str,
     analysis: &AnalysisResult,
@@ -571,10 +595,14 @@ fn source_body_expression_gap_proofs(
     MinifyRefusal,
 > {
     let mut proofs = Vec::new();
-    for (argument, original) in inventory
-        .expression_operands(source, analysis, command)
-        .unwrap_or_default()
-    {
+    let operands = inventory.expression_operands(source, analysis, command);
+    trace_minify_source(
+        "source.operands",
+        source.len(),
+        command.argv.first().map(|word| word.span.start()),
+        operands.as_ref().map(Vec::len),
+    );
+    for (argument, original) in operands.unwrap_or_default() {
         if native_arguments.contains(&argument)
             || original.group().kind != tcl_lexer::WordKind::Braced
         {
@@ -589,9 +617,15 @@ fn source_body_expression_gap_proofs(
         // A source Expr role supplies only token-gap correspondence. It never
         // enters boolean inversion, Native rewriting or a completion domain.
         let candidate = super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
-        let Some(proof) =
-            inventory.source_expression_gaps(source, analysis, command, argument, &candidate)
-        else {
+        let proof =
+            inventory.source_expression_gaps(source, analysis, command, argument, &candidate);
+        trace_minify_source(
+            "source.gap-proof",
+            source.len(),
+            command.argv.first().map(|word| word.span.start()),
+            Some(usize::from(proof.is_some())),
+        );
+        let Some(proof) = proof else {
             continue;
         };
         if proof.original_operand() != &original
@@ -632,6 +666,20 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
         source, analysis, config,
     )
     .ok_or(MinifyRefusal::OriginalSyntaxUnavailable)?;
+    trace_minify_source(
+        "structure.inventory",
+        source.len(),
+        None,
+        Some(usize::from(structure.compiler_body_syntax.is_some())),
+    );
+    for command in &structure.commands {
+        trace_minify_source(
+            "structure.command",
+            source.len(),
+            command.argv.first().map(|word| word.span.start()),
+            Some(command.argv.len()),
+        );
+    }
     let image = SourceImage::document(source);
     let mut plans = Vec::new();
     let mut edits = Vec::new();

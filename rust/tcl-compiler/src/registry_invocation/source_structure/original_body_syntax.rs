@@ -30,15 +30,14 @@ fn trace_body_syntax_option<T>(
     alternative: Option<usize>,
     value: Option<T>,
 ) -> Option<T> {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if (cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
+        && std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
+    {
         eprintln!(
             "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} present={}",
             value.is_some()
         );
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset, alternative);
     value
 }
 
@@ -48,14 +47,13 @@ fn trace_body_syntax_flag(
     alternative: Option<usize>,
     value: bool,
 ) -> bool {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if (cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
+        && std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
+    {
         eprintln!(
             "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} value={value}"
         );
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset, alternative);
     value
 }
 
@@ -65,16 +63,41 @@ impl OriginalBodySyntaxInventory {
     /// substituted when its current source/compiler request is unavailable.
     #[must_use]
     pub fn capture(source: &str, analysis: &AnalysisResult) -> Option<Self> {
-        let input = analysis.resolved_input.as_ref()?;
+        let input = trace_body_syntax_option(
+            "capture.input",
+            None,
+            None,
+            analysis.resolved_input.as_ref(),
+        )?;
         let image = SourceImage::document(source);
-        let realm = Arc::clone(analysis.retained_command_realm_arc()?);
-        let registry = analysis.resolved_registry()?;
-        let request = analysis
-            .original_optimiser_request_owner(source, registry)?
-            .clone();
-        let unit = analysis.original_optimiser_source_unit(source, registry, None)?;
+        let realm = Arc::clone(trace_body_syntax_option(
+            "capture.realm",
+            None,
+            None,
+            analysis.retained_command_realm_arc(),
+        )?);
+        let registry =
+            trace_body_syntax_option("capture.registry", None, None, analysis.resolved_registry())?;
+        let request = trace_body_syntax_option(
+            "capture.request",
+            None,
+            None,
+            analysis.original_optimiser_request_owner(source, registry),
+        )?
+        .clone();
+        let unit = trace_body_syntax_option(
+            "capture.unit",
+            None,
+            None,
+            analysis.original_optimiser_source_unit(source, registry, None),
+        )?;
         let module = &unit.ir_module;
-        let retained = module.retained_source_bindings.as_ref()?;
+        let retained = trace_body_syntax_option(
+            "capture.retained",
+            None,
+            None,
+            module.retained_source_bindings.as_ref(),
+        )?;
         if !analysis.matches_original_source_image(&image, input.lexer_config())
             || !retained.matches_module(module, registry)
             || module.source != source
