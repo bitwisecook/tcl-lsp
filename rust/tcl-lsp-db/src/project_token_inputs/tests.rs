@@ -159,11 +159,11 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
     let index = project_proc_var_index_for_inputs(&db, project);
     let library_input = document_analysis_input(&db, library, library_config).unwrap();
     let caller_input = document_analysis_input(&db, caller, caller_config).unwrap();
-    let library_analysis = document_analyser(&db, library, library_config)
+    let library_analysis = crate::document_analyser(&db, library, library_config)
         .with_resolved_input((*library_input).clone())
         .structure_only()
         .analyse(library.text(&db), library.dialect(&db));
-    let caller_analysis = document_analyser(&db, caller, caller_config)
+    let caller_analysis = crate::document_analyser(&db, caller, caller_config)
         .with_resolved_input((*caller_input).clone())
         .structure_only()
         .analyse(caller.text(&db), caller.dialect(&db));
