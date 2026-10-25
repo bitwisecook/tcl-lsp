@@ -129,7 +129,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
     if prefix.startswith(
-        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "list-")
+        ("pack_source_e2e-", "cmd_control_e2e-", "native_normal_store-", "spec_corpus-", "tcl_vm-", "list-")
     ):
         require(
             available >= seconds,
@@ -210,7 +210,15 @@ supplemental_rows = [
 ]
 hostile_rows = [{"group": "separate_hostile_containment", "target": "spec_corpus", "selector": roster["hostile_containment"][0], "state": "UNRUN"}]
 require(roster["hostile_containment"] == ["a_hostile_pack_degrades_to_abstention_and_never_hangs"], "unchanged original hostile containment1")
-rows = original_rows + supplemental_rows + hostile_rows
+require(
+    roster["native_index"] == ['exec::native_namespace_string_tests::registered_string_index_reaches_original_storage_without_namespace_search', 'exec::native_namespace_string_tests::registered_string_index_keeps_aliased_getter_primary_and_foreign_release_refusal', 'exec::native_namespace_string_tests::registered_string_index_keeps_c86_reached_surrogate_pair_instruction_behavior'],
+    "separate genuine registered native index3 roster",
+)
+native_index_rows = [
+    {"group": "separate_native_index", "target": "tcl_vm", "selector": name, "state": "UNRUN"}
+    for name in roster["native_index"]
+]
+rows = original_rows + supplemental_rows + hostile_rows + native_index_rows
 remaining = CAP
 before = providers_before = dependencies_before = tool_pins = None
 artifacts = []
@@ -402,11 +410,12 @@ try:
         ("tcl-vm", "cmd_control_e2e", roster["catch"]),
         ("tcl-spectcl", "native_normal_store", roster["native_parent_store"]),
         ("tcl-spectcl", "spec_corpus", roster["hostile_containment"]),
+        ("tcl-vm", "tcl_vm", roster["native_index"]),
     ]
     for package, target_name, selectors in targets:
         require(remaining > 512 * 1024, "insufficient log budget before selected build")
         target_group = (
-            "separate_hostile" if target_name == "spec_corpus" else ("supplemental" if target_name == "native_normal_store" else "original")
+            "separate_native_index" if target_name == "tcl_vm" else "separate_hostile" if target_name == "spec_corpus" else ("supplemental" if target_name == "native_normal_store" else "original")
         )
         print("BUILD " + target_group + " target " + target_name, flush=True)
         argv = [
@@ -415,8 +424,7 @@ try:
             "--locked",
             "-p",
             package,
-            "--test",
-            target_name,
+            *(["--lib"] if target_name == "tcl_vm" else ["--test", target_name]),
             "--no-run",
             "--message-format=json",
             "-j",
@@ -459,7 +467,7 @@ try:
             for row in messages
             if row.get("reason") == "compiler-artifact"
             and row.get("target", {}).get("name") == target_name
-            and row.get("target", {}).get("kind") == ["test"]
+            and row.get("target", {}).get("kind") == (["lib"] if target_name == "tcl_vm" else ["test"])
             and row.get("manifest_path") == str(root / "rust" / package / "Cargo.toml")
             and row.get("profile", {}).get("test") is True
             and row.get("executable")
@@ -495,6 +503,8 @@ try:
         list_argv = [str(executable), "--list", "--format", "terse"]
         if target_name in ["cmd_control_e2e", "spec_corpus"]:
             list_argv += ["--exact", selectors[0]]
+        if target_name == "tcl_vm":
+            list_argv += ["exec::native_namespace_string_tests::registered_string_index_"]
         listing = execute(
             list_argv, "list-" + target_name, executable, 180, env, remaining
         )
@@ -584,6 +594,7 @@ try:
         len(original_rows) == 11
         and len(supplemental_rows) == 1
         and len(hostile_rows) == 1
+        and len(native_index_rows) == 3
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original or separate supplemental test inventory incomplete",
     )
@@ -659,6 +670,8 @@ finally:
             "supplemental_outcomes": supplemental_rows,
             "required_separate_hostile_tests": 1,
             "separate_hostile_outcomes": hostile_rows,
+            "required_separate_native_index_tests": 3,
+            "separate_native_index_outcomes": native_index_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,
