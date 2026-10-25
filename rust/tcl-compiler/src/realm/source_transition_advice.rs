@@ -804,9 +804,13 @@ impl super::CommandBindingRealm {
         self.matches_original_source_image(image, input.lexer_config())
             .then_some(())?;
         let context = input.context_registry();
-        let prepared = self.source_advice.get_or_prepare(&context, || {
+        let prepared = self.source_call_advice.get_or_prepare(&context, || {
             self.bindings
-                .original_source_transition_advice_tape(&context)
+                .original_normal_source_procedure_advice_tape(&context)
+                .or_else(|| {
+                    self.bindings
+                        .original_source_transition_advice_tape(&context)
+                })
         });
         Some(
             prepared
@@ -837,9 +841,13 @@ impl super::CommandBindingRealm {
         self.matches_original_source_image(image, input.lexer_config())
             .then_some(())?;
         let context = input.context_registry();
-        let prepared = self.source_advice.get_or_prepare(&context, || {
+        let prepared = self.source_call_advice.get_or_prepare(&context, || {
             self.bindings
-                .original_source_transition_advice_tape(&context)
+                .original_normal_source_procedure_advice_tape(&context)
+                .or_else(|| {
+                    self.bindings
+                        .original_source_transition_advice_tape(&context)
+                })
         });
         let call = prepared
             .as_ref()

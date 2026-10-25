@@ -1254,6 +1254,16 @@ before lookup, so that occurrence remains unresolved instead of borrowing a loca
 header. A literal argument remains data; earlier unknown mutations retain their
 independent unresolved alternatives for a conditional source edge.
 
+Procedure-call advice may retain the tape issued by its own complete-root
+Normal-source query after that query's exact input, Registry, analysis attachment
+and completion checks succeed. Each call keeps its own preceding graph, namespace,
+frame, operand effects and uncertainty; the final graph never replaces an earlier
+state. This tape has a separate realm cache from general source catalogues, and a
+conditional region retains the same query-issued tape with its existing owner.
+Missing certification uses the unchanged conservative source tape. The retained
+call relationship supplies no entered frame, runtime Normal outcome or Native
+execution permission.
+
 Explicit Standalone data-group case selection projects shared checked Unicode
 source values as conditional Registry literals. Dynamic and expanded operands
 remain unknown; original source geometry, actual operation selection and edit

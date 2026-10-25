@@ -149,6 +149,7 @@ struct RegionPayload {
     bindings: Arc<SourceCommandBindings>,
     outcomes: Arc<SourceOutcomes>,
     graph: Option<Arc<AdviceGraph>>,
+    normal_call_advice: Option<Arc<crate::command_binding::OriginalSourceTransitionAdviceTape>>,
 }
 impl std::fmt::Debug for OriginalSourceConditionalRegion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -551,15 +552,19 @@ fn walk_region_uncached(
     }
     bindings.final_state = Arc::new(state);
     bindings.invalidate_unpositioned_projections();
-    let normal_graph = bindings
+    let (normal_graph, normal_call_advice) = bindings
         .original_source_transition_seed()?
-        .normal_source_outcome_graph(context, &bindings);
+        .normal_source_outcome_advice(context, &bindings)
+        .map_or((None, None), |(graph, tape)| {
+            (Some(graph), Some(Arc::new(tape)))
+        });
     Some(RegionPayload {
         point,
         entry,
         bindings: Arc::new(bindings),
         outcomes: Arc::new(outcomes),
         graph: normal_graph,
+        normal_call_advice,
     })
 }
 
@@ -576,10 +581,15 @@ impl OriginalSourceConditionalRegion {
         let owner = bindings.original_analysis_owner()?;
         owner.matches(bindings, self.input()).then_some(())?;
         let context = self.input().context_registry();
-        let tape = bindings.original_source_transition_advice_tape_for(
-            &context,
-            crate::command_binding::source_transition_advice::OriginalSourceCataloguePurpose::ConditionalRegion,
-        )?;
+        let fallback = if self.0.normal_call_advice.is_none() {
+            bindings.original_source_transition_advice_tape_for(
+                &context,
+                crate::command_binding::source_transition_advice::OriginalSourceCataloguePurpose::ConditionalRegion,
+            )
+        } else {
+            None
+        };
+        let tape = self.0.normal_call_advice.as_deref().or(fallback.as_ref())?;
         Some(
             tape.native_procedure_calls()
                 .filter_map(|call| {
