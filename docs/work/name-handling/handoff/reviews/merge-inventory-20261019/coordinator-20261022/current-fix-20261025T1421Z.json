@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-25T14:25:47.077433+00:00",
+  "work": "bcc757ce111be30179e92eca9c1803f9294740df",
+  "release": "528f857b083379c5acfd7cb0c1545453fc71483b",
+  "change": "Use identical genuine retained stamped-token binding producer for source availability creation and later currency; full equality retained. New foreign equal-source currency negative.",
+  "source_peer": "e09681d61737be3699f2af9f306a9bb4f0b5c20856734fcb3188ba056dc3c4cb",
+  "metadata_peer": "fc31d22eb8459d60afeb57f6dfd8049d8f8b897075f847e431b6f0acd1f7fd78",
+  "preflight": "V12 PASS13/30/20",
+  "actual_typing_and_W002": "UNRUN; active previous9cf wave does not include this change",
+  "format": "both release workspaces whole formatting PASS",
+  "gate_admissions": []
+}

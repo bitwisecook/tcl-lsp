@@ -61,15 +61,14 @@ completed-world failures remain; narrow successes do not close sectionF.
 Current `origin/rust` advanced to`ed694de47cbbeff0bb9f5cd5888cc336e1e8a463`.
 It is merged into both development and release branches, retaining naming
 changes and current dependency locks. The prior24312-name baseline is historical;
-a fresh full baseline CI run is required because the new tip's push CI reused
-previous green-tree results without executing named tests. Full candidate CI
+a fresh full baseline CI run40187433105 has executed. Its24624 observed namedPASS inventory remains intact. The prior355-test Heavy listing was misattributed from candidate658;44 missing-baseline claims are withdrawn. Exact baseline Heavy selector-list provenance remains unavailable. Full candidate CI
 must also produce complete current inventories. Unknown or cancelled outcomes
 cannot establish zero pass-to-fail.
 
 Six paired Tcl performance jobs now compare Linux/macOS small, medium and full
 corpora against the current rust baseline. Three interleaved pairs and all15
-checks preserve their identity/count guards. These measurements remain pending;
-shipping acceptance requires complete valid results on the final source.
+checks preserve their identity/count guards. All six scopes failed or terminated without a valid accepted comparison.
+Shipping acceptance requires complete valid results on the final source.
 Dedicated iRules timing alone is waived.
 
 The active documentation checkout retains frozen older product bytes and must
@@ -79,7 +78,7 @@ diagnostic observers and manual validation jobs stay out of the release.
 The release chaff audit removes the unreferenced optimisation experiment while
 retaining functional fixtures/generated data. Whole root/runtime formatting
 passes on the recorded candidate; later changes require appropriate rechecks.
-Actual Kotlin validation is scheduled through a bounded read-only WORK job.
+Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounded WORK job; later relevant changes require revalidation.
 
 1. Authenticate each current focused run and clean CI without canceling
    healthy runs. Preserve failures, resource stops and unreached tests. Required

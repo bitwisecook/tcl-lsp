@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T14:45:14.213043+00:00",
+  "scheduled_report_utc": "2026-10-25T14:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T15:15:00+00:00",
+  "change_since_previous_report": [
+    "Seven focused validations were dispatched on WORK9cf256173 and full release CI40201542033 on CLEAN756c23a35. Source/provider/tool/process authentication remains per capture; later source fixes do not inherit those results. Healthy runs preserved.",
+    "Fresh strict9cf fully authenticates original global command exit2, exactly3 native index range_plus_one diagnostics and no Rust E primary. This dependency failure blocks downstream lint coverage; prior160 diagnostics are not declared fixed. Reviewed guarded inclusive-slice fix is paired in WORK and CLEAN.",
+    "Fresh SpecTcl9cf fully authenticated old11 plus native-store1 ALLPASS; separate unchanged hostile test FAIL. Spin and burn refuse because native private errorInfo result header is absent; only boom panics, so original3crash assertion observes1. Runtime is repairing genuine limit-error publication before unwind, preserving refusal and crash classification.",
+    "W002 repair is paired: creation and currency both use exact genuine fully stamped original tokens rather than raw-binding comparison; full equality and owner guards remain. Registry-wide baseline construction now computes the selected final semantics once instead of building and discarding an earlier projection. Both fixes are reviewed, not yet measured.",
+    "Release528f whole main/runtime formatting checks PASS. Fresh static include closure finds3360 direct inputs,686 literal macro-expanded inputs and14 embedded standard-library inputs present. This does not prove runtime-loaded fixture closure, full semantic documentation correctness, test success or global gate admission.",
+    "Historical CLEAN658 native partitions2/3 and Heavy now have verified small result ZIPs and closed terminal records. Native1 was cancelled and lacks final summary; observed outcomes remain qualified. Exact current-ed baseline join records753 historical observed pass-to-fail cases across these scopes, not a verdict on later current source. Full current green CI and complete zero regressions remain required.",
+    "External BIGIP/perf trackers remain more than60minutes stale; user notified without takeover. Work-side reports/evidence stay out of shipping branch. No PR/merge/tag/release/global gate admission. Disk~2.5GiB; no local Rust builds.",
+    "Fresh9cf preliminary host captures advance browser through24checks to existing rename incomplete-original-command-coverage; WASIrefs[] unchanged,143received procedure rows retained. Startup fails earlier direct.produce Cancelled. Full source/provider authentication still in progress; no gate admitted. Jim fully authenticated unchanged31/45, but exact first missing OriginalDeclaration row is now measured.",
+    "Corrected earlier baseline inventory provenance: APIworkflow_run proves Heavylisting12596629331/source658 is candidate, notrust. Ten other retained baseline archives verify against the correct APIrun/source/digests. Baseline24624 observedPASS/Heavy312PASS remain intact;44 claimed missingbaseline outcomes withdrawn, no replacement passes inferred. Baseline selectedHeavy provenance remains unproved. Original erroneous receipt retained/superseded by correction.",
+    "Current9cf focusedruntime135 fully authenticates all closed outcomes, unchanged versus8cfa: originalproc andInfo3controlsPASS,84 other nonpasses remain. No mainVM generic-index or global runtime acceptance inferred.",
+    "All five9cf host captures fully authenticated closed. Native unit1 and Core2controls2PASS. Original startupscan30PASS19.765s/cold120.44ms; initial diagnosticCancelled445.55ms remains. Browser reaches24passedchecks before original rename coverage refusal; WASI missing helperbody/formals measured. Exact new native payload is eligible for original4/formatter replay; no valid corpus perf comparison inferred.",
+    "Current releaseCI756 all five broad Rust shards fail compilation: exactE0425 in DBproject_token_inputs tests at two document_analyser calls after parent imports changed. Root has a two-call crate-qualified helper fix with fullbyteinverse/format and no assertions/production changes; LSP peer underway. Current broad named outcomes remain unexecuted."
+  ],
+  "committed": [
+    "0226b830c4c4886bbe05aba7f88016b785d89d29"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Complete14:45 checkpoint/push and rearm15:15.",
+    "Authenticate current compiler102/Jim/host/startup/runtime captures and full release CI; repair genuine observed producers.",
+    "Integrate independently reviewed remaining lint and Logical/error-ingress fixes, then rerun affected required gates.",
+    "Obtain valid current shipping Tcl performance, close baseline unknowns and finish sectionF/docs/generated/packaging/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Scoped results remain tied to exact source SHA; no source review counts as runtime acceptance. Historical658 regressions are explicitly separate from fresh9cf/CLEAN756 and later source. No global gate admissions.",
+  "disk_free_bytes": 2257543168,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

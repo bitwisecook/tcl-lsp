@@ -1,0 +1,214 @@
+{
+  "utc": "2026-10-25T14:32:44.910054+00:00",
+  "candidate_source": "658de2eed4ce83044b7a20fbb3182659c60aba27",
+  "run": 40188263258,
+  "baseline_source": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "baseline_run": 40187433105,
+  "baseline_inventory_sha256": "8a70ae0fd67ae8efc99fc1d9d4e6f02f9eb86b209dbcccc3d8d55c31c4dc582a",
+  "scopes": [
+    {
+      "artifact": 12599583476,
+      "scope": "native2",
+      "terminal_closure": true,
+      "named_nonignored": 836,
+      "states": {
+        "ok": 580,
+        "failed": 256,
+        "ignored": 5
+      },
+      "exact_binary_selector_join": [
+        {
+          "baseline_pass": false,
+          "candidate": "ok",
+          "count": 66
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "ok",
+          "count": 514
+        },
+        {
+          "baseline_pass": false,
+          "candidate": "failed",
+          "count": 18
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "failed",
+          "count": 238
+        }
+      ],
+      "summary": {
+        "schema": "nextest-capture-v1",
+        "listing_sha256": "b6bfc21469bebd4697d5e0da4a96be7c19a098ef35318e03dea0bdb34bac4e0c",
+        "nextest_exit": 100,
+        "terminal_count": 841,
+        "selected_count": 836,
+        "started_unfinished": [],
+        "never_started": [],
+        "ignored_unreported": [],
+        "missing_terminal": [],
+        "capture_errors": [],
+        "stderr_truncated": false,
+        "lifecycle": {
+          "parent_pid": 10058,
+          "parent_start_ticks": 31726,
+          "owned_pgid": 10058,
+          "group_scan_attempts": 2,
+          "group_empty_before_parent_reap": true,
+          "cleanup_signals": [],
+          "last_live_members": [],
+          "last_scan_complete": true
+        }
+      }
+    },
+    {
+      "artifact": 12598579492,
+      "scope": "native3",
+      "terminal_closure": true,
+      "named_nonignored": 832,
+      "states": {
+        "ok": 568,
+        "failed": 264,
+        "ignored": 5
+      },
+      "exact_binary_selector_join": [
+        {
+          "baseline_pass": false,
+          "candidate": "ok",
+          "count": 72
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "ok",
+          "count": 496
+        },
+        {
+          "baseline_pass": false,
+          "candidate": "failed",
+          "count": 21
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "failed",
+          "count": 243
+        }
+      ],
+      "summary": {
+        "schema": "nextest-capture-v1",
+        "listing_sha256": "1df9956373a5edb7c1b7f1569e644b03302ce7599c6036a0313a8f06cb28793b",
+        "nextest_exit": 100,
+        "terminal_count": 837,
+        "selected_count": 832,
+        "started_unfinished": [],
+        "never_started": [],
+        "ignored_unreported": [],
+        "missing_terminal": [],
+        "capture_errors": [],
+        "stderr_truncated": false,
+        "lifecycle": {
+          "parent_pid": 10096,
+          "parent_start_ticks": 32087,
+          "owned_pgid": 10096,
+          "group_scan_attempts": 2,
+          "group_empty_before_parent_reap": true,
+          "cleanup_signals": [],
+          "last_live_members": [],
+          "last_scan_complete": true
+        }
+      }
+    },
+    {
+      "artifact": 12600834750,
+      "scope": "native1",
+      "terminal_closure": false,
+      "named_nonignored": 874,
+      "states": {
+        "ok": 599,
+        "failed": 275,
+        "ignored": 5
+      },
+      "exact_binary_selector_join": [
+        {
+          "baseline_pass": false,
+          "candidate": "ok",
+          "count": 62
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "ok",
+          "count": 537
+        },
+        {
+          "baseline_pass": false,
+          "candidate": "failed",
+          "count": 15
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "failed",
+          "count": 260
+        }
+      ],
+      "summary": null
+    },
+    {
+      "artifact": 12599720098,
+      "scope": "heavy",
+      "terminal_closure": true,
+      "named_nonignored": 355,
+      "states": {
+        "ok": 323,
+        "failed": 32
+      },
+      "exact_binary_selector_join": [
+        {
+          "baseline_pass": true,
+          "candidate": "ok",
+          "count": 299
+        },
+        {
+          "baseline_pass": false,
+          "candidate": "ok",
+          "count": 24
+        },
+        {
+          "baseline_pass": true,
+          "candidate": "failed",
+          "count": 12
+        },
+        {
+          "baseline_pass": false,
+          "candidate": "failed",
+          "count": 20
+        }
+      ],
+      "summary": {
+        "schema": "nextest-capture-v1",
+        "listing_sha256": "25bc4f4d5eed5ca6af82770e53457a7360ac78f759635f94bb90c10c2ad2feb4",
+        "nextest_exit": 100,
+        "terminal_count": 355,
+        "selected_count": 355,
+        "started_unfinished": [],
+        "never_started": [],
+        "ignored_unreported": [],
+        "missing_terminal": [],
+        "capture_errors": [],
+        "stderr_truncated": false,
+        "lifecycle": {
+          "parent_pid": 11865,
+          "parent_start_ticks": 44395,
+          "owned_pgid": 11865,
+          "group_scan_attempts": 2,
+          "group_empty_before_parent_reap": true,
+          "cleanup_signals": [],
+          "last_live_members": [],
+          "last_scan_complete": true
+        }
+      }
+    }
+  ],
+  "observed_pass_to_fail": 753,
+  "limits": "Historical candidate658 only; actual named terminal observations, not current source outcomes. Native1 cancelled and lacks summary; its observed records do not certify process closure/completeness. Baseline355 Heavylisting was candidate-misattributed; correction v2 withdraws44missing-baseline claims. Observed312 Heavy baselinePASS unchanged; exact baseline selected-list provenance remains unavailable. No zero-regression/global-gate admission. Full executable archive is not downloaded or executed.",
+  "baseline_provenance_correction": "/workspace/naming-proof-storage/baseline-heavy-provenance-correction-v2/correction.json"
+}

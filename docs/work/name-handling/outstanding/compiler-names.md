@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T14:10:15.881210+00:00
+Last updated: 2026-10-25T14:15:28.205002+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T14:15:28.205002+00:00: ImmediateJimwave unblock: source-only RAII V3 currentb2ee96 packetd9f70778/f817f642 independentCompilerCLEAR4b7b5be3 hash-reread; rootapplied33a. Currentf3f587540 finalmetadata ONE3path names-jim-operand-active-scope-metadata-v3 manifest0453e01e/patch93ba5748 frozen. Exact2stale sourcepins Logical3previewc47→7358 (JSONb49→a5f2697c), registrycache-currentTainte013→4fb1f380 commandbinding751→1fc; centraldriverda418→3b6eaf07 TWOderivedguards. FullJSON/driverinverseAST/current3/F-R-F0/full23census authorPASS; cache/readonly/hostile/otherfields preserved. RootnotifiedREADY immediately; Compilerfastpeer explicitlywoken, no otherlintworkblocksdispatch. Actualscopedguard stillunmeasured, original45still31P14F+5F+new1F. Lint22privatebatch continues separatelyofftree.
 
 Resume 2026-10-25T14:10:15.881210+00:00: Rootprioritises immediateJimRAIIcapture wave. Preparing separated exactcurrent twoRust source-only active-scope successor, carryCompiler8ba50deeppeer and resealcurrentpins; pendingunion51c82/registrycoordinatecache shared3JSON+2guards metadata mustcombine afterward, no stalewholecopy. Lintbatch19+3 sourceedited/fmtpaired, fullGitJSONcensus22834/0missing and318referencehits/no livevalidation-tools sourcepins, 10boolrow+stateproofsPASS, 38original19wholeinversesPASS; 44extendedinverse checksawaitresult. No canonicaledits/Cargo/Clippy; Runtime confirmsnosharedfileoverlap exceptnative_namespace_string_tests explicitlyheld.
 

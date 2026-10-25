@@ -1,0 +1,151 @@
+{
+  "utc": "2026-10-25T14:42:06.010615+00:00",
+  "baseline_run": 40187433105,
+  "baseline_source": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "misattributed_listing": {
+    "id": 12596629331,
+    "name": "rust-tests-heavy-listing",
+    "size": 51478,
+    "digest": "sha256:5dbfdb69560b571e1ed9ac692b1da1f8581296d79fbfe985b256c4aae12fa8f3",
+    "workflow_run": {
+      "id": 40188263258,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "658de2eed4ce83044b7a20fbb3182659c60aba27"
+    }
+  },
+  "corrected_disposition": "355-test listing is candidate658, not baseline. Earlier heavy-resolution44missing-baseline and355baseline-selected claims are withdrawn. Baseline312 observed namedPASS remain unchanged; no baseline selected-list artifact is available. Missing baseline declaration/selector closure remains an explicitly unproven obligation, not44inventedmissingoutcomes.",
+  "verified_correct_baseline_archives": [
+    {
+      "artifact": 12597665891,
+      "file": "baseline-shard-2-listing.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597595119,
+      "file": "baseline-lsp-e2e-proof.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597567732,
+      "file": "baseline-lsp-e2e-result-3-3.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597422755,
+      "file": "baseline-lsp-e2e-result-1-3.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597307738,
+      "file": "baseline-shard-1-listing.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597287832,
+      "file": "baseline-rust-tests-metadata.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12597103835,
+      "file": "baseline-shard-4-listing.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12596927166,
+      "file": "baseline-shard-5-listing.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12596862380,
+      "file": "baseline-shard-3-listing.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    },
+    {
+      "artifact": 12596742522,
+      "file": "baseline-lsp-e2e-result-2-3.zip",
+      "workflow_run": {
+        "id": 40187433105,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "rust",
+        "head_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+      },
+      "size_sha256_match": true
+    }
+  ],
+  "baseline_observed_named_passes": 24624,
+  "baseline_heavy_observed_named_passes": 312,
+  "old_named_baseline_sha256": "8a70ae0fd67ae8efc99fc1d9d4e6f02f9eb86b209dbcccc3d8d55c31c4dc582a",
+  "supersedes": [
+    "baseline-named-inventory-40187433105/heavy-resolution.json",
+    "baseline-named-inventory-40187433105/inventory-manifest.json heavy scope attribution"
+  ],
+  "original_records_retained": true,
+  "no_synthesized_outcomes": true,
+  "no_global_gate_admission": true
+}

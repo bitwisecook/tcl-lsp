@@ -1,0 +1,42 @@
+{
+  "utc": "2026-10-25T14:24:20.341892+00:00",
+  "work_source": "9cf256173d450b36cfcc3c051b2bdc8d74694422",
+  "release_source": "756c23a35e0eb59ab0c3cc13170cfbe1ffa3805d",
+  "focused": {
+    "compiler102": {
+      "run": 40201526087,
+      "job": 121193532816
+    },
+    "jim": {
+      "run": 40201525817,
+      "job": 121193532688
+    },
+    "strict": {
+      "run": 40201526110,
+      "job": 121193533080
+    },
+    "spectcl_fold_and_hostile": {
+      "run": 40201525761,
+      "job": 121193532337
+    },
+    "runtime135": {
+      "run": 40201526367,
+      "job": 121193533886
+    },
+    "hosts": {
+      "run": 40201529113,
+      "browser": 121193542894,
+      "wasi": 121193542741,
+      "unit": 121193543052
+    },
+    "startup": {
+      "run": 40201526200,
+      "startup": 121193532959,
+      "core2": 121193533210
+    }
+  },
+  "full_release_ci": 40201542033,
+  "status": "dispatched and running; results not yet admitted",
+  "preflight": "V12 PASS13 startup inputs/30 runners/20 wholehashguards on exact source",
+  "gates_admitted": []
+}

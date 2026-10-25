@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-25T14:10:18.101341+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-25T14:20:32.847771+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**W002 V3 READY independent STATIC DEEP CLEAR:** compiler-w002-stamped-binding-v3 WORKbc42ada10abcab7b8c495a9f405f90376b84cafd1c2f8952b24bd7c9411156cb/CLEANcc0487edf9be8ccb21d4d17c94f060c3a7bf07cf6e01a43a8c8983b5bf09ad3b; Codegene09681d61737be3699f2af9f306a9bb4f0b5c20856734fcb3188ba056dc3c4cb. Current9cf minimal companion WORK-inputs-v2 patch68cbd22a2c9d6ba9ec4b72995a9bc74f1b47320a61669ec5870f5125efdd06e9 independentlyfc31d22eb8459d60afeb57f6dfd8049d8f8b897075f847e431b6f0acd1f7fd78, retains Names+registry+readonly guards. Actualtyping/W002UNRUN. Next genuine RBS frontier is nestedset57 parent-ancestry refusal causing unavailable warningprefix; puts70 nowselected butwarningnodeunreached. Blanket strict catalogue flag remains unchanged. Draft compiler-logical-read-ancestry-v1 uses same-site/vector/input/private catalogue parent chain for ancestry while preserving actual current Logicalscope receipt; no graft/frame/execution grant; peerpending. New9cf Compiler102 run40201526087/job121193532816 solecaptureowner here, folderprepared/noZIPyet.
 
 **W002 current candidate V3 pending Codegen peer:** compiler-w002-stamped-binding-v3 WORKbc42ada1/CLEANcc0487ed. Same retained analysis realm full stamped token binding required at creation AND matches_analysis currentness; receipt retains original full tokens, no raw projection/Eq relaxation. WORK helper keeps existing mainbody100; CLEAN no observer/import leak. V1/V2 HELD (line count, CLEAN trace reference, raw currency concern). Foreign same-source receipt refusal control added. Registrycache and lint pins now integrated by root; source preimages checked independently before admission. Next priority genuine Logical read-effect producer; source catalogue strict-warning blanket stays closed.
 

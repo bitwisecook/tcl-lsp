@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-25T14:23:05.498257+00:00",
+  "source": "528f857b083379c5acfd7cb0c1545453fc71483b",
+  "root_workspace_cargo_fmt_all_check": {
+    "exit": 0,
+    "session": 36391
+  },
+  "standalone_runtime_cargo_fmt_all_check": {
+    "exit": 0,
+    "session": 15446
+  },
+  "toolchain": "1.99.1",
+  "no_rust_build": true,
+  "global_gates_admitted": []
+}

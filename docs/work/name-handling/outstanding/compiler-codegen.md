@@ -2,11 +2,23 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T13:45:51+00:00 (ACTIVE; typed index and54chunk fixes integrated; remaining20small source+pins frozen pending Compiler peer; actual fresh strict/Spec outcomes UNRUN)
+Last updated: 2026-10-25T14:44:07+00:00 (ACTIVE; strict9cf FULLAUTH43checks finds3 new range lints; pairedrangefix peerCLEAR; long10+Spec11 frozen UNRUN pendingLSPpeer; VMlimit ingress deeppeer now; RBSV4 producer queued)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+
+**14:44 UTC current:** Strict9cf40201526110/job121193533080 FULLAUTH43checks receipt417ebdf6, soleZIP12602595756 4,018,453B SHA1b84baa60ad84a32c92ddf9ab1c0fa37d9477650172e6057aae5ad3b2425c5a2. Exactly3 new range_plus_one lints in registered index consumer; core dependency failure blocks VM, so old160 closure is NOT established. Paired range packet d3100ae2 (WORK14843269/CLEAN1403b3c5), three guarded one-element inclusive slices only, Runtime peer686c5a16; all23JSON zero consumers, no metadata. Actual retry UNRUN.
+
+**Long tests:** Frozen `ccg-strict-long10-and-spec-install-v1` masterdf728009 (WORK2be8d484/CLEANe165ffc9),11files, line counts73/94/91/99/92/82/84/100/73/93. Pure input constants plus borrowed assertion/pure-byte helpers; two whole original per-iteration owner scopes preserved, no parent-owner movement, clones, getter reorder or assertion/count change. Spec install singlelookup branches unchanged. fmt22/F-R pass; independent LSP peer pending after actual artifact auth. Rust/Clippy/execution UNRUN. Root owns final current sourcepin union after landing.
+
+**Immediate peer queue:** Runtime genuine native limit-error ingress twofile repair (master7c6eab07) +current pins09672035 urgent; shared old settling prefix is proposed before unchanged limit unwind/catch. Compiler Logical RBS ancestry V1/V2 drafts held; V4 now offers genuine positive unversioned Logical producer, same parent-body child issuance, no cross-catalogue frame borrowing, actual Nativeversion path unchanged; deep peer queued. No generic Native/Normal/frame grant or original assertion weakening admitted.
+
+
+**Latest 14:21 UTC:** Small20 source/union71146282 (51c82; Runtime peer a3f3e522) and registry-current union6e3745b2 (96273770; three source paths/four records, preserving abstract_tests291/VMinterp cbb/NativeProc4f5) are integrated. Hostile measurementV3 b6b49fae peer4960789d closes V2's missing full180-second prefix guard; actual execute mocks179.999 refuse/nochild and180/205 admit exact180/CAP/floor. No real child acceptance inferred. Fresh strict40201526110/job121193533080 source9cf256173 is in progress; this role owns its sole ZIP/full auth/remaining batch. Runtime owns separate Spec40201525761 and runtime13540201526367 artifacts; do not duplicate.
+
+**W002 productive peer:** V1 held for body104/100 and CLEAN observer reference; V2 held for raw currency projection. Final V3 compares full stamped binding at both construction and currentness using same retained-token producer and stores full original CommandTokens. Source peer e09681d6 and CURRENT9cf two-file pin companion68cbd22a peerfc31d22e clear; actual Rust/W002 tests UNRUN. No Eq weakening/raw normalization or domain/Native grant. Compiler ancestry draft remains unreviewed: same-coordinate/value joins alone do not prove same issued body/frame; existing private origin relation requested. Ten long TEST extractions proceed on actual post-Small20 state, using immutable captured rows/pure data and borrowed assertion helpers with all owner lifetimes retained.
 
 
 **Current focus: complete the authenticated af0 strict batch without weakening tests or Native authority.** The broad `--keep-going` capture40195067552/job121174027741 yielded160 primary Clippy diagnostics and no Rust E-code primary; full bounded receipt1317cd21 verifies126324 tracked source membership/endpoint seal,117 exact critical+diagnostic source Git blobs,9toolseals and original owned exit2/emptygroup/caps. Typed original String-index producer/consumer and union pins are independently clear and integrated; actual Spec outcomes remain unverified. All54 chunk warnings and the two additional Native-index test lints have paired current patches/independent peers and are integrated at WORK02ad64601/CLEAN9e4f1c84 (subject to later root commits).

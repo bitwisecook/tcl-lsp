@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-25T14:39:38.208144+00:00",
+  "change": "Authored test pack arg1 role Params corrected to canonical ParamList. Every old assertion and production loader branch unchanged.",
+  "contract": "ArgRole::ParamList is the existing procedure-formal-list enum/catalogue spelling in current and ed694 baseline; same spelling is used by shipped Jim proc surface. Params is unknown and intentionally warned/dropped.",
+  "C_Tcl_oracle": "tclsh: proc provided {one} {}; info args provided is one and provided value completes OK with empty result. This verifies the underlying fixture formal-list semantics; Tcl does not define the SpecTcl DSL role spelling.",
+  "peer": "5830a5d557c70d049c6bd280f5bab2101bfab0d9555fc93da5a43835973fba48",
+  "assertions_weakened": false,
+  "production_alias_added": false,
+  "actual_Rust_test": "UNRUN"
+}
