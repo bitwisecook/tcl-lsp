@@ -2645,6 +2645,7 @@ impl CodegenCtx<'_> {
                 self.schedule_native_generic(command, pending);
             }
             Err(error) => {
+                error.trace_factory_refusal();
                 if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                     eprintln!(
                         "NATIVE_BYTE_COMMAND_UNAVAILABLE reason={error:?} source={:?} point={:?} current_namespace={:?}",

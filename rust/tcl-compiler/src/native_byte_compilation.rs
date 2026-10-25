@@ -108,6 +108,39 @@ pub(crate) enum NativeByteCommandUnavailable {
     Recipe,
 }
 
+impl NativeByteCommandUnavailable {
+    /// Observe only this already-returned refusal under the existing diagnostic flag.
+    pub(crate) fn trace_factory_refusal(&self) {
+        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
+        {
+            return;
+        }
+        static ROWS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        if ROWS
+            .try_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |rows| (rows < 128).then_some(rows + 1),
+            )
+            .is_err()
+        {
+            return;
+        }
+        let stage = match self {
+            Self::Entry => "entry",
+            Self::Words(NativeCompilerWordsUnavailable::MissingHead) => "words.missing_head",
+            Self::Words(NativeCompilerWordsUnavailable::SourceOwnership) => "words.source_owner",
+            Self::Words(NativeCompilerWordsUnavailable::Word(_)) => "words.word",
+            Self::Words(NativeCompilerWordsUnavailable::Text(_)) => "words.text",
+            Self::Lookup(_) => "lookup",
+            Self::Registration => "registration",
+            Self::Dependencies => "dependencies",
+            Self::Recipe => "recipe",
+        };
+        eprintln!("CCG_NATIVE_BYTE_FACTORY_REFUSAL stage={stage}");
+    }
+}
+
 /// Resolve one original compiler head and select its authenticated recipe.
 /// The physical point selects compiler grammar; `source_string_protocol` forms
 /// word values independently. Returned registration prerequisites must be
