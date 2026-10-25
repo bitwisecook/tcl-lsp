@@ -859,6 +859,43 @@ impl DeclarationReadPointScope<'_> {
     }
 }
 
+// Source graph branch only: the common Tcl Boolean constants need no selected
+// Native parser. The complete source receipt supplies no Native preparation,
+// error, result representation, frame, or executable rewriting permission.
+fn logical_boolean_literal_condition(
+    text: &str,
+    dialect: tcl_registry::InvocationDialect,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_syntax::expr::ast::ExprNode> {
+    use tcl_syntax::expr::ast::ExprNode;
+    if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+        || dialect.tcl_version.is_some()
+        || dialect.core_point.is_some()
+        || dialect.authored_name_policy()?.authority()
+            != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+    {
+        return None;
+    }
+    let literal = text.trim_matches(|character: char| character.is_ascii_whitespace());
+    if !matches!(literal, "0" | "1") {
+        return None;
+    }
+    let context = dialect.expression_parse_context(None);
+    let original =
+        tcl_syntax::expr::substitution::OriginalSourceExpression::capture(text, &context, config)?;
+    let start = text.len().checked_sub(
+        text.trim_start_matches(|c: char| c.is_ascii_whitespace())
+            .len(),
+    )?;
+    let start = u32::try_from(start).ok()?;
+    let expression = ExprNode::Literal {
+        text: literal.to_owned(),
+        start,
+        end: start,
+    };
+    original.matches_tree(&expression).then_some(expression)
+}
+
 struct Builder<'a> {
     inventory: &'a DeclarationFlowInventory,
     registry: &'a tcl_registry::CommandRegistry,
@@ -1855,9 +1892,15 @@ impl Builder<'_> {
             trace_rbs_refusal(site.offset, "condition.text");
             return (vec![Event::Unknown], None, None);
         };
-        let CheckedExprParse::Parsed(expression) =
-            parse_expr_checked_with_context(text, &dialect.expression_parse_context(None))
-        else {
+        let parse_context = dialect.expression_parse_context(None);
+        let expression = match parse_expr_checked_with_context(text, &parse_context) {
+            CheckedExprParse::Parsed(expression) => Some(expression),
+            CheckedExprParse::Unsupported(
+                tcl_syntax::expr::parser::ExprParseUnsupported::UnknownNativeSyntax,
+            ) => logical_boolean_literal_condition(text, dialect, self.config),
+            _ => None,
+        };
+        let Some(expression) = expression else {
             trace_rbs_refusal(site.offset, "condition.parse");
             return (vec![Event::Unknown], None, None);
         };
@@ -4079,5 +4122,69 @@ mod conditional_declared_read_point_tests {
         fixture.site.offset += 1;
         assert_ne!(fixture.site, original);
         assert!(fixture.select(&fixture.inventory).is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_boolean_literal_condition_tests {
+    use super::logical_boolean_literal_condition;
+    use tcl_syntax::expr::parser::{
+        CheckedExprParse, ExprParseUnsupported, parse_expr_checked_with_context,
+    };
+
+    #[test]
+    fn common_source_booleans_leave_native_syntax_unknown() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        for source in ["0", "1", " 1 ", "\t0\n"] {
+            assert!(matches!(
+                parse_expr_checked_with_context(source, &dialect.expression_parse_context(None)),
+                CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax)
+            ));
+            assert!(
+                logical_boolean_literal_condition(source, dialect, config).is_some(),
+                "{source:?}"
+            );
+            assert!(matches!(
+                parse_expr_checked_with_context(source, &dialect.expression_parse_context(None)),
+                CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax)
+            ));
+        }
+    }
+
+    #[test]
+    fn source_literal_branch_rejects_other_effects_and_selected_native_contexts() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        for source in [
+            "$x",
+            "[set x]",
+            "1+0",
+            "1 || [effect]",
+            "double(1)",
+            "1;",
+            "1 #comment",
+            "2",
+            "01",
+            "\"1\"",
+        ] {
+            assert!(
+                logical_boolean_literal_condition(source, dialect, config).is_none(),
+                "{source}"
+            );
+        }
+        for name in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            assert!(
+                logical_boolean_literal_condition(
+                    "1",
+                    tcl_registry::InvocationDialect::of_profile(profile),
+                    tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+                )
+                .is_none()
+            );
+        }
     }
 }
