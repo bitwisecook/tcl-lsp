@@ -263,7 +263,7 @@ END {
     paths_step = step("jobs.channel", "id", "paths")
     need(paths_step >= 0, "channel must define the paths step")
     paths_run = "jobs.channel.steps." paths_step ".run"
-    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh | scripts/dev/nextest-tool/*)"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/nextest-terminal-capture.py | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh | scripts/dev/nextest-tool/*)"
     contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
     runner_step = step("jobs.channel", "id", "rust-runner")
@@ -346,6 +346,17 @@ END {
     need(nextest_verify > nextest_setup && values[shard_job ".steps." nextest_verify ".if"] == active, "post-publication custody check must share the exact install gate")
     contains(shard_job ".steps." nextest_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "post-publication custody check must use the bounded owner")
 
+    tcl_reference = step(shard_job, "name", "Install exact Tcl 9.0 reference interpreter")
+    tcl_reference_gate = "needs.channel.outputs.rust_tests_changed == \047true\047 && needs.channel.outputs.docs_only != \047true\047 && needs.channel.outputs.already_green != \047true\047"
+    need(tcl_reference > nextest_verify && values[shard_job ".steps." tcl_reference ".if"] == tcl_reference_gate, "the sole Tcl reference setup step must retain its exact path, docs-only, and green-skip gate")
+    need(values[shard_job ".steps." tcl_reference ".env.TCL_LSP_TCL_BIN_DIR"] == "${{ runner.temp }}/tcl-reference-bin", "Tcl reference setup must retain its isolated pinned binary directory")
+    contains(shard_job ".steps." tcl_reference ".run", "make ensure-tcl90-reference", "Tcl reference setup must provision the pinned 9.0 toolchain")
+    contains(shard_job ".steps." tcl_reference ".run", ". scripts/dev/tcl-reference-toolchains.sh", "Tcl reference setup must use the shared manifest-bound provider")
+    contains(shard_job ".steps." tcl_reference ".run", "tcl_reference_load_toolchains \"$PWD\"", "Tcl reference setup must load the original source toolchains")
+    contains(shard_job ".steps." tcl_reference ".run", "tcl_reference_resolve_tclsh 9.0", "Tcl reference setup must resolve the exact 9.0 interpreter")
+    contains(shard_job ".steps." tcl_reference ".run", "TCL_LSP_TCLSH90=%s\\n", "Tcl reference setup must publish the resolved 9.0 interpreter")
+    contains(shard_job ".steps." tcl_reference ".run", "TCL_LSP_REQUIRE_TCLSH=9.0\\n", "Tcl reference setup must keep the missing-reference failure mandatory")
+
     heavy_install = step("jobs.rust-tests-heavy", "name", "Install cargo-nextest")
     heavy_verify = step("jobs.rust-tests-heavy", "name", "Verify cargo-nextest source install resolution")
     need(heavy_install >= 0 && heavy_verify > heavy_install && values["jobs.rust-tests-heavy.steps." heavy_install ".if"] == "" && values["jobs.rust-tests-heavy.steps." heavy_verify ".if"] == "", "heavy source install and custody check must preserve their unconditional job-step gates")
@@ -353,7 +364,7 @@ END {
     contains("jobs.rust-tests-heavy.steps." heavy_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "heavy tests must verify post-publication custody")
 
     archive_job = "jobs.lsp-e2e-archive"
-    archive_gate = "needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')"
+    archive_gate = "needs.channel.result == \047success\047 && needs.channel.outputs.docs_only != \047true\047 && needs.channel.outputs.lsp_e2e_changed == \047true\047 && !(startsWith(github.ref, \047refs/tags/\047) && needs.channel.outputs.already_green == \047true\047)"
     archive_install = step(archive_job, "name", "Install cargo-nextest")
     archive_verify = step(archive_job, "name", "Verify cargo-nextest source install resolution")
     need(archive_install >= 0 && archive_verify > archive_install && values[archive_job ".steps." archive_install ".if"] == archive_gate && values[archive_job ".steps." archive_verify ".if"] == archive_gate, "archive source install must preserve its exact lsp-e2e path and tag gate")
@@ -361,7 +372,7 @@ END {
     contains(archive_job ".steps." archive_verify ".run", "bash scripts/dev/nextest-tool/validate.sh --verify-install", "archive must verify post-publication custody")
 
     partition_job = "jobs.lsp-e2e-partition"
-    partition_gate = "needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'"
+    partition_gate = "needs.channel.result == \047success\047 && needs.channel.outputs.docs_only != \047true\047 && needs.channel.outputs.lsp_e2e_changed == \047true\047 && needs.channel.outputs.already_green != \047true\047"
     partition_install = step(partition_job, "name", "Install cargo-nextest")
     partition_verify = step(partition_job, "name", "Verify cargo-nextest source install resolution")
     need(partition_install >= 0 && partition_verify > partition_install && values[partition_job ".steps." partition_install ".if"] == partition_gate && values[partition_job ".steps." partition_verify ".if"] == partition_gate, "partition source install must preserve its exact lsp-e2e already-green gate")
@@ -375,9 +386,11 @@ END {
     contains(shard_job ".steps." nextest ".run", "cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features", "already-green must warm the complete root workspace")
     contains(shard_job ".steps." nextest ".run", "persistent-cargo-target.sh with-lock", "Tank nextest must hold the persistent target lock")
     need(index(values[shard_job ".steps." nextest ".if"], "matrix.shard == '\''1/5'\''") != 0, "already-green warm compilation must be restricted to shard 1")
+    shard_listing = step(shard_job, "name", "Record selected shard listing")
     shard_upload = step(shard_job, "name", "Upload selected shard listing")
     metadata_upload = step(shard_job, "name", "Upload authoritative Cargo metadata")
-    need(shard_upload > nextest && values[shard_job ".steps." shard_upload ".with.overwrite"] == "true", "shard listing uploads must be replaceable on job reruns")
+    need(shard_listing >= 0 && shard_listing < shard_upload && shard_upload < metadata_upload && metadata_upload < nextest, "shard inventory and metadata publication must precede test execution")
+    need(values[shard_job ".steps." shard_upload ".with.overwrite"] == "true", "shard listing uploads must be replaceable on job reruns")
     need(metadata_upload > shard_upload && values[shard_job ".steps." metadata_upload ".with.overwrite"] == "true", "authoritative metadata uploads must be replaceable on job reruns")
     doctest = step(doctest_job, "name", "cargo test --doc")
     need(doctest >= 0, "doctests must run in their own job")
@@ -497,8 +510,8 @@ esac
 # Keep the stable aggregate alive for unrelated changes and already-green tags.
 # For an already-green merge push, the matrix remains allocated but only shard
 # 1 may warm the cache; shards 2–5 must skip every expensive setup/report step.
-require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 2
-require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 5
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 1
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 6
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 1
 case "$(cat "$WORKFLOW")" in
     *'if [ "$rust_tests_changed" = "true" ]; then
