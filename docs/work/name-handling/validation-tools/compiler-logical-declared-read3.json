@@ -117,5 +117,116 @@
         "env": {}
       }
     ]
+  },
+  "separate_original_child_controls": {
+    "schema": "compiler-original-child-all10-v1",
+    "expected_selected": 10,
+    "rows": [
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_nested_named_static_read_keeps_original_positive_expectations",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_nested_named_read_refuses_alias_rebinding_callee_and_opaque_children",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_nested_named_read_refuses_equal_foreign_and_stale_source_owners",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_nested_read_rejects_a_child_with_a_foreign_frame",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_child_body_keeps_its_issued_frame_distinct_from_header_layout",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_child_body_frame_refuses_missing_reissued_and_foreign_rows",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::original_child_body_frame_refuses_different_allocation_and_missing_formals",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::known_child_projection_uses_live_producer_and_separate_body_scope",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::known_child_projection_refuses_consistently_replaced_producer_fields",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-original-child-all10",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::static_read_child::tests::known_child_projection_refuses_foreign_and_retired_source_owner",
+        "env": {}
+      }
+    ],
+    "source_pins": {
+      "rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs": "164bf2e50827bde0aaad69544b805478986bf231f4e08053f18dcff7704800d7"
+    },
+    "source_peer_reference": "source-peer-known-child-live-producer-v4/receipt.json sha256:571eb418358d3ba0483bb0ec5bbbd59f2df50de4482e0e96d943a4ebdfaa278e",
+    "scope": "Separate appended source controls AFTER unchanged old108; SAME existing freshly built compiler library ELF; no extra build, env, flags, budget/reset or acceptance claim"
   }
 }

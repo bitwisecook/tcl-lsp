@@ -144,6 +144,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-logical-declared-read3-",
             "diagnostic-logical-source-body-entry5-",
             "diagnostic-compact-codec1-",
+            "diagnostic-original-child-all10-",
             "list-",
             "select-",
         )
@@ -162,6 +163,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-logical-declared-read3-",
             "diagnostic-logical-source-body-entry5-",
             "diagnostic-compact-codec1-",
+            "diagnostic-original-child-all10-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -181,6 +183,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-logical-declared-read3-",
             "diagnostic-logical-source-body-entry5-",
             "diagnostic-compact-codec1-",
+            "diagnostic-original-child-all10-",
         )
     ):
         require(
@@ -1326,6 +1329,200 @@ def run_compact_codec_control() -> None:
         )
 
 
+def run_original_child_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows + logical_body_rows + codec_rows
+        ),
+        "original child controls cannot precede original108 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in named_child_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "original child controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(named_child_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "original child current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "original child requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "original child artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "original-child-all10"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "original-child-outcomes.json", named_child_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "original-child-outcomes.json", named_child_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "original-child-outcomes.json", named_child_rows)
+            raise
+        save(out / "original-child-outcomes.json", named_child_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -1726,7 +1923,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "6d054b00390d3f1605a04218153c785eaa328bddbb7dc828f7fe68eac8b8b648",
+    == "1278faafd1ad722ab7686db32db9ba2219bb4166c1c8bed4b4b251fdb99a0479",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -1804,6 +2001,20 @@ require(codec_validation["schema"] == "compact-source-context-codec1-v1"
 codec_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in codec_validation["rows"]]
 require(codec_validation["rows"] == [{'group': 'diagnostic-compact-codec1', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::source_execution_control::tests::compact_control_roundtrips_full_native_boundaries_and_independent_source_facts', 'env': {}}],
     "compact codec exact target/selector/environment")
+
+named_child_validation = logical_validation["separate_original_child_controls"]
+require(named_child_validation["schema"] == "compiler-original-child-all10-v1"
+    and named_child_validation["expected_selected"] == len(named_child_validation["rows"]) == 10
+    and named_child_validation["source_peer_reference"] == 'source-peer-known-child-live-producer-v4/receipt.json sha256:571eb418358d3ba0483bb0ec5bbbd59f2df50de4482e0e96d943a4ebdfaa278e'
+    and named_child_validation["source_pins"] == {'rust/tcl-compiler/src/command_binding/declaration_preview/static_read_child.rs': '164bf2e50827bde0aaad69544b805478986bf231f4e08053f18dcff7704800d7'}
+    and all(logical_validation["source_pins"].get(path) == value
+        for path, value in named_child_validation["source_pins"].items()),
+    "original child controls schema/count/current source owner")
+named_child_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in named_child_validation["rows"]]
+require(named_child_validation["rows"] == [{'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_nested_named_static_read_keeps_original_positive_expectations', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_nested_named_read_refuses_alias_rebinding_callee_and_opaque_children', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_nested_named_read_refuses_equal_foreign_and_stale_source_owners', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_nested_read_rejects_a_child_with_a_foreign_frame', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_child_body_keeps_its_issued_frame_distinct_from_header_layout', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_child_body_frame_refuses_missing_reissued_and_foreign_rows', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::original_child_body_frame_refuses_different_allocation_and_missing_formals', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::known_child_projection_uses_live_producer_and_separate_body_scope', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::known_child_projection_refuses_consistently_replaced_producer_fields', 'env': {}}, {'group': 'diagnostic-original-child-all10', 'package': 'tcl-compiler', 'kind': ['lib'], 'target': 'tcl_compiler', 'selector': 'command_binding::declaration_preview::static_read_child::tests::known_child_projection_refuses_foreign_and_retired_source_owner', 'env': {}}]
+    and not {row["selector"] for row in named_child_rows}.intersection(
+        row["selector"] for row in rows + logical_body_rows + codec_rows),
+    "original child exact targets/selectors/environment/no overlap")
 
 require(
     len(
@@ -2682,7 +2893,12 @@ try:
     run_compact_codec_control()
     require(len(codec_rows) == 1 and all(row["state"] in ["PASS", "FAIL"] for row in codec_rows),
         "compact codec control incomplete")
+    run_original_child_controls()
+    require(len(named_child_rows) == 10 and all(row["state"] in ["PASS", "FAIL"] for row in named_child_rows),
+        "original child controls incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in named_child_rows):
+        status = 1
     if any(row["state"] != "PASS" for row in codec_rows):
         status = 1
     if any(row["state"] != "PASS" for row in logical_body_rows):
@@ -2739,6 +2955,7 @@ finally:
         status = 2
     save(out / "logical-body-entry-outcomes.json", logical_body_rows)
     save(out / "compact-codec-outcomes.json", codec_rows)
+    save(out / "original-child-outcomes.json", named_child_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -2804,6 +3021,10 @@ finally:
             ),
             "logical3_outcomes": logical_rows,
             "separate_logical_roster": logical_validation,
+            "required_separate_original_child_controls": 10,
+            "original_child_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in named_child_rows),
+            "original_child10_outcomes": named_child_rows,
+            "original_child10_roster": named_child_validation,
             "required_separate_compact_codec_controls": 1,
             "compact_codec_control_closed": sum(row["state"] in ["PASS", "FAIL"] for row in codec_rows),
             "compact_codec1_outcomes": codec_rows,
