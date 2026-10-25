@@ -635,17 +635,13 @@ impl CrateModules {
         if !Self::supports_row_route(row) {
             return None;
         }
-        let Some(owner_module) = self.modules.get(&row.module) else {
-            return None;
-        };
+        let owner_module = self.modules.get(&row.module)?;
         let owner = declaration(&owner_module.file, &row.entry).or_else(|| {
             (row.route == "self")
                 .then(|| declaration_for_self_method(&owner_module.file, &row.entry))
                 .flatten()
         });
-        let Some(owner) = owner else {
-            return None;
-        };
+        let owner = owner?;
         if !self.owner_is_accessible(row, &owner, owner_module) {
             return None;
         }
