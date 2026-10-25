@@ -10,7 +10,11 @@
     "rust/tcl-lsp-core/src/source_structure.rs": "60eeee41802557f2b3d9096a29580715872196e7b912dc7e8362636f60b5d344",
     "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs": "f71dce219426076e338f6bf1b12a408882f875fd8c2651b84978756913b7693d",
     "rust/tcl-lsp-core/src/minify/original.rs": "ab052dccc95d70df74616e927c55e80701675d2928487838ccc5eb6a67c6deaa",
-    "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "01763714629a6a99863d9ae89f6b1630e386ac7be09e4b52dc5bf618d168111b"
+    "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs": "01763714629a6a99863d9ae89f6b1630e386ac7be09e4b52dc5bf618d168111b",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs": "71ee7eb0dd995a61437f638a6f8865b6acc0c1c632761002afd3c0defa6b111e",
+    "rust/tcl-compiler/src/registry_invocation.rs": "f6ac32b0c69d5b12f04bfa2f2bb729efa252ab1765bae206ae77c82bd906d55d",
+    "rust/tcl-lsp-core/src/refactor/mod.rs": "26057b1d3c5280f07bb3d6b075709e84e402a4465767b2fdce087bb7268fe8b6",
+    "rust/tcl-lsp-core/src/original_command_rename.rs": "7666f239dd9b596cdd69826ee43a9b3cf9cc6fd328f7475ac7063f8edffddf66"
   },
   "target": "tcl_lsp_core",
   "integration_target": "lsp_edit_workspace",
@@ -23,5 +27,8 @@
   },
   "integration_observation_environment": {
     "TCL_LSP_TRACE_BODY_SYNTAX": "1"
-  }
+  },
+  "quiet_store_control_selectors": [
+    "original_command_rename::tests::quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source"
+  ]
 }

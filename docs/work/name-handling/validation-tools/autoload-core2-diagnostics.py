@@ -17,7 +17,7 @@ from pathlib import Path
 CAP = 20 * 1024**2
 FLOOR = 2 * 1024**3
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
-ROSTER_SHA = "52e4d650fb733db6b75e772d7bcec1739f9a3faf2bc70d292242df57532e05f9"
+ROSTER_SHA = "783258ff9124ebfc486a57fa19d2126842c66aef054a29fe2baafdcc941ef7e1"
 BASE = Path(__file__).resolve().parent
 
 
@@ -161,6 +161,7 @@ tools = {}
 artifact = None
 integration_artifact = None
 integration_cases = []
+quiet_store_cases = []
 error = None
 status = 2
 environment = os.environ.copy()
@@ -181,6 +182,7 @@ try:
     require(roster["build_observation_environment"] == {"TCL_LSP_TRACE_COARSE_SOURCE": "1"}
         and roster["integration_observation_environment"] == {"TCL_LSP_TRACE_BODY_SYNTAX": "1"},
         "exact minify observation environment required")
+    require(roster["quiet_store_control_selectors"] == ['original_command_rename::tests::quiet_store_coverage_requires_actual_points_and_refuses_traced_foreign_source'], "quiet store control roster mismatch")
     require(
         all(sha(root / n) == pin for n, pin in roster["source_pins"].items()),
         "reviewed structural source changed",
@@ -444,6 +446,36 @@ try:
         save(out / "default-minify-integration-cases.json", integration_cases)
     status = 0 if status == 0 and len(integration_cases) == 2 and all(c["result"] == "PASS" for c in integration_cases) else 1
 
+
+    old_cohort_status = status
+    status = 2
+    for index, selector in enumerate(roster["quiet_store_control_selectors"]):
+        require(sha(executable) == artifact["sha256"], "selected executable changed")
+        prefix = "quiet-store-control-" + str(index + 1)
+        listed = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            prefix + "-list", executable, 180,
+        )
+        require(
+            listed["exit_code"] == 0
+            and (out / (prefix + "-list.stdout")).read_text().splitlines()
+            == [selector + ": test"],
+            "exact selected quiet store control missing/ambiguous",
+        )
+        receipt = execute(
+            [str(executable), selector, "--exact", "--nocapture", "--test-threads=1"],
+            prefix, executable, 180,
+        )
+        result = original_result(
+            (out / (prefix + ".stdout")).read_text(), receipt["exit_code"]
+        )
+        quiet_store_cases.append(
+            {"selector": selector, "result": result, "exit_code": receipt["exit_code"],
+             "same_fresh_core_library_sha256": artifact["sha256"]}
+        )
+        save(out / "quiet-store-control-cases.json", quiet_store_cases)
+    status = 0 if old_cohort_status == 0 and len(quiet_store_cases) == 1 and all(c["result"] == "PASS" for c in quiet_store_cases) else 1
+
 except (
     RuntimeError,
     OSError,
@@ -499,6 +531,8 @@ finally:
             "separate_supplemental_total": len(cases),
             "exact_default_minify_integration_cases": integration_cases,
             "exact_default_minify_integration_total": len(integration_cases),
+            "quiet_store_control_cases": quiet_store_cases,
+            "quiet_store_control_total": len(quiet_store_cases),
             "minify_observation_qualification": "WORK coarse-instrumented build; BODY_SYNTAX runtime enabled only exact Default integration list/test rows; old2 runtime environment unchanged. No timing/performance acceptance or new source queries.",
             "integration_qualification": "Distinct fresh integration ELF, same single Cargo invocation and shared original process/phase/aggregate limits; old Core2 selectors remain separate and unchanged.",
             "processes": processes,
