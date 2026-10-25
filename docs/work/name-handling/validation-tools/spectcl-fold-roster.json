@@ -49,7 +49,10 @@
     "rust/tcl-vm/src/exec/native_namespace_string_tests.rs": "e17651354db2b1ca167346efa037db95d9a8f5202d29c44827bbbf8692a1f985",
     "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
     "rust/tcl-vm/src/value_ops/native_jim_index.rs": "7790d8f932ece5a93e00f70c340384ed6557910be9a8b8e36202c8ae7d8068f1",
-    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1"
+    "rust/tcl-vm/tests/cmd_control_e2e.rs": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "rust/tcl-spectcl/src/golden.rs": "dac9d05eb4e4ab6887d58aff7a05b90aea6502e7012592be7902ae8cbb3b7bee",
+    "rust/tcl-spectcl/data/shipped-pack-dirs.txt": "7abba90e583061329deadc6999cca36298e2ec804c0a2d4c0956779299341c7c",
+    "rust/tcl-spectcl/tests/spec_corpus_baseline.txt": "63fc5528af96b02393d2bc685e2d2f927660542e201c929884a1e50fb0452af5"
   },
   "spectcl": [
     "a_pack_timing_hook_controls_a_live_command_prefix_position",
@@ -62,5 +65,13 @@
     "without_a_host_the_installed_pack_simply_does_not_fold",
     "a_reference_body_answers_through_the_host_as_the_procedure_does",
     "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
-  ]
+  ],
+  "full_corpus": [
+    "every_shipped_tclspec_loads_installs_and_analyses_against_corpus"
+  ],
+  "full_corpus_budget": {
+    "listing_seconds": 180,
+    "test_seconds": 600,
+    "cleanup_seconds": 25
+  }
 }
