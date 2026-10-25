@@ -484,11 +484,12 @@ mod tests {
     /// chain once per level; that chain must fit the per-level budget.
     #[test]
     fn deep_namespace_eval_lowering_fits_the_budget() {
+        use std::fmt::Write as _;
         let depth = MAX_SOURCE_NEST_DEPTH.0 as usize + 16;
         let nested = |leaf: &str| {
             let mut source = String::new();
             for level in 0..depth {
-                source.push_str(&format!("namespace eval ns{level} {{\n"));
+                let _ = writeln!(source, "namespace eval ns{level} {{");
             }
             source.push_str(leaf);
             source.push_str(&"}\n".repeat(depth));

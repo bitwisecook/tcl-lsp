@@ -6934,11 +6934,15 @@ mod original_read_configuration_tests {
     #[test]
     fn actual_source_configuration_survives_frames_and_conflicting_join_is_unavailable() {
         let registry = CommandRegistry::build_default();
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
-        config.strict_quoting = true;
-        let mut context = ResolveContext::default();
-        context.source_read_configuration = SourceReadConfiguration::Selected(config);
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let context = ResolveContext {
+            source_read_configuration: SourceReadConfiguration::Selected(config),
+            ..ResolveContext::default()
+        };
         let frame = context.in_frame(&VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "actual-source-frame".to_owned(),

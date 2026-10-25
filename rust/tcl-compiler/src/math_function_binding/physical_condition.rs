@@ -220,7 +220,11 @@ mod tests {
         let reads = bindings
             .physical_condition_reads(module, context.commands(), expr)
             .unwrap();
-        let access = reads._accesses[0];
+        let OriginalPhysicalConditionReads {
+            _accesses: accesses,
+            ..
+        } = &reads;
+        let access = accesses[0];
         let actual = &access.context_alternatives()[0];
         let config = module.lexer_config;
         assert!(

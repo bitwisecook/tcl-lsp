@@ -16179,7 +16179,7 @@ mod original_analysis_definition_selector_tests {
             original
                 .words()
                 .iter()
-                .map(|word| word.bytes())
+                .map(tcl_lexer::NativeWord::bytes)
                 .collect::<Vec<_>>(),
             vec![b"set".as_slice(), b"value".as_slice(), b"42".as_slice()]
         );

@@ -956,7 +956,7 @@ mod tests {
         let mut changed = left.clone();
         changed.entry_assumption = match left.entry_assumption {
             DispatchEntryAssumption::UnknownWorld => DispatchEntryAssumption::PristineRegistryWorld,
-            _ => DispatchEntryAssumption::UnknownWorld,
+            DispatchEntryAssumption::PristineRegistryWorld => DispatchEntryAssumption::UnknownWorld,
         };
         assert!(!changed.matches_rebound_source(&right, &source, &target));
         let mut changed = left.clone();
