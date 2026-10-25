@@ -388,7 +388,7 @@ impl LiveSession {
         // The pure functions run their shared cores, registered before
         // `register_all` looks for each command's mock.
         crate::pure_functions::register(&mut session.vm);
-        session.eval("::orch::init")?;
+        session.eval_final_host_initialization("::orch::init")?;
         Ok(session)
     }
 
@@ -510,6 +510,23 @@ impl LiveSession {
     /// [`SessionError::Projection`] on non-Unicode result bytes.
     pub fn eval(&mut self, script: &str) -> Result<String, SessionError> {
         let result = self.eval_completion(script);
+        self.settle_public_evaluation(result)
+    }
+
+    // The final framework initialization previously used public eval. Preserve
+    // its exit/result settlement while entering the actual selected host.
+    fn eval_final_host_initialization(&mut self, script: &str) -> Result<String, SessionError> {
+        let result = self
+            .vm
+            .try_eval_native_host_source(script)
+            .map_err(SessionError::Execution);
+        self.settle_public_evaluation(result)
+    }
+
+    fn settle_public_evaluation(
+        &mut self,
+        result: Result<Completion<Value>, SessionError>,
+    ) -> Result<String, SessionError> {
         // Keep the existing reached exit settlement before result projection.
         if let Some(code) = self.vm.take_exit() {
             return Err(SessionError::Eval(format!("script called exit {code}")));
@@ -722,6 +739,75 @@ impl LiveSession {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    struct InitPolicyObserver(Rc<RefCell<Vec<Option<tcl_syntax::naming::NamePolicyProtocol>>>>);
+
+    impl NativeCommand for InitPolicyObserver {
+        fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            if !args.is_empty() {
+                return vm.refuse_host_command(
+                    "initialization policy observer takes no arguments".into(),
+                );
+            }
+            self.0.borrow_mut().push(vm.name_policy_protocol());
+            Completion::new(Code::Ok, Value::empty(), Value::empty())
+        }
+    }
+
+    #[test]
+    fn native_framework_initialization_restores_f5_policy_after_success_and_error() {
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        let before = session.vm.name_policy_protocol();
+        assert_eq!(
+            before,
+            Some(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
+                tcl_dialect::TclVersion::V8_4
+            ))
+        );
+        assert_eq!(session.vm.dialect_profile().name, "f5-irules");
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let point = tcl_registry::InvocationDialect::of_profile(host)
+            .execution_point()
+            .unwrap();
+        let host_policy = tcl_syntax::naming::NamePolicyProtocol::for_native_point(point);
+        assert!(host_policy.is_some());
+        assert_ne!(before, host_policy);
+        let observed = Rc::new(RefCell::new(Vec::new()));
+        session.vm.register_native_command(
+            "::tmm::_native_init_policy_probe",
+            Rc::new(InitPolicyObserver(Rc::clone(&observed))),
+        );
+        session
+            .eval_final_host_initialization("::tmm::_native_init_policy_probe")
+            .unwrap();
+        assert_eq!(observed.borrow().as_slice(), &[host_policy]);
+        assert_eq!(session.vm.name_policy_protocol(), before);
+        assert_eq!(session.vm.dialect_profile().name, "f5-irules");
+        let error = session
+            .eval_final_host_initialization(
+                "::tmm::_native_init_policy_probe; error EXPECTED_NATIVE_INIT_FAILURE",
+            )
+            .unwrap_err();
+        assert!(
+            matches!(error, SessionError::Eval(ref message) if message == "EXPECTED_NATIVE_INIT_FAILURE")
+        );
+        assert_eq!(observed.borrow().as_slice(), &[host_policy, host_policy]);
+        assert_eq!(session.vm.name_policy_protocol(), before);
+        assert_eq!(session.vm.dialect_profile().name, "f5-irules");
+        let exit = session
+            .eval_final_host_initialization("::tmm::_native_init_policy_probe; exit 7")
+            .unwrap_err();
+        assert!(
+            matches!(exit, SessionError::Eval(ref message) if message == "script called exit 7")
+        );
+        assert!(session.vm.take_exit().is_none());
+        assert_eq!(
+            observed.borrow().as_slice(),
+            &[host_policy, host_policy, host_policy]
+        );
+        assert_eq!(session.vm.name_policy_protocol(), before);
+        assert_eq!(session.vm.dialect_profile().name, "f5-irules");
+    }
 
     #[test]
     fn measured_event_names_enter_the_actual_connection_frame_and_restore_policy() {
