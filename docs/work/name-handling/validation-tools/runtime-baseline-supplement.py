@@ -32,6 +32,7 @@ from pathlib import Path
 STACK_FRAMES_SHA = "0700346a97d8a0397e386f766a045a96a54ab148993720927c5a40ad000607cf"
 PROC_STACK_SELECTOR = 'interp::tests::unbounded_proc_recursion_errors_instead_of_crashing'
 PROC_STACK_SOURCE_SHA = 'a7c850610cb71c008339248f62dd8361806cb8416874dadaadcd40b9c1f724f3'
+ATTESTATION_CONTROLS = {'interp::tests::every_registered_builtin_with_an_intrinsic_is_attested_for_all_of_them': '60f2ca003533f1696b2ef64e85ebbacf5b1b5a096e9f50aa0dc393c79b8eeffa', 'interp::tests::engine_owned_ensemble_attestation_requires_original_workers_and_configuration': '31ef03f83cf2b18391057821042bab05ad6c578473ad37b692a38dd7f3059105', 'interp::tests::a_public_ensemble_copy_cannot_acquire_engine_intrinsic_attestation': '935ffb57107181a5dca53083aea2897e8b359e831bc9cc7f33baeeeb2af30672'}
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 ROSTER_SHA = "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f"
 OTHER_ROSTER_SHA = "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821"
@@ -494,6 +495,18 @@ def proc_stack_source():
             "function_sha256": PROC_STACK_SOURCE_SHA}
 
 
+def attestation_control_source():
+    path = Path("runtime/rust/src/interp.rs")
+    raw = path.read_text()
+    for selector, expected in ATTESTATION_CONTROLS.items():
+        simple = re.escape(selector.rsplit("::", 1)[1])
+        pattern = r"(?:^    #\[[^\n]*\]\n)+^    fn " + simple + r"\(\) \{\n.*?^    }\n"
+        found = re.findall(pattern, raw, re.MULTILINE | re.DOTALL)
+        require(len(found) == 1 and hashlib.sha256(found[0].encode()).hexdigest() == expected,
+                "unchanged reviewed attestation control source required: " + selector)
+    return {"path": str(path), "source_sha256": sha(path), "functions": ATTESTATION_CONTROLS}
+
+
 def run(out, source):
     supplemental = out / "supplement"
     supplemental.mkdir()
@@ -506,6 +519,11 @@ def run(out, source):
     save(supplemental / "outcomes.json", rows)
     proc_row = {"group": "proc_stack1", "selector": PROC_STACK_SELECTOR, "status": "UNRUN"}
     save(supplemental / "proc-stack-outcome.json", proc_row)
+    attestation_rows = [
+        {"group": "attestation3", "selector": name, "status": "UNRUN"}
+        for name in ATTESTATION_CONTROLS
+    ]
+    save(supplemental / "attestation3-outcomes.json", attestation_rows)
     save(
         supplemental / "prune-controls-outcomes.json",
         [row for row in rows if row["group"] == "prune_controls7"],
@@ -718,6 +736,79 @@ def run(out, source):
         "scope": "Separate unchanged original proc test after old131, same fresh ELF and remaining budgets; no new build, reset, stack increase or gate substitution.",
     })
     errors.extend(proc_errors)
+    # Separate original baseline attestation and two owned-currentness controls.
+    # The original132 and their budgets are never restarted or replaced.
+    attestation_errors = []
+    attestation_source = attestation_control_source()
+    prior_closed = (
+        all(row["status"] in ["PASS", "FAIL", "ABORT"]
+            and row["process"]["group_empty_before_parent_reap"]
+            and row["process"]["artifact_unchanged"] for row in rows)
+        and proc_row["status"] in ["PASS", "FAIL", "ABORT"]
+        and proc_row["process"]["group_empty_before_parent_reap"]
+        and proc_row["process"]["artifact_unchanged"]
+    )
+    if not prior_closed:
+        attestation_errors.append("original132 execution unsettled; attestation3 remains UNRUN")
+    else:
+        for index, row in enumerate(attestation_rows):
+            if not listed(suite, row["selector"]):
+                attestation_errors.append("reviewed attestation selector absent or ignored")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                attestation_errors.append("remaining shared case/cleanup reserve unavailable")
+                break
+            if used >= CAP:
+                attestation_errors.append("remaining shared 20MiB log budget exhausted")
+                break
+            if sha(binary) != prepared["elf_sha256"]:
+                attestation_errors.append("same original3 ELF changed before attestation control")
+                break
+            if suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+                attestation_errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+                break
+            prefix = supplemental / f"attestation3-{index}"
+            receipt = owner.run(
+                [str(binary), "--exact", row["selector"], "--nocapture", "--test-threads=1"],
+                cwd=Path(suite["cwd"]), env=environment,
+                stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+                receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+                deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+                disk_paths=(Path.cwd(), out, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+            )
+            used += receipt["retained_bytes"]
+            try:
+                row["status"] = original_outcome(Path(str(prefix) + ".stdout").read_text(), receipt)
+            except (RuntimeError, ValueError) as error:
+                row["status"] = "INCOMPLETE"
+                row["error"] = str(error)
+            row["process"] = receipt
+            row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+            row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+            save(supplemental / "attestation3-outcomes.json", attestation_rows)
+            print(row["group"], row["selector"], row["status"], flush=True)
+            if (not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]
+                or row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]):
+                attestation_errors.append("attestation process, ELF or completeness guard failed")
+                break
+            if time.monotonic() > suite_deadline or time.time() > absolute:
+                attestation_errors.append("shared suite or absolute deadline exceeded")
+                break
+    for row in attestation_rows:
+        if row["status"] == "UNRUN":
+            row["unrun_reasons"] = attestation_errors
+    save(supplemental / "attestation3-outcomes.json", attestation_rows)
+    save(supplemental / "attestation3-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": attestation_source, "count": 3,
+        "counts": dict(collections.Counter(row["status"] for row in attestation_rows)),
+        "errors": attestation_errors, "complete": not attestation_errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate baselinePF plus2 genuine owner controls after unchanged original132; same fresh ELF/owner/env and remaining budgets, no build/reset/stack increase.",
+    })
+    errors.extend(attestation_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -740,6 +831,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_attestation3_outcomes": "attestation3-outcomes.json",
             "separate_proc_stack_outcome": "proc-stack-outcome.json",
             "original3_receipts": "../terminal/summary.json and ../process-outcomes.json remain separate",
             "suite_budget_seconds": 2400,
@@ -800,7 +892,8 @@ def run(out, source):
         125
         if not complete
         else 100
-        if proc_row["status"] != "PASS" or any(row["status"] != "PASS" for row in rows)
+        if any(row["status"] != "PASS" for row in attestation_rows)
+        or proc_row["status"] != "PASS" or any(row["status"] != "PASS" for row in rows)
         else 0
     )
 
