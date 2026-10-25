@@ -59,7 +59,9 @@ fn assert_row(
 fn unhex(value: &str) -> Vec<u8> {
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
@@ -282,7 +284,7 @@ fn original_jim_static_links_match_native_frame_storage_reuse_boundaries() {
     ] {
         let rows = captured.lines().collect::<Vec<_>>();
         assert_eq!(rows.len(), 18, "{engine}");
-        for rows in rows.chunks_exact(3) {
+        for rows in rows.as_chunks::<3>().0 {
             assert!(rows[0].starts_with("VERSION|0|"), "{engine}");
             let input = rows[1].split('|').collect::<Vec<_>>();
             let expected = rows[2].split('|').collect::<Vec<_>>();

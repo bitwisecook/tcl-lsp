@@ -6546,7 +6546,9 @@ const ROWS: &[Row] = &[
 ];
 fn unhex(text: &str) -> Vec<u8> {
     text.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|digits| u8::from_str_radix(core::str::from_utf8(digits).unwrap(), 16).unwrap())
         .collect()
 }

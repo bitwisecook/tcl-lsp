@@ -1905,7 +1905,9 @@ mod tests {
         let hex = setup.strip_prefix("SETUP 1 ").unwrap();
         let expected_message: Vec<_> = hex
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         assert!(

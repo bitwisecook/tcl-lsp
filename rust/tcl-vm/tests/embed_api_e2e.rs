@@ -475,7 +475,9 @@ fn a_package_the_host_provides_is_refused_as_package_provide_refuses_it() {
         .expect("original return options");
     assert_eq!(options.len() % 2, 0, "return options are key/value pairs");
     let error_codes: Vec<_> = options
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .filter(|pair| pair[0].to_str().as_ref() == "-errorcode")
         .map(|pair| pair[1].to_str().to_string())
         .collect();

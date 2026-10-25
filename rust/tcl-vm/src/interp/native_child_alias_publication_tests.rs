@@ -29,7 +29,9 @@ fn original_result(rows: &str) -> (i64, Vec<u8>) {
     assert_eq!(hex.len() % 2, 0);
     (
         fields[1].parse().unwrap(),
-        hex.chunks_exact(2)
+        hex.as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect(),
     )

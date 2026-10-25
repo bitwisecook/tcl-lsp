@@ -216,14 +216,18 @@ fn catch_try_quiet_global_capture_matches_original_reached_message_and_options()
     );
     fn unhex(text: &str) -> Vec<u8> {
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
     for (input, observed) in CAPTURE
         .lines()
         .collect::<Vec<_>>()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|rows| (rows[0], rows[1]))
     {
         let input = input.split('|').collect::<Vec<_>>();
