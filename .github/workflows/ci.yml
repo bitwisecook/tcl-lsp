@@ -1043,7 +1043,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasm-bindgen-cli@0.2.129
 
@@ -1383,7 +1383,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: nextest@0.9.148
 
@@ -1715,7 +1715,7 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: nextest@0.9.148
 
@@ -1862,7 +1862,7 @@ jobs:
       # under test drift without a commit.
       - name: Install the wasmtime CLI
         if: needs.channel.outputs.docs_only != 'true'
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasmtime@49.0.3
 
@@ -1973,7 +1973,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_LSP_WASM == 'true'
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasm-bindgen-cli@0.2.129
 
@@ -2053,7 +2053,7 @@ jobs:
       # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
       - name: Install the wasmtime CLI
         if: env.RUN_LSP_WASI == 'true'
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasmtime@49.0.3
 
@@ -2208,7 +2208,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           # Archive/list/execute must use the exact same nextest format.
           tool: nextest@0.9.148
@@ -2363,7 +2363,7 @@ jobs:
           cache-key: lsp-e2e
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           # Keep the machine-readable partition proof and the runner on the
@@ -2517,7 +2517,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-deny@0.20.2
 
@@ -3201,7 +3201,7 @@ jobs:
       # The VSIX embeds the spec studio, whose real LSP worker is built from
       # Rust to wasm32 and post-processed with the version matching its lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasm-bindgen-cli@0.2.129
 
@@ -3405,7 +3405,7 @@ jobs:
       # The JetBrains plugin embeds the same spec studio as the VSIX. Keep the
       # CLI pinned to the wasm-bindgen crate version in the standalone lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: wasm-bindgen-cli@0.2.129
 
