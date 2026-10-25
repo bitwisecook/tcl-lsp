@@ -1052,13 +1052,7 @@ impl BindingBaseline {
             registry_owner: Some(registry.snapshot()),
             declared_commands: Arc::default(),
             declared_surface: None,
-            catalogue_commands: Arc::new(
-                tcl_registry::unique_command_descriptor_coordinates(
-                    registry.command_descriptor_keys(),
-                )
-                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
-                .collect(),
-            ),
+            catalogue_commands: registry.snapshot().command_descriptor_coordinates(),
             semantics: registry.profile().map_or_else(
                 || registry.effective_semantics(),
                 |profile| {
