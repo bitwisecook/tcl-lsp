@@ -403,7 +403,7 @@ impl<'a> FrameWalk<'a> {
         &self,
         source: &str,
         command: &SegmentedCommand,
-    ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
+    ) -> Option<tcl_compiler::registry_invocation::OriginalQuietScalarStoreSourceCoverage<'a>> {
         tcl_compiler::registry_invocation::original_authored_quiet_store_for_source_coverage(
             source,
             self.analysis,
