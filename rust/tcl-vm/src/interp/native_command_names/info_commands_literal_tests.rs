@@ -57,11 +57,7 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
         // The original configured Jim provider loads nshelper.tcl. Its
         // namespace-aware inventory enters that current, literal script worker;
         // a core-and-compiler fixture supplies no library binding by itself.
-        let libraries = if fields[0] == "jim" {
-            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
-        } else {
-            &[][..]
-        };
+        let libraries = inventory_libraries(fields[0]);
         let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
         if fields[0] == "jim" {
             assert!(
@@ -102,27 +98,7 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
             "{context}: original invocation host {:?}",
             vm.execution_refusal
         );
-        if std::env::var_os("TCL_VM_TRACE_INFO_COMMANDS_LITERAL").is_some()
-            && completion.code.as_int().to_string() != fields[2]
-        {
-            // Diagnostic observation of this unchanged software invocation only;
-            // no original-provider receipt or successful comparison is inferred.
-            let resident = completion.result.resident_string_bytes();
-            let checked = vm.native_name_operand_bytes(&completion.result);
-            eprintln!(
-                "INFO_COMMANDS_LITERAL context={context} code={} primary={} live={} resident={} checked={:?}",
-                completion.code.as_int(),
-                completion.result.native_object_type_name(),
-                completion.result.native_object_is_live(),
-                resident.is_some(),
-                checked.as_deref(),
-            );
-        }
-        assert_eq!(
-            completion.code.as_int().to_string(),
-            fields[2],
-            "{context}: guest completion"
-        );
+        assert_inventory_completion(&vm, &completion, &fields, &context);
         let original = &completion.result;
         assert_header(original, fields[4], fields[5], fields[6], &context);
         let protocol = vm
@@ -147,52 +123,14 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
                 .unwrap()
                 .expect("actual native result List backing");
             let children: Vec<_> = backing.iter().map(Value::downgrade_native_object).collect();
-            let names: Vec<_> = fields[8].split(',').collect();
-            let presence: Vec<_> = fields[9].split(',').collect();
-            let bytes: Vec<_> = fields[10].split(',').collect();
-            assert_eq!(
-                children.len(),
-                names.len(),
-                "{context}: actual original child count"
-            );
-            for (index, child) in children.iter().enumerate() {
-                let original = child.upgrade().expect("result List owns original child");
-                assert_header(
-                    &original,
-                    names[index],
-                    presence[index],
-                    bytes[index],
-                    &context,
-                );
-            }
+            assert_inventory_children(&children, &fields, &context);
             children
         };
         if let Some(argument) = arguments.first() {
             assert_header(argument, fields[14], fields[15], fields[16], &context);
         }
         if fields[3] == "1" {
-            let procedure = vm
-                .proc_def_bytes(case.3)
-                .expect("genuine installed procedure");
-            let artifact = procedure
-                .body_src
-                .native_bytecode_cache()
-                .expect("genuine selected body artifact");
-            assert_eq!(
-                artifact.unit.asm.literals.len(),
-                1,
-                "{context}: native singleton object array"
-            );
-            let pool = artifact
-                .unit
-                .literal_pool
-                .as_ref()
-                .expect("actual original literal pool");
-            pool.with_original(0, |pattern| {
-                assert_header(pattern, fields[11], fields[12], fields[13], &context);
-            })
-            .expect("original compiled pattern");
-            pattern_caches += 1;
+            assert_inventory_pattern(&vm, case.3, &fields, &context, &mut pattern_caches);
         }
         // Physical result, child, argument and literal observations precede the
         // reached string getters, preserving the missing branch and C-version cache.
@@ -267,4 +205,99 @@ fn original_jim_import_retains_helper_publication_before_inventory_root_prefix()
         "3a3a493a3a746172676574",
         "original Jim imported member",
     );
+}
+
+fn assert_inventory_completion(
+    vm: &crate::Vm,
+    completion: &crate::Completion<Value>,
+    fields: &[&str],
+    context: &str,
+) {
+    if std::env::var_os("TCL_VM_TRACE_INFO_COMMANDS_LITERAL").is_some()
+        && completion.code.as_int().to_string() != fields[2]
+    {
+        // Diagnostic observation of this unchanged software invocation only;
+        // no original-provider receipt or successful comparison is inferred.
+        let resident = completion.result.resident_string_bytes();
+        let checked = vm.native_name_operand_bytes(&completion.result);
+        eprintln!(
+            "INFO_COMMANDS_LITERAL context={context} code={} primary={} live={} resident={} checked={:?}",
+            completion.code.as_int(),
+            completion.result.native_object_type_name(),
+            completion.result.native_object_is_live(),
+            resident.is_some(),
+            checked.as_deref(),
+        );
+    }
+    assert_eq!(
+        completion.code.as_int().to_string(),
+        fields[2],
+        "{context}: guest completion"
+    );
+}
+
+fn assert_inventory_children(
+    children: &[crate::value::WeakNativeObject],
+    fields: &[&str],
+    context: &str,
+) {
+    let names: Vec<_> = fields[8].split(',').collect();
+    let presence: Vec<_> = fields[9].split(',').collect();
+    let bytes: Vec<_> = fields[10].split(',').collect();
+    assert_eq!(
+        children.len(),
+        names.len(),
+        "{context}: actual original child count"
+    );
+    for (index, child) in children.iter().enumerate() {
+        let original = child.upgrade().expect("result List owns original child");
+        assert_header(
+            &original,
+            names[index],
+            presence[index],
+            bytes[index],
+            context,
+        );
+    }
+}
+
+fn assert_inventory_pattern(
+    vm: &crate::Vm,
+    procedure_name: &[u8],
+    fields: &[&str],
+    context: &str,
+    pattern_caches: &mut usize,
+) {
+    let procedure = vm
+        .proc_def_bytes(procedure_name)
+        .expect("genuine installed procedure");
+    let artifact = procedure
+        .body_src
+        .native_bytecode_cache()
+        .expect("genuine selected body artifact");
+    assert_eq!(
+        artifact.unit.asm.literals.len(),
+        1,
+        "{context}: native singleton object array"
+    );
+    let pool = artifact
+        .unit
+        .literal_pool
+        .as_ref()
+        .expect("actual original literal pool");
+    pool.with_original(0, |pattern| {
+        assert_header(pattern, fields[11], fields[12], fields[13], context);
+    })
+    .expect("original compiled pattern");
+    *pattern_caches += 1;
+}
+
+fn inventory_libraries(
+    engine: &str,
+) -> &'static [tcl_registry::native_scripted_distribution::NativeScriptedLibrary] {
+    if engine == "jim" {
+        &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo]
+    } else {
+        &[]
+    }
 }
