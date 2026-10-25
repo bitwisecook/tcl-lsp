@@ -964,7 +964,7 @@ require(
 )
 require(
     sha(BASE / "compiler-original58-inputs.json")
-    == "64366e6551945579dc371486d5708ae333b91f83b1de7cb9d4031a2e8b77cb74",
+    == "9645335e2274f851b7f7d89dfeedd281d8fd139e68e29446e9f25c3038afef3b",
     "exact original58 input/env pin",
 )
 original = json.loads((BASE / "compiler-original58-selectors.json").read_text())
