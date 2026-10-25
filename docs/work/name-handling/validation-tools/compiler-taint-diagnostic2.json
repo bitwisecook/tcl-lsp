@@ -32,7 +32,7 @@
   ],
   "scope": "Separate diagnostic2 after ALL unchanged original65 executions. Original eval_sink duplicate plus existing genuine Standalone ownership control. No assertion/purpose/Native/guard or budget changes. Actual selected compiler test profile has debug_assertions true; existing taint.rs ingress hooks remain unchanged.",
   "source_pins": {
-    "rust/tcl-compiler/src/command_binding.rs": "1e216caa8dc5224bf2aa27e94a167409c4f137a45f80519219fde44e72b33d2e",
+    "rust/tcl-compiler/src/command_binding.rs": "d1288f67441268cb3358aeaf1dd7cfa195eae19f2fffe2cea2eecf3c4b2d94ac",
     "rust/tcl-compiler/src/command_binding/called_static_layouts.rs": "709a9c49819d10e69a4d97f86e641e4c41c6dd9a2c7083e3d25070fa1ebad679",
     "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "a2787b97d9417989c0621059ffa0571f4adc827a65d3f69eaa516febb050c8c3",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "2ca7b08cb1474fa5700b26acff49ebea3fdb8d0565ab2a3de04f51be50fab5a1",
