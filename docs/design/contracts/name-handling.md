@@ -135,6 +135,15 @@ consume the complete traversal. Each command still needs its own original role,
 class, factory/body and whole-word correspondence; traversal supplies no executed
 binding, receiver, stored handle or Native capability.
 
+A conditional region can retain a procedure call through its genuine selected
+caller-body owner when that body's declaring command belongs to the region.
+The current analysis attachment, inherited entry, source image, complete lexer
+configuration and Registry must still match. This call-specific relationship
+is separate from generic executable command-vector membership: literal braced
+data supplies neither one. Navigation retains every earlier uncertainty,
+operand-effect and unique-target check. The relationship grants no body entry,
+Normal outcome, Native execution, complete coverage or edit authority.
+
 Logical semantic class-body context reads the name operand from the actual
 selected definition grammar's `command_installation` descriptor. A generic
 `Name` argument role is not required to rediscover that independently authored

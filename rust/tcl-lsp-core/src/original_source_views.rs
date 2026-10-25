@@ -169,6 +169,11 @@ impl OriginalSourceViewDocument<'_> {
             .is_none_or(|region| region.owns_original_command_at(self.document.analysis, offset))
     }
 
+    fn owns_procedure_call(&self, call: &OriginalSourceProcedureCall) -> bool {
+        self.region
+            .is_none_or(|region| region.owns_original_procedure_call(self.document.analysis, call))
+    }
+
     fn owns_declaration(&self, identity: &OriginalDeclarationIdentity) -> bool {
         identity
             .procedure_metadata(self.document.analysis)
@@ -248,9 +253,9 @@ fn region_owns_cursor(owner: &OriginalSourceViewDocument<'_>, offset: u32) -> Op
         return Some(true);
     }
     if owner.procedure_calls()?.iter().any(|call| {
-        call.original_words().first().is_some_and(|head| {
-            contains(head.span()) && region.owns_original_command_at(analysis, head.span().start())
-        })
+        call.original_words()
+            .first()
+            .is_some_and(|head| contains(head.span()) && owner.owns_procedure_call(call))
     }) {
         return Some(true);
     }
@@ -351,7 +356,7 @@ pub fn prepare(
         }
         head.is_some_and(|head| {
             let span = head.span();
-            let owned = owner.owns_command(span.start());
+            let owned = owner.owns_procedure_call(call);
             let matches = owned && span.start() <= offset && offset < span.end();
             trace_prepare_head(Some(span), owned, matches);
             matches
@@ -391,11 +396,7 @@ pub fn procedure_edges(
             continue;
         };
         for call in calls {
-            if !call
-                .original_words()
-                .first()
-                .is_some_and(|head| consumer.owns_command(head.span().start()))
-            {
+            if call.original_words().is_empty() || !consumer.owns_procedure_call(&call) {
                 continue;
             }
             if !call.uncertain_operations().is_empty() || call.has_lookup_operand_effects() {
@@ -459,7 +460,7 @@ pub fn references(
             let Some(head) = call.original_words().first() else {
                 continue;
             };
-            if !consumer.owns_command(head.span().start())
+            if !consumer.owns_procedure_call(&call)
                 || !call.uncertain_operations().is_empty()
                 || call.has_lookup_operand_effects()
             {
@@ -735,6 +736,127 @@ mod region_call_cursor_tests {
                 ];
                 assert!(prepare(&suffix, offset, &inventory).is_none());
             }
+        }
+    }
+
+    #[test]
+    fn deferred_region_body_call_retains_its_selected_caller_owner() {
+        let source = "source child.tcl; proc run {} {puts [helper]}";
+        let (parent, child, region, mut caller) = fixture(source);
+        caller.command_invocations.clear();
+        let root = OriginalSourceViewPublication::retain(1_u8);
+        let loaded = OriginalSourceViewPublication::retain(2_u8);
+        let suffix = OriginalSourceViewPublication::retain(3_u8);
+        let ancestors = [loaded.clone(), root.clone()];
+        let inventory = [
+            OriginalSourceViewDocument {
+                publication: &root,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &parent,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &loaded,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: CHILD,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &suffix,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &caller,
+                },
+                region: Some(&region),
+                ancestors: &ancestors,
+            },
+        ];
+        let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+        assert!(!region.owns_original_command_at(&caller, offset));
+        let calls = region.original_procedure_calls(&caller).unwrap();
+        let call = calls
+            .iter()
+            .find(|call| call.original_words()[0].span().start() == offset)
+            .unwrap();
+        assert!(call.is_future_body());
+        assert!(region.owns_original_procedure_call(&caller, call));
+        assert_eq!(
+            cursor_publications("file:///main.tcl", offset, &inventory),
+            Some(vec![suffix.clone()])
+        );
+        let selected = prepare(&suffix, offset, &inventory).unwrap();
+        assert_eq!(selected.publication, loaded);
+        assert_eq!(&CHILD[selected.identity.span().as_range()], "helper");
+        let found = references(&selected, &inventory);
+        assert!(
+            found
+                .iter()
+                .any(|row| row.publication == suffix && row.span.start() == offset)
+        );
+        let (_, foreign_child, foreign_region, foreign_caller) = fixture(source);
+        assert!(!foreign_region.owns_original_procedure_call(&foreign_caller, call));
+        assert!(!region.owns_original_procedure_call(&foreign_caller, call));
+        assert!(
+            call.declaration_in_region_dependency(&caller, &foreign_child)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn deferred_region_body_call_keeps_debt_and_data_exclusion() {
+        for source in [
+            "source child.tcl; proc run {} {opaque; puts [helper]}",
+            "source child.tcl; proc run {} {set payload {helper}}",
+        ] {
+            let (_, child, region, caller) = fixture(source);
+            let loaded = OriginalSourceViewPublication::retain(2_u8);
+            let suffix = OriginalSourceViewPublication::retain(3_u8);
+            let ancestors = [loaded.clone()];
+            let inventory = [
+                OriginalSourceViewDocument {
+                    publication: &loaded,
+                    document: OriginalDeclarationDocument {
+                        uri: "file:///child.tcl",
+                        source: CHILD,
+                        analysis: &child,
+                    },
+                    region: None,
+                    ancestors: &[],
+                },
+                OriginalSourceViewDocument {
+                    publication: &suffix,
+                    document: OriginalDeclarationDocument {
+                        uri: "file:///main.tcl",
+                        source,
+                        analysis: &caller,
+                    },
+                    region: Some(&region),
+                    ancestors: &ancestors,
+                },
+            ];
+            let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+            assert!(prepare(&suffix, offset, &inventory).is_none(), "{source}");
+            let changed = source.replace("helper", "other_");
+            let stale = [OriginalSourceViewDocument {
+                publication: &suffix,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source: &changed,
+                    analysis: &caller,
+                },
+                region: Some(&region),
+                ancestors: &ancestors,
+            }];
+            assert!(cursor_publications("file:///main.tcl", offset, &stale).is_none());
         }
     }
 }
