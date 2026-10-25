@@ -96,28 +96,94 @@ fn variable_info_validates_original_options_before_target_lookup() {
     }
 }
 
+const VARIABLE_INFO_ROWS: [(&str, &str); 3] = [
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stdout.tsv"
+        ),
+    ),
+];
+
+const VARIABLE_INFO_CASES: [VariableInfoCase; 11] = [
+    ("BASE", None, false, false, false),
+    (
+        "PRIVATE_EXACT",
+        Some(b"-private".as_slice()),
+        false,
+        false,
+        false,
+    ),
+    (
+        "PRIVATE_RAW_ZERO",
+        Some(b"-private\0\xff".as_slice()),
+        false,
+        false,
+        false,
+    ),
+    (
+        "PRIVATE_ENCODED_ZERO",
+        Some(b"-private\xc0\x80".as_slice()),
+        false,
+        false,
+        false,
+    ),
+    (
+        "PRIVATE_PREFIX",
+        Some(b"-priv".as_slice()),
+        false,
+        false,
+        false,
+    ),
+    (
+        "BAD_RAW_ZERO",
+        Some(b"-bad\xff\0TAIL".as_slice()),
+        false,
+        false,
+        false,
+    ),
+    (
+        "MISSING_BAD",
+        Some(b"-bad\xff\0TAIL".as_slice()),
+        true,
+        false,
+        false,
+    ),
+    (
+        "MISSING_PRIVATE",
+        Some(b"-private".as_slice()),
+        true,
+        false,
+        false,
+    ),
+    (
+        "MISSING_EXTRA",
+        Some(b"-private".as_slice()),
+        true,
+        true,
+        false,
+    ),
+    ("MISSING_BASE", None, true, false, false),
+    ("NO_TARGET", None, false, false, true),
+];
+
+type VariableInfoCase = (&'static str, Option<&'static [u8]>, bool, bool, bool);
+
 #[test]
 fn variable_info_matches_original_native_option_and_target_failures() {
-    for (engine, captured) in [
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, captured) in VARIABLE_INFO_ROWS {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         let mut vm = crate::native_fixture::core(profile);
         assert_eq!(
@@ -172,67 +238,7 @@ fn variable_info_matches_original_native_option_and_target_failures() {
             (InfoOoEnsembleKind::Object, "object", "O"),
             (InfoOoEnsembleKind::Class, "class", "C"),
         ] {
-            for (case, option, missing, extra, no_target) in [
-                ("BASE", None, false, false, false),
-                (
-                    "PRIVATE_EXACT",
-                    Some(b"-private".as_slice()),
-                    false,
-                    false,
-                    false,
-                ),
-                (
-                    "PRIVATE_RAW_ZERO",
-                    Some(b"-private\0\xff".as_slice()),
-                    false,
-                    false,
-                    false,
-                ),
-                (
-                    "PRIVATE_ENCODED_ZERO",
-                    Some(b"-private\xc0\x80".as_slice()),
-                    false,
-                    false,
-                    false,
-                ),
-                (
-                    "PRIVATE_PREFIX",
-                    Some(b"-priv".as_slice()),
-                    false,
-                    false,
-                    false,
-                ),
-                (
-                    "BAD_RAW_ZERO",
-                    Some(b"-bad\xff\0TAIL".as_slice()),
-                    false,
-                    false,
-                    false,
-                ),
-                (
-                    "MISSING_BAD",
-                    Some(b"-bad\xff\0TAIL".as_slice()),
-                    true,
-                    false,
-                    false,
-                ),
-                (
-                    "MISSING_PRIVATE",
-                    Some(b"-private".as_slice()),
-                    true,
-                    false,
-                    false,
-                ),
-                (
-                    "MISSING_EXTRA",
-                    Some(b"-private".as_slice()),
-                    true,
-                    true,
-                    false,
-                ),
-                ("MISSING_BASE", None, true, false, false),
-                ("NO_TARGET", None, false, false, true),
-            ] {
+            for (case, option, missing, extra, no_target) in VARIABLE_INFO_CASES {
                 let mut args = vec![Value::string("variables")];
                 if !no_target {
                     args.push(Value::string(if missing { "::missing" } else { target }));

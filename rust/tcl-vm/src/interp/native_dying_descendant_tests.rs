@@ -114,40 +114,42 @@ impl NativeCommand for RetiringCommand {
     }
 }
 
+const DYING_DESCENDANT_ROWS: [(tcl_dialect::TclVersion, &str); 5] = [
+    (
+        tcl_dialect::TclVersion::V8_4,
+        include_str!(
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.4.20/stdout.tsv"
+        ),
+    ),
+    (
+        tcl_dialect::TclVersion::V8_5,
+        include_str!(
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.5.19/stdout.tsv"
+        ),
+    ),
+    (
+        tcl_dialect::TclVersion::V8_6,
+        include_str!(
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        tcl_dialect::TclVersion::V9_0,
+        include_str!(
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        tcl_dialect::TclVersion::V9_1,
+        include_str!(
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.1.0/stdout.tsv"
+        ),
+    ),
+];
+
 #[test]
 fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it() {
-    for (version, rows) in [
-        (
-            tcl_dialect::TclVersion::V8_4,
-            include_str!(
-                "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            tcl_dialect::TclVersion::V8_5,
-            include_str!(
-                "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            tcl_dialect::TclVersion::V8_6,
-            include_str!(
-                "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            tcl_dialect::TclVersion::V9_0,
-            include_str!(
-                "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            tcl_dialect::TclVersion::V9_1,
-            include_str!(
-                "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (version, rows) in DYING_DESCENDANT_ROWS {
         for (case, target) in [
             ("MISSING_CHILD", b"::retiring::New".as_slice()),
             ("MISSING_PARENT", b"::retiring::New::"),

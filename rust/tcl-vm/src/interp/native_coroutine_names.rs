@@ -79,29 +79,49 @@ mod tests {
             .collect()
     }
 
+    const COROUTINE_PUBLICATION_ROWS: [(&str, &str); 3] = [
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv"
+            ),
+        ),
+    ];
+
+    fn assert_bytes(
+        completion: &tcl_runtime_api::Completion<Value>,
+        native: &[&str],
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        context: (&str, &str, &str),
+    ) {
+        let (engine, label, suffix) = context;
+        assert_eq!(
+            completion
+                .result
+                .native_string_bytes(protocol)
+                .unwrap()
+                .as_ref(),
+            unhex(native[3]),
+            "{engine}/{label}/{suffix}"
+        );
+    }
+
     #[test]
     fn original_coroutine_names_match_native_publication_controls() {
         let mut comparisons = 0;
-        for (engine, rows) in [
-            (
-                "tcl8.6",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stdout.tsv"
-                ),
-            ),
-            (
-                "tcl9.0",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stdout.tsv"
-                ),
-            ),
-            (
-                "tcl9.1",
-                include_str!(
-                    "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv"
-                ),
-            ),
-        ] {
+        for (engine, rows) in COROUTINE_PUBLICATION_ROWS {
             for input in rows.lines().filter(|line| {
                 line.starts_with("PUB_") && line.split('|').next().unwrap().ends_with("_INPUT")
             }) {
@@ -146,15 +166,7 @@ mod tests {
                     .actual_native_invocation_dialect()
                     .native_string_protocol()
                     .unwrap();
-                assert_eq!(
-                    completion
-                        .result
-                        .native_string_bytes(protocol)
-                        .unwrap()
-                        .as_ref(),
-                    unhex(native[3]),
-                    "{engine}/{label}/bytes"
-                );
+                assert_bytes(&completion, &native, protocol, (engine, label, "bytes"));
                 comparisons += 1;
                 if completion.code == tcl_core_types::Code::Ok {
                     let resumed = vm.invoke_host_original_object_vector(
@@ -167,15 +179,7 @@ mod tests {
                         native[1].parse::<i64>().unwrap(),
                         "{engine}/{label}/resume-code"
                     );
-                    assert_eq!(
-                        resumed
-                            .result
-                            .native_string_bytes(protocol)
-                            .unwrap()
-                            .as_ref(),
-                        unhex(native[3]),
-                        "{engine}/{label}/resume-bytes"
-                    );
+                    assert_bytes(&resumed, &native, protocol, (engine, label, "resume-bytes"));
                     comparisons += 1;
                 } else {
                     assert_eq!(
@@ -202,14 +206,11 @@ mod tests {
                     expected[1].parse::<i64>().unwrap(),
                     "{engine}/{label}/token-fullname-code"
                 );
-                assert_eq!(
-                    fullname
-                        .result
-                        .native_string_bytes(protocol)
-                        .unwrap()
-                        .as_ref(),
-                    unhex(expected[3]),
-                    "{engine}/{label}/token-fullname-bytes"
+                assert_bytes(
+                    &fullname,
+                    &expected,
+                    protocol,
+                    (engine, label, "token-fullname-bytes"),
                 );
                 comparisons += 1;
                 assert!(

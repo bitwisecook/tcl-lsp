@@ -31,6 +31,27 @@ fn call(vm: &mut Vm, original: &Value, flags: u8) -> Completion<Value> {
     arguments.push(original.clone());
     vm.invoke_command("subst", &arguments)
 }
+const SUBSTITUTION_OWNER_ROWS: [(&str, &str); 3] = [
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.1.0/stdout.tsv"
+        ),
+    ),
+];
+
 #[test]
 fn original_compiled_substitution_matches_counted_native_flags_and_completions() {
     let inputs: Vec<_> =
@@ -45,26 +66,7 @@ fn original_compiled_substitution_matches_counted_native_flags_and_completions()
             .collect();
     assert_eq!(inputs.len(), 10);
     let mut compared = 0;
-    for (engine, rows) in [
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_substitution_owner/v6/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, rows) in SUBSTITUTION_OWNER_ROWS {
         for (source, input) in inputs.iter().enumerate() {
             let mut vm = actual(engine);
             let protocol = vm

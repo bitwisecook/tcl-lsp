@@ -75,48 +75,122 @@ fn row<'a>(captured: &'a str, label: &str) -> Vec<&'a str> {
         .collect()
 }
 
+const PROPERTY_COUNTED_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/8.4.20/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/8.5.19/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/9.1.0/stdout.tsv"
+        ),
+    ),
+    (
+        "jimtcl",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_property_counted_original/jim/stdout.tsv"
+        ),
+    ),
+];
+
+fn check_property_label(engine: &str, captured: &str, label: &str) {
+    let mut interp = instance(engine);
+    let result = interp
+        .eval_source("oo::configurable create C; C create o")
+        .unwrap();
+    let entered = result.code == Code::Ok;
+    assert_row(
+        &mut interp,
+        &result,
+        None,
+        captured,
+        &format!("{label}_CREATE"),
+    );
+    if !entered {
+        return;
+    }
+    let bytes = unhex(
+        captured
+            .lines()
+            .find(|line| line.starts_with(&format!("INPUT|{label}|")))
+            .unwrap()
+            .split('|')
+            .nth(2)
+            .unwrap(),
+    );
+    let name = string(&bytes);
+    let class = string(b"C");
+    let property = string(b"property");
+    let result = call(&mut interp, b"oo::define", &[&class, &property, &name]);
+    assert_row(
+        &mut interp,
+        &result,
+        None,
+        captured,
+        &format!("{label}_DEFINE"),
+    );
+    let mut dashed = b"-".to_vec();
+    dashed.extend_from_slice(&bytes);
+    let option = string(&dashed);
+    let configure = string(b"configure");
+    let member = string(b"VALUE");
+    let value = list(&interp, &[&member]);
+    let result = call(&mut interp, b"o", &[&configure, &option, &value]);
+    assert_row(
+        &mut interp,
+        &result,
+        None,
+        captured,
+        &format!("{label}_WRITE"),
+    );
+    let result = call(&mut interp, b"o", &[&configure, &option]);
+    assert_row(
+        &mut interp,
+        &result,
+        Some(&value),
+        captured,
+        &format!("{label}_READ"),
+    );
+    let result = call(
+        &mut interp,
+        b"info",
+        &[&string(b"class"), &string(b"properties"), &class],
+    );
+    assert_row(
+        &mut interp,
+        &result,
+        None,
+        captured,
+        &format!("{label}_ROSTER"),
+    );
+}
+
 #[test]
 fn original_property_names_and_values_match_native_c9_counted_access() {
     // naming.property.original-c9-counted-name-access
 
-    for (engine, captured) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/9.1.0/stdout.tsv"
-            ),
-        ),
-        (
-            "jimtcl",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_property_counted_original/jim/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, captured) in PROPERTY_COUNTED_ROWS {
         let interp = instance(engine);
         // The original property capture enters C9 source before counted
         // access. Unavailable factory argv has its own native channel below.
@@ -128,75 +202,7 @@ fn original_property_names_and_values_match_native_c9_counted_access() {
             continue;
         }
         for label in ["FF", "D800", "D801", "ZERO"] {
-            let mut interp = instance(engine);
-            let result = interp
-                .eval_source("oo::configurable create C; C create o")
-                .unwrap();
-            let entered = result.code == Code::Ok;
-            assert_row(
-                &mut interp,
-                &result,
-                None,
-                captured,
-                &format!("{label}_CREATE"),
-            );
-            if !entered {
-                continue;
-            }
-            let bytes = unhex(
-                captured
-                    .lines()
-                    .find(|line| line.starts_with(&format!("INPUT|{label}|")))
-                    .unwrap()
-                    .split('|')
-                    .nth(2)
-                    .unwrap(),
-            );
-            let name = string(&bytes);
-            let class = string(b"C");
-            let property = string(b"property");
-            let result = call(&mut interp, b"oo::define", &[&class, &property, &name]);
-            assert_row(
-                &mut interp,
-                &result,
-                None,
-                captured,
-                &format!("{label}_DEFINE"),
-            );
-            let mut dashed = b"-".to_vec();
-            dashed.extend_from_slice(&bytes);
-            let option = string(&dashed);
-            let configure = string(b"configure");
-            let member = string(b"VALUE");
-            let value = list(&interp, &[&member]);
-            let result = call(&mut interp, b"o", &[&configure, &option, &value]);
-            assert_row(
-                &mut interp,
-                &result,
-                None,
-                captured,
-                &format!("{label}_WRITE"),
-            );
-            let result = call(&mut interp, b"o", &[&configure, &option]);
-            assert_row(
-                &mut interp,
-                &result,
-                Some(&value),
-                captured,
-                &format!("{label}_READ"),
-            );
-            let result = call(
-                &mut interp,
-                b"info",
-                &[&string(b"class"), &string(b"properties"), &class],
-            );
-            assert_row(
-                &mut interp,
-                &result,
-                None,
-                captured,
-                &format!("{label}_ROSTER"),
-            );
+            check_property_label(engine, captured, label);
         }
         let mut interp = instance(engine);
         let result = interp

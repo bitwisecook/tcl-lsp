@@ -12,6 +12,45 @@ fn decode(bytes: &str) -> Vec<u8> {
         .collect()
 }
 
+const NAMESPACE_STORE_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stdout"
+        ),
+    ),
+    (
+        "jim",
+        include_str!(
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stdout"
+        ),
+    ),
+];
+
 #[test]
 fn namespace_stores_match_native_existing_root_fresh_and_declared_controls() {
     let cases = [
@@ -34,44 +73,7 @@ fn namespace_stores_match_native_existing_root_fresh_and_declared_controls() {
             true,
         ),
     ];
-    for (engine, rows) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stdout"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stdout"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stdout"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stdout"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stdout"
-            ),
-        ),
-        (
-            "jim",
-            include_str!(
-                "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stdout"
-            ),
-        ),
-    ] {
+    for (engine, rows) in NAMESPACE_STORE_ROWS {
         for (label, namespace, script, has_root) in cases {
             let mut vm = crate::native_fixture::interpreter(
                 tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
