@@ -528,7 +528,7 @@ impl OriginalNamespaceBinding {
         let spec = context.registry.native_registration_source_descriptor(
             native.target.registry_identity()?,
             dialect,
-            context.realm,
+            context.realm(),
         )?;
         if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
             return None;

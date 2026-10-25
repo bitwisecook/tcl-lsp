@@ -249,7 +249,7 @@ pub(super) fn preflight_image(
     context: SourceExecutionContext<'_>,
     snapshot: &mut NativeCompilationSnapshot,
 ) -> PreflightOutcome {
-    if context.compilation.mode != NativeCompilationMode::BytecodeObject {
+    if context.compilation().mode != NativeCompilationMode::BytecodeObject {
         return PreflightOutcome::default();
     }
     let Some(origin) = &state.current_source_origin else {
@@ -479,14 +479,14 @@ impl CompilerTraversal<'_> {
             image.clone(),
             tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?),
             context.config,
-            context.source_purpose,
+            context.source_purpose(),
         ) else {
             self.require_provider();
             return None;
         };
         // The checked native plan owns the syntax cut. The structural view may
         // retain the failed command, but it must not select its incomplete argv.
-        let mut config = context.source_purpose.config(context.config);
+        let mut config = context.source_purpose().config(context.config);
         config.strict_quoting = false;
         let Some(segments) =
             crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
@@ -963,7 +963,7 @@ impl CompilerTraversal<'_> {
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile),
             invocation,
-            context.realm,
+            context.realm(),
         )?;
         Some((invocation, facts))
     }
@@ -1030,7 +1030,7 @@ impl CompilerTraversal<'_> {
                             self.state,
                         ),
                     compiler_dialect: self.state.baseline.compilation_dialect(),
-                    context: context.compilation,
+                    context: context.compilation(),
                     operand_from: 2,
                 },
                 context.registry,
@@ -1122,7 +1122,9 @@ impl CompilerTraversal<'_> {
                 &original,
                 span.start(),
                 SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                     depth: context.depth + 1,
                     ..context
                 },
@@ -1156,7 +1158,7 @@ impl CompilerTraversal<'_> {
                                 base: span.start(),
                             },
                         },
-                        compilation: context.compilation,
+                        compilation: context.compilation(),
                         parent_namespace_key: context.namespace_identity(),
                         namespace_key: context.namespace_identity(),
                         compiler_visits: Arc::default(),
@@ -1469,7 +1471,9 @@ impl CompilerTraversal<'_> {
                 &tcl_lexer::SourceImage::native(script.as_bytes()),
                 child_base,
                 SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                     depth: context.depth + 1,
                     ..context
                 },
@@ -1564,7 +1568,7 @@ impl CompilerTraversal<'_> {
             };
             let compilation = spec.body_context_for_operand(
                 self.state.baseline.compilation_dialect(),
-                context.compilation,
+                context.compilation(),
                 selection,
                 super::compiled_invocation::word_shape(&words[body.argument + 1]),
             );
@@ -1575,8 +1579,10 @@ impl CompilerTraversal<'_> {
                 &tcl_lexer::SourceImage::native(text.as_bytes()),
                 source.span.start().saturating_add(1),
                 SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    compilation,
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript)
+                        .with_compilation(compilation),
                     depth: context.depth + 1,
                     ..context
                 },
@@ -1761,7 +1767,9 @@ impl CompilerTraversal<'_> {
                         &tcl_lexer::SourceImage::from_bytes(script, arena.image().channel()),
                         body.start(),
                         SourceExecutionContext {
-                            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                            control: (context).control.with_source_purpose(
+                                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                            ),
                             depth: depth + 1,
                             ..context
                         },
@@ -1808,7 +1816,9 @@ impl CompilerTraversal<'_> {
             &tcl_lexer::SourceImage::native(script.as_bytes()),
             source.span.start().saturating_add(1),
             SourceExecutionContext {
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                control: (context)
+                    .control
+                    .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                 depth: context.depth + 1,
                 ..context
             },
@@ -1848,7 +1858,7 @@ fn compilation_selection(
                             state,
                         ),
                     compiler_dialect: state.baseline.compilation_dialect(),
-                    context: context.compilation,
+                    context: context.compilation(),
                     operand_from: facts.argument_offset + 1,
                 },
             )
@@ -1860,7 +1870,7 @@ fn compilation_selection(
                 &shapes,
                 facts,
                 invocation.arguments().dialect(),
-                context.compilation,
+                context.compilation(),
             ),
             None,
         )
@@ -2372,10 +2382,12 @@ mod tests {
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
             original_logical_body: None,
-            body_entry: crate::command_binding::SourceBodyEntryPurpose::Selected,
-            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-            realm: tcl_dialect::model::InvocationRealm::RuleLoader,
-            compilation,
+            control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                compilation,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                crate::command_binding::SourceBodyEntryPurpose::Selected,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            ),
             compilation_snapshot: None,
             selected_compilation: None,
             original_variable_compilation: None,

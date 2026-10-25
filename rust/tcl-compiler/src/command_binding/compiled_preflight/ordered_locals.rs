@@ -38,8 +38,8 @@ impl SourceCompilerLocalInventory {
         state: &crate::command_binding::ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
-        if context.compilation.mode != NativeCompilationMode::BytecodeObject
-            || context.compilation.frame != NativeCompilationFrame::ProcedureCode
+        if context.compilation().mode != NativeCompilationMode::BytecodeObject
+            || context.compilation().frame != NativeCompilationFrame::ProcedureCode
             || state.variable_frame != *context.frame
         {
             return None;
@@ -71,7 +71,7 @@ impl SourceCompilerLocalInventory {
             chunk,
             config: context.config,
             frame: context.frame.clone(),
-            compilation: context.compilation,
+            compilation: context.compilation(),
             protocol,
             formals,
             locals,

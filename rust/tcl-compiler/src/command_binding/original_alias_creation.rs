@@ -100,7 +100,7 @@ impl OriginalAliasCreation {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let spec = context.registry.get_for_surface(
             native.target.registry_identity()?,
-            Some(dialect.authoring_query()?.with_realm(context.realm)),
+            Some(dialect.authoring_query()?.with_realm(context.realm())),
         )?;
         if tcl_registry::registry::spec_pack_of(spec) != Some("tcl")
             || inputs.iter().any(|input| input.policy() != policy)

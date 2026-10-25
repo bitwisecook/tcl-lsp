@@ -49,7 +49,7 @@ pub(super) fn transfer(
                 &arguments,
             )
             .with_dialect(super::source_analysis_entry::source_input_dialect(&input)),
-            context.realm,
+            context.realm(),
         );
     let schema = resolution.resolved()?;
     let facts = schema.facts();

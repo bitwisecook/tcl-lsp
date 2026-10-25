@@ -102,7 +102,7 @@ pub(super) fn preserves_visits(
     origin: &Arc<super::SourceOriginId>,
 ) -> bool {
     let mut roots = Vec::new();
-    if !append_visits(words, visits, &mut roots, state, context.compilation) {
+    if !append_visits(words, visits, &mut roots, state, context.compilation()) {
         return false;
     }
     if !roots.is_empty() && !lookup_has_no_callbacks(state) {
@@ -117,7 +117,7 @@ pub(super) fn preserves_visits(
         origin,
         namespace: context.namespace_identity(),
         registry: context.registry.snapshot().semantic_key(),
-        realm: context.realm,
+        realm: context.realm(),
     };
     let mut outcomes = HashMap::new();
     let mut active = HashSet::new();
@@ -183,7 +183,7 @@ fn script_visits(
         return None;
     }
     let context = SourceExecutionContext {
-        compilation: script.compilation,
+        control: (context).control.with_compilation(script.compilation),
         ..context
     };
     let mut children = Vec::new();
@@ -249,7 +249,7 @@ fn append_command(
                 NativeControlPreparationStep::Word(NativeCompilerWordOperand::Original(index))
             })
             .collect();
-        if !append_visits(&words, visits, pending, state, context.compilation) {
+        if !append_visits(&words, visits, pending, state, context.compilation()) {
             return false;
         }
     }
@@ -272,9 +272,9 @@ fn append_command(
             &words,
             1,
             Some(dialect),
-            context.compilation,
+            context.compilation(),
         );
-        if !append_effects(effects, &words, pending, state, context.compilation) {
+        if !append_effects(effects, &words, pending, state, context.compilation()) {
             return false;
         }
     }
@@ -629,10 +629,12 @@ mod tests {
             SourceAnalysisOptions::default(),
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
-        context.compilation = tcl_registry::native_compilation::NativeCompilationContext {
-            mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
-            ..crate::environment_ingress::authoring_native_compilation()
-        };
+        context.control = context.control.with_compilation(
+            tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                ..crate::environment_ingress::authoring_native_compilation()
+            },
+        );
         context.compilation_snapshot = Some(snapshot);
         context
     }
@@ -755,10 +757,14 @@ mod tests {
         assert_eq!(check(&captured, context, &origin), (false, 1));
         assert_eq!(check(&captured, context, &origin), (false, 1));
         let mut changed = context;
-        changed.compilation.loop_depth += 1;
+        let mut compilation = changed.compilation();
+        compilation.loop_depth += 1;
+        changed.control = changed.control.with_compilation(compilation);
         assert_eq!(check(&captured, changed, &origin), (false, 2));
         changed = context;
-        changed.realm = tcl_dialect::model::InvocationRealm::InterpreterRuntime;
+        changed.control = changed
+            .control
+            .with_realm(tcl_dialect::model::InvocationRealm::InterpreterRuntime);
         assert_eq!(check(&captured, changed, &origin), (false, 3));
         let other_registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
         changed = SourceExecutionContext {

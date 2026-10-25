@@ -3177,7 +3177,7 @@ impl<'a> OriginalSourceVariableCompilation<'a> {
                         &original.site,
                         original.config,
                         context.frame,
-                        context.compilation,
+                        context.compilation(),
                         protocol,
                     )
                 })
@@ -3188,7 +3188,7 @@ impl<'a> OriginalSourceVariableCompilation<'a> {
             namespace: selected.namespace_bindings.as_deref(),
             original,
             evaluated_words: None,
-            compilation: context.compilation,
+            compilation: context.compilation(),
             protocol,
             locals,
         })

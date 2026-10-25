@@ -378,7 +378,7 @@ impl SourceCommandBindings {
             effective,
             state,
             context.registry,
-            context.realm,
+            context.realm(),
         ) else {
             return self.walk_source_target_after_observers(
                 segment, words, effective, state, target, context,
@@ -781,7 +781,7 @@ impl SourceCommandBindings {
             SourceExecutionContext {
                 namespace_key: Some(&namespace),
                 depth: context.depth + 1,
-                compilation: callback.compilation,
+                control: (context).control.with_compilation(callback.compilation),
                 config: callback.config,
                 selected_compilation: None,
                 original_variable_compilation: None,
@@ -1038,7 +1038,7 @@ mod tests {
                             .iter()
                             .all(|input| input.original_word_key().is_none())
                     );
-                    assert_eq!(projected.compilation.mode, NativeCompilationMode::Direct);
+                    assert_eq!(projected.compilation().mode, NativeCompilationMode::Direct);
                     assert!(
                         super::original_trace_callback_words(None, &binding.variable_context)
                             .is_none()

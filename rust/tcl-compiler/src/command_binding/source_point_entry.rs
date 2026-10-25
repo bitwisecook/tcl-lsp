@@ -402,9 +402,9 @@ impl OriginalSourcePointEntry {
                     .snapshot()
                     .semantic_key()
             && state.baseline.invocation_realm == self.payload.snapshot.realm
-            && context.realm == self.payload.snapshot.realm
-            && context.body_entry == super::SourceBodyEntryPurpose::Conditional
-            && context.compilation
+            && context.realm() == self.payload.snapshot.realm
+            && context.body_entry() == super::SourceBodyEntryPurpose::Conditional
+            && context.compilation()
                 == tcl_registry::native_compilation::NativeCompilationContext::default()
             && context.compilation_snapshot.is_none()
             && context.selected_compilation.is_none()
@@ -1216,7 +1216,9 @@ mod tests {
         different.config.strict_quoting = !different.config.strict_quoting;
         assert!(!point.is_source_only_interpretation(&dispatch.state, different));
         different = context;
-        different.body_entry = super::super::SourceBodyEntryPurpose::Selected;
+        different.control = different
+            .control
+            .with_body_entry(super::super::SourceBodyEntryPurpose::Selected);
         assert!(!point.is_source_only_interpretation(&dispatch.state, different));
         let mut foreign = dispatch.state.clone();
         foreign.current_source_origin = Some(Arc::clone(&point.payload.site.source));

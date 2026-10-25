@@ -274,9 +274,14 @@ fn logical_survey_dispatch<'a>(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<Box<LogicalSurveyDispatch<'a>>> {
-    let prepared =
-        prepare_source_native_invocation(target, effective, state, context.registry, context.realm)
-            .ok()?;
+    let prepared = prepare_source_native_invocation(
+        target,
+        effective,
+        state,
+        context.registry,
+        context.realm(),
+    )
+    .ok()?;
     let (native_compilation, branches) = {
         let invocation = prepared.invocation(&target.command);
         let resolution = tcl_registry::model::semantic::resolve_structured_invocation_in_realm(
@@ -286,7 +291,7 @@ fn logical_survey_dispatch<'a>(
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile),
             invocation,
-            context.realm,
+            context.realm(),
         );
         let schema = resolution.resolved()?;
         let facts = schema.facts();

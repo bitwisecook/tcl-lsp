@@ -25,7 +25,7 @@ impl SourceCommandBindings {
         let query = arguments
             .dialect()
             .and_then(tcl_registry::InvocationDialect::authoring_query)
-            .map(|query| query.with_realm(context.realm));
+            .map(|query| query.with_realm(context.realm()));
         let Some(invocation) = context
             .registry
             .resolve_structured_invocation(*native.invocation, query)

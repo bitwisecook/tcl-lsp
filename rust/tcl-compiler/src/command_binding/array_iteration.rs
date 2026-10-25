@@ -144,10 +144,12 @@ impl SourceCommandBindings {
             native.script_operands(),
             state,
             &SourceExecutionContext {
-                compilation: tcl_registry::native_compilation::NativeCompilationContext {
-                    loop_depth: context.compilation.loop_depth.saturating_add(1),
-                    ..context.compilation
-                },
+                control: (context).control.with_compilation(
+                    tcl_registry::native_compilation::NativeCompilationContext {
+                        loop_depth: context.compilation().loop_depth.saturating_add(1),
+                        ..context.compilation()
+                    },
+                ),
                 depth: context.depth + 1,
                 ..context
             },

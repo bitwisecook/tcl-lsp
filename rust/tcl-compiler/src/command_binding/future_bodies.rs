@@ -286,10 +286,13 @@ impl SourceCommandBindings {
             &mut state,
             &SourceExecutionContext {
                 original_logical_body: None,
-                body_entry: super::SourceBodyEntryPurpose::Conditional,
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                realm: root.realm,
-                compilation,
+                control:
+                    crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                        compilation,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        super::SourceBodyEntryPurpose::Conditional,
+                        root.realm,
+                    ),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 original_variable_compilation: None,

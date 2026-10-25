@@ -59,7 +59,7 @@ impl SourceCommandBindings {
             return opaque_source_invocation(state);
         };
         let compilation =
-            spec.body_context(state.baseline.compilation_dialect(), context.compilation);
+            spec.body_context(state.baseline.compilation_dialect(), context.compilation());
         let previous_origin = state
             .current_source_origin
             .replace(Arc::clone(&script.origin));
@@ -68,8 +68,10 @@ impl SourceCommandBindings {
             script.base(),
             state,
             &SourceExecutionContext {
-                realm: tcl_dialect::model::InvocationRealm::InterpreterRuntime,
-                compilation,
+                control: (context)
+                    .control
+                    .with_realm(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
+                    .with_compilation(compilation),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 original_variable_compilation: None,

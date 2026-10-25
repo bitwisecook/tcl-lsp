@@ -1480,12 +1480,12 @@ fn prepare_reached_expression(
                 context
                     .compilation_snapshot
                     .cloned()
-                    .unwrap_or_else(|| state.native_compilation_snapshot_in_realm(context.realm))
+                    .unwrap_or_else(|| state.native_compilation_snapshot_in_realm(context.realm()))
             });
             let closure = closure.get_or_insert_with(|| SourceExpressionScriptCompilation {
                 source: Arc::new(source.clone()),
                 snapshot: snapshot.clone(),
-                context: context.compilation,
+                context: context.compilation(),
                 visits: Vec::new(),
                 dependencies: Vec::new(),
             });
@@ -1531,14 +1531,14 @@ fn compile_expression_script(
     };
     let mut compiler_state = state.clone();
     compiler_state.current_source_origin = Some(Arc::clone(&source.origin));
-    let mut compilation = context.compilation;
+    let mut compilation = context.compilation();
     compilation.mode = NativeCompilationMode::BytecodeObject;
     let assessment = super::compiled_preflight::preflight(
         script,
         base,
         &compiler_state,
         SourceExecutionContext {
-            compilation,
+            control: (context).control.with_compilation(compilation),
             compilation_snapshot: None,
             ..context
         },
@@ -2247,10 +2247,13 @@ mod tests {
             let namespace = frame.namespace_identity().cloned();
             let context = SourceExecutionContext {
                 original_logical_body: None,
-                body_entry: crate::command_binding::SourceBodyEntryPurpose::Selected,
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                realm: tcl_dialect::model::InvocationRealm::default(),
-                compilation: tcl_registry::native_compilation::NativeCompilationContext::default(),
+                control:
+                    crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                        tcl_registry::native_compilation::NativeCompilationContext::default(),
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        crate::command_binding::SourceBodyEntryPurpose::Selected,
+                        tcl_dialect::model::InvocationRealm::default(),
+                    ),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 original_variable_compilation: None,

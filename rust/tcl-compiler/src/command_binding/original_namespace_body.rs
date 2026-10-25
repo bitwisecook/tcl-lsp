@@ -130,7 +130,7 @@ impl OriginalNamespaceBodyDelegation {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let spec = context.registry.get_for_surface(
             native.target.registry_identity()?,
-            Some(dialect.authoring_query()?.with_realm(context.realm)),
+            Some(dialect.authoring_query()?.with_realm(context.realm())),
         )?;
         if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
             return None;
@@ -227,8 +227,8 @@ pub(super) fn conditional_namespace_completed(
         return false;
     };
     let delegation = &receipt.delegation.delegation;
-    context.body_entry == super::SourceBodyEntryPurpose::Conditional
-        && context.compilation
+    context.body_entry() == super::SourceBodyEntryPurpose::Conditional
+        && context.compilation()
             == tcl_registry::native_compilation::NativeCompilationContext::default()
         && normal.baseline.source_point_entry.is_some()
         && quiet(normal)

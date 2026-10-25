@@ -85,7 +85,7 @@ pub(super) fn retain_layout(
         invocation,
         shapes,
         state.baseline.compilation_dialect(),
-        context.compilation,
+        context.compilation(),
     )?;
     let NativeCompilationOperandLayout::Pattern { guard, .. } = layout;
     Some(Arc::new(SourceNativeOperandLayoutProof {

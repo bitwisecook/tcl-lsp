@@ -126,7 +126,7 @@ impl SourceCommandBindings {
             .is_some_and(|entry| entry.conditional_region().is_some())
             || base != 0
             || context.depth != 0
-            || context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
+            || context.source_purpose() != tcl_lexer::SourceSegmentationPurpose::WholeInput
             || self
                 .original_analysis_owner
                 .as_ref()

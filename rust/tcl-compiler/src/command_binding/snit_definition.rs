@@ -25,7 +25,7 @@ impl SourceCommandBindings {
             .baseline
             .dialect?
             .authoring_query()?
-            .with_realm(context.realm);
+            .with_realm(context.realm());
         let spec = context
             .registry
             .get_for_surface(&native.target.command, Some(query))?;
