@@ -182,8 +182,7 @@ impl OriginalProcedureCompileRequest {
             && entry.current_namespace == self.source.namespace.token
             && entry
                 .retained_namespace_context(self.source.namespace.token)
-                .ok()
-                .is_some_and(|namespace| namespace == self.source.namespace)
+                .is_ok_and(|namespace| namespace == self.source.namespace)
             && self.matches_compiler_environment(entry.compiler_pass_environment.as_ref())
     }
 
