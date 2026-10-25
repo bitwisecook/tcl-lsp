@@ -1,0 +1,3148 @@
+{
+  "utc": "2026-10-25T08:52:42.134541+00:00",
+  "contract": "Jim51 exact7+38+separate5+new1-v1",
+  "run": 40177225909,
+  "source": "dc52b8a0a9aa31e2221994ef8e84d2d196cf1f56",
+  "artifact_id": 12592704374,
+  "archive_sha256": "7f5cf0f07c00a74a44b1e5e536b21dc9b974b7186f69101bf6e90a4f1d1cd967",
+  "archive_bytes": 11025105,
+  "overall_exit": 1,
+  "error": null,
+  "controls": {
+    "source-before.json_full_NUL_Git_membership": true,
+    "source-before.json_identity": true,
+    "source-before.json_input_pins": true,
+    "source-after.json_full_NUL_Git_membership": true,
+    "source-after.json_identity": true,
+    "source-after.json_input_pins": true,
+    "source_independent_byte_seal": true,
+    "providers_independent_byte_seal": true,
+    "dependencies_independent_byte_seal": true,
+    "tools_independent_seal": true,
+    "all5_reported_final_seals": true,
+    "requested_source_run_work_job": true,
+    "V3_separate7_plus38_contract": true,
+    "exact_original7_unchanged_identity_env": true,
+    "exact_supplemental38_identity_env": true,
+    "separate_static5_identity_and_contract": true,
+    "separate_new1_exact_identity_source_and_contract": true,
+    "job_supplemental38_identity_env": true,
+    "strict_environment": true,
+    "original_Jim_provider_version": true,
+    "exact_limits": true,
+    "bounded_absolute_1h": true,
+    "diagnostic_scope_no_other_admissions": true,
+    "three_fresh_artifacts": true,
+    "all_three_builds_and_exact_rosters": true,
+    "fetch_exact_closed": true,
+    "build_exact_argv_jim_document": true,
+    "build_exact_argv_jim_own_surface": true,
+    "build_exact_argv_jim_static_read_alternatives": true,
+    "all58_processes_independently_validated": true,
+    "all_process_caps_exact_shrinking_budget": true,
+    "diagnostic_repeats_have_same_semantic_state": true,
+    "diagnostic_RBS_observer_reached": true,
+    "all51_test_process_order_original45_then5_then_new1": true,
+    "all45_and5_and_new1_closed": true,
+    "distinct_full45_membership": true,
+    "separate_final_closed_counts": true,
+    "new_build_list_selected_only_after_all_original50": true,
+    "new_driver_reserve30_leaves_owner_cleanup20_at_actual_timer_arm": true,
+    "all_process_receipts_join": true,
+    "aggregate_log_budget": true,
+    "overall_includes_old_and_new_control_failures": true
+  },
+  "all_controls_pass": true,
+  "counts": {
+    "original7:PASS": 7,
+    "supplemental38:FAIL": 14,
+    "supplemental38:PASS": 24,
+    "diagnostic5:FAIL": 5,
+    "new_static_control1:FAIL": 1
+  },
+  "source_full_membership_and_pins": {
+    "source-before.json": {
+      "entries": 126262,
+      "selected_pins": {
+        "docs/work/name-handling/validation-tools/jim-source-diagnostics.py": "563081a0db3ea1745fd3cb5567ec07f1972ff0c7f1bb7385562eb19e0a5bd4d5",
+        "docs/work/name-handling/validation-tools/jim-source-roster.json": "9d9f62271aeabc687d7e869070c431f21ebe1d8b9638bf87efb4f527d1c589dc",
+        "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "7314e20e17f0082a2703e038f2297b82d3342d19bcc0d6113c4d787788f83566",
+        "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "4c663b0dc54cc11129f6adc45ce7fe36c8adf74c8905a4ffa7c44d6469262b8d",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "6662b5e4447ad9e6302d4cc42f162bef69424f674e15bd4964fe2cd7be64650a",
+        "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+        "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+        "rust/tcl-spectcl/tests/jim_document.rs": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+        "rust/tcl-spectcl/tests/jim_own_surface.rs": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+        "rust/tcl-spectcl/tests/jim_static_read_alternatives.rs": "70929c92a61c0c07c784a8288193a3a12880be0ef6974ff7375b4cdd58c6d287",
+        "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+        "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+        "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+      },
+      "metadata": {
+        "head": "dc52b8a0a9aa31e2221994ef8e84d2d196cf1f56",
+        "tree": "d28997dc4021490868b640990d9e3bd7dd79a3d6"
+      },
+      "sha256": "ad5c39b6ce663cfe16e6c6c51adfc2627bd6d631d7fd8141f8a680fd85af5611"
+    },
+    "source-after.json": {
+      "entries": 126262,
+      "selected_pins": {
+        "docs/work/name-handling/validation-tools/jim-source-diagnostics.py": "563081a0db3ea1745fd3cb5567ec07f1972ff0c7f1bb7385562eb19e0a5bd4d5",
+        "docs/work/name-handling/validation-tools/jim-source-roster.json": "9d9f62271aeabc687d7e869070c431f21ebe1d8b9638bf87efb4f527d1c589dc",
+        "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "7314e20e17f0082a2703e038f2297b82d3342d19bcc0d6113c4d787788f83566",
+        "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "4c663b0dc54cc11129f6adc45ce7fe36c8adf74c8905a4ffa7c44d6469262b8d",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "6662b5e4447ad9e6302d4cc42f162bef69424f674e15bd4964fe2cd7be64650a",
+        "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+        "rust/tcl-registry/src/resolved_invocation.rs": "dc8e17e9e43c19cdc3f6e9bc094eafd9f941cfc001f3ae97f48520fdf10b6945",
+        "rust/tcl-spectcl/tests/jim_document.rs": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+        "rust/tcl-spectcl/tests/jim_own_surface.rs": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+        "rust/tcl-spectcl/tests/jim_static_read_alternatives.rs": "70929c92a61c0c07c784a8288193a3a12880be0ef6974ff7375b4cdd58c6d287",
+        "rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+        "scripts/dev/ensure-jim-oracle.sh": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07",
+        "scripts/dev/tcl-reference-toolchains.sh": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+      },
+      "metadata": {
+        "head": "dc52b8a0a9aa31e2221994ef8e84d2d196cf1f56",
+        "tree": "d28997dc4021490868b640990d9e3bd7dd79a3d6"
+      },
+      "sha256": "ad5c39b6ce663cfe16e6c6c51adfc2627bd6d631d7fd8141f8a680fd85af5611"
+    }
+  },
+  "independent_large_map_seals": {
+    "source": {
+      "before": "ad5c39b6ce663cfe16e6c6c51adfc2627bd6d631d7fd8141f8a680fd85af5611",
+      "after": "ad5c39b6ce663cfe16e6c6c51adfc2627bd6d631d7fd8141f8a680fd85af5611"
+    },
+    "providers": {
+      "before": "e27a4fa2bd4bc007236686b0312307249a0a2fdbf872c907f262f761534c1e53",
+      "after": "e27a4fa2bd4bc007236686b0312307249a0a2fdbf872c907f262f761534c1e53"
+    },
+    "dependencies": {
+      "before": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d",
+      "after": "2ea94b3daeb20cfc02f868e5974aa27be6cd02d63fae903f852c520244de9c6d"
+    }
+  },
+  "builds": {
+    "jim_document": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true,
+      "compiler_library_debug_assertions": true
+    },
+    "jim_own_surface": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true,
+      "compiler_library_debug_assertions": true
+    },
+    "jim_static_read_alternatives": {
+      "exact_full_roster": true,
+      "fresh_strict_ELF": true,
+      "zero_warnings": true,
+      "Cargo_success": true,
+      "compiler_library_debug_assertions": true
+    }
+  },
+  "new_owner_cleanup_margins_seconds": [
+    371.18295788764954,
+    2537.472587108612,
+    2536.948023080826
+  ],
+  "outcomes": [
+    {
+      "target": "jim_document",
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "c6bb2ea50f0e3dedd262697a7f5a96eb217939c8df140ff6e7b3c69bf37ac3b0",
+      "stderr_sha256": "7df17afa713a668ebc3098b816db578d4ea7b47a3f2d19a926479668bacd5d0f",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "bd1e15b9ca43dc43b7356d67c6d1590730ea45571be39b661ff61be10bc30d8d",
+      "stderr_sha256": "166496fd0910d3048d0495a054966e194ea602d2d8f85ffd7ff6d375d67afbe1",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "b44438de057e739e7808a1b1ccacb773b30c2fa29d4006c3cd7e646b9b709bd7",
+      "stderr_sha256": "168ddef6e75405ad98bbb6d7da930dbcceba316eec26c228696b60931cb53182",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "0ee198715a4bedc15c4e596801d15d81ed1b2d3066b993313e0990b85f9ab70f",
+      "stderr_sha256": "d0cfa63bc927c04601c0196cacc5d8fea3985425effa33f871fff019abcd70dd",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "state": "PASS",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "9ab4d0459e2b5d1de0ee57e0f5a9de42c3667b6a2b3e3f7a550da26388608768",
+      "stderr_sha256": "d7b6c6cbe75d5e72c1a64c4c50f2bb6670b2d70a9d5f34cc1acb1f604f197c92",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "b759f1ba0e7d6f8f6280270c8696392b3b363589bd7ed81737062fb333742c9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "original7",
+      "stdout_sha256": "571b069d9dbd84f90691cf4c9dbdbbcf4a4274ba4f83a743796d5c06cbb93567",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d7560bf88fd4ca7ece594dbf01954f2437fc61aa309d577444ea7317d875f203",
+      "stderr_sha256": "bcb27df8cc38b82f38fab94fdd3cae5b99cedc49562959f4b77b1c5a25a3cf69",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c29116bae551258bd627bf11990c12aec97c2c2d7894f20627ac08aa34a0b11f",
+      "stderr_sha256": "f87086e5ca0aee67dfd4f988cff913765d727ee41ab4e33ecd58557705334b6e",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "only_a_bare_or_ampersand_static_reads_the_enclosing_variable",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "5fe15d50b45b118df83ad1565e3d473ca4d06721597a779e1eb268c9e486b115",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "b2cbc681dbd09a73c90eda549217fe5a6b8180ce9be63d22dd4c952ec2b4d2a8",
+      "stderr_sha256": "b29c1d13d7276b055ccc54a137421384981c7077c571acc246b1c71c0c1af2ca",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d8be12a22ac1ecced1cb281cada08eb15212f25db50b30c0fefbe08cb7bab8e2",
+      "stderr_sha256": "8ff94cee1f4e3724133a286951b661a8dc10bd8a185c859f11af6cc39198b451",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "932455cab0e37307523916eef95fe15e740a4d8e464a327a47cf9272a66003ce",
+      "stderr_sha256": "6152219f46ff852e22f8e05f696b395dc76dcf1649c4e60ec40e413be511ee39",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_three_word_proc_is_the_plain_form",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "aab8fa163cbfada51784a7814ec70a1450fd6113742c9281a819380f789cba27",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_tcl_document_still_rejects_the_four_word_proc",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "f7abf119eaab42262df73d9d85377747791cc04fbfdbca12d7d31b4ab89a3c77",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_signature_scan_reads_the_four_word_definition",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "0a8b31db0acf2f6ea25a03fe5819bdae9a79ba24dafc6537fa39ec0bd80f71a5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_signature_scan_reads_the_three_word_definition_under_tcl",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "5b954b36762bb36b793a2a79adab33ea04971a2753fb28f0f1109c1a06814c27",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_derived_class_inherits_its_bases_variables",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "a15512c3bc3ef292aa5e74b36c3adfca5aaf21c7667d632aae26e5e57de000d5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "only_a_computed_base_list_leaves_the_inheritance_unknown",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "534e635f6134e02e9d64380a845fe5102f24339f4954b8c8d2da358e41c105db",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "an_odd_variable_dictionary_is_an_argument_shape_error",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "0588b4cf630edf564cae70166a992cca1577daaee4c2370a05302d7f0b06cffd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_class_without_its_variable_dictionary_is_an_arity_error",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "fe41e994373bea40151c9ec206e2b1e9a858fe8824ce4590544cf533799830da",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "5b2c7e426df4f6888f55ba7cd30c7800b5ad3c14fd8de4522f97c5cc13fb23cc",
+      "stderr_sha256": "7ebdc59e155ba88b0cba8aaf4ba178e10081bd075fa7c79fd709198aaf6cd1a6",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_two_word_proc_written_before_its_class_is_a_method",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "375beef125a81d30e34f0efae030f5c6ba9d4857af908f5822903cb69ae7b0e3",
+      "stderr_sha256": "3fa716dfa7ea782e5d74148e077d93358547ed2f00071859ce36e9f7580fe759",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_method_body_can_construct_its_own_class",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c9da0167668148bfbe3d1e438314cb35a614444d3a7852ee1a0998e287d6ce57",
+      "stderr_sha256": "93d12b12e20bea943ed464dfc9cb80a5e93f256be0ea5468da420c21a048bac7",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "an_object_is_typed_by_its_class_and_its_member_set_is_open",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "b9b318c06fe07562549f26a2fc7daaa41d932c09343b58911dddbce0033aed73",
+      "stderr_sha256": "3324e098f73112296b7cc9b6ff321d9004d592e3bec0fc96fdf6f237cf07fa09",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_two_element_proc_name_defines_a_two_word_command_in_every_dialect",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "21b8478b0a26ffe6209160498424af312b9dc1a8c7276f9a55996988d0419a72",
+      "stderr_sha256": "3b6ebad3d58faaa90be77460167bcb3eb0568e5fee0d30841bdc78148cd2941d",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_signature_scan_records_a_jim_class_with_or_without_bases",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "48f84b37d2142ae14d8850c967a327c44bb0a4e2453474ea9e31d312f7016a42",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_jim_program_draws_no_findings",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c3053e807269ce5279d964686f5e5577a8f44aaf5240340cd0a46e168b129ded",
+      "stderr_sha256": "abaf83c116c47cc05c385b9285d3060ace3d31d5206dfb22955448dd9f0d52e8",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_same_program_under_tcl_is_rejected",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "160df900273a8a052107865c3182862fca2b857e69748627eaeaa7e69248ac12",
+      "stderr_sha256": "359dfe5c8d2c63c86cb8864db2558fdcf0e6f1b2a3fd5a1cd8a7a3cab86d1ba0",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "loop_is_flagged_under_tcl_and_accepted_under_jim",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "966d25caeb916a0b8cfec1cc3c64716f251e83e7cc1e84881a1dbc809004cd3e",
+      "stderr_sha256": "6345497b844b17b9d36f5eb25093323ac23ce6a3497ed6ad00aa287cb114a4fd",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_tcl_document_has_no_jim_class",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "8e70ff3474ab74ea013efa06d973bfbd05b74c2eabb224ed0bb2856430a53059",
+      "stderr_sha256": "3b38441f3a9f60fd48914db039be90d354effa3998751b809742629b146041e7",
+      "independent_terminal": "FAIL",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_bases_join_the_source_provider_at_the_original_parent",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d336e07ece0a0ece0d3e43197c1833a23bb5392064ea23837fb99d959ad90f16",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_computed_lists_keep_unknown_distinct_from_absent",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "a82adcf5bec7e96b777c3060fd710815875e78111696c9e9ffa3930c6e960957",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_foreign_source_input_and_replacement_cannot_supply_a_provider",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "80cba29a197d2be7daef92390e6390ec0157a709f6c08c8ac6c11f75d31623e0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_wrong_and_expanded_layouts_or_replaced_definer_decline",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "a621eb300d6ebf125c5eaadfc1617e368ecc210422d1e6492b6dd883011a145d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_renamed_provider_keeps_its_source_and_computed_replacement_retires_it",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "cf5473fb19d59cc9919cac43c79db7f52aa25389d50b1fb7d188d919f6c969eb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "the_pack_declares_the_measured_names_and_no_others",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c2d4c8c7fbae2d62ae48ceba3ba2d02f85e1fda185b2df56aef2108910b59fea",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "every_command_carries_exactly_its_measured_window",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "80c87f91c70b5f68ca64ccd6ba1e34fea8069f241bce4e3b0bd36a8ac7baa172",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "no_other_environment_sees_jims_own_rows",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "fe6a2e2857acf95798b9acf0974f978aa6e376f2bc65ec8be3dfd6caf0729963",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "shared_names_resolve_to_each_documents_own_family",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "4835657227dcebbd8917d363c6e706b58d8e82e97ba10e3fe9834373e292a7de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_loop_body_is_declared_at_each_arity",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d1774d99942de7cbcb84f17c9791bb545fbaa120cf3f6f08d85d4a85b2111233",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "the_bare_limit_loop_form_starts_at_0_81",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "3b2d62df331e75bd983d6bed73b2a77ec3251dc21619a72b0b27c7cd4de839c7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "class_carries_the_jim_class_grammar_and_no_body_word",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "895fa06d585c263112c82f4413ff6ea5b98cac97c75ecaedbd8e484db619b767",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "both_resolution_paths_apply_the_roster",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "3f2a5dc6879f6a6d561fb976699ff533dfcc18f5421656fd7884ad93a936404a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "arithmetic_command_forms_are_visible_to_jim",
+      "state": "PASS",
+      "env": {},
+      "exit_code": 0,
+      "cohort": "supplemental38",
+      "stdout_sha256": "ec26dc294535dd5d48ced9e2bfd78a0d9c052f687f0658bb932bff9052c2dcb8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "independent_terminal": "PASS",
+      "closed": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "c5df69caf3c1ede191561d866e859e346b94993f3eb79859630255c7aaacd9e6",
+      "stderr_sha256": "6ccd4ac476d6ae2aa3f003945dba20cd77de9cd8d391e591c5b0323ed795a3d5",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 21,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 22,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 23,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 24,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 25,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 26,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 27,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 28,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 29,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 30,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 31,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 32,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 33,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 34,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 35,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 36,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 37,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 51,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 52,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 53,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 54,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 55,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 56,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 57,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 58,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 59,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 60,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ]
+    },
+    {
+      "target": "jim_document",
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "19ee8e4a8dbe7601b3e40ace0cca33b88598f57c57f80e97f769e0955248a58f",
+      "stderr_sha256": "2613914d77f4d4b97019f3863b9d42fa9668b6bf7b8fea4da868a7db5fabc5ab",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 47,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 48,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 49,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 50,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 51,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 52,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 53,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 67,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 68,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 69,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 70,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 71,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 72,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 73,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 74,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 75,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 76,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 77,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 78,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 79,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 126,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 127,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 128,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 129,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 130,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 131,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 132,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 146,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 147,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 148,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 149,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 150,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 151,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 152,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 153,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 154,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 155,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 156,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 157,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 158,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ]
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "18dc485adec98eb224f6c433ae05e8cfda0f767b201b95300afc6fae719f3d31",
+      "stderr_sha256": "480302d5276aeffb99e2b8e4c0a3d43eb273c9283e4fd68bdf47dd9e07cc6db5",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 19,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 20,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 21,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 22,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 23,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 24,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 25,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 26,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 27,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 28,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 29,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 30,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 31,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 32,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 44,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 45,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 46,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 47,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 48,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 49,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 50,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 105,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 106,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 107,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 108,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 109,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 110,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 111,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 127,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 128,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 129,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 130,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 131,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 132,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 133,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 134,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 135,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 136,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 137,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 192,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 193,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 194,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 195,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 196,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 197,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 198,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 214,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 215,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 216,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 217,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 218,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 219,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 220,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 221,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 222,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 223,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 224,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ]
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "0825344b4f4d48c554c555b1cf8ee85c40913f4b650c84d7c84daac6148106b0",
+      "stderr_sha256": "37ef20c6b2a3c0ce528d1be7b1024b632572b4fcdf0ead0714ebfc7956c873f7",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 25,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 26,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 27,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 28,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 29,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 30,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 31,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 32,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 33,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 34,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 35,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 36,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 37,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 38,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 56,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 57,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 58,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 59,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 60,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 61,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 62,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        }
+      ],
+      "final_producer_stages": []
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "31d9688b0678c999a6c877a45879bf2fd518f0ce786155e0076a2943b6141368",
+      "stderr_sha256": "71b4ed760a6b6310041111b49d485b1fe8dc3dbf449ce86f4f2f3c4030ca519b",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 31,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 32,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 33,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 34,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 35,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 36,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 37,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 38,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 39,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 40,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 41,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 42,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 43,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 44,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 45,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 46,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 47,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 48,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 72,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 73,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 74,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 75,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 76,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 77,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 78,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 79,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 80,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 81,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 82,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ]
+    },
+    {
+      "target": "jim_static_read_alternatives",
+      "selector": "original_static_alternatives_withdraw_only_their_synthetic_local_absence",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "new_static_control1",
+      "stdout_sha256": "2b62ca251b53682eb5ed7a1d5cce065d70b1b5183247f8a4945f28753436bf24",
+      "stderr_sha256": "980261c070063c245b1f2e66b645c380ed054c0902d15fd72a6d4cdedd20539b",
+      "independent_terminal": "FAIL",
+      "closed": true
+    }
+  ],
+  "failures": [
+    {
+      "target": "jim_document",
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d7560bf88fd4ca7ece594dbf01954f2437fc61aa309d577444ea7317d875f203",
+      "stderr_sha256": "bcb27df8cc38b82f38fab94fdd3cae5b99cedc49562959f4b77b1c5a25a3cf69",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_static_is_a_local_of_the_body_and_no_argument ... FAILED\n\nfailures:\n\nfailures:\n    a_static_is_a_local_of_the_body_and_no_argument\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.14s\n\n",
+      "stderr": "\nthread 'a_static_is_a_local_of_the_body_and_no_argument' (21477) panicked at rust/tcl-spectcl/tests/jim_document.rs:91:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc counter {} {{n 0}} { return [incr n] }\nputs [counter]\n\n  left: [(W210, \"return [incr n]\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::a_static_is_a_local_of_the_body_and_no_argument\n   5: jim_document::a_static_is_a_local_of_the_body_and_no_argument::{closure#0}\n   6: <jim_document::a_static_is_a_local_of_the_body_and_no_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c29116bae551258bd627bf11990c12aec97c2c2d7894f20627ac08aa34a0b11f",
+      "stderr_sha256": "f87086e5ca0aee67dfd4f988cff913765d727ee41ab4e33ecd58557705334b6e",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest every_static_spelling_declares_its_name ... FAILED\n\nfailures:\n\nfailures:\n    every_static_spelling_declares_its_name\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.80s\n\n",
+      "stderr": "\nthread 'every_static_spelling_declares_its_name' (21479) panicked at rust/tcl-spectcl/tests/jim_document.rs:104:9:\nassertion `left == right` failed: # tcl-dialect: jim\nset seed 5\nset shared 1\nproc mix {a} {seed {n 0} &shared} { return [expr {$a + $seed + $n + $shared}] }\nputs [mix 1]\n\n  left: [(W210, \"return [expr {$a + $seed + $n + $shared}]\"), (W210, \"return [expr {$a + $seed + $n + $shared}]\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::every_static_spelling_declares_its_name\n   5: jim_document::every_static_spelling_declares_its_name::{closure#0}\n   6: <jim_document::every_static_spelling_declares_its_name::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "b2cbc681dbd09a73c90eda549217fe5a6b8180ce9be63d22dd4c952ec2b4d2a8",
+      "stderr_sha256": "b29c1d13d7276b055ccc54a137421384981c7077c571acc246b1c71c0c1af2ca",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest the_edges_of_a_static_list ... FAILED\n\nfailures:\n\nfailures:\n    the_edges_of_a_static_list\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 5.78s\n\n",
+      "stderr": "\nthread 'the_edges_of_a_static_list' (21485) panicked at rust/tcl-spectcl/tests/jim_document.rs:146:9:\nassertion `left == right` failed: # tcl-dialect: jim\nset n 1\nproc f {} {n} { return $n }\nputs $n\nputs [f]\n\n  left: [(W210, \"$n\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::the_edges_of_a_static_list\n   5: jim_document::the_edges_of_a_static_list::{closure#0}\n   6: <jim_document::the_edges_of_a_static_list::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "d8be12a22ac1ecced1cb281cada08eb15212f25db50b30c0fefbe08cb7bab8e2",
+      "stderr_sha256": "8ff94cee1f4e3724133a286951b661a8dc10bd8a185c859f11af6cc39198b451",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest the_body_of_a_proc_with_statics_is_walked ... FAILED\n\nfailures:\n\nfailures:\n    the_body_of_a_proc_with_statics_is_walked\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.53s\n\n",
+      "stderr": "\nthread 'the_body_of_a_proc_with_statics_is_walked' (21487) panicked at rust/tcl-spectcl/tests/jim_document.rs:163:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc counter {} {{n 0}} { not_a_command_anywhere $n }\ncounter\n\n  left: []\n right: [(W123, \"not_a_command_anywhere\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::the_body_of_a_proc_with_statics_is_walked\n   5: jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0}\n   6: <jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "932455cab0e37307523916eef95fe15e740a4d8e464a327a47cf9272a66003ce",
+      "stderr_sha256": "6152219f46ff852e22f8e05f696b395dc76dcf1649c4e60ec40e413be511ee39",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_static_adds_nothing_to_the_arity ... FAILED\n\nfailures:\n\nfailures:\n    a_static_adds_nothing_to_the_arity\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.15s\n\n",
+      "stderr": "\nthread 'a_static_adds_nothing_to_the_arity' (21492) panicked at rust/tcl-spectcl/tests/jim_document.rs:180:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc pair {a b} {{n 0}} { return $a$b$n }\npair 1 2\npair 1\npair 1 2 3\n\n  left: [(W210, \"$n\"), (E002, \"pair 1\"), (E003, \"3\")]\n right: [(E002, \"pair 1\"), (E003, \"3\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, &str)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, &str)>>\n   4: jim_document::a_static_adds_nothing_to_the_arity\n   5: jim_document::a_static_adds_nothing_to_the_arity::{closure#0}\n   6: <jim_document::a_static_adds_nothing_to_the_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "5b2c7e426df4f6888f55ba7cd30c7800b5ad3c14fd8de4522f97c5cc13fb23cc",
+      "stderr_sha256": "7ebdc59e155ba88b0cba8aaf4ba178e10081bd075fa7c79fd709198aaf6cd1a6",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_raw_two_word_proc_is_a_method_without_the_class_variables ... FAILED\n\nfailures:\n\nfailures:\n    a_raw_two_word_proc_is_a_method_without_the_class_variables\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.06s\n\n",
+      "stderr": "\nthread 'a_raw_two_word_proc_is_a_method_without_the_class_variables' (21512) panicked at rust/tcl-spectcl/tests/jim_document.rs:350:5:\nassertion failed: result.all_classes[\"::Point\"].methods.contains_key(\"move\")\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::panic\n   3: jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables\n   4: jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables::{closure#0}\n   5: <jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_two_word_proc_written_before_its_class_is_a_method",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "375beef125a81d30e34f0efae030f5c6ba9d4857af908f5822903cb69ae7b0e3",
+      "stderr_sha256": "3fa716dfa7ea782e5d74148e077d93358547ed2f00071859ce36e9f7580fe759",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_two_word_proc_written_before_its_class_is_a_method ... FAILED\n\nfailures:\n\nfailures:\n    a_two_word_proc_written_before_its_class_is_a_method\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.05s\n\n",
+      "stderr": "\nthread 'a_two_word_proc_written_before_its_class_is_a_method' (21514) panicked at rust/tcl-spectcl/tests/jim_document.rs:363:9:\nper_item=false\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: jim_document::a_two_word_proc_written_before_its_class_is_a_method\n   3: jim_document::a_two_word_proc_written_before_its_class_is_a_method::{closure#0}\n   4: <jim_document::a_two_word_proc_written_before_its_class_is_a_method::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_method_body_can_construct_its_own_class",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c9da0167668148bfbe3d1e438314cb35a614444d3a7852ee1a0998e287d6ce57",
+      "stderr_sha256": "93d12b12e20bea943ed464dfc9cb80a5e93f256be0ea5468da420c21a048bac7",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_method_body_can_construct_its_own_class ... FAILED\n\nfailures:\n\nfailures:\n    a_method_body_can_construct_its_own_class\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.09s\n\n",
+      "stderr": "\nthread 'a_method_body_can_construct_its_own_class' (21516) panicked at rust/tcl-spectcl/tests/jim_document.rs:382:36:\nno entry found for key\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::option::expect_failed\n   3: <std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String> as core::ops::index::Index<&str>>::index\n   4: jim_document::a_method_body_can_construct_its_own_class\n   5: jim_document::a_method_body_can_construct_its_own_class::{closure#0}\n   6: <jim_document::a_method_body_can_construct_its_own_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "an_object_is_typed_by_its_class_and_its_member_set_is_open",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "b9b318c06fe07562549f26a2fc7daaa41d932c09343b58911dddbce0033aed73",
+      "stderr_sha256": "3324e098f73112296b7cc9b6ff321d9004d592e3bec0fc96fdf6f237cf07fa09",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest an_object_is_typed_by_its_class_and_its_member_set_is_open ... FAILED\n\nfailures:\n\nfailures:\n    an_object_is_typed_by_its_class_and_its_member_set_is_open\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.03s\n\n",
+      "stderr": "\nthread 'an_object_is_typed_by_its_class_and_its_member_set_is_open' (21521) panicked at rust/tcl-spectcl/tests/jim_document.rs:398:43:\nno entry found for key\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::option::expect_failed\n   3: <std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String> as core::ops::index::Index<&str>>::index\n   4: jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open\n   5: jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open::{closure#0}\n   6: <jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_two_element_proc_name_defines_a_two_word_command_in_every_dialect",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "21b8478b0a26ffe6209160498424af312b9dc1a8c7276f9a55996988d0419a72",
+      "stderr_sha256": "3b6ebad3d58faaa90be77460167bcb3eb0568e5fee0d30841bdc78148cd2941d",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_two_element_proc_name_defines_a_two_word_command_in_every_dialect ... FAILED\n\nfailures:\n\nfailures:\n    a_two_element_proc_name_defines_a_two_word_command_in_every_dialect\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 6.09s\n\n",
+      "stderr": "\nthread 'a_two_element_proc_name_defines_a_two_word_command_in_every_dialect' (21523) panicked at rust/tcl-spectcl/tests/jim_document.rs:413:9:\nassertion `left == right` failed: jim: [(E002, \"{a b}\")]\n  left: [E002]\n right: [W123, E002]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_core_types::diag_code::DiagCode>, [tcl_core_types::diag_code::DiagCode; 2]>\n   4: jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect\n   5: jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect::{closure#0}\n   6: <jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_jim_program_draws_no_findings",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "c3053e807269ce5279d964686f5e5577a8f44aaf5240340cd0a46e168b129ded",
+      "stderr_sha256": "abaf83c116c47cc05c385b9285d3060ace3d31d5206dfb22955448dd9f0d52e8",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_jim_program_draws_no_findings ... FAILED\n\nfailures:\n\nfailures:\n    a_jim_program_draws_no_findings\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 5.52s\n\n",
+      "stderr": "\nthread 'a_jim_program_draws_no_findings' (21529) panicked at rust/tcl-spectcl/tests/jim_document.rs:456:9:\nassertion `left == right` failed: # tcl-dialect: jim\nclass system {model \"\"}\nproc {system model} {} {{model \"\"}} {\n    return $model\n}\nloop i 0 3 { puts $i }\nsleep 0.1\nset s [system new]\nputs [$s model]\n\n  left: [(W307, \"$s\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::a_jim_program_draws_no_findings\n   5: jim_document::a_jim_program_draws_no_findings::{closure#0}\n   6: <jim_document::a_jim_program_draws_no_findings::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_same_program_under_tcl_is_rejected",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "160df900273a8a052107865c3182862fca2b857e69748627eaeaa7e69248ac12",
+      "stderr_sha256": "359dfe5c8d2c63c86cb8864db2558fdcf0e6f1b2a3fd5a1cd8a7a3cab86d1ba0",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest the_same_program_under_tcl_is_rejected ... FAILED\n\nfailures:\n\nfailures:\n    the_same_program_under_tcl_is_rejected\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 5.95s\n\n",
+      "stderr": "\nthread 'the_same_program_under_tcl_is_rejected' (21531) panicked at rust/tcl-spectcl/tests/jim_document.rs:475:9:\nloop is Jim's, not Tcl's: [(W123, \"class\"), (E003, \"{\\n    return $model\\n}\"), (W307, \"$s\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: jim_document::the_same_program_under_tcl_is_rejected\n   3: jim_document::the_same_program_under_tcl_is_rejected::{closure#0}\n   4: <jim_document::the_same_program_under_tcl_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "loop_is_flagged_under_tcl_and_accepted_under_jim",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "966d25caeb916a0b8cfec1cc3c64716f251e83e7cc1e84881a1dbc809004cd3e",
+      "stderr_sha256": "6345497b844b17b9d36f5eb25093323ac23ce6a3497ed6ad00aa287cb114a4fd",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest loop_is_flagged_under_tcl_and_accepted_under_jim ... FAILED\n\nfailures:\n\nfailures:\n    loop_is_flagged_under_tcl_and_accepted_under_jim\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.61s\n\n",
+      "stderr": "\nthread 'loop_is_flagged_under_tcl_and_accepted_under_jim' (21533) panicked at rust/tcl-spectcl/tests/jim_document.rs:493:5:\nassertion `left == right` failed: [(W123, \"loop\")]\n  left: 0\n right: 2\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<usize, usize>\n   4: jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim\n   5: jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim::{closure#0}\n   6: <jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_tcl_document_has_no_jim_class",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "supplemental38",
+      "stdout_sha256": "8e70ff3474ab74ea013efa06d973bfbd05b74c2eabb224ed0bb2856430a53059",
+      "stderr_sha256": "3b38441f3a9f60fd48914db039be90d354effa3998751b809742629b146041e7",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest a_tcl_document_has_no_jim_class ... FAILED\n\nfailures:\n\nfailures:\n    a_tcl_document_has_no_jim_class\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.01s\n\n",
+      "stderr": "\nthread 'a_tcl_document_has_no_jim_class' (21537) panicked at rust/tcl-spectcl/tests/jim_document.rs:523:5:\n[(W123, \"class\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: jim_document::a_tcl_document_has_no_jim_class\n   3: jim_document::a_tcl_document_has_no_jim_class::{closure#0}\n   4: <jim_document::a_tcl_document_has_no_jim_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_is_a_local_of_the_body_and_no_argument",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "c5df69caf3c1ede191561d866e859e346b94993f3eb79859630255c7aaacd9e6",
+      "stderr_sha256": "6ccd4ac476d6ae2aa3f003945dba20cd77de9cd8d391e591c5b0323ed795a3d5",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 21,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 22,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 23,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 24,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 25,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 26,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 27,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 28,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 29,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 30,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 31,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 32,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 33,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 34,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 35,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 36,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 37,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 51,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 52,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 53,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 54,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 55,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }"
+        },
+        {
+          "line": 56,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 57,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 58,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 59,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 60,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ],
+      "stdout": "\nrunning 1 test\ntest a_static_is_a_local_of_the_body_and_no_argument ... FAILED\n\nfailures:\n\nfailures:\n    a_static_is_a_local_of_the_body_and_no_argument\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.22s\n\n",
+      "stderr": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=45 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=45 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 45, end: 60 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 45, end: 60 }\n\nthread 'a_static_is_a_local_of_the_body_and_no_argument' (21570) panicked at rust/tcl-spectcl/tests/jim_document.rs:91:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc counter {} {{n 0}} { return [incr n] }\nputs [counter]\n\n  left: [(W210, \"return [incr n]\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::a_static_is_a_local_of_the_body_and_no_argument\n   5: jim_document::a_static_is_a_local_of_the_body_and_no_argument::{closure#0}\n   6: <jim_document::a_static_is_a_local_of_the_body_and_no_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "every_static_spelling_declares_its_name",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "19ee8e4a8dbe7601b3e40ace0cca33b88598f57c57f80e97f769e0955248a58f",
+      "stderr_sha256": "2613914d77f4d4b97019f3863b9d42fa9668b6bf7b8fea4da868a7db5fabc5ab",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 47,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 48,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 49,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 50,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 51,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 52,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 53,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 67,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 68,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 69,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 70,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 71,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 72,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 73,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 74,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 75,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 76,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 77,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 78,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 79,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 126,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 127,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 128,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 129,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 130,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 131,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 132,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 146,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 147,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 148,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 149,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 150,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 151,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 152,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 153,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 154,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 155,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 156,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=2"
+        },
+        {
+          "line": 157,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }"
+        },
+        {
+          "line": 158,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ],
+      "stdout": "\nrunning 1 test\ntest every_static_spelling_declares_its_name ... FAILED\n\nfailures:\n\nfailures:\n    every_static_spelling_declares_its_name\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.90s\n\n",
+      "stderr": "RBS_GRAPH stage=selection offset=123 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=30 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=report nodes=15 warnings=0 strict_reads=0 unavailable=true unknown_reads=true\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=12\nRBS_GRAPH stage=node id=2 site=123 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=123 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=5\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_GRAPH stage=node id=6 site=43 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=7\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=43 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=8\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=2\nRBS_GRAPH stage=node id=9 site=30 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=10\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=30 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=11\nRBS_GRAPH stage=edge id=10 next=0\nRBS_GRAPH stage=node id=11 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=11 next=6\nRBS_GRAPH stage=node id=12 site=19 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=12 next=13\nRBS_GRAPH stage=node id=13 site=0 site_set=false handler=19 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=13 next=14\nRBS_GRAPH stage=edge id=13 next=0\nRBS_GRAPH stage=node id=14 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=14 next=9\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=79 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=79 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=79 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=2\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }\nRBS_GRAPH stage=selection offset=123 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=30 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=report nodes=15 warnings=0 strict_reads=0 unavailable=true unknown_reads=true\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=12\nRBS_GRAPH stage=node id=2 site=123 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=123 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=5\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_GRAPH stage=node id=6 site=43 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=7\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=43 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=8\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=2\nRBS_GRAPH stage=node id=9 site=30 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=10\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=30 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=11\nRBS_GRAPH stage=edge id=10 next=0\nRBS_GRAPH stage=node id=11 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=11 next=6\nRBS_GRAPH stage=node id=12 site=19 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=12 next=13\nRBS_GRAPH stage=node id=13 site=0 site_set=false handler=19 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=13 next=14\nRBS_GRAPH stage=edge id=13 next=0\nRBS_GRAPH stage=node id=14 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=14 next=9\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=79 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=6 warnings=0 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=79 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=79 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=static_lookup_at_use name=seed storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=seed span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=2\nRBS_READ_OWNER stage=emit_read_map name=seed span=Span { start: 79, end: 120 }\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 79, end: 120 }\n\nthread 'every_static_spelling_declares_its_name' (21572) panicked at rust/tcl-spectcl/tests/jim_document.rs:104:9:\nassertion `left == right` failed: # tcl-dialect: jim\nset seed 5\nset shared 1\nproc mix {a} {seed {n 0} &shared} { return [expr {$a + $seed + $n + $shared}] }\nputs [mix 1]\n\n  left: [(W210, \"return [expr {$a + $seed + $n + $shared}]\"), (W210, \"return [expr {$a + $seed + $n + $shared}]\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::every_static_spelling_declares_its_name\n   5: jim_document::every_static_spelling_declares_its_name::{closure#0}\n   6: <jim_document::every_static_spelling_declares_its_name::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_edges_of_a_static_list",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "18dc485adec98eb224f6c433ae05e8cfda0f767b201b95300afc6fae719f3d31",
+      "stderr_sha256": "480302d5276aeffb99e2b8e4c0a3d43eb273c9283e4fd68bdf47dd9e07cc6db5",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 19,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 20,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 21,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 22,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 23,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 24,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 25,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 26,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 27,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 28,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 29,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 30,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 31,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 32,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 44,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 45,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 46,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 47,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 48,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 49,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 50,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=0"
+        },
+        {
+          "line": 105,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 106,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 107,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 108,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 109,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 110,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 111,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 127,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 128,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 129,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 130,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 131,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 132,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 133,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 134,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 135,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 136,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 137,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 192,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 193,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 194,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 195,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 196,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 197,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 198,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 214,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 215,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 216,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 217,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 218,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 219,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 220,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 221,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }"
+        },
+        {
+          "line": 222,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 223,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 224,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ],
+      "stdout": "\nrunning 1 test\ntest the_edges_of_a_static_list ... FAILED\n\nfailures:\n\nfailures:\n    the_edges_of_a_static_list\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 5.77s\n\n",
+      "stderr": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=34 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=5 warnings=0 strict_reads=0 unavailable=false unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=34 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=3\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=34 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=0\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=34 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=5 warnings=0 strict_reads=0 unavailable=false unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=34 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=3\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=34 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=0\nRBS_GRAPH stage=selection offset=63 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=55 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=27 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=report nodes=17 warnings=0 strict_reads=0 unavailable=true unknown_reads=true\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=14\nRBS_GRAPH stage=node id=2 site=63 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=63 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=5\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_GRAPH stage=node id=6 site=55 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=9\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=55 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=10\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=7\nRBS_GRAPH stage=node id=9 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=8\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=2\nRBS_GRAPH stage=node id=11 site=27 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=11 next=12\nRBS_GRAPH stage=node id=12 site=0 site_set=false handler=27 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=12 next=13\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=node id=13 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=13 next=6\nRBS_GRAPH stage=node id=14 site=19 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=14 next=15\nRBS_GRAPH stage=node id=15 site=0 site_set=false handler=19 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=15 next=16\nRBS_GRAPH stage=edge id=15 next=0\nRBS_GRAPH stage=node id=16 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=16 next=11\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=7 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=43 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=5\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=43 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_GRAPH stage=node id=6 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }\nRBS_GRAPH stage=selection offset=63 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=55 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=27 selected=true unknown_writes=false unknown_reads=true source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=selection offset=19 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=1 loop_bindings=0\nRBS_GRAPH stage=report nodes=17 warnings=0 strict_reads=0 unavailable=true unknown_reads=true\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=14\nRBS_GRAPH stage=node id=2 site=63 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=4\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=63 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=5\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=0\nRBS_GRAPH stage=node id=6 site=55 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=9\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=55 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=10\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=edge id=7 next=0\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=7\nRBS_GRAPH stage=node id=9 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=8\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=2\nRBS_GRAPH stage=node id=11 site=27 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=11 next=12\nRBS_GRAPH stage=node id=12 site=0 site_set=false handler=27 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=6 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=12 next=13\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=edge id=12 next=0\nRBS_GRAPH stage=node id=13 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=1 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=13 next=6\nRBS_GRAPH stage=node id=14 site=19 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=14 next=15\nRBS_GRAPH stage=node id=15 site=0 site_set=false handler=19 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=2 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=15 next=16\nRBS_GRAPH stage=edge id=15 next=0\nRBS_GRAPH stage=node id=16 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=1 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=16 next=11\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=43 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=7 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=43 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=5\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=43 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_GRAPH stage=node id=6 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 50, end: 52 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 50, end: 52 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 50, end: 52 }\n\nthread 'the_edges_of_a_static_list' (21574) panicked at rust/tcl-spectcl/tests/jim_document.rs:146:9:\nassertion `left == right` failed: # tcl-dialect: jim\nset n 1\nproc f {} {n} { return $n }\nputs $n\nputs [f]\n\n  left: [(W210, \"$n\")]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::the_edges_of_a_static_list\n   5: jim_document::the_edges_of_a_static_list::{closure#0}\n   6: <jim_document::the_edges_of_a_static_list::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "the_body_of_a_proc_with_statics_is_walked",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "0825344b4f4d48c554c555b1cf8ee85c40913f4b650c84d7c84daac6148106b0",
+      "stderr_sha256": "37ef20c6b2a3c0ce528d1be7b1024b632572b4fcdf0ead0714ebfc7956c873f7",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 25,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 26,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 27,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 28,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 29,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 30,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 31,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 32,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 33,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 34,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 35,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 36,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 37,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 38,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 56,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 57,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 58,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 59,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 60,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }"
+        },
+        {
+          "line": 61,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 62,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        }
+      ],
+      "final_producer_stages": [],
+      "stdout": "\nrunning 1 test\ntest the_body_of_a_proc_with_statics_is_walked ... FAILED\n\nfailures:\n\nfailures:\n    the_body_of_a_proc_with_statics_is_walked\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 3.52s\n\n",
+      "stderr": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false\nRBS_SOURCE_READ offset=45 stage=selection.scope passed=false\nRBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false\nRBS_SOURCE_READ offset=45 stage=selection.scope passed=false\nRBS_GRAPH stage=selection offset=45 selected=false\nRBS_GRAPH stage=report nodes=6 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=5\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=true body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false\nRBS_SOURCE_READ offset=45 stage=selection.scope passed=false\nRBS_SOURCE_READ offset=45 stage=scope.catalogue-or-advice passed=false\nRBS_SOURCE_READ offset=45 stage=selection.scope passed=false\nRBS_GRAPH stage=selection offset=45 selected=false\nRBS_GRAPH stage=report nodes=6 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=5\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=true missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 68, end: 70 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_dynamic count=0\n\nthread 'the_body_of_a_proc_with_statics_is_walked' (21576) panicked at rust/tcl-spectcl/tests/jim_document.rs:163:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc counter {} {{n 0}} { not_a_command_anywhere $n }\ncounter\n\n  left: []\n right: [(W123, \"not_a_command_anywhere\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>\n   4: jim_document::the_body_of_a_proc_with_statics_is_walked\n   5: jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0}\n   6: <jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_static_adds_nothing_to_the_arity",
+      "state": "FAIL",
+      "env": {
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1"
+      },
+      "exit_code": 101,
+      "cohort": "diagnostic5",
+      "stdout_sha256": "31d9688b0678c999a6c877a45879bf2fd518f0ce786155e0076a2943b6141368",
+      "stderr_sha256": "71b4ed760a6b6310041111b49d485b1fe8dc3dbf449ce86f4f2f3c4030ca519b",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "RBS_facts": [
+        {
+          "line": 1,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 2,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 3,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 4,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 5,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 6,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 7,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 31,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 32,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 33,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 34,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 35,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 36,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 37,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 38,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 39,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 40,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 41,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 42,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None"
+        },
+        {
+          "line": 43,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 44,
+          "stage": "map_dynamic",
+          "raw": "RBS_READ_OWNER stage=map_dynamic count=0"
+        },
+        {
+          "line": 45,
+          "stage": "map_provably_unset",
+          "raw": "RBS_READ_OWNER stage=map_provably_unset count=0"
+        },
+        {
+          "line": 46,
+          "stage": "entry",
+          "raw": "RBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)"
+        },
+        {
+          "line": 47,
+          "stage": "physical_missing",
+          "raw": "RBS_READ_OWNER stage=physical_missing count=0"
+        },
+        {
+          "line": 48,
+          "stage": "function_flow",
+          "raw": "RBS_READ_OWNER stage=function_flow present=false"
+        },
+        {
+          "line": 72,
+          "stage": "fallback_read_flow",
+          "raw": "RBS_READ_OWNER stage=fallback_read_flow present=true"
+        },
+        {
+          "line": 73,
+          "stage": "read_recipe",
+          "raw": "RBS_READ_OWNER stage=read_recipe present=true"
+        },
+        {
+          "line": 74,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 75,
+          "stage": "static_lookup_at_use",
+          "raw": "RBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false"
+        },
+        {
+          "line": 76,
+          "stage": "chain_candidate",
+          "raw": "RBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 77,
+          "stage": "required_flow",
+          "raw": "RBS_READ_OWNER stage=required_flow present=true"
+        },
+        {
+          "line": 78,
+          "stage": "static_lookup_alternatives",
+          "raw": "RBS_READ_OWNER stage=static_lookup_alternatives present=true"
+        },
+        {
+          "line": 79,
+          "stage": "declared_absence_candidate",
+          "raw": "RBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }"
+        },
+        {
+          "line": 80,
+          "stage": "potential_reads",
+          "raw": "RBS_READ_OWNER stage=potential_reads present=true"
+        },
+        {
+          "line": 81,
+          "stage": "map_chain",
+          "raw": "RBS_READ_OWNER stage=map_chain count=1"
+        },
+        {
+          "line": 82,
+          "stage": "emit_read_map",
+          "raw": "RBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }"
+        }
+      ],
+      "final_producer_stages": [
+        "emit_read_map"
+      ],
+      "stdout": "\nrunning 1 test\ntest a_static_adds_nothing_to_the_arity ... FAILED\n\nfailures:\n\nfailures:\n    a_static_adds_nothing_to_the_arity\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 33 filtered out; finished in 4.20s\n\n",
+      "stderr": "RBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=11 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=9\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=45 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_GRAPH stage=node id=6 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=5\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=6\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=7\nRBS_GRAPH stage=node id=9 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=8\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }\nRBS_READ_OWNER stage=entry procedure=false dynamic_writes=true body_kind=None\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=map_dynamic count=0\nRBS_READ_OWNER stage=map_provably_unset count=0\nRBS_READ_OWNER stage=entry procedure=true dynamic_writes=false body_kind=Some(OriginalDeclaration)\nRBS_READ_OWNER stage=physical_missing count=0\nRBS_READ_OWNER stage=function_flow present=false\nRBS_GRAPH stage=selection offset=45 selected=true unknown_writes=false unknown_reads=false source_catalogue=false loop_flow=false case_flow=false writes=0 loop_bindings=0\nRBS_GRAPH stage=report nodes=11 warnings=1 strict_reads=0 unavailable=true unknown_reads=false\nRBS_GRAPH stage=node id=0 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=0 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=node id=1 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=1 next=2\nRBS_GRAPH stage=node id=2 site=45 site_set=true handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=2 next=9\nRBS_GRAPH stage=node id=3 site=0 site_set=false handler=45 handler_set=true unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=3 next=0\nRBS_GRAPH stage=node id=4 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=4 next=3\nRBS_GRAPH stage=node id=5 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=5 next=4\nRBS_GRAPH stage=node id=6 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=6 next=5\nRBS_GRAPH stage=node id=7 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=7 next=6\nRBS_GRAPH stage=node id=8 site=0 site_set=false handler=0 handler_set=false unknown=true prefix_unavailable=false missing_read=true reads=0 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=8 next=7\nRBS_GRAPH stage=node id=9 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=1 writes=0 successors=1 reached=true state_unknown=false defined=2 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=9 next=8\nRBS_GRAPH stage=node id=10 site=0 site_set=false handler=0 handler_set=false unknown=false prefix_unavailable=false missing_read=false reads=0 writes=0 successors=1 reached=false state_unknown=false defined=0 uncertain=0 aliases=0\nRBS_GRAPH stage=edge id=10 next=0\nRBS_READ_OWNER stage=fallback_read_flow present=true\nRBS_READ_OWNER stage=read_recipe present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=static_lookup_at_use name=n storage_kind=other own_activation=None native_alternative=false static_alternative=false\nRBS_READ_OWNER stage=chain_candidate name=n span=Span { start: 56, end: 58 }\nRBS_READ_OWNER stage=required_flow present=true\nRBS_READ_OWNER stage=static_lookup_alternatives present=true\nRBS_READ_OWNER stage=declared_absence_candidate name=n span=Span { start: 56, end: 58 }\nRBS_READ_OWNER stage=potential_reads present=true\nRBS_READ_OWNER stage=map_chain count=1\nRBS_READ_OWNER stage=emit_read_map name=n span=Span { start: 56, end: 58 }\n\nthread 'a_static_adds_nothing_to_the_arity' (21580) panicked at rust/tcl-spectcl/tests/jim_document.rs:180:9:\nassertion `left == right` failed: # tcl-dialect: jim\nproc pair {a b} {{n 0}} { return $a$b$n }\npair 1 2\npair 1\npair 1 2 3\n\n  left: [(W210, \"$n\"), (E002, \"pair 1\"), (E003, \"3\")]\n right: [(E002, \"pair 1\"), (E003, \"3\")]\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, &str)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, &str)>>\n   4: jim_document::a_static_adds_nothing_to_the_arity\n   5: jim_document::a_static_adds_nothing_to_the_arity::{closure#0}\n   6: <jim_document::a_static_adds_nothing_to_the_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    },
+    {
+      "target": "jim_static_read_alternatives",
+      "selector": "original_static_alternatives_withdraw_only_their_synthetic_local_absence",
+      "state": "FAIL",
+      "env": {},
+      "exit_code": 101,
+      "cohort": "new_static_control1",
+      "stdout_sha256": "2b62ca251b53682eb5ed7a1d5cce065d70b1b5183247f8a4945f28753436bf24",
+      "stderr_sha256": "980261c070063c245b1f2e66b645c380ed054c0902d15fd72a6d4cdedd20539b",
+      "independent_terminal": "FAIL",
+      "closed": true,
+      "stdout": "\nrunning 1 test\ntest original_static_alternatives_withdraw_only_their_synthetic_local_absence ... FAILED\n\nfailures:\n\nfailures:\n    original_static_alternatives_withdraw_only_their_synthetic_local_absence\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.15s\n\n",
+      "stderr": "\nthread 'original_static_alternatives_withdraw_only_their_synthetic_local_absence' (21640) panicked at rust/tcl-spectcl/tests/jim_static_read_alternatives.rs:40:13:\nassertion `left == right` failed: per_item=false: proc f {} {{n 0}} {return [incr n]}; f\n  left: [\"return [incr n]\"]\n right: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::assert_failed_inner\n   3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, alloc::vec::Vec<&str>>\n   4: jim_static_read_alternatives::original_static_alternatives_withdraw_only_their_synthetic_local_absence\n   5: jim_static_read_alternatives::original_static_alternatives_withdraw_only_their_synthetic_local_absence::{closure#0}\n   6: <jim_static_read_alternatives::original_static_alternatives_withdraw_only_their_synthetic_local_absence::{closure#0} as core::ops::function::FnOnce<()>>::call_once\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+    }
+  ],
+  "limits": [
+    "Exact original45 plus separate5 diagnostic reruns plus one new selected integration test. That one test loops eight sources across two tiers; FAIL does not prove all16 internal fixture completions. No private-kernel/full-shared/C1-C2/server/browser/WASI/performance/fullbaseline acceptance."
+  ]
+}

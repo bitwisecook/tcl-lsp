@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-24T22:26:05.814370+00:00
+Last updated: 2026-10-25T09:08:30.186704+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -23,39 +23,67 @@ No pending permission for those decisions; no resurrection of held alternatives.
 
 ## Current source handoffs and fresh pending actuals
 
-Rootintegrated+pushedd62NOPfix WORK5593449b56c13c72aacc189f680dac0a01fab07c/
-CLEANe70967470c0bab05db7e868835693aad9c754000 after independentSpec910f1f28.
-Freshcompiler99 run40137082566/job121000771953 launched22:05 exact559; lastpollnoartifact.
-No duplicateZIP/dispatch. Neednewclosed16/oldfoldstages; laterguards notinferred.
+Root owns all canonical/source/Git/push/dispatch actions. WORK arithmetic c10dfeb53
+and metadata0e88ff8d8 / CLEANe61bf integrated after Codegen deeppeer607230098e0138cf
+and root review; metadata peer5b2ee6c63c01c62d. Actual opcode admission is ONLY
+ADD/SUB/MULT inside existing private preparation, all common Native checks and deferred
+compiler tasks unchanged. Existingpositive control now also executes owner-selected
+ORIGINAL sub/multiply/composed arithmetic; cancellationnegative rejects overbound
+intermediate despite boundedfinal. Originalfold assertions/closed16 rosters/env/counts
+unchanged. Actualcompiler102 run40177918319/job121122525462 nowactive on exact1c2944510;
+role owns singleZIP/source envelope/closed16+oldfoldfirststages, Compiler owns main102
+counts/protocol. No artifactyet; all post-arithmetic actual outcomes remain UNRUN.
 
-Measuredstrict559 observerlint2 WORKONLYfrozen closed-native-observer-two-measured-lints-v1:
-patche3f4384876acf6945f3928fbff7aaa8c43b560396ed039c140077790eac65d5e,
-man6b020ae925328ab9039a319d15edb6d0445d1f38f63f80e889001a7fecd83015,
-receipt9a64be67a6769fde49280d96f4de5147e6fa6bfffc5d4d775baf8dde09c59b58 base13f0.
-InherentResult::is_ok andOption<&Arc> samepostjoinfailed-onlyreport, zero newclone/
-query/I/Oworker; engine+oneclosed16pin+solewholehash only.19inverse/current/copy/fmt
-checksPASS, realClippyUNRUN; Rootindependentpeerpending. RootretainsstrictZIPonce,
-fullauthroutedLSP, no0Wclaim. CLEANnoobservercounterpart.
+Fresh559/compiler99 authenticated in place: original56P2F, separateclosed12P4F, all4
+firstNative markers stage22/detail21/ordinal10=ADD afterNOP. Oldfold internalfirstcause
+unknown; oldassertions not reached. Receipt
+`compiler-original99-40137082566/vm-independent-full-authentication-v1.json`
+SHAa03c6fa15b7a45e02024d643d11fd5df54010f31c84b8db2cc3e3a7e712020a6:
+770CRC+SHA/full126239Gitmembership+beforeafter/source/provider/dependency/tools seals,
+16keyGitblobs; all99 exactrosters/env/childseals/217closedprocesses/losslessstderr
+independently repeated in assessment-vm-recomputed-v1.json4d5f38df80f11eb8.
+All-Git-content explicitly NOT claimed: knownmissingpromisor historicalBIGIPNOTES
+blob6d4e4a9c1001906d817efb82c746b4a308657ee2, otherunselectedcontentUNREAD.
+No maps extracted or duplicateZIP. Old fullcontent attempt hit unavailable lazyfetch;
+no further fetch attempted. Original56P2F is not general release/performance acceptance.
 
-Stack phase V2 ONLYeligible runtime-each-loop-setup-frame-v2: BOTHpatch
-c7cf2dd9af4e96cce482d995f6fbcbd3cbfe100afc3704ed3a7d6694c7ceb7cb,
-WORKman2dc7cba229005280f7d3daeb4e589d7fae630a7454ae566d055b5f9b07997db1,
-CLEAN2873fb75fd4e02910cfea96e28ede46b110926278a2386b1ccb61ff028f8d6e4,
-receiptb6611b6f07cd5af50c2087ce7d674df92ec7601e84267e63dc0b5d126cfa811d.
-Onecmd_control.rs. Noinline falliblesetup returnsoneprivateBox ofsameowners inold
-reverse-localdroporder; borrowedexecutor/body/finishhelpers<=83lines. CurrentBox
-wrapperdropsafterexecutorbeforeoldOriginalArgsfinish. Actualhelperinline inverse
-reconstructsENTIREoldfilesBYTEexact, alloldtests/asserts/guards/query/callback/order
-unchanged;71checks/copy/fmt2. ExtranonNativeBoxallocation/noerreset explicit.
-Specdeepowner/API read no finding; V1HOLDfor2newhelperstyleissues, V2tiny?+tailfix
-sourcecurrent/copy/finalpeerpending. NOactualcompile/currentframe/deep300/moderate50/
-1035/180/pass/perfclaim. No128/stack/test/budget change. No ordinaryNativegrant.
+Genericforeach setup-frame split WORK3c2ba1234 / CLEAN6096 is integrated. Fresh exactdc52
+runtimefocused40177229024/job121120446714 TERMINALFAIL authenticated SINGLEZIP
+`vm-runtime-actual-40177229024/artifact.zip`29018466B/
+de76ec7bded7515edddd67e9f0d51d81d7f61f16ab833d064fb26df45949def8.
+Receipt d85c261b554dbe0a1723c7e664def8d89ea95f7e1839dd05107c600788d692ce:
+all443CRC+streamSHA/full126262sourcebeforeafterGitmembership+35keyblobs/C84sixmaps/
+owned900bootstrap/TomMathbeforeafterPASS; mapsremainZIP/noexpandedmaps. All131
+executedclosed; original3ALLPASS(append169.639358147s/original180, no causalperfclaim),
+baseline14ALLPASS, actualoriginalstack300PASS2.338086132s, other10320P83F, prune7=6P1F,
+target3ALLPASS. Current original300entirefunctionbyteexact to66ef: sourcecorrespondence
+f8dbda92f5011422e20114ac61d63e0cf3774133ae730f0ac744c96f6e7395a0. Moderate50NOT
+separatelyselected, no actualclaim. Full131identitycomparison66ef
+714a8ff21a22e7f6746a37cdd46aa163369e723725a7868795193e2a832c67d7:
+ONLYstackABORT→PASS, trace_recreated_member F→P, retired_procworker F→P; zeroobserved
+selectedP→F. This is isolatedcohort evidence, not fullbaselinezeroPF/performance.
+CFIunknown21892/relevantrowsomitted25735 =>WHOLEPROTOCOLINCOMPLETE; no dynamicframe/
+depth/stackcause proof. Runtimefocused is pre-arithmetic and cannot admit newclosedfold.
+Root fullCI40177232371 independent/rootowned. Root resolvedworkspace disk; role performs
+no target/executable deletion and no cancellation/dispatch.
 
-Method-level extraction read-only receipt d57474753a01c459cff0f9d04a67e958a0339897e070d147dd0a1d1ac7f8a1f9
-(runtime-method-extraction-boundary-v1/receipt.json): Engineeval/guestgenericinvoke
-acceptarbitraryscripts/heads andnormalbuiltininstallreachesruntimehandlers. Normal
-LSPpackageexclusiondoesnotprovehandler/frame/var-ownerchangesremovablefromspecdev/
-WASMcompatibility. No rollback/drop/exclusion authored.
+BIGIP mandatory VM startup source obligation: authentic externalnote under
+`external-owner-notes-oct25/live-startup-repro-20261023.md` Gitblob
+1a3ad16fd2c4d9b705bab47e0048fd766fc84ac5. Historical naturalcompletion reports generic
+NativePreflightRequired; current finite startup timeout is separate and identifies no
+predicate/hotfunction. Current LiveSession already owns genuine C9NativeHost/core/engine,
+F5sourcegrammar and explicit measuredlogicalproviders. No bypass/logicalfallback or
+profile-issuedNativegrant. Sourceassessment
+`vm-bigip-native-preflight-source-v1/source-assessment.json`503b0c1621e3d96d.
+Existing irules-preflight-diagnostics mode has first-decline observers and unchanged
+bootstrap/consumer selectors; current all38rostersourcepinsPASS. Root can dispatch
+existingmode after otherowneddispatches; Codegen mixed-F5/C9 producerpeer requested.
+No providerpatch authored without actualfirstpredicate.
+
+Scope: VM/Spec execution mandatory, generalparity parked. FullTom semantic acceptance
+stays separate from noTomrefusal. OriginalRust812 updater and fullsharedprocess gate
+remain open; no isolatedsource/control result rewrites them. No PRGO/zeroPF/performance
+claim. Product frozen ACTIVE; only thistracker edited locally byrole.
 
 ## Prior authenticated compiler99: first failure is real NOP boundary
 
@@ -651,3 +679,40 @@ All rosters/env/targets/counts unchanged, closed16/total102; addedcases inside t
 selectors. PythonASTPASS; Codegen metadata peer/rootV12purepreflight pending.
 No actualpost-arithmetic outcome yet. Currentruntimefocused pre-arithmetic exactdc52
 run40177229024 remains independent; no retrospectivearithmetic claim from it.
+
+
+## Current independent WASM interpreted witness peer
+
+Rootrequested Codegen interpreted-depth diagnostic peer: V1/V2 HELD duenullable
+actualtcl_eval refusal passedunsafeGetString. V3 adds nonnullchecks forfreshscript,
+ownedresult and borrowedstring. Independent `vm-peer-wasm-interpreted-witness-v3`
+receipt d492a5cd02b2968a1d9b7a9d91b82476de0557571ec017a472fbf499b3c19020 STATIC
+DEEP CLEAR:3exactcurrentGitfiles/fullF-R-F0/metadatawholeinverse+AST/rustfmtPASS.
+Genuinefreshwasmtimeprocess/runtime-onlyinterp; freshrc0script adopted byactualtcl_eval
+onallpaths; actualCodegenOperation/originalstring/currentness; resultowned+1 retained
+throughborrowedGetString/fdwrite thenreleasedonce. Refusal traps diagnosticchild,
+run_boot_only reportsErr; originalcompileddepthassertion/program/minimum50 unchanged.
+No tcl_evalcompletioncode guarantee (legacyABIdiscards) or fdwriteerrnoassertion;
+witnessoutputdiagnostic only, not interpretedadmission/depthcause/leakproof. UNBUILT/UNRUN.
+
+
+## Current Names exact-static-key observer peer
+
+Rootrequested WORK-only `names-jim-static-key-observer-work-v1`63ea96ab independent
+source/type/borrow/purity/pin peer: STATIC DEEP CLEAR
+`vm-peer-jim-static-key-observer-v1/receipt.json`
+e0fa75566fa3cb3ba39f1d7c938269a817210d0bb1393edea0ac0b5e5379385b.
+FourexactcurrentGit/fullF-R-F0/fmt2/JSONwholeinverse+driverASTinversePASS.9key/8owner
+variants andCallable/Variable/CopyDebug fields checked; borrowedimmutable root/Eq reads,
+precomputedSourceOriginfingerprint/no memo init. Existingdebugflag reused AFTERboth
+alternativedecisions; no extraenvquery/clone/capture/lookup/provider/callback/schema.
+OnlyapprovedLogical3sourcepin+descriptorwholehash; Jim51driver untouched. Actual Rust
+compile/Clippy/exactkeyvariant remain UNRUN until rootfreshcapture; nosemanticfixclaim.
+
+Codegen typed-callsite activation proposal remains DESIGNONLY before actual witness:
+realrun_native_body invocationRc+FrameStackWeak candidate issuer; numericdepth/index
+onlyreject. Source-to-WASM registration must preserve genuine originalbody/compiler/
+entry ownership, rawsiteIDs alone insufficient. Complete callback-capable rawAPI census
+must includeGetString→update_string_proc andSetObjResult oldresultdrop, notonlyrelease
+helpers; suspend beforegetters/drops/dispatch, restoreonlyexactinvocation/Weak/currency,
+consumeonetokenbeforecallbacks. No implementation/admission/depthcauseclearance.

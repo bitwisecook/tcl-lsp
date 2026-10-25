@@ -2,11 +2,13 @@
 
 Area: compiler/source ownership, correctness and delegated Server changes.
 
-Last updated: 2026-10-25T08:45:44.305355+00:00 (current evidence; no green release claim)
+Last updated: 2026-10-25T09:09:32.945823+00:00 (current evidence; no green release claim)
 
 Root alone integrates, commits, pushes, dispatches and runs gates. This role prepares exact Git-pinned off-tree proposals, copied-apply/source/format evidence, independent peers and this owned tracker. No local Cargo/rustc/native/guest/test execution; the 2GiB build floor remains binding. No product/Git writes or external-session takeover.
 
 ## Resume
+
+**Actual readonly4 custody consumer draft under independent Codegen review:** `/workspace/naming-proof-storage/compiler-native-procedure-consumer-v1-draft` pairs genuine runtime-owned request producer8ffe5e93 with compiler direct SAME-Module Installed body issuance and actual ordinary Tcl byte-formal forwarding (byte target previously dropped target.parameters; text path already forwards). Newly lowered body is MOVED from own fresh Module root, not cloned/grafted from another owner; one Installed body, no authored publication/site/original header manufacture. `original_compiled_body` (renamed from misleading safe_native_frame) checks true request/compiler-issuer/lifetime/currentness, complete whole body, exact Module-issued ID/retainedSource Arc/full Procedure/entry/source/config/namespace/registry. All old classifier/escape/admission gates unchanged. Four original classifier fixtures now use actual VM declarations/calls and successful genuine BytecodeCompileService procedure callback, retaining actual VM; original72 assertion tokens preserved, three distinct readonly/foreign-modified-retired/declaration-only-refusal controls added. Fmt/copyapply0 both; Rust/Cargo/native/C Tcl/original4/new3/protocol/inventory/performance all UNRUN. Codegen says narrow formal forwarding/direct same-owner body move source-shaped; final immutable producer/currentness peer pending. Combined product contract+design index included. No source or API success claim, no canonical writes.
 
 **External own-procedure current-source subset actually covered:** compiler-external-source-five-selector-proposal-v1/actual-subset-addendum.json independently joins d62 actual original3 ILX owner/sameframe/opaque-refusal PASS and entire d62→current source_remote_first_operand.rs SHA93f778d241f70e44f68fa374906fd01ad2e420f4929fedc0ee83f890acb47e29 exact (lazy-fetch-disabled Git read; empty Git diff). Sameframe test includes exact own-procedure constructor/read positive. Dependencies subsequently advanced, so no isolated-source/full external closure claimed. Exact nested4 unit exists but was not selected and remains UNRUN.
 

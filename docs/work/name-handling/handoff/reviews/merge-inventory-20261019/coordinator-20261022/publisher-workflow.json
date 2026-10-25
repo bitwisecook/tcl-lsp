@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "931bd033424b7654f3c1d204e783e0aac4834d65",
-  "last_published_snapshot": "65abd0d0b756f85d19e154d5a4513fd97c77ff8a",
+  "last_source_snapshot": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
+  "last_published_snapshot": "73c72273f97ad2da6aeddbbb36d4878cdf627da1",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-24T23:03:55.640844+00:00",
+  "last_published_utc": "2026-10-25T08:48:27.445723+00:00",
   "product_tree_diff": [
     ".github/workflows/ci.yml",
     ".github/workflows/perf.yml",
@@ -443,6 +443,7 @@
     "rust/xtask/src/owner_resolution/source_internal.rs",
     "scripts/dev/ensure-test-deps.sh",
     "scripts/dev/lsp-e2e-input-paths.txt",
+    "scripts/dev/lsp-naming-host-proof.mjs",
     "scripts/dev/nextest-terminal-capture.py",
     "scripts/dev/nextest-tool/check-ignored-report.py",
     "scripts/dev/nextest-tool/fixtures/all-ignored/Cargo.toml",
@@ -463,15 +464,15 @@
   ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "931bd033424b7654f3c1d204e783e0aac4834d65",
-  "active_current_head": "931bd033424b7654f3c1d204e783e0aac4834d65",
+  "unpublished_active_base": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
+  "active_current_head": "74d738d2e1e62099a9d7e532b966cb91bff0cc17",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-24T23:03:55.640844+00:00",
+  "updated_utc": "2026-10-25T08:48:27.445723+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": true,
-  "external_product_base": "2cc17f8516c20b5043786faba27285259171d9de",
+  "external_product_base": "1c2944510ff9a7105a95151111942cf8fcb2b64a",
   "source_equivalence_checked_at": "2026-10-23T17:08:33.347195+00:00",
   "source_equivalence_published_head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4"
 }

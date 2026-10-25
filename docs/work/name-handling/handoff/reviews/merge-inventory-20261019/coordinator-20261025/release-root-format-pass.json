@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-25T08:50:34.945032+00:00",
+  "source": "f5936700dd83411eb2a09bdbcf2847871261210b",
+  "after_source": "f5936700dd83411eb2a09bdbcf2847871261210b",
+  "argv": [
+    "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+    "fmt",
+    "--all",
+    "--check"
+  ],
+  "read_only": true,
+  "exit": 0,
+  "stop": null,
+  "elapsed_seconds": 81.33163740401505,
+  "bytes": 0,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_group_remaining": [],
+  "formatted_claim": true,
+  "no_build_or_target_deletion": true
+}
