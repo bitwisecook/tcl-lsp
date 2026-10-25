@@ -257,7 +257,7 @@ mod tests {
             assert_eq!(subject.kind(), RegistrySourceDiagnosticKind::ScriptReparse);
             assert_eq!(
                 subject.argument(),
-                Some(if source.contains("$first") { 0 } else { 1 })
+                Some(usize::from(!source.contains("$first")))
             );
             if source.starts_with("interp alias") {
                 assert_eq!(subject.written_argument(), Some(0));
@@ -398,13 +398,13 @@ mod tests {
                 }
                 2 => {
                     changed.source =
-                        "uplevel 1 \"pré $other\"; interp eval $child $other".to_owned()
+                        "uplevel 1 \"pré $other\"; interp eval $child $other".to_owned();
                 }
                 _ => {
                     changed.result.resolved_input = Some(input(
                         tcl_registry::model::ingress::resolve_environment("tcl9.0")
                             .default_context_registry(),
-                    ))
+                    ));
                 }
             }
             for original in &originals {

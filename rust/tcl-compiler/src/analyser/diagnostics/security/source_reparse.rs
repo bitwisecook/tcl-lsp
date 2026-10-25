@@ -357,7 +357,7 @@ mod tests {
             assert_eq!(subject.kind(), RegistrySourceDiagnosticKind::ScriptReparse);
             assert_eq!(
                 subject.written_argument(),
-                Some(if source.starts_with("uplevel") { 1 } else { 0 })
+                Some(usize::from(source.starts_with("uplevel")))
             );
             if source.contains("{set local}") {
                 assert_eq!(subject.argument(), Some(1));
@@ -431,7 +431,7 @@ mod tests {
                     changed.result.resolved_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl8.6")
                             .default_context_registry(),
-                    ))
+                    ));
                 }
             }
             changed.emit_w101_eval_string_concat(Some(&original));
