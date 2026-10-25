@@ -1,0 +1,43 @@
+{
+  "schema": "compiler-logical-declared-read3-v1",
+  "expected_selected": 3,
+  "rows": [
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::logical_missing_layout_keeps_conditional_reads_without_faking_an_observation",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::logical_missing_layout_does_not_override_corrupt_reached_point_metadata",
+      "env": {}
+    },
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "package": "tcl-compiler",
+      "kind": [
+        "lib"
+      ],
+      "target": "tcl_compiler",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::conditional_read_scope_keeps_unknown_prefix_and_wrong_point_refusals",
+      "env": {}
+    }
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "4c663b0dc54cc11129f6adc45ce7fe36c8adf74c8905a4ffa7c44d6469262b8d",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "6662b5e4447ad9e6302d4cc42f162bef69424f674e15bd4964fe2cd7be64650a"
+  },
+  "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
+  "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
+  "scope": "Three actual missing-layout Logical unit controls only after all old99 close. Same original fresh compiler-lib ELF/full exact list; no additional build, shared global20MiB/full180+20cleanup/2GiB/absolute3600/88125owner/seals/lossless/terminal guards. Initial UNRUN; no Native/Normal/frame/physical/fullbaseline/performance admission."
+}
