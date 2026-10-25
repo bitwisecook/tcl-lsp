@@ -1,6 +1,10 @@
 # Outstanding work: lsp agent
 
-Last updated: 2026-10-25T17:08:42Z
+Last updated: 2026-10-25T17:37:45Z
+
+Resume 2026-10-25T17:37:45Z: NEWsoleassigned5hosts APIexact08eeb03f1c624fcbad3cbdb74cb0750dcc3d8eb0 pathperf.yml:40217144732 WASI121240646078/browser121240646293/unit121240646388; startup40217144456 direct121240644628/Core2121240644500. ALL5inprogressoriginalsteps/healthy/no cancellation/noZIPdownloadyet. Sourceincludesapproved freshretryV2/nestedsyntax/Logical+mutrestore; nativeplatform/runtimeoutcomesUNRUN. Preserve2GiBfloor; currentonly4badELFyounguntil~17:55, no newextract/duplicateZIP. Current4bad5hosts+native/RPC/perf/minifyFULLAUTH qualifications retained nativefollowupV3index09f6e4cf.
+
+WORKbrowserstructured-firstguardV2 frozen78f2f8e8 patch07c7a688 sourceproof/census pendingpeer: active synchronous coverage-only32staticstage/bool rows viaexistingHOST_NAV_STAGE, genuinepurposeenum/metadata/binding/advice/Nativeclosedlookup known/present/frameNamespace/namespaceMatch, exactsameonce/order/shortcircuitidentitywrappers; no sourcequery/newowner/Nativegrant. Notin08eeb. ALLlint-only off-tree cohorts heldROOT untilcompilerlib+102/Jim recover: small9 source9d8f807b/metacc3cea6c; casts28 699a1510 peerpaused; small5 3531bef9; oracleprivateactualoutcome fd4f312b; long8+doc38bf4eb2 (<=100 allaffectedfunctions) peerpending. These cover52historicalprimaries/23files staticallyonly, no Clippyclosure. RootalonecanonicalGit.
 
 Resume 2026-10-25T17:08:42Z: Sole4badnativepayload exacte280c9ad staticcompatbb9e0d90PASS+original4RPC92e0d4f9FULLAUTH/CLOSED1337providers/mapssealed. OriginalW108/W123extra/dialectflip3PASS; putsoriginal6sdeadlineFAIL. Supplemental20.036sscanunfinished/416636KiB/noTokens38711511, no controlledbaselineequivalence. Original2Defaultminify legacyURI diagnostic56714051: StringExpr exactexpectedMATCH, factorial onlyinnermost `$n - 1` retainsgaps; originalsnapshotboundbothrefuse-32801f30d0aba duringunsettledworkspace, firstguardUNMEASURED/no sourceboundacceptance. Original6dialectoracle/coretests remainopen.
 
