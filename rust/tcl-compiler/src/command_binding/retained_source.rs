@@ -1029,7 +1029,7 @@ mod tests {
                 3 => {
                     procedure.body.namespace_context = Some(Box::new(
                         super::super::SourceNamespaceKey::authored("::other"),
-                    ))
+                    ));
                 }
                 _ => procedure.publication = None,
             }
@@ -1177,7 +1177,7 @@ mod tests {
                         .source_binding
                         .as_mut()
                         .unwrap()
-                        .original_written_words = None
+                        .original_written_words = None;
                 }
                 6 => {
                     let binding = changed.source_binding.as_mut().unwrap();
@@ -1218,7 +1218,7 @@ mod tests {
                         .dispatch_site
                         .as_mut()
                         .unwrap()
-                        .offset += 1
+                        .offset += 1;
                 }
             }
             assert!(!retained.owns_original_tokens(&changed), "carrier {change}");
@@ -1269,18 +1269,18 @@ mod tests {
             match change {
                 0 => {
                     baseline.metadata_context =
-                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
                 }
                 1 => baseline.unknown_entry = !baseline.unknown_entry,
                 2 => baseline.native_compilation.loop_depth += 1,
                 3 => {
                     baseline.invocation_realm =
-                        tcl_dialect::model::InvocationRealm::InterpreterRuntime
+                        tcl_dialect::model::InvocationRealm::InterpreterRuntime;
                 }
                 4 => baseline.registry_snapshot = Some(foreign.snapshot().semantic_key()),
                 _ => {
                     baseline.native_compilation.mode =
-                        tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject
+                        tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
                 }
             }
             assert!(
@@ -1347,17 +1347,17 @@ mod tests {
             |module| {
                 module.native_namespace = Some(tcl_core_types::ByteNamespacePath::from_segments([
                     b"Other".as_slice(),
-                ]))
+                ]));
             },
             |module| {
                 module.top_level_namespace_context =
-                    Some(super::super::SourceNamespaceKey::authored("::Different"))
+                    Some(super::super::SourceNamespaceKey::authored("::Different"));
             },
             |module| module.top_level_kind = TopLevelKind::ProcedureBody,
             |module| module.source_entry.unknown_entry = !module.source_entry.unknown_entry,
             |module| {
                 module.source_entry.compilation_scope =
-                    tcl_runtime_api::SourceCompilationScope::EnteredSource
+                    tcl_runtime_api::SourceCompilationScope::EnteredSource;
             },
             |module| module.source_entry.native_compilation.loop_depth += 1,
             |module| module.registry_snapshot = None,
