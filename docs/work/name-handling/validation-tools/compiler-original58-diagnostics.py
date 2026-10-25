@@ -357,10 +357,10 @@ def run_readonly_body_controls() -> None:
         },
     )
     require(
-        len(listed) == 72
+        len(listed) == 75
         and set(listed) == set(readonly_validation["full_target_inventory"])
         and {row["selector"] for row in readonly_rows[:10]}.issubset(listed),
-        "readonly fresh complete72 inventory differs",
+        "readonly fresh complete75 inventory differs",
     )
     original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
     require(
@@ -1208,7 +1208,7 @@ require(closed_controls["build_only_targets"] == [
         "exact closed-consumer fresh build-only targets")
 require(
     sha(BASE / "compiler-inlining-readonly13.json")
-    == "1885476067393476c59d0be8e209886fa811892578584572e7448eaa0d259ed6",
+    == "d4260dd19a6bc8cf1d669edd55831f39313d54b8c8b5739e6e9afe96aa1571ff",
     "exact separate readonly13 input roster",
 )
 readonly_validation = json.loads(
@@ -1238,8 +1238,8 @@ require(
     "readonly fresh target",
 )
 require(
-    len(readonly_validation["full_target_inventory"]) == 72
-    and len(set(readonly_validation["full_target_inventory"])) == 72,
+    len(readonly_validation["full_target_inventory"]) == 75
+    and len(set(readonly_validation["full_target_inventory"])) == 75,
     "readonly full source inventory",
 )
 require(

@@ -142,6 +142,7 @@
     "expected_selected": 0
   },
   "full_target_inventory": [
+    "actual_compiled_procedure_rejects_foreign_modified_and_retired_custody",
     "args_at_callsite_prevents_inline",
     "arity_mismatch_declines",
     "array_element_write_inlines_with_array_rename",
@@ -156,6 +157,7 @@
     "classify_non_pure_leaf_is_never",
     "classify_small_pure_leaf_is_always",
     "classify_threshold_boundary_is_always",
+    "declaration_only_and_refused_body_compilation_issue_no_compiled_fixture",
     "default_arg_inlines",
     "detect_static_passthrough_recognises_zero_param",
     "detect_static_passthrough_rejects_param_and_frame_reach",
@@ -193,6 +195,7 @@
     "proc_with_trailing_return_at_non_terminal_via_wrap",
     "proc_with_trailing_return_inlines_at_terminal_position",
     "qualified_registry_command_body_is_inlined_without_rewriting_the_head",
+    "readonly_source_profitability_does_not_grant_executable_inlining",
     "return_inside_catch_declines",
     "return_inside_loop_declines",
     "set_in_wrapper_body_v3_inlines_with_alpha_rename",
@@ -217,13 +220,23 @@
   ],
   "approved_product_patch_sha256": "84013f9ae40eda38ebd17dce57e8b223af4ed7c8feba4793d4fe8060f75029e5",
   "source_pins": {
-    "rust/tcl-compiler/tests/inlining.rs": "b75a59b79b29f9db284ced26d7bf6b16c99c14d0e7aeca4e2ab6c69b1989b612",
+    "rust/tcl-compiler/tests/inlining.rs": "cbce1dd759bb2380de0ab21e767ce5d03231c058c1a55110fa9916228aa2f27e",
     "rust/tcl-compiler/tests/support/analysis_body_identity.rs": "2f7baea078affa320ee2b78ed12801e4c6687e58e063717c42d37b9c07d7fe3f",
     "rust/tcl-compiler/src/ir.rs": "0e50ce9666274cb2f602055e74fe5abd6b559e9a6b88e58514f366fd76572f97",
     "rust/tcl-compiler/src/compilation_unit.rs": "202123edb5b7c911865fc5e128163636c37f82438e843881c23375113a0634c1",
     "rust/tcl-compiler/src/command_binding/retained_source.rs": "989050b5466660227aadc1097684d0327c131f9580da83edc0f808eea604a2d2",
     "rust/tcl-compiler/src/var_escape/api.rs": "c7789fca948fdbcb3e39a7bd4af83a414a223dadc68bd0c232409f3348ff1d5c",
-    "rust/tcl-compiler/src/inlining/mod.rs": "9798d1137462203ac5585b65e24870144549985ee8a970199c196c4adc6ed9ef"
+    "rust/tcl-compiler/src/inlining/mod.rs": "9798d1137462203ac5585b65e24870144549985ee8a970199c196c4adc6ed9ef",
+    "rust/tcl-runtime-api/src/lib.rs": "9daf2ba3e1927a246d9c028236028b2af023bb1b897711bf4836ba9167537d3b",
+    "rust/tcl-runtime-api/src/native_compiler_pass.rs": "bea79bd4c38b3d7b4fef315f71f60b86685dff737f53b3a2525fbf3ad4444bfc",
+    "rust/tcl-runtime-api/src/native_procedure_compilation.rs": "ee307456b80910e0d3b39e4ff69c675fc1db0438dfe635db0488c839cf876453",
+    "rust/tcl-runtime-api/src/native_procedure_roles.rs": "64dafbcec6d212eeeac22e617ec8cb866b47af7d59c883405156d925016064fc",
+    "rust/tcl-vm/src/command/native_procedure.rs": "a0307709fce89a4f241ac4c4936be2daeb753f2ed017a602cfab7a26b9215d42",
+    "rust/tcl-vm/src/interp.rs": "b4a748c379ff775282aa5dd3864d37025953b6accf146034b87684bc3a55fa97",
+    "rust/tcl-compiler/src/compile_service/native_procedure_source.rs": "fc9446146bff1e54a1c91c32578f77d50fbd55b577008c13f9bf0b397ed02d99",
+    "rust/tcl-compiler/src/compile_service.rs": "f123edf298ba498422236d4a1032a46e7c54c2fb917a8fa2325790fbb0a16cf0",
+    "rust/tcl-compiler/src/lowering/mod.rs": "d34798c4ccc80f8fc2a4c7daa7756d730b6e1c79c044311ca49cf421ec5c949d",
+    "rust/tcl-compiler/tests/support/native_compiled_fixture.rs": "216b4deac03501dfcca428a7157691c406ce1d1efc2dffa4d710bbb0df61599d"
   },
-  "scope": "Prospective additive readonly10 plus original-owner3, only after all old83 close. Source-owner/card-qualified body metadata retrieval; classifier and all transform/erasure/Native guards unchanged. Fresh inlining artifact and complete72list required, all shared budgets retained. Initial UNRUN; no baseline/full-process/performance acceptance."
+  "scope": "Prospective additive readonly10 plus original-owner3, only after all old83 close. Source-owner/card-qualified body metadata retrieval; classifier and all transform/erasure/Native guards unchanged. Fresh inlining artifact and complete75list required, all shared budgets retained. Initial UNRUN; no baseline/full-process/performance acceptance."
 }
