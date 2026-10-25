@@ -30,6 +30,8 @@ pub(crate) mod host_structure_observer;
 pub use host_structure_observer::{HostStructureTraceGuard, begin_host_structure_trace};
 
 mod original_procedure_call;
+#[cfg(test)]
+pub(crate) use original_procedure_call::OriginalSourceProcedureCall;
 pub(crate) use original_procedure_call::{
     OriginalProcedureMayDependencies, original_authored_body_procedure_calls_for_module,
     original_authored_procedure_calls_for_module, original_logical_procedure_calls_for_module,

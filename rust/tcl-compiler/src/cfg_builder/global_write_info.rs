@@ -1858,7 +1858,8 @@ mod tests {
         stale.argv_texts[1] = "::other".to_owned();
         assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &stale).is_none());
         let mut missing_carrier = child.clone();
-        missing_carrier.source_binding = Some(Default::default());
+        missing_carrier.source_binding =
+            Some(crate::command_binding::SourceInvocationBinding::default());
         assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &missing_carrier).is_none());
         let mut missing_words = child.clone();
         missing_words.source_binding = None;
