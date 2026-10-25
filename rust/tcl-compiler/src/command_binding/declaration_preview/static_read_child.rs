@@ -6,6 +6,15 @@
 
 use super::{Arc, OriginalProcedureStaticReadAlternatives};
 
+macro_rules! child_read_guard {
+    ($stage:literal, $value:expr) => {
+        match $value {
+            Some(value) => value,
+            None => return super::trace_static_read_refusal($stage, None),
+        }
+    };
+}
+
 impl OriginalProcedureStaticReadAlternatives {
     pub(super) fn original_child_source_read(
         &self,
@@ -15,27 +24,36 @@ impl OriginalProcedureStaticReadAlternatives {
         name: &str,
         span: tcl_lexer::Span,
     ) -> Option<()> {
-        let plan = self.original_body_plan()?;
+        let plan = child_read_guard!("child.body_plan", self.original_body_plan());
         if plan.fatal_tail.is_some()
             || !plan
                 .commands
                 .iter()
                 .any(|command| command.words.as_slice() == original)
         {
-            return None;
+            return super::trace_static_read_refusal("child.original_geometry", None);
         }
         let registry = self.input.borrowed_context_registry().commands();
-        let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            tokens,
-            self.input.lexer_config(),
-            registry,
-            metadata,
-        )?;
+        let calls = child_read_guard!(
+            "child.inventory",
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens,
+                self.input.lexer_config(),
+                registry,
+                metadata,
+            )
+        );
         let mut found = false;
         for call in &calls {
-            found |= self.original_child_read(call, metadata, name, span)?;
+            found |= child_read_guard!(
+                "child.read",
+                self.original_child_read(call, metadata, name, span)
+            );
         }
-        found.then_some(())
+        Some(child_read_guard!(
+            "child.no_matching_read",
+            found.then_some(())
+        ))
     }
     fn original_child_read(
         &self,
@@ -45,56 +63,88 @@ impl OriginalProcedureStaticReadAlternatives {
         span: tcl_lexer::Span,
     ) -> Option<bool> {
         let registry = self.input.borrowed_context_registry().commands();
-        let child = call.tokens.as_ref()?;
-        let binding = child.source_binding.as_ref()?;
-        if !Arc::ptr_eq(binding.original_analysis_attachment()?, &self.owner) {
-            return None;
+        let child = child_read_guard!("child.tokens", call.tokens.as_ref());
+        let binding = child_read_guard!("child.binding", child.source_binding.as_ref());
+        if !Arc::ptr_eq(
+            child_read_guard!(
+                "child.analysis_attachment",
+                binding.original_analysis_attachment()
+            ),
+            &self.owner,
+        ) {
+            return super::trace_static_read_refusal("child.analysis_owner", None);
         }
-        let child_metadata =
-            binding.original_invocation_metadata_for_input(child, &self.input, registry)?;
+        let child_metadata = child_read_guard!(
+            "child.invocation_metadata",
+            binding.original_invocation_metadata_for_input(child, &self.input, registry)
+        );
         if child_metadata.source_analysis_input() != metadata.source_analysis_input() {
-            return None;
+            return super::trace_static_read_refusal("child.input", None);
         }
-        let advice = binding.original_conditional_operand_layout_advice(child, registry)?;
-        let state = &advice.snapshot.state;
-        let header = &self.declaration.header;
-        if advice.has_unclosed_source_coverage()
-            || !Arc::ptr_eq(&advice.site.source, &header.declaration.source)
-            || state.variable_frame != header.frame
-            || binding.variable_frame != header.frame
-            || !super::super::SourceCommandBindings::context_owns_frame(
-                &binding.variable_context,
-                &header.frame,
-                Some(&header.namespace),
+        let advice = child_read_guard!(
+            "child.operand_advice",
+            binding.original_conditional_operand_layout_advice(child, registry)
+        );
+        child_read_guard!(
+            "child.scope",
+            self.trace_original_child_scope(binding, &advice)
+        );
+        let child_context = child_read_guard!(
+            "child.declaration_metadata",
+            child_read_guard!(
+                "child.declaration_metadata_query",
+                advice
+                    .original_declaration_metadata_context(registry, child)
+                    .ok()
             )
-            || !super::super::SourceCommandBindings::context_owns_frame(
-                &state.source_variables,
-                &header.frame,
-                Some(&header.namespace),
-            )
-        {
-            return None;
-        }
-        let child_context = advice
-            .original_declaration_metadata_context(registry, child)
-            .ok()??;
+        );
         if child_context.source_analysis_input() != metadata.source_analysis_input() {
-            return None;
+            return super::trace_static_read_refusal("child.declaration_input", None);
         }
-        let selected =
-            crate::registry_invocation::declaration_invocation_flow(registry, child, &advice)?;
-        if !selected.effects.lookup_stable
-            || selected.effects.frame_reachable()
-            || selected.effects.unknown_reads
-            || selected.effects.unknown_writes
-            || !selected.aliases.is_empty()
-            || !selected.caller_frame_aliases.is_empty()
-            || !matches!(
-                selected.flow,
-                tcl_registry::script_body_flow::ScriptBodyFlow::None
-            )
-        {
-            return None;
+        let selected = child_read_guard!(
+            "child.invocation_flow",
+            crate::registry_invocation::declaration_invocation_flow(registry, child, &advice)
+        );
+        child_read_guard!(
+            "child.effects",
+            Self::trace_original_child_effects(&selected, name)
+        );
+        let found = child_read_guard!(
+            "child.named_read",
+            self.original_child_named_read(child, name)
+        );
+        if found && (call.span.start() < span.start() || call.span.end() > span.end()) {
+            return super::trace_static_read_refusal("child.container", None);
+        }
+        Some(found)
+    }
+    fn trace_original_child_effects(
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+        name: &str,
+    ) -> Option<()> {
+        if !selected.effects.lookup_stable {
+            return super::trace_static_read_refusal("child.lookup_stable", None);
+        }
+        if selected.effects.frame_reachable() {
+            return super::trace_static_read_refusal("child.frame_reachable", None);
+        }
+        if selected.effects.unknown_reads {
+            return super::trace_static_read_refusal("child.unknown_reads", None);
+        }
+        if selected.effects.unknown_writes {
+            return super::trace_static_read_refusal("child.unknown_writes", None);
+        }
+        if !selected.aliases.is_empty() {
+            return super::trace_static_read_refusal("child.aliases", None);
+        }
+        if !selected.caller_frame_aliases.is_empty() {
+            return super::trace_static_read_refusal("child.caller_aliases", None);
+        }
+        if !matches!(
+            selected.flow,
+            tcl_registry::script_body_flow::ScriptBodyFlow::None
+        ) {
+            return super::trace_static_read_refusal("child.script_flow", None);
         }
         if selected
             .reads
@@ -102,18 +152,57 @@ impl OriginalProcedureStaticReadAlternatives {
             .chain(&selected.writes)
             .chain(&selected.possible_output_writes)
             .any(|variable| variable != name)
-            || !selected.removes.is_empty()
-            || !selected.loop_bindings.is_empty()
-            || !selected.name_queries.is_empty()
         {
-            return None;
+            return super::trace_static_read_refusal("child.other_variable", None);
         }
-        let found = self.original_child_named_read(child, name)?;
-        if found && (call.span.start() < span.start() || call.span.end() > span.end()) {
-            return None;
+        if !selected.removes.is_empty() {
+            return super::trace_static_read_refusal("child.removes", None);
         }
-        Some(found)
+        if !selected.loop_bindings.is_empty() {
+            return super::trace_static_read_refusal("child.loop_bindings", None);
+        }
+        if !selected.name_queries.is_empty() {
+            return super::trace_static_read_refusal("child.name_queries", None);
+        }
+        Some(())
     }
+
+    fn trace_original_child_scope(
+        &self,
+        binding: &super::super::SourceInvocationBinding,
+        advice: &super::super::OriginalCompilationLookupAdvice,
+    ) -> Option<()> {
+        let state = &advice.snapshot.state;
+        let header = &self.declaration.header;
+        if advice.has_unclosed_source_coverage() {
+            return super::trace_static_read_refusal("child.coverage", None);
+        }
+        if !Arc::ptr_eq(&advice.site.source, &header.declaration.source) {
+            return super::trace_static_read_refusal("child.source_origin", None);
+        }
+        if state.variable_frame != header.frame {
+            return super::trace_static_read_refusal("child.snapshot_frame", None);
+        }
+        if binding.variable_frame != header.frame {
+            return super::trace_static_read_refusal("child.binding_frame", None);
+        }
+        if !super::super::SourceCommandBindings::context_owns_frame(
+            &binding.variable_context,
+            &header.frame,
+            Some(&header.namespace),
+        ) {
+            return super::trace_static_read_refusal("child.binding_context", None);
+        }
+        if !super::super::SourceCommandBindings::context_owns_frame(
+            &state.source_variables,
+            &header.frame,
+            Some(&header.namespace),
+        ) {
+            return super::trace_static_read_refusal("child.snapshot_context", None);
+        }
+        Some(())
+    }
+
     /// Match each selected variable role to its own original written operand.
     /// Bound prefixes and unrelated equal words cannot provide that receipt.
     fn original_child_named_read(
@@ -122,44 +211,80 @@ impl OriginalProcedureStaticReadAlternatives {
         name: &str,
     ) -> Option<bool> {
         let registry = self.input.borrowed_context_registry().commands();
-        let binding = child.source_binding.as_ref()?;
-        let source = binding.declaration_source_operand_layout_advice(registry, child)?;
-        source
-            .with_conditional_registry_facts(registry, child, |facts, effective, _values| {
-                if !facts.arg_roles_complete {
-                    return None;
-                }
-                let mut roles = Vec::new();
-                for &(position, role) in &facts.arg_roles {
-                    let argument = facts.argument_offset.checked_add(usize::from(position))?;
-                    let read = role == tcl_registry::ArgRole::VarRead
-                        && crate::existence_query::operand(facts)
-                            .is_none_or(|(_, position)| position != argument);
-                    let write = role == tcl_registry::ArgRole::VarWrite;
-                    if !read && !write {
-                        continue;
-                    }
-                    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
-                        effective.origins.get(argument.checked_add(1)?)?
-                    else {
-                        return None;
-                    };
-                    let word = child.words().get(*written)?;
-                    let receipt = binding
-                        .declaration_source_variable_operand_advice(registry, child, word)?;
-                    if !receipt.matches_original_scalar_read(name) {
-                        return None;
-                    }
-                    let reads = read
-                        || (write
-                            && facts
-                                .traits
-                                .contains(tcl_registry::Traits::READS_BEFORE_WRITE));
-                    roles.push((*written, reads, write));
-                }
-                Some(roles)
-            })
-            .map(|roles| roles.iter().any(|(_, reads, _)| *reads))
+        let binding = child_read_guard!("child.binding", child.source_binding.as_ref());
+        let source = child_read_guard!(
+            "child.source_operand_advice",
+            binding.declaration_source_operand_layout_advice(registry, child)
+        );
+        Some(child_read_guard!(
+                "child.role_matrix",
+                source
+                    .with_conditional_registry_facts(
+                        registry,
+                        child,
+                        |facts, effective, _values| {
+                            if !facts.arg_roles_complete {
+                                return super::trace_static_read_refusal(
+                                    "child.roles_complete",
+                                    None,
+                                );
+                            }
+                            let mut roles = Vec::new();
+                            for &(position, role) in &facts.arg_roles {
+                                let argument = child_read_guard!(
+                                    "child.role_index",
+                                    facts.argument_offset.checked_add(usize::from(position))
+                                );
+                                let read = role == tcl_registry::ArgRole::VarRead
+                                    && crate::existence_query::operand(facts)
+                                        .is_none_or(|(_, position)| position != argument);
+                                let write = role == tcl_registry::ArgRole::VarWrite;
+                                if !read && !write {
+                                    continue;
+                                }
+                                let crate::registry_invocation::InvocationWordOrigin::Written(
+                                    written,
+                                ) = child_read_guard!(
+                                    "child.argument_origin",
+                                    effective.origins.get(child_read_guard!(
+                                        "child.argument_index",
+                                        argument.checked_add(1)
+                                    ))
+                                )
+                                else {
+                                    return super::trace_static_read_refusal(
+                                        "child.written_origin",
+                                        None,
+                                    );
+                                };
+                                let word = child_read_guard!(
+                                    "child.written_word",
+                                    child.words().get(*written)
+                                );
+                                let receipt = child_read_guard!(
+                                    "child.scalar_operand",
+                                    binding.declaration_source_variable_operand_advice(
+                                        registry, child, word
+                                    )
+                                );
+                                if !receipt.matches_original_scalar_read(name) {
+                                    return super::trace_static_read_refusal(
+                                        "child.scalar_correspondence",
+                                        None,
+                                    );
+                                }
+                                let reads = read
+                                    || (write
+                                        && facts
+                                            .traits
+                                            .contains(tcl_registry::Traits::READS_BEFORE_WRITE));
+                                roles.push((*written, reads, write));
+                            }
+                            Some(roles)
+                        }
+                    )
+                    .map(|roles| roles.iter().any(|(_, reads, _)| *reads))
+            ))
     }
 }
 
