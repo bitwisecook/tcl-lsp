@@ -41,5 +41,63 @@
   },
   "approved_product_patch_sha256": "b7dfce4ec692d87e339bf8a9c756a4f398869e8550dd846b636b8942d4677698",
   "independent_source_peer_sha256": "f80937150be98744601fc19ffcc4e5f029c32a98796b7b98f1b3cb5409ac63f5",
-  "scope": "Three actual missing-layout Logical unit controls only after all old99 close. Same original fresh compiler-lib ELF/full exact list; no additional build, shared global20MiB/full180+20cleanup/2GiB/absolute3600/88125owner/seals/lossless/terminal guards. Initial UNRUN; no Native/Normal/frame/physical/fullbaseline/performance admission."
+  "scope": "Three actual missing-layout Logical unit controls only after all old99 close. Same original fresh compiler-lib ELF/full exact list; no additional build, shared global20MiB/full180+20cleanup/2GiB/absolute3600/88125owner/seals/lossless/terminal guards. Initial UNRUN; no Native/Normal/frame/physical/fullbaseline/performance admission.",
+  "separate_body_entry_controls": {
+    "schema": "logical-source-body-entry-controls5-v1",
+    "expected_selected": 5,
+    "source_peer_sha256": "738f8ace6ae56604b083c8b6a38d2d3623616679f74148aa35d41df8395cfb09",
+    "rows": [
+      {
+        "group": "diagnostic-logical-source-body-entry5",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::logical_body_entry::tests::installed_logical_declaration_gets_a_real_body_visit_without_native_entry",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-logical-source-body-entry5",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::logical_body_entry::tests::replacement_keeps_old_lexical_body_without_old_body_dispatch",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-logical-source-body-entry5",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::logical_body_entry::tests::body_unknown_effects_do_not_change_completed_root_world",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-logical-source-body-entry5",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::logical_body_entry::tests::scoped_body_entry_refuses_foreign_origin_and_changed_configuration",
+        "env": {}
+      },
+      {
+        "group": "diagnostic-logical-source-body-entry5",
+        "package": "tcl-compiler",
+        "kind": [
+          "lib"
+        ],
+        "target": "tcl_compiler",
+        "selector": "command_binding::declaration_preview::logical_body_entry::tests::declaration_realm_must_match_the_completed_root_realm",
+        "env": {}
+      }
+    ],
+    "scope": "Five separate source body-entry controls after unchanged original102 close. Same existing fresh compiler-lib ELF and full inventory, strict0W, exact180s list/run, lossless transport, one shared20MiB/2GiB/absolute3600 lifecycle budget. No additional build, reset or Native permission. Unexecuted controls remain explicitly incomplete."
+  }
 }

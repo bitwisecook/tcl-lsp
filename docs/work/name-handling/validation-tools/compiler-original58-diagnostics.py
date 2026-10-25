@@ -142,6 +142,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-original-body-owner3-",
             "diagnostic-source-read-ancestry3-",
             "diagnostic-logical-declared-read3-",
+            "diagnostic-logical-source-body-entry5-",
             "list-",
             "select-",
         )
@@ -158,6 +159,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-original-body-owner3-",
             "diagnostic-source-read-ancestry3-",
             "diagnostic-logical-declared-read3-",
+            "diagnostic-logical-source-body-entry5-",
         )
     ):
         require(available >= seconds + 20, "insufficient time for complete closed control and cleanup")
@@ -175,6 +177,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "diagnostic-original-body-owner3-",
             "diagnostic-source-read-ancestry3-",
             "diagnostic-logical-declared-read3-",
+            "diagnostic-logical-source-body-entry5-",
         )
     ):
         require(
@@ -932,6 +935,200 @@ def run_logical_declared_read_controls() -> None:
         )
 
 
+def run_logical_body_entry_controls() -> None:
+    global remaining
+    require(
+        all(
+            row["state"] in ["PASS", "FAIL"]
+            for row in rows
+        ),
+        "logical body-entry controls cannot precede original102 closure",
+    )
+    require(
+        files(dependency_roots) == dependencies_before
+        and source() == before
+        and files(provider_roots) == providers_before
+        and files(list(tools.values())) == tool_pins,
+        "pre-logical-body-entry source/provider/tool/dependency drift",
+    )
+    original_lib_roster = json.loads((out / "roster-tcl_compiler.json").read_text())
+    require(
+        {row["selector"] for row in logical_body_rows}.issubset(
+            original_lib_roster["selected"]
+        ),
+        "logical body-entry controls absent from actual fresh compiler lib inventory",
+    )
+    for index, row in enumerate(logical_body_rows):
+        package, target_kind, target_name = row["package"], row["kind"], row["target"]
+        selected_artifacts = [
+            value
+            for value in artifacts
+            if value["package"] == package
+            and value["kind"] == target_kind
+            and value["target"] == target_name
+        ]
+        require(
+            len(selected_artifacts) == 1,
+            "logical body-entry current built artifact absent/ambiguous",
+        )
+        diagnostic_artifact: dict[str, Any] = selected_artifacts[0]
+        require(
+            diagnostic_artifact["strict_Rust_0w"] is True
+            and diagnostic_artifact["cargo_event"]["profile"]["debug_assertions"]
+            is True,
+            "logical body-entry requires existing fresh strict debug-assertion test profile",
+        )
+        executable = Path(diagnostic_artifact["path"])
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "logical body-entry artifact changed before listing",
+        )
+        selector = row["selector"]
+        require(remaining > 512 * 1024, "insufficient log budget before original test")
+        prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
+        group_label = "logical-source-body-entry"
+        print("SELECT " + group_label + " " + selector, flush=True)
+        runtime_env = env.copy()
+        selected_env = row["env"]
+        if not isinstance(selected_env, dict):
+            raise TypeError("original per-selector environment is not a mapping")
+        for name, value in selected_env.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise TypeError("original per-selector environment is not text")
+            runtime_env[name] = value
+        selected_list = execute(
+            [str(executable), selector, "--exact", "--list", "--format", "terse"],
+            "select-" + prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(selected_list)
+        remaining -= selected_list["retained_bytes"]
+        require(
+            lifecycle(selected_list) and selected_list["exit_code"] == 0,
+            "original exact selector list failed or unclosed",
+        )
+        selected_lines = (
+            (out / ("select-" + prefix + ".stdout")).read_text().splitlines()
+        )
+        require(
+            [line for line in selected_lines if line.endswith(": test")]
+            == [selector + ": test"],
+            "original exact selector list mismatch",
+        )
+        require(
+            all(
+                line == selector + ": test"
+                or not line
+                or re.fullmatch(r"1 tests?, 0 benchmarks?", line)
+                for line in selected_lines
+            ),
+            "unexpected original exact selector list data",
+        )
+        require(
+            remaining > 512 * 1024,
+            "insufficient log budget after original exact selector list",
+        )
+        child_before = sha(executable)
+        require(
+            child_before == diagnostic_artifact["sha256"],
+            "selected Rust test artifact changed before transport spawn",
+        )
+        row["selected_test_artifact"] = {
+            "path": str(executable),
+            "expected_sha256": diagnostic_artifact["sha256"],
+            "before_sha256": child_before,
+            "after_sha256": None,
+            "unchanged": False,
+        }
+        row["state"] = "RUNNING"
+        save(out / "logical-body-entry-outcomes.json", logical_body_rows)
+        print("RUN " + group_label + " " + selector, flush=True)
+        receipt = execute(
+            [
+                str(executable),
+                selector,
+                "--exact",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            prefix,
+            executable,
+            180,
+            runtime_env,
+            remaining,
+        )
+        processes.append(receipt)
+        remaining -= receipt["retained_bytes"]
+        child_after = sha(executable)
+        row["selected_test_artifact"]["after_sha256"] = child_after
+        row["selected_test_artifact"]["unchanged"] = (
+            child_before == child_after == diagnostic_artifact["sha256"]
+        )
+        save(out / "logical-body-entry-outcomes.json", logical_body_rows)
+        require(
+            row["selected_test_artifact"]["unchanged"],
+            "selected Rust test artifact changed during transport",
+        )
+        transport_path = out / (prefix + ".transport.json")
+        if lifecycle(receipt):
+            require(
+                transport_path.is_file(), "completed test transport summary missing"
+            )
+            transport = json.loads(transport_path.read_text())
+            encoded_stderr = (out / (prefix + ".stderr")).read_bytes()
+            repeat_stage = transport["repeat_stage"]
+            table_stage = transport["table_stage"]
+            require(
+                transport["child_exit_code"] == receipt["exit_code"]
+                and transport["ordinary_stderr_verbatim"] is False
+                and transport["stderr_losslessly_reconstructible_after_table_filter"]
+                is True
+                and table_stage["ordinary_stderr_verbatim"] is True
+                and table_stage["stdout_verbatim"] is True
+                and transport["stdout_verbatim"] is True
+                and transport["retained_stderr_bytes"]
+                == repeat_stage["output_bytes"]
+                == len(encoded_stderr)
+                and repeat_stage["format"]
+                == "two-family-lossless-line-dictionary-rle-v1"
+                and repeat_stage["input_bytes"] == table_stage["retained_stderr_bytes"]
+                and repeat_stage["output_sha256"]
+                == hashlib.sha256(encoded_stderr).hexdigest(),
+                "transport child status or layered byte census mismatch",
+            )
+            reconstructed = transport_filter.decode_diagnostic_repeats(
+                encoded_stderr, lambda _data: None, repeat_stage["input_bytes"]
+            )
+            require(
+                reconstructed["bytes"] == repeat_stage["input_bytes"]
+                and reconstructed["sha256"] == repeat_stage["input_sha256"],
+                "transport diagnostic reconstruction differs from original stream",
+            )
+            row["transport_reconstruction"] = reconstructed
+        row.update(
+            exit_code=receipt["exit_code"],
+            receipt=prefix + ".process.json",
+            stdout=prefix + ".stdout",
+            stderr=prefix + ".stderr",
+        )
+        require(lifecycle(receipt), "original test lifecycle/capture stop: " + selector)
+        stdout = (out / (prefix + ".stdout")).read_text(errors="replace")
+        try:
+            row["state"] = original_result(stdout, receipt["exit_code"])
+        except RuntimeError:
+            row["state"] = "SIGNAL" if receipt["exit_code"] < 0 else "PROTOCOL_FAILURE"
+            save(out / "logical-body-entry-outcomes.json", logical_body_rows)
+            raise
+        save(out / "logical-body-entry-outcomes.json", logical_body_rows)
+        require(
+            sha(executable) == diagnostic_artifact["sha256"],
+            "selected test artifact changed",
+        )
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sha", required=True)
 parser.add_argument("--out", type=Path, required=True)
@@ -1332,7 +1529,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "ae881218564c8956d6adaa937a1b902c9e26e3416506fca031283f309ab4ec03",
+    == "3400331ce9b255b4582356204fbbd896902a95b03b2115b40c0017f90e4c2567",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
@@ -1384,6 +1581,23 @@ rows = (
     + readonly_rows
     + ancestry_rows
     + logical_rows
+)
+
+logical_body_validation = logical_validation["separate_body_entry_controls"]
+require(
+    logical_body_validation["schema"] == "logical-source-body-entry-controls5-v1"
+    and logical_body_validation["expected_selected"] == len(logical_body_validation["rows"]) == 5
+    and logical_body_validation["source_peer_sha256"] == "738f8ace6ae56604b083c8b6a38d2d3623616679f74148aa35d41df8395cfb09",
+    "logical body-entry control schema/count/source peer",
+)
+logical_body_rows: list[dict[str, Any]] = [dict(row, state="UNRUN") for row in logical_body_validation["rows"]]
+require(
+    [row["selector"] for row in logical_body_rows] == ['command_binding::declaration_preview::logical_body_entry::tests::installed_logical_declaration_gets_a_real_body_visit_without_native_entry', 'command_binding::declaration_preview::logical_body_entry::tests::replacement_keeps_old_lexical_body_without_old_body_dispatch', 'command_binding::declaration_preview::logical_body_entry::tests::body_unknown_effects_do_not_change_completed_root_world', 'command_binding::declaration_preview::logical_body_entry::tests::scoped_body_entry_refuses_foreign_origin_and_changed_configuration', 'command_binding::declaration_preview::logical_body_entry::tests::declaration_realm_must_match_the_completed_root_realm']
+    and all(row["group"] == "diagnostic-logical-source-body-entry5"
+        and row["package"] == "tcl-compiler" and row["kind"] == ["lib"]
+        and row["target"] == "tcl_compiler" and row["env"] == {} for row in logical_body_rows)
+    and not {row["selector"] for row in logical_body_rows}.intersection(row["selector"] for row in rows),
+    "logical body-entry exact targets/selectors/environment/no overlap",
 )
 require(
     len(
@@ -2256,7 +2470,12 @@ try:
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
+    run_logical_body_entry_controls()
+    require(len(logical_body_rows) == 5 and all(row["state"] in ["PASS", "FAIL"] for row in logical_body_rows),
+        "logical body-entry controls incomplete")
     status = 0 if all(row["state"] == "PASS" for row in rows) else 1
+    if any(row["state"] != "PASS" for row in logical_body_rows):
+        status = 1
 except (
     RuntimeError,
     OSError,
@@ -2307,6 +2526,7 @@ finally:
         )
     if not all(seals.values()):
         status = 2
+    save(out / "logical-body-entry-outcomes.json", logical_body_rows)
     save(out / "outcomes.json", rows)
     save(
         out / "final.json",
@@ -2372,6 +2592,11 @@ finally:
             ),
             "logical3_outcomes": logical_rows,
             "separate_logical_roster": logical_validation,
+            "required_separate_logical_body_entry_controls": 5,
+            "logical_body_entry_controls_closed": sum(row["state"] in ["PASS", "FAIL"] for row in logical_body_rows),
+            "logical_body_entry5_outcomes": logical_body_rows,
+            "logical_body_entry5_roster": logical_body_validation,
+            "logical_body_entry5_qualification": "Separately labelled controls after unchanged original102, same existing fresh compiler-lib ELF, no extra build/budget reset or Native permission.",
             "separate_closed_consumer_roster": closed_controls,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
