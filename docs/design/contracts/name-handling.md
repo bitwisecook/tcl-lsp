@@ -1533,6 +1533,23 @@ Shared dynamic command-name overlap uses an authentic configured original word a
 
 Studio archive previews retain unsupported-encoding provenance through staging, release validation and snapshot JSON. A release with unrepresentable source is refused before semantic inference, preserving literal Unicode replacement characters separately from lossy previews. Byte-preserving VM WASM ingress uses the actual Document SourceImage and existing evaluation owner; original unsupported-source refusals remain terminal.
 
+## Authored procedure compiler body visits
+
+A source-only Logical body visit requires the actual installed procedure target
+and its first implementation allocation at the exact original declaration site,
+source instance and namespace. The original slot must still select that target
+unambiguously. The complete original declaration supplies its own contiguous
+body, formal syntax, configuration and source frame recipe; lexical discovery
+alone does not schedule a visit.
+
+The body walker starts from the exact completed document command world, seeds
+unknown formal values and deferred namespace contents, and retains its original
+declared-body owner through synchronous nested source queries. Unknown operations,
+source changes and incomplete parsing keep their existing refusals. Body outcomes
+do not change the document continuation. These are conditional compiler source
+points, with no Native invocation, entered physical frame, Normal certificate or
+publication permission.
+
 ## Manifest dependency source edits
 
 `original_manifest_requirements` uses the manifest owner's complete validated
@@ -3868,6 +3885,25 @@ command retains its own original lookup and coverage checks; unknown or foreign
 owners refuse. This route does not add Proc to the same-frame control whitelist,
 enter its body, establish an installed procedure, or supply a Native frame,
 Normal completion or edit equivalence.
+
+### Quiet scalar store source coverage
+
+Rename source coverage can consume an independently completed quiet scalar
+store at its original retained source point. The same current analysis, full
+input, source origin, lexer configuration, stamped binding and selected
+Authored builtin layout must agree. Every actual dispatch point must retain
+normal original argument evaluation, unchanged original words, quiet observers,
+closed target identity and the original variable operand receiver. The existing
+before-store kernel must prove that scalar receiver unobserved and writable;
+all operands remain static. Handler normal completion is a separate retained
+same-binding observation.
+
+This route creates no Normal query or outcome and borrows neither a final graph
+as an earlier state nor compiler visits as execution. Callback metadata alone,
+observed or dynamic variables, foreign points, opaque effects and unavailable
+completion remain insufficient. Original command-link checks still apply. No
+physical variable frame, Native compiler admission or new deferred-body
+completion follows.
 
 ### Authored uplevel source words
 
