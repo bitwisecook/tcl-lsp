@@ -528,6 +528,15 @@ mod event_function_owner_tests {
         source: &str,
         context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     ) -> CompilationUnit {
+        let result = build_unit_borrowed(source, &context);
+        drop(context);
+        result
+    }
+
+    fn build_unit_borrowed(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
         let profile = tcl_dialect::DialectProfile::irules();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let options = UnitBuildOptions {
@@ -542,7 +551,7 @@ mod event_function_owner_tests {
             source,
             options,
             None,
-            std::sync::Arc::clone(&context),
+            std::sync::Arc::clone(context),
         )
     }
 

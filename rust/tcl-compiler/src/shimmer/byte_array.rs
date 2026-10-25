@@ -918,6 +918,16 @@ pub(super) fn retained_representation_unit(
     source: &str,
     context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
 ) -> crate::environment_ingress::RetainedNativeUnit {
+    let result = retained_representation_unit_borrowed(source, &context);
+    drop(context);
+    result
+}
+
+#[cfg(test)]
+fn retained_representation_unit_borrowed(
+    source: &str,
+    context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+) -> crate::environment_ingress::RetainedNativeUnit {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     let (owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
@@ -937,7 +947,7 @@ pub(super) fn retained_representation_unit(
             declared_commands: None,
         },
         Some(&entry),
-        std::sync::Arc::clone(&context),
+        std::sync::Arc::clone(context),
     );
     crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
 }
