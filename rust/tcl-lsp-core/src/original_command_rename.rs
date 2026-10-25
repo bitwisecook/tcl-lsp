@@ -183,6 +183,7 @@ fn trace_missing_rename_world(
     ordinal: usize,
     count: usize,
 ) {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
         let detail = format!(
             "rename.missing-world ordinal={ordinal} count={count} uri={} analysis_owner={:p} source_bytes={} resolved_input={} unavailable={} body_config={:?}",
@@ -195,7 +196,6 @@ fn trace_missing_rename_world(
         );
         MISSING_RENAME_WORLD.with(|trace| *trace.borrow_mut() = Some(detail));
     }
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     if *ENABLED.get_or_init(|| std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")) {
         eprintln!(
             "RENAME_WORLD declined ordinal={ordinal} count={count} uri={} source_bytes={} resolved_input={} unavailable={} body_config={:?}",

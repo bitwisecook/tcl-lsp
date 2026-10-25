@@ -98,7 +98,7 @@ fn prepare_required<T>(value: Option<T>, stage: &'static str) -> Option<T> {
 #[must_use]
 pub fn take_prepare_refusal_trace() -> Option<String> {
     if matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")) {
-        let stage = PREPARE_REFUSAL_TRACE.with(|trace| trace.take());
+        let stage = PREPARE_REFUSAL_TRACE.with(std::cell::Cell::take);
         let held = PREPARE_HELD_TRACE.with(|trace| std::mem::take(&mut *trace.borrow_mut()));
         stage.map(|stage| format!("{stage}{}", held.detail))
     } else {
@@ -356,9 +356,9 @@ pub fn prepare(
         }
         head.is_some_and(|head| {
             let span = head.span();
-            let owned = owner.owns_procedure_call(call);
-            let matches = owned && span.start() <= offset && offset < span.end();
-            trace_prepare_head(Some(span), owned, matches);
+            let call_is_owned = owner.owns_procedure_call(call);
+            let matches = call_is_owned && span.start() <= offset && offset < span.end();
+            trace_prepare_head(Some(span), call_is_owned, matches);
             matches
         })
     });
