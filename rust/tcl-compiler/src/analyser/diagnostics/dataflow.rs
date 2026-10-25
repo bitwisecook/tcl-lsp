@@ -2877,7 +2877,8 @@ is renamed or deleted in this file."
                     _ => "other",
                 };
                 eprintln!(
-                    "RBS_READ_OWNER stage=static_lookup_at_use name={var} storage_kind={storage_kind} own_activation={own_activation:?} native_alternative={native_alternative} static_alternative={static_alternative}"
+                    "RBS_READ_OWNER stage=static_lookup_at_use name={var} storage_kind={storage_kind} own_activation={own_activation:?} native_alternative={native_alternative} static_alternative={static_alternative} use_class={:?} use_kind={:?} statement_index={}",
+                    use_site.class, use_site.kind, use_site.statement_index,
                 );
                 if let Some(alternatives) = declaration.statics {
                     alternatives.source.trace_static_read_cell(cell_name, var);
