@@ -7,30 +7,39 @@
 use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
 use std::collections::BTreeMap;
 
+fn compiler_syntax_trace_enabled() -> bool {
+    static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if !(cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
+        || std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
+    {
+        return false;
+    }
+    ROWS.try_update(
+        std::sync::atomic::Ordering::Relaxed,
+        std::sync::atomic::Ordering::Relaxed,
+        |rows| (rows < 1024).then_some(rows + 1),
+    )
+    .is_ok()
+}
+
 fn trace_compiler_syntax_option<T>(
     stage: &str,
     offset: Option<u32>,
     value: Option<T>,
 ) -> Option<T> {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if compiler_syntax_trace_enabled() {
         eprintln!(
             "ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} present={}",
             value.is_some()
         );
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset);
     value
 }
 
 fn trace_compiler_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
-    #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if compiler_syntax_trace_enabled() {
         eprintln!("ORIGINAL_COMPILER_SYNTAX_GATE stage={stage} offset={offset:?} value={value}");
     }
-    #[cfg(not(debug_assertions))]
-    let _ = (stage, offset);
     value
 }
 

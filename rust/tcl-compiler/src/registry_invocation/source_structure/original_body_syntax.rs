@@ -24,6 +24,38 @@ pub struct OriginalBodySyntaxInventory {
     source_commands: Vec<CommandTokens>,
 }
 
+fn nested_syntax_trace_enabled() -> bool {
+    static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if !(cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
+        || std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
+    {
+        return false;
+    }
+    ROWS.try_update(
+        std::sync::atomic::Ordering::Relaxed,
+        std::sync::atomic::Ordering::Relaxed,
+        |rows| (rows < 256).then_some(rows + 1),
+    )
+    .is_ok()
+}
+
+fn trace_nested_syntax_option<T>(stage: &str, offset: Option<u32>, value: Option<T>) -> Option<T> {
+    if nested_syntax_trace_enabled() {
+        eprintln!(
+            "ORIGINAL_BODY_SYNTAX_NESTED_GATE stage={stage} offset={offset:?} present={}",
+            value.is_some()
+        );
+    }
+    value
+}
+
+fn trace_nested_syntax_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
+    if nested_syntax_trace_enabled() {
+        eprintln!("ORIGINAL_BODY_SYNTAX_NESTED_GATE stage={stage} offset={offset:?} value={value}");
+    }
+    value
+}
+
 fn trace_body_syntax_option<T>(
     stage: &str,
     offset: Option<u32>,
@@ -229,22 +261,36 @@ impl OriginalBodySyntaxInventory {
         retained: &crate::command_binding::RetainedSourceModuleBindings,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        if !retained.owns_original_analysis_attachment(parent) {
+        if !trace_nested_syntax_flag(
+            "parent_owner",
+            parent
+                .words()
+                .first()
+                .map(|word| word.source().span.start()),
+            retained.owns_original_analysis_attachment(parent),
+        ) {
             return;
         }
         for (offset, proof) in &parent.nested_bindings {
             if self.commands.len() + self.source_commands.len() > 65_536 {
                 return;
             }
-            let Some((_, mut tokens)) = proof.original_recorded_command() else {
+            let Some((_, mut tokens)) = trace_nested_syntax_option(
+                "recorded",
+                Some(*offset),
+                proof.original_recorded_command(),
+            ) else {
                 continue;
             };
-            if tokens
-                .words()
-                .first()
-                .map(|word| word.source().span.start())
-                != Some(*offset)
-            {
+            if trace_nested_syntax_flag(
+                "head_offset_mismatch",
+                Some(*offset),
+                tokens
+                    .words()
+                    .first()
+                    .map(|word| word.source().span.start())
+                    != Some(*offset),
+            ) {
                 continue;
             }
             tokens.source_binding = Some(proof.clone());
@@ -258,7 +304,9 @@ impl OriginalBodySyntaxInventory {
                             && syntax.config() == self.input.lexer_config()
                     })
                 });
-            if closed && !self.source_commands.contains(&tokens) {
+            if trace_nested_syntax_flag("closed", Some(*offset), closed)
+                && !self.source_commands.contains(&tokens)
+            {
                 self.source_commands.push(tokens);
             }
         }
