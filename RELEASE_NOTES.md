@@ -1,3 +1,30 @@
+# Unreleased
+
+## LSP naming and SpecTcl
+
+- Command and variable analysis shares the selected Tcl dialect, package roster
+  and workspace environment across diagnostics, navigation and source edits.
+  Changing a spec pack or an environment refreshes the affected answers.
+- Namespace-qualified names, imported commands and declarations in loaded source
+  retain their source ownership. A spelling alone does not select a declaration
+  or authorise an edit.
+- Rename, refactoring, optimisation and minification retain conservative checks
+  around command replacement, variable traces and runtime-selected scope.
+- SpecTcl execution and constant folding retain the selected pack generation and
+  the runtime capabilities needed by the operation.
+
+### Scope and restrictions
+
+- Computed names, opaque calls and incomplete source or package order can leave
+  navigation unavailable and source edits disabled. ILX handle navigation stops
+  after an opaque call.
+- Source analysis describes code after loading; it does not establish that an
+  arbitrary runtime path has executed or that an unknown call is harmless.
+- iRules option-table analysis does not provide a TMM execution backend. Runtime
+  operations without the required backend capability continue to refuse.
+- General Tcl VM and backend parity beyond the LSP and SpecTcl execution surface
+  remains deferred.
+
 # v2.2.5
 
 A stable patch with a broad correctness sweep. The bytecode VM and the WASM
