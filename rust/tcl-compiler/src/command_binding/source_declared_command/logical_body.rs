@@ -378,9 +378,9 @@ mod tests {
             for selected in selections {
                 assert!(selected.matches(input));
                 assert_eq!(selected.level.bytes(), b"#0");
-                assert!(
-                    selected.level.original_word().image()
-                        == &tcl_lexer::SourceImage::document(source)
+                assert_eq!(
+                    selected.level.original_word().image(),
+                    &tcl_lexer::SourceImage::document(source)
                 );
                 let foreign = crate::analyser::ResolvedAnalysisInput::new(
                     input.analyser_profile(),

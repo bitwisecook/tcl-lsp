@@ -452,7 +452,10 @@ mod tests {
     fn logical_receiver_candidates_keep_original_scope_and_unknown_contents() {
         let source = "oo::class create C {method longMethod {} {}}\nset {two words} [C new]\n${two words} longMet";
         let analysis = Analyser::new().analyse(source, "tcl");
-        let head = original_head(&analysis, source.find("${two words}").unwrap() as u32);
+        let head = original_head(
+            &analysis,
+            u32::try_from(source.find("${two words}").unwrap()).unwrap(),
+        );
         let registry = analysis.resolved_registry().unwrap();
         let candidates = analysis
             .logical_source_receiver_class_candidates(&head, registry)
@@ -540,7 +543,10 @@ mod tests {
     fn logical_receiver_candidates_keep_unrelated_original_procedure_scopes() {
         let source = "proc unrelated {} {return VALUE}\noo::class create C {method m {} {}}\nset object [C new]\n$object m";
         let analysis = Analyser::new().analyse(source, "tcl");
-        let head = original_head(&analysis, source.rfind("$object").unwrap() as u32);
+        let head = original_head(
+            &analysis,
+            u32::try_from(source.rfind("$object").unwrap()).unwrap(),
+        );
         let registry = analysis.resolved_registry().unwrap();
         let candidates = analysis
             .logical_source_receiver_class_candidates(&head, registry)
@@ -565,7 +571,10 @@ mod tests {
             );
             let analysis = Analyser::new().analyse(&source, "tcl");
             let registry = analysis.resolved_registry().unwrap();
-            let head = original_head(&analysis, source.rfind("$alias").unwrap() as u32);
+            let head = original_head(
+                &analysis,
+                u32::try_from(source.rfind("$alias").unwrap()).unwrap(),
+            );
             let classes = analysis.logical_source_receiver_class_candidates(&head, registry);
             assert_eq!(classes.is_some(), expected, "{value}");
             if let Some(classes) = classes {
@@ -590,7 +599,10 @@ mod tests {
                 "oo::class create C {{method m {{}} {{}}}}\nset value [C new]\n{head_text} m"
             );
             let analysis = Analyser::new().analyse(&source, "tcl");
-            let head = original_head(&analysis, source.rfind(head_text).unwrap() as u32);
+            let head = original_head(
+                &analysis,
+                u32::try_from(source.rfind(head_text).unwrap()).unwrap(),
+            );
             assert!(
                 analysis
                     .object_handle_facts

@@ -336,7 +336,7 @@ mod tests {
         let foreign = crate::analyser::Analyser::new()
             .with_resolved_input(foreign_input)
             .analyse(&source, "tcl");
-        assert!(foreign.resolved_input != analysis.resolved_input);
+        assert_ne!(foreign.resolved_input, analysis.resolved_input);
         assert!(foreign.matches_original_source_image(&SourceImage::document(&source), config));
         assert!(original_body_reference_candidates(&source, &foreign, &body).is_none());
         let (source, analysis, body) = fixture("unknown {$parameter}", config);

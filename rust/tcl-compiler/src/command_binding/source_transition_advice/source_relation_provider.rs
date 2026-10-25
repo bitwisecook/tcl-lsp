@@ -996,7 +996,7 @@ mod logical_relation_candidate_currency_tests {
             .unwrap();
         let candidate = statements[0].operands()[0].clone();
         assert!(
-            matches!(candidate.target(&analysis, child), Some(LogicalSourceClassRelationTarget::Source(base)) if std::ptr::eq(base, &analysis.all_classes["::Base"]))
+            matches!(candidate.target(&analysis, child), Some(LogicalSourceClassRelationTarget::Source(base)) if std::ptr::eq(base, &raw const analysis.all_classes["::Base"]))
         );
         (analysis, candidate)
     }

@@ -420,7 +420,7 @@ mod tests {
         assert!(
             roots
                 .iter()
-                .any(|(script, _)| std::ptr::eq(*script, &module.top_level))
+                .any(|(script, _)| std::ptr::eq(*script, &raw const module.top_level))
         );
         for (&id, card) in &module.original_authored_declaration_body_units {
             assert!(module.procedure_ids.owns(id));
@@ -429,7 +429,7 @@ mod tests {
             assert!(
                 roots
                     .iter()
-                    .all(|(script, _)| !std::ptr::eq(*script, &procedure.body))
+                    .all(|(script, _)| !std::ptr::eq(*script, &raw const procedure.body))
             );
             assert!(
                 module
@@ -531,7 +531,8 @@ mod tests {
                 5 => changed.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl()),
                 6 => changed.source_entry.unknown_entry = true,
                 7 => {
-                    changed.body_units.get_mut(id).unwrap().span = Span::new(1, source.len() as u32)
+                    changed.body_units.get_mut(id).unwrap().span =
+                        Span::new(1, u32::try_from(source.len()).unwrap());
                 }
                 _ => unreachable!(),
             }
