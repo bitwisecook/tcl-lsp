@@ -457,14 +457,14 @@ impl CurrentDiagnosticInput {
         if tcl_lsp_db::database_revision(db) != self.database_revision
             || files.get(uri) != Some(&self.file)
         {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("input.db-revision-file"));
         }
         let retained = published.get(uri).ok_or(DiagnosticUnavailable::Context)?;
         if retained.file != self.file
             || retained.admission.as_ref() != admission
             || self.file.path(db).as_deref() != admission.analyser_path()
         {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("input.path-publication"));
         }
         Ok(())
     }
@@ -607,6 +607,18 @@ fn trace_diagnostic_publication_result(
             );
         }
     }
+}
+
+// WORK-only finite guard labels under the existing diagnostic trace flag.
+fn diag_reason(stage: &str, reason: DiagnosticUnavailable) -> DiagnosticUnavailable {
+    if std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some() {
+        eprintln!("DIAGNOSTIC_TRANSACTION stage={stage} reason={reason:?}");
+    }
+    reason
+}
+
+fn diag_stale(stage: &str) -> DiagnosticUnavailable {
+    diag_reason(stage, DiagnosticUnavailable::Stale)
 }
 
 fn trace_diagnostic_publication_pending(stage: &str) {
@@ -1750,7 +1762,7 @@ impl Backend {
         }
         drop(published);
         if file.text(&*db) != tcl_lexer::normalise_lone_cr(source).as_ref() {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("input.source-text"));
         }
         let input = with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config))
             .map_err(|_| DiagnosticUnavailable::Context)?;
@@ -1784,7 +1796,9 @@ impl Backend {
         let produced = self
             .produce_direct_diagnostic_report(uri)
             .await
-            .map_err(Self::diagnostic_report_unavailable)?;
+            .map_err(|reason| {
+                Self::diagnostic_report_unavailable(diag_reason("direct.produce", reason))
+            })?;
         let source = &produced.receipt.source;
         let expected = DiagnosticReportExpectation {
             uri: uri.clone(),
@@ -1805,7 +1819,10 @@ impl Backend {
             .await?
         {
             Ok(mut reports) => Ok(reports.remove(0)),
-            Err(reason) => Err(Self::diagnostic_report_unavailable(reason)),
+            Err(reason) => Err(Self::diagnostic_report_unavailable(diag_reason(
+                "direct.publish",
+                reason,
+            ))),
         }
     }
     /// Reborrow acknowledged publisher reports for their actual current sources.
@@ -1957,7 +1974,7 @@ impl Backend {
             checks,
         } = item;
         if doc.version != source.version || doc.raw() != source.source.as_ref() {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("report.source-version"));
         }
         if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch {
             return Err(DiagnosticUnavailable::Pending);
@@ -1971,7 +1988,7 @@ impl Backend {
         let receipt = report
             .currency
             .as_ref()
-            .ok_or(DiagnosticUnavailable::Stale)?;
+            .ok_or_else(|| diag_stale("report.receipt"))?;
         let pass = &receipt.source;
         // An abstaining (non-text) source has no analysis report. The F5
         // model report applies that abstention itself, so it stays the
@@ -1994,7 +2011,7 @@ impl Backend {
             ledger,
         })?;
         if report.revision != pass.revision || pass.path_admission.as_ref() != admission.as_ref() {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("report.revision-admission"));
         }
         checks
             .checked_configurations
@@ -2005,7 +2022,7 @@ impl Backend {
                 || pass.input.as_deref() != Some(current.input.as_ref())
                 || pass.class_factory_generation != factory_generation
             {
-                return Err(DiagnosticUnavailable::Stale);
+                return Err(diag_stale("report.input-factory"));
             }
             checks.checked_inputs.push((current, source, admission));
         }
@@ -2053,7 +2070,7 @@ impl Backend {
                 // outcomes before any older cached report is considered.
                 // Success still requires this exact pass and issued ID.
                 if !Arc::ptr_eq(&entry.pass, pass) || result_id != report.result_id {
-                    return Err(DiagnosticUnavailable::Stale);
+                    return Err(diag_stale("publisher.pass-result"));
                 }
                 Ok(suppression)
             }
@@ -2069,7 +2086,7 @@ impl Backend {
                 )?;
                 Ok(policy)
             }
-            DiagnosticCacheOrigin::Direct { .. } => Err(DiagnosticUnavailable::Stale),
+            DiagnosticCacheOrigin::Direct { .. } => Err(diag_stale("direct.publisher-only")),
         }
     }
 
@@ -2106,7 +2123,7 @@ impl Backend {
             // diagnostic-only option mutation such as declared target ranges.
             for (config, retained) in checked_configurations {
                 if config.diagnostic_report_configuration(&*db) != retained {
-                    return Ok(Err(DiagnosticUnavailable::Stale));
+                    return Ok(Err(diag_stale("finish.configuration")));
                 }
             }
             let Ok(files) = self.db_files.try_lock() else {
@@ -2137,7 +2154,7 @@ impl Backend {
                 .iter()
                 .any(|sources| !sources.matches(docs, &index))
             {
-                return Ok(Err(DiagnosticUnavailable::Stale));
+                return Ok(Err(diag_stale("finish.workspace-sources")));
             }
             Some(index)
         } else {
@@ -2155,7 +2172,7 @@ impl Backend {
             self.store.as_ref(),
             || {
                 let Some(reports) = reports.take() else {
-                    return Err(DiagnosticUnavailable::Stale);
+                    return Err(diag_stale("finish.report-consumption"));
                 };
                 if let DiagnosticCacheQuery::PublishDirect(candidate) = purpose {
                     cache.insert(expected[0].uri.clone(), candidate.clone());
@@ -2288,7 +2305,7 @@ impl DiagnosticPass {
             || self.inputs_epoch != epoch
             || self.slot_generation != slot.map(|slot| slot.generation)
         {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("pass.source-currency"));
         }
         if slot.is_some_and(|slot| slot.dirty) {
             return Err(DiagnosticUnavailable::Pending);
@@ -2532,7 +2549,7 @@ impl Backend {
             .provider_sources
             .is_current(&*inputs.package_resolver.read().await)
         {
-            return Err(DiagnosticUnavailable::Stale);
+            return Err(diag_stale("produce.provider-sources"));
         }
         if !source.matches_completed_analysis(&produced.analysis) {
             return Err(DiagnosticUnavailable::Context);
