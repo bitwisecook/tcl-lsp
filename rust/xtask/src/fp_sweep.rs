@@ -520,7 +520,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         input.lexer_config(),
         Some(profile),
     );
-    let analysis_cu = Arc::new(CompilationUnit::build_with_analysis_input(
+    let analysis_cu: Arc<CompilationUnit> = CompilationUnit::build_with_analysis_input(
         &doc.input.source,
         UnitBuildOptions {
             registry,
@@ -534,7 +534,8 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         },
         Some(&entry),
         &input,
-    ));
+    )
+    .into();
     let mut analyser = Analyser::new()
         .with_file_path(doc_path.clone())
         .with_resolved_input(input.clone());
