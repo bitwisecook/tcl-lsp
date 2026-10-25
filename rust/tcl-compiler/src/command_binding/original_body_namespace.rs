@@ -181,6 +181,65 @@ impl SourceInvocationBinding {
     }
 }
 
+/// Namespace syntax from the actual source scope and selected original body.
+/// Relative caller frames cannot borrow the declared procedure's namespace.
+pub(crate) fn original_logical_frame_body_namespace_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    parent: &CommandTokens,
+    body: &crate::registry_invocation::OriginalSourceScriptBody,
+) -> Option<SourceNamespaceKey> {
+    let input = module.source_metadata_input.as_ref()?;
+    let words =
+        crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+            module, registry, parent,
+        )?;
+    if body.source_words() != &words {
+        return None;
+    }
+    let binding = parent.source_binding.as_ref()?;
+    if binding.has_original_source_layout_owner() {
+        return binding.original_logical_frame_body_namespace(registry, input, parent);
+    }
+    let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+        advice,
+    ) = words.source()
+    else {
+        return None;
+    };
+    let scope = advice.logical_source_scope()?;
+    if !scope.matches_input(input)
+        || !scope.owns_words(advice.original_words())
+        || !body.matches_source(&module.source, input.lexer_config())
+        || !body.matches_context(input.borrowed_context_registry())
+    {
+        return None;
+    }
+    let (layout, arguments) =
+        words.with_source_schema(input.borrowed_context_registry(), |schema| {
+            Some((
+                schema.semantics.frame_effect?.layout,
+                schema.authored_logical_source_frame_argument_layout()?,
+            ))
+        })??;
+    let tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. } = arguments else {
+        return None;
+    };
+    let body = std::sync::Arc::new(body.clone());
+    let selected = match layout {
+        tcl_registry::FrameArgLayout::ScriptInCurrentFrame => scope.with_body(body)?,
+        tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_current_frame() => {
+            scope.with_body(body)?
+        }
+        tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_global_frame() => {
+            scope.with_global_body(body)?
+        }
+        _ => return None,
+    };
+    tcl_syntax::naming::checked_namespace_path_key(selected.namespace_recipe())
+        .map(SourceNamespaceKey::authored)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1069,63 +1128,4 @@ mod tests {
             );
         }
     }
-}
-
-/// Namespace syntax from the actual source scope and selected original body.
-/// Relative caller frames cannot borrow the declared procedure's namespace.
-pub(crate) fn original_logical_frame_body_namespace_for_module(
-    module: &crate::ir::Module,
-    registry: &CommandRegistry,
-    parent: &CommandTokens,
-    body: &crate::registry_invocation::OriginalSourceScriptBody,
-) -> Option<SourceNamespaceKey> {
-    let input = module.source_metadata_input.as_ref()?;
-    let words =
-        crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
-            module, registry, parent,
-        )?;
-    if body.source_words() != &words {
-        return None;
-    }
-    let binding = parent.source_binding.as_ref()?;
-    if binding.has_original_source_layout_owner() {
-        return binding.original_logical_frame_body_namespace(registry, input, parent);
-    }
-    let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
-        advice,
-    ) = words.source()
-    else {
-        return None;
-    };
-    let scope = advice.logical_source_scope()?;
-    if !scope.matches_input(input)
-        || !scope.owns_words(advice.original_words())
-        || !body.matches_source(&module.source, input.lexer_config())
-        || !body.matches_context(input.borrowed_context_registry())
-    {
-        return None;
-    }
-    let (layout, arguments) =
-        words.with_source_schema(input.borrowed_context_registry(), |schema| {
-            Some((
-                schema.semantics.frame_effect?.layout,
-                schema.authored_logical_source_frame_argument_layout()?,
-            ))
-        })??;
-    let tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. } = arguments else {
-        return None;
-    };
-    let body = std::sync::Arc::new(body.clone());
-    let selected = match layout {
-        tcl_registry::FrameArgLayout::ScriptInCurrentFrame => scope.with_body(body)?,
-        tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_current_frame() => {
-            scope.with_body(body)?
-        }
-        tcl_registry::FrameArgLayout::ScriptInSelectedFrame if level.is_global_frame() => {
-            scope.with_global_body(body)?
-        }
-        _ => return None,
-    };
-    tcl_syntax::naming::checked_namespace_path_key(selected.namespace_recipe())
-        .map(SourceNamespaceKey::authored)
 }

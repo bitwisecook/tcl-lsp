@@ -1136,6 +1136,92 @@ impl AdviceInvocationContext<'_> {
     }
 }
 
+impl OriginalSourceClassDeclaration {
+    /// Shared conditional display calculation after independent original class
+    /// and caller-word correspondence. No receiver, execution or allocation.
+    pub(crate) fn display_constructor_shape(
+        &self,
+        class: &ClassDef,
+        selector: &SourceAdviceNameInput,
+        context: &ContextRegistry,
+        before: Option<&super::super::CommandAllocationSite>,
+    ) -> Option<OriginalSourceConstructorShape> {
+        let bytes = selector.bytes();
+        let word = std::str::from_utf8(bytes).ok()?;
+        if word.contains('\0') {
+            return None;
+        }
+        let grammar = self.grammar(context)?;
+        if self.name_input().logical_input().is_some() {
+            selector.logical_input()?;
+            // Itcl class-scoped procs dispatch only as `Class::proc`; the
+            // two-word form constructs even when the word names one
+            // (`DefinitionBodyGrammar::conditional_construction_name_at`).
+            if grammar.family != DefinerFamily::Itcl && class.class_methods.contains_key(word) {
+                return None;
+            }
+            if let Some(method) = grammar.manufacturer(word) {
+                let visible = !class.class_unexports.contains(word)
+                    && (method.visibility == MemberVisibility::Exported
+                        || class.class_exports.contains(word));
+                return visible.then_some(OriginalSourceConstructorShape::Method(method));
+            }
+            let name_at = grammar.conditional_construction_name_at(
+                word,
+                class.class_methods.keys().map(String::as_str),
+            )?;
+            return (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
+                constructor_args_from: 1,
+            });
+        }
+        if !bytes.is_ascii() {
+            return None;
+        }
+        let input = selector.native_input()?;
+        (input.policy() == self.name_input().native_input()?.policy()).then_some(())?;
+        let members = &class.original_members;
+        let methods = match before {
+            Some(call) => members
+                .methods_before_source_call(crate::analyser::MemberSide::ClassObject, call)?,
+            None => members.methods(crate::analyser::MemberSide::ClassObject)?,
+        };
+        let names = methods
+            .iter()
+            .map(|method| method.original_name_input().bytes())
+            .collect::<Vec<_>>();
+        if grammar.family != DefinerFamily::Itcl && names.contains(&bytes) {
+            return None;
+        }
+        if let Some(method) = grammar.manufacturer(word) {
+            let exported = method.visibility == MemberVisibility::Exported;
+            let visible = match before {
+                Some(call) => members.inherited_visibility_before_source_call(
+                    crate::analyser::MemberSide::ClassObject,
+                    input,
+                    exported,
+                    call,
+                )?,
+                None => members.inherited_visibility_for_input(
+                    crate::analyser::MemberSide::ClassObject,
+                    input,
+                    exported,
+                )?,
+            };
+            return visible.then_some(OriginalSourceConstructorShape::Method(method));
+        }
+        let type_methods = names
+            .iter()
+            .map(|name| std::str::from_utf8(name))
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        let name_at =
+            grammar.conditional_construction_name_at(word, type_methods.iter().copied())?;
+        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
+            constructor_args_from: 1,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
@@ -2191,91 +2277,5 @@ mod tests {
                 constructor_args_from: 1
             })
         ));
-    }
-}
-
-impl OriginalSourceClassDeclaration {
-    /// Shared conditional display calculation after independent original class
-    /// and caller-word correspondence. No receiver, execution or allocation.
-    pub(crate) fn display_constructor_shape(
-        &self,
-        class: &ClassDef,
-        selector: &SourceAdviceNameInput,
-        context: &ContextRegistry,
-        before: Option<&super::super::CommandAllocationSite>,
-    ) -> Option<OriginalSourceConstructorShape> {
-        let bytes = selector.bytes();
-        let word = std::str::from_utf8(bytes).ok()?;
-        if word.contains('\0') {
-            return None;
-        }
-        let grammar = self.grammar(context)?;
-        if self.name_input().logical_input().is_some() {
-            selector.logical_input()?;
-            // Itcl class-scoped procs dispatch only as `Class::proc`; the
-            // two-word form constructs even when the word names one
-            // (`DefinitionBodyGrammar::conditional_construction_name_at`).
-            if grammar.family != DefinerFamily::Itcl && class.class_methods.contains_key(word) {
-                return None;
-            }
-            if let Some(method) = grammar.manufacturer(word) {
-                let visible = !class.class_unexports.contains(word)
-                    && (method.visibility == MemberVisibility::Exported
-                        || class.class_exports.contains(word));
-                return visible.then_some(OriginalSourceConstructorShape::Method(method));
-            }
-            let name_at = grammar.conditional_construction_name_at(
-                word,
-                class.class_methods.keys().map(String::as_str),
-            )?;
-            return (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
-                constructor_args_from: 1,
-            });
-        }
-        if !bytes.is_ascii() {
-            return None;
-        }
-        let input = selector.native_input()?;
-        (input.policy() == self.name_input().native_input()?.policy()).then_some(())?;
-        let members = &class.original_members;
-        let methods = match before {
-            Some(call) => members
-                .methods_before_source_call(crate::analyser::MemberSide::ClassObject, call)?,
-            None => members.methods(crate::analyser::MemberSide::ClassObject)?,
-        };
-        let names = methods
-            .iter()
-            .map(|method| method.original_name_input().bytes())
-            .collect::<Vec<_>>();
-        if grammar.family != DefinerFamily::Itcl && names.contains(&bytes) {
-            return None;
-        }
-        if let Some(method) = grammar.manufacturer(word) {
-            let exported = method.visibility == MemberVisibility::Exported;
-            let visible = match before {
-                Some(call) => members.inherited_visibility_before_source_call(
-                    crate::analyser::MemberSide::ClassObject,
-                    input,
-                    exported,
-                    call,
-                )?,
-                None => members.inherited_visibility_for_input(
-                    crate::analyser::MemberSide::ClassObject,
-                    input,
-                    exported,
-                )?,
-            };
-            return visible.then_some(OriginalSourceConstructorShape::Method(method));
-        }
-        let type_methods = names
-            .iter()
-            .map(|name| std::str::from_utf8(name))
-            .collect::<Result<Vec<_>, _>>()
-            .ok()?;
-        let name_at =
-            grammar.conditional_construction_name_at(word, type_methods.iter().copied())?;
-        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
-            constructor_args_from: 1,
-        })
     }
 }

@@ -295,6 +295,52 @@ impl OriginalSourceTransitionAdviceTape {
     }
 }
 
+impl AdviceInvocationContext<'_> {
+    /// Separate display catalogue: the Native publication-purpose guard above
+    /// remains independent, including for positively selected Logical source.
+    pub(super) fn retain_final_class_display_publications(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+    ) {
+        use crate::registry_invocation::source_structure::{
+            OriginalProjectClassCells, ProjectClassCell,
+        };
+        let cells = graph
+            .cells
+            .iter()
+            .filter_map(|(slot, cell)| {
+                let entry = match cell {
+                    AdviceCell::SourceClass(class) => ProjectClassCell::Class(Arc::clone(class)),
+                    AdviceCell::ClassInstance(instance)
+                        if graph.source_instance_class_is_current(instance) =>
+                    {
+                        ProjectClassCell::Instance(Arc::clone(instance))
+                    }
+                    AdviceCell::Descriptor(_, lineage) if lineage.is_empty() => return None,
+                    _ => ProjectClassCell::Blocker,
+                };
+                Some((slot.clone(), entry))
+            })
+            .collect();
+        tape.display_publications = Some(OriginalProjectClassCells::new(
+            self.origin.source_image().clone(),
+            self.config,
+            self.context,
+            self.policy.native(),
+            cells,
+            graph.uncertain_operations.is_empty(),
+        ));
+    }
+}
+impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn class_display_publications(
+        &self,
+    ) -> Option<&crate::registry_invocation::source_structure::OriginalProjectClassCells> {
+        self.display_publications.as_ref()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,7 +442,7 @@ mod tests {
                 .candidates_from_retained_records(None, indexed.iter())
                 .is_empty()
         );
-        assert!(source_class_publications(&source.replace("C", "D"), &analysis).is_none());
+        assert!(source_class_publications(&source.replace('C', "D"), &analysis).is_none());
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         assert!(source_class_publications(source, &missing).is_none());
@@ -453,51 +499,5 @@ mod tests {
         assert!(unavailable_inventory.candidates(&unavailable).is_empty());
         assert!(unavailable.original_class_declarations().next().is_none());
         assert!(source_class_publications("", &AnalysisResult::default()).is_none());
-    }
-}
-
-impl AdviceInvocationContext<'_> {
-    /// Separate display catalogue: the Native publication-purpose guard above
-    /// remains independent, including for positively selected Logical source.
-    pub(super) fn retain_final_class_display_publications(
-        &self,
-        tape: &mut OriginalSourceTransitionAdviceTape,
-        graph: &AdviceGraph,
-    ) {
-        use crate::registry_invocation::source_structure::{
-            OriginalProjectClassCells, ProjectClassCell,
-        };
-        let cells = graph
-            .cells
-            .iter()
-            .filter_map(|(slot, cell)| {
-                let entry = match cell {
-                    AdviceCell::SourceClass(class) => ProjectClassCell::Class(Arc::clone(class)),
-                    AdviceCell::ClassInstance(instance)
-                        if graph.source_instance_class_is_current(instance) =>
-                    {
-                        ProjectClassCell::Instance(Arc::clone(instance))
-                    }
-                    AdviceCell::Descriptor(_, lineage) if lineage.is_empty() => return None,
-                    _ => ProjectClassCell::Blocker,
-                };
-                Some((slot.clone(), entry))
-            })
-            .collect();
-        tape.display_publications = Some(OriginalProjectClassCells::new(
-            self.origin.source_image().clone(),
-            self.config,
-            self.context,
-            self.policy.native(),
-            cells,
-            graph.uncertain_operations.is_empty(),
-        ));
-    }
-}
-impl OriginalSourceTransitionAdviceTape {
-    pub(crate) fn class_display_publications(
-        &self,
-    ) -> Option<&crate::registry_invocation::source_structure::OriginalProjectClassCells> {
-        self.display_publications.as_ref()
     }
 }
