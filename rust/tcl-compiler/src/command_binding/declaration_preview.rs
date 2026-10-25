@@ -287,6 +287,25 @@ pub(crate) struct OriginalProcedureStaticReadAlternatives {
     names: std::collections::BTreeSet<String>,
 }
 
+macro_rules! static_read_guard {
+    ($stage:literal, $value:expr) => {
+        match $value {
+            Some(value) => value,
+            None => return trace_static_read_refusal($stage, None),
+        }
+    };
+}
+
+fn trace_static_read_refusal<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        eprintln!("RBS_STATIC_REFUSAL stage={stage}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 impl OriginalProcedureStaticReadAlternatives {
     #[cfg(debug_assertions)]
     pub(crate) fn trace_static_read_cell(
@@ -416,69 +435,138 @@ impl OriginalProcedureStaticReadAlternatives {
         name: &str,
         span: tcl_lexer::Span,
     ) -> Option<()> {
-        self.may_select_static(name, span).then_some(())?;
-        let key = view.function().cell_key(symbol)?;
-        (matches!(key, crate::var_resolve::VariableCellKey::Authored(_))
-            || self.owns_declared_callable_static(key, name))
-        .then_some(())?;
-        (view.source_names()?.get(name) == Some(&symbol)).then_some(())?;
-        let tokens = view.source_tokens()?;
-        let binding = tokens.source_binding.as_ref()?;
-        Arc::ptr_eq(binding.original_analysis_attachment()?, &self.owner).then_some(())?;
-        let registry = self.input.borrowed_context_registry().commands();
-        let metadata =
-            binding.original_invocation_metadata_for_input(tokens, &self.input, registry)?;
-        let advice = binding.original_conditional_operand_layout_advice(tokens, registry)?;
-        if advice.has_unclosed_source_coverage() {
-            return None;
-        }
-        (advice
-            .original_declaration_metadata_context(registry, tokens)
-            .ok()??
-            .source_analysis_input()
-            == metadata.source_analysis_input())
-        .then_some(())?;
-        let selected =
-            crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)?;
-        if selected.effects.frame_reachable()
-            || selected.effects.unknown_reads
-            || selected.effects.unknown_writes
-            || !selected.aliases.is_empty()
-            || !selected.reads.is_empty()
-            || !matches!(
-                selected.flow,
-                tcl_registry::script_body_flow::ScriptBodyFlow::None
+        static_read_guard!(
+            "source_read_scope",
+            self.may_select_static(name, span).then_some(())
+        );
+        let key = static_read_guard!("cell_key", view.function().cell_key(symbol));
+        static_read_guard!(
+            "cell_owner",
+            (matches!(key, crate::var_resolve::VariableCellKey::Authored(_))
+                || self.owns_declared_callable_static(key, name))
+            .then_some(())
+        );
+        static_read_guard!(
+            "source_symbol",
+            (static_read_guard!("source_names", view.source_names()).get(name) == Some(&symbol))
+                .then_some(())
+        );
+        let tokens = static_read_guard!("source_tokens", view.source_tokens());
+        let binding = static_read_guard!("source_binding", tokens.source_binding.as_ref());
+        static_read_guard!(
+            "analysis_owner",
+            Arc::ptr_eq(
+                static_read_guard!(
+                    "analysis_attachment",
+                    binding.original_analysis_attachment()
+                ),
+                &self.owner
             )
-        {
-            return None;
+            .then_some(())
+        );
+        let registry = self.input.borrowed_context_registry().commands();
+        let metadata = static_read_guard!(
+            "invocation_metadata",
+            binding.original_invocation_metadata_for_input(tokens, &self.input, registry)
+        );
+        let advice = static_read_guard!(
+            "operand_advice",
+            binding.original_conditional_operand_layout_advice(tokens, registry)
+        );
+        if advice.has_unclosed_source_coverage() {
+            return trace_static_read_refusal("unclosed_source_coverage", None);
+        }
+        let context = static_read_guard!(
+            "declaration_metadata_result",
+            advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()
+        );
+        let context = static_read_guard!("declaration_metadata", context);
+        static_read_guard!(
+            "metadata_input",
+            (context.source_analysis_input() == metadata.source_analysis_input()).then_some(())
+        );
+        let selected = static_read_guard!(
+            "invocation_flow",
+            crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
+        );
+        if selected.effects.frame_reachable() {
+            return trace_static_read_refusal("frame_effects", None);
+        }
+        if selected.effects.unknown_reads {
+            return trace_static_read_refusal("unknown_reads", None);
+        }
+        if selected.effects.unknown_writes {
+            return trace_static_read_refusal("unknown_writes", None);
+        }
+        if !selected.aliases.is_empty() {
+            return trace_static_read_refusal("aliases", None);
+        }
+        if !selected.reads.is_empty() {
+            return trace_static_read_refusal("named_reads", None);
+        }
+        if !matches!(
+            selected.flow,
+            tcl_registry::script_body_flow::ScriptBodyFlow::None
+        ) {
+            return trace_static_read_refusal("script_flow", None);
         }
         let image = self.declaration.read.original_image();
         let config = self.input.lexer_config();
-        let at = tokens.words().first()?.source().span.start();
-        let original = crate::registry_invocation::original_native_compiler_words(
-            image,
-            tokens.words(),
-            at,
-            config,
-        )?;
-        let plan = tcl_lexer::native_script_words_in(
-            image.clone(),
-            self.declaration.read.original_body_span()?,
-            config,
-        )
-        .ok()?;
-        if plan.fatal_tail.is_some()
-            || !plan
-                .commands
-                .iter()
-                .any(|command| command.words == original)
+        let at = static_read_guard!("first_word", tokens.words().first())
+            .source()
+            .span
+            .start();
+        let original = static_read_guard!(
+            "original_words",
+            crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                at,
+                config
+            )
+        );
+        self.direct_source_read_geometry(&original, name, span, image, config)
+    }
+
+    fn direct_source_read_geometry(
+        &self,
+        original: &[tcl_lexer::NativeWord],
+        name: &str,
+        span: tcl_lexer::Span,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<()> {
+        let plan = static_read_guard!(
+            "body_parse",
+            tcl_lexer::native_script_words_in(
+                image.clone(),
+                static_read_guard!(
+                    "original_body_span",
+                    self.declaration.read.original_body_span()
+                ),
+                config,
+            )
+            .ok()
+        );
+        if plan.fatal_tail.is_some() {
+            return trace_static_read_refusal("fatal_body_tail", None);
+        }
+        if !plan
+            .commands
+            .iter()
+            .any(|command| command.words.as_slice() == original)
         {
-            return None;
+            return trace_static_read_refusal("whole_command_geometry", None);
         }
         let mut found = false;
-        for word in &original {
-            if word.group().expand || word.group().kind == tcl_lexer::WordKind::Braced {
-                return None;
+        for word in original {
+            if word.group().expand {
+                return trace_static_read_refusal("expanded_word", None);
+            }
+            if word.group().kind == tcl_lexer::WordKind::Braced {
+                return trace_static_read_refusal("braced_word", None);
             }
             let arena = word.executable_parts();
             for part in arena.all_parts() {
@@ -488,16 +576,17 @@ impl OriginalProcedureStaticReadAlternatives {
                         if index.is_none() =>
                     {
                         if arena.source_span(part) == Some(span)
-                            && arena.bytes(*root)? == name.as_bytes()
+                            && static_read_guard!("variable_bytes", arena.bytes(*root))
+                                == name.as_bytes()
                         {
                             found = true;
                         }
                     }
-                    _ => return None,
+                    _ => return trace_static_read_refusal("part_shape", None),
                 }
             }
         }
-        found.then_some(())
+        trace_static_read_refusal("matching_lexical_read", found.then_some(()))
     }
 
     pub(crate) fn may_select_static_in_declared_frame(
