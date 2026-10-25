@@ -100,7 +100,7 @@ impl OriginalSourceLexicalCompilation {
                         },
                         context.config,
                         context.frame,
-                        context.compilation,
+                        context.compilation(),
                         protocol,
                     )
                 })
@@ -111,7 +111,7 @@ impl OriginalSourceLexicalCompilation {
             origin: std::sync::Arc::clone(origin),
             execution_frame: context.frame.clone(),
             config: context.config,
-            compilation: context.compilation,
+            compilation: context.compilation(),
             protocol,
             locals,
             activation: state.source_variables.activation.clone(),

@@ -825,8 +825,10 @@ pub(super) fn body_context<'a>(
 ) -> super::SourceExecutionContext<'a> {
     let Some(dialect) = state.baseline.compilation_dialect() else {
         return super::SourceExecutionContext {
-            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-            compilation: NativeCompilationContext::default(),
+            control: (context)
+                .control
+                .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript)
+                .with_compilation(NativeCompilationContext::default()),
             compilation_snapshot: None,
             selected_compilation: None,
             original_variable_compilation: None,
@@ -842,7 +844,7 @@ pub(super) fn body_context<'a>(
         .compilation_spec
         .map_or_else(Default::default, |spec| {
             spec.body_context_for_invocation_operand(
-                context.compilation,
+                context.compilation(),
                 *operands.compilation_selection,
                 shape,
                 arguments,
@@ -863,8 +865,10 @@ pub(super) fn body_context<'a>(
             )
     });
     super::SourceExecutionContext {
-        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        compilation,
+        control: (context)
+            .control
+            .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript)
+            .with_compilation(compilation),
         compilation_snapshot: if inherited {
             context.compilation_snapshot
         } else {
@@ -935,7 +939,7 @@ pub(super) fn select_invocation(
             ..CompiledInvocationSelection::default()
         };
     }
-    if context.compilation.mode == NativeCompilationMode::Direct {
+    if context.compilation().mode == NativeCompilationMode::Direct {
         return CompiledInvocationSelection::default();
     }
     if let Some(decline) = compiler_head_decline(words, state.baseline.compilation_dialect()) {
@@ -1069,7 +1073,7 @@ fn initial_compilation_selection(
         policy: Some(Arc::new(
             super::compiler_inventory::SourceNativeCompilerPolicy::of_compilation(
                 &snapshot.table.state,
-                context.realm,
+                context.realm(),
             ),
         )),
         admission: if targets.unknown {
@@ -1150,7 +1154,7 @@ fn select_target(
                     image: origin.source_image(), words: selected.words, offset: selected.offset,
                     config: context.config,
                     source_protocol: super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state),
-                    compiler_dialect: state.baseline.compilation_dialect(), context: context.compilation, operand_from: 2,
+                    compiler_dialect: state.baseline.compilation_dialect(), context: context.compilation(), operand_from: 2,
                 }, context.registry,
             )),
         )
@@ -1256,7 +1260,7 @@ fn registered_compiler_selection(
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile),
         invocation,
-        context.realm,
+        context.realm(),
     );
     let facts = facts.as_ref()?;
     let descriptor = original_registration_descriptor(
@@ -1338,7 +1342,7 @@ fn registered_fallback_admission(
             shapes,
             facts,
             state.baseline.compilation_dialect(),
-            context.compilation,
+            context.compilation(),
         )
     } else {
         spec.select_for_facts(
@@ -1346,7 +1350,7 @@ fn registered_fallback_admission(
             shapes,
             facts,
             state.baseline.compilation_dialect(),
-            context.compilation,
+            context.compilation(),
         )
     }
 }
@@ -1475,7 +1479,7 @@ fn original_compiler_preserves_names(
         &captured,
         argument_offset + 1,
         dialect,
-        context.compilation,
+        context.compilation(),
     ) {
         tcl_registry::native_compilation::NativeOriginalCompilerNameEffects::Preserved => {
             // A selected null compileProc cannot enter a private compiler worker.
@@ -1623,7 +1627,7 @@ fn original_registered_compiler_preparation(
             source_protocol:
                 super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state),
             compiler_dialect: state.baseline.compilation_dialect(),
-            context: context.compilation,
+            context: context.compilation(),
             operand_from: argument_offset + 1,
         },
     )
@@ -2024,7 +2028,7 @@ fn select_noop_target(
         prerequisite.header,
         dialect,
         selected.shapes,
-        context.compilation,
+        context.compilation(),
     );
     result.admit(admission);
     match admission {

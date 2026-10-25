@@ -329,7 +329,7 @@ impl OriginalNamespaceDeletion {
         let spec = context.registry.native_registration_source_descriptor(
             native.target.registry_identity()?,
             tcl_registry::InvocationDialect::for_version(version),
-            context.realm,
+            context.realm(),
         )?;
         if tcl_registry::registry::spec_pack_of(spec) != Some("tcl") {
             return None;

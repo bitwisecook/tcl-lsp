@@ -887,7 +887,7 @@ impl SourceCommandBindings {
         }
         // A nested parser does not issue a frame. Reborrow only a genuine
         // entered operand observation carrying this exact source and frame.
-        let entered = (context.source_purpose
+        let entered = (context.source_purpose()
             == tcl_lexer::SourceSegmentationPurpose::NestedScript)
             .then(|| {
                 self.entered_scripts
@@ -2434,7 +2434,10 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {
-        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(state.clone(), context.realm));
+        let snapshot = Arc::new(SourceLookupSnapshot::in_realm(
+            state.clone(),
+            context.realm(),
+        ));
         for segment in segments {
             if segment.is_partial {
                 break;
@@ -2539,8 +2542,8 @@ impl SourceCommandBindings {
             // `[…]`) still runs in this root frame and namespace, so it keeps
             // the root entry only for its own genuine original vector.
             // Conditional/future bodies and materialised text never qualify.
-            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
-                && (context.body_entry != super::SourceBodyEntryPurpose::Selected
+            if context.source_purpose() != tcl_lexer::SourceSegmentationPurpose::WholeInput
+                && (context.body_entry() != super::SourceBodyEntryPurpose::Selected
                     || origin
                         .original_lexical_command(words.words(), offset, context.config)
                         .is_none())
@@ -2578,7 +2581,10 @@ impl SourceCommandBindings {
                 DeclarationLayoutIssuer::EnteredActivation
             },
             entry,
-            snapshot: Arc::new(SourceLookupSnapshot::in_realm(state.clone(), context.realm)),
+            snapshot: Arc::new(SourceLookupSnapshot::in_realm(
+                state.clone(),
+                context.realm(),
+            )),
             namespace,
             config: context.config,
             words: Arc::from(words.words()),

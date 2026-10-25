@@ -2356,8 +2356,8 @@ pub(super) fn namespace_body_world_closed_on_normal_return(
 ) -> bool {
     use tcl_registry::completion_route::InvocationCompletionRoute as Route;
     use tcl_registry::{NamespaceTransition, OwnedSubcommandResolution, StateTransition};
-    if context.compilation.mode != tcl_registry::native_compilation::NativeCompilationMode::Direct
-        || context.compilation.frame
+    if context.compilation().mode != tcl_registry::native_compilation::NativeCompilationMode::Direct
+        || context.compilation().frame
             != tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode
         || facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(

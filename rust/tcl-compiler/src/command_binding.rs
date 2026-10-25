@@ -322,6 +322,7 @@ mod conditional_source;
 pub(crate) use conditional_source::OriginalSourceFiniteCut;
 mod source_analysis_cache;
 mod source_analysis_entry;
+mod source_execution_control;
 mod source_point_entry;
 pub use conditional_source::{
     OriginalSourceConditionalContinuation, OriginalSourceConditionalOutcome,
@@ -4218,12 +4219,9 @@ enum SourceBodyEntryPurpose {
 
 #[derive(Clone, Copy)]
 struct SourceExecutionContext<'a> {
+    control: source_execution_control::SourceExecutionControl,
     original_logical_body:
         Option<&'a declaration_preview::logical_body_entry::OriginalLogicalBodyEntry>,
-    source_purpose: tcl_lexer::SourceSegmentationPurpose,
-    body_entry: SourceBodyEntryPurpose,
-    realm: tcl_dialect::model::InvocationRealm,
-    compilation: tcl_registry::native_compilation::NativeCompilationContext,
     compilation_snapshot: Option<&'a NativeCompilationSnapshot>,
     selected_compilation: Option<&'a tcl_registry::native_compilation::NativeCompilationSelection>,
     original_variable_compilation:
@@ -4249,15 +4247,29 @@ struct SourceExecutionContext<'a> {
 }
 
 impl<'a> SourceExecutionContext<'a> {
+    fn compilation(&self) -> tcl_registry::native_compilation::NativeCompilationContext {
+        self.control.compilation()
+    }
+    fn source_purpose(&self) -> tcl_lexer::SourceSegmentationPurpose {
+        self.control.source_purpose()
+    }
+    fn body_entry(&self) -> SourceBodyEntryPurpose {
+        self.control.body_entry()
+    }
+    fn realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.control.realm()
+    }
     fn conditional(self) -> Self {
         Self {
-            body_entry: SourceBodyEntryPurpose::Conditional,
+            control: self
+                .control
+                .with_body_entry(SourceBodyEntryPurpose::Conditional),
             ..self
         }
     }
 
     fn entered_frame(&self) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
-        (self.body_entry == SourceBodyEntryPurpose::Selected).then_some(self.frame)
+        (self.body_entry() == SourceBodyEntryPurpose::Selected).then_some(self.frame)
     }
 
     fn withdraw_observed_operand_facts(&mut self, observed: bool) {
@@ -4829,14 +4841,16 @@ fn root_source_execution_context<'a>(
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
         original_logical_body: None,
-        body_entry: if options.source_point_entry.is_some() {
-            SourceBodyEntryPurpose::Conditional
-        } else {
-            SourceBodyEntryPurpose::Selected
-        },
-        source_purpose,
-        realm: options.invocation_realm,
-        compilation: options.native_compilation,
+        control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
+            options.native_compilation,
+            source_purpose,
+            if options.source_point_entry.is_some() {
+                SourceBodyEntryPurpose::Conditional
+            } else {
+                SourceBodyEntryPurpose::Selected
+            },
+            options.invocation_realm,
+        ),
         compilation_snapshot: None,
         selected_compilation: None,
         original_variable_compilation: None,
@@ -5026,7 +5040,7 @@ fn evaluated_script_realm(
             )
         })
     }) {
-        context.realm
+        context.realm()
     } else {
         tcl_dialect::model::InvocationRealm::InterpreterRuntime
     }
@@ -5043,7 +5057,10 @@ fn boxed_body_operand_context<'a>(
 ) -> Box<SourceExecutionContext<'a>> {
     let realm = evaluated_script_realm(index..index + 1, operands, *context);
     let context = compiled_invocation::body_context(index, operands, state, *context);
-    Box::new(SourceExecutionContext { realm, ..context })
+    Box::new(SourceExecutionContext {
+        control: (context).control.with_realm(realm),
+        ..context
+    })
 }
 
 fn authored_braced_operand<'a>(
@@ -5353,7 +5370,9 @@ fn source_body_context_boxed<'a>(
     frame: &'a crate::var_resolve::VariableExecutionFrame,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
-        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        control: (*context)
+            .control
+            .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
         namespace,
         namespace_key: frame.namespace_identity().or_else(|| {
             (context.namespace == namespace)
@@ -5424,10 +5443,12 @@ fn source_loop_context_boxed<'a>(
     context: &SourceExecutionContext<'a>,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
-        compilation: tcl_registry::native_compilation::NativeCompilationContext {
-            loop_depth: context.compilation.loop_depth.saturating_add(1),
-            ..context.compilation
-        },
+        control: (*context).control.with_compilation(
+            tcl_registry::native_compilation::NativeCompilationContext {
+                loop_depth: context.compilation().loop_depth.saturating_add(1),
+                ..context.compilation()
+            },
+        ),
         ..*context
     })
 }
@@ -6506,8 +6527,8 @@ impl SourceConditionalHandlerNormal {
         context: SourceExecutionContext<'_>,
     ) -> bool {
         state.baseline.source_point_entry.as_ref() == Some(&self.entry)
-            && context.body_entry == SourceBodyEntryPurpose::Conditional
-            && context.compilation
+            && context.body_entry() == SourceBodyEntryPurpose::Conditional
+            && context.compilation()
                 == tcl_registry::native_compilation::NativeCompilationContext::default()
             && self.config == context.config
             && self.words == native.words
@@ -6623,8 +6644,8 @@ impl SourceOutcomes {
         let Some(entry) = normal.baseline.source_point_entry.as_ref() else {
             return;
         };
-        if context.body_entry != SourceBodyEntryPurpose::Conditional
-            || context.compilation
+        if context.body_entry() != SourceBodyEntryPurpose::Conditional
+            || context.compilation()
                 != tcl_registry::native_compilation::NativeCompilationContext::default()
             || normal.baseline.native_entry.is_some()
             || normal.source_step_observed()
@@ -7547,14 +7568,17 @@ impl SourceCommandBindings {
             &mut branch,
             &SourceExecutionContext {
                 original_logical_body: None,
-                body_entry: if after_load {
-                    SourceBodyEntryPurpose::Selected
-                } else {
-                    SourceBodyEntryPurpose::Conditional
-                },
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                realm: root.realm,
-                compilation,
+                control:
+                    crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                        compilation,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        if after_load {
+                            SourceBodyEntryPurpose::Selected
+                        } else {
+                            SourceBodyEntryPurpose::Conditional
+                        },
+                        root.realm,
+                    ),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 original_variable_compilation: None,
@@ -8486,10 +8510,13 @@ impl SourceCommandBindings {
             &mut state,
             &SourceExecutionContext {
                 original_logical_body: None,
-                body_entry: SourceBodyEntryPurpose::Selected,
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                realm,
-                compilation,
+                control:
+                    crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                        compilation,
+                        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        SourceBodyEntryPurpose::Selected,
+                        realm,
+                    ),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 original_variable_compilation: None,
@@ -8712,7 +8739,7 @@ impl SourceCommandBindings {
         };
         let entry_context = source_chunk_context_boxed(context, None);
         let context = entry_context.as_ref();
-        let config = context.source_purpose.config(context.config);
+        let config = context.source_purpose().config(context.config);
         // Physical Direct parsing is independent of lexical prefix recovery and
         // unentered declaration previews. Only the actual baseline entry can
         // select it; explicitly authored advice remains its separate route.
@@ -8811,12 +8838,12 @@ impl SourceCommandBindings {
         source_len: usize,
     ) -> Option<SourceOutcomes> {
         if self.declaration_preview_depth == 0
-            && context.compilation.mode
+            && context.compilation().mode
                 == tcl_registry::native_compilation::NativeCompilationMode::Direct
             && let Some(entry) = state.baseline.native_entry.as_deref()
         {
             use tcl_registry::native_compilation::NativeDirectScriptParseEntry;
-            match context.compilation.direct_script_parse_entry(entry) {
+            match context.compilation().direct_script_parse_entry(entry) {
                 Some(NativeDirectScriptParseEntry::CommandAtTime) => {}
                 Some(NativeDirectScriptParseEntry::WholeScript) => {
                     match tcl_lexer::jim_script_syntax_tokens(image, config) {
@@ -8934,9 +8961,9 @@ impl SourceCommandBindings {
         }
         let context = *context;
         prepared.snapshot = (context.compilation_snapshot.is_none()
-            && context.compilation.mode
+            && context.compilation().mode
                 != tcl_registry::native_compilation::NativeCompilationMode::Direct)
-            .then(|| state.native_compilation_snapshot_in_realm(context.realm));
+            .then(|| state.native_compilation_snapshot_in_realm(context.realm()));
         let Some(snapshot) = &mut prepared.snapshot else {
             return;
         };
@@ -9004,8 +9031,8 @@ impl SourceCommandBindings {
             declaration_preview: self.declaration_preview_depth != 0,
             original_arguments_complete_normally: false,
             observer_execution: SourceObserverExecution::Unobserved,
-            realm: context.realm,
-            compilation: context.compilation,
+            realm: context.realm(),
+            compilation: context.compilation(),
             compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
             head: None,
             original_head_input: None,
@@ -9241,8 +9268,8 @@ impl SourceCommandBindings {
             declaration_preview: self.declaration_preview_depth != 0,
             original_arguments_complete_normally: arguments_complete_normally,
             observer_execution,
-            realm: context.realm,
-            compilation: context.compilation,
+            realm: context.realm(),
+            compilation: context.compilation(),
             compiled_execution: compiled.clone(),
             head: head.map(str::to_owned),
             original_head_input: original_name_value::original_command_head_input(
@@ -9534,7 +9561,7 @@ impl SourceCommandBindings {
                     effective,
                     incoming,
                     context.registry,
-                    context.realm,
+                    context.realm(),
                 )
                 .map(|transfer| (target, transfer))
             })
@@ -9869,7 +9896,7 @@ impl SourceCommandBindings {
         );
         self.record_called_body_source(
             body,
-            context.body_entry,
+            context.body_entry(),
             &frame,
             Some(&namespace_key),
             receiver_context,
@@ -9884,8 +9911,10 @@ impl SourceCommandBindings {
                 body.offset,
                 state,
                 &SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    compilation: state.baseline.body_compilation(),
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript)
+                        .with_compilation(state.baseline.body_compilation()),
                     compilation_snapshot: None,
                     selected_compilation: None,
                     original_variable_compilation: None,
@@ -9957,7 +9986,9 @@ impl SourceCommandBindings {
                     source.span.start() + 1,
                     state,
                     &SourceExecutionContext {
-                        source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        control: (context).control.with_source_purpose(
+                            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        ),
                         ..context
                     },
                 )
@@ -10211,7 +10242,9 @@ impl SourceCommandBindings {
                 offset,
                 state,
                 &SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                     depth: context.depth + 1,
                     ..context
                 },
@@ -10382,7 +10415,7 @@ impl SourceCommandBindings {
             effective,
             state,
             context.registry,
-            context.realm,
+            context.realm(),
         ) {
             Ok(prepared) => prepared,
             Err(SourceNativePreparationError::Unresolved(route)) => {
@@ -10795,7 +10828,8 @@ impl SourceCommandBindings {
         {
             return Err(Box::new(outcomes));
         }
-        if let Some(refusal) = procedure_body_admission_refusal(native, facts, context.realm, state)
+        if let Some(refusal) =
+            procedure_body_admission_refusal(native, facts, context.realm(), state)
         {
             return Err(Box::new(refusal));
         }
@@ -11208,7 +11242,7 @@ impl SourceCommandBindings {
             point.site == site
                 && point.phase == phase
                 && point.point.namespace_key == context.namespace_identity()
-                && point.point.realm == context.realm
+                && point.point.realm == context.realm()
                 && point.point.state.current_source_origin == state.current_source_origin
                 && point.point.declaration_preview == (self.declaration_preview_depth != 0)
                 && point.point.state.variable_frame == state.variable_frame
@@ -11223,8 +11257,8 @@ impl SourceCommandBindings {
                     declaration_preview: self.declaration_preview_depth != 0,
                     original_arguments_complete_normally: false,
                     observer_execution: SourceObserverExecution::Unobserved,
-                    realm: context.realm,
-                    compilation: context.compilation,
+                    realm: context.realm(),
+                    compilation: context.compilation(),
                     compiled_execution: compiled_invocation::CompiledInvocationSelection::default(),
                     head: None,
                     original_head_input: None,
@@ -11465,7 +11499,9 @@ impl SourceCommandBindings {
             },
             state,
             &SourceExecutionContext {
-                source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                control: (context)
+                    .control
+                    .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                 depth: context.depth + 1,
                 ..context
             },
@@ -11531,12 +11567,12 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         let variable_lists =
-            source_iteration_variable_lists(native, context.registry, context.realm);
+            source_iteration_variable_lists(native, context.registry, context.realm());
         let facts = resolve_source_invocation_facts(
             context.registry,
             None,
             *native.invocation,
-            context.realm,
+            context.realm(),
         );
         let entry = facts.as_ref().map_or(
             tcl_registry::iteration_entry::IterationEntry::Unknown,
@@ -11780,7 +11816,7 @@ impl SourceCommandBindings {
             native,
             state,
             &script,
-            (context.body_entry == SourceBodyEntryPurpose::Selected).then_some(&frame),
+            (context.body_entry() == SourceBodyEntryPurpose::Selected).then_some(&frame),
             Some(&namespace_key),
         );
         let realm = evaluated_script_realm(
@@ -11798,9 +11834,11 @@ impl SourceCommandBindings {
                 offset,
                 state,
                 &SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    realm,
-                    compilation: state.baseline.body_compilation(),
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript)
+                        .with_realm(realm)
+                        .with_compilation(state.baseline.body_compilation()),
                     compilation_snapshot: None,
                     selected_compilation: None,
                     original_variable_compilation: None,
@@ -11931,7 +11969,10 @@ impl SourceCommandBindings {
             argument_offset..argument_offset + values.len(),
             MaterialisedSourceKind::Script,
             state,
-            SourceExecutionContext { realm, ..context },
+            SourceExecutionContext {
+                control: (context).control.with_realm(realm),
+                ..context
+            },
         )
     }
 
@@ -12001,7 +12042,9 @@ impl SourceCommandBindings {
                 0,
                 state,
                 &SourceExecutionContext {
-                    source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                    control: (context)
+                        .control
+                        .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
                     ..context
                 },
             )
@@ -12232,7 +12275,9 @@ impl SourceCommandBindings {
             return SourceOutcomes::invocation(state, Route::Unknown);
         }
         let nested = SourceExecutionContext {
-            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            control: (context)
+                .control
+                .with_source_purpose(tcl_lexer::SourceSegmentationPurpose::NestedScript),
             depth: context.depth + 1,
             ..context
         };
@@ -12651,7 +12696,7 @@ impl SourceCommandBindings {
                     .arguments()
                     .dialect()
                     .and_then(tcl_registry::InvocationDialect::authoring_query)
-                    .map(|query| query.with_realm(context.realm)),
+                    .map(|query| query.with_realm(context.realm())),
                 state.source_variables.alias_frame(),
             )
             .unwrap_or(Route::Unknown);
@@ -12662,7 +12707,7 @@ impl SourceCommandBindings {
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile),
             invocation,
-            context.realm,
+            context.realm(),
         )
         .resolved()
         .map(|resolved| resolved.facts())
@@ -13679,7 +13724,7 @@ impl ModuleCommandBindings {
         let Some(grammar) = context.registry.native_default_construction_grammar(
             &target.command,
             dialect,
-            context.realm,
+            context.realm(),
         ) else {
             return false;
         };
@@ -13780,7 +13825,7 @@ impl ModuleCommandBindings {
                 }
                 let query = self.baseline.dialect
                     .and_then(tcl_registry::InvocationDialect::authoring_query)
-                    .map(|query| query.with_realm(context.realm));
+                    .map(|query| query.with_realm(context.realm()));
                 let delegate_preserves_manufacturers = member.arg_roles.iter()
                     .find_map(|(index, role)| (*role == tcl_registry::ArgRole::Name)
                         .then_some(usize::from(*index) + 1))
@@ -17259,18 +17304,20 @@ fn interpret_binding_source(
         &mut post,
         &SourceExecutionContext {
             original_logical_body: None,
-            body_entry: SourceBodyEntryPurpose::Conditional,
-            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-            realm: bindings.baseline.invocation_realm,
-            compilation: if matches!(
-                frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                    | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-            ) {
-                bindings.baseline.body_compilation()
-            } else {
-                bindings.baseline.native_compilation
-            },
+            control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                if matches!(
+                    frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                ) {
+                    bindings.baseline.body_compilation()
+                } else {
+                    bindings.baseline.native_compilation
+                },
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                SourceBodyEntryPurpose::Conditional,
+                bindings.baseline.invocation_realm,
+            ),
             compilation_snapshot: None,
             selected_compilation: None,
             original_variable_compilation: None,

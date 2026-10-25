@@ -90,7 +90,7 @@ impl SourceCommandBindings {
         let grammar = context.registry.native_default_construction_grammar(
             &class.factory,
             dialect,
-            context.realm,
+            context.realm(),
         )?;
         let selected = context
             .registry
@@ -98,7 +98,7 @@ impl SourceCommandBindings {
                 &native.target.command,
                 dialect
                     .authoring_query()
-                    .map(|query| query.with_realm(context.realm)),
+                    .map(|query| query.with_realm(context.realm())),
             )?
             .definition_body?;
         if selected.family != grammar.family
@@ -293,7 +293,7 @@ fn own_object_method_transfers(
         let member = grammar.member(values.first()?.as_registry_word().literal()?)?;
         let query = dialect
             .authoring_query()
-            .map(|query| query.with_realm(context.realm));
+            .map(|query| query.with_realm(context.realm()));
         let recipe = grammar.native_deferred_method_setter(
             member,
             tcl_registry::definer::DefinitionReceiver::Class,

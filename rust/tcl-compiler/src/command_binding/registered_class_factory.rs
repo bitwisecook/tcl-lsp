@@ -42,7 +42,7 @@ impl OriginalClassFactoryState {
         let recipe = context.registry.native_class_factory_recipe(
             factory.registry_identity()?,
             dialect,
-            context.realm,
+            context.realm(),
         )?;
         if !state.default_construction_dependencies_hold(recipe.grammar()) {
             return None;

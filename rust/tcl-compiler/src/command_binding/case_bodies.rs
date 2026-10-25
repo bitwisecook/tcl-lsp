@@ -73,7 +73,10 @@ impl SourceCommandBindings {
         let realm =
             evaluated_script_realm(operand.argument..operand.argument + 1, operands, context);
         let context = compiled_invocation::body_context(operand.argument, operands, state, context);
-        let context = SourceExecutionContext { realm, ..context };
+        let context = SourceExecutionContext {
+            control: (context).control.with_realm(realm),
+            ..context
+        };
         let Some(value) = operands.arguments.literal_at(operand.argument) else {
             return opaque_source_invocation(state);
         };

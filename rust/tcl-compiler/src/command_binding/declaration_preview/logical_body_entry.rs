@@ -177,7 +177,7 @@ impl SourceCommandBindings {
             options,
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         );
-        context.realm = entry.realm;
+        context.control = context.control.with_realm(entry.realm);
         context.original_logical_body = Some(entry);
         // Body completions remain separate from the document continuation.
         let _outcomes = self.walk_source(source, entry.body.source.base(), &mut branch, &context);
@@ -194,9 +194,9 @@ pub(in crate::command_binding) fn current_entry(
     let body = &entry.body;
     let input = state.logical_source_name_advice_input()?;
     if input != &entry.input
-        || context.realm != entry.realm
+        || context.realm() != entry.realm
         || state.baseline.invocation_realm != entry.realm
-        || context.body_entry != crate::command_binding::SourceBodyEntryPurpose::Selected
+        || context.body_entry() != crate::command_binding::SourceBodyEntryPurpose::Selected
         || state.baseline.native_entry.is_some()
         || input.lexer_config() != context.config
         || state.variable_frame != body.frame
@@ -357,7 +357,7 @@ mod tests {
             SourceAnalysisOptions::for_logical_source(input).unwrap(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         );
-        context.realm = entry.realm;
+        context.control = context.control.with_realm(entry.realm);
         context.original_logical_body = Some(&entry);
         assert!(current_entry(&state, &context, entry.body.source.base()).is_some());
         let mut foreign = state.clone();
@@ -381,11 +381,13 @@ mod tests {
         assert!(other_state.logical_source_name_advice_input().is_some());
         assert!(current_entry(&other_state, &context, entry.body.source.base()).is_none());
         let mut other_realm = context;
-        other_realm.realm = if entry.realm == tcl_dialect::model::InvocationRealm::RuleLoader {
-            tcl_dialect::model::InvocationRealm::InterpreterRuntime
-        } else {
-            tcl_dialect::model::InvocationRealm::RuleLoader
-        };
+        other_realm.control = other_realm.control.with_realm(
+            if entry.realm == tcl_dialect::model::InvocationRealm::RuleLoader {
+                tcl_dialect::model::InvocationRealm::InterpreterRuntime
+            } else {
+                tcl_dialect::model::InvocationRealm::RuleLoader
+            },
+        );
         assert!(current_entry(&state, &other_realm, entry.body.source.base()).is_none());
         context.config.strict_quoting = !context.config.strict_quoting;
         assert!(current_entry(&state, &context, entry.body.source.base()).is_none());

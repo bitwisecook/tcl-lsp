@@ -635,7 +635,7 @@ impl SourceOutcomes {
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile),
             invocation,
-            context.realm,
+            context.realm(),
         ) else {
             return;
         };
@@ -799,7 +799,7 @@ fn selected_result_representation(
 ) -> Option<super::source_representation::FrozenSourceRepresentation> {
     use super::source_representation::FrozenSourceRepresentation;
     let variables = &after.source_variables;
-    let shape = selection.created_representation(before.baseline.dialect?, context.compilation);
+    let shape = selection.created_representation(before.baseline.dialect?, context.compilation());
     if let Some(created) = FrozenSourceRepresentation::capture(shape, variables) {
         return Some(created);
     }
@@ -854,7 +854,7 @@ fn selected_result(
         .baseline
         .dialect
         .map_or(tcl_syntax::value::ValueRepresentation::Unknown, |dialect| {
-            selection.created_representation(dialect, context.compilation)
+            selection.created_representation(dialect, context.compilation())
         });
     let text = match selection {
         NativeResultSelection::Argument(index) => arguments.literal_at(index)?.to_owned(),

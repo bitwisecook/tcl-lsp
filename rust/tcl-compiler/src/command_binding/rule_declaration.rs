@@ -88,7 +88,7 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) {
-        if context.realm != tcl_dialect::model::InvocationRealm::RuleLoader {
+        if context.realm() != tcl_dialect::model::InvocationRealm::RuleLoader {
             return;
         }
         let Some(head) = effective
@@ -166,7 +166,7 @@ impl SourceCommandBindings {
             effective,
             incoming,
             context.registry,
-            context.realm,
+            context.realm(),
         ) else {
             return;
         };
@@ -270,7 +270,7 @@ fn rule_loader_target_is_eligible(
     target: &SourceCommandTarget,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    context.realm == tcl_dialect::model::InvocationRealm::RuleLoader
+    context.realm() == tcl_dialect::model::InvocationRealm::RuleLoader
         && context
             .registry
             .profile()

@@ -122,7 +122,7 @@ impl LogicalProcedureDefinition {
                     &arguments,
                 )
                 .with_dialect(super::source_analysis_entry::source_input_dialect(input)),
-                context.realm,
+                context.realm(),
             );
         let schema = resolution.resolved()?;
         let shape = schema.authored_source_procedure_arguments()?;

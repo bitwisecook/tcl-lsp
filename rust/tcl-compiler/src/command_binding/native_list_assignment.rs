@@ -596,15 +596,17 @@ mod tests {
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
             original_logical_body: None,
-            body_entry: crate::command_binding::SourceBodyEntryPurpose::Selected,
-            source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-            realm: tcl_dialect::model::InvocationRealm::RuleLoader,
-            compilation: NativeCompilationContext {
-                frame: NativeCompilationFrame::ScriptCode,
-                mode: NativeCompilationMode::BytecodeObject,
-                catch_depth: Some(0),
-                loop_depth: 0,
-            },
+            control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                NativeCompilationContext {
+                    frame: NativeCompilationFrame::ScriptCode,
+                    mode: NativeCompilationMode::BytecodeObject,
+                    catch_depth: Some(0),
+                    loop_depth: 0,
+                },
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                crate::command_binding::SourceBodyEntryPurpose::Selected,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            ),
             compilation_snapshot: None,
             selected_compilation: selected.admission.as_ref(),
             original_variable_compilation: None,

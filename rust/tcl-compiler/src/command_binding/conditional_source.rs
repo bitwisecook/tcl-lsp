@@ -48,10 +48,12 @@ impl SourceConditionalContext {
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
             original_logical_body: None,
-            source_purpose: self.source_purpose,
-            body_entry: super::SourceBodyEntryPurpose::Conditional,
-            realm: self.realm,
-            compilation: tcl_registry::native_compilation::NativeCompilationContext::default(),
+            control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
+                tcl_registry::native_compilation::NativeCompilationContext::default(),
+                self.source_purpose,
+                super::SourceBodyEntryPurpose::Conditional,
+                self.realm,
+            ),
             compilation_snapshot: None,
             selected_compilation: None,
             original_variable_compilation: None,
@@ -137,7 +139,8 @@ impl SourceConditionalKernel {
             return;
         };
         let supported = if self.frames.is_empty() {
-            base == 0 && context.source_purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
+            base == 0
+                && context.source_purpose() == tcl_lexer::SourceSegmentationPurpose::WholeInput
         } else {
             self.frames.iter().all(Option::is_some)
                 && exit.as_ref().is_some_and(|exit| {
@@ -156,8 +159,8 @@ impl SourceConditionalKernel {
                 next: 0,
                 ordinal_start: 0,
                 context: SourceConditionalContext {
-                    source_purpose: context.source_purpose,
-                    realm: context.realm,
+                    source_purpose: context.source_purpose(),
+                    realm: context.realm(),
                     namespace: context.namespace.to_owned(),
                     namespace_key: context.namespace_identity(),
                     config: context.config,
@@ -197,7 +200,7 @@ impl SourceConditionalKernel {
         current.next = current.ordinal_start + index + 1;
         if !prefix_complete
             || context.expression_source.is_some()
-            || context.source_purpose != current.context.source_purpose
+            || context.source_purpose() != current.context.source_purpose
             || origin != &current.source
             || state.has_opaque_domain()
             || state.unclosed_command_world

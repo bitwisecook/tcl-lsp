@@ -311,7 +311,7 @@ fn selected_publication(
     if let Some(grammar) = context.registry.native_default_construction_grammar(
         &native.target.command,
         dialect,
-        context.realm,
+        context.realm(),
     ) {
         return selected_class_publication(native, facts, state, context, grammar);
     }
@@ -374,7 +374,7 @@ fn selected_procedure_publication(
     let transitions = facts.state_transitions.declared()?;
     let spec = context.registry.get_for_surface(
         &native.target.command,
-        Some(dialect.authoring_query()?.with_realm(context.realm)),
+        Some(dialect.authoring_query()?.with_realm(context.realm())),
     )?;
     if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
         || dialect.tcl_version.is_none()

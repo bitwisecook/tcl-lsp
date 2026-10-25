@@ -394,7 +394,7 @@ impl CompilerTraversal<'_> {
                     span,
                     context: body_context,
                 } => {
-                    let compilation = entered_context(*body_context, context.compilation);
+                    let compilation = entered_context(*body_context, context.compilation());
                     let Some(compilation) = compilation else {
                         self.require_provider();
                         return None;
@@ -474,7 +474,7 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
         publish: bool,
     ) -> Option<SourceNativeCompilationFailure> {
-        let Some(compilation) = entered_context(body_context, context.compilation) else {
+        let Some(compilation) = entered_context(body_context, context.compilation()) else {
             self.require_provider();
             return None;
         };
@@ -950,7 +950,7 @@ impl CompilerTraversal<'_> {
             &source,
             span.start(),
             SourceExecutionContext {
-                compilation,
+                control: (context).control.with_compilation(compilation),
                 depth: context.depth + 1,
                 ..context
             },

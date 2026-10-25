@@ -354,7 +354,7 @@ fn standalone_definition_class<'a>(
                 .baseline
                 .dialect?
                 .authoring_query()
-                .map(|query| query.with_realm(context.realm)),
+                .map(|query| query.with_realm(context.realm())),
         )?
         .definition_body?;
     if configured.next().is_some() {
@@ -842,7 +842,7 @@ impl ModuleCommandBindings {
                         .baseline
                         .dialect
                         .and_then(tcl_registry::InvocationDialect::authoring_query)
-                        .map(|query| query.with_realm(context.realm));
+                        .map(|query| query.with_realm(context.realm()));
                     let member = grammar.native_classmethod_member(query)?;
                     let worker = original_definition_member_target(
                         grammar,
@@ -1071,7 +1071,7 @@ fn capture_method_declaration_reference(
             .baseline
             .dialect?
             .authoring_query()
-            .map(|query| query.with_realm(context.realm)),
+            .map(|query| query.with_realm(context.realm())),
     )?;
     let name_at = layout
         .member
@@ -1206,7 +1206,7 @@ fn select_bounded_method_definition(
                 .baseline
                 .dialect
                 .and_then(tcl_registry::InvocationDialect::authoring_query)
-                .map(|query| query.with_realm(context.realm)),
+                .map(|query| query.with_realm(context.realm())),
         )
         .and_then(|spec| spec.definition_body)?;
     let original_factory = super::registered_class_factory::OriginalClassFactoryState::capture(
@@ -1450,7 +1450,7 @@ pub(super) fn retained_method_entry(
         .collect::<Option<Vec<_>>>()?;
     let query = dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
-        .map(|query| query.with_realm(context.realm));
+        .map(|query| query.with_realm(context.realm()));
     let layout = grammar.receiver_method_layout_bytes(head.as_bytes(), &arguments, query)?;
     let receiver = match layout.receiver {
         tcl_registry::definer::DefinitionReceiver::Instance => SourceMethodReceiver::Instance,
@@ -1642,7 +1642,7 @@ fn closed_instance_methods(
                 member,
                 dialect
                     .and_then(tcl_registry::InvocationDialect::authoring_query)
-                    .map(|query| query.with_realm(context.realm)),
+                    .map(|query| query.with_realm(context.realm())),
             )
         {
             let name_at = member.arg_roles.iter().find_map(|(index, role)| {
@@ -1703,7 +1703,7 @@ pub(super) fn closed_definition_member(
         .baseline
         .dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
-        .map(|query| query.with_realm(context.realm));
+        .map(|query| query.with_realm(context.realm()));
     let arguments = values
         .iter()
         .skip(1)
@@ -2052,7 +2052,7 @@ pub(super) fn original_definition_member_target(
         .baseline
         .dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
-        .map(|query| query.with_realm(context.realm));
+        .map(|query| query.with_realm(context.realm()));
     let mut lookup = grammar.definition_member_lookup_for_receiver(member, receiver, query)?;
     if receiver == tcl_registry::definer::DefinitionReceiver::Instance
         && !grammar.property_accessor_methods.is_empty()
@@ -2062,7 +2062,7 @@ pub(super) fn original_definition_member_target(
             .native_class_factory_recipe(
                 "oo::configurable",
                 state.baseline.dialect?,
-                context.realm,
+                context.realm(),
             )?
             .support()?;
         lookup.namespace = support.definition_namespace(receiver);
@@ -2120,7 +2120,7 @@ fn deferred_method_body(
         .collect::<Option<Vec<_>>>();
     let query = dialect
         .and_then(tcl_registry::InvocationDialect::authoring_query)
-        .map(|query| query.with_realm(context.realm));
+        .map(|query| query.with_realm(context.realm()));
     let layout = arguments.as_ref().and_then(|arguments| {
         grammar.receiver_method_layout_bytes(head.as_bytes(), arguments, query)
     });
@@ -2169,7 +2169,7 @@ fn deferred_method_body(
     let source = ExecutedScriptSource::from_word(site.clone(), body_at - 1, word, value, config);
     let identity = site.variable_storage_identity();
     let body = DeferredSourceBody {
-        realm: context.realm,
+        realm: context.realm(),
         identity,
         implementation_generation: 0,
         // Native member grammar seals a declaration scope here. Actual method

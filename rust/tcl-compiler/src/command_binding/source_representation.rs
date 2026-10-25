@@ -440,7 +440,7 @@ pub(super) fn retain_created_result(
     };
     let representation = if selection.list_construction(
         dialect,
-        context.compilation,
+        context.compilation(),
         *native.compilation_selection,
         &shapes,
     ) == tcl_registry::native_result::ListResultConstruction::Fresh
@@ -448,7 +448,7 @@ pub(super) fn retain_created_result(
         ValueRepresentation::List
     } else {
         conditional
-            .unwrap_or_else(|| selection.created_representation(dialect, context.compilation))
+            .unwrap_or_else(|| selection.created_representation(dialect, context.compilation()))
     };
     let list_method_provider = facts
         .normal_list_method_provider(native.invocation.arguments())
