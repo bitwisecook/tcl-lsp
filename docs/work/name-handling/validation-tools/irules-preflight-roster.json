@@ -105,10 +105,10 @@
     "rust/tcl-cmd-core/src/string/native_range.rs": "84c509b53f19b5a09401a87ec0d82d4194587d4d743d44a988294b144d4908b8",
     "rust/tcl-compiler/src/codegen/statements.rs": "ca84ff3c1434d6bc3a1adaceec74febe557713d5c724ea1ece8c9f9f25d2a070",
     "rust/tcl-compiler/src/codegen/statements/native_scalar.rs": "13e1b5bcd159c2e0c0eabf33ff4e4b1be958899b9554ce1a37c59753e6c91679",
-    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "013b015dad427e3f072c87143bb8e2bdc11afe142f929314ab1233dacaa58d63",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "b42f70baa62e577b218aba8b5a9ff4152e791fbe5d2e90496e44efb7c1ab1b42",
-    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "f22b0a25964d507542353c7873d811bd5c61ba6f5adb4a96c99f33e25c1dac00",
-    "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": "6f4b0a6ebade40f417acc8ea75638859114cbea192d8f7c05804995e5e337cde",
+    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "0f7df1316b69bfe67e2ccd2db05dbc9d87016dced08de8d45fbcef747966e9bb",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "9ec3e1755eb069361ef39dd8352dee8d2e2ea2ffea1898e159f56ee2506468b6",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "52d098fe22cf00feadde3d2a92a6b0d64a0cc1962409abfc532d7a1a65f3a6f6",
+    "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": "2c6f1dd1b96fd9dc6260eda29290ecb57fc57bcd0d5abe1974f887ef6b65f715",
     "rust/tcl-compiler/src/compile_service.rs": "9c8b354617f9beb8462f14705371bb38028df0dd2b01a712077f3a253fed0a93",
     "rust/tcl-fuzz/Cargo.toml": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16",
     "rust/tcl-irule-test/Cargo.toml": "c0883b70b216f3dda1fe4965dc0408288f3356ea730b2f4c39d03bd303abab2b",
@@ -128,7 +128,8 @@
     "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs": "2917cd196ed7012372e0df463e446499702567ecb18d97ca4bf245006dbc958f",
     "rust/tcl-vm/src/cmd_oo/original_name_operands.rs": "b6b5e80719bcba8d654280c3861c5941a2cb21a3c98538841c619462bcf55002",
     "rust/tcl-vm/src/exec.rs": "272e07ae53f33e698ceb2135f94eabea91695ee69fd3312eac792c9336d312bc",
-    "rust/tcl-vm/src/interp.rs": "c7268af4a66f10f194a26816cfba9a393d475663a14bbb9b7a13d3e79fc15c05"
+    "rust/tcl-vm/src/interp.rs": "c7268af4a66f10f194a26816cfba9a393d475663a14bbb9b7a13d3e79fc15c05",
+    "rust/tcl-compiler/src/command_binding/source_execution_control.rs": "5cc9fa9245d8b1df1af6d3ea9f496ca98faf65b9af9c6831c5f8f147ec6741a5"
   },
   "trace": [
     "trace_keeps_data_group_from_braced_expression_command",

@@ -33,7 +33,7 @@
     "rust/tcl-compiler/src/deferred_writes.rs": "3144418bdc9b8d8ed3f43bff6b4397e0802bf31d16defe3d9387e042093e3e4b",
     "rust/tcl-compiler/src/deferred_writes/supplied.rs": "8815677c7b50a2ec7626d373936dee2bbf2e9768a870d0bf9ca43095ad588f79",
     "rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs": "f2900538cb9e9afc3764aa4ca5b78be4344c5420fd4fc313e8bc27b4cb008eb3",
-    "rust/tcl-compiler/src/registry_invocation.rs": "f6ac32b0c69d5b12f04bfa2f2bb729efa252ab1765bae206ae77c82bd906d55d",
+    "rust/tcl-compiler/src/registry_invocation.rs": "c7017e62d5efd8721978c14121bdfd6e7c619dde5de4dbcf78a8f475e22fbe2b",
     "rust/tcl-compiler/src/sccp.rs": "fd8dae5e52b365d7072f46da852d5b4873c2891704a2f88c4a5235fd54a55a92",
     "rust/tcl-compiler/src/value_transfer.rs": "e17db506591ed8c21a7ddee88819876f4fa614d47e60acb7f0842c81c76c0be6",
     "rust/tcl-registry/src/model/context.rs": "84b8adfdf3397c393b6ee83742f3cbaa49e837555be87348255828ccc6bc8e65",

@@ -1349,7 +1349,7 @@ catch_rows = [
 ]
 require(
     sha(BASE / "compiler-taint-diagnostic2.json")
-    == "205af33290c2f732a4277ae782e313ff263819eb62d538e2f220678053a2693f",
+    == "eb0824cf90876445c364dbf3351f93f48d0f944377877fdae50a571aca59e3ee",
     "exact separate taint diagnostic2 input pin",
 )
 taint_diagnostic = json.loads((BASE / "compiler-taint-diagnostic2.json").read_text())
@@ -1529,7 +1529,7 @@ require(
 )
 require(
     sha(BASE / "compiler-logical-declared-read3.json")
-    == "6ada5cd63fa58703fd22f2fad77a46d49b49f3c4fbe6c65731e8cf4088c7aadc",
+    == "4858e65d1a44f9bbe77456c2b354d4b0c7ddb0f0746ff68dc797b0b92e3bba22",
     "exact separate logical3 roster",
 )
 logical_validation = json.loads(
