@@ -1,10 +1,20 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T21:04:13Z
+Last updated: 2026-10-25T22:07:48Z
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
 ## Current status
+
+Current release execution priority: final framework init must use the existing genuine host-initialization source entry while preserving the old public eval settlement. OFF-TREE paired source V2 vm-irules-final-host-initialization-v2 manifest dfb5f9a2633749b74f7f320ec2fd1a170cebb911ac63b29297b46b6e7aaae347 retains take_exit-before-result precedence, checked result/error projection and completion cleanup. Existing earlier host helper is byte-exact. Coupled WORK protocol vm-irules-host-init-scope-protocol-work-v2 manifest a97f7339a2e11d25db778ce3956b698d89bd9ec5110f9ab19f91f5f8f334ac14 retains original 59/14 inventories and original three selectors, separately requires/lists the new unit and runs it afterward on the same fresh ELF/shared budgets. SourceProc combined STATIC DEEP CLEAR dd11df30c9412151f7df4ca6713e7a475d5beb85f22256b5209a1e4aef193eb3 (source-peer-host-init-v2/receipt.json): full old settlement, current4/F-R/fmt2/whole source inverse and 12 independently executed actual-helper no-child controls verified. Both current source before-hashes independently rechecked at WORK e3650ead. Root integrated source WORK f99f016b9/CLEAN efe26102c and protocol WORK dfed902bc; final coherent pin union/push and fresh iRules original3+new1 pending. No typing or causal closure claim.
+
+Latest complete quiet Spec corpus: source5da34e9b, run40227226329/job121271057185. Original16 ALLPASS; full600 child completed FAIL with 17873/17873 successful/attempted hooks and sole nonvacuity failure: string.tclspec three bound hooks, zero attempts. Full receipt vm-spectcl-actual-40227226329/outcome-boundary-authentication.json SHA1b4fcd8d759a8971f82bd2e8e405a57ac8df266767dccf9ab97ac5165d7600c4. No C1/C2 closure. Exact actual-source three-case string replay source is Codegen-owned; separately appended bounded protocol peer CLEAR1fdd193f, awaiting root integration/actual run. Original full-corpus failure remains required.
+
+Latest iRules source c440c0cc, run40230563296/job121281169526: bootstrap FAIL, trace2 PASS. Byte factory stage=entry precedes dependency refusal; exact failed entry leaf remains unproved. Full receipt vm-irules-actual-40230563296/outcome-boundary-authentication.json SHA60b56b49888053f95ec1c6fbad726fb2f391a7f685969c9f08f1d42f914dcfc3. Final post-registration ::orch::init normal-eval caller is a source lead, not yet actual causal closure. Existing compiler purpose/entry guards remain intact.
+
+VM20+Studio1 lint source cohorts all independently reviewed and root-integrated: small17 peer3358c1a0, namespace3 peer05466fad, Info1 V2 peer6cc8ef74. Two live source pins already carried by root; no duplicate metadata refresh. New hosted typing/Clippy still required. Native checked_character_view V5 concrete prototype peer62851af6 and owned-WASM-teardown coverage option remain OFF-TREE pending actual user decisions; no answer, canonical integration or baseline closure inferred. All runtime135/full-CI baseline and separate acceptance obligations remain source-qualified.
+
+## Earlier status snapshots
 
 Getter production OPTION (OFFTREE notintegrationready) vm-native-cached-unicode-character-view-option-v1 manifest6a4251a0: existing as_chars(&mutInterp) mayconsumeactualalreadyresidentNativeStringUnicodecache under matchingCprotocol/liveoriginallease/currentoperation andreturnindependentRcstr; nofreshgetter/cachecreation/profilegrant/Logicalpromotion. try_as_strstrictunchanged. as_chars error widens toexistingValueError soforeign/stale/unpaired/nativewidthrefusals arehonest; checkedUTF16 vsC9scalar projection. Ccompiledreplace onlyneedsGetCharLength (physicalC86/C90sourceconfirmedbeforeindexgetters), switchesCbranchtoexistingcheckedNativeIndexOps count; NonC branchunchanged. FournewgenuineCore/lifetime/foreign/unpaired/stalecurrency controls, allcurrentassertionsuntouched. Source/type/currentness/caller review+proof pending; no baselineclosure oruserdecision fabricated.
 
@@ -1070,3 +1080,11 @@ Bounded actual-string replay source is Codegen ccg-string-pack-actual-corpus-fir
 Freshc440 iRules run40230563296/job121281169526 FULLAUTH60b56b49888053f95ec1c6fbad726fb2f391a7f685969c9f08f1d42f914dcfc3: bootstrapFAIL, trace2PASS. Actualbytefactory stage=entry x5 precedes unchanged dependency/prefight refusal; no narrower header/policy predicate inferred. Allmember streamSHA/currentcriticalGitbytes/largeZIPmaps/ownedclosure/freshELFs/order/sharedCAP verified. Codegen owns actualproducer investigation.
 
 NativeAPI successorV5 b104ce92 corrects canonical f5-irules+selectedprofile-name negative assertions only; independent SourceProc deltaCLEAR62851af6, allotherV4source exact. User decision/integration still PENDING; no answer/decision file or actualtyping implied. Depthcaller observer peer d2db051d staticclear; no actualcallee/causal grant.
+
+## Resume — final framework initialization call, exit-preserving successor
+
+One-line final framework ::orch::init caller lead is prepared as vm-irules-final-host-initialization-v2 masterdfb5f9a2633749b74f7f320ec2fd1a170cebb911ac63b29297b46b6e7aaae347/proofed42a023. SourceProc correctly heldV1 because normal publiceval settles exit and successUnicodeprojection while priorhostinithelper did not. V2 shares ENTIREoldpubliceval settlement between unchangedpublicproducer and newprivatefinalhostproducer; originaltake_exit-before-result?/exactmessage/errorprecedence/owner-drop-currency order retained, earlierhostinithelper remainswholebyteexact. Newunit observesC9inside/F5after success+guesterror+exit7andchecks exitconsumed. Alloldtests/scripts/asserts unchanged; hostedtyping/outcomes UNRUN, staticcallerlead notcausalclosure.
+
+Coupled vm-irules-host-init-scope-protocol-work-v2 mastera97f7339/proof2ddfc836 preservesold3prefix and59/14arrays; separatelyrequirednew1 givesexactcurrent60unitlisting, samefreshalreadylistedELF/180+205reserve/shared20MiB/env/cwd/absolute/floor/owner; sourcepinonlyapprovedLiveV2after+derivedguard. SourceProc strong source/protocolpeer pending. Root canonical/source/dispatch only. NativeAPI and allocation scope user questions remain PENDING; no decision/answer fabricated.
+
+Freshness correction: previous firstheader21:04 exceeded30min during ongoing preparation; corrected now to actualUTC, no historical timestamp rewritten.

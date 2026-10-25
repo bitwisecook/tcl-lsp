@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T21:45:14.226473+00:00
+Last updated: 2026-10-25T22:10:41.361267+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T22:10:41.361267+00:00: Actual74de b08cce94 unchanged34/45,newchild.binding_frame; exactenum/snapshotpresence observer e78e81ad+72fe85a4 independently CLEARd50bd204, rootnextwave integration. No aggregateUnknown admission; ownaggregate snapshot/currentness vs separate OriginalDeclaration-body context remains read-only design pending tag. Strict076 first22/12files deepCLEARd80e7b1b; next32/13files small4/5V2/6V2 deepCLEARa1c643be/ff367195/a976cbc3 plus sole small5readflow1metadata71c06. Existing11footprint exact currentcarry38946903 retains deeppeerddf8f45e, rootintegrating22+11. analyser-long1V2 cbb2de0a (2tests) Codegenpeeractive. Additional declaration_layout longV3def01590 fixes3oldtestlengths with exactwholemoduleinverse including approvedLogical product branch, SourceProcpeerrequested/currentpins2, sourcepincompanion pending. DraftV1/V2 length drafts unsealed andnotready. Shared/tmp separate10MBfree causedscratchENOSPC; removedONLYownnonexec/singlelinkdisposableF/Rtrees; futureTMPDIR=/workspace/names-task-scratch, no builds/target/evidence/ZIP deletion. All hosted newcontrols/Clippy stillUNRUN.
 
 Resume 2026-10-25T21:45:14.226473+00:00: Exact74de Jim40234588393/job121293327765 FULL AUTHb08cce94 allcontrolsPASS/all51REACHED; original45 unchanged34P11F, diagnostic5=2P3F,new1FAIL firstnestedincr. SoleZIP9c657b65/11037707 retained workspace once. NEW measured leaf child.binding_frame: genuine body-correspondence getter and snapshot_frame pass, later variablecontext/effects/roles unreached. No measured enumtag yet; ModuleCommandBindings.join and declaration-owned activation projection may produceUnknown but not asserted asactual. Auditing original row-specific context vs aggregate binding purpose, preservingforeignframecorruptioncontrol and everyowner/alias/residual guard; no guard removal/retag/equalitychange. Strict076 small1/2/3 frozen total22primaries/12files; only small1 sourcepin companion c97536c3, SourceProc peerqueue. Long1draft9038d730 HELD: author found param_traits test still103bodylines, needs successor before review; not cleared/integrationready. Functional firstguard now priority.
 
