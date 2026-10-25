@@ -34550,6 +34550,36 @@ mod native_oo_bootstrap_inventory_tests {
         crate::native_fixture::interpreter(profile)
     }
 
+    fn assert_original_oo_factory(
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        factory: &tcl_runtime_api::native_oo::NativeOoClassObservation,
+    ) {
+        assert_eq!(
+            entry.original_oo_class(factory.command_token, factory.implementation_generation),
+            Some(factory)
+        );
+        assert!(
+            matches!(&factory.constructor, NativeOoLifecycleObservation::Present(method) if method.intrinsic == Some(NativeOoIntrinsicMethod::ClassConstructor))
+        );
+        assert_eq!(factory.destructor, NativeOoLifecycleObservation::Absent);
+        assert!(factory.class_methods.iter().any(|method| {
+            method
+                .name
+                .as_ref()
+                .is_some_and(|name| name.as_bytes() == b"create")
+                && method.intrinsic == Some(NativeOoIntrinsicMethod::Create)
+        }));
+        assert!(factory.object_methods.iter().any(|method| {
+            method.visibility_only
+                && method.intrinsic.is_none()
+                && !method.public
+                && method
+                    .name
+                    .as_ref()
+                    .is_some_and(|name| name.as_bytes() == b"new")
+        }));
+    }
+
     #[test]
     fn original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency() {
         // Implementation contract: naming.runtime.native-tcloo-class-capability
@@ -34569,30 +34599,7 @@ mod native_oo_bootstrap_inventory_tests {
                 .iter()
                 .find(|class| class.bootstrap_role == Some(NativeOoBootstrapRole::ClassFactory))
                 .unwrap();
-            assert_eq!(
-                entry.original_oo_class(factory.command_token, factory.implementation_generation),
-                Some(factory)
-            );
-            assert!(
-                matches!(&factory.constructor, NativeOoLifecycleObservation::Present(method) if method.intrinsic == Some(NativeOoIntrinsicMethod::ClassConstructor))
-            );
-            assert_eq!(factory.destructor, NativeOoLifecycleObservation::Absent);
-            assert!(factory.class_methods.iter().any(|method| {
-                method
-                    .name
-                    .as_ref()
-                    .is_some_and(|name| name.as_bytes() == b"create")
-                    && method.intrinsic == Some(NativeOoIntrinsicMethod::Create)
-            }));
-            assert!(factory.object_methods.iter().any(|method| {
-                method.visibility_only
-                    && method.intrinsic.is_none()
-                    && !method.public
-                    && method
-                        .name
-                        .as_ref()
-                        .is_some_and(|name| name.as_bytes() == b"new")
-            }));
+            assert_original_oo_factory(&entry, factory);
             let namespace = entry
                 .namespaces
                 .iter()

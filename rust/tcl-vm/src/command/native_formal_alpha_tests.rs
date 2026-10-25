@@ -134,36 +134,56 @@ fn counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries() {
     }
 }
 
+const FORMAL_OBSERVER_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!("../../tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv"),
+    ),
+    (
+        "jimtcl",
+        include_str!("../../tests/data/native_formal_alpha/v2/jim/stdout.tsv"),
+    ),
+];
+
+fn traced_formal_body(parameter: &[u8], legacy: bool) -> Vec<u8> {
+    [
+        if legacy {
+            b"trace variable ".as_slice()
+        } else {
+            b"trace add variable ".as_slice()
+        },
+        parameter,
+        if legacy {
+            b" r observe;return $".as_slice()
+        } else {
+            b" read observe;return $".as_slice()
+        },
+        parameter,
+    ]
+    .concat()
+}
+
 #[test]
 fn formal_renaming_observer_controls_report_the_distinct_names() {
     // Native proof: naming.formal.rename-observer-name-differences
     // docs/design/analysis/name-resolution-proofs/formal-rename-observer-name-differences.md
-    for (engine, rows) in [
-        (
-            "tcl8.4",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv"),
-        ),
-        (
-            "jimtcl",
-            include_str!("../../tests/data/native_formal_alpha/v2/jim/stdout.tsv"),
-        ),
-    ] {
+    for (engine, rows) in FORMAL_OBSERVER_ROWS {
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
         let argument = Value::new_native_string_bytes(b"VALUE".as_slice());
@@ -229,21 +249,7 @@ fn formal_renaming_observer_controls_report_the_distinct_names() {
             ),
             (b"renamed".as_slice(), b"a".as_slice(), "RENAMED"),
         ] {
-            let body = [
-                if legacy {
-                    b"trace variable ".as_slice()
-                } else {
-                    b"trace add variable ".as_slice()
-                },
-                parameter,
-                if legacy {
-                    b" r observe;return $".as_slice()
-                } else {
-                    b" read observe;return $".as_slice()
-                },
-                parameter,
-            ]
-            .concat();
+            let body = traced_formal_body(parameter, legacy);
             assert_eq!(
                 call(
                     &mut vm,

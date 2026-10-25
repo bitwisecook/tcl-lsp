@@ -170,20 +170,17 @@ fn install_into(
                 // strip `exec`'s TAINT_SINK and silence taint diagnostics
                 // about the repository that shipped the pack. The floor is not
                 // keyed on the tier: see `security_floor`'s module docs.
-                let installed = match registry.get(specialised.name) {
-                    Some(shipped) => {
-                        let mut merged = specialised.clone();
-                        SecurityFloor::of(shipped).apply(&mut merged);
-                        keep_shipped_compilers(&mut merged, shipped);
-                        merged
-                    }
-                    None => {
-                        let mut added = specialised.clone();
-                        added.native_compilation = added
-                            .native_compilation
-                            .or_else(|| added_command_compiler(&added, registry));
-                        added
-                    }
+                let installed = if let Some(shipped) = registry.get(specialised.name) {
+                    let mut merged = specialised.clone();
+                    SecurityFloor::of(shipped).apply(&mut merged);
+                    keep_shipped_compilers(&mut merged, shipped);
+                    merged
+                } else {
+                    let mut added = specialised.clone();
+                    added.native_compilation = added
+                        .native_compilation
+                        .or_else(|| added_command_compiler(&added, registry));
+                    added
                 };
                 let installed: &'static CommandSpec = Box::leak(Box::new(installed));
                 registry.insert_static(installed);

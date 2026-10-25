@@ -378,35 +378,37 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
     }
 }
 
+const MISSING_LAMBDA_ROWS: [(&str, &str); 4] = [
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv"
+        ),
+    ),
+];
+
 #[test]
 fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
     let mut comparisons = 0;
-    for (engine, rows) in [
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, rows) in MISSING_LAMBDA_ROWS {
         for (name, original) in [
             ("PLAIN", b"Missing".as_slice()),
             ("ABSOLUTE", b"::Missing"),

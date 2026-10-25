@@ -75,48 +75,90 @@ fn row<'a>(captured: &'a str, label: &str) -> Vec<&'a str> {
         .collect()
 }
 
+const STATIC_MEMBER_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/8.4.20/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/8.5.19/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/8.6.18/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/9.0.4/stdout.tsv"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/9.1.0/stdout.tsv"
+        ),
+    ),
+    (
+        "jimtcl",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_procedure_static_original/jim/stdout.tsv"
+        ),
+    ),
+];
+
+fn check_static_reference(engine: &str, captured: &str, reference: bool) {
+    let mut interp = instance(engine);
+    let name = string(b"x\xff");
+    let first = string(b"FIRST");
+    let result = call(&mut interp, b"set", &[&name, &first]);
+    assert_row(&mut interp, &result, None, captured, "SOURCE_SET");
+    let specifier = string(if reference { b"&x\xff" } else { b"x\xff" });
+    let statics = list(&interp, &[&specifier]);
+    let command = string(b"p");
+    let parameters = string(b"");
+    let body = string(b"return ${x\xff}");
+    let result = call(
+        &mut interp,
+        b"proc",
+        &[&command, &parameters, &statics, &body],
+    );
+    let entered = result.code == Code::Ok;
+    let label = if reference { "REFERENCE" } else { "COPY" };
+    assert_row(
+        &mut interp,
+        &result,
+        None,
+        captured,
+        &format!("{label}_DEFINE"),
+    );
+    if entered {
+        let second = string(b"SECOND");
+        let result = call(&mut interp, b"set", &[&name, &second]);
+        assert_row(&mut interp, &result, None, captured, "SOURCE_REPLACE");
+        let result = call(&mut interp, b"p", &[]);
+        assert_row(
+            &mut interp,
+            &result,
+            Some(if reference { &second } else { &first }),
+            captured,
+            &format!("{label}_CALL"),
+        );
+    }
+}
+
 #[test]
 fn original_static_member_objects_match_native_counted_names_and_value_capture() {
     // naming.procedure-static.original-member-object-boundaries
     // docs/design/analysis/name-resolution-proofs/procedure-static-original-member-object-boundaries.md
-    for (engine, captured) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/9.1.0/stdout.tsv"
-            ),
-        ),
-        (
-            "jimtcl",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_procedure_static_original/jim/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, captured) in STATIC_MEMBER_ROWS {
         for input in captured.lines().filter(|line| line.starts_with("INPUT|")) {
             let fields: Vec<_> = input.split('|').collect();
             let label = fields[1];
@@ -158,43 +200,7 @@ fn original_static_member_objects_match_native_counted_names_and_value_capture()
             }
         }
         for reference in [false, true] {
-            let mut interp = instance(engine);
-            let name = string(b"x\xff");
-            let first = string(b"FIRST");
-            let result = call(&mut interp, b"set", &[&name, &first]);
-            assert_row(&mut interp, &result, None, captured, "SOURCE_SET");
-            let specifier = string(if reference { b"&x\xff" } else { b"x\xff" });
-            let statics = list(&interp, &[&specifier]);
-            let command = string(b"p");
-            let parameters = string(b"");
-            let body = string(b"return ${x\xff}");
-            let result = call(
-                &mut interp,
-                b"proc",
-                &[&command, &parameters, &statics, &body],
-            );
-            let entered = result.code == Code::Ok;
-            let label = if reference { "REFERENCE" } else { "COPY" };
-            assert_row(
-                &mut interp,
-                &result,
-                None,
-                captured,
-                &format!("{label}_DEFINE"),
-            );
-            if entered {
-                let second = string(b"SECOND");
-                let result = call(&mut interp, b"set", &[&name, &second]);
-                assert_row(&mut interp, &result, None, captured, "SOURCE_REPLACE");
-                let result = call(&mut interp, b"p", &[]);
-                assert_row(
-                    &mut interp,
-                    &result,
-                    Some(if reference { &second } else { &first }),
-                    captured,
-                    &format!("{label}_CALL"),
-                );
-            }
+            check_static_reference(engine, captured, reference);
         }
         for duplicate in [false, true] {
             let mut interp = instance(engine);
