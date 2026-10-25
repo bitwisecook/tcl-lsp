@@ -15,8 +15,8 @@
     "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
     "rust/tcl-lsp-core/src/original_source_views.rs": "fef876c2faf2288a7e6c804b16c400b59cecfe5211f0a357d4fff2527020dab0",
     "rust/tcl-lsp-server/Cargo.toml": "612e4f1e263b52fcbfd927bfdec99fde4dc0142ddf9939deabdbde80a6d8f913",
-    "rust/tcl-lsp-server/src/lib.rs": "7eb40ba67d98f268264fcb594de9cd8f314bd5ffc7dd73c242945354dfe02ab4",
-    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "5b317db69569bcf91e491c416f365acbd2e8ede74a9cbca2f14e3d34ed63c1c6"
+    "rust/tcl-lsp-server/src/lib.rs": "67ba42ba0d1d0e86ef5a44bb461d4dd449c09bee04c1e669edde5f837ba17424",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "0c5c8b266a9de8a24f689f8cdd4b28cba0bc96206301d12ec2e069e60e0a754f"
   },
   "target": "tcl_lsp_server"
 }
