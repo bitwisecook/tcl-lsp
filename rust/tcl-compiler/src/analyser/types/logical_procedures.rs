@@ -707,7 +707,10 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl");
         let record = analysis.original_procedure_declarations().next().unwrap();
         let procedure = record.metadata();
-        assert!(!std::ptr::eq(procedure, &analysis.all_procs["::p"]));
+        assert!(!std::ptr::eq(
+            procedure,
+            &raw const analysis.all_procs["::p"]
+        ));
         let declaration = analysis
             .logical_source_procedure_declaration(procedure)
             .expect("the actual retained original record shares its Logical body");

@@ -3190,6 +3190,40 @@ mod factory_metadata_context_tests {
         }
     }
 
+    fn assert_factory_source_metadata_refusals(
+        analyser: &Analyser,
+        cu: &mut crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let original_profile = cu.ir_module.dialect_profile;
+        cu.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl").unwrap());
+        assert!(
+            analyser
+                .compute_factory_object_ranges(cu, registry)
+                .ranges
+                .is_empty(),
+            "changed actual Module profile cannot borrow the input"
+        );
+        cu.ir_module.dialect_profile = original_profile;
+        let original_config = cu.ir_module.lexer_config;
+        cu.ir_module.lexer_config.expand_syntax = !original_config.expand_syntax;
+        assert!(
+            analyser
+                .compute_factory_object_ranges(cu, registry)
+                .ranges
+                .is_empty(),
+            "changed actual Module syntax cannot borrow the input"
+        );
+        cu.ir_module.lexer_config = original_config;
+        cu.source.push(' ');
+        assert!(
+            analyser
+                .compute_factory_object_ranges(cu, registry)
+                .ranges
+                .is_empty()
+        );
+    }
+
     #[test]
     fn factory_may_advice_uses_actual_availability_and_exact_supplied_source() {
         // naming.compiler.original-analysis-metadata-context
@@ -3269,33 +3303,7 @@ mod factory_metadata_context_tests {
                     .is_empty()
             );
             cu.ir_module.source_metadata_input = analysis.resolved_input.clone();
-            let original_profile = cu.ir_module.dialect_profile;
-            cu.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl").unwrap());
-            assert!(
-                analyser
-                    .compute_factory_object_ranges(&cu, context.commands())
-                    .ranges
-                    .is_empty(),
-                "changed actual Module profile cannot borrow the input"
-            );
-            cu.ir_module.dialect_profile = original_profile;
-            let original_config = cu.ir_module.lexer_config;
-            cu.ir_module.lexer_config.expand_syntax = !original_config.expand_syntax;
-            assert!(
-                analyser
-                    .compute_factory_object_ranges(&cu, context.commands())
-                    .ranges
-                    .is_empty(),
-                "changed actual Module syntax cannot borrow the input"
-            );
-            cu.ir_module.lexer_config = original_config;
-            cu.source.push(' ');
-            assert!(
-                analyser
-                    .compute_factory_object_ranges(&cu, context.commands())
-                    .ranges
-                    .is_empty()
-            );
+            assert_factory_source_metadata_refusals(&analyser, &mut cu, context.commands());
         }
     }
 }

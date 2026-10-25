@@ -3256,12 +3256,11 @@ pub(crate) fn assert_analysis_results_eq(
     right: &AnalysisResult,
     context: &str,
 ) {
-    if left != right {
-        panic!(
-            "analysis results differ ({context}); differing fields:\n{}",
-            left.bounded_mismatch_summary(right)
-        );
-    }
+    assert!(
+        left == right,
+        "analysis results differ ({context}); differing fields:\n{}",
+        left.bounded_mismatch_summary(right)
+    );
 }
 
 #[derive(Clone, Copy)]
