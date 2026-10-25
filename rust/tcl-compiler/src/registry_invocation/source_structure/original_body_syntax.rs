@@ -373,6 +373,20 @@ impl OriginalBodySyntaxInventory {
             .source_script_bodies_for_syntax_coverage(self.input.borrowed_context_registry())
     }
 
+    /// Original substitutions inside a compiler-owned Expr operand. These
+    /// regions retain only syntax correspondence, never Native call, frame or
+    /// completion permission; every retained compiler alternative must agree.
+    #[must_use]
+    pub fn expression_script_bodies(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<Vec<crate::registry_invocation::OriginalSourceScriptBody>> {
+        self.source_syntax_words(source, analysis, segment)?
+            .source_expression_script_bodies(&self.input)
+    }
+
     /// Exact Expr-role operands under the same source-only compiler proof.
     /// A bare operand receipt does not authorise an arbitrary replacement.
     #[must_use]
@@ -849,6 +863,28 @@ mod tests {
                 .unwrap()
                 .original_recorded_command()
                 .unwrap();
+            let bodies = inventory
+                .expression_script_bodies(source, &analysis, &segment)
+                .unwrap();
+            if needle == "expr {$n *" {
+                assert_eq!(bodies.len(), 1);
+                assert_eq!(
+                    &source[bodies[0].content_span().as_range()],
+                    "fact [expr {$n - 1}]"
+                );
+            } else {
+                assert!(bodies.is_empty());
+            }
+            assert!(
+                inventory
+                    .expression_script_bodies(source, &foreign, &segment)
+                    .is_none()
+            );
+            assert!(
+                inventory
+                    .expression_script_bodies("# stale", &analysis, &segment)
+                    .is_none()
+            );
             assert!(inventory.tokens(source, &analysis, &segment).is_none());
             assert!(inventory.words(source, &analysis, &segment).is_none());
             assert!(

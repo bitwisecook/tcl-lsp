@@ -1513,6 +1513,36 @@ impl SourceStructure {
         true
     }
 
+    fn compiler_expression_regions(
+        &mut self,
+        source: &str,
+        command: &SegmentedCommand,
+        script: &SourceScriptContext<'_>,
+        queue: &mut VecDeque<PendingSourceRegion>,
+    ) {
+        let Some(input) = script.analysis.resolved_input.as_ref() else {
+            return;
+        };
+        let context = input.context_registry();
+        let bodies = self
+            .compiler_body_syntax
+            .as_ref()
+            .and_then(|inventory| {
+                inventory.expression_script_bodies(source, script.analysis, command)
+            })
+            .unwrap_or_default();
+        for body in bodies {
+            if !body.matches_source(&SourceImage::document(source), input.lexer_config())
+                || !body.matches_context(&context)
+            {
+                continue;
+            }
+            self.caller_context_unavailable_bodies
+                .push(body.content_span());
+            queue.push_back((body.content_span(), script.depth + 1, None));
+        }
+    }
+
     fn command_bodies(
         &mut self,
         source: &str,
@@ -1537,6 +1567,7 @@ impl SourceStructure {
         if purpose == CapturePurpose::SyntaxCompaction
             && let Some(input) = analysis.resolved_input.as_ref()
         {
+            self.compiler_expression_regions(source, command, script, queue);
             let context = input.context_registry();
             let bodies = self
                 .compiler_body_syntax
