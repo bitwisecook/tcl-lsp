@@ -305,3 +305,53 @@ fn source_dispatch_bounds_use_original_paths_and_keep_dynamic_coverage_open() {
     caller.set_path(&mut db).to(None);
     assert!(project_dispatch_components_for_inputs(&db, project).is_none());
 }
+
+#[test]
+fn checked_project_projections_share_one_interpretation_and_recheck_changed_inputs() {
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = Arc::clone(&events);
+    let mut db = TclDatabase::with_event_logger(move |event| sink.lock().unwrap().push(event));
+    let config = configuration(&db, 0);
+    let file = SourceFile::new(
+        &db,
+        "proc helper {value} {return $value}".to_owned(),
+        "tcl".to_owned(),
+        None,
+    );
+    let project = Project::with_token_configurations(&db, vec![file], Some(vec![(file, config)]));
+    let read = |db: &TclDatabase| {
+        assert!(file_source_structure(db, file, config).is_some());
+        let _ = project_token_inputs::file_token_facts_for_config(db, file, config);
+        let _ = project_token_inputs::project_proc_var_index_for_inputs(db, project);
+    };
+    let count = || {
+        std::mem::take(&mut *events.lock().unwrap())
+            .iter()
+            .filter(|event| event.contains("file_project_source_facts"))
+            .count()
+    };
+    read(&db);
+    assert_eq!(count(), 1, "all three projections share one source walk");
+    read(&db);
+    assert_eq!(count(), 0, "unchanged owners reuse the actual capture");
+    file.set_text(&mut db)
+        .to("proc helper {value} {return CHANGED}".to_owned());
+    read(&db);
+    assert_eq!(count(), 1, "a changed image gets one fresh interpretation");
+    file.set_sidecar_stubs_epoch(&mut db).to(1);
+    read(&db);
+    assert_eq!(
+        count(),
+        1,
+        "a changed sidecar epoch rechecks the shared input"
+    );
+    config.set_spec_pack_key(&mut db).to(u64::MAX - 359);
+    assert!(file_source_structure(&db, file, config).is_none());
+    assert!(
+        project_token_inputs::file_token_facts_for_config(&db, file, config)
+            .classes
+            .is_empty()
+    );
+    assert!(project_token_inputs::project_proc_var_index_for_inputs(&db, project).is_empty());
+    assert_eq!(count(), 1, "unavailable input withdraws every projection");
+}

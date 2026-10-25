@@ -6,9 +6,9 @@
 
 use super::{
     AnalyserConfig, ClassHierarchy, FileTokenFacts, Project, SemanticTokens, SourceFile, TclDb,
-    VarNameArgRoles, document_analyser, document_analysis_input, document_compilation_unit_for,
+    VarNameArgRoles, document_analysis_input, document_compilation_unit_for,
     file_analysis_incremental, merge_project_classes, merge_project_named_instances,
-    token_facts_from_analysis,
+    project_call_inputs::file_project_source_facts,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -56,19 +56,9 @@ fn checked_file_token_facts_for_config(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Option<Arc<FileTokenFacts>> {
-    let input = document_analysis_input(db, file, config).ok()?;
-    let result = document_analyser(db, file, config)
-        .with_resolved_input((*input).clone())
-        .structure_only()
-        .analyse(file.text(db), file.dialect(db));
-    if !result.matches_original_source_image(
-        &tcl_lexer::SourceImage::document(file.text(db)),
-        input.lexer_config(),
-    ) || result.resolved_input.as_ref() != Some(input.as_ref())
-    {
-        return None;
-    }
-    Some(token_facts_from_analysis(result))
+    Some(Arc::clone(
+        &file_project_source_facts(db, file, config)?.tokens,
+    ))
 }
 
 fn project_facts(db: &dyn TclDb, project: Project) -> Option<Vec<Arc<FileTokenFacts>>> {
@@ -121,23 +111,7 @@ fn checked_file_source_roles_for_config(
     config: AnalyserConfig,
 ) -> Option<Arc<tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles>>
 {
-    let input = document_analysis_input(db, file, config).ok()?;
-    let analysis = document_analyser(db, file, config)
-        .with_resolved_input((*input).clone())
-        .structure_only()
-        .analyse(file.text(db), file.dialect(db));
-    if analysis.resolved_input.as_ref() != Some(input.as_ref())
-        || !analysis.matches_original_source_image(
-            &tcl_lexer::SourceImage::document(file.text(db)),
-            input.lexer_config(),
-        )
-    {
-        return None;
-    }
-    tcl_compiler::registry_invocation::source_structure::OriginalProjectProcedureRoles::capture(
-        &analysis,
-    )
-    .map(Arc::new)
+    file_project_source_facts(db, file, config)?.roles.clone()
 }
 
 /// Conditional named-instance hints, without Native allocation or dispatch.
