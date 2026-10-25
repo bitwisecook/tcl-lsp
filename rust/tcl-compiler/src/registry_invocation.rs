@@ -978,6 +978,51 @@ pub fn original_structured_invocation_with_metadata_context(
         .map(|selected| selected.invocation)
 }
 
+/// Original deferred procedure declaration grammar for source coverage only.
+/// This retains the exact authored source lookup and direct static operands;
+/// it grants neither body entry nor Native frame or Normal completion.
+#[must_use]
+pub fn original_authored_procedure_declaration_for_source_coverage(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    if tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        != crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+        || tokens.words().iter().any(|word| {
+            !matches!(
+                word,
+                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let selected = original_declared_structured_invocation(registry, context, tokens)?;
+    original_structured_operands_are_supported(registry, &selected, None, tokens)?;
+    if selected.facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Proc,
+        )
+        || selected.facts.body_kind != tcl_registry::BodyKind::Structural
+        || !selected.facts.traits.contains(
+            tcl_registry::Traits::DEFERS_BODY | tcl_registry::Traits::BODY_RUNS_IN_OWN_FRAME,
+        )
+        || selected.written_argument_roles()
+            != vec![
+                (0, tcl_registry::ArgRole::Name),
+                (1, tcl_registry::ArgRole::ParamList),
+                (2, tcl_registry::ArgRole::Body),
+            ]
+    {
+        return None;
+    }
+    Some(selected)
+}
+
 /// Original declaration grammar, without a completed handler or CPP receipt.
 fn original_declared_structured_invocation<'a>(
     registry: &CommandRegistry,
@@ -12747,6 +12792,101 @@ mod authored_simulation_structure_controls {
             }
         }
         panic!("actual retained switch command");
+    }
+
+    fn declaration_tokens(module: &crate::ir::Module) -> CommandTokens {
+        let mut pending = module
+            .procedures
+            .values()
+            .map(|p| &p.body)
+            .collect::<Vec<_>>();
+        while let Some(script) = pending.pop() {
+            for statement in &script.statements {
+                if let Some(tokens) = script.retained_source_tokens_for_statement(statement)
+                    && tokens.argv_texts.first().is_some_and(|head| head == "proc")
+                    && tokens.argv_texts.get(1).is_some_and(|name| name == "inner")
+                {
+                    return tokens.clone();
+                }
+                pending.extend(statement.child_scripts());
+            }
+        }
+        panic!("actual retained inner procedure declaration");
+    }
+
+    #[test]
+    fn authored_declaration_coverage_keeps_separate_purpose_and_exact_owner() {
+        let source = "proc outer {} {proc inner {} {return VALUE}}";
+        let module = module(source);
+        let tokens = declaration_tokens(&module);
+        let registry = module.resolved_registry();
+        let context = InvocationMetadataContext::for_module(registry, &module).unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding.original_source_advice_purpose(&tokens, context, registry),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
+        );
+        assert!(
+            logical_structured_invocation_with_metadata_context(registry, context, &tokens, None)
+                .is_none()
+        );
+        let selected =
+            original_authored_procedure_declaration_for_source_coverage(registry, context, &tokens)
+                .unwrap();
+        assert!(
+            selected
+                .facts
+                .traits
+                .contains(tcl_registry::Traits::DEFERS_BODY)
+        );
+        let advice = binding
+            .declaration_operand_layout_advice(&tokens)
+            .or_else(|| binding.original_compilation_lookup_advice(&tokens))
+            .unwrap();
+        assert!(!advice.closed_lookup());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(
+            original_authored_procedure_declaration_for_source_coverage(
+                registry, context, &missing
+            )
+            .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "changed".to_owned();
+        assert!(
+            original_authored_procedure_declaration_for_source_coverage(
+                registry, context, &changed
+            )
+            .is_none()
+        );
+        let foreign = super::authored_simulation_structure_controls::module(source);
+        let other_registry = foreign.resolved_registry();
+        let other_context =
+            InvocationMetadataContext::for_module(other_registry, &foreign).unwrap();
+        assert!(
+            original_authored_procedure_declaration_for_source_coverage(
+                other_registry,
+                other_context,
+                &tokens
+            )
+            .is_none()
+        );
+        let opaque = super::authored_simulation_structure_controls::module(
+            "proc outer {} {unknown_op; proc inner {} {return VALUE}}",
+        );
+        let opaque_tokens = declaration_tokens(&opaque);
+        let opaque_registry = opaque.resolved_registry();
+        let opaque_context =
+            InvocationMetadataContext::for_module(opaque_registry, &opaque).unwrap();
+        assert!(
+            original_authored_procedure_declaration_for_source_coverage(
+                opaque_registry,
+                opaque_context,
+                &opaque_tokens
+            )
+            .is_none()
+        );
     }
 
     #[test]
