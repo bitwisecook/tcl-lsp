@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T16:05:10.256527+00:00
+Last updated: 2026-10-25T16:36:16.645146+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T16:36:16.645146+00:00: Strict4bad assigned 53 files / 144 primaries. Four immutable paired cohorts now target 37: small1 (9010aa6c, six files/six lints), small2 (0f3f4fa1, three files/six lints), small3 (7f97edb9, five files/22 lints), long1 V2 (57c5ed93, two files/three long tests). Small1+2 independent deep clearance 9f834ac0 and small3 33313fbe; long1 peer pending. Every owner move/drop order and assertion preserved, with full controlled module inverses/F-R/F0/format checks. No local Rust/Clippy execution. Per-body lexical plan cache V2 (4bccda5a) independently clear ce9e49b9; V1 unused private params were removed rather than hidden. Current combined small1/cache metadata b70f6cd3 supersedes old unions; other cohorts have no live validation sourcepin consumers after all23 JSON census. Runtime small7 and sole Jim roster metadata independently cleared 8bc818d9. Actual Jim4bad remains authenticated 34/45; next remaining source shape is named incr read nested under return, and expression reads. Existing nested bindings and checked lifted-call APIs retain genuine child provenance; tracing a narrow separate consumer without relaxing the old direct route or granting Normal from visits. No performance acceptance.
 
 Resume 2026-10-25T16:05:10.256527+00:00: Jim run 40208429286 at exact 4bad is fully authenticated (verification b51983bf; single ZIP 20395ac9, 11,033,017 bytes). Original45 improves to 34 PASS / 11 FAIL; diagnostic5 has 2 PASS / 3 FAIL; new1 still fails at its first nested-incr case, later internal cases unreached. Genuine original rows and all declaration/static-projection stages now succeed; remaining static-read refusal is part_shape for nested command/expression substitutions. Existing direct lexical guard is unchanged. Preparing a genuine typed nested-read route, not skipping geometry/effects checks. Root assigned exact 53-file/144-primary strict4bad Names ownership; will deliver small immutable paired cohorts and preserve every guard, assertion and owner/drop order. Three new compiler controls are still outside Jim51 selectors; their actual result is unrun here. No performance acceptance.
 

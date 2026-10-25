@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T15:57:49+00:00 (ACTIVE; strict4bad FULLAUTH228 FAIL506primaries/2types/504Clippy; root partition pending; VM2typeerrors routedRuntime)
+Last updated: 2026-10-25T16:27:15+00:00 (ACTIVE; own53lint fixes paired STATIC CLEAR45+8; Compiler83 andLuna13 sourcepeers clear; actual4bad506failure authenticated; finalpins awaitroothead)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Latest (2026-10-25T16:27:15+00:00): Own exact13file strict scope53primaries is authored/independently STATIC CLEAR in two cohorts: `ccg-strict4bad-codegen-small45-v1` manifest6b6f6bd2, W25b55316/C28feacf3 +sourcepincompanion01512f28, peer8a620be5d40804766c6dc805fcbbb0d1cf7799666887af4239a0d8fd2da8d037; remaining `ccg-strict4bad-codegen-owner-long8-v2` manifest66830d0c W13a9f52e/C8c58f465 peer3c8d3afdf831a1abe1529cb22413137075e08f3a002dba24180a78f811a47088. V1 held for introduced redundant &&unit in new borrowed WORK tracehelper, correctedV2; CLEAN unchanged. Four owned Arc wrappers preserve original locals-before-argument drop/unwind, no newclone. Four longtests count89/98/75/83, CLEANpipeline82 alreadyshort; all Nativeowners parent. Independently peered Compiler26+23+18+3+13=83 sourceprimaries (receipts5e5a8c47/3357934f/0e45afa6/669e7ae4/cc459223), Luna7+6semicolon sourcecohorts (beec2d7c/022ba57e), Runtimeproperty2type repairdc63 andbaselinepositive6052. All actual Rust/Clippy/tests UNRUN.
+
+Actual compiler4bad102 was ALLUNRUN beforebuild: readonly13 groups/env preflight still requiredall{} despite approvedfourflagrows. Minimal exact4expectedenv consumer repair3f38d835 independently CLEARd93982ac29785fd045bead2fc491072012415753b4bf22b9538cb2d87bfc5e76; actual current13rows predicate PASS +43negativeenv mutations REFUSE, wholeAST/byteinverse/F-R/F0. Our earlier jointmetadata static review missed this consumer constraint; notpreflightacceptance. Final current sourcepinunion waitsrootlandedhead, preservingall approvedsourcepins/4env/currenttypedrepair/RBS/Jim/LSP. /tmp tmpfs isfull; one source-only copied peer attempt hitENOSPC, noRustbuild/receipt; all successful peer reruns useownedworkspace scratch andcleanit, workspace2.1GiB.
 
 Latest (2026-10-25T15:57:49+00:00): Strict4bad run40208428437/job121214277510 FULLAUTH228checks PASS, actual gate FAIL. Proof `/workspace/naming-proof-storage/ccg-strict4bad-40208428437-actual-v1/assessment.json` SHA066cb15ec8243da20865ad89369fafc0e6e842683d6c9100514032617c74a6cc. SoleZIP12604543801 4,064,403B SHAd7082f09c5b2867d040497744557b49f834796bd3fcd5bea873932f6305292ac. Full endpointseal/Gitmembership/all190diagnostic sourceblobs+critical bytes/9tools/originalownedmake/emptygroup/cap-floor-deadline/exit2+postseal0 authenticated. Exactly506primaries =2E0369 in VMvalue/native_property_name23/28 routedRuntime +504Clippy;21compile summaries. Prior0083API errors absent but no semantic/completegate success inferred. Bycrate compiler438/Core48/Spec11/VM3/server3/registry2/Studio1. Normalized diagnostics.json, per-file-diagnostics.json, lint-counts.json ready; no new lint source edits until explicit nonoverlap ownership.
 

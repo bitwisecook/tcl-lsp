@@ -1,30 +1,40 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T16:00:57.461555+00:00
+Last updated: 2026-10-25T16:44:44.450281+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
-## Current checkpoint 2026-10-25T13:27:45Z
+## Current status
+
+Fresh4bad Spec40208428581 FULLauth b4f64f54 +boundary/memberSHA addendum7787ff4a: old11+Native1+UNCHANGEDhostile1 all13PASS. Exactsame hostile assertion+fixture hashes as9cf; actual2WallClockBudget+1Panic,0answers/3attempts,3quarantined. NativeIndex3 remainsUNRUN: later fresh tcl_vm testELF build failed cfgtest property2E0369. Propertysyntax source21722/C2634 now root-integrated after independentdc63 peer; no freshrepo typing/Native3 result yet. No fullcorpus/globalgate/performance acceptance.
+
+Fresh4bad irules40208429826 FULLauth eee52666 +boundary/memberSHA addendum321e93a1: originalbootstrap1FAIL, CLItrace2PASS. Exactfirstfacet protocol-purpose selectedLogicalC84(native_cfalse), purposeUpLevel, actualstringsC90, plaintrue. ExistingNativeDirect guard correctlydenies Logical→Native authority mismatch. VM owns genuine private LogicalUpLevel sourceoperand/provider/currentness proposal, NOT a guard/profile/cachedNative shortcut. No proposal frozen yet. Original3/full59+14 listings/budgets unchanged; ZIPs oneeach workspaceonly, maps stayarchive.
+
+Strictsmall7 source56c42ec4/proofc91290fa +existingJimdocumentpincompanion8d43dc15 independentlyNamesCLEAR8bc818d9: intentionalnonconst lazyTLS/deathregistration retained, methoditems/rawptr/itemhoists/doc only. WORK-only derivedobserver split draftab5a1999 (CLEANpathabsent) preserves query/order/lifetime scopes; own wholeinverse verification+metadata pending. Rootassigned8remainingfiles/14primaries after property2 closure correction; no localCargo/Rust builds.
+
+Baseline#4 positive cr/ev/sl/kid ev restoration7176d101/proof47e18e5d independentlyCodegenCLEAR6052cd1d. GenuineNativeCoreC90, sameold positive results/order/leak controls, allcurrent8diagnostics+productionbytes unchanged. ActualnewtestUNRUN. Baseline invalidUTF8 and missing-alias-context contract debts remainunresolved; require exactoriginaloracle/decision, no assertionweakening/source-onlyexecution mapping. Jimfunctional3 peer1db18360 sourceclear, Names separatelyreports actual34/45; no broad Jim acceptance inferred.
+
+## Historical checkpoint 2026-10-25T13:27:45Z
 
 Required SpecTcl Native index typed-purpose source/consumer integrated by root; actual fresh typing/semantic validation pending. Original namespace unreached backing refusal and all Native entry/current-header/provider checks retained. Latest focused8cfa authentic135 closes original Info baselinePF plus2 adversarial currency controls; original132 outcomes unchanged and84 standalone nonpasses remain scoped, not a full release gate. Parked standalone general parity requires reviewed production/dependency extraction closure preserving LSP/SpecTcl and xtask real backing producers. Main52 mechanical chunk peer receipt66523c69 and separate native-index lint receipt205713ad complete STATIC CLEAR; no post-fix Rust/Clippy claim. Next required execution lead is hostile spin/burn genuine early host error and string hook attempts, using actual first-gate observation, never reclassifying refusal as crash.
 
-## Current dispatch preparation 2026-10-25T14:08:17Z
+## Historical dispatch preparation 2026-10-25T14:08:17Z
 
 Current Small20/Mechanical23 union peer a3f3e522 and subsequent registry-only pin carry peer d5ffda6a CLEAR; all23 JSON wholepin censuses narrow approved deltas, no mixed stale pins. Spec existing mode already sets/requires/captures first-gate-v1. Off-tree hostile append FINAL V3 manifest51481c0c/patchb6b49fae (V2 held: V3 adds spec_corpus- to original full180 remaining-deadline admission) uses approved registry roster8890, retains faf1, original11+supplemental1 exact, appends separately-labelled unchanged hostile1 using shared bounds. Pending independent Codegen peer and root integration/actual dispatch; no measured firstcause yet. Extraction current graph7a472f7a retains xtask actual NativeCore backing obligation and ABI/wrappers; no removal proposal/waiver.
 
-## Actual current checkpoint 2026-10-25T14:42:55Z
+## Historical actual checkpoint 2026-10-25T14:42:55Z
 
 Spec40201525761 exact9cf FULL scoped auth0bc7772a: original11+Native1 allPASS; separately unchangedhostileFAIL with actual spin+burn `native private errorInfo result` (receiverNone), boom onlypanic. Private-result publication/source-log skipped by drive_loop ticklimit directunwind. Frozen paired /vm-limit-error-native-ingress-v1 master7c6eab07 factors EXACT oldsettle prefix into sharedhelper, reusesbeforeORIGINALunwind without catch/policy/header guard changes;2 new realNative controls/4profiles. Sourceproof1e5b81f5 has fullinverse/F-R/fmt and4C85–91 original LimitCheck→SetObjResult→gotError/log windows. Companion09672035 onlyirulesexecpin+driverdigest; independent Codegen peer pending. NewRust/controls/hostile retryUNRUN.
 
 Runtime13540201526367 exact9cf FULL scoped auth CURRENT receipt-current.json c0346861 (receipt.json superseded old run-label copy retained);459CRC/SHA/source126333NULmembership+39pins/provider/Tomprepost PASS. Original3+128 statuses identical8cfa, unboundedprocPASS(b20ffefc),Info3PASS(8de7e07d),135ownedparentsclosed/sharedCAP635274B.84nonpasses/incompleteCFI remain; mainVMgenericIndex controls require CLEAN756 CIactual, not standalone135 inference. Old658Heavy DIRECT5predicate bootstrap lead separately underCodegen, no actualfacet inferred from genericerror. No extraction source removal proposed.
 
-## Latest source/dispatch handoff 2026-10-25T15:07:39Z
+## Historical source/dispatch handoff 2026-10-25T15:07:39Z
 
 Erroringress FINALV2 integrated root WORKfc4afb/CLEAN62442; sourcepeer3d5e70ef/metadatab7518d15. VM Jim mutable slice branch preserved; V1 typing defect explicitly held, not promoted. NextSpec fresh unchangedhostile retry pending. Separate NativeIndex3 protocol d00a5723/prooff6b05dcd independently CLEAR11f7139f; exact old11+Native1+hostile1 retained, fresh tcl_vm actuallib-test ELF afterthem with exact3 listing and sharedbounds. Root integration/dispatch pending actualUNRUN. Long11+VMexec+RBS4 metadata V1 held on keyorder byteinverse; successorV2 independently CLEAR2382abc1 after wholeJSON byteinverse/all23ALLpin census. No VMsource mutation from that metadata.
 
 Root assigns VM sole upcoming irules-preflight artifact/auth/firstDIRECTfacet. Current actualsource fullinventory59/14, selectedunchangedbootstrap1+trace2, existing first-decline flag. Five NativeDirect guardpredicates remain intact; old658Heavy genericerror alone cannot identifyfacet. Mixed explicitF5 logicalC84/C9 actual sourcepath is structural lead only, no repair inferred before actualfirstfacet. No localRustbuild or duplicateZIP.
 
-## Fresh008 actual failed-build checkpoint
+## Historical008 actual failed-build checkpoint
 
 Spec40205731422/job121206131593 andirules40205733827/job121206139096 BOTH exact008aae58 STOPPED on same3compilerlib errors beforetests: source_availability159/190 spans supplied toToken API, source_scoped_body452 ContextRegistry equality lacksPartialEq. Compilerowner assigned genuine typedrepair; no VMpolicy change proposed. Spec original11+Native1+hostile1+index3 ALL16UNRUN; irules original3 ALLUNRUN, NOactualDIRECTfacet. SingleZIPs retained vm-spectcl-actual-40205731422/artifact.zip (76e2388d/10180892B), vm-irules-actual-40205733827/artifact.zip (b43a96d1/10183894B). FULLfailedbuild receipt9f8e359c/a73c7384 includes API/source/NULmembership/criticalGitpins/CRC+memberSHA/provider/deps/tools/ownedbuild/CAP closure; nofreshELFs and artifactssealfalse correctly retained. Prior9cf Spec12PASS/hostileFAIL remainshistoricalqualification, notfresh008 acceptance. MainVM3, newerror2 andunchangedhostile retry stillUNRUN; no newgeneralparityscope.
 

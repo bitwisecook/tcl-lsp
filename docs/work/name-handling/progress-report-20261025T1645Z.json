@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T16:45:05.109552+00:00",
+  "scheduled_report_utc": "2026-10-25T16:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T17:15:00+00:00",
+  "change_since_previous_report": [
+    "Reviewed source-only lint cohorts landed WORK first with release counterparts: Codegen53, compiler96, root tests11, Names small1/2/3, LSPsmall9, VMsmall7, plus bounded coordinator semicolon/raw-string fixes. Actual4bad506 diagnostics remain the last executed result; no inferred zero-warning success.",
+    "Compiler4bad all102 UNRUN before build because readonly13 env predicate rejected four approved observers; no artifact was uploaded. Single driver patch997b accepts exactly the four expected flags and preserves empty env for nine other rows; 13 positive and43 missing/bad/extra/foreign negative checks recorded. Actual102 rerun required.",
+    "Restored original successful interpreter option coverage with actual native C90 core, preserving old negative assertions and production guards. New originalpositive case UNRUN pending next tests; baseline correspondence not yet globally closed.",
+    "Immutable declaration preview geometry cacheV2 integrated with original owner/frame/source and per-use authority checks retained. No speedup or equality-gate acceptance inferred. Names current actualJim34/45 remains partial.",
+    "Fully authenticated4bad hosts establish registry producer repair14true/0false, current slot staleness None\u2192Some1, browser direct-procedure-owner decline and incomplete WASI source projection. These remain real implementation blockers; nextbounded genuine recapture/owner fixes must keep failclosed guards.",
+    "Actual4bad Spec13PASS including unchanged hostile assertions, NativeIndex3UNRUN due nowrepaired callback typing. iRules1FAIL+trace2PASS; realLogicalUpLevelissuer still needed. Full C1\u2013C2 corpus, original runtime suites, baseline zero pass-to-fail and Tcl corpus performance remain open.",
+    "Current23 live sourcepin maps and Python wholeJSON guards are being rebuilt as one source-consistent union, preserving all historical previous_source_pins. WORK driver observation fix included before derived hashing; strict/compiler/Spec reruns wait for preflight and publication.",
+    "Two mechanical packets correctly held after review found missing ledger constructor imports and unbounded whole AnalysisResult Debug output. Qualified/bounded successor packets now off-tree pending independent review; no lint suppressions or weakened comparisons.",
+    "Disk fell below2GiB; repository builds and native extraction paused. Suspected old capture duplicates were actually aliases to one physical copy: temporary path adjustment reversed before byte deletion, originalpaths restored; rejection receipt records0bytesdeleted. LSP is losslessly compressing old closed owner captures with verified roundtrip hashes and restoration receipts. No target or executable deletion.",
+    "Latest clean fullCI40201542033 still has nativepartition1 running; useful old job preserved, other failures are not claimedfixed. ExternalBIGIP/perf trackers stale>60min; usernotified without takeover. Original six-hour target missed; noPR, merge, tag orrelease; next17:15."
+  ],
+  "committed": [
+    "f23bca1b4bba791eb1fda8b7600034a3a6f300c4"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish live-map union and independent review, publish normal bothbranches, preflight and dispatch strict/compiler102/SpecNativeIndex3.",
+    "Repair authentic slot/body/nested-read/LogicalUpLevel producers and remaining strict lint ownership.",
+    "Complete current clean fullCI, exact origin/rust zero-pass-to-fail correspondence, accepted Tcl performance, docs/comments/generated/packaging/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "All newly integrated lint/source packets are statically reviewed, not executed acceptance. Latest actual4bad strict remains506 primaries; compiler102allUNRUN, Spec13PASS/NativeIndex3UNRUN, Jim34/45. No sectionF or global gate admitted.",
+  "disk_free_bytes": 2111406080,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
