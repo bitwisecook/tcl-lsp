@@ -3339,12 +3339,12 @@ mod tests {
         )
     }
 
-    fn original_argument_context<'a>(
-        registry: &'a CommandRegistry,
+    fn original_argument_context(
+        registry: &CommandRegistry,
         image: tcl_lexer::SourceImage,
         version: tcl_dialect::TclVersion,
         config: tcl_lexer::LexerConfig,
-    ) -> CodegenCtx<'a> {
+    ) -> CodegenCtx<'_> {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let mut context = CodegenCtx::new(true, &[], registry);
         context.invocation_dialect = Some(dialect);
@@ -3479,7 +3479,7 @@ mod tests {
                     b"A\0B".as_slice(),
                 ),
                 (
-                    r#"lrange {A\u0000B} 0 end"#,
+                    r"lrange {A\u0000B} 0 end",
                     Op::LIST_RANGE_IMM,
                     br"A\u0000B".as_slice(),
                 ),
@@ -3497,7 +3497,7 @@ mod tests {
                     let args = &parts[1..];
                     match parts[0].0.as_str() {
                         "list" => {
-                            context.emit_inline_hook_operands(source, "list", args, Some(&tokens))
+                            context.emit_inline_hook_operands(source, "list", args, Some(&tokens));
                         }
                         "lrange" => context.emit_inline_lrange(args),
                         "lreplace" => context.emit_inline_lreplace(args),
@@ -3548,7 +3548,7 @@ mod tests {
             let parts = parse_cmd_parts(source);
             let mut context = original_argument_context(&registry, image, version, config);
             context.with_invocation_tokens(Some(&tokens), |context| {
-                context.emit_inline_regexp(&parts[1..])
+                context.emit_inline_regexp(&parts[1..]);
             });
             assert!(
                 context

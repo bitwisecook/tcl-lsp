@@ -20,6 +20,7 @@
 
 use super::*;
 use crate::semantic_optimisation::SemanticOptimisationPassId;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 fn original_module() -> WasmModule {
@@ -139,7 +140,7 @@ fn provider(module: &WasmModule, failed: i32, status: i32, host: bool, entry: bo
         if provided.contains(&import.name.as_str()) {
             continue;
         }
-        source.push_str(&format!("(func (export \"{}\")", import.name));
+        let _ = write!(source, "(func (export \"{}\")", import.name);
         if !params.is_empty() {
             source.push_str(" (param ");
             source.push_str(

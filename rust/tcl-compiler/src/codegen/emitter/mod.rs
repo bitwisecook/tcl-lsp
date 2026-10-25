@@ -934,7 +934,7 @@ mod original_top_namespace_tests {
                 _ => {
                     changed.top_level_namespace_context = Some(
                         crate::command_binding::SourceNamespaceKey::authored("::donated"),
-                    )
+                    );
                 }
             }
             assert!(matches!(

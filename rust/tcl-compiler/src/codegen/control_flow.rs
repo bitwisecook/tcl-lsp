@@ -2466,7 +2466,7 @@ mod tests {
         context.set_source_image(image.clone());
         context.with_invocation_tokens(Some(&parent), |context| {
             context.with_invocation_tokens(Some(&child), |context| {
-                context.emit_try_handler_command(body)
+                context.emit_try_handler_command(body);
             });
             assert_eq!(
                 context.invocation_tokens.as_deref().unwrap().words(),
