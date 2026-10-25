@@ -50,10 +50,8 @@ impl OriginalProcedureStaticReadAlternatives {
                 self.original_child_read(call, metadata, name, span)
             );
         }
-        Some(child_read_guard!(
-            "child.no_matching_read",
-            found.then_some(())
-        ))
+        child_read_guard!("child.no_matching_read", found.then_some(()));
+        Some(())
     }
     fn original_child_read(
         &self,
