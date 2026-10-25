@@ -4084,3 +4084,5 @@ namespace and original formal topology to the retained static header. Every
 frame/context comparison then uses that same body issuer. Entered rows,
 foreign/equal-text sources, different allocations, remapped bodies and missing
 formals refuse; neither frame is retagged or made equal to another purpose.
+
+The static-read child view keeps a weak reference to the already validated positioned source owner. A differing known Procedure frame is accepted only after the same live producer recreates the full binding, including its lookup snapshot, and the existing header context or actual body ancestry owns that frame. The independently allocated original body snapshot retains its own frame/context; header and body frames are never equated. Unknown, retired, foreign or altered producer views refuse. Original operand roles, alias/residual checks and input/source guards remain mandatory; this view grants no physical read, Native or Normal completion.

@@ -85,7 +85,7 @@ impl OriginalProcedureStaticReadAlternatives {
         );
         child_read_guard!(
             "child.scope",
-            self.trace_original_child_scope(binding, &advice)
+            self.trace_original_child_scope(child, binding, &advice)
         );
         let child_context = child_read_guard!(
             "child.declaration_metadata",
@@ -167,6 +167,7 @@ impl OriginalProcedureStaticReadAlternatives {
 
     fn trace_original_child_scope(
         &self,
+        child: &crate::ir::CommandTokens,
         binding: &super::super::SourceInvocationBinding,
         advice: &super::super::OriginalCompilationLookupAdvice,
     ) -> Option<()> {
@@ -186,13 +187,17 @@ impl OriginalProcedureStaticReadAlternatives {
             return super::trace_static_read_refusal("child.snapshot_frame", None);
         }
         let binding_frame = &binding.variable_frame;
-        if binding_frame != frame {
+        if binding_frame != frame
+            && self
+                .original_known_child_binding_scope(child, binding, advice)
+                .is_none()
+        {
             let label = child_binding_frame_refusal(binding_frame, binding.lookup_state.is_some());
             return super::trace_static_read_refusal(label, None);
         }
         if !super::super::SourceCommandBindings::context_owns_frame(
             &binding.variable_context,
-            frame,
+            binding_frame,
             Some(&header.namespace),
         ) {
             return super::trace_static_read_refusal("child.binding_context", None);
@@ -219,6 +224,16 @@ impl OriginalProcedureStaticReadAlternatives {
         if advice.snapshot.state.variable_frame == header.frame {
             return Some(&header.frame);
         }
+        self.original_static_child_body(binding, advice)
+            .map(|body| body.frame())
+    }
+
+    fn original_static_child_body<'a>(
+        &'a self,
+        binding: &'a super::super::SourceInvocationBinding,
+        advice: &super::super::OriginalCompilationLookupAdvice,
+    ) -> Option<&'a Arc<super::super::SourceConditionalBodyEntry>> {
+        let header = &self.declaration.header;
         let rows = super::super::declaration_layout::original_declaration_layouts(
             binding.declaration_layout_observations.as_deref()?,
         )?;
@@ -258,7 +273,57 @@ impl OriginalProcedureStaticReadAlternatives {
         {
             return None;
         }
-        Some(body.frame())
+        Some(body)
+    }
+
+    /// Authenticate a known projection with its exact live producer before
+    /// relating its frame to the independent original body recipe.
+    fn original_known_child_binding_scope(
+        &self,
+        child: &crate::ir::CommandTokens,
+        binding: &super::super::SourceInvocationBinding,
+        advice: &super::super::OriginalCompilationLookupAdvice,
+    ) -> Option<()> {
+        if !matches!(
+            binding.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+        ) {
+            return None;
+        }
+        let lookup = binding.lookup_state.as_ref()?;
+        if lookup.state.variable_frame != binding.variable_frame {
+            return None;
+        }
+        let body = self.original_static_child_body(binding, advice)?;
+        let current = self.source_analysis.upgrade()?;
+        if current
+            .original_analysis_owner
+            .as_ref()
+            .is_none_or(|owner| !Arc::ptr_eq(owner, &self.owner))
+            || current.lexer_config != Some(self.input.lexer_config())
+            || current
+                .root_origin
+                .as_ref()
+                .is_none_or(|origin| !Arc::ptr_eq(origin, &advice.site.source))
+        {
+            return None;
+        }
+        let mut produced = child.clone();
+        current.stamp_original_tokens(&mut produced);
+        if produced.source_binding.as_ref() != Some(binding) {
+            return None;
+        }
+        let header = &self.declaration.header;
+        let header_owned = binding.variable_frame == header.frame
+            && super::super::SourceCommandBindings::context_owns_frame(
+                &binding.variable_context,
+                &header.frame,
+                Some(&header.namespace),
+            );
+        (header_owned
+            || (current.original_body_owns_frame(body, &binding.variable_frame)
+                && current.original_body_owns_context(body, &binding.variable_context)))
+        .then_some(())
     }
 
     /// Match each selected variable role to its own original written operand.
@@ -687,5 +752,133 @@ mod tests {
                     .is_none()
             );
         }
+    }
+    #[test]
+    fn known_child_projection_uses_live_producer_and_separate_body_scope() {
+        let input = input();
+        let current = unit(SOURCE, &input);
+        let (receipt, child, advice) = body_frame_evidence(&current, &input);
+        let binding = child.source_binding.as_ref().unwrap();
+        assert!(matches!(
+            binding.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+        ));
+        assert!(binding.lookup_state.is_some());
+        assert!(binding.original_source_operand_attachment.is_none());
+        let live = receipt.source_analysis.upgrade().unwrap();
+        let mut produced = child.clone();
+        live.stamp_original_tokens(&mut produced);
+        let produced_binding = produced.source_binding.as_ref().unwrap();
+        assert!(
+            produced_binding
+                .original_source_operand_attachment
+                .is_none()
+        );
+        assert_eq!(produced_binding, binding);
+        assert_eq!(
+            receipt.original_known_child_binding_scope(&child, binding, &advice),
+            Some(())
+        );
+        assert_ne!(
+            receipt.declaration.header.frame,
+            advice.snapshot.state.variable_frame
+        );
+        assert!(accepts(&current, &input));
+    }
+
+    #[test]
+    fn known_child_projection_refuses_consistently_replaced_producer_fields() {
+        let input = input();
+        let current = unit(SOURCE, &input);
+        let (receipt, child, advice) = body_frame_evidence(&current, &input);
+        for axis in 0..5 {
+            let mut changed = child.clone();
+            let binding = changed.source_binding.as_mut().unwrap();
+            if axis == 4 {
+                binding.lookup_state = None;
+            } else {
+                match axis {
+                    0 => binding.unknown = !binding.unknown,
+                    1 => {
+                        let variables = std::sync::Arc::make_mut(&mut binding.variable_context);
+                        variables.dynamic_bindings = !variables.dynamic_bindings;
+                    }
+                    2 => {
+                        binding.variable_frame =
+                            crate::var_resolve::VariableExecutionFrame::Procedure {
+                                namespace: "::".to_owned(),
+                                identity: "foreign-original-activation".to_owned(),
+                            };
+                        binding.variable_context = std::sync::Arc::new(
+                            binding.variable_context.in_frame(&binding.variable_frame),
+                        );
+                    }
+                    _ => {
+                        binding.variable_frame =
+                            crate::var_resolve::VariableExecutionFrame::Unknown;
+                        binding.variable_context = std::sync::Arc::new(
+                            binding.variable_context.in_frame(&binding.variable_frame),
+                        );
+                    }
+                }
+                let frame = binding.variable_frame.clone();
+                let variables = std::sync::Arc::clone(&binding.variable_context);
+                let snapshot = std::sync::Arc::make_mut(binding.lookup_state.as_mut().unwrap());
+                snapshot.state.variable_frame = frame;
+                snapshot.state.source_variables = variables;
+                if axis == 0 {
+                    snapshot.state.unclosed_command_world = !snapshot.state.unclosed_command_world;
+                }
+                snapshot.fingerprint = std::sync::OnceLock::new();
+                snapshot.compiler_name_effects = crate::command_binding::original_compiler_effects::SourceCompilerNameEffectsCache::default();
+            }
+            assert_eq!(
+                receipt.original_known_child_binding_scope(
+                    &changed,
+                    changed.source_binding.as_ref().unwrap(),
+                    &advice,
+                ),
+                None,
+                "altered producer axis {axis}",
+            );
+        }
+    }
+
+    #[test]
+    fn known_child_projection_refuses_foreign_and_retired_source_owner() {
+        let input = input();
+        let registry = input.borrowed_context_registry().commands();
+        let current = unit(SOURCE, &input);
+        let (mut receipt, child, advice) = body_frame_evidence(&current, &input);
+        let foreign = unit(SOURCE, &input);
+        let foreign_owner = foreign
+            .ir_module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .positioned_owner_for_module(&foreign.ir_module, registry)
+            .unwrap();
+        receipt.source_analysis = std::sync::Arc::downgrade(foreign_owner);
+        assert_eq!(
+            receipt.original_known_child_binding_scope(
+                &child,
+                child.source_binding.as_ref().unwrap(),
+                &advice,
+            ),
+            None,
+        );
+        let (retired, child, advice) = {
+            let retired_unit = unit(SOURCE, &input);
+            body_frame_evidence(&retired_unit, &input)
+        };
+        assert!(retired.source_analysis.upgrade().is_none());
+        assert_eq!(
+            retired.original_known_child_binding_scope(
+                &child,
+                child.source_binding.as_ref().unwrap(),
+                &advice,
+            ),
+            None,
+        );
     }
 }
