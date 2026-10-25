@@ -29,7 +29,9 @@ import resource
 import time
 from pathlib import Path
 
-STACK_FRAMES_SHA = "bfea2077ec3e3c166970478d3eb7d51d1d66c804d99609c70d211f478c5b203e"
+STACK_FRAMES_SHA = "0700346a97d8a0397e386f766a045a96a54ab148993720927c5a40ad000607cf"
+PROC_STACK_SELECTOR = 'interp::tests::unbounded_proc_recursion_errors_instead_of_crashing'
+PROC_STACK_SOURCE_SHA = 'a7c850610cb71c008339248f62dd8361806cb8416874dadaadcd40b9c1f724f3'
 EXECUTOR_SHA = "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
 ROSTER_SHA = "aa5b03f494b6eca91cf00b0b1d6d34e044dd231c76b16d7384e4e9399e6a493f"
 OTHER_ROSTER_SHA = "cda2e5059ae902b92ce9881852358f2fc4188e64d9c14518501cf2b5a6d24821"
@@ -479,6 +481,19 @@ def original_outcome(stdout, receipt):
     return "PASS" if label == "ok" else "FAIL"
 
 
+def proc_stack_source():
+    path = Path("runtime/rust/src/interp.rs")
+    pattern = r"(?:^    #\[[^\n]*\]\n)+^    fn unbounded_proc_recursion_errors_instead_of_crashing\(\) \{\n.*?^    }\n"
+    found = re.findall(pattern, path.read_text(), re.MULTILINE | re.DOTALL)
+    require(
+        len(found) == 1
+        and hashlib.sha256(found[0].encode()).hexdigest() == PROC_STACK_SOURCE_SHA,
+        "unchanged original unbounded procedure recursion assertion required",
+    )
+    return {"path": str(path), "source_sha256": sha(path),
+            "function_sha256": PROC_STACK_SOURCE_SHA}
+
+
 def run(out, source):
     supplemental = out / "supplement"
     supplemental.mkdir()
@@ -489,6 +504,8 @@ def run(out, source):
         for name in roster[group]
     ]
     save(supplemental / "outcomes.json", rows)
+    proc_row = {"group": "proc_stack1", "selector": PROC_STACK_SELECTOR, "status": "UNRUN"}
+    save(supplemental / "proc-stack-outcome.json", proc_row)
     save(
         supplemental / "prune-controls-outcomes.json",
         [row for row in rows if row["group"] == "prune_controls7"],
@@ -643,6 +660,64 @@ def run(out, source):
         ):
             errors.append("owned process/artifact/completeness guard failed")
             break
+    # Separate original procedure control after original3 plus all old128.
+    # Reuse their exact ELF, owner, environment and remaining aggregate budgets.
+    proc_errors = []
+    proc_source = proc_stack_source()
+    if not all(row["status"] in ["PASS", "FAIL", "ABORT"] for row in rows):
+        proc_errors.append("old131 execution incomplete; separate proc control remains UNRUN")
+    elif any(not row["process"]["group_empty_before_parent_reap"]
+             or not row["process"]["artifact_unchanged"] for row in rows):
+        proc_errors.append("old131 process or ELF guard failed")
+    elif not listed(suite, PROC_STACK_SELECTOR):
+        proc_errors.append("unchanged original proc selector absent or ignored")
+    elif suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+        proc_errors.append("remaining shared case/cleanup reserve unavailable for proc control")
+    elif used >= CAP:
+        proc_errors.append("remaining shared 20MiB log budget exhausted before proc control")
+    elif sha(binary) != prepared["elf_sha256"]:
+        proc_errors.append("same original3 ELF changed before proc control")
+    elif suite_deadline - time.monotonic() < 205 or absolute - time.time() < 205:
+        proc_errors.append("remaining shared case/cleanup reserve unavailable after ELF hash")
+    else:
+        prefix = supplemental / "proc-stack"
+        receipt = owner.run(
+            [str(binary), "--exact", PROC_STACK_SELECTOR, "--nocapture", "--test-threads=1"],
+            cwd=Path(suite["cwd"]), env=environment,
+            stdout_path=str(prefix) + ".stdout", stderr_path=str(prefix) + ".stderr",
+            receipt_path=str(prefix) + ".process.json", artifact_path=binary,
+            deadline_seconds=180, cap_bytes=CAP - used, disk_floor_bytes=FLOOR,
+            disk_paths=(Path.cwd(), out, binary.parent, Path(os.environ["RUNNER_TEMP"])),
+        )
+        used += receipt["retained_bytes"]
+        try:
+            proc_row["status"] = original_outcome(
+                Path(str(prefix) + ".stdout").read_text(), receipt)
+        except (RuntimeError, ValueError) as error:
+            proc_row["status"] = "INCOMPLETE"
+            proc_row["error"] = str(error)
+        proc_row["process"] = receipt
+        proc_row["stdout_sha256"] = sha(str(prefix) + ".stdout")
+        proc_row["stderr_sha256"] = sha(str(prefix) + ".stderr")
+        if not receipt["group_empty_before_parent_reap"] or not receipt["artifact_unchanged"]:
+            proc_errors.append("separate proc process or ELF guard failed")
+        if proc_row["status"] in ["UNRUN", "INCOMPLETE", "TIMEOUT"]:
+            proc_errors.append("separate proc execution incomplete")
+        if time.monotonic() > suite_deadline or time.time() > absolute:
+            proc_errors.append("shared suite or absolute deadline exceeded after proc control")
+        print(proc_row["group"], proc_row["selector"], proc_row["status"], flush=True)
+    proc_row["unrun_reasons"] = proc_errors if proc_row["status"] == "UNRUN" else []
+    save(supplemental / "proc-stack-outcome.json", proc_row)
+    save(supplemental / "proc-stack-summary.json", {
+        "source": source, "binary": str(binary), "elf_sha256": prepared["elf_sha256"],
+        "source_provenance": proc_source, "count": 1, "status": proc_row["status"],
+        "errors": proc_errors, "complete": not proc_errors,
+        "case_budget_seconds": 180, "suite_budget_seconds": 2400,
+        "workflow_bound_seconds": 3600, "aggregate_retained_log_bytes": used,
+        "aggregate_log_cap_bytes": CAP + 65536,
+        "scope": "Separate unchanged original proc test after old131, same fresh ELF and remaining budgets; no new build, reset, stack increase or gate substitution.",
+    })
+    errors.extend(proc_errors)
     unchanged = sha(binary) == prepared["elf_sha256"]
     if not unchanged:
         errors.append("ELF changed after supplemental cases")
@@ -665,6 +740,7 @@ def run(out, source):
             "counts": counts,
             "errors": errors,
             "complete": complete,
+            "separate_proc_stack_outcome": "proc-stack-outcome.json",
             "original3_receipts": "../terminal/summary.json and ../process-outcomes.json remain separate",
             "suite_budget_seconds": 2400,
             "case_budget_seconds": 180,
@@ -724,7 +800,7 @@ def run(out, source):
         125
         if not complete
         else 100
-        if any(row["status"] != "PASS" for row in rows)
+        if proc_row["status"] != "PASS" or any(row["status"] != "PASS" for row in rows)
         else 0
     )
 

@@ -57,6 +57,17 @@ WATCH = (
     "::execute_body_switch",
     "::native_command_selection",
     "::dispatch_native",
+    "::run_proc",
+    "::prepare_procedure_call",
+    "::execute_prepared_procedure_call",
+    "::finish_prepared_procedure_call",
+    "::run_selected_procedure_body",
+    "::execute_original_c_body",
+    "::run_native_body",
+    "::dispatch_selection_with_source",
+    "::dispatch_selection_with_entry",
+    "::dispatch_prebound_with_entry",
+    "::dispatch_traced",
 )
 
 
