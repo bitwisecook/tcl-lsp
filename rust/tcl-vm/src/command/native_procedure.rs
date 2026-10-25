@@ -220,6 +220,10 @@ impl NativeProcedureCommand {
         jim_namespace: Option<Value>,
     ) {
         let declaration = self.declaration();
+        declaration
+            .native_resources
+            .roles
+            .withdraw_compilation_custody();
         *declaration.native_resources.location.borrow_mut() = Some(NativeProcedureLocation {
             name,
             command_namespace: namespace,
@@ -245,6 +249,37 @@ impl Deref for NativeProcedureCommand {
 }
 
 impl ProcDef {
+    pub(crate) fn original_compilation_request(
+        &self,
+        original: &tcl_runtime_api::SourceImage,
+        namespace: &tcl_core_types::ByteNamespacePath,
+        complete_prefix_len: usize,
+        issuer: &tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> Result<
+        tcl_runtime_api::OriginalProcedureCompileRequest,
+        tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError,
+    > {
+        self.native_resources.roles.compilation_request(
+            issuer,
+            tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileInput {
+                original: original.clone(),
+                parameters: self
+                    .params
+                    .iter()
+                    .map(|parameter| parameter.name.clone())
+                    .collect(),
+                namespace: tcl_runtime_api::native_compilation::NativeNamespaceContext {
+                    path: namespace.clone(),
+                    token: u64::from(self.actual_namespace_id().0),
+                    interpreter,
+                },
+                complete_prefix_len,
+                reported_name: self.actual_name(),
+            },
+        )
+    }
+
     /// Only the actual selected-library publisher marks this declaration. Renames
     /// retain it; newly declared procedures cannot acquire it from source text.
     pub(crate) fn requires_original_jim_import_traversal(&self) -> bool {
@@ -506,6 +541,70 @@ mod tests {
         drop(native_local);
         assert_eq!(old.native_reference_count(), 0);
         assert_eq!(new_default.native_object_reference_count(), 1);
+    }
+
+    #[test]
+    fn relocation_withdraws_compilation_custody_before_the_next_compile() {
+        use tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileError;
+        let command = declaration(
+            Value::new_native_string_bytes(b"return $x".as_slice()),
+            Value::new_native_string_bytes(b"DEFAULT".as_slice()),
+        );
+        let original = command.declaration();
+        let interpreter = tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+            owner: 11,
+            interpreter: 2,
+        };
+        let issuer =
+            tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner::new(interpreter);
+        let image = tcl_runtime_api::SourceImage::native(b"return $x");
+        let request = original
+            .original_compilation_request(
+                &image,
+                &ByteNamespacePath::root(),
+                image.len(),
+                &issuer,
+                interpreter,
+            )
+            .unwrap();
+        assert!(request.is_live());
+        command.relocate(
+            "::N::q".into(),
+            tcl_core_types::NsId(7),
+            "q".into(),
+            ByteNamespacePath::from_segments(["N"]),
+            None,
+        );
+        assert!(Rc::ptr_eq(&original, &command.declaration()));
+        assert_eq!(original.native_reference_count(), 1);
+        assert!(
+            !request.is_live(),
+            "relocation itself withdraws the old context"
+        );
+        command.relocate(
+            "p".into(),
+            ROOT_NS,
+            "p".into(),
+            ByteNamespacePath::root(),
+            None,
+        );
+        assert!(
+            !request.is_live(),
+            "returning to the original namespace cannot revive custody"
+        );
+        assert_eq!(
+            original
+                .original_compilation_request(
+                    &image,
+                    &ByteNamespacePath::root(),
+                    image.len(),
+                    &issuer,
+                    interpreter,
+                )
+                .unwrap_err(),
+            OriginalProcedureCompileError::ChangedOriginal
+        );
+        assert!(!request.is_live());
     }
 
     #[test]
