@@ -2,11 +2,20 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-25T20:42:26.374955+00:00 (ACTIVE; c440 strictFULLAUTH2earlyClippy0RustE; Core43V2clear9ec8; allocationV4useranswerPENDING; finalcurrentpinunionawaitrootfreeze; no localRust)
+Last updated: 2026-10-25T21:20:47.380363+00:00 (ACTIVE;076strictFULLAUTH175Clippy0RustE;VM/Studioallgone;LSP5peer d602;208pinunion935alanded;allocation/APIanswersPENDING;nextstrictsoleowner)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+Current076strict40232937663/job121288343483 FULLAUTH104checks a0b64454ae8ffc4603b7ae248f7b67e9ae48002b2006d91662136488655b81fe:175Clippy/ZERO RustE, Compiler167(77files)/Server4/xtask3/Core1. VM20+Studio1 actualgone; all11boxediteration regressions actualgone. Core43fixed42; remainingCoreURI583actuallateuse wasmissedwrongsite inoldcohort, no all43closureclaim. LSPpaired5actualrepairs independently DEEP CLEARd602fe3e8d51802a5f30205146290006a4fead2ab0c1ed614ce7a2550bcaf8e1 (ccg-peer-lsp-strict076-small5-v1): actualURIusehoist/3unitclosuressemis/privateCopyenumResultpassedvalue withsame1prod+1testcall. NoEqderive/newguard/lock changes. Fourhost/unitlib+newleaf pendingsourcepins, CoreURI0; rootfinaluniononly afteractualsourcefreeze. Rootownsxtask3inclArcsemantics; Compiler167routedownersexactdiagnostics-by-file.json.
+
+Finale400union `ccg-e400-current-source-pin-union-work-v1` manifest94c44b71/patch1b08d77e independentlyCLEAR935a602bf8fe79e058b84e4f7732b1b1e73a3b7c794a1af73c071838a65138e4, rootlanded2b18. Exact23/17maps208records167distinctGitfiles,10files10scalarrefreshes, no newkeys; Core2newintegrationtarget/sourcepin+old2/new2cohorts/history/env/Specquiet/NamesLogical preserved. ActualRootpreflight13/30/20PASS is metadata/inputcoherence only.
+
+Next WORK diagnostic source candidates independentlycleared, currentwavehold respected: depthcaller `ccg-wasm-depth-caller-site-work-v1` manifesta8c8deb1/patchd436cd16 RuntimeDEEPclear d2db051d (sameevents/flag/512quota/filter; privateRusttrackcaller+purestaticLocation appendedafterborrows/quotaguard;0maps). Factory5Entryfirstleaf `ccg-byte-command-entry-first-leaf-work-v1` manifest1575464e/patch1f4b45f4 CompilerDEEPclear b682611a (all5failedpredicates one/order unchanged; sharedflag/128quota;0maps). ReadonlyfactsV2 Compilerpacket0a56fde6 independentlycleare69d9d38 (exact2moduleidentityinverse/F-R/fmt; sourceOptiononce/drop/eagerthen_some;97maxbody;0maps). Rootwillsequenceaftercoherentwave, actualnewcausesUNRUN.
+
+String3 firstgate source60a34dce independentlyDEEPclear2079dc2eae3a42c8fb4cf156f786a74f920770003b8762e1fdb81edcfbab295c, Runtimeprotocol7d6d5381 independentlyclear1fdd193f42ee3973299daddc5f1deddd80e754dd77219801694bcced689e416f. Exactsame3members independentlyjoinedtoRuntime5daZIP full-corpus-00.stdout original24selectedrow; sameactualpack/loader/forcedoverride/host/Sharedconsumer; zeroattemptstillFAILs oldrequire_live_hook_execution. Rootintegratesaftercurrentcoherentwave; no syntheticfixture/probe-as-passfix/full600guardweakening. AllocationV4 andNativeAPIuseranswersremainPENDING; no canonicalallocationhelperchangeornewgettergrant.
+
 
 Newest c440strict40230562056/job121281165688 FULLAUTH24checks assessment3e2d1b67: ONLY2early compilerobserverClippyprimaries, ZERO Rust E-codes. Names static_read_child53 unitargument andownnative_byte_compilation118 staticitemafterif maskbroader243, notclosure. Ownminimal WORK `ccg-factory-observer-static-item-work-v1` manifest31626b89/patch709e931c independentlyCLEAR95e56fd1, rootapplying; exactstaticdeclarationmove beforeflag/0topmaprefs, no runtimequery/order/count/admissionchange. Namesownsourcefix45e5. c238priorFULLAUTH133checksce1323db recorded243=242Clippy+serverE0369; LSPpatternrepair removesinlatestc440.
 

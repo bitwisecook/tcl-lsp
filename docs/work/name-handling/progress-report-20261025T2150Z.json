@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T21:50:33.175440+00:00",
+  "scheduled_report_utc": "2026-10-25T21:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T22:15:00+00:00",
+  "change_since_previous_report": [
+    "CurrentlastpushedWORKe295d0e897d902f7ebae4b2458a0ef9060bb3239/CLEANd55b5aa2fada5b88aafa69255ee34c0229a38950; localreviewedLSP5 d2ac/4d7b andWORKSpec3sourcef9bc awaitnextcoherentunion/push. 21:45reportactualtimestampretainedlate. SourcefunctionalfixesfirstWORK, pairedrelease; noPR/merge/tag/release.",
+    "All58originalcompiler casesremainfullyauthenticatedPASS on c440; whole10297P5F0UNRUN, scopedpreviouscandidatePASSregressions0. Passed9h/evidenceisrecorded. No globalorigin/rustzero-regression/auditadmission. FourreadonlypositiveandLogicalpointtestremainopen.",
+    "Jimbodyframe74de fullyauthenticatedb08cce94 all51reached, unchanged34P11F/45+2P3F5+extraFAIL. Newexactfirstrefusalchild.binding_frame; previoussnapshot_frame nowpasses. Sourcehasaggregateframe/context joins; no observedUnknowntagyet. Nextgenuinebody-row readreceiptmustretainaggregateowncurrentness, oldoperand/role factoriesandforeign-framecontrol; no retag/sparseformalbindingdonation.",
+    "076Core2+exactDefaultintegrationfullyauth43effc14: old2PASS/simpleexprPASS/factorialFAILsameoriginalexpectedinnerexprgap. Source076startupfullauth7453ef6e passesinitialdiagnostic+definition, referencesreturnsnullnextFAIL; prepareunreachedthere. C440refsPASSthenprepareNullremainseparate. MinifyV2observer+boundedcoarse/runtimeenvcompanion654589/4c1ccbreadyafterpeer, noactualtracesyet.",
+    "Actual175Clippy0RustE stilllatest076strict: Compiler167,Server4,xtask3,Core1. Pairedsmall5peer d602 integratedd2ac/4d7b; unrun. Remaining167compilerpartitioned23Compiler/5Codegen/139Names acrossdisjointfiles; Namesfirst22small+2longauthoredunreviewed, Codegen5longsource95acpeerready. Rootxtask3f698 standardsharedArcroute+2? simplificationspeer9e225qualified, notintegrated/noClippyclaim.",
+    "Logical9filegenuinesourcebodyproductV2hasconcretepeerHOLDS(realmagreementandexactcapturedinput), V3beingcorrected. No lexicalpointdonation/RootScriptfallback/Nativeformal topology orNormal/rootcompletiongrant. QuietSetactualdispatchpointproductunderpeerwithcontrols. VMone-linefinalframeworkinitgenuineC9scopeproposal+F5restorationcontrolawaitspeer; no firstphasecausalclosureclaimed.",
+    "WORK-onlysameactualstringpack3caseprobe source2079/runner1fddpeerready, oldfull600FAIL/old16unchanged; sourcef9bcintegratedonly, runner/finalpinsnext. Readonlyownedfacts/factory5leaf/depthcaller andminify witnessespeerreadyheldaftercoherentbatch. FullC1C2/UPF17/Jim2/reload/currentbaseline/shippingTclperformance/docs/comments/generated/packaging/prep-prremainopen.",
+    "Diskbrieflyfellbelow2GiB. WithNOlivecargo/rustc(allmatchingPIDsdefunctZ checkedbeforeEACHunlink), rootremovedonly12>24h supersedednonexe.rmeta,newestkept;146946902Breclaimed, receiptroot-superseded-nonexec-rmeta-reclaim-20261025T214551Z. No source/evidence/ZIP/testexecutableloss. Freeabout2.1GiB; no localbuild. ExternalBIGIP/perfstalenotified/no takeover. TwoexplicitnewuserchoicesstillPENDING(noanswer/decisionJSON/canonicalgrant). Next22:15."
+  ],
+  "committed": [
+    "ae50f078635b6306d9ea77bb37b4c77aa77cf916"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish21:45snapshot/rearm22:15, collectnewJim/strict/Defaultoutcomeswithhonestscope.",
+    "FinishLogicalV3/quietSet/genuineJimrowreceipt; runboundedfirstguardprobes andintegrateremainingstrictcohorts.",
+    "Keep2newuserdecisionspending; completeallcurrentCI/originzeroPASS-to-FAIL/shippingTclperformance/releasedocsandcleanupbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No global/auditadmission. Sourcepeerholds,actualselectedfailures,diskfloorandpendinguserdecisionsretained.",
+  "disk_free_bytes": 2259202048,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}
