@@ -103,7 +103,7 @@
     "rust/tcl-bytecode/src/lib.rs": "caa716b3ea51a768a8a25017e4817c3c2871f3be293316fb59440d4ebbc1e3a1",
     "rust/tcl-cmd-core/src/string.rs": "539b3299bb9fa860c13be52f2216174b5f9c4268cb668cdfc0106b2d1f2da49f",
     "rust/tcl-cmd-core/src/string/native_range.rs": "84c509b53f19b5a09401a87ec0d82d4194587d4d743d44a988294b144d4908b8",
-    "rust/tcl-compiler/src/codegen/statements.rs": "1654716952720a1f41a2caf9b9bb098788802aabbbc4c64e584170d20642d7c7",
+    "rust/tcl-compiler/src/codegen/statements.rs": "ca84ff3c1434d6bc3a1adaceec74febe557713d5c724ea1ece8c9f9f25d2a070",
     "rust/tcl-compiler/src/codegen/statements/native_scalar.rs": "13e1b5bcd159c2e0c0eabf33ff4e4b1be958899b9554ce1a37c59753e6c91679",
     "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "013b015dad427e3f072c87143bb8e2bdc11afe142f929314ab1233dacaa58d63",
     "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "459fd8f323dda37b2f689e7005944ecd635993a90a836b1ef90d208ffb5de5aa",
