@@ -1931,24 +1931,12 @@ is renamed or deleted in this file."
 
         // Physical namespace write advice retains exact keys. Authored
         // host-name advice remains separate in extra_known_defined.
-        let params_owned: HashSet<&str> = match ir_proc {
-            Some(p) => p.params.iter().map(String::as_str).collect(),
-            None => HashSet::new(),
-        };
-        let params = &params_owned;
-
-        let alternatives =
-            ir_proc.and_then(|procedure| self.static_read_alternatives(fu, procedure));
-        self.collect_chain_read_before_set_spans(
+        let _chain_read_owners = self.collect_declared_chain_read_spans(
             fu,
+            ir_proc,
             ctx,
-            params,
             &exists_guards,
-            W210DeclarationReads {
-                advice: declaration_advice.as_ref(),
-                statics: alternatives.as_ref(),
-                scope_aliases: ctx.scope_aliases,
-            },
+            declaration_advice.as_ref(),
             &mut w210_min,
         );
 
@@ -1975,6 +1963,38 @@ is renamed or deleted in this file."
         self.emit_w210_read_spans(w210_min, ctx);
         self.emit_declaration_potential_reads(potential);
         reported
+    }
+
+    fn collect_declared_chain_read_spans<'a, 'b>(
+        &mut self,
+        fu: &'a crate::compilation_unit::FunctionUnit,
+        ir_proc: Option<&'b crate::ir::Procedure>,
+        ctx: &ReadBeforeSetCtx<'_>,
+        exists_guards: &[super::helpers::ExistenceGuard],
+        declaration_advice: Option<&crate::script_binds::AuthoredProcedureReadAdvice>,
+        w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
+    ) -> (Option<StaticReadUseScope<'a>>, HashSet<&'b str>) {
+        let params_owned: HashSet<&str> = match ir_proc {
+            Some(p) => p.params.iter().map(String::as_str).collect(),
+            None => HashSet::new(),
+        };
+        let params = &params_owned;
+
+        let alternatives =
+            ir_proc.and_then(|procedure| self.static_read_alternatives(fu, procedure));
+        self.collect_chain_read_before_set_spans(
+            fu,
+            ctx,
+            params,
+            exists_guards,
+            W210DeclarationReads {
+                advice: declaration_advice,
+                statics: alternatives.as_ref(),
+                scope_aliases: ctx.scope_aliases,
+            },
+            w210_min,
+        );
+        (alternatives, params_owned)
     }
 
     fn collect_chain_read_before_set_spans(
