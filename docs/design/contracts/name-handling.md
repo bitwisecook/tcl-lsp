@@ -4019,6 +4019,14 @@ completion remain insufficient. Original command-link checks still apply. No
 physical variable frame, Native compiler admission or new deferred-body
 completion follows.
 
+The quiet-store issuer retains an opaque receipt for its exact analysis owner
+and selected invocation. Command-link coverage derives the invocation from that
+receipt; it cannot attach the proof to an unrelated selection. Only the generic
+unknown identity-transition obligation may be discharged by the actual quiet
+point and operand proof. Registry transition facts remain unknown, and ordinary
+consumers still refuse them. Existing trait, complete-role, command-name-role
+and declared-transition checks remain independent and unchanged.
+
 ### Authored uplevel source words
 
 An explicitly installed Logical uplevel dispatcher uses its own source-word entry.
