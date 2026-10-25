@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-25T15:12:47.132292+00:00
+Last updated: 2026-10-25T15:24:15.590275+00:00
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Resume 2026-10-25T15:24:15.590275+00:00: Paired genuine Jim called-static declaration-layout source FROZEN names-jim-called-static-layouts-v1 manifest1d16af8c WORK98a1be9a/CLEAN4c67dc36, current70a3 parents. Existing results/static exclusion and consumers unchanged; only original-layout merge from existing selected body/frame producer. Three focused compiler tests UNRUN, F/R/F0/fmt PASS. Once-only collector clone costs honestly recorded (Arc/COW inventories plus ordinary Vec/map/set clone), no measured timing/gains. Companion5cea5be7/660275cb parent+newchild Taint2 pins and sole driver digest, all23 census exactlyone parent consumer. Root owns peer/integration. Compiler fixture source018e and metadata7c4dcfa5 independently STATIC CLEAR; actualC86 scoped oracle preserved, all original assertions/corruption unchanged. Jim9cf fullauthba58fce1 still31/45; exact scoped-layout trace archived, no acceptance inferred.
 
 Resume 2026-10-25T15:12:47.132292+00:00: Names22pairedlint independentAstraCLEAR3b951c69 alreadydeliveredroot. Jim9cffullauthba58fce1 preciseOriginalrowabsence10chains (no cap); genuinecalledstaticsSourceLayout-only producer candidate underconstruction names-jim-called-static-layouts-v1: separateprivatecollectorafterexistinganalysiscollectors, oldstaticsresultfilter byteexact, existingbody/root/nominalframe seed/widening, copyONLYOriginalDeclarationlayouts. NoEntered/receiverrowadmission orNative/frame/value/Normalgrant. FocusedCUPIproducer+inventory-isolation+nonselectedpurpose controls plannedUNRUN; contractpaired. RootCompilerrequestsquick fixture-only peer compiler-logical-corrupt-point-fixture-v1 (puts$missing→putsliteral toreachpostargvpoint; originalcorruption/assertions/guards retained, C86argvvsentryoracle), handlingread-onlywithoutsourceoverlap. No canonicaledits/builds/perfclaims.
 

@@ -1,0 +1,227 @@
+{
+  "schema": "release-baseline-counterparts-source-audit-v1",
+  "pins": {
+    "repository": "bitwisecook/tcl-lsp",
+    "git_object_access": "cached objects only; remote.origin.promisor disabled for every git object read",
+    "baseline": {
+      "commit": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+      "tree": "88f3f3b34e9f5461b2bb26360196469a966ff8d5"
+    },
+    "current_work": {
+      "commit": "008aae58da7793075b241faf05cf1f7b6f8acd45",
+      "tree": "1d0f1099d7083a2e44736c98047d8114ad0a76d0"
+    },
+    "heavy_provenance_correction": "/workspace/naming-proof-storage/baseline-heavy-provenance-correction-v2/correction.json",
+    "baseline_named_inventory": "/workspace/naming-proof-storage/baseline-named-inventory-40187433105",
+    "baseline_observed_passes": 24624,
+    "baseline_heavy_observed_named_passes": 312,
+    "baseline_heavy_listing_attribution": "unresolved: corrected artifact belongs run 40188263258 / CLEAN 658de2e, not baseline; no selected listing artifact available"
+  },
+  "method": "File bytes and complete Rust function byte slices hashed directly from exact Git blobs; no formatting/source normalization. Current counterpart candidates are not outcome mappings.",
+  "baseline_heavy_missing_selector": {
+    "baseline_selector": "embedded::tests::itest_core_when_loader_contract",
+    "baseline_path": "rust/tcl-irule-test/src/embedded.rs",
+    "baseline_file_sha256": "1a3e04623a24853cb865198e814be0a05efee87888265b2de76c73e7d1850498",
+    "baseline_function_sha256": "5686ff1b37a6b0527d75f7d17b6e91f1e960c710dd3bdfe9b2c367746bb7bcad",
+    "baseline_first_line": 187,
+    "current_candidate_selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+    "current_path": "rust/tcl-irule-test/src/live.rs",
+    "current_file_sha256": "17f28ac1a2226049f1fddc4ec8c6566e9b049044adfa693191c55dac80a3e4c7",
+    "current_function_sha256": "c6ec9e9f334f20f73930b09e1c7936c4d82f7672e253d0ca7ec7006869945e31",
+    "current_first_line": 1047
+  },
+  "runtime_counterparts": [
+    {
+      "ordinal": 1,
+      "old_selector": "bytes_to_str_falls_back_on_invalid_utf8",
+      "old_path": "runtime/rust/src/value_ops.rs",
+      "old_file_sha256": "60767616a93cc6e322b76b0fc2ef575ee3062d0f3a22c5d6c7041d1a51fd1046",
+      "old_function_sha256": "a847c19ce10593b02eef0d56aab81613ea8df5cb2780278cbc9a93b1a3110a2a",
+      "old_first_line": 374,
+      "current_selector": "unicode_door_refuses_invalid_utf8_without_replacing_bytes",
+      "current_path": "runtime/rust/src/value_ops.rs",
+      "current_file_sha256": "53628078388d65bf460e3ad1e972754b80f5237cdcd1f593d56fad0ce5fce843",
+      "current_function_sha256": "50269cf025ec24363f7609365dd8a993986bf3e2b9c09ba45ec32c353200866b",
+      "current_first_line": 2688
+    },
+    {
+      "ordinal": 2,
+      "old_selector": "a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one",
+      "old_path": "runtime/rust/src/codegen_abi.rs",
+      "old_file_sha256": "2d1635b5de65029feaee729a212c128281ca0fcfb87ae226fdd5cee5eb938407",
+      "old_function_sha256": "fb855a2c1d87534f7afdb30562f25468a17761a72419f6101dd8d99eaa98f544",
+      "old_first_line": 4335,
+      "current_selector": "a_logged_statement_site_preserves_the_source_trace_without_instruction_identity",
+      "current_path": "runtime/rust/src/codegen_abi.rs",
+      "current_file_sha256": "2dbfd690259a97ea8bf6d4313bfdb9cc26cd5413ad86b6bbb0679e0572db266a",
+      "current_function_sha256": "860c3dabf300420400b7423761ee5efa1725eca5aa69b9273f2ef4fccf66d5a5",
+      "current_first_line": 5833
+    },
+    {
+      "ordinal": 3,
+      "old_selector": "retained_object_teardown_cannot_delete_replacement_private_dispatcher",
+      "old_path": "runtime/rust/src/cmd_namespace.rs",
+      "old_file_sha256": "6bb0a070976b3f89ccb927795f5f6434b52cf730826bc4ad099cae0eddbbcfe1",
+      "old_function_sha256": "bcba934d489dc1332d04e47ebd48fe91026eb5e86fe2c76e05c7baff70d17790",
+      "old_first_line": 1970,
+      "current_selector": "retained_object_teardown_preserves_recreated_method_dispatch",
+      "current_path": "runtime/rust/src/cmd_namespace.rs",
+      "current_file_sha256": "9568d7309e0a40fefe462208045a82811fa4c70e650449c2a14d2c5a2275bca8",
+      "current_function_sha256": "9990bcffe4f659511a94e1ac31d2b49711da99c47d558ae723335f8047e6ba5a",
+      "current_first_line": 4307
+    },
+    {
+      "ordinal": 4,
+      "old_selector": "interp_subcommand_words_resolve_like_tcl_get_index_from_obj",
+      "old_path": "runtime/rust/src/cmd_alias.rs",
+      "old_file_sha256": "7cf8877d95af773de66aadd7c4a9d84068e6b98c8c67093f2d47ad2929f9240b",
+      "old_function_sha256": "13314a880d81d95251ee2a87ef9de89cbc9eb4e9850799d9b93f6fbd317f8368",
+      "old_first_line": 942,
+      "current_selector": "interp_subcommand_words_resolve_like_original_native_option_tables",
+      "current_path": "runtime/rust/src/cmd_alias/native_option_tables.rs",
+      "current_file_sha256": "80b58b19ae0f53f8c32f4cc8f3875dbea914db7cd0057d43e0f674cebd1295a2",
+      "current_function_sha256": "42cc2fe063cb9d862f6bc53a718840fd91e9dfc5744c152dd126c8557070ba51",
+      "current_first_line": 94
+    },
+    {
+      "ordinal": 5,
+      "old_selector": "deeply_nested_foreach_errors_instead_of_crashing",
+      "old_path": "runtime/rust/src/interp.rs",
+      "old_file_sha256": "332f2ba60d8f0e4a348519a77117fa1c9ee130cabafd753358d8b61d4ef0368e",
+      "old_function_sha256": "2098fc8fccf9f91285d26c37ef8278f4e0244126db29f61b3690ae18897d4fc0",
+      "old_first_line": 12732,
+      "current_selector": "deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit",
+      "current_path": "runtime/rust/src/interp.rs",
+      "current_file_sha256": "8984a1ecdcbd52d52b4d21200f3acf82f0bcd8363ee64907592ed30d5cf04ee9",
+      "current_function_sha256": "b589ee0031a32345ec6a9536e56fbc3a18a7f224b2b07ae09ff9ddc255f1f350",
+      "current_first_line": 24402
+    },
+    {
+      "ordinal": 6,
+      "old_selector": "compiled_activation_defers_error_publication_to_its_own_leave",
+      "old_path": "runtime/rust/src/codegen_abi.rs",
+      "old_file_sha256": "2d1635b5de65029feaee729a212c128281ca0fcfb87ae226fdd5cee5eb938407",
+      "old_function_sha256": "85da28d5743f2b22c5d9ea509d678a12e0fcf9cf14c5715c3c72723b769e4808",
+      "old_first_line": 3333,
+      "current_selector": "compiled_activation_leave_retains_native_errors_for_public_read",
+      "current_path": "runtime/rust/src/codegen_abi.rs",
+      "current_file_sha256": "2dbfd690259a97ea8bf6d4313bfdb9cc26cd5413ad86b6bbb0679e0572db266a",
+      "current_function_sha256": "904d857a5dac8f8312fab80a43f8ad10b40a42584b17495b9f551592239c7a5d",
+      "current_first_line": 4538
+    },
+    {
+      "ordinal": 7,
+      "old_selector": "missing_alias_target_uses_global_unknown_not_caller_namespace_unknown",
+      "old_path": "runtime/rust/src/interp.rs",
+      "old_file_sha256": "332f2ba60d8f0e4a348519a77117fa1c9ee130cabafd753358d8b61d4ef0368e",
+      "old_function_sha256": "c4fff4dd7c1801fceb21f3647ed05cd34f315f3a6b5d33b65561ea2899fefa69",
+      "old_first_line": 12909,
+      "current_selector": "missing_alias_target_selects_the_native_handler_context",
+      "current_path": "runtime/rust/src/interp.rs",
+      "current_file_sha256": "8984a1ecdcbd52d52b4d21200f3acf82f0bcd8363ee64907592ed30d5cf04ee9",
+      "current_function_sha256": "ef266cfbb201325cd0cb2bbef9f7e5116ce1bb81ecd29f7fd1a26ff512122405",
+      "current_first_line": 24585
+    }
+  ],
+  "assertion_audit": {
+    "heavy_baseline_unlisted_reporter": {
+      "selector": "embedded::tests::itest_core_when_loader_contract",
+      "source_status": "baseline function exists byte-exact at pinned ed694; correction states reporter pass is among 312 baseline observed heavy passes but selector absent from selected listing; listing artifact belongs CLEAN 658 run 40188263258; no selected-list closure inferred.",
+      "old_assertions": [
+        {
+          "assertion": "embedded itest_core.tcl must contain the Rust consumer boundary text for tcl-irules::when_blocks",
+          "current_disposition": "reworded in current Tcl source; current live test candidate compares loader event registration with Rust when_blocks",
+          "classification": "partial source intent counterpart; no assertion outcome is inferred"
+        },
+        {
+          "assertion": "embedded itest_core.tcl must contain literal regex when\\s+([A-Z_][A-Z0-9_]*)",
+          "current_disposition": "old literal absent; current Tcl source explicitly says runtime does not duplicate syntax walker",
+          "classification": "changed implementation boundary; exact old guard removed; no C oracle covers this implementation string"
+        },
+        {
+          "assertion": "embedded itest_core.tcl must contain phrase Find the body (brace-balanced)",
+          "current_disposition": "old literal absent; current candidate uses behavior comparison with Rust when_blocks",
+          "classification": "changed implementation boundary; no direct assertion-level replacement evidenced"
+        }
+      ],
+      "recommended_next_action": "Keep listing identity discrepancy open. Preserve a named current behavior test for the intended Rust parser/loader agreement, and treat the two removed recipe-string checks as retired only if the current parser-owned boundary is the accepted contract."
+    },
+    "runtime_tests": [
+      {
+        "ordinal": 1,
+        "selector": "bytes_to_str_falls_back_on_invalid_utf8",
+        "current_selector": "unicode_door_refuses_invalid_utf8_without_replacing_bytes",
+        "classification": "UNRESOLVED changed contract",
+        "old_assertions": "invalid bytes [41 ff 42] decode to three chars and byte ff maps to U+00FF",
+        "current_assertions": "RawString unicode conversion rejects at valid_up_to=1 and preserves original bytes",
+        "evidence": "Existing C byte-array/object-storage observations retain invalid bytes but do not establish this Rust helper conversion contract.",
+        "recommended_next_action": "Keep unresolved until an existing decision or exact C Tcl oracle supports the chosen conversion policy."
+      },
+      {
+        "ordinal": 2,
+        "selector": "a_logged_statement_site_makes_the_compiled_error_identical_to_the_source_one",
+        "current_selector": "a_logged_statement_site_preserves_the_source_trace_without_instruction_identity",
+        "classification": "JUSTIFIED by recorded implementation contract; no provider-wide result",
+        "old_assertions": "source and compiled errorInfo/errorStack identical",
+        "current_assertions": "source errorInfo remains equal; logged statement keeps source error text while native errorStack carries returnImm instruction context",
+        "evidence": "Pinned current docs/design/analysis/name-resolution-proofs/compiled-procedure-fallback-and-source-log.md explicitly separates source trace from native instruction identity and links this exact control.",
+        "recommended_next_action": "Retain that contract-scoped distinction; do not claim all providers or source/compiled errorStack equivalence."
+      },
+      {
+        "ordinal": 3,
+        "selector": "retained_object_teardown_cannot_delete_replacement_private_dispatcher",
+        "current_selector": "retained_object_teardown_preserves_recreated_method_dispatch",
+        "classification": "JUSTIFIED by exact external C observation",
+        "old_assertions": "result OLD, private dispatcher command listing ::N::o::my, then NEW",
+        "current_assertions": "result OLD, empty public command listing, then NEW",
+        "evidence": "Pinned docs/design/analysis/name-resolution-proofs/namespace-original-command-holder-routing.md records C8.6+/C9 public result OLD {} NEW and says these controls do not establish private dispatcher existence.",
+        "recommended_next_action": "Keep the public tuple expectation and avoid interpreting it as private command-table evidence."
+      },
+      {
+        "ordinal": 4,
+        "selector": "interp_subcommand_words_resolve_like_tcl_get_index_from_obj",
+        "current_selector": "interp_subcommand_words_resolve_like_original_native_option_tables",
+        "classification": "PARTIAL C-oracle coverage; dropped success assertions unresolved",
+        "old_assertions": "root and child error diagnostics/prefix ambiguity plus interp cr, interp ev, deprecated interp sl, and child kid ev success results",
+        "current_assertions": "eight diagnostic-only sources (root empty/missing/c-prefix/e-prefix; child missing/empty/h/hi) compared against retained Tcl 8.4\u20139.1 and Jim fixture rows",
+        "evidence": "Pinned docs/design/analysis/name-resolution-proofs/interpreter-original-option-table-diagnostics.md and native_interpreter_option_tables210 receipts support retained diagnostic cases. The original success cases are not among the eight current source inputs.",
+        "recommended_next_action": "Keep positive coverage gap open or map each removed success assertion to an exact current test and C fixture."
+      },
+      {
+        "ordinal": 5,
+        "selector": "deeply_nested_foreach_errors_instead_of_crashing",
+        "current_selector": "deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit",
+        "classification": "ASSERTIONS RETAINED",
+        "old_assertions": "same 300 nested foreach source; Code::Error and exact too-many-nested-evaluations result",
+        "current_assertions": "same generated source and same two result assertions; current name scopes it to Runtime host evaluation limit",
+        "evidence": "Pinned docs/design/analysis/name-resolution-proofs/runtime-original-nested-foreach-source-completion.md records C/Jim depth-300 source completion success and explicitly distinguishes Runtime 128-evaluation host cap.",
+        "recommended_next_action": "Keep this as an implementation-limit test; do not treat its error result as original Tcl behavior."
+      },
+      {
+        "ordinal": 6,
+        "selector": "compiled_activation_defers_error_publication_to_its_own_leave",
+        "current_selector": "compiled_activation_leave_retains_native_errors_for_public_read",
+        "classification": "JUSTIFIED by recorded implementation contract; no provider-wide result",
+        "old_assertions": "no errorInfo cell write while activation held; after leave published errorInfo starts boom and errorCode is NONE",
+        "current_assertions": "same no-eager-cell observation; after leave use public original named-variable reads for published errorInfo/errorCode",
+        "evidence": "Pinned compiled-procedure-fallback-and-source-log.md expressly specifies public native error-variable Read after compiled leave and links this exact control.",
+        "recommended_next_action": "Keep contract scoped to this public Read path; no cross-version execution inferred."
+      },
+      {
+        "ordinal": 7,
+        "selector": "missing_alias_target_uses_global_unknown_not_caller_namespace_unknown",
+        "current_selector": "missing_alias_target_selects_the_native_handler_context",
+        "classification": "UNRESOLVED changed contract",
+        "old_assertions": "missing alias target invokes global unknown and returns global nosuch x",
+        "current_assertions": "8.5 keeps global unknown; 8.6+ expects namespace unknown handler and ns nosuch x",
+        "evidence": "callback-original-unknown-handler-lookup-scope.md is adjacent but its C Tcl inputs test direct namespace unknown triggers, not a missing interp alias target; no exact alias C oracle or recorded decision found in the pinned source scope.",
+        "recommended_next_action": "Keep the alias-specific 8.6+ expectation unresolved pending its exact existing oracle or decision."
+      }
+    ],
+    "limits": [
+      "No builds/tests executed.",
+      "No outcome is transferred by selector rename.",
+      "The baseline heavy selected listing remains unavailable; the 355-name listing is CLEAN 658 and is not baseline evidence."
+    ]
+  }
+}

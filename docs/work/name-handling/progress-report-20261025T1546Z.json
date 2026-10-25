@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-25T15:46:06.776768+00:00",
+  "scheduled_report_utc": "2026-10-25T15:45:00+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-25T16:15:00+00:00",
+  "change_since_previous_report": [
+    "Pushed current source WORK4bad4c91b641fd6e783871ac795c148a5e34fafe and release2d59c7a4107aa8cb4be9f325d7b61578c7015c1b. All functional fixes landed on WORK first; release counterparts and contracts are reviewed. No PR, merge, tag or release.",
+    "Authenticated008 strict/Spec/iRules/compiler captures stop at three compiler type errors: two retained-token-versus-span mismatches and unsupported ContextRegistry equality. Spec16, iRules3 and compiler102 are ALLUNRUN, not assertion failures or passes. The reviewed repair uses the retained original lexical token vector and exact existing context owner; no token fabrication or equality weakening.",
+    "Integrated the genuine Jim called-static layout issuer through the existing deferred walker. Only OriginalDeclaration layouts are merged. Existing static result exclusion and all owner/frame/alias/input guards remain; no Normal or execution permission is granted. One report clone outside the entire loop is disclosed, and performance remains unmeasured.",
+    "Integrated diagnostic registry V3 before analysis and pass capture, preserving full semantic-key equality, source/config/pack/epoch checks. Independent review fixed missing test imports and a real invalid-snapshot retention bug under the existing bounded scheduler attempts. Genuine folder-owned pack, stale config and same-epoch Pending-to-Indexed controls are included but unrun.",
+    "Corrected one negative fixture to use a literal puts argument so its evaluated dispatch point exists before deliberate corruption. Pinned C8.6 shows missing-variable arguments never enter puts while literal arguments do; both bodies compile. Compiler-visit semantics and every original corruption/assertion tail remain. Bounded WORK-only observers target readonly and browser coverage guards without changing permission or query order.",
+    "The nine-file current pin union has independent byte/AST/source review and V12PASS13startup inputs/30runners/20wholeguards. All previous source fields, selectors, order and budgets remain; only four existing failing readonly rows enable the existing observation flag. The SH21 false alarm was historical previous_source_pins: its live pin already matches approved current source, so no change is made.",
+    "Seven fresh focused runs are dispatched on exact4bad: strict, Spec with separate native-index3, compiler102, Jim, browser/WASI/unit hosts, startup/Core2 and iRules bootstrap3. Each capture has one owner; older useful CI jobs are preserved. No current run outcome or gate is inferred from reviewed source.",
+    "Main release formatting passes on current source; standalone runtime format check is still running at report preparation. Earlier static include closure remains scoped to its recorded source. Complete current green CI, zero origin/rust pass-to-fail, accepted Tcl performance, full documentation/generated/packaging/prep-pr and sectionF remain open.",
+    "Baseline counterpart audit identifies three unresolved source assertions: invalid UTF-8 policy, missing positive interpreter-option cases, and alias-target unknown behavior. Other counterparts have cited support, not synthetic outcomes. Baseline24624 observedPASS remains unchanged; the wrongly attributed355-test Heavy listing stays explicitly corrected.",
+    "Disk remains about2.2GiB. No local Rust builds or unsafe target/young-executable deletion. Only9cf extracted native payload remains; older authenticated ZIPs are retained. External BIGIP/perf trackers remain older than60minutes; user notified without taking over. Next checkpoint16:15."
+  ],
+  "committed": [
+    "4b24fa6b91edee30df11af551c74767c01e06d60"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish15:45 WIP/report and rearm16:15 reminder.",
+    "Authenticate seven4bad focused runs; fix actual diagnostics and behavioral failures.",
+    "Reconcile current baseline counterparts and full candidate CI when useful older jobs finish.",
+    "Obtain accepted shipping Tcl corpus performance, then finish all sectionF/docs/generated/packaging/prep-pr gates before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-24 03:22 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Recorded failed-build receipts replace no assertion outcome. Review and metadata checks do not admit runtime success. Agent table remains agent-reported, not validated; zero audit/sectionF/global admissions.",
+  "disk_free_bytes": 2256470016,
+  "baseline_ci_run": 40187433105,
+  "baseline_ci_sha": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463"
+}

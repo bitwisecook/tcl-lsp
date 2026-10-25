@@ -1,0 +1,19 @@
+{
+  "status": "NO MUTATION REQUIRED: live SH21 sourcepin already current",
+  "current_head": "4bad4c91b641fd6e783871ac795c148a5e34fafe",
+  "approved_product_commit": "0deeb47a6be40dccecd17a731d0b424c4f7665d1",
+  "source_sha_joins": {
+    "0deeb47a6be40dccecd17a731d0b424c4f7665d1": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+    "008aae58da7793075b241faf05cf1f7b6f8acd45": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+    "4bad4c91b641fd6e783871ac795c148a5e34fafe": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce"
+  },
+  "proposal_patch_sha256": "a9494c8443b64008b6c328b4d0d6c81bc98a8c03354fa73e343b0c237282a9c9",
+  "proposal_manifest_sha256": "ed9c6f329a0b3b7d9a36cc41196db42d279d08d84be4de98ce0cec1f609697f2",
+  "independent_product_peer_sha256": "75d434faa335f36427b598b565cac1c0e7dfd702d51a8316f9d047ae5215fafe",
+  "pin_companion_manifest": "/workspace/naming-proof-storage/compiler-sh21-literal-target-v4-pin-companion-v1/manifest.json",
+  "live_top_level_source_pin": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+  "historical_previous_source_pin": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70",
+  "classification": "The recursive census warning inspected approved_source_pin_refresh.previous_source_pins historical provenance. Actual executor validates ONLY top-level sh21_diagnostic[source_pins], which matches both actual008 and current source. Historical previous hash must remain unchanged.",
+  "no_outcome_relabel": true,
+  "no_repository_changes": true
+}

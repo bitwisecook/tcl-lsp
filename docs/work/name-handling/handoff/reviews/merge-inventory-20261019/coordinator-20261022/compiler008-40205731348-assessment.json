@@ -1,0 +1,1428 @@
+{
+  "utc": "2026-10-25T15:37:34.001749+00:00",
+  "run_id": 40205731348,
+  "job_id": 121206131221,
+  "artifact_id": 12603149700,
+  "source": "008aae58da7793075b241faf05cf1f7b6f8acd45",
+  "zip_bytes": 10917289,
+  "zip_sha256": "3d56ebbefb862f9897e6d7e592937f4b9ac8de5ff39dac9ee3eadb2f4634c43c",
+  "first_error": "RuntimeError('selected target build failed or unclosed: tcl_compiler')",
+  "final_errors": [],
+  "reported_seals": {
+    "artifacts": false,
+    "dependencies": true,
+    "providers": true,
+    "source": true,
+    "tools": true
+  },
+  "independently_recomputed_input_seals": {
+    "source": {
+      "independent_equal": true,
+      "before_entries": 126346,
+      "after_entries": 126346
+    },
+    "providers": {
+      "independent_equal": true,
+      "before_entries": 10202,
+      "after_entries": 10202
+    },
+    "dependencies": {
+      "independent_equal": true,
+      "before_entries": 21503,
+      "after_entries": 21503
+    },
+    "tools": {
+      "independent_equal": true
+    }
+  },
+  "original58_and_all35_envrecords_exact": true,
+  "all102_original_supplemental_closed16_readonly13_ancestry3_logical3_rosters_and_exact_current_envs": true,
+  "effective_group_outcomes": {
+    "original58": {
+      "UNRUN": 58
+    },
+    "supplemental-native35": {
+      "UNRUN": 3
+    },
+    "supplemental-sh21": {
+      "UNRUN": 2
+    },
+    "supplemental-readflow1": {
+      "UNRUN": 1
+    },
+    "diagnostic-catch1": {
+      "UNRUN": 1
+    },
+    "diagnostic-taint2": {
+      "UNRUN": 2
+    },
+    "diagnostic-closed-consumer": {
+      "UNRUN": 16
+    },
+    "diagnostic-inlining-readonly10": {
+      "UNRUN": 10
+    },
+    "diagnostic-original-body-owner3": {
+      "UNRUN": 3
+    },
+    "diagnostic-source-read-ancestry3": {
+      "UNRUN": 3
+    },
+    "diagnostic-logical-declared-read3": {
+      "UNRUN": 3
+    }
+  },
+  "outcomes": [
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::changed_plain_report_value_is_a_difference_after_current_owners_join",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::completed_report_request_cannot_capture_a_later_ordinary_analysis",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::report_capture_rejects_changed_producer_facts_and_unavailable_output",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::report_capture_rejects_equal_source_foreign_output_attachment",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::report_capture_requires_its_actual_source_build_request",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::authenticated_report::capture_controls::report_capture_self_comparison_requires_complete_current_owners",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "registry_invocation::source_remote_first_operand::tests::vendor_source_effect_summary_keeps_native_dialect_unavailable",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_RBS_SOURCE_OWNER": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "dangerous_sinks::eval_sink",
+      "target": "taint",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "target": "optimiser",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_CCG_ROW24": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "cu_catch_literal_body_threads_its_upvar",
+      "target": "var_escape_residual2",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "ir::source_bpf_command::tests::closed_bpf_effects_keep_script_module_registry_and_config_current",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_over_budget_scalar_tree",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "source::phase::tests::closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution",
+      "target": "bpf_tcl_ir",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "target": "bpf_tcl_ir",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "source::phase::tests::fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity",
+      "target": "bpf_tcl_ir",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "original58",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-native35",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_first_16_declarations_keep_actual_report_owners",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-native35",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_first_call_keeps_actual_report_owners",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-native35",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_complete_fixture_keeps_actual_report_owners",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-sh21",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_SH21_PRODUCER": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-sh21",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_SH21_PRODUCER": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "supplemental-readflow1",
+      "selector": "command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-catch1",
+      "selector": "cu_catch_literal_body_threads_its_upvar",
+      "target": "var_escape_residual2",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-taint2",
+      "selector": "dangerous_sinks::eval_sink",
+      "target": "taint",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_TAINT_CU_INGRESS": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-taint2",
+      "selector": "taint::source_context::original_standalone_unit_tests::explicit_standalone_unit_uses_its_current_original_token_owner",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_TRACE_TAINT_CU_INGRESS": "1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_owners_reject_foreign_superseded_and_consumed_selections",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_recapture_and_foreign_literal_owner_refuse_retained_preparation",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::actual_rebinding_and_owned_sink_refusal_prevent_a_grant_or_consume",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::private_consumer_preserves_the_complete_transcript",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::observer_channels_dynamic_heads_and_external_cells_are_not_admitted",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "closed_native_execution::tests::arithmetic_and_output_bounds_refuse_before_publication",
+      "target": "tcl_engine_tclvm",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "native_literal::empty_world_tests::retained_empty_observation_never_recaptures_or_revives_a_receipt",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "native_literal::empty_world_tests::empty_world_capture_is_bound_to_actual_owner_epoch_and_capture",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "diagnostic_output::tests::silence_is_thread_owned_and_has_no_restore_boundary",
+      "target": "tcl_runtime_api",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "pack_hooks::tests::private_worker_denies_installer_queries_and_receiver_installation",
+      "target": "tcl_registry",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "pack_hooks::tests::private_worker_denial_does_not_clear_an_existing_receiver",
+      "target": "tcl_registry",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_remains_correspondence_without_a_consumer",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_refuses_unbounded_and_unclassified_expression_effects",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::preparation_rejects_large_work_before_full_analysis",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_bounds_source_before_compilation_unit_preparation",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-closed-consumer",
+      "selector": "optimiser::closed_consumer::tests::closed_plan_retains_the_exact_source_and_registry_semantics",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_large_pure_leaf_one_caller_is_if_single_call",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_large_pure_leaf_two_callers_is_never",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_missing_summary_is_never",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_non_pure_leaf_is_never",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_small_pure_leaf_is_always",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "classify_threshold_boundary_is_always",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "statement_count_empty_body_is_zero",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "statement_count_flat_body_counts_top_level",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "statement_count_nested_if_counts_inner",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-inlining-readonly10",
+      "selector": "static_call_count_drives_large_proc_decision",
+      "target": "inlining",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "selector": "compilation_unit::tests::authored_fixture_lookup_keeps_actual_body_owner_without_publication",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "selector": "compilation_unit::tests::authored_fixture_lookup_refuses_duplicate_reporting_labels",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-original-body-owner3",
+      "selector": "ir::original_source_procedure_inventory_tests::original_declaration_summary_inventory_requires_issued_body_and_allocation",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::nested_plain_and_normal_case_bodies_retain_exact_procedure_ancestry",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::original_namespace_and_frame_boundaries_do_not_inherit_read_scope",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-source-read-ancestry3",
+      "selector": "command_binding::source_read_scope::read_body_ancestry_tests::exact_original_parent_read_scope_remains_available",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::logical_missing_layout_keeps_conditional_reads_without_faking_an_observation",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::logical_missing_layout_does_not_override_corrupt_reached_point_metadata",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    },
+    {
+      "group": "diagnostic-logical-declared-read3",
+      "selector": "command_binding::declaration_flow::conditional_declared_read_point_tests::conditional_read_scope_keeps_unknown_prefix_and_wrong_point_refusals",
+      "target": "tcl_compiler",
+      "state": "UNRUN",
+      "env": {},
+      "effective_state": "UNRUN"
+    }
+  ],
+  "owned_processes": [
+    {
+      "index": 0,
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "artifact": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "closed": true,
+      "exit_code": 0,
+      "elapsed_seconds": 3.716352514,
+      "deadline_seconds": 600,
+      "stop_reason": null,
+      "minimum_free_bytes": 75421184000
+    },
+    {
+      "index": 1,
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "artifact": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "closed": true,
+      "exit_code": 101,
+      "elapsed_seconds": 89.664395323,
+      "deadline_seconds": 2400,
+      "stop_reason": null,
+      "minimum_free_bytes": 74775609344
+    }
+  ],
+  "selected_artifacts": [],
+  "build_diagnostics": [
+    {
+      "file": "build-tcl_compiler.stdout",
+      "message": {
+        "rendered": "error[E0308]: mismatched types\n   --> rust/tcl-compiler/src/registry_invocation/source_availability.rs:159:29\n    |\n155 |                         .retained_original_tokens(\n    |                          ------------------------ arguments to this method are incorrect\n...\n159 |                             &self.invocation.argv,\n    |                             ^^^^^^^^^^^^^^^^^^^^^ expected `&[Token]`, found `&Vec<Span>`\n    |\n    = note: expected reference `&[tcl_lexer::Token]`\n               found reference `&Vec<tcl_lexer::Span>`\nnote: method defined here\n   --> rust/tcl-compiler/src/realm/original_tokens.rs:70:19\n    |\n 70 |     pub(crate) fn retained_original_tokens(\n    |                   ^^^^^^^^^^^^^^^^^^^^^^^^\n...\n 75 |         representatives: &[Token],\n    |         -------------------------\n\n",
+        "$message_type": "diagnostic",
+        "children": [
+          {
+            "children": [],
+            "code": null,
+            "level": "note",
+            "message": "expected reference `&[tcl_lexer::Token]`\n   found reference `&Vec<tcl_lexer::Span>`",
+            "rendered": null,
+            "spans": []
+          },
+          {
+            "children": [],
+            "code": null,
+            "level": "note",
+            "message": "method defined here",
+            "rendered": null,
+            "spans": [
+              {
+                "byte_end": 2564,
+                "byte_start": 2539,
+                "column_end": 34,
+                "column_start": 9,
+                "expansion": null,
+                "file_name": "rust/tcl-compiler/src/realm/original_tokens.rs",
+                "is_primary": false,
+                "label": "",
+                "line_end": 75,
+                "line_start": 75,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [
+                  {
+                    "highlight_end": 34,
+                    "highlight_start": 9,
+                    "text": "        representatives: &[Token],"
+                  }
+                ]
+              },
+              {
+                "byte_end": 2435,
+                "byte_start": 2411,
+                "column_end": 43,
+                "column_start": 19,
+                "expansion": null,
+                "file_name": "rust/tcl-compiler/src/realm/original_tokens.rs",
+                "is_primary": true,
+                "label": null,
+                "line_end": 70,
+                "line_start": 70,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [
+                  {
+                    "highlight_end": 43,
+                    "highlight_start": 19,
+                    "text": "    pub(crate) fn retained_original_tokens("
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "level": "error",
+        "message": "mismatched types",
+        "spans": [
+          {
+            "byte_end": 6825,
+            "byte_start": 6804,
+            "column_end": 50,
+            "column_start": 29,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+            "is_primary": true,
+            "label": "expected `&[Token]`, found `&Vec<Span>`",
+            "line_end": 159,
+            "line_start": 159,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 50,
+                "highlight_start": 29,
+                "text": "                            &self.invocation.argv,"
+              }
+            ]
+          },
+          {
+            "byte_end": 6596,
+            "byte_start": 6572,
+            "column_end": 50,
+            "column_start": 26,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+            "is_primary": false,
+            "label": "arguments to this method are incorrect",
+            "line_end": 155,
+            "line_start": 155,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 50,
+                "highlight_start": 26,
+                "text": "                        .retained_original_tokens("
+              }
+            ]
+          }
+        ],
+        "code": {
+          "code": "E0308",
+          "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+        }
+      }
+    },
+    {
+      "file": "build-tcl_compiler.stdout",
+      "message": {
+        "rendered": "error[E0308]: mismatched types\n   --> rust/tcl-compiler/src/registry_invocation/source_availability.rs:190:67\n    |\n190 |             realm.retained_original_tokens(image, config, offset, &self.0.argv),\n    |                   ------------------------                        ^^^^^^^^^^^^ expected `&[Token]`, found `&Vec<Span>`\n    |                   |\n    |                   arguments to this method are incorrect\n    |\n    = note: expected reference `&[tcl_lexer::Token]`\n               found reference `&Vec<tcl_lexer::Span>`\nnote: method defined here\n   --> rust/tcl-compiler/src/realm/original_tokens.rs:70:19\n    |\n 70 |     pub(crate) fn retained_original_tokens(\n    |                   ^^^^^^^^^^^^^^^^^^^^^^^^\n...\n 75 |         representatives: &[Token],\n    |         -------------------------\n\n",
+        "$message_type": "diagnostic",
+        "children": [
+          {
+            "children": [],
+            "code": null,
+            "level": "note",
+            "message": "expected reference `&[tcl_lexer::Token]`\n   found reference `&Vec<tcl_lexer::Span>`",
+            "rendered": null,
+            "spans": []
+          },
+          {
+            "children": [],
+            "code": null,
+            "level": "note",
+            "message": "method defined here",
+            "rendered": null,
+            "spans": [
+              {
+                "byte_end": 2564,
+                "byte_start": 2539,
+                "column_end": 34,
+                "column_start": 9,
+                "expansion": null,
+                "file_name": "rust/tcl-compiler/src/realm/original_tokens.rs",
+                "is_primary": false,
+                "label": "",
+                "line_end": 75,
+                "line_start": 75,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [
+                  {
+                    "highlight_end": 34,
+                    "highlight_start": 9,
+                    "text": "        representatives: &[Token],"
+                  }
+                ]
+              },
+              {
+                "byte_end": 2435,
+                "byte_start": 2411,
+                "column_end": 43,
+                "column_start": 19,
+                "expansion": null,
+                "file_name": "rust/tcl-compiler/src/realm/original_tokens.rs",
+                "is_primary": true,
+                "label": null,
+                "line_end": 70,
+                "line_start": 70,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [
+                  {
+                    "highlight_end": 43,
+                    "highlight_start": 19,
+                    "text": "    pub(crate) fn retained_original_tokens("
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "level": "error",
+        "message": "mismatched types",
+        "spans": [
+          {
+            "byte_end": 7870,
+            "byte_start": 7858,
+            "column_end": 79,
+            "column_start": 67,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+            "is_primary": true,
+            "label": "expected `&[Token]`, found `&Vec<Span>`",
+            "line_end": 190,
+            "line_start": 190,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 79,
+                "highlight_start": 67,
+                "text": "            realm.retained_original_tokens(image, config, offset, &self.0.argv),"
+              }
+            ]
+          },
+          {
+            "byte_end": 7834,
+            "byte_start": 7810,
+            "column_end": 43,
+            "column_start": 19,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_availability.rs",
+            "is_primary": false,
+            "label": "arguments to this method are incorrect",
+            "line_end": 190,
+            "line_start": 190,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 43,
+                "highlight_start": 19,
+                "text": "            realm.retained_original_tokens(image, config, offset, &self.0.argv),"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "code": "E0308",
+          "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+        }
+      }
+    },
+    {
+      "file": "build-tcl_compiler.stdout",
+      "message": {
+        "rendered": "error[E0369]: binary operation `==` cannot be applied to type `&ContextRegistry`\n   --> rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:452:58\n    |\n452 |                     && input.borrowed_context_registry() == context\n    |                        --------------------------------- ^^ ------- &ContextRegistry\n    |                        |\n    |                        &ContextRegistry\n    |\nnote: `ContextRegistry` does not implement `PartialEq`\n   --> rust/tcl-registry/src/model/assembly.rs:108:1\n    |\n108 | pub struct ContextRegistry {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ `ContextRegistry` is defined in another crate\n\n",
+        "$message_type": "diagnostic",
+        "children": [
+          {
+            "children": [],
+            "code": null,
+            "level": "note",
+            "message": "`ContextRegistry` does not implement `PartialEq`",
+            "rendered": null,
+            "spans": [
+              {
+                "byte_end": 5095,
+                "byte_start": 5069,
+                "column_end": 27,
+                "column_start": 1,
+                "expansion": null,
+                "file_name": "rust/tcl-registry/src/model/assembly.rs",
+                "is_primary": true,
+                "label": "`ContextRegistry` is defined in another crate",
+                "line_end": 108,
+                "line_start": 108,
+                "suggested_replacement": null,
+                "suggestion_applicability": null,
+                "text": [
+                  {
+                    "highlight_end": 27,
+                    "highlight_start": 1,
+                    "text": "pub struct ContextRegistry {"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "level": "error",
+        "message": "binary operation `==` cannot be applied to type `&ContextRegistry`",
+        "spans": [
+          {
+            "byte_end": 17017,
+            "byte_start": 16984,
+            "column_end": 57,
+            "column_start": 24,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+            "is_primary": false,
+            "label": "&ContextRegistry",
+            "line_end": 452,
+            "line_start": 452,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 57,
+                "highlight_start": 24,
+                "text": "                    && input.borrowed_context_registry() == context"
+              }
+            ]
+          },
+          {
+            "byte_end": 17028,
+            "byte_start": 17021,
+            "column_end": 68,
+            "column_start": 61,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+            "is_primary": false,
+            "label": "&ContextRegistry",
+            "line_end": 452,
+            "line_start": 452,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 68,
+                "highlight_start": 61,
+                "text": "                    && input.borrowed_context_registry() == context"
+              }
+            ]
+          },
+          {
+            "byte_end": 17020,
+            "byte_start": 17018,
+            "column_end": 60,
+            "column_start": 58,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 452,
+            "line_start": 452,
+            "suggested_replacement": null,
+            "suggestion_applicability": null,
+            "text": [
+              {
+                "highlight_end": 60,
+                "highlight_start": 58,
+                "text": "                    && input.borrowed_context_registry() == context"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "code": "E0369",
+          "explanation": "A binary operation was attempted on a type which doesn't support it.\n\nErroneous code example:\n\n```compile_fail,E0369\nlet x = 12f32; // error: binary operation `<<` cannot be applied to\n               //        type `f32`\n\nx << 2;\n```\n\nTo fix this error, please check that this type implements this binary\noperation. Example:\n\n```\nlet x = 12u32; // the `u32` type does implement it:\n               // https://doc.rust-lang.org/stable/std/ops/trait.Shl.html\n\nx << 2; // ok!\n```\n\nIt is also possible to overload most operators for your own type by\nimplementing traits from `std::ops`.\n\nString concatenation appends the string on the right to the string on the\nleft and may require reallocation. This requires ownership of the string\non the left. If something should be added to a string literal, move the\nliteral to the heap by allocating it with `to_owned()` like in\n`\"Your text\".to_owned()`.\n"
+        }
+      }
+    }
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/shimmer/hints.rs": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1",
+    "rust/tcl-compiler/src/shimmer/use_site.rs": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+    "rust/tcl-compiler/src/shimmer/commit.rs": "5624cc34653344cfeec645fdb1d08e43bbcd19f26d813df16a3c5f116f3e4936",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "fce78aeb2f2197fa38ed1f16190bbb958a7ac4e08e9afdf6930534cfaf33464c",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py": "c00a725f02522cbc41e262e8afb22d70b0b309b219e0e4e5bdfcc8f30cb89a06",
+    "docs/work/name-handling/validation-tools/compiler-original58-table-filter.py": "7fcb9fec2c51b591a70845703c78b4326b2e24a3b7ec915279ebfc6d7f80b03b"
+  },
+  "remaining_log_bytes": 20812350,
+  "independent_lossless_reconstruction": {
+    "cases": 0,
+    "encoded_bytes": 0,
+    "decoded_bytes": 0,
+    "all_byte_counts_and_SHA_match": true,
+    "ordinary_stderr_verbatim": false,
+    "scope": "Exactly reconstructs approved post-table stderr; preexisting table summaries remain summarized; repeat informational counters not admitted."
+  },
+  "limits": [
+    "No binary payload is uploaded; child ELF before/after SHA is driver-sealed from freshCargo artifact, linked to separately owned outerPython/unchangedfilter/exactselector/actualchildexit and full terminal. Independent payload rehash unavailable.",
+    "RawRUNNING without actual process/summary/terminal remains effectiveUNRUN. Interrupted child is not assertionFAIL or PASS; original58 and separate Native3/SH2/ReadFlow1 counts are separate.",
+    "No global release/Clippy/sharedprocess/performance acceptance inferred. Prior closed failures remain unless exact current selected assertions actually execute."
+  ]
+}

@@ -1,6 +1,6 @@
 # Outstanding work: vm-runtime agent
 
-Last updated: 2026-10-25T15:07:39.585402+00:00
+Last updated: 2026-10-25T15:21:44.288830+00:00
 Area: standalone runtime, assigned shared-VM source triage and independent peers.
 Historical full snapshot: vm-runtime-tracker-20261024T134659Z.md.gz (lossless); prior114310/0255/0431/0625 preserved.
 
@@ -23,6 +23,10 @@ Runtime13540201526367 exact9cf FULL scoped auth CURRENT receipt-current.json c03
 Erroringress FINALV2 integrated root WORKfc4afb/CLEAN62442; sourcepeer3d5e70ef/metadatab7518d15. VM Jim mutable slice branch preserved; V1 typing defect explicitly held, not promoted. NextSpec fresh unchangedhostile retry pending. Separate NativeIndex3 protocol d00a5723/prooff6b05dcd independently CLEAR11f7139f; exact old11+Native1+hostile1 retained, fresh tcl_vm actuallib-test ELF afterthem with exact3 listing and sharedbounds. Root integration/dispatch pending actualUNRUN. Long11+VMexec+RBS4 metadata V1 held on keyorder byteinverse; successorV2 independently CLEAR2382abc1 after wholeJSON byteinverse/all23ALLpin census. No VMsource mutation from that metadata.
 
 Root assigns VM sole upcoming irules-preflight artifact/auth/firstDIRECTfacet. Current actualsource fullinventory59/14, selectedunchangedbootstrap1+trace2, existing first-decline flag. Five NativeDirect guardpredicates remain intact; old658Heavy genericerror alone cannot identifyfacet. Mixed explicitF5 logicalC84/C9 actual sourcepath is structural lead only, no repair inferred before actualfirstfacet. No localRustbuild or duplicateZIP.
+
+## Fresh008 actual failed-build checkpoint
+
+Spec40205731422/job121206131593 andirules40205733827/job121206139096 BOTH exact008aae58 STOPPED on same3compilerlib errors beforetests: source_availability159/190 spans supplied toToken API, source_scoped_body452 ContextRegistry equality lacksPartialEq. Compilerowner assigned genuine typedrepair; no VMpolicy change proposed. Spec original11+Native1+hostile1+index3 ALL16UNRUN; irules original3 ALLUNRUN, NOactualDIRECTfacet. SingleZIPs retained vm-spectcl-actual-40205731422/artifact.zip (76e2388d/10180892B), vm-irules-actual-40205733827/artifact.zip (b43a96d1/10183894B). FULLfailedbuild receipt9f8e359c/a73c7384 includes API/source/NULmembership/criticalGitpins/CRC+memberSHA/provider/deps/tools/ownedbuild/CAP closure; nofreshELFs and artifactssealfalse correctly retained. Prior9cf Spec12PASS/hostileFAIL remainshistoricalqualification, notfresh008 acceptance. MainVM3, newerror2 andunchangedhostile retry stillUNRUN; no newgeneralparityscope.
 
 ## Resume and authority
 
