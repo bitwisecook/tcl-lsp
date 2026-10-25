@@ -1689,6 +1689,14 @@ segmentation purpose. Detached decoded or generated strings cannot recapture
 an original body occurrence. These source roles do not grant Native execution,
 read erasure or transformation authority beyond the consumer's existing guards.
 
+Syntax compaction may also descend through Expr substitutions selected by the
+same retained original body compiler inventory. Every compiler alternative
+must agree on the original source vector, input, Registry, schema and complete
+expression grammar. These source-only regions retain absolute document spans
+and unavailable caller context; they do not grant Native lookup, an entered
+frame, completion or rename coverage. Each expression gap still needs its
+independent original token correspondence proof.
+
 Configured scalar-component proposals validate the exact name and boundary
 against the complete following rendered fragment. Whole-word component
 correspondence preserves ordered literal data, scalar names, original array
