@@ -28,38 +28,7 @@ fn unhex(bytes: &str) -> Vec<u8> {
 #[test]
 fn original_namespace_tail_matches_one_hundred_counted_native_windows() {
     let mut windows = 0;
-    for (engine, table) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, table) in tail_windows() {
         let mut vm =
             crate::native_fixture::interpreter(tcl_dialect::DialectProfile::find(engine).unwrap());
         vm.try_eval_source("proc originalTail {value} {namespace tail $value}")
@@ -189,44 +158,7 @@ fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_window
     // naming.namespace.original-counted-qualifiers-compiler-and-runtime
 
     let mut windows = 0;
-    for (engine, table) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv"
-            ),
-        ),
-        (
-            "jim",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, table) in qualifiers_windows() {
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
         vm.try_eval_source("proc originalQualifiers {value} {namespace qualifiers $value}")
@@ -408,54 +340,8 @@ fn original_empty_counted_append_preserves_the_reached_release_conversion() {
 
 #[test]
 fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
-    use tcl_syntax::native_object::NativeObjectCacheSnapshot;
-
-    fn primary(cache: &NativeObjectCacheSnapshot) -> &'static str {
-        match cache {
-            NativeObjectCacheSnapshot::None => "NULL",
-            NativeObjectCacheSnapshot::String { .. } => "string",
-            NativeObjectCacheSnapshot::Numeric(
-                tcl_syntax::scalar_getter::NativeScalarCache::Number(
-                    tcl_syntax::number::Number::Int(_),
-                ),
-            ) => "int",
-            _ => panic!("fixed native constructor primary: {cache:?}"),
-        }
-    }
-
     let mut windows = 0;
-    for (engine, fixture) in [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.4.20/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.5.19/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.6.18/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/9.0.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/9.1.0/stdout.tsv"
-            ),
-        ),
-    ] {
+    for (engine, fixture) in empty_append_windows() {
         let vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
         let dialect = vm.native_scalar_carrier_dialect();
@@ -499,7 +385,7 @@ fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
                 .split('|')
                 .collect::<Vec<_>>();
             assert_eq!(
-                primary(&before.cache),
+                empty_append_primary(&before.cache),
                 original[2],
                 "{engine}/{label}: before primary"
             );
@@ -517,7 +403,7 @@ fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
             .unwrap();
             let after = output.native_object_snapshot();
             assert_eq!(
-                primary(&after.cache),
+                empty_append_primary(&after.cache),
                 fields[2],
                 "{engine}/{label}: after primary"
             );
@@ -650,5 +536,132 @@ fn registered_string_index_keeps_c86_reached_surrogate_pair_instruction_behavior
         .unwrap();
         assert_eq!(result.native_object_type_name(), "none");
         assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), expected);
+    }
+}
+
+fn tail_windows() -> [(&'static str, &'static str); 5] {
+    [
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.4.20/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.5.19/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.6.18/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.0.4/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.1.0/stdout.tsv"
+            ),
+        ),
+    ]
+}
+
+fn qualifiers_windows() -> [(&'static str, &'static str); 6] {
+    [
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv"
+            ),
+        ),
+        (
+            "jim",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv"
+            ),
+        ),
+    ]
+}
+
+fn empty_append_windows() -> [(&'static str, &'static str); 5] {
+    [
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_empty_counted_append/8.4.20/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_empty_counted_append/8.5.19/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_empty_counted_append/8.6.18/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_empty_counted_append/9.0.4/stdout.tsv"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_empty_counted_append/9.1.0/stdout.tsv"
+            ),
+        ),
+    ]
+}
+
+fn empty_append_primary(
+    cache: &tcl_syntax::native_object::NativeObjectCacheSnapshot,
+) -> &'static str {
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+    match cache {
+        NativeObjectCacheSnapshot::None => "NULL",
+        NativeObjectCacheSnapshot::String { .. } => "string",
+        NativeObjectCacheSnapshot::Numeric(
+            tcl_syntax::scalar_getter::NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+                _,
+            )),
+        ) => "int",
+        _ => panic!("fixed native constructor primary: {cache:?}"),
     }
 }
