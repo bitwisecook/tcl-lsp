@@ -207,7 +207,7 @@ pub fn registered_index_instruction<O: NativeIndexOps>(
         if let Some(bytes) = ops.native_object_snapshot(subject)?.resident
             && bytes.len() == length
         {
-            return Ok(ops.new_bytes(&bytes[index..index + 1]));
+            return Ok(ops.new_bytes(&bytes[index..=index]));
         }
         let units = ops.index_c_unicode_units(subject)?;
         let Some(&unit) = units.get(index) else {
@@ -229,13 +229,13 @@ pub fn registered_index_instruction<O: NativeIndexOps>(
             {
                 &units[index..index + 2]
             } else {
-                &units[index..index + 1]
+                &units[index..=index]
             }
         } else {
             if version >= TclVersion::V9_0 && unit == u32::MAX {
                 return Ok(ops.empty());
             }
-            &units[index..index + 1]
+            &units[index..=index]
         };
         let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
             .encode_units(selected)
